@@ -5,10 +5,10 @@ Camera Streaming
 ================
 
 ``camera_viz`` is the reference camera-streaming sample built on :doc:`Televiz
-</getting_started/televiz>` (``isaacteleop.viz``). It captures frames from one or more cameras —
-or replays a video file — and visualizes them on a desktop window or an XR headset, one plane per
-camera, aspect-fit. It can also stream a robot's cameras to a workstation over the network
-(split mode).
+</getting_started/televiz>` (``isaacteleop.viz``). It captures frames from one or more cameras
+and streams them to an XR headset — one plane per camera, aspect-fit — either directly or from a
+robot to a workstation over the network (split mode). For development and debugging it can also
+replay a video file in place of a camera, and render to a desktop window instead of the headset.
 
 The sample lives at :code-dir:`examples/camera_viz/ <examples/camera_viz>`. This page walks you
 from setup and a hardware-free first run to real cameras and the robot → workstation split mode.
