@@ -130,6 +130,9 @@ contains exactly the matching channels.  To capture more data, add
 additional source nodes (``HeadSource``, ``ControllersSource``, …) in
 ``common.py``.
 
+For a live browser view of **all** human DeviceIO trackers at once (hands, head,
+controllers, and full body), see ``examples/deviceio_live_view/python/``.
+
 Recording
 ^^^^^^^^^
 
