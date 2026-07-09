@@ -1,0 +1,7 @@
+# Replay clips for ``type: video`` — user-supplied or generated
+# (e.g. the ffmpeg test pattern from the docs), never committed.
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.mov

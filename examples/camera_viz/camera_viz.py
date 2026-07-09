@@ -139,6 +139,12 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 f"camera_viz: camera {cam.get('name')!r} missing rtp.port; "
                 "required when source: rtp"
             )
+        if "width" not in cam or "height" not in cam:
+            raise ValueError(
+                f"camera_viz: camera {cam.get('name')!r} needs explicit "
+                "width/height when source: rtp — the receiver sizes its "
+                "decoder from the YAML, not from the wire"
+            )
         placement = _placement_with_aspect(
             placements_cfg.get(cam["name"]), int(cam["width"]), int(cam["height"]), is_xr
         )
