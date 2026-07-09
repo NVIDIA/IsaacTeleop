@@ -58,6 +58,10 @@ The camera kind is selected per entry by the YAML ``type:`` field:
      - OAK-D mono RGB / LEFT / RIGHT (stereo not yet wired).
    * - ``zed``
      - ZED 2 / Mini / X One; mono or ``stereo: true`` (per-eye SDK retrieve, zero-copy on the GPU).
+   * - ``video``
+     - Video-file replay (anything OpenCV's FFmpeg backend reads) — preview / Televiz testing
+       without a camera. Loops by default; ``stereo: true`` splits side-by-side recordings into
+       eyes (viewer only).
 
 Output goes to a window or an XR headset. Stereo cameras render true side-by-side stereo in XR;
 window mode shows the left eye. XR placement lock modes are ``world`` / ``head`` / ``lazy``.
@@ -77,7 +81,7 @@ Televiz as the compositor at the end of the chain:
    ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
    ├── pipeline/            — source ABC + threaded runner
    ├── placements/          — XR lock-mode strategies (world / head / lazy)
-   ├── sources/             — V4L2 / OAK-D / ZED / synthetic / rtp_h264
+   ├── sources/             — V4L2 / OAK-D / ZED / synthetic / video replay / rtp_h264
    ├── transports/          — RTP sender + receiver (native + GStreamer)
    ├── codec/               — native NVENC / NVDEC pybind module
    ├── configs/             — one YAML per camera kind
@@ -130,8 +134,8 @@ Set ``source: local`` in the config and run the viewer:
 
    ./camera_viz.sh run configs/v4l2.yaml
 
-Swap the config for ``oakd.yaml``, ``zed.yaml``, ``synthetic.yaml``, ``synthetic_stereo.yaml``, or
-``multi_camera.yaml``.
+Swap the config for ``oakd.yaml``, ``zed.yaml``, ``synthetic.yaml``, ``synthetic_stereo.yaml``,
+``multi_camera.yaml``, or ``video.yaml`` (file replay — point ``path:`` at any recording).
 
 Split (robot → workstation over RTP)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -180,11 +184,11 @@ A single YAML drives both capture and visualization. Each ``cameras:`` entry bec
    cameras:
      - name: cam
        enabled: true
-       type: v4l2                # v4l2 | oakd | zed | synthetic
-       width: 2560
+       type: v4l2                # v4l2 | oakd | zed | synthetic | video
+       width: 2560               # video: optional — defaults to the file's size
        height: 720
        fps: 30
-       stereo: false             # zed / synthetic only — per-eye capture + SBS in XR
+       stereo: false             # zed / synthetic / video only — per-eye capture + SBS in XR
        rtp:
          port: 5000              # left eye when stereo
          port_right: 5001        # required when stereo + source: rtp

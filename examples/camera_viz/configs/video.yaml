@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Video-file replay — plays a recording through the same source →
+# QuadLayer → Televiz path as a live camera. Preview / Televiz testing
+# when no camera is attached; also works as camera_streamer's capture
+# side (mono only) to exercise the full RTP path camera-free.
+#
+# Point ``path`` at any file OpenCV's FFmpeg backend reads (mp4 / mkv /
+# webm, H.264 / HEVC / AV1 / ...). No sample clip ships with the repo;
+# generate a 10 s test pattern with:
+#   ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30 -t 10 recording.mp4
+
+source: local                   # local | rtp — see real-camera configs for rtp
+streaming:
+  host: 127.0.0.1               # only used by camera_streamer (rtp mode)
+encoder: auto                   # auto | native | gstreamer
+
+cameras:
+  - name: replay
+    enabled: true
+    type: video
+    path: recording.mp4         # relative paths resolve against this YAML's dir
+    loop: true                  # rewind at end of file (false = hold last frame)
+    fps: 0                      # 0 = the file's native rate. With source: rtp,
+                                # set this explicitly — the sender's encode loop
+                                # paces at fps (default 30) regardless of the file.
+    # width/height default to the file's native size (per eye when stereo);
+    # set both to resize each frame on the CPU before upload.
+    # width: 1280
+    # height: 720
+    stereo: false               # true = side-by-side file, split into eyes.
+                                # Viewer-only: the RTP sender needs per-eye
+                                # streams and rejects single-source stereo.
+    rtp:                        # only used when source: rtp + camera_streamer
+      port: 5000
+      bitrate_mbps: 15
+
+display:
+  mode: window                  # window | xr
+  window:
+    width: 1280
+    height: 720
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.05, 0.05, 0.08, 1.0]
+  placements:
+    replay:                     # size defaults to 1.0 m wide × aspect-derived height
+      lock_mode: lazy
+      distance: 1.5

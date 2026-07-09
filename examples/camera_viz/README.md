@@ -20,6 +20,7 @@ SPDX-License-Identifier: Apache-2.0
 | `v4l2`      | USB / UVC — anything `v4l2-ctl --list-formats-ext` shows |
 | `oakd`      | OAK-D mono RGB / LEFT / RIGHT (stereo not yet wired) |
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
+| `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
 Output: window or XR headset; one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
 
@@ -46,7 +47,7 @@ Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `
 ./camera_viz.sh run configs/v4l2.yaml
 ```
 
-Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`.
+Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`, `video.yaml` (file replay — point `path:` at any recording).
 
 ## Mode 2 — Split (robot → workstation, RTP)
 
@@ -92,12 +93,12 @@ encoder: auto | native | gstreamer
 cameras:
   - name: cam
     enabled: true
-    type: v4l2                # v4l2 | oakd | zed | synthetic
-    width: 2560
+    type: v4l2                # v4l2 | oakd | zed | synthetic | video
+    width: 2560               # video: optional — defaults to the file's size
     height: 720
     fps: 30
-    stereo: false             # zed / synthetic only — enables per-eye capture + SBS XR
-    # … type-specific fields (e.g. synthetic: disparity_px)
+    stereo: false             # zed / synthetic / video only — per-eye capture + SBS XR
+    # … type-specific fields (e.g. synthetic: disparity_px; video: path, loop)
     rtp:
       port: 5000              # left eye when stereo
       port_right: 5001        # required when stereo + source: rtp
@@ -144,7 +145,7 @@ camera_viz/
 ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
 ├── pipeline/            — source ABC + threaded runner
 ├── placements/          — XR lock-mode strategies
-├── sources/             — V4L2 / OAK-D / ZED / synthetic / rtp_h264
+├── sources/             — V4L2 / OAK-D / ZED / synthetic / video replay / rtp_h264
 ├── transports/          — RTP sender + receiver, native + GStreamer
 ├── codec/               — native NVENC/NVDEC pybind module
 ├── configs/             — one YAML per camera kind

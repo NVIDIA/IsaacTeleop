@@ -8,6 +8,7 @@ contract — the teleop hot path never round-trips through host memory.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import List
 
 from pipeline import FrameSource
@@ -17,6 +18,7 @@ from .oakd import OakdSource
 from .rtp_h264 import RtpH264Source
 from .synthetic import SyntheticSource, SyntheticStereoSource
 from .v4l2 import V4l2Source
+from .video_file import VideoFileSource
 from .zed import ZedSource
 
 __all__ = [
@@ -26,10 +28,24 @@ __all__ = [
     "SyntheticSource",
     "SyntheticStereoSource",
     "V4l2Source",
+    "VideoFileSource",
     "ZedSource",
     "build_local_camera",
+    "resolve_video_paths",
     "set_verbose",
 ]
+
+
+def resolve_video_paths(cfg: dict, base_dir) -> None:
+    """Anchor relative ``path:`` values of ``type: video`` cameras to the
+    YAML file's directory (in place), so playback doesn't depend on the
+    process CWD. Call right after loading the config."""
+    for cam in cfg.get("cameras", []):
+        if cam.get("type") == "video" and "path" in cam:
+            p = Path(str(cam["path"])).expanduser()
+            if not p.is_absolute():
+                p = Path(base_dir) / p
+            cam["path"] = str(p)
 
 
 def build_local_camera(spec: dict) -> List[FrameSource]:
@@ -104,6 +120,21 @@ def build_local_camera(spec: dict) -> List[FrameSource]:
                 )
             return [PairedFrameSource(name=name, left=eyes[0], right=eyes[1])]
         return eyes
+    if kind == "video":
+        # Stereo (side-by-side file) emits both eyes from one source, like
+        # SyntheticStereoSource — viewer-only; camera_streamer's
+        # _eye_sources rejects it because there are no per-eye streams.
+        return [
+            VideoFileSource(
+                name=name,
+                path=spec["path"],
+                width=int(spec.get("width", 0)),
+                height=int(spec.get("height", 0)),
+                fps=float(spec.get("fps", 0.0)),
+                loop=bool(spec.get("loop", True)),
+                stereo=stereo,
+            )
+        ]
     if kind == "zed":
         eyes = list(
             ZedSource.build(
@@ -126,5 +157,5 @@ def build_local_camera(spec: dict) -> List[FrameSource]:
         return eyes
     raise ValueError(
         f"build_local_camera: unknown camera type {kind!r} "
-        "(known: synthetic, v4l2, oakd, zed)"
+        "(known: synthetic, v4l2, oakd, zed, video)"
     )
