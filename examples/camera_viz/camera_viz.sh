@@ -8,7 +8,7 @@
 # Local:
 #   ./camera_viz.sh setup [--sender-only]      install deps + build codec
 #   ./camera_viz.sh loopback CONFIG            run streamer + viz on 127.0.0.1
-#   ./camera_viz.sh run CONFIG                 run the viewer (honors source:)
+#   ./camera_viz.sh run CONFIG [--mode M]      run the viewer (honors source:)
 #
 # Remote (Jetson robot):
 #   ./camera_viz.sh deploy --host H --user U [--password P] CONFIG
@@ -401,10 +401,13 @@ LOCAL
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 
-    run CONFIG            Run the viewer with the YAML as-is. ``source:
+    run CONFIG [--mode xr|window]
+                          Run the viewer with the YAML as-is. ``source:
                           local`` opens cameras directly; ``source: rtp``
                           listens on rtp.port (sender IP irrelevant — the
-                          receiver binds 0.0.0.0).
+                          receiver binds 0.0.0.0). --mode overrides
+                          display.mode: xr renders to the headset (the
+                          default), window to a desktop window.
 
 REMOTE (Jetson robot)
     deploy [--host H --user U [--password P]]
@@ -437,6 +440,7 @@ EXAMPLES
     ./camera_viz.sh loopback configs/v4l2.yaml
     ./camera_viz.sh deploy --host 10.29.90.127 --user nvidia configs/v4l2.yaml
     ./camera_viz.sh run configs/v4l2.yaml
+    ./camera_viz.sh run configs/video.yaml --mode window   # no headset needed
 
     # Env-var style (avoids passwords in shell history / argv):
     export REMOTE_HOST=10.29.90.127 REMOTE_USER=nvidia

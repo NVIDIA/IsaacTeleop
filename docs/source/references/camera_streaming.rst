@@ -10,10 +10,10 @@ or replays a video file — and visualizes them on a desktop window or an XR hea
 camera, aspect-fit. It can also stream a robot's cameras to a workstation over the network
 (split mode).
 
-The sample lives at :code-dir:`examples/camera_viz/ <examples/camera_viz>`. This page walks
-through it in the order you would test it: setup, a first run that needs no camera, real cameras,
-XR output, then the robot → workstation split mode. For the exact command surface and flags, see
-the :code-file:`README <examples/camera_viz/README.md>`.
+The sample lives at :code-dir:`examples/camera_viz/ <examples/camera_viz>`. This page walks you
+from setup and a hardware-free first run to real cameras and the robot → workstation split mode.
+For the exact command surface and flags, see the
+:code-file:`README <examples/camera_viz/README.md>`.
 
 .. figure:: ../_static/televiz_2d.gif
    :alt: camera_viz in window mode with synthetic multi-camera feeds
@@ -31,8 +31,9 @@ Requirements
 
 - Linux x86_64 or Jetson with an NVIDIA GPU and a CUDA 12 driver (``nvidia-smi`` works) — every
   source hands frames to the renderer GPU-resident via CuPy.
-- ``display.mode: window`` needs a local display attached; ``display.mode: xr`` needs an OpenXR
-  runtime (see :doc:`/getting_started/televiz`).
+- The default display mode is XR, which needs an OpenXR runtime (see
+  :doc:`/getting_started/televiz`). No headset handy? ``--mode window`` renders to a desktop
+  window instead and only needs a local display.
 - No IsaacTeleop source build and no camera required — setup installs everything from PyPI, and
   the video-replay source runs hardware-free.
 
@@ -71,16 +72,18 @@ as a stand-in feed while the real camera isn't available:
    # HEVC / AV1, ...); or generate a 10 s test pattern:
    ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30 -t 10 configs/recording.mp4
 
-   ./camera_viz.sh run configs/video.yaml
+   ./camera_viz.sh run configs/video.yaml                 # XR headset (default)
+   ./camera_viz.sh run configs/video.yaml --mode window   # desktop window instead
 
-**Expected result** — the terminal reports the session and the source coming up::
+**You should see** the terminal report the session and the source coming up::
 
-   camera_viz: source=local, mode=window, xr=False, 1 layer(s)
+   camera_viz: source=local, mode=xr, xr=True, 1 layer(s)
    [video] opening...
    [video] connected
    [video] streaming
 
-and a window opens looping the clip.
+and the clip looping on a plane in the headset — or in a desktop window (``mode=window,
+xr=False``) with the ``--mode window`` override.
 
 To replay your own recording, edit ``path:`` in :code-file:`configs/video.yaml
 <examples/camera_viz/configs/video.yaml>` — relative paths resolve against the YAML's directory,
@@ -127,18 +130,19 @@ run with the matching config:
 
    ./camera_viz.sh run configs/v4l2.yaml     # or oakd.yaml / zed.yaml
 
-**Expected result** — the same startup lines as above with the camera's tag (``[v4l2]``,
-``[oakd]``, ``[zed]``) and a live feed in the window. Multiple ``cameras:`` entries render as one
-plane each in the same window.
+**You should see** the same startup lines as above with the camera's tag (``[v4l2]``,
+``[oakd]``, ``[zed]``) and the live feed. Multiple ``cameras:`` entries render as one plane
+each.
 
-XR output
----------
+Display modes
+-------------
 
-Set ``display.mode: xr`` in the YAML — or pass ``--mode xr`` to override the config — and run
-with an OpenXR runtime active. Each camera renders as its own plane in the headset; stereo
-sources (``stereo: true``) render true side-by-side stereo. Window mode shows the left eye.
+XR is the default: each camera renders as its own plane in the headset via the active OpenXR
+runtime, and stereo sources (``stereo: true``) render true side-by-side stereo. Pass
+``--mode window`` (or set ``display.mode: window`` in the YAML) to render to a desktop window
+instead — no headset or runtime needed; stereo shows the left eye.
 
-How a plane follows the operator's head is the per-camera ``lock_mode`` under
+In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` under
 ``display.placements.<name>``:
 
 .. list-table::
@@ -227,7 +231,7 @@ plane (and, in split mode, its own RTP port). Abbreviated:
          bitrate_mbps: 15
 
    display:
-     mode: window | xr
+     mode: xr | window           # default: xr
      window: { width, height }
      xr:     { near_z, far_z }
      clear_color: [r, g, b, a]
@@ -244,8 +248,11 @@ YAML per source kind.
 Troubleshooting
 ---------------
 
-- **No window appears over SSH** — ``display.mode: window`` needs a local display; run on the
-  machine you're sitting at, or use a video-capable remote desktop.
+- **The XR session fails to create** — the default mode needs an active OpenXR runtime (see
+  :doc:`/getting_started/televiz`); pass ``--mode window`` to render to a desktop window
+  instead.
+- **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
+  you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's
   directory (``configs/``), not the directory you launched from.
 - **A source fails asking for CuPy / CUDA** — check ``nvidia-smi`` works and setup completed;

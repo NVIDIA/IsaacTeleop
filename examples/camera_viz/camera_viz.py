@@ -199,7 +199,7 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
 def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSession:
     display = cfg.get("display", {})
     # --mode overrides display.mode when given.
-    mode_str = (mode_override or display.get("mode", "window")).lower()
+    mode_str = (mode_override or display.get("mode", "xr")).lower()
     session_cfg = viz.VizSessionConfig()
     if mode_str == "window":
         session_cfg.mode = viz.DisplayMode.kWindow
@@ -228,7 +228,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--mode",
         choices=("window", "xr"),
         default=None,
-        help="Override display.mode from the config (default: use the config's value).",
+        help="Override display.mode from the config "
+        "(default: the config's value, or xr when the config omits it).",
     )
     args = parser.parse_args(argv)
 
@@ -248,7 +249,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if source_mode not in ("local", "rtp"):
         raise ValueError(f"camera_viz: source must be local|rtp, got {source_mode!r}")
 
-    effective_mode = (args.mode or cfg.get("display", {}).get("mode", "window")).lower()
+    effective_mode = (args.mode or cfg.get("display", {}).get("mode", "xr")).lower()
     session = _make_session(cfg, mode_override=args.mode)
     is_xr = session.is_xr_mode()
 

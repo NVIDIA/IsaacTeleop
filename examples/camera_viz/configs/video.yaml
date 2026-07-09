@@ -38,7 +38,7 @@ cameras:
       bitrate_mbps: 15
 
 display:
-  mode: window                  # window | xr
+  mode: xr                      # xr | window (xr is the default)
   window:
     width: 1280
     height: 720

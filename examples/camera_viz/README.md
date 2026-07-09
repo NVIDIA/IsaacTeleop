@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
-Output: window or XR headset; one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
+Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
 
 ---
 
@@ -44,7 +44,8 @@ Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `
 ## Mode 1 — Direct
 
 ```bash
-./camera_viz.sh run configs/v4l2.yaml
+./camera_viz.sh run configs/v4l2.yaml                  # XR headset (default)
+./camera_viz.sh run configs/v4l2.yaml --mode window    # desktop window instead
 ```
 
 Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`, `video.yaml` (file replay — point `path:` at any recording).
@@ -107,7 +108,7 @@ cameras:
       # gpu_id: 0             # multi-GPU pin
 
 display:                      # camera_viz only
-  mode: window | xr
+  mode: xr | window           # default: xr
   window: { width, height }
   xr:     { near_z, far_z }
   clear_color: [r, g, b, a]
