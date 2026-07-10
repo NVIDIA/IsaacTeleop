@@ -465,6 +465,14 @@ function AppContent() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // Wire the 2D panel "Load Recording…" button to the recorder file picker
+  useEffect(() => {
+    const btn = document.getElementById("loadRecordingBtn");
+    if (!btn) return;
+    btn.addEventListener("click", loadRecording);
+    return () => btn.removeEventListener("click", loadRecording);
+  }, [loadRecording]);
+
   // Update HTML error message display when error state changes
   useEffect(() => {
     if (cloudXR2DUI) {
@@ -1046,7 +1054,6 @@ function AppContent() {
                   onStartReplay={startReplay}
                   onStopReplay={stopReplay}
                   onSaveRecording={saveRecording}
-                  onLoadRecording={loadRecording}
                   showTrace={config.showTrace ?? false}
                 />
               )}
