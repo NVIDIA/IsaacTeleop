@@ -465,13 +465,19 @@ function AppContent() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  // Wire the 2D panel "Load Recording…" button to the recorder file picker
+  // Wire the 2D panel "Load Recording…" and "Stop Replay" buttons.
+  // Stop Replay lives in the 2D panel because the in-XR dashboard pointer
+  // follows recorded positions during replay, making it uninteractable.
   useEffect(() => {
-    const btn = document.getElementById("loadRecordingBtn");
-    if (!btn) return;
-    btn.addEventListener("click", loadRecording);
-    return () => btn.removeEventListener("click", loadRecording);
-  }, [loadRecording]);
+    const loadBtn = document.getElementById("loadRecordingBtn");
+    const stopBtn = document.getElementById("stopReplayBtn");
+    loadBtn?.addEventListener("click", loadRecording);
+    stopBtn?.addEventListener("click", stopReplay);
+    return () => {
+      loadBtn?.removeEventListener("click", loadRecording);
+      stopBtn?.removeEventListener("click", stopReplay);
+    };
+  }, [loadRecording, stopReplay]);
 
   // Update HTML error message display when error state changes
   useEffect(() => {

@@ -47,7 +47,7 @@ import type {
 
 // ---- constants -------------------------------------------------------------
 
-const HAND_JOINT_COUNT = 25;
+
 const TRACE_LEN = 500;
 // Fixed screen-space pixel size — reliable in WebXR stereo
 const TRACE_DOT_SIZE = 6;
@@ -254,7 +254,11 @@ export function TraceVisualization({
     }
 
     const updateTrace = (slot: TraceChannel, pose: PoseLike) => {
-      if (showTrace && frame && pose) {
+      if (!showTrace) {
+        slot.points.visible = false;
+        return;
+      }
+      if (frame && pose) {
         slot.buf.push(pose.px, pose.py, pose.pz);
         const count = slot.buf.fill(
           slot.positions,
@@ -268,9 +272,8 @@ export function TraceVisualization({
         (geo.attributes.position as BufferAttribute).needsUpdate = true;
         (geo.attributes.color as BufferAttribute).needsUpdate = true;
         slot.points.visible = true;
-      } else {
-        slot.points.visible = false;
       }
+      // showTrace && tracking loss: leave visible so accumulated history stays rendered
     };
 
     updateTrace(t.leftGrip, frame?.poses.leftGrip);

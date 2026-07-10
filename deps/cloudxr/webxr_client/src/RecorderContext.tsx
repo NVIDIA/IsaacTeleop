@@ -28,6 +28,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -107,35 +108,40 @@ export function RecorderProvider({ children }: { children: React.ReactNode }) {
     setRecordedFrameCount(r.frames.length);
   }, []);
 
-  const onLoadRecording = useCallback(() => {
-    if (!fileInputRef.current) {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = ".json,application/json";
-      input.style.display = "none";
-      input.addEventListener("change", (e: Event) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (!file) return;
-        file
-          .text()
-          .then((text) => {
-            try {
-              const recording = XRInputRecorder.importJSON(text);
-              setSavedRecording(recording);
-            } catch (err) {
-              console.error("[Recorder] Failed to load recording:", err);
-            }
-          })
-          .catch((err) => {
-            console.error("[Recorder] Failed to read file:", err);
-          });
-        (e.target as HTMLInputElement).value = "";
-      });
-      document.body.appendChild(input);
-      fileInputRef.current = input;
-    }
-    fileInputRef.current.click();
+  useEffect(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.style.display = "none";
+    input.addEventListener("change", (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      file
+        .text()
+        .then((text) => {
+          try {
+            const recording = XRInputRecorder.importJSON(text);
+            setSavedRecording(recording);
+          } catch (err) {
+            console.error("[Recorder] Failed to load recording:", err);
+          }
+        })
+        .catch((err) => {
+          console.error("[Recorder] Failed to read file:", err);
+        });
+      (e.target as HTMLInputElement).value = "";
+    });
+    document.body.appendChild(input);
+    fileInputRef.current = input;
+    return () => {
+      document.body.removeChild(input);
+      fileInputRef.current = null;
+    };
   }, [setSavedRecording]);
+
+  const onLoadRecording = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   const onFrameRecord = useCallback((count: number) => {
     setRecordedFrameCount(count);
