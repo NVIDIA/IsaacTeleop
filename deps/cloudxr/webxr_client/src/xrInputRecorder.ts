@@ -463,12 +463,8 @@ export class XRInputRecorder {
           if (src.handedness === "right")
             return makeFakePose(rframe.poses.rightGrip);
         }
-        if (space === src.targetRaySpace) {
-          if (src.handedness === "left")
-            return makeFakePose(rframe.poses.leftAim);
-          if (src.handedness === "right")
-            return makeFakePose(rframe.poses.rightAim);
-        }
+        // targetRaySpace is intentionally not intercepted: the real pointer
+        // pose is preserved so the in-XR UI stays interactable during replay.
       }
       return this._origGetPose!.call(frame, space, baseSpace);
     }
