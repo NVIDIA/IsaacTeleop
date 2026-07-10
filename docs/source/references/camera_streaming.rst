@@ -29,29 +29,32 @@ For the exact command surface and flags, see the
 Requirements
 ------------
 
-- Linux x86_64 or Jetson with an NVIDIA GPU and a CUDA 12 driver (``nvidia-smi`` works) — every
-  source hands frames to the renderer GPU-resident via CuPy.
-- The default display mode is XR, which needs an OpenXR runtime (see
-  :doc:`/getting_started/televiz`). No headset handy? ``--mode window`` renders to a desktop
-  window instead and only needs a local display.
+- A workstation meeting the :doc:`system requirements </references/requirements>` (Ubuntu, NVIDIA
+  GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.
+- For the default XR mode, a running CloudXR server with a connected headset — follow the
+  :doc:`quick start </getting_started/quick_start>` steps :ref:`run-cloudxr-server` and
+  :ref:`connect-xr-headset`. No headset handy? ``--mode window`` renders to a desktop window
+  instead and only needs a local display.
 - No IsaacTeleop source build and no camera required — setup installs everything from PyPI, and
   the video-replay source runs hardware-free.
 
 Setup
 -----
 
-One-time setup installs the sample's Python environment:
+Clone the repository if you haven't already (quick start step :ref:`check-out-code-base`), then
+run the sample's one-time setup:
 
 .. code-block:: bash
 
    examples/camera_viz/camera_viz.sh setup
    source examples/camera_viz/.venv/bin/activate
 
-``setup`` installs ``isaacteleop`` (which bundles Televiz) and every other Python dependency from
-PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC codec, and probes system packages
-(GStreamer plugins, cairo / girepository headers, JetPack ``cuda-nvrtc`` + ``ld.so`` wiring). When
-something is missing it prints the exact ``apt-get`` line and prompts ``[y/N]`` — answering ``n``
-or running non-interactively aborts.
+There is no need to install the ``isaacteleop`` pip package yourself — ``setup`` creates the
+sample's own environment: it installs ``isaacteleop`` (which bundles Televiz) and every other
+Python dependency from PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC codec, and
+probes system packages (GStreamer plugins, cairo / girepository headers, JetPack ``cuda-nvrtc`` +
+``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line and prompts
+``[y/N]`` — answering ``n`` or running non-interactively aborts.
 
 Useful flags: ``--no-{v4l2,oakd,rtp}``, ``--with-zed``, ``--sender-only``, ``--jetson``. Pass
 ``--venv PATH`` to install into an existing virtual environment. To develop against a locally
@@ -246,9 +249,9 @@ YAML per source kind.
 Troubleshooting
 ---------------
 
-- **The XR session fails to create** — the default mode needs an active OpenXR runtime (see
-  :doc:`/getting_started/televiz`); pass ``--mode window`` to render to a desktop window
-  instead.
+- **The XR session fails to create** — the default mode needs the CloudXR server running and a
+  headset connected (quick start steps :ref:`run-cloudxr-server` and :ref:`connect-xr-headset`);
+  pass ``--mode window`` to render to a desktop window instead.
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's
