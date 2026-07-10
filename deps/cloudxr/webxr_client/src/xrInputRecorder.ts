@@ -429,23 +429,19 @@ export class XRInputRecorder {
       if (entry) {
         for (const src of frame.session.inputSources) {
           if (space === src.gripSpace) {
-            // Only write if not already set by proactive scene-space capture in beginFrame.
-            if (src.handedness === "left" && entry.poses.leftGrip === null)
+            // Always overwrite proactive scene-space capture so the pose is stored
+            // in the caller's actual reference space (localFloorSpace), decoupling
+            // the recording from CloudXR's coordinate transform.
+            if (src.handedness === "left")
               entry.poses.leftGrip = serializePose(real);
-            else if (
-              src.handedness === "right" &&
-              entry.poses.rightGrip === null
-            )
+            else if (src.handedness === "right")
               entry.poses.rightGrip = serializePose(real);
             break;
           }
           if (space === src.targetRaySpace) {
-            if (src.handedness === "left" && entry.poses.leftAim === null)
+            if (src.handedness === "left")
               entry.poses.leftAim = serializePose(real);
-            else if (
-              src.handedness === "right" &&
-              entry.poses.rightAim === null
-            )
+            else if (src.handedness === "right")
               entry.poses.rightAim = serializePose(real);
             break;
           }
