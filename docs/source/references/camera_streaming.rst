@@ -271,8 +271,6 @@ Troubleshooting
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's
   directory (``configs/``), not the directory you launched from.
-- **The shipped test clip won't open** — it lives in Git LFS; if ``test_data/recording.mp4`` is
-  a tiny text file, run ``git lfs install && git lfs pull``.
 - **A source fails asking for CuPy / CUDA** — check ``nvidia-smi`` works and setup completed;
   all sources allocate their frame buffers on the GPU.
 - **Split mode renders nothing** — check the sender is up (``./camera_viz.sh service-status``),
