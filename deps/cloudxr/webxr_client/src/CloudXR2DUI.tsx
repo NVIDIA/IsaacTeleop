@@ -36,7 +36,7 @@ import {
   getDeviceProfile,
   resolveDeviceProfileId,
   type DeviceProfileId,
-} from '@helpers/DeviceProfiles';
+} from "@helpers/DeviceProfiles";
 import {
   type AutoRefreshMode,
   loadPerProject,
@@ -44,13 +44,13 @@ import {
   parseControlPanelPosition,
   ReactUIConfig,
   savePerProject,
-} from '@helpers/react/utils';
+} from "@helpers/react/utils";
 import {
   DEFAULT_TELEOP_PATH,
   DROPDOWN_ENTRIES,
   getProjectBreadcrumb,
   getProjectSettings,
-} from '@helpers/TeleopProjects';
+} from "@helpers/TeleopProjects";
 import {
   CloudXRConfig,
   enableLocalStorage,
@@ -58,9 +58,9 @@ import {
   getResolutionFromInputs,
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
-} from '@helpers/utils';
-import { URL_PARAMS } from './config/params';
-import { seedsFromParams } from './config/resolve';
+} from "@helpers/utils";
+import { URL_PARAMS } from "./config/params";
+import { seedsFromParams } from "./config/resolve";
 import {
   getGridValidationError,
   getGridValidationMessageForConnect,
@@ -68,17 +68,23 @@ import {
   getResolutionValidationMessageForConnect,
   validateDepthReprojectionGrid,
   validatePerEyeResolution,
-} from '@nvidia/cloudxr';
+} from "@nvidia/cloudxr";
 
 /** Full config: CloudXR connection settings + React UI options. */
-type AppConfig = CloudXRConfig & ReactUIConfig;
+type AppConfig = CloudXRConfig &
+  ReactUIConfig & {
+    /** Show rolling path-trace dots for hands/controllers in XR. */
+    showTrace: boolean;
+    /** Show Record / Replay / Save buttons in the in-XR control panel. */
+    showRecordingControls: boolean;
+  };
 
 /**
  * localStorage key for the teleop-start countdown. Owned by the countdown feature in
  * App.tsx but defined here with the other storage keys so reset clears the same key the
  * feature writes. (Imported by App.tsx; App already depends on this module, so no cycle.)
  */
-export const COUNTDOWN_STORAGE_KEY = 'cxr.react.countdownSeconds';
+export const COUNTDOWN_STORAGE_KEY = "cxr.react.countdownSeconds";
 
 /**
  * 2D UI Management for CloudXR React Example
@@ -166,6 +172,10 @@ export class CloudXR2DUI {
   private mediaPortInput!: HTMLInputElement;
   /** Dropdown for controller model visibility (show / hide) */
   private controllerModelVisibilitySelect!: HTMLSelectElement;
+  /** Dropdown to show/hide the rolling trace in XR */
+  private showTraceInXRSelect!: HTMLSelectElement;
+  /** Dropdown to show/hide recording controls in the in-XR control panel */
+  private showRecordingControlsSelect!: HTMLSelectElement;
   /** Skip client CloudXR `render` (headless: client blit off; tracking on) */
   private headlessInput!: HTMLInputElement;
   /** When to reload the page after the XR session ends (never / clean / any) */
@@ -232,8 +242,10 @@ export class CloudXR2DUI {
       // clients: localStorage restores the values saved when the profile was picked,
       // which otherwise pins them forever. Safe because any manual edit of a
       // profile-bound field switches the persisted profile to 'custom'.
-      const persistedProfileId = resolveDeviceProfileId(this.deviceProfileSelect.value);
-      if (persistedProfileId !== 'custom') {
+      const persistedProfileId = resolveDeviceProfileId(
+        this.deviceProfileSelect.value,
+      );
+      if (persistedProfileId !== "custom") {
         this.applyDeviceProfileToForm(persistedProfileId);
         this.persistProfileFieldsToLocalStorage();
       }
@@ -243,9 +255,12 @@ export class CloudXR2DUI {
       this.setupEventListeners();
       this.restoreGroupExpandedState();
       // Set initial display value
-      this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
+      this.posePredictionFactorValue.textContent =
+        this.posePredictionFactorInput.value;
       this.updateConfiguration();
-      this.updateDeviceProfileWarning(resolveDeviceProfileId(this.deviceProfileSelect.value));
+      this.updateDeviceProfileWarning(
+        resolveDeviceProfileId(this.deviceProfileSelect.value),
+      );
       this.updateConnectButtonState();
       this.initialized = true;
     } catch (error) {
@@ -258,13 +273,13 @@ export class CloudXR2DUI {
   private applyTeleopPath(): void {
     const breadcrumb = getProjectBreadcrumb(this.teleopPath);
     this.teleopModeSubtitle.replaceChildren();
-    this.teleopModeSubtitle.appendChild(document.createTextNode('for '));
+    this.teleopModeSubtitle.appendChild(document.createTextNode("for "));
     breadcrumb.forEach((label, i) => {
       if (i > 0) {
         // aria-hidden so screen readers skip the chevron glyph.
-        const sep = document.createElement('span');
-        sep.setAttribute('aria-hidden', 'true');
-        sep.textContent = ' \u203A ';
+        const sep = document.createElement("span");
+        sep.setAttribute("aria-hidden", "true");
+        sep.textContent = " \u203A ";
         this.teleopModeSubtitle.appendChild(sep);
       }
       this.teleopModeSubtitle.appendChild(document.createTextNode(label));
@@ -278,15 +293,17 @@ export class CloudXR2DUI {
   private applyPerProjectSettings(): void {
     const settings = getProjectSettings(this.teleopPath);
     const boolFromStorage = (raw: string) =>
-      raw === 'true' ? true : raw === 'false' ? false : undefined;
+      raw === "true" ? true : raw === "false" ? false : undefined;
     const panelHidden = loadPerProject<boolean>(
-      'panelHiddenAtStart', this.teleopPath,
+      "panelHiddenAtStart",
+      this.teleopPath,
       boolFromStorage,
       settings.panelHiddenAtStart ?? false,
     );
     this.panelHiddenAtStartSelect.value = String(panelHidden);
     const headless = loadPerProject<boolean>(
-      'headless', this.teleopPath,
+      "headless",
+      this.teleopPath,
       boolFromStorage,
       settings.headless ?? false,
     );
@@ -299,13 +316,13 @@ export class CloudXR2DUI {
    */
   private applyHeadlessImmersiveDropdown(): void {
     if (this.headlessInput.checked) {
-      this.immersiveSelect.value = 'vr';
+      this.immersiveSelect.value = "vr";
       this.immersiveSelect.disabled = true;
       this.immersiveSelect.title =
-        'Headless requires VR (immersive-vr); AR passthrough is not available in this mode.';
+        "Headless requires VR (immersive-vr); AR passthrough is not available in this mode.";
     } else {
       this.immersiveSelect.disabled = false;
-      this.immersiveSelect.title = '';
+      this.immersiveSelect.title = "";
     }
   }
 
@@ -316,7 +333,7 @@ export class CloudXR2DUI {
    * where hover is not reliable, so the marker itself must be self-describing.
    */
   private decoratePerProjectLabels(): void {
-    const marker = ' (saved per teleop application)';
+    const marker = " (saved per teleop application)";
     for (const el of [this.panelHiddenAtStartSelect, this.headlessInput]) {
       const label = el.labels?.[0];
       if (!label || label.textContent?.includes(marker)) continue;
@@ -329,21 +346,24 @@ export class CloudXR2DUI {
     const select = this.teleopProjectSelect;
     select.replaceChildren();
 
-    const INDENT = '\u00A0\u00A0\u00A0';
+    const INDENT = "\u00A0\u00A0\u00A0";
     const currentHash = `#/${this.teleopPath}`;
 
     // Static prompt when collapsed (the breadcrumb already shows the current path);
     // the active entry is suffixed and disabled so it reads as already selected.
-    const prompt = document.createElement('option');
-    prompt.value = '';
-    prompt.textContent = 'Change teleop application';
+    const prompt = document.createElement("option");
+    prompt.value = "";
+    prompt.textContent = "Change teleop application";
     select.appendChild(prompt);
 
     for (const entry of DROPDOWN_ENTRIES) {
-      const option = document.createElement('option');
+      const option = document.createElement("option");
       option.value = entry.hash;
       const isCurrent = entry.hash === currentHash;
-      option.textContent = INDENT.repeat(entry.depth) + entry.label + (isCurrent ? '  (current)' : '');
+      option.textContent =
+        INDENT.repeat(entry.depth) +
+        entry.label +
+        (isCurrent ? "  (current)" : "");
       if (isCurrent) option.disabled = true;
       select.appendChild(option);
     }
@@ -365,11 +385,11 @@ export class CloudXR2DUI {
   private applyDefaultDeviceProfileFromUserAgent(): void {
     let stored: string | null = null;
     try {
-      stored = localStorage.getItem('deviceProfile');
+      stored = localStorage.getItem("deviceProfile");
     } catch (_) {}
     if (stored != null) return;
     const detected = detectDeviceProfileId();
-    if (detected === 'custom') return;
+    if (detected === "custom") return;
     this.deviceProfileSelect.value = detected;
     this.applyDeviceProfileToForm(detected);
   }
@@ -392,13 +412,13 @@ export class CloudXR2DUI {
         | HTMLSelectElement
         | null;
       if (!el) continue;
-      if (field.kind === 'checked') {
-        (el as HTMLInputElement).checked = raw === 'true';
+      if (field.kind === "checked") {
+        (el as HTMLInputElement).checked = raw === "true";
       } else {
         el.value = raw;
       }
     }
-    if (seeds.has('headless')) {
+    if (seeds.has("headless")) {
       this.applyHeadlessImmersiveDropdown();
     }
   }
@@ -408,66 +428,107 @@ export class CloudXR2DUI {
    * Throws an error if any required element is not found
    */
   private initializeElements(): void {
-    this.startButton = this.getElement<HTMLButtonElement>('startButton');
-    this.serverIpInput = this.getElement<HTMLInputElement>('serverIpInput');
-    this.serverIpClearButton = this.getElement<HTMLButtonElement>('serverIpClearButton');
-    this.portInput = this.getElement<HTMLInputElement>('portInput');
-    this.proxyUrlInput = this.getElement<HTMLInputElement>('proxyUrl');
-    this.immersiveSelect = this.getElement<HTMLSelectElement>('immersive');
-    this.deviceFrameRateSelect = this.getElement<HTMLSelectElement>('deviceFrameRate');
-    this.maxStreamingBitrateMbpsSelect =
-      this.getElement<HTMLSelectElement>('maxStreamingBitrateMbps');
-    this.codecSelect = this.getElement<HTMLSelectElement>('codec');
-    this.perEyeWidthInput = this.getElement<HTMLInputElement>('perEyeWidth');
-    this.perEyeHeightInput = this.getElement<HTMLInputElement>('perEyeHeight');
-    this.reprojectionGridColsInput = this.getElement<HTMLInputElement>('reprojectionGridCols');
-    this.reprojectionGridRowsInput = this.getElement<HTMLInputElement>('reprojectionGridRows');
+    this.startButton = this.getElement<HTMLButtonElement>("startButton");
+    this.serverIpInput = this.getElement<HTMLInputElement>("serverIpInput");
+    this.serverIpClearButton = this.getElement<HTMLButtonElement>(
+      "serverIpClearButton",
+    );
+    this.portInput = this.getElement<HTMLInputElement>("portInput");
+    this.proxyUrlInput = this.getElement<HTMLInputElement>("proxyUrl");
+    this.immersiveSelect = this.getElement<HTMLSelectElement>("immersive");
+    this.deviceFrameRateSelect =
+      this.getElement<HTMLSelectElement>("deviceFrameRate");
+    this.maxStreamingBitrateMbpsSelect = this.getElement<HTMLSelectElement>(
+      "maxStreamingBitrateMbps",
+    );
+    this.codecSelect = this.getElement<HTMLSelectElement>("codec");
+    this.perEyeWidthInput = this.getElement<HTMLInputElement>("perEyeWidth");
+    this.perEyeHeightInput = this.getElement<HTMLInputElement>("perEyeHeight");
+    this.reprojectionGridColsInput = this.getElement<HTMLInputElement>(
+      "reprojectionGridCols",
+    );
+    this.reprojectionGridRowsInput = this.getElement<HTMLInputElement>(
+      "reprojectionGridRows",
+    );
     this.resolutionWidthValidationMessage = document.getElementById(
-      'resolutionWidthValidationMessage'
+      "resolutionWidthValidationMessage",
     );
     this.resolutionHeightValidationMessage = document.getElementById(
-      'resolutionHeightValidationMessage'
+      "resolutionHeightValidationMessage",
     );
     this.reprojectionGridColsValidationMessage = document.getElementById(
-      'reprojectionGridColsValidationMessage'
+      "reprojectionGridColsValidationMessage",
     );
     this.reprojectionGridRowsValidationMessage = document.getElementById(
-      'reprojectionGridRowsValidationMessage'
+      "reprojectionGridRowsValidationMessage",
     );
-    this.enablePoseSmoothingSelect = this.getElement<HTMLSelectElement>('enablePoseSmoothing');
-    this.posePredictionFactorInput = this.getElement<HTMLInputElement>('posePredictionFactor');
-    this.posePredictionFactorValue = this.getElement<HTMLElement>('posePredictionFactorValue');
-    this.enableTexSubImage2DSelect = this.getElement<HTMLSelectElement>('enableTexSubImage2D');
-    this.useQuestColorWorkaroundSelect =
-      this.getElement<HTMLSelectElement>('useQuestColorWorkaround');
-    this.serverTypeSelect = this.getElement<HTMLSelectElement>('serverType');
-    this.deviceProfileSelect = this.getElement<HTMLSelectElement>('deviceProfile');
-    this.panelHiddenAtStartSelect = this.getElement<HTMLSelectElement>('panelHiddenAtStart');
-    this.referenceSpaceSelect = this.getElement<HTMLSelectElement>('referenceSpace');
-    this.xrOffsetXInput = this.getElement<HTMLInputElement>('xrOffsetX');
-    this.xrOffsetYInput = this.getElement<HTMLInputElement>('xrOffsetY');
-    this.xrOffsetZInput = this.getElement<HTMLInputElement>('xrOffsetZ');
-    this.controlPanelPositionSelect = this.getElement<HTMLSelectElement>('controlPanelPosition');
-    this.proxyDefaultText = this.getElement<HTMLElement>('proxyDefaultText');
-    this.deviceProfileWarning = this.getElement<HTMLElement>('deviceProfileWarning');
-    this.errorMessageBox = this.getElement<HTMLElement>('errorMessageBox');
-    this.errorMessageText = this.getElement<HTMLElement>('errorMessageText');
-    this.validationMessageBox = this.getElement<HTMLElement>('validationMessageBox');
-    this.validationMessageText = this.getElement<HTMLElement>('validationMessageText');
-    this.certAcceptanceLink = this.getElement<HTMLElement>('certAcceptanceLink');
-    this.certLink = this.getElement<HTMLAnchorElement>('certLink');
-    this.mediaAddressInput = this.getElement<HTMLInputElement>('mediaAddress');
-    this.mediaPortInput = this.getElement<HTMLInputElement>('mediaPort');
+    this.enablePoseSmoothingSelect = this.getElement<HTMLSelectElement>(
+      "enablePoseSmoothing",
+    );
+    this.posePredictionFactorInput = this.getElement<HTMLInputElement>(
+      "posePredictionFactor",
+    );
+    this.posePredictionFactorValue = this.getElement<HTMLElement>(
+      "posePredictionFactorValue",
+    );
+    this.enableTexSubImage2DSelect = this.getElement<HTMLSelectElement>(
+      "enableTexSubImage2D",
+    );
+    this.useQuestColorWorkaroundSelect = this.getElement<HTMLSelectElement>(
+      "useQuestColorWorkaround",
+    );
+    this.serverTypeSelect = this.getElement<HTMLSelectElement>("serverType");
+    this.deviceProfileSelect =
+      this.getElement<HTMLSelectElement>("deviceProfile");
+    this.panelHiddenAtStartSelect =
+      this.getElement<HTMLSelectElement>("panelHiddenAtStart");
+    this.referenceSpaceSelect =
+      this.getElement<HTMLSelectElement>("referenceSpace");
+    this.xrOffsetXInput = this.getElement<HTMLInputElement>("xrOffsetX");
+    this.xrOffsetYInput = this.getElement<HTMLInputElement>("xrOffsetY");
+    this.xrOffsetZInput = this.getElement<HTMLInputElement>("xrOffsetZ");
+    this.controlPanelPositionSelect = this.getElement<HTMLSelectElement>(
+      "controlPanelPosition",
+    );
+    this.proxyDefaultText = this.getElement<HTMLElement>("proxyDefaultText");
+    this.deviceProfileWarning = this.getElement<HTMLElement>(
+      "deviceProfileWarning",
+    );
+    this.errorMessageBox = this.getElement<HTMLElement>("errorMessageBox");
+    this.errorMessageText = this.getElement<HTMLElement>("errorMessageText");
+    this.validationMessageBox = this.getElement<HTMLElement>(
+      "validationMessageBox",
+    );
+    this.validationMessageText = this.getElement<HTMLElement>(
+      "validationMessageText",
+    );
+    this.certAcceptanceLink =
+      this.getElement<HTMLElement>("certAcceptanceLink");
+    this.certLink = this.getElement<HTMLAnchorElement>("certLink");
+    this.mediaAddressInput = this.getElement<HTMLInputElement>("mediaAddress");
+    this.mediaPortInput = this.getElement<HTMLInputElement>("mediaPort");
     this.controllerModelVisibilitySelect = this.getElement<HTMLSelectElement>(
-      'controllerModelVisibility'
+      "controllerModelVisibility",
     );
-    this.headlessInput = this.getElement<HTMLInputElement>('cloudxrHeadless');
-    this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>('cloudxrAutoRefreshMode');
-    this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
-    this.teleopProjectSelect = this.getElement<HTMLSelectElement>('teleopProjectSelect');
-    this.resetSettingsButton = this.getElement<HTMLButtonElement>('resetSettingsButton');
+    this.showTraceInXRSelect =
+      this.getElement<HTMLSelectElement>("showTraceInXR");
+    this.showRecordingControlsSelect = this.getElement<HTMLSelectElement>(
+      "showRecordingControls",
+    );
+    this.headlessInput = this.getElement<HTMLInputElement>("cloudxrHeadless");
+    this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>(
+      "cloudxrAutoRefreshMode",
+    );
+    this.teleopModeSubtitle =
+      this.getElement<HTMLElement>("teleopModeSubtitle");
+    this.teleopProjectSelect = this.getElement<HTMLSelectElement>(
+      "teleopProjectSelect",
+    );
+    this.resetSettingsButton = this.getElement<HTMLButtonElement>(
+      "resetSettingsButton",
+    );
     // Optional: absent in trimmed builds; renderUrlParamsHelp() no-ops when null.
-    this.urlParamsHelpList = document.getElementById('urlParamsHelpList');
+    this.urlParamsHelpList = document.getElementById("urlParamsHelpList");
   }
 
   /**
@@ -489,11 +550,16 @@ export class CloudXR2DUI {
    * @returns Default configuration object
    */
   private getDefaultConfiguration(): AppConfig {
-    const useSecure = typeof window !== 'undefined' ? window.location.protocol === 'https:' : false;
+    const useSecure =
+      typeof window !== "undefined"
+        ? window.location.protocol === "https:"
+        : false;
     // Default port: HTTP → 49100, HTTPS without proxy → 48322, HTTPS with proxy → 443
     const defaultPort = useSecure ? 48322 : 49100;
     return {
-      serverIP: (typeof window !== 'undefined' && window.location.hostname) || '127.0.0.1',
+      serverIP:
+        (typeof window !== "undefined" && window.location.hostname) ||
+        "127.0.0.1",
       port: defaultPort,
       useSecureConnection: useSecure,
       perEyeWidth: 2048,
@@ -504,21 +570,23 @@ export class CloudXR2DUI {
       // and the 'selected' options in index.html.
       deviceFrameRate: 72,
       maxStreamingBitrateMbps: 25,
-      codec: 'av1',
-      immersiveMode: 'ar',
-      deviceProfileId: 'custom',
-      serverType: 'manual',
+      codec: "av1",
+      immersiveMode: "ar",
+      deviceProfileId: "custom",
+      serverType: "manual",
       panelHiddenAtStart: false,
-      proxyUrl: '',
-      referenceSpaceType: 'auto',
-      controlPanelPosition: 'center',
+      proxyUrl: "",
+      referenceSpaceType: "auto",
+      controlPanelPosition: "center",
       enablePoseSmoothing: true,
       posePredictionFactor: 1.0,
       enableTexSubImage2D: false,
       useQuestColorWorkaround: false,
       hideControllerModel: false,
+      showTrace: false,
+      showRecordingControls: false,
       headless: false,
-      autoRefreshMode: 'clean',
+      autoRefreshMode: "clean",
       teleopPath: DEFAULT_TELEOP_PATH,
     };
   }
@@ -534,32 +602,43 @@ export class CloudXR2DUI {
     key: string;
   }> {
     return [
-      { el: this.serverTypeSelect, key: 'serverType' },
-      { el: this.serverIpInput, key: 'serverIp' },
-      { el: this.portInput, key: 'port' },
-      { el: this.perEyeWidthInput, key: 'perEyeWidth' },
-      { el: this.perEyeHeightInput, key: 'perEyeHeight' },
-      { el: this.reprojectionGridColsInput, key: 'reprojectionGridCols' },
-      { el: this.reprojectionGridRowsInput, key: 'reprojectionGridRows' },
-      { el: this.proxyUrlInput, key: 'proxyUrl' },
-      { el: this.deviceFrameRateSelect, key: 'deviceFrameRate' },
-      { el: this.maxStreamingBitrateMbpsSelect, key: 'maxStreamingBitrateMbps' },
-      { el: this.codecSelect, key: 'codec' },
-      { el: this.enablePoseSmoothingSelect, key: 'enablePoseSmoothing' },
-      { el: this.posePredictionFactorInput, key: 'posePredictionFactor' },
-      { el: this.enableTexSubImage2DSelect, key: 'enableTexSubImage2D' },
-      { el: this.useQuestColorWorkaroundSelect, key: 'useQuestColorWorkaround' },
-      { el: this.immersiveSelect, key: 'immersiveMode' },
-      { el: this.deviceProfileSelect, key: 'deviceProfile' },
-      { el: this.controlPanelPositionSelect, key: 'controlPanelPosition' },
-      { el: this.referenceSpaceSelect, key: 'referenceSpace' },
-      { el: this.xrOffsetXInput, key: 'xrOffsetX' },
-      { el: this.xrOffsetYInput, key: 'xrOffsetY' },
-      { el: this.xrOffsetZInput, key: 'xrOffsetZ' },
-      { el: this.mediaAddressInput, key: 'mediaAddress' },
-      { el: this.mediaPortInput, key: 'mediaPort' },
-      { el: this.controllerModelVisibilitySelect, key: 'controllerModelVisibility' },
-      { el: this.autoRefreshModeSelect, key: 'autoRefreshMode' },
+      { el: this.serverTypeSelect, key: "serverType" },
+      { el: this.serverIpInput, key: "serverIp" },
+      { el: this.portInput, key: "port" },
+      { el: this.perEyeWidthInput, key: "perEyeWidth" },
+      { el: this.perEyeHeightInput, key: "perEyeHeight" },
+      { el: this.reprojectionGridColsInput, key: "reprojectionGridCols" },
+      { el: this.reprojectionGridRowsInput, key: "reprojectionGridRows" },
+      { el: this.proxyUrlInput, key: "proxyUrl" },
+      { el: this.deviceFrameRateSelect, key: "deviceFrameRate" },
+      {
+        el: this.maxStreamingBitrateMbpsSelect,
+        key: "maxStreamingBitrateMbps",
+      },
+      { el: this.codecSelect, key: "codec" },
+      { el: this.enablePoseSmoothingSelect, key: "enablePoseSmoothing" },
+      { el: this.posePredictionFactorInput, key: "posePredictionFactor" },
+      { el: this.enableTexSubImage2DSelect, key: "enableTexSubImage2D" },
+      {
+        el: this.useQuestColorWorkaroundSelect,
+        key: "useQuestColorWorkaround",
+      },
+      { el: this.immersiveSelect, key: "immersiveMode" },
+      { el: this.deviceProfileSelect, key: "deviceProfile" },
+      { el: this.controlPanelPositionSelect, key: "controlPanelPosition" },
+      { el: this.referenceSpaceSelect, key: "referenceSpace" },
+      { el: this.xrOffsetXInput, key: "xrOffsetX" },
+      { el: this.xrOffsetYInput, key: "xrOffsetY" },
+      { el: this.xrOffsetZInput, key: "xrOffsetZ" },
+      { el: this.mediaAddressInput, key: "mediaAddress" },
+      { el: this.mediaPortInput, key: "mediaPort" },
+      {
+        el: this.controllerModelVisibilitySelect,
+        key: "controllerModelVisibility",
+      },
+      { el: this.showTraceInXRSelect, key: "showTraceInXR" },
+      { el: this.showRecordingControlsSelect, key: "showRecordingControls" },
+      { el: this.autoRefreshModeSelect, key: "autoRefreshMode" },
     ];
   }
 
@@ -599,7 +678,7 @@ export class CloudXR2DUI {
         }
       }
     } catch (error) {
-      console.warn('Failed to clear stored settings:', error);
+      console.warn("Failed to clear stored settings:", error);
     }
 
     // applyUrlSeeds() runs after setupLocalStorage() on load, so a form-backed query
@@ -615,7 +694,7 @@ export class CloudXR2DUI {
         url.searchParams.delete(param.url ?? param.key);
       }
     }
-    window.history.replaceState(null, '', url.toString());
+    window.history.replaceState(null, "", url.toString());
     window.location.reload();
   }
 
@@ -629,8 +708,8 @@ export class CloudXR2DUI {
     this.urlParamsHelpList.replaceChildren();
     for (const param of URL_PARAMS) {
       if (!param.description) continue;
-      const li = document.createElement('li');
-      const code = document.createElement('code');
+      const li = document.createElement("li");
+      const code = document.createElement("code");
       code.textContent = param.url ?? param.key;
       li.appendChild(code);
       li.appendChild(document.createTextNode(` — ${param.description}`));
@@ -639,35 +718,40 @@ export class CloudXR2DUI {
   }
 
   /** localStorage key prefix for each collapsible advanced group's open/closed state. */
-  private static readonly GROUP_STATE_PREFIX = 'cxr.group.';
+  private static readonly GROUP_STATE_PREFIX = "cxr.group.";
 
   /**
    * Settings persisted per teleop application under `cxr.isaac.<key>|<teleopPath>`
    * (see {@link applyPerProjectSettings} and helpers/react/utils savePerProject).
    * Centralized so resetToDefaults clears exactly the keys the per-project handlers write.
    */
-  private static readonly PER_PROJECT_SETTING_KEYS = ['panelHiddenAtStart', 'headless'];
+  private static readonly PER_PROJECT_SETTING_KEYS = [
+    "panelHiddenAtStart",
+    "headless",
+  ];
 
   /**
    * Restore each advanced group's expanded/collapsed state from localStorage and persist it on
    * toggle, so a user's "open" sections stay open across reloads. Keyed by the group's element id.
    */
   private restoreGroupExpandedState(): void {
-    const groups = document.querySelectorAll<HTMLDetailsElement>('details.settings-group[id]');
+    const groups = document.querySelectorAll<HTMLDetailsElement>(
+      "details.settings-group[id]",
+    );
     for (const group of Array.from(groups)) {
       const key = `${CloudXR2DUI.GROUP_STATE_PREFIX}${group.id}`;
       try {
         const saved = localStorage.getItem(key);
-        if (saved === 'true') group.open = true;
-        else if (saved === 'false') group.open = false;
+        if (saved === "true") group.open = true;
+        else if (saved === "false") group.open = false;
       } catch (_) {}
       const handler = () => {
         try {
           localStorage.setItem(key, String(group.open));
         } catch (_) {}
       };
-      group.addEventListener('toggle', handler);
-      this.eventListeners.push({ element: group, event: 'toggle', handler });
+      group.addEventListener("toggle", handler);
+      this.eventListeners.push({ element: group, event: "toggle", handler });
     }
   }
 
@@ -677,20 +761,22 @@ export class CloudXR2DUI {
    */
   private setupProxyConfiguration(): void {
     // Update port placeholder based on protocol
-    if (window.location.protocol === 'https:') {
-      this.portInput.placeholder = 'Port (default: 48322, or 443 if proxy URL set)';
+    if (window.location.protocol === "https:") {
+      this.portInput.placeholder =
+        "Port (default: 48322, or 443 if proxy URL set)";
     } else {
-      this.portInput.placeholder = 'Port (default: 49100)';
+      this.portInput.placeholder = "Port (default: 49100)";
     }
 
     // Set default text and placeholder based on protocol
-    if (window.location.protocol === 'https:') {
+    if (window.location.protocol === "https:") {
       this.proxyDefaultText.textContent =
-        'Optional: Leave empty for direct WSS connection, or provide URL for proxy routing (e.g., https://proxy.example.com/)';
-      this.proxyUrlInput.placeholder = '';
+        "Optional: Leave empty for direct WSS connection, or provide URL for proxy routing (e.g., https://proxy.example.com/)";
+      this.proxyUrlInput.placeholder = "";
     } else {
-      this.proxyDefaultText.textContent = 'Not needed for HTTP - uses direct WS connection';
-      this.proxyUrlInput.placeholder = '';
+      this.proxyDefaultText.textContent =
+        "Not needed for HTTP - uses direct WS connection";
+      this.proxyUrlInput.placeholder = "";
     }
   }
 
@@ -707,106 +793,156 @@ export class CloudXR2DUI {
     };
 
     // Helper function to add listeners and store them for cleanup
-    const addListener = (element: HTMLElement, event: string, handler: EventListener) => {
+    const addListener = (
+      element: HTMLElement,
+      event: string,
+      handler: EventListener,
+    ) => {
       element.addEventListener(event, handler);
       this.eventListeners.push({ element, event, handler });
     };
 
     // Add event listeners for all form fields
-    addListener(this.serverTypeSelect, 'change', updateConfig);
-    addListener(this.serverIpInput, 'input', updateConfig);
-    addListener(this.serverIpInput, 'change', updateConfig);
+    addListener(this.serverTypeSelect, "change", updateConfig);
+    addListener(this.serverIpInput, "input", updateConfig);
+    addListener(this.serverIpInput, "change", updateConfig);
 
     // Show the clear ("x") button only while the server IP field has a value,
     // and clear the prefill (incl. localStorage) on click so the browser's
     // autocomplete dropdown of previously connected servers can show again.
     const updateServerIpClearButton = () => {
-      this.serverIpClearButton.classList.toggle('visible', this.serverIpInput.value.length > 0);
+      this.serverIpClearButton.classList.toggle(
+        "visible",
+        this.serverIpInput.value.length > 0,
+      );
     };
-    addListener(this.serverIpInput, 'input', updateServerIpClearButton);
-    addListener(this.serverIpClearButton, 'click', () => {
-      this.serverIpInput.value = '';
+    addListener(this.serverIpInput, "input", updateServerIpClearButton);
+    addListener(this.serverIpClearButton, "click", () => {
+      this.serverIpInput.value = "";
       // Update the live config + clear-button state directly; 'change' persists
       // the now-empty value via the enableLocalStorage handler.
       updateServerIpClearButton();
       updateConfig();
-      this.serverIpInput.dispatchEvent(new Event('change', { bubbles: true }));
+      this.serverIpInput.dispatchEvent(new Event("change", { bubbles: true }));
       this.serverIpInput.focus();
     });
     updateServerIpClearButton();
-    addListener(this.portInput, 'input', updateConfig);
-    addListener(this.portInput, 'change', updateConfig);
+    addListener(this.portInput, "input", updateConfig);
+    addListener(this.portInput, "change", updateConfig);
     const updateResValidation = () => this.updateResolutionValidationMessage();
-    addListener(this.perEyeWidthInput, 'input', onProfileLinkedChange);
-    addListener(this.perEyeWidthInput, 'change', onProfileLinkedChange);
-    addListener(this.perEyeWidthInput, 'blur', updateResValidation);
-    addListener(this.perEyeWidthInput, 'keyup', updateResValidation);
-    addListener(this.perEyeHeightInput, 'input', onProfileLinkedChange);
-    addListener(this.perEyeHeightInput, 'change', onProfileLinkedChange);
-    addListener(this.perEyeHeightInput, 'blur', updateResValidation);
-    addListener(this.perEyeHeightInput, 'keyup', updateResValidation);
+    addListener(this.perEyeWidthInput, "input", onProfileLinkedChange);
+    addListener(this.perEyeWidthInput, "change", onProfileLinkedChange);
+    addListener(this.perEyeWidthInput, "blur", updateResValidation);
+    addListener(this.perEyeWidthInput, "keyup", updateResValidation);
+    addListener(this.perEyeHeightInput, "input", onProfileLinkedChange);
+    addListener(this.perEyeHeightInput, "change", onProfileLinkedChange);
+    addListener(this.perEyeHeightInput, "blur", updateResValidation);
+    addListener(this.perEyeHeightInput, "keyup", updateResValidation);
     this.updateResolutionValidationMessage();
     const updateGridValidation = () => this.updateGridValidationMessage();
-    addListener(this.reprojectionGridColsInput, 'input', onProfileLinkedChange);
-    addListener(this.reprojectionGridColsInput, 'change', onProfileLinkedChange);
-    addListener(this.reprojectionGridColsInput, 'blur', updateGridValidation);
-    addListener(this.reprojectionGridColsInput, 'keyup', updateGridValidation);
-    addListener(this.reprojectionGridRowsInput, 'input', onProfileLinkedChange);
-    addListener(this.reprojectionGridRowsInput, 'change', onProfileLinkedChange);
-    addListener(this.reprojectionGridRowsInput, 'blur', updateGridValidation);
-    addListener(this.reprojectionGridRowsInput, 'keyup', updateGridValidation);
+    addListener(this.reprojectionGridColsInput, "input", onProfileLinkedChange);
+    addListener(
+      this.reprojectionGridColsInput,
+      "change",
+      onProfileLinkedChange,
+    );
+    addListener(this.reprojectionGridColsInput, "blur", updateGridValidation);
+    addListener(this.reprojectionGridColsInput, "keyup", updateGridValidation);
+    addListener(this.reprojectionGridRowsInput, "input", onProfileLinkedChange);
+    addListener(
+      this.reprojectionGridRowsInput,
+      "change",
+      onProfileLinkedChange,
+    );
+    addListener(this.reprojectionGridRowsInput, "blur", updateGridValidation);
+    addListener(this.reprojectionGridRowsInput, "keyup", updateGridValidation);
     this.updateGridValidationMessage();
-    addListener(this.deviceFrameRateSelect, 'change', onProfileLinkedChange);
-    addListener(this.maxStreamingBitrateMbpsSelect, 'change', onProfileLinkedChange);
-    addListener(this.codecSelect, 'change', onProfileLinkedChange);
-    addListener(this.enablePoseSmoothingSelect, 'change', onProfileLinkedChange);
-    addListener(this.posePredictionFactorInput, 'change', onProfileLinkedChange);
-    addListener(this.posePredictionFactorInput, 'input', () => {
+    addListener(this.deviceFrameRateSelect, "change", onProfileLinkedChange);
+    addListener(
+      this.maxStreamingBitrateMbpsSelect,
+      "change",
+      onProfileLinkedChange,
+    );
+    addListener(this.codecSelect, "change", onProfileLinkedChange);
+    addListener(
+      this.enablePoseSmoothingSelect,
+      "change",
+      onProfileLinkedChange,
+    );
+    addListener(
+      this.posePredictionFactorInput,
+      "change",
+      onProfileLinkedChange,
+    );
+    addListener(this.posePredictionFactorInput, "input", () => {
       this.setProfileToCustomIfNeeded();
-      this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
+      this.posePredictionFactorValue.textContent =
+        this.posePredictionFactorInput.value;
       this.updateConfiguration();
     });
-    addListener(this.enableTexSubImage2DSelect, 'change', onProfileLinkedChange);
-    addListener(this.useQuestColorWorkaroundSelect, 'change', onProfileLinkedChange);
-    addListener(this.immersiveSelect, 'change', updateConfig);
-    addListener(this.panelHiddenAtStartSelect, 'change', () => {
+    addListener(
+      this.enableTexSubImage2DSelect,
+      "change",
+      onProfileLinkedChange,
+    );
+    addListener(
+      this.useQuestColorWorkaroundSelect,
+      "change",
+      onProfileLinkedChange,
+    );
+    addListener(this.immersiveSelect, "change", updateConfig);
+    addListener(this.panelHiddenAtStartSelect, "change", () => {
       // Pass the raw select value string through savePerProject; the matching
       // loadPerProject parses `'true'`/`'false'` back into a boolean.
-      savePerProject('panelHiddenAtStart', this.teleopPath, this.panelHiddenAtStartSelect.value);
+      savePerProject(
+        "panelHiddenAtStart",
+        this.teleopPath,
+        this.panelHiddenAtStartSelect.value,
+      );
       updateConfig();
     });
-    addListener(this.referenceSpaceSelect, 'change', updateConfig);
-    addListener(this.xrOffsetXInput, 'input', updateConfig);
-    addListener(this.xrOffsetXInput, 'change', updateConfig);
-    addListener(this.xrOffsetYInput, 'input', updateConfig);
-    addListener(this.xrOffsetYInput, 'change', updateConfig);
-    addListener(this.xrOffsetZInput, 'input', updateConfig);
-    addListener(this.xrOffsetZInput, 'change', updateConfig);
-    addListener(this.controlPanelPositionSelect, 'change', updateConfig);
-    addListener(this.teleopProjectSelect, 'change', () => {
+    addListener(this.referenceSpaceSelect, "change", updateConfig);
+    addListener(this.xrOffsetXInput, "input", updateConfig);
+    addListener(this.xrOffsetXInput, "change", updateConfig);
+    addListener(this.xrOffsetYInput, "input", updateConfig);
+    addListener(this.xrOffsetYInput, "change", updateConfig);
+    addListener(this.xrOffsetZInput, "input", updateConfig);
+    addListener(this.xrOffsetZInput, "change", updateConfig);
+    addListener(this.controlPanelPositionSelect, "change", updateConfig);
+    addListener(this.teleopProjectSelect, "change", () => {
       const value = this.teleopProjectSelect.value;
       if (!value) return;
       // Reset to the prompt before navigating so if the reload is aborted the
       // control doesn't end up stuck on the just-picked value.
       this.teleopProjectSelect.selectedIndex = 0;
-      window.location.hash = value.replace(/^#/, '');
+      window.location.hash = value.replace(/^#/, "");
     });
-    addListener(this.proxyUrlInput, 'input', updateConfig);
-    addListener(this.proxyUrlInput, 'change', updateConfig);
-    addListener(this.mediaAddressInput, 'input', updateConfig);
-    addListener(this.mediaAddressInput, 'change', updateConfig);
-    addListener(this.mediaPortInput, 'input', updateConfig);
-    addListener(this.mediaPortInput, 'change', updateConfig);
-    addListener(this.controllerModelVisibilitySelect, 'change', updateConfig);
-    addListener(this.headlessInput, 'change', () => {
-      savePerProject('headless', this.teleopPath, this.headlessInput.checked ? 'true' : 'false');
+    addListener(this.proxyUrlInput, "input", updateConfig);
+    addListener(this.proxyUrlInput, "change", updateConfig);
+    addListener(this.mediaAddressInput, "input", updateConfig);
+    addListener(this.mediaAddressInput, "change", updateConfig);
+    addListener(this.mediaPortInput, "input", updateConfig);
+    addListener(this.mediaPortInput, "change", updateConfig);
+    addListener(this.controllerModelVisibilitySelect, "change", updateConfig);
+    addListener(this.showTraceInXRSelect, "change", updateConfig);
+    addListener(this.showRecordingControlsSelect, "change", updateConfig);
+    addListener(this.headlessInput, "change", () => {
+      savePerProject(
+        "headless",
+        this.teleopPath,
+        this.headlessInput.checked ? "true" : "false",
+      );
       this.applyHeadlessImmersiveDropdown();
       this.updateConfiguration();
     });
-    addListener(this.autoRefreshModeSelect, 'change', updateConfig);
+    addListener(this.autoRefreshModeSelect, "change", updateConfig);
 
-    addListener(this.resetSettingsButton, 'click', () => {
-      if (window.confirm('Reset all settings to their defaults? This reloads the page.')) {
+    addListener(this.resetSettingsButton, "click", () => {
+      if (
+        window.confirm(
+          "Reset all settings to their defaults? This reloads the page.",
+        )
+      ) {
         this.resetToDefaults();
       }
     });
@@ -815,23 +951,27 @@ export class CloudXR2DUI {
     // negative. Each ± button (data-target = input id) flips its field's sign. Dispatch
     // 'change' so the existing offset listeners (updateConfiguration + localStorage) run.
     for (const btn of Array.from(
-      document.querySelectorAll<HTMLButtonElement>('.input-sign-btn')
+      document.querySelectorAll<HTMLButtonElement>(".input-sign-btn"),
     )) {
       const targetId = btn.dataset.target;
       if (!targetId) continue;
-      const input = document.getElementById(targetId) as HTMLInputElement | null;
+      const input = document.getElementById(
+        targetId,
+      ) as HTMLInputElement | null;
       if (!input) continue;
-      addListener(btn, 'click', () => {
+      addListener(btn, "click", () => {
         // Pure sign flip: a no-op on an empty/non-numeric field rather than inserting 0.
         const value = parseFloat(input.value);
         if (!Number.isFinite(value)) return;
         input.value = String(-value);
-        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
       });
     }
 
-    addListener(this.deviceProfileSelect, 'change', () => {
-      this.applyDeviceProfileToForm(resolveDeviceProfileId(this.deviceProfileSelect.value));
+    addListener(this.deviceProfileSelect, "change", () => {
+      this.applyDeviceProfileToForm(
+        resolveDeviceProfileId(this.deviceProfileSelect.value),
+      );
       this.persistProfileFieldsToLocalStorage();
       this.updateConfiguration();
     });
@@ -842,7 +982,7 @@ export class CloudXR2DUI {
       this.portInput,
       this.proxyUrlInput,
       this.certAcceptanceLink,
-      this.certLink
+      this.certLink,
     );
   }
 
@@ -850,22 +990,22 @@ export class CloudXR2DUI {
   private updateResolutionValidationMessage(): void {
     const { w: wNum, h: hNum } = getResolutionFromInputs(
       this.perEyeWidthInput,
-      this.perEyeHeightInput
+      this.perEyeHeightInput,
     );
     const { widthError, heightError } = validatePerEyeResolution(wNum, hNum);
     if (this.resolutionWidthValidationMessage) {
-      const showWidth = widthError ?? '';
+      const showWidth = widthError ?? "";
       this.resolutionWidthValidationMessage.textContent = showWidth;
       this.resolutionWidthValidationMessage.className = showWidth
-        ? 'config-text resolution-validation-error'
-        : 'config-text';
+        ? "config-text resolution-validation-error"
+        : "config-text";
     }
     if (this.resolutionHeightValidationMessage) {
-      const showHeight = heightError ?? '';
+      const showHeight = heightError ?? "";
       this.resolutionHeightValidationMessage.textContent = showHeight;
       this.resolutionHeightValidationMessage.className = showHeight
-        ? 'config-text resolution-validation-error'
-        : 'config-text';
+        ? "config-text resolution-validation-error"
+        : "config-text";
     }
     this.updateConnectButtonState();
   }
@@ -874,57 +1014,61 @@ export class CloudXR2DUI {
   private updateGridValidationMessage(): void {
     const { reprojectionGridCols, reprojectionGridRows } = getGridFromInputs(
       this.reprojectionGridColsInput,
-      this.reprojectionGridRowsInput
+      this.reprojectionGridRowsInput,
     );
-    const { reprojectionGridColsError, reprojectionGridRowsError } = validateDepthReprojectionGrid(
-      reprojectionGridCols,
-      reprojectionGridRows
-    );
+    const { reprojectionGridColsError, reprojectionGridRowsError } =
+      validateDepthReprojectionGrid(reprojectionGridCols, reprojectionGridRows);
     if (this.reprojectionGridColsValidationMessage) {
-      const showGridCols = reprojectionGridColsError ?? '';
+      const showGridCols = reprojectionGridColsError ?? "";
       this.reprojectionGridColsValidationMessage.textContent = showGridCols;
       this.reprojectionGridColsValidationMessage.className = showGridCols
-        ? 'config-text resolution-validation-error'
-        : 'config-text';
+        ? "config-text resolution-validation-error"
+        : "config-text";
     }
     if (this.reprojectionGridRowsValidationMessage) {
-      const showGridRows = reprojectionGridRowsError ?? '';
+      const showGridRows = reprojectionGridRowsError ?? "";
       this.reprojectionGridRowsValidationMessage.textContent = showGridRows;
       this.reprojectionGridRowsValidationMessage.className = showGridRows
-        ? 'config-text resolution-validation-error'
-        : 'config-text';
+        ? "config-text resolution-validation-error"
+        : "config-text";
     }
     this.updateConnectButtonState();
   }
 
   /** Disable Connect button and show validation error when resolution invalid; enable when valid. */
   public updateConnectButtonState(): void {
-    const { w, h } = getResolutionFromInputs(this.perEyeWidthInput, this.perEyeHeightInput);
+    const { w, h } = getResolutionFromInputs(
+      this.perEyeWidthInput,
+      this.perEyeHeightInput,
+    );
     const { reprojectionGridCols, reprojectionGridRows } = getGridFromInputs(
       this.reprojectionGridColsInput,
-      this.reprojectionGridRowsInput
+      this.reprojectionGridRowsInput,
     );
     const resolutionError = getResolutionValidationError(w, h);
-    const gridError = getGridValidationError(reprojectionGridCols, reprojectionGridRows);
+    const gridError = getGridValidationError(
+      reprojectionGridCols,
+      reprojectionGridRows,
+    );
     const connectMessage = getResolutionValidationMessageForConnect(w, h);
     const gridConnectMessage = getGridValidationMessageForConnect(
       reprojectionGridCols,
-      reprojectionGridRows
+      reprojectionGridRows,
     );
     const combinedConnectMessage = [connectMessage, gridConnectMessage]
       .filter(Boolean)
-      .join('\n');
+      .join("\n");
     if (combinedConnectMessage) {
       this.validationMessageText.textContent = combinedConnectMessage;
-      this.validationMessageBox.className = 'validation-message-box show';
+      this.validationMessageBox.className = "validation-message-box show";
     } else {
-      this.validationMessageText.textContent = '';
-      this.validationMessageBox.className = 'validation-message-box';
+      this.validationMessageText.textContent = "";
+      this.validationMessageBox.className = "validation-message-box";
     }
     // Only update button when idle (don't override "CONNECT (starting...)" or "CONNECT (XR session active)")
-    if (this.startButton && this.startButton.innerHTML === 'CONNECT') {
+    if (this.startButton && this.startButton.innerHTML === "CONNECT") {
       const shouldEnable = !resolutionError && !gridError;
-      this.setStartButtonState(!shouldEnable, 'CONNECT');
+      this.setStartButtonState(!shouldEnable, "CONNECT");
     }
   }
 
@@ -945,14 +1089,15 @@ export class CloudXR2DUI {
 
     const { w: perEyeWidth, h: perEyeHeight } = getResolutionFromInputs(
       this.perEyeWidthInput,
-      this.perEyeHeightInput
+      this.perEyeHeightInput,
     );
     const { reprojectionGridCols, reprojectionGridRows } = getGridFromInputs(
       this.reprojectionGridColsInput,
-      this.reprojectionGridRowsInput
+      this.reprojectionGridRowsInput,
     );
     const newConfiguration: AppConfig = {
-      serverIP: this.serverIpInput.value || this.getDefaultConfiguration().serverIP,
+      serverIP:
+        this.serverIpInput.value || this.getDefaultConfiguration().serverIP,
       port: portValue || defaultPort,
       useSecureConnection: useSecure,
       perEyeWidth,
@@ -966,24 +1111,32 @@ export class CloudXR2DUI {
         parseInt(this.maxStreamingBitrateMbpsSelect.value) ||
         this.getDefaultConfiguration().maxStreamingBitrateMbps,
       codec:
-        (this.codecSelect.value as 'h264' | 'h265' | 'av1') || this.getDefaultConfiguration().codec,
+        (this.codecSelect.value as "h264" | "h265" | "av1") ||
+        this.getDefaultConfiguration().codec,
       // Headless mode turns off the client's CloudXR frame blit but keeps tracking; the WebXR
       // session must be immersive-vr. immersive-ar uses passthrough semantics that do not match
       // that pipeline, so we ignore the AR/VR dropdown whenever headless is checked.
       immersiveMode: this.headlessInput.checked
-        ? 'vr'
-        : (this.immersiveSelect.value as 'ar' | 'vr') ||
+        ? "vr"
+        : (this.immersiveSelect.value as "ar" | "vr") ||
           this.getDefaultConfiguration().immersiveMode,
       deviceProfileId: resolveDeviceProfileId(this.deviceProfileSelect.value),
-      serverType: this.serverTypeSelect.value || this.getDefaultConfiguration().serverType,
-      proxyUrl: this.proxyUrlInput.value || this.getDefaultConfiguration().proxyUrl,
+      serverType:
+        this.serverTypeSelect.value ||
+        this.getDefaultConfiguration().serverType,
+      proxyUrl:
+        this.proxyUrlInput.value || this.getDefaultConfiguration().proxyUrl,
       referenceSpaceType:
-        (this.referenceSpaceSelect.value as 'auto' | 'local-floor' | 'local' | 'viewer') ||
-        this.getDefaultConfiguration().referenceSpaceType,
-      enablePoseSmoothing: this.enablePoseSmoothingSelect.value === 'true',
+        (this.referenceSpaceSelect.value as
+          | "auto"
+          | "local-floor"
+          | "local"
+          | "viewer") || this.getDefaultConfiguration().referenceSpaceType,
+      enablePoseSmoothing: this.enablePoseSmoothingSelect.value === "true",
       posePredictionFactor: parseFloat(this.posePredictionFactorInput.value),
-      enableTexSubImage2D: this.enableTexSubImage2DSelect.value === 'true',
-      useQuestColorWorkaround: this.useQuestColorWorkaroundSelect.value === 'true',
+      enableTexSubImage2D: this.enableTexSubImage2DSelect.value === "true",
+      useQuestColorWorkaround:
+        this.useQuestColorWorkaroundSelect.value === "true",
       // Convert cm from UI into meters for config (respect 0; if invalid, use 0)
       xrOffsetX: (() => {
         const v = parseFloat(this.xrOffsetXInput.value);
@@ -999,7 +1152,7 @@ export class CloudXR2DUI {
       })(),
       controlPanelPosition: parseControlPanelPosition(
         this.controlPanelPositionSelect.value,
-        this.getDefaultConfiguration().controlPanelPosition ?? 'center'
+        this.getDefaultConfiguration().controlPanelPosition ?? "center",
       ),
       // Parse media address and port if provided
       mediaAddress: this.mediaAddressInput.value.trim() || undefined,
@@ -1007,14 +1160,17 @@ export class CloudXR2DUI {
         const v = parseInt(this.mediaPortInput.value, 10);
         return !isNaN(v) ? v : undefined;
       })(),
-      hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
+      hideControllerModel:
+        this.controllerModelVisibilitySelect.value === "hide",
+      showTrace: this.showTraceInXRSelect.value !== "false",
+      showRecordingControls: this.showRecordingControlsSelect.value === "true",
       // See immersiveMode above: when true, callers must start an immersive-vr WebXR session.
       headless: this.headlessInput.checked,
       autoRefreshMode: parseAutoRefreshMode(
         this.autoRefreshModeSelect.value,
-        this.getDefaultConfiguration().autoRefreshMode ?? 'clean'
+        this.getDefaultConfiguration().autoRefreshMode ?? "clean",
       ),
-      panelHiddenAtStart: this.panelHiddenAtStartSelect.value === 'true',
+      panelHiddenAtStart: this.panelHiddenAtStartSelect.value === "true",
       teleopPath: this.teleopPath,
     };
 
@@ -1037,7 +1193,7 @@ export class CloudXR2DUI {
     const cloudxr = profile.cloudxr;
     this.updateDeviceProfileWarning(profileId);
 
-    if (!cloudxr || profileId === 'custom') {
+    if (!cloudxr || profileId === "custom") {
       return;
     }
 
@@ -1048,60 +1204,100 @@ export class CloudXR2DUI {
       this.perEyeHeightInput.value = String(cloudxr.perEyeHeight);
     }
     this.reprojectionGridColsInput.value =
-      cloudxr.reprojectionGridCols !== undefined ? String(cloudxr.reprojectionGridCols) : '';
+      cloudxr.reprojectionGridCols !== undefined
+        ? String(cloudxr.reprojectionGridCols)
+        : "";
     this.reprojectionGridRowsInput.value =
-      cloudxr.reprojectionGridRows !== undefined ? String(cloudxr.reprojectionGridRows) : '';
+      cloudxr.reprojectionGridRows !== undefined
+        ? String(cloudxr.reprojectionGridRows)
+        : "";
     if (cloudxr.deviceFrameRate !== undefined) {
-      setSelectValueIfAvailable(this.deviceFrameRateSelect, String(cloudxr.deviceFrameRate));
+      setSelectValueIfAvailable(
+        this.deviceFrameRateSelect,
+        String(cloudxr.deviceFrameRate),
+      );
     }
     if (cloudxr.maxStreamingBitrateKbps !== undefined) {
       const mbps = Math.round(cloudxr.maxStreamingBitrateKbps / 1000);
-      setSelectValueIfAvailable(this.maxStreamingBitrateMbpsSelect, String(mbps));
+      setSelectValueIfAvailable(
+        this.maxStreamingBitrateMbpsSelect,
+        String(mbps),
+      );
     }
     if (cloudxr.codec) {
       setSelectValueIfAvailable(this.codecSelect, cloudxr.codec);
     }
     if (cloudxr.enablePoseSmoothing !== undefined) {
-      this.enablePoseSmoothingSelect.value = String(cloudxr.enablePoseSmoothing);
+      this.enablePoseSmoothingSelect.value = String(
+        cloudxr.enablePoseSmoothing,
+      );
     }
     if (cloudxr.posePredictionFactor !== undefined) {
-      this.posePredictionFactorInput.value = String(cloudxr.posePredictionFactor);
-      this.posePredictionFactorValue.textContent = this.posePredictionFactorInput.value;
+      this.posePredictionFactorInput.value = String(
+        cloudxr.posePredictionFactor,
+      );
+      this.posePredictionFactorValue.textContent =
+        this.posePredictionFactorInput.value;
     }
     if (cloudxr.enableTexSubImage2D !== undefined) {
-      this.enableTexSubImage2DSelect.value = String(cloudxr.enableTexSubImage2D);
+      this.enableTexSubImage2DSelect.value = String(
+        cloudxr.enableTexSubImage2D,
+      );
     }
     if (cloudxr.useQuestColorWorkaround !== undefined) {
-      this.useQuestColorWorkaroundSelect.value = String(cloudxr.useQuestColorWorkaround);
+      this.useQuestColorWorkaroundSelect.value = String(
+        cloudxr.useQuestColorWorkaround,
+      );
     }
   }
 
   /** When user edits a profile-driven setting, switch device profile to Custom and persist. */
   private setProfileToCustomIfNeeded(): void {
-    if (this.deviceProfileSelect.value === 'custom') return;
-    this.deviceProfileSelect.value = 'custom';
-    this.updateDeviceProfileWarning('custom');
+    if (this.deviceProfileSelect.value === "custom") return;
+    this.deviceProfileSelect.value = "custom";
+    this.updateDeviceProfileWarning("custom");
     try {
-      localStorage.setItem('deviceProfile', 'custom');
+      localStorage.setItem("deviceProfile", "custom");
     } catch (_) {}
   }
 
   /** Persist profile-driven form fields to localStorage so they are restored on load. */
   private persistProfileFieldsToLocalStorage(): void {
     try {
-      localStorage.setItem('perEyeWidth', this.perEyeWidthInput.value);
-      localStorage.setItem('perEyeHeight', this.perEyeHeightInput.value);
-      localStorage.setItem('reprojectionGridCols', this.reprojectionGridColsInput.value);
-      localStorage.setItem('reprojectionGridRows', this.reprojectionGridRowsInput.value);
-      localStorage.setItem('deviceFrameRate', this.deviceFrameRateSelect.value);
-      localStorage.setItem('maxStreamingBitrateMbps', this.maxStreamingBitrateMbpsSelect.value);
-      localStorage.setItem('codec', this.codecSelect.value);
-      localStorage.setItem('enablePoseSmoothing', this.enablePoseSmoothingSelect.value);
-      localStorage.setItem('posePredictionFactor', this.posePredictionFactorInput.value);
-      localStorage.setItem('enableTexSubImage2D', this.enableTexSubImage2DSelect.value);
-      localStorage.setItem('useQuestColorWorkaround', this.useQuestColorWorkaroundSelect.value);
+      localStorage.setItem("perEyeWidth", this.perEyeWidthInput.value);
+      localStorage.setItem("perEyeHeight", this.perEyeHeightInput.value);
+      localStorage.setItem(
+        "reprojectionGridCols",
+        this.reprojectionGridColsInput.value,
+      );
+      localStorage.setItem(
+        "reprojectionGridRows",
+        this.reprojectionGridRowsInput.value,
+      );
+      localStorage.setItem("deviceFrameRate", this.deviceFrameRateSelect.value);
+      localStorage.setItem(
+        "maxStreamingBitrateMbps",
+        this.maxStreamingBitrateMbpsSelect.value,
+      );
+      localStorage.setItem("codec", this.codecSelect.value);
+      localStorage.setItem(
+        "enablePoseSmoothing",
+        this.enablePoseSmoothingSelect.value,
+      );
+      localStorage.setItem(
+        "posePredictionFactor",
+        this.posePredictionFactorInput.value,
+      );
+      localStorage.setItem(
+        "enableTexSubImage2D",
+        this.enableTexSubImage2DSelect.value,
+      );
+      localStorage.setItem(
+        "useQuestColorWorkaround",
+        this.useQuestColorWorkaroundSelect.value,
+      );
     } catch (e) {
-      console.warn('Failed to persist profile fields to localStorage:', e);
+      console.warn("Failed to persist profile fields to localStorage:", e);
     }
   }
 
@@ -1109,14 +1305,15 @@ export class CloudXR2DUI {
     if (!this.deviceProfileWarning) return;
     const profile = getDeviceProfile(profileId);
     const needsHttps = profile.connection?.httpsRequired === true;
-    const isHttp = window.location.protocol === 'http:';
+    const isHttp = window.location.protocol === "http:";
 
     if (needsHttps && isHttp) {
-      this.deviceProfileWarning.textContent = 'This device requires HTTPS mode.';
-      this.deviceProfileWarning.style.display = 'block';
+      this.deviceProfileWarning.textContent =
+        "This device requires HTTPS mode.";
+      this.deviceProfileWarning.style.display = "block";
     } else {
-      this.deviceProfileWarning.style.display = 'none';
-      this.deviceProfileWarning.textContent = '';
+      this.deviceProfileWarning.style.display = "none";
+      this.deviceProfileWarning.textContent = "";
     }
   }
 
@@ -1147,12 +1344,12 @@ export class CloudXR2DUI {
    */
   public setupConnectButtonHandler(
     onConnect: () => Promise<void>,
-    onError: (error: Error) => void
+    onError: (error: Error) => void,
   ): void {
     if (this.startButton) {
       // Remove any existing listener
       if (this.handleConnectClick) {
-        this.startButton.removeEventListener('click', this.handleConnectClick);
+        this.startButton.removeEventListener("click", this.handleConnectClick);
       }
 
       // Create new handler
@@ -1163,28 +1360,31 @@ export class CloudXR2DUI {
           return;
         }
         const cfg = this.getConfiguration();
-        const resolutionError = getResolutionValidationError(cfg.perEyeWidth, cfg.perEyeHeight);
+        const resolutionError = getResolutionValidationError(
+          cfg.perEyeWidth,
+          cfg.perEyeHeight,
+        );
         const gridError = getGridValidationError(
           cfg.reprojectionGridCols,
-          cfg.reprojectionGridRows
+          cfg.reprojectionGridRows,
         );
         if (resolutionError || gridError) {
           this.updateConnectButtonState();
           return;
         }
-        this.setStartButtonState(true, 'CONNECT (starting XR session...)');
+        this.setStartButtonState(true, "CONNECT (starting XR session...)");
 
         try {
           await onConnect();
         } catch (error) {
-          this.setStartButtonState(false, 'CONNECT');
+          this.setStartButtonState(false, "CONNECT");
           this.updateConnectButtonState();
           onError(error as Error);
         }
       };
 
       // Add the new listener
-      this.startButton.addEventListener('click', this.handleConnectClick);
+      this.startButton.addEventListener("click", this.handleConnectClick);
     }
   }
 
@@ -1193,12 +1393,12 @@ export class CloudXR2DUI {
    * @param message - Message to display
    * @param type - Message type: 'success', 'error', or 'info'
    */
-  public showStatus(message: string, type: 'success' | 'error' | 'info'): void {
+  public showStatus(message: string, type: "success" | "error" | "info"): void {
     if (this.errorMessageText && this.errorMessageBox) {
       this.errorMessageText.textContent = message;
       this.errorMessageBox.className = `error-message-box show ${type}`;
     }
-    console[type === 'error' ? 'error' : 'info'](message);
+    console[type === "error" ? "error" : "info"](message);
   }
 
   /**
@@ -1206,7 +1406,7 @@ export class CloudXR2DUI {
    * @param message - Error message to display
    */
   public showError(message: string): void {
-    this.showStatus(message, 'error');
+    this.showStatus(message, "error");
   }
 
   /**
@@ -1214,7 +1414,7 @@ export class CloudXR2DUI {
    */
   public hideError(): void {
     if (this.errorMessageBox) {
-      this.errorMessageBox.classList.remove('show');
+      this.errorMessageBox.classList.remove("show");
     }
   }
 
@@ -1231,7 +1431,7 @@ export class CloudXR2DUI {
 
     // Remove CONNECT button listener
     if (this.startButton && this.handleConnectClick) {
-      this.startButton.removeEventListener('click', this.handleConnectClick);
+      this.startButton.removeEventListener("click", this.handleConnectClick);
       this.handleConnectClick = null;
     }
 

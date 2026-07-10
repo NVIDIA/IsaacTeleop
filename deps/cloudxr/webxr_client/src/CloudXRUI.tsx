@@ -35,19 +35,26 @@
  * back to the parent component through callback props.
  */
 
-import arrowLeftStartOnRectangleSvg from './icons/arrow-left-start-on-rectangle.svg';
-import arrowUturnLeftSvg from './icons/arrow-uturn-left.svg';
-import playCircleSvg from './icons/play-circle.svg';
-import { PerformanceCanvasImage } from '@helpers/react/PerformanceCanvasImage';
-import { useXRButton } from '@helpers/react/useXRButton';
-import { ReadonlySignal } from '@preact/signals-react';
-import { useFrame } from '@react-three/fiber';
-import { Handle, HandleTarget, HandleState } from '@react-three/handle';
-import { Container, Text, Image } from '@react-three/uikit';
-import { Button } from '@react-three/uikit-default';
-import React, { useRef, useState, useEffect } from 'react';
-import { Color, Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
-import { damp } from 'three/src/math/MathUtils.js';
+import arrowLeftStartOnRectangleSvg from "./icons/arrow-left-start-on-rectangle.svg";
+import arrowUturnLeftSvg from "./icons/arrow-uturn-left.svg";
+import playCircleSvg from "./icons/play-circle.svg";
+import { PerformanceCanvasImage } from "@helpers/react/PerformanceCanvasImage";
+import { useXRButton } from "@helpers/react/useXRButton";
+import { ReadonlySignal } from "@preact/signals-react";
+import { useFrame } from "@react-three/fiber";
+import { Handle, HandleTarget, HandleState } from "@react-three/handle";
+import { Container, Text, Image } from "@react-three/uikit";
+import { Button } from "@react-three/uikit-default";
+import React, { useRef, useState, useEffect } from "react";
+import {
+  Color,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  Vector3,
+} from "three";
+import { damp } from "three/src/math/MathUtils.js";
 
 // Face-camera rotation constants
 const FACE_CAMERA_DAMPING = 10; // Higher = faster rotation toward camera
@@ -80,6 +87,18 @@ interface CloudXRUIProps {
   panelHiddenAtStart?: boolean;
   /** Immersive XR active; used to apply panelHiddenAtStart on session enter. */
   isXRMode?: boolean;
+  /** Show recording controls (Record/Replay/Save) — enabled via Troubleshooting settings. */
+  showRecordingControls?: boolean;
+  recorderMode?: "idle" | "recording" | "replaying";
+  hasSavedRecording?: boolean;
+  recordedFrameCount?: number;
+  onStartRecord?: () => void;
+  onStopRecord?: () => void;
+  onStartReplay?: () => void;
+  onStopReplay?: () => void;
+  onSaveRecording?: () => void;
+  /** Show/hide rolling path trace for hands/controllers. Driven by the 2D settings panel. */
+  showTrace?: boolean;
 }
 
 // Reusable objects for face-camera rotation (avoid allocations in render loop)
@@ -87,8 +106,8 @@ const cameraPositionHelper = new Vector3();
 const uiPositionHelper = new Vector3();
 
 // Handle hover colors (module-level to avoid per-render allocations)
-const HANDLE_COLOR_DEFAULT = new Color('#666666');
-const HANDLE_COLOR_HOVER = new Color('#aaaaaa');
+const HANDLE_COLOR_DEFAULT = new Color("#666666");
+const HANDLE_COLOR_HOVER = new Color("#aaaaaa");
 
 // Workaround for @pmndrs/handle defaultApply behavior: defaultApply copies
 // state.current.quaternion to the target on every drag frame AND on drag release.
@@ -98,7 +117,10 @@ const HANDLE_COLOR_HOVER = new Color('#aaaaaa');
 // By providing a custom apply that skips quaternion, face-camera owns rotation fully.
 // Scale is intentionally omitted too: scale={false} keeps it constant, so copying
 // it would be a no-op. If scale is ever enabled on this Handle, add it back here.
-function applyPositionSkipRotation(state: HandleState<unknown>, target: Object3D): void {
+function applyPositionSkipRotation(
+  state: HandleState<unknown>,
+  target: Object3D,
+): void {
   target.position.copy(state.current.position);
 }
 
@@ -106,9 +128,9 @@ export default function CloudXR3DUI({
   onStartTeleop,
   onDisconnect,
   onResetTeleop,
-  serverAddress = '127.0.0.1',
-  sessionStatus = 'Disconnected',
-  playLabel = 'Play',
+  serverAddress = "127.0.0.1",
+  sessionStatus = "Disconnected",
+  playLabel = "Play",
   playInProgress = false,
   countdownSeconds,
   onCountdownIncrease,
@@ -121,8 +143,18 @@ export default function CloudXR3DUI({
   poseToRenderText,
   panelHiddenAtStart = false,
   isXRMode = false,
+  showRecordingControls = false,
+  recorderMode = "idle",
+  hasSavedRecording = false,
+  recordedFrameCount = 0,
+  onStartRecord,
+  onStopRecord,
+  onStartReplay,
+  onStopReplay,
+  onSaveRecording,
+  showTrace = false,
 }: CloudXRUIProps) {
-  const MINIMIZE_ON_PLAY_KEY = 'cxr.isaac.minimizeOnPlay';
+  const MINIMIZE_ON_PLAY_KEY = "cxr.isaac.minimizeOnPlay";
 
   const groupRef = useRef<Group>(null);
   const handleRef = useRef<Mesh>(null);
@@ -131,7 +163,7 @@ export default function CloudXR3DUI({
   const [minimizeOnPlay, setMinimizeOnPlay] = useState(() => {
     try {
       const saved = localStorage.getItem(MINIMIZE_ON_PLAY_KEY);
-      return saved === 'true';
+      return saved === "true";
     } catch {
       return false;
     }
@@ -190,7 +222,12 @@ export default function CloudXR3DUI({
     diff = diff - Math.round(diff / (2 * Math.PI)) * (2 * Math.PI);
     targetY = currentY + diff;
 
-    groupRef.current.rotation.y = damp(currentY, targetY, FACE_CAMERA_DAMPING, dt);
+    groupRef.current.rotation.y = damp(
+      currentY,
+      targetY,
+      FACE_CAMERA_DAMPING,
+      dt,
+    );
   });
 
   return (
@@ -199,7 +236,7 @@ export default function CloudXR3DUI({
         ref={groupRef}
         position={position}
         rotation={rotation}
-        pointerEventsType={{ deny: 'grab' }}
+        pointerEventsType={{ deny: "grab" }}
       >
         {/* Drag Handle Bar - grab to reposition the panel */}
         <Handle
@@ -214,21 +251,27 @@ export default function CloudXR3DUI({
             ref={handleRef}
             position={[0, handleY, 0.01]}
             onPointerEnter={() => {
-              const mat = handleRef.current?.material as MeshStandardMaterial | undefined;
+              const mat = handleRef.current?.material as
+                | MeshStandardMaterial
+                | undefined;
               if (mat) {
                 mat.color.copy(HANDLE_COLOR_HOVER);
                 mat.opacity = panelHidden ? 0.55 : 0.9;
               }
             }}
             onPointerLeave={() => {
-              const mat = handleRef.current?.material as MeshStandardMaterial | undefined;
+              const mat = handleRef.current?.material as
+                | MeshStandardMaterial
+                | undefined;
               if (mat) {
                 mat.color.copy(HANDLE_COLOR_DEFAULT);
                 mat.opacity = panelHidden ? 0.35 : 0.6;
               }
             }}
           >
-            <boxGeometry args={[handleWidth, panelHidden ? 0.035 : 0.05, 0.02]} />
+            <boxGeometry
+              args={[handleWidth, panelHidden ? 0.035 : 0.05, 0.02]}
+            />
             <meshStandardMaterial
               color="#666666"
               transparent
@@ -252,19 +295,23 @@ export default function CloudXR3DUI({
         >
           {panelHidden ? (
             <Button
-              {...xrButton('show-panel', () => setPanelHidden(false))}
+              {...xrButton("show-panel", () => setPanelHidden(false))}
               variant="default"
               width={112}
               height={112}
               borderRadius={56}
               backgroundColor="rgba(90, 130, 210, 0.42)"
               hover={{
-                backgroundColor: 'rgba(90, 130, 210, 0.72)',
-                borderColor: 'rgba(255, 255, 255, 0.6)',
+                backgroundColor: "rgba(90, 130, 210, 0.72)",
+                borderColor: "rgba(255, 255, 255, 0.6)",
                 borderWidth: 2,
               }}
             >
-              <Text fontSize={26} color="rgba(255, 255, 255, 0.95)" fontWeight="bold">
+              <Text
+                fontSize={26}
+                color="rgba(255, 255, 255, 0.95)"
+                fontWeight="bold"
+              >
                 Show
               </Text>
             </Button>
@@ -280,21 +327,23 @@ export default function CloudXR3DUI({
               padding={24}
             >
               <Button
-                {...xrButton('start-min', onStartTeleop)}
+                {...xrButton("start-min", onStartTeleop)}
                 variant="default"
                 width={400}
                 height={80}
                 borderRadius={24}
                 backgroundColor="rgba(220, 220, 220, 0.9)"
                 hover={{
-                  backgroundColor: 'rgba(100, 150, 255, 1)',
-                  borderColor: 'white',
+                  backgroundColor: "rgba(100, 150, 255, 1)",
+                  borderColor: "white",
                   borderWidth: 2,
                 }}
                 disabled={playInProgress}
               >
                 <Container flexDirection="row" alignItems="center" gap={8}>
-                  {playLabel === 'Play' && <Image src={playCircleSvg} width={40} height={40} />}
+                  {playLabel === "Play" && (
+                    <Image src={playCircleSvg} width={40} height={40} />
+                  )}
                   <Text fontSize={36} color="black" fontWeight="medium">
                     {playLabel}
                   </Text>
@@ -308,15 +357,15 @@ export default function CloudXR3DUI({
                 width="100%"
               >
                 <Button
-                  {...xrButton('reset-min', onResetTeleop)}
+                  {...xrButton("reset-min", onResetTeleop)}
                   variant="default"
                   width={292}
                   height={80}
                   borderRadius={24}
                   backgroundColor="rgba(220, 220, 220, 0.9)"
                   hover={{
-                    backgroundColor: 'rgba(100, 150, 255, 1)',
-                    borderColor: 'white',
+                    backgroundColor: "rgba(100, 150, 255, 1)",
+                    borderColor: "white",
                     borderWidth: 2,
                   }}
                 >
@@ -328,19 +377,25 @@ export default function CloudXR3DUI({
                   </Container>
                 </Button>
                 <Button
-                  {...xrButton('hide-panel-compact', () => setPanelHidden(true))}
+                  {...xrButton("hide-panel-compact", () =>
+                    setPanelHidden(true),
+                  )}
                   variant="default"
                   width={94}
                   height={80}
                   borderRadius={20}
                   backgroundColor="rgba(70, 75, 90, 0.55)"
                   hover={{
-                    backgroundColor: 'rgba(90, 95, 115, 0.85)',
-                    borderColor: 'rgba(255, 255, 255, 0.5)',
+                    backgroundColor: "rgba(90, 95, 115, 0.85)",
+                    borderColor: "rgba(255, 255, 255, 0.5)",
                     borderWidth: 2,
                   }}
                 >
-                  <Text fontSize={26} color="rgba(255, 255, 255, 0.92)" fontWeight="medium">
+                  <Text
+                    fontSize={26}
+                    color="rgba(255, 255, 255, 0.92)"
+                    fontWeight="medium"
+                  >
                     Hide
                   </Text>
                 </Button>
@@ -411,7 +466,7 @@ export default function CloudXR3DUI({
                   gap={14}
                   marginTop={20}
                   cursor="pointer"
-                  {...xrButton('minimize', () => setMinimizeOnPlay(v => !v))}
+                  {...xrButton("minimize", () => setMinimizeOnPlay((v) => !v))}
                 >
                   <Container
                     width={48}
@@ -438,6 +493,118 @@ export default function CloudXR3DUI({
                   </Text>
                 </Container>
 
+                {/* Recording controls — shown only when enabled in Troubleshooting settings */}
+                {showRecordingControls && (
+                  <Container
+                    width="100%"
+                    flexDirection="column"
+                    gap={12}
+                    alignItems="center"
+                    marginTop={16}
+                    backgroundColor="rgba(20, 20, 20, 0.5)"
+                    borderRadius={16}
+                    padding={20}
+                  >
+                    <Text
+                      fontSize={36}
+                      fontWeight="bold"
+                      color="rgba(220, 220, 220, 1)"
+                    >
+                      Recording
+                    </Text>
+                    {recorderMode !== "idle" && (
+                      <Text fontSize={26} color="rgba(180, 220, 180, 1)">
+                        {recorderMode === "recording"
+                          ? `● REC ${recordedFrameCount} frames`
+                          : `▶ Replaying`}
+                      </Text>
+                    )}
+                    <Container
+                      flexDirection="row"
+                      gap={12}
+                      alignItems="center"
+                      justifyContent="center"
+                    >
+                      {/* Record / Stop Record */}
+                      {recorderMode !== "replaying" && (
+                        <Button
+                          {...xrButton(
+                            "rec",
+                            recorderMode === "recording"
+                              ? onStopRecord
+                              : onStartRecord,
+                          )}
+                          variant="default"
+                          width={160}
+                          height={72}
+                          borderRadius={20}
+                          backgroundColor={
+                            recorderMode === "recording"
+                              ? "rgba(220, 60, 60, 0.9)"
+                              : "rgba(220, 220, 220, 0.9)"
+                          }
+                          hover={{
+                            backgroundColor: "rgba(255, 100, 100, 1)",
+                            borderColor: "white",
+                            borderWidth: 2,
+                          }}
+                        >
+                          <Text fontSize={30} color="black" fontWeight="medium">
+                            {recorderMode === "recording" ? "Stop" : "● Rec"}
+                          </Text>
+                        </Button>
+                      )}
+                      {/* Replay / Stop Replay */}
+                      {recorderMode !== "recording" && (
+                        <Button
+                          {...xrButton(
+                            "replay",
+                            recorderMode === "replaying"
+                              ? onStopReplay
+                              : onStartReplay,
+                          )}
+                          variant="default"
+                          width={160}
+                          height={72}
+                          borderRadius={20}
+                          backgroundColor="rgba(220, 220, 220, 0.9)"
+                          hover={{
+                            backgroundColor: "rgba(100, 150, 255, 1)",
+                            borderColor: "white",
+                            borderWidth: 2,
+                          }}
+                          disabled={
+                            recorderMode === "idle" && !hasSavedRecording
+                          }
+                        >
+                          <Text fontSize={30} color="black" fontWeight="medium">
+                            {recorderMode === "replaying" ? "Stop" : "▶ Play"}
+                          </Text>
+                        </Button>
+                      )}
+                      {/* Save — only when there is a recording to save */}
+                      {recorderMode === "idle" && hasSavedRecording && (
+                        <Button
+                          {...xrButton("save-rec", onSaveRecording)}
+                          variant="default"
+                          width={120}
+                          height={72}
+                          borderRadius={20}
+                          backgroundColor="rgba(220, 220, 220, 0.9)"
+                          hover={{
+                            backgroundColor: "rgba(100, 200, 100, 1)",
+                            borderColor: "white",
+                            borderWidth: 2,
+                          }}
+                        >
+                          <Text fontSize={30} color="black" fontWeight="medium">
+                            Save
+                          </Text>
+                        </Button>
+                      )}
+                    </Container>
+                  </Container>
+                )}
               </Container>
 
               {/* Right Column - Controls */}
@@ -449,7 +616,12 @@ export default function CloudXR3DUI({
                 justifyContent="center"
               >
                 {/* Title */}
-                <Text fontSize={72} fontWeight="bold" color="white" textAlign="center">
+                <Text
+                  fontSize={72}
+                  fontWeight="bold"
+                  color="white"
+                  textAlign="center"
+                >
                   Controls
                 </Text>
 
@@ -461,10 +633,18 @@ export default function CloudXR3DUI({
                   marginTop={4}
                   marginBottom={4}
                 >
-                  <Text fontSize={38} color="rgba(200, 200, 200, 1)" textAlign="center">
+                  <Text
+                    fontSize={38}
+                    color="rgba(200, 200, 200, 1)"
+                    textAlign="center"
+                  >
                     Server: {serverAddress}
                   </Text>
-                  <Text fontSize={38} color="rgba(200, 200, 200, 1)" textAlign="center">
+                  <Text
+                    fontSize={38}
+                    color="rgba(200, 200, 200, 1)"
+                    textAlign="center"
+                  >
                     Status: {sessionStatus}
                   </Text>
                 </Container>
@@ -481,7 +661,7 @@ export default function CloudXR3DUI({
                     Countdown
                   </Text>
                   <Button
-                    {...xrButton('countdown-dec', onCountdownDecrease)}
+                    {...xrButton("countdown-dec", onCountdownDecrease)}
                     variant="default"
                     width={90}
                     height={90}
@@ -506,7 +686,7 @@ export default function CloudXR3DUI({
                     </Text>
                   </Container>
                   <Button
-                    {...xrButton('countdown-inc', onCountdownIncrease)}
+                    {...xrButton("countdown-inc", onCountdownIncrease)}
                     variant="default"
                     width={90}
                     height={90}
@@ -530,23 +710,31 @@ export default function CloudXR3DUI({
                   marginTop={16}
                 >
                   {/* Start/reset row*/}
-                  <Container flexDirection="row" gap={24} justifyContent="center">
+                  <Container
+                    flexDirection="row"
+                    gap={24}
+                    justifyContent="center"
+                  >
                     <Button
-                      {...xrButton('start', onStartTeleop)}
+                      {...xrButton("start", onStartTeleop)}
                       variant="default"
                       width={420}
                       height={100}
                       borderRadius={32}
                       backgroundColor="rgba(220, 220, 220, 0.9)"
                       hover={{
-                        backgroundColor: 'rgba(100, 150, 255, 1)',
-                        borderColor: 'white',
+                        backgroundColor: "rgba(100, 150, 255, 1)",
+                        borderColor: "white",
                         borderWidth: 2,
                       }}
                       disabled={playInProgress}
                     >
-                      <Container flexDirection="row" alignItems="center" gap={10}>
-                        {playLabel === 'Play' && (
+                      <Container
+                        flexDirection="row"
+                        alignItems="center"
+                        gap={10}
+                      >
+                        {playLabel === "Play" && (
                           <Image src={playCircleSvg} width={50} height={50} />
                         )}
                         <Text fontSize={42} color="black" fontWeight="medium">
@@ -556,19 +744,23 @@ export default function CloudXR3DUI({
                     </Button>
 
                     <Button
-                      {...xrButton('reset', onResetTeleop)}
+                      {...xrButton("reset", onResetTeleop)}
                       variant="default"
                       width={420}
                       height={100}
                       borderRadius={32}
                       backgroundColor="rgba(220, 220, 220, 0.9)"
                       hover={{
-                        backgroundColor: 'rgba(100, 150, 255, 1)',
-                        borderColor: 'white',
+                        backgroundColor: "rgba(100, 150, 255, 1)",
+                        borderColor: "white",
                         borderWidth: 2,
                       }}
                     >
-                      <Container flexDirection="row" alignItems="center" gap={10}>
+                      <Container
+                        flexDirection="row"
+                        alignItems="center"
+                        gap={10}
+                      >
                         <Image src={arrowUturnLeftSvg} width={50} height={50} />
                         <Text fontSize={42} color="black" fontWeight="medium">
                           Reset
@@ -585,39 +777,53 @@ export default function CloudXR3DUI({
                     gap={18}
                   >
                     <Button
-                      {...xrButton('disconnect', onDisconnect)}
+                      {...xrButton("disconnect", onDisconnect)}
                       variant="destructive"
                       width={320}
                       height={90}
                       borderRadius={28}
                       backgroundColor="rgba(255, 150, 150, 0.9)"
                       hover={{
-                        backgroundColor: 'rgba(255, 50, 50, 1)',
-                        borderColor: 'white',
+                        backgroundColor: "rgba(255, 50, 50, 1)",
+                        borderColor: "white",
                         borderWidth: 2,
                       }}
                     >
-                      <Container flexDirection="row" alignItems="center" gap={10}>
-                        <Image src={arrowLeftStartOnRectangleSvg} width={50} height={50} />
+                      <Container
+                        flexDirection="row"
+                        alignItems="center"
+                        gap={10}
+                      >
+                        <Image
+                          src={arrowLeftStartOnRectangleSvg}
+                          width={50}
+                          height={50}
+                        />
                         <Text fontSize={38} color="black" fontWeight="medium">
                           Disconnect
                         </Text>
                       </Container>
                     </Button>
                     <Button
-                      {...xrButton('hide-panel-full', () => setPanelHidden(true))}
+                      {...xrButton("hide-panel-full", () =>
+                        setPanelHidden(true),
+                      )}
                       variant="default"
                       width={100}
                       height={90}
                       borderRadius={22}
                       backgroundColor="rgba(70, 75, 90, 0.55)"
                       hover={{
-                        backgroundColor: 'rgba(90, 95, 115, 0.88)',
-                        borderColor: 'rgba(255, 255, 255, 0.5)',
+                        backgroundColor: "rgba(90, 95, 115, 0.88)",
+                        borderColor: "rgba(255, 255, 255, 0.5)",
                         borderWidth: 2,
                       }}
                     >
-                      <Text fontSize={28} color="rgba(255, 255, 255, 0.92)" fontWeight="medium">
+                      <Text
+                        fontSize={28}
+                        color="rgba(255, 255, 255, 0.92)"
+                        fontWeight="medium"
+                      >
                         Hide
                       </Text>
                     </Button>

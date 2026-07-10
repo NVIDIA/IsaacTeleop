@@ -30,57 +30,72 @@
  * and disconnect when in XR mode.
  */
 
-import { checkCapabilities } from '@helpers/BrowserCapabilities';
-import { getDeviceProfile, resolveDeviceProfileId } from '@helpers/DeviceProfiles';
-import { loadIWERIfNeeded } from '@helpers/LoadIWER';
-import { overridePressureObserver } from '@helpers/overridePressureObserver';
-import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
-import CloudXRComponent from '@helpers/react/CloudXRComponent';
-import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
-import { getControlPanelPositionVector } from '@helpers/react/utils';
+import { checkCapabilities } from "@helpers/BrowserCapabilities";
 import {
-  logImmersiveXRSessionToConsole
-} from '@helpers/webxrModeDebugText';
-import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
+  getDeviceProfile,
+  resolveDeviceProfileId,
+} from "@helpers/DeviceProfiles";
+import { loadIWERIfNeeded } from "@helpers/LoadIWER";
+import { overridePressureObserver } from "@helpers/overridePressureObserver";
+import { kPerformanceOptions } from "@helpers/PerformanceProfiles";
+import CloudXRComponent from "@helpers/react/CloudXRComponent";
+import { SimpleEnvironment } from "@helpers/react/SimpleEnvironment";
+import { getControlPanelPositionVector } from "@helpers/react/utils";
+import { logImmersiveXRSessionToConsole } from "@helpers/webxrModeDebugText";
+import { SuppressWebGLRendererWhenHeadless } from "./SuppressWebGLRendererWhenHeadless";
 import {
   DEFAULT_TELEOP_PATH,
   loadStoredTeleopPath,
   parseTeleopPathFromHash,
   saveStoredTeleopPath,
-} from '@helpers/TeleopProjects';
-import * as CloudXR from '@nvidia/cloudxr';
-import { getResolutionValidationError } from '@nvidia/cloudxr';
-import { signal, computed } from '@preact/signals-react';
-import { Canvas } from '@react-three/fiber';
-import { setPreferredColorScheme } from '@react-three/uikit';
-import { XR, createXRStore, noEvents, PointerEvents, XROrigin, useXR } from '@react-three/xr';
-import type { XRDevice } from 'iwer';
-import { useState, useMemo, useEffect, useRef } from 'react';
+} from "@helpers/TeleopProjects";
+import * as CloudXR from "@nvidia/cloudxr";
+import { getResolutionValidationError } from "@nvidia/cloudxr";
+import { signal, computed } from "@preact/signals-react";
+import { Canvas } from "@react-three/fiber";
+import { setPreferredColorScheme } from "@react-three/uikit";
+import {
+  XR,
+  createXRStore,
+  noEvents,
+  PointerEvents,
+  XROrigin,
+  useXR,
+} from "@react-three/xr";
+import type { XRDevice } from "iwer";
+import { useState, useMemo, useEffect, useRef } from "react";
 
-import { v5 } from 'uuid';
-import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
-import { readUrlParam } from './config/resolve';
-import CloudXR3DUI from './CloudXRUI';
-import { HeadsetControlChannel } from '@helpers/controlChannel';
+import { v5 } from "uuid";
+import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from "./CloudXR2DUI";
+import { readUrlParam } from "./config/resolve";
+import CloudXR3DUI from "./CloudXRUI";
+import { HeadsetControlChannel } from "@helpers/controlChannel";
+import { RecorderProvider, useRecorder } from "./RecorderContext";
+import { RecorderComponent } from "./RecorderComponent";
+import { TraceVisualization } from "./TraceVisualization";
 
 // Performance metrics signals - raw numeric data, one per callback cadence.
 // Signals update their value without triggering React re-renders.
 // See: https://pmndrs.github.io/uikit/docs/advanced/performance
 const renderMetrics = signal<{ fps: number } | null>(null);
-const streamingMetrics = signal<{ fps: number; latencyMs: number } | null>(null);
+const streamingMetrics = signal<{ fps: number; latencyMs: number } | null>(
+  null,
+);
 
 // Computed signals derive formatted text from raw data.
 // When renderMetrics.value changes, computed() automatically recalculates the text.
 // The @react-three/uikit Text component subscribes to these computed signals
 // and updates the displayed text directly in Three.js - bypassing React entirely.
 const renderFpsText = computed(() =>
-  renderMetrics.value ? renderMetrics.value.fps.toFixed(1) : '-'
+  renderMetrics.value ? renderMetrics.value.fps.toFixed(1) : "-",
 );
 const streamingFpsText = computed(() =>
-  streamingMetrics.value ? streamingMetrics.value.fps.toFixed(1) : '-'
+  streamingMetrics.value ? streamingMetrics.value.fps.toFixed(1) : "-",
 );
 const poseToRenderText = computed(() =>
-  streamingMetrics.value ? `${streamingMetrics.value.latencyMs.toFixed(1)}ms` : '-'
+  streamingMetrics.value
+    ? `${streamingMetrics.value.latencyMs.toFixed(1)}ms`
+    : "-",
 );
 
 const CONTROL_PANEL_LAYOUT = {
@@ -92,49 +107,69 @@ const CONTROL_PANEL_LAYOUT = {
 // Override PressureObserver early to catch errors from buggy browser implementations
 overridePressureObserver();
 
-setPreferredColorScheme('dark');
+setPreferredColorScheme("dark");
 
+const TELEOP_CHANNEL_UUID: Uint8Array = v5(
+  "teleop_command",
+  v5.DNS,
+  new Uint8Array(16),
+);
 
-const TELEOP_CHANNEL_UUID: Uint8Array = v5('teleop_command', v5.DNS, new Uint8Array(16));
-
-type AvailableChannel = CloudXR.Session['availableMessageChannels'][number];
+type AvailableChannel = CloudXR.Session["availableMessageChannels"][number];
 
 function findChannelByUuid(
   channels: AvailableChannel[],
-  targetUuid: Uint8Array
+  targetUuid: Uint8Array,
 ): AvailableChannel | undefined {
   return channels.find(
-    ch =>
+    (ch) =>
       ch.uuid.length === targetUuid.length &&
-      ch.uuid.every((b: number, i: number) => b === targetUuid[i])
+      ch.uuid.every((b: number, i: number) => b === targetUuid[i]),
   );
 }
 
 const START_TELEOP_COMMAND = {
-  type: 'teleop_command',
+  type: "teleop_command",
   message: {
-    command: 'start teleop',
+    command: "start teleop",
   },
 } as const;
 
 /** When set with ``serverIP`` + ``port``, WebXR builds ``wss://{serverIP}:{port}/oob/v1/ws``. */
 function isOobEnabled(searchParams: URLSearchParams): boolean {
-  const v = readUrlParam(searchParams, 'oobEnable');
-  return v === '1' || v?.toLowerCase() === 'true';
+  const v = readUrlParam(searchParams, "oobEnable");
+  return v === "1" || v?.toLowerCase() === "true";
 }
 
-function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null {
+function buildOobHubWsUrlFromQuery(
+  searchParams: URLSearchParams,
+): string | null {
   if (!isOobEnabled(searchParams)) return null;
-  const serverIP = readUrlParam(searchParams, 'serverIP')?.trim();
-  const portStr = readUrlParam(searchParams, 'port')?.trim();
-  if (!serverIP || portStr === undefined || portStr === '') return null;
+  const serverIP = readUrlParam(searchParams, "serverIP")?.trim();
+  const portStr = readUrlParam(searchParams, "port")?.trim();
+  if (!serverIP || portStr === undefined || portStr === "") return null;
   if (!/^\d{1,5}$/.test(portStr)) return null;
   const host =
-    serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
+    serverIP.includes(":") && !serverIP.startsWith("[")
+      ? `[${serverIP}]`
+      : serverIP;
   return `wss://${host}:${portStr}/oob/v1/ws`;
 }
 
-function App() {
+function AppContent() {
+  const {
+    recorder,
+    mode: recorderMode,
+    savedRecording,
+    recordedFrameCount,
+    startRecord,
+    stopRecord,
+    startReplay,
+    stopReplay,
+    onSaveRecording: saveRecording,
+    onFrameRecord,
+  } = useRecorder();
+
   const COUNTDOWN_MAX_SECONDS = 9;
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
@@ -146,15 +181,17 @@ function App() {
   // Connection state management
   const [isConnected, setIsConnected] = useState(false);
   // Session status management
-  const [sessionStatus, setSessionStatus] = useState('Disconnected');
+  const [sessionStatus, setSessionStatus] = useState("Disconnected");
   // Error message management
-  const [errorMessage, setErrorMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState("");
   // CloudXR session reference
-  const [cloudXRSession, setCloudXRSession] = useState<CloudXR.Session | null>(null);
+  const [cloudXRSession, setCloudXRSession] = useState<CloudXR.Session | null>(
+    null,
+  );
   // XR mode state for UI visibility
   const [isXRMode, setIsXRMode] = useState(false);
   // Server address being used for connection
-  const [serverAddress, setServerAddress] = useState<string>('');
+  const [serverAddress, setServerAddress] = useState<string>("");
   // Teleop countdown and state
   const [isCountingDown, setIsCountingDown] = useState(false);
   const [countdownRemaining, setCountdownRemaining] = useState(0);
@@ -186,19 +223,20 @@ function App() {
   // Note: React Three Fiber's emulation is disabled (emulate: false) to avoid conflicts
   useEffect(() => {
     const loadIWER = async () => {
-        const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
-        if (!supportsImmersive) {
-          setErrorMessage('Immersive mode not supported');
-          setIwerLoaded(false);
-          setCapabilitiesValid(false);
-          capabilitiesCheckedRef.current = false; // Reset check flag on failure
-          return;
-        }
+      const { supportsImmersive, iwerLoaded: wasIwerLoaded } =
+        await loadIWERIfNeeded();
+      if (!supportsImmersive) {
+        setErrorMessage("Immersive mode not supported");
+        setIwerLoaded(false);
+        setCapabilitiesValid(false);
+        capabilitiesCheckedRef.current = false; // Reset check flag on failure
+        return;
+      }
       // IWER loaded successfully, now we can proceed with capability checks
-        setIwerLoaded(true);
+      setIwerLoaded(true);
       // Store whether IWER was loaded for status message display later
-        if (wasIwerLoaded) {
-          sessionStorage.setItem('iwerWasLoaded', 'true');
+      if (wasIwerLoaded) {
+        sessionStorage.setItem("iwerWasLoaded", "true");
       }
     };
 
@@ -208,7 +246,10 @@ function App() {
   // Update button state when IWER fails and UI becomes ready
   useEffect(() => {
     if (cloudXR2DUI && !iwerLoaded && !capabilitiesValid) {
-      cloudXR2DUI.setStartButtonState(true, 'CONNECT (immersive mode not supported)');
+      cloudXR2DUI.setStartButtonState(
+        true,
+        "CONNECT (immersive mode not supported)",
+      );
     }
   }, [cloudXR2DUI, iwerLoaded, capabilitiesValid]);
 
@@ -226,51 +267,62 @@ function App() {
       capabilitiesCheckedRef.current = true;
 
       // Disable button and show checking status
-      cloudXR2DUI.setStartButtonState(true, 'CONNECT (checking capabilities)');
+      cloudXR2DUI.setStartButtonState(true, "CONNECT (checking capabilities)");
 
       // Set by the IWER load effect above; passed to checkCapabilities to skip browser
       // version checks that don't apply when running under a desktop XR emulator.
-      const iwerWasLoaded = sessionStorage.getItem('iwerWasLoaded') === 'true';
-      let result: { success: boolean; failures: string[]; warnings: string[] } = {
-        success: false,
-        failures: [],
-        warnings: [],
-      };
+      const iwerWasLoaded = sessionStorage.getItem("iwerWasLoaded") === "true";
+      let result: { success: boolean; failures: string[]; warnings: string[] } =
+        {
+          success: false,
+          failures: [],
+          warnings: [],
+        };
       try {
         result = await checkCapabilities(iwerWasLoaded);
       } catch (error) {
-        cloudXR2DUI.showStatus(`Capability check error: ${error}`, 'error');
+        cloudXR2DUI.showStatus(`Capability check error: ${error}`, "error");
         setCapabilitiesValid(false);
-        cloudXR2DUI.setStartButtonState(true, 'CONNECT (capability check failed)');
+        cloudXR2DUI.setStartButtonState(
+          true,
+          "CONNECT (capability check failed)",
+        );
         capabilitiesCheckedRef.current = false; // Reset on error for potential retry
         return;
       }
       if (!result.success) {
         cloudXR2DUI.showStatus(
-          'Browser does not meet required capabilities:\n' + result.failures.join('\n'),
-          'error'
+          "Browser does not meet required capabilities:\n" +
+            result.failures.join("\n"),
+          "error",
         );
         setCapabilitiesValid(false);
-        cloudXR2DUI.setStartButtonState(true, 'CONNECT (capability check failed)');
+        cloudXR2DUI.setStartButtonState(
+          true,
+          "CONNECT (capability check failed)",
+        );
         capabilitiesCheckedRef.current = false; // Reset on failure for potential retry
         return;
       }
 
       // Show final status message with IWER info if applicable
       if (result.warnings.length > 0) {
-        cloudXR2DUI.showStatus('Performance notice:\n' + result.warnings.join('\n'), 'info');
+        cloudXR2DUI.showStatus(
+          "Performance notice:\n" + result.warnings.join("\n"),
+          "info",
+        );
       } else if (iwerWasLoaded) {
         // Include IWER status in the final success message
         cloudXR2DUI.showStatus(
-          'CloudXR.js SDK is supported.\nUsing IWER (Immersive Web Emulator Runtime) - Emulating Meta Quest 3.',
-          'info'
+          "CloudXR.js SDK is supported.\nUsing IWER (Immersive Web Emulator Runtime) - Emulating Meta Quest 3.",
+          "info",
         );
       } else {
-        cloudXR2DUI.showStatus('CloudXR.js SDK is supported.', 'success');
+        cloudXR2DUI.showStatus("CloudXR.js SDK is supported.", "success");
       }
 
       setCapabilitiesValid(true);
-      cloudXR2DUI.setStartButtonState(false, 'CONNECT');
+      cloudXR2DUI.setStartButtonState(false, "CONNECT");
       cloudXR2DUI.updateConnectButtonState();
     };
 
@@ -283,15 +335,20 @@ function App() {
   // Derive the active device profile from the UI. This drives XR store defaults.
   // The UI can change these values, so we need to recompute when config changes.
   const deviceProfile = useMemo(
-    () => getDeviceProfile(resolveDeviceProfileId(cloudXR2DUI?.getConfiguration().deviceProfileId)),
-    [cloudXR2DUI, configVersion]
+    () =>
+      getDeviceProfile(
+        resolveDeviceProfileId(cloudXR2DUI?.getConfiguration().deviceProfileId),
+      ),
+    [cloudXR2DUI, configVersion],
   );
   const xrFoveation =
-    deviceProfile.web?.foveation ?? kPerformanceOptions.xrWebGLLayer_fixedFoveationLevel;
+    deviceProfile.web?.foveation ??
+    kPerformanceOptions.xrWebGLLayer_fixedFoveationLevel;
   const xrFrameBufferScaling =
     deviceProfile.web?.frameBufferScaling ??
     kPerformanceOptions.xrWebGLLayer_framebufferScaleFactor;
-  const hideControllerModel = cloudXR2DUI?.getConfiguration().hideControllerModel ?? false;
+  const hideControllerModel =
+    cloudXR2DUI?.getConfiguration().hideControllerModel ?? false;
 
   // XR store must be created after we know which device profile is active.
   // useMemo prevents re-creating the store for unrelated UI changes.
@@ -306,7 +363,7 @@ function App() {
         frameBufferScaling: xrFrameBufferScaling,
         // Use local WebXR input profile assets only when bundled (optional build without assets)
         ...(process.env.WEBXR_ASSETS_VERSION && {
-          baseAssetPath: `${new URL('.', window.location.href).href}npm/@webxr-input-profiles/assets@${process.env.WEBXR_ASSETS_VERSION}/dist/profiles/`,
+          baseAssetPath: `${new URL(".", window.location.href).href}npm/@webxr-input-profiles/assets@${process.env.WEBXR_ASSETS_VERSION}/dist/profiles/`,
         }),
         hand: {
           model: false, // Disable hand models but keep pointer functionality
@@ -329,7 +386,7 @@ function App() {
         offerSession: true,
       }),
     // hideControllerModel omitted: changing it must not recreate the store or the session would be lost
-    [xrFoveation, xrFrameBufferScaling]
+    [xrFoveation, xrFrameBufferScaling],
   );
 
   // Apply controller model visibility when the option changes. store.setController() updates
@@ -342,19 +399,20 @@ function App() {
   useEffect(() => {
     // Create and initialize the 2D UI manager.
     const ui = new CloudXR2DUI(() => {
-      setConfigVersion(v => v + 1);
+      setConfigVersion((v) => v + 1);
     });
     // Teleop path: URL hash -> last-used (localStorage) -> DEFAULT_TELEOP_PATH.
     let resolvedPath = parseTeleopPathFromHash(window.location.hash);
     if (!resolvedPath) {
       resolvedPath =
-        parseTeleopPathFromHash(`#/${loadStoredTeleopPath() ?? ''}`) ?? DEFAULT_TELEOP_PATH;
+        parseTeleopPathFromHash(`#/${loadStoredTeleopPath() ?? ""}`) ??
+        DEFAULT_TELEOP_PATH;
     }
     // Reflect canonical form (parse may have lowercased/truncated). `#/…` is a
     // fragment-relative URL so replaceState preserves path and search.
     const canonicalHash = `#/${resolvedPath}`;
     if (window.location.hash !== canonicalHash) {
-      window.history.replaceState(null, '', canonicalHash);
+      window.history.replaceState(null, "", canonicalHash);
     }
     saveStoredTeleopPath(resolvedPath);
 
@@ -364,7 +422,7 @@ function App() {
       const config = ui.getConfiguration();
       const resolutionError = getResolutionValidationError(
         config.perEyeWidth,
-        config.perEyeHeight
+        config.perEyeHeight,
       );
       if (resolutionError) {
         ui.updateConnectButtonState();
@@ -373,13 +431,15 @@ function App() {
       // CloudXR2DUI.updateConfiguration already sets immersiveMode to 'vr' when headless is on.
       // Repeat the rule here so session entry stays correct even if config were stale or built
       // elsewhere; immersive-ar is wrong for headless (no passthrough blit path).
-      const immersiveMode: 'ar' | 'vr' = config.headless ? 'vr' : config.immersiveMode;
-      if (immersiveMode === 'ar') {
+      const immersiveMode: "ar" | "vr" = config.headless
+        ? "vr"
+        : config.immersiveMode;
+      if (immersiveMode === "ar") {
         await store.enterAR();
-      } else if (immersiveMode === 'vr') {
+      } else if (immersiveMode === "vr") {
         await store.enterVR();
       } else {
-        setErrorMessage('Unrecognized immersive mode');
+        setErrorMessage("Unrecognized immersive mode");
       }
     };
 
@@ -400,8 +460,8 @@ function App() {
   // Address-bar hash edits need a reload to re-run init.
   useEffect(() => {
     const onHashChange = () => window.location.reload();
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   // Update HTML error message display when error state changes
@@ -420,7 +480,7 @@ function App() {
     const handleXRStateChange = () => {
       const xrState = store.getState();
 
-      if (xrState.mode === 'immersive-ar' || xrState.mode === 'immersive-vr') {
+      if (xrState.mode === "immersive-ar" || xrState.mode === "immersive-vr") {
         // XR session is active
         setIsXRMode(true);
 
@@ -428,11 +488,13 @@ function App() {
         const session = xrState.session;
         if (session) {
           const enabledFeatures = session.enabledFeatures || [];
-          const hasBodyTracking = enabledFeatures.includes('body-tracking');
+          const hasBodyTracking = enabledFeatures.includes("body-tracking");
           console.warn(
-            `[Body Tracking] XR Session started. Body tracking enabled: ${hasBodyTracking}`
+            `[Body Tracking] XR Session started. Body tracking enabled: ${hasBodyTracking}`,
           );
-          console.warn(`[Body Tracking] Enabled features: ${enabledFeatures.join(', ')}`);
+          console.warn(
+            `[Body Tracking] Enabled features: ${enabledFeatures.join(", ")}`,
+          );
         }
 
         // One dump per immersive session: session.mode is authoritative (immersive-vr vs immersive-ar).
@@ -442,14 +504,14 @@ function App() {
         }
 
         if (cloudXR2DUI) {
-          cloudXR2DUI.setStartButtonState(true, 'CONNECT (XR session active)');
+          cloudXR2DUI.setStartButtonState(true, "CONNECT (XR session active)");
         }
       } else {
         immersiveSessionDumpLoggedRef.current = false;
         // XR session ended
         setIsXRMode(false);
         if (cloudXR2DUI) {
-          cloudXR2DUI.setStartButtonState(false, 'CONNECT');
+          cloudXR2DUI.setStartButtonState(false, "CONNECT");
           cloudXR2DUI.updateConnectButtonState();
         }
 
@@ -478,13 +540,16 @@ function App() {
   const handleStatusChange = (connected: boolean, status: string) => {
     setIsConnected(connected);
     setSessionStatus(status);
-    controlChannelRef.current?.sendStreamStatus(connected && status === 'Connected');
+    controlChannelRef.current?.sendStreamStatus(
+      connected && status === "Connected",
+    );
 
     // Reload on session end per mode; read live off the stable 2D UI to avoid a stale closure.
     const autoRefreshMode = cloudXR2DUI?.getConfiguration().autoRefreshMode;
     if (
-      (status === 'Disconnected' && (autoRefreshMode === 'clean' || autoRefreshMode === 'any')) ||
-      (status === 'Error' && autoRefreshMode === 'any')
+      (status === "Disconnected" &&
+        (autoRefreshMode === "clean" || autoRefreshMode === "any")) ||
+      (status === "Error" && autoRefreshMode === "any")
     ) {
       window.location.reload();
     }
@@ -496,7 +561,10 @@ function App() {
   };
 
   // Streaming performance metrics callback handler - updates raw data signal
-  const handleStreamingPerformanceMetrics = (fps: number, latencyMs: number) => {
+  const handleStreamingPerformanceMetrics = (
+    fps: number,
+    latencyMs: number,
+  ) => {
     streamingMetrics.value = { fps, latencyMs };
   };
 
@@ -506,7 +574,7 @@ function App() {
    */
   const sendMessage = async (message: any) => {
     if (!cloudXRSession) {
-      console.error('CloudXR session not available');
+      console.error("CloudXR session not available");
       return false;
     }
 
@@ -514,42 +582,44 @@ function App() {
     const channels = cloudXRSession.availableMessageChannels;
     const channel = findChannelByUuid(channels, TELEOP_CHANNEL_UUID);
     if (channel) {
-      console.info(`Using teleop MessageChannel (${channels.length} channel(s) available)`);
+      console.info(
+        `Using teleop MessageChannel (${channels.length} channel(s) available)`,
+      );
 
       try {
         const encoder = new TextEncoder();
         const data = encoder.encode(JSON.stringify(message));
         const success = channel.sendServerMessage(data);
         if (success) {
-          console.info('Message sent via MessageChannel:', message);
+          console.info("Message sent via MessageChannel:", message);
         } else {
-          console.error('Failed to send message via MessageChannel');
+          console.error("Failed to send message via MessageChannel");
         }
         return success;
       } catch (error) {
-        console.error('Error sending via MessageChannel:', error);
+        console.error("Error sending via MessageChannel:", error);
         return false;
       }
     }
 
     // Fallback to legacy API
-    console.info('Using legacy sendServerMessage API');
+    console.info("Using legacy sendServerMessage API");
     try {
       cloudXRSession.sendServerMessage(message);
-      console.info('Message sent via legacy API:', message);
+      console.info("Message sent via legacy API:", message);
       return true;
     } catch (error) {
-      console.error('Error sending via legacy API:', error);
+      console.error("Error sending via legacy API:", error);
       return false;
     }
   };
 
   // UI Event Handlers
   const handleStartTeleop = async () => {
-    console.info('Start Teleop pressed');
+    console.info("Start Teleop pressed");
 
     if (!cloudXRSession) {
-      console.error('CloudXR session not available');
+      console.error("CloudXR session not available");
       return;
     }
 
@@ -575,7 +645,7 @@ function App() {
     setCountdownRemaining(countdownDuration);
 
     countdownTimerRef.current = window.setInterval(() => {
-      setCountdownRemaining(prev => {
+      setCountdownRemaining((prev) => {
         if (prev <= 1) {
           // Countdown finished
           if (countdownTimerRef.current !== null) {
@@ -585,7 +655,7 @@ function App() {
           setIsCountingDown(false);
 
           // Send start teleop command
-          sendMessage(START_TELEOP_COMMAND).then(success => {
+          sendMessage(START_TELEOP_COMMAND).then((success) => {
             if (success) {
               setIsTeleopRunning(true);
             } else {
@@ -600,9 +670,8 @@ function App() {
     }, 1000);
   };
 
-
   const handleResetTeleop = async () => {
-    console.info('Reset Teleop pressed');
+    console.info("Reset Teleop pressed");
 
     // Cancel any active countdown
     if (countdownTimerRef.current !== null) {
@@ -613,23 +682,23 @@ function App() {
     setCountdownRemaining(0);
 
     if (!cloudXRSession) {
-      console.error('CloudXR session not available');
+      console.error("CloudXR session not available");
       return;
     }
 
     // Send stop teleop command first
     const stopCommand = {
-      type: 'teleop_command',
+      type: "teleop_command",
       message: {
-        command: 'stop teleop',
+        command: "stop teleop",
       },
     };
 
     // Send reset teleop command
     const resetCommand = {
-      type: 'teleop_command',
+      type: "teleop_command",
       message: {
-        command: 'reset teleop',
+        command: "reset teleop",
       },
     };
 
@@ -643,7 +712,7 @@ function App() {
   };
 
   const handleDisconnect = () => {
-    console.info('Disconnect pressed');
+    console.info("Disconnect pressed");
 
     // Cleanup countdown state on disconnect
     if (countdownTimerRef.current !== null) {
@@ -668,7 +737,7 @@ function App() {
     if (session) {
       session.end().catch((err: unknown) => {
         setErrorMessage(
-          `Failed to end XR session: ${err instanceof Error ? err.message : String(err)}`
+          `Failed to end XR session: ${err instanceof Error ? err.message : String(err)}`,
         );
       });
     }
@@ -683,27 +752,30 @@ function App() {
       return;
     }
 
-    console.info('[Teleop] OOB control WebSocket:', hubWsUrl);
+    console.info("[Teleop] OOB control WebSocket:", hubWsUrl);
 
     const channel = new HeadsetControlChannel({
       url: hubWsUrl,
-      token: readUrlParam(p, 'controlToken') ?? undefined,
+      token: readUrlParam(p, "controlToken") ?? undefined,
       onConfig: () => {
         // Config push handling deferred to phase 2.
       },
       getMetricsSnapshot: () => {
-        const snapshots: Array<{ cadence: string; metrics: Record<string, number> }> = [];
+        const snapshots: Array<{
+          cadence: string;
+          metrics: Record<string, number>;
+        }> = [];
         const rm = renderMetrics.value;
         if (rm) {
           snapshots.push({
-            cadence: 'render',
+            cadence: "render",
             metrics: { [CloudXR.MetricsName.RenderFramerate]: rm.fps },
           });
         }
         const sm = streamingMetrics.value;
         if (sm) {
           snapshots.push({
-            cadence: 'frame',
+            cadence: "frame",
             metrics: {
               [CloudXR.MetricsName.StreamingFramerate]: sm.fps,
               [CloudXR.MetricsName.PoseToRenderTime]: sm.latencyMs,
@@ -725,57 +797,66 @@ function App() {
   // Countdown configuration handlers (0-5 seconds)
   const handleIncreaseCountdown = () => {
     if (isCountingDown) return;
-    setCountdownDuration(prev => Math.min(COUNTDOWN_MAX_SECONDS, prev + 1));
+    setCountdownDuration((prev) => Math.min(COUNTDOWN_MAX_SECONDS, prev + 1));
   };
 
   const handleDecreaseCountdown = () => {
     if (isCountingDown) return;
-    setCountdownDuration(prev => Math.max(0, prev - 1));
+    setCountdownDuration((prev) => Math.max(0, prev - 1));
   };
 
   // Memo config based on configVersion (manual dependency tracker incremented on config changes)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const config = useMemo(
     () => (cloudXR2DUI ? cloudXR2DUI.getConfiguration() : null),
-    [cloudXR2DUI, configVersion]
+    [cloudXR2DUI, configVersion],
   );
 
   // Build ICE server config from URL params (set in USB-local mode by oob_teleop_env.py).
   // turnServer e.g. "turn:127.0.0.1:3478?transport=tcp", iceRelayOnly=1 forces relay-only ICE.
-  const iceServersConfig = useMemo<CloudXR.SessionOptions['iceServers'] | undefined>(() => {
+  const iceServersConfig = useMemo<
+    CloudXR.SessionOptions["iceServers"] | undefined
+  >(() => {
     const p = new URLSearchParams(window.location.search);
-    const turnServer = readUrlParam(p, 'turnServer');
+    const turnServer = readUrlParam(p, "turnServer");
     if (!turnServer) return undefined;
-    const turnUsername = readUrlParam(p, 'turnUsername') ?? undefined;
-    const turnCredential = readUrlParam(p, 'turnCredential') ?? undefined;
-    const iceRelayOnly = readUrlParam(p, 'iceRelayOnly') === '1';
+    const turnUsername = readUrlParam(p, "turnUsername") ?? undefined;
+    const turnCredential = readUrlParam(p, "turnCredential") ?? undefined;
+    const iceRelayOnly = readUrlParam(p, "iceRelayOnly") === "1";
     return {
-      iceServers: [{
-        urls: turnServer,
-        ...(turnUsername !== undefined && { username: turnUsername }),
-        ...(turnCredential !== undefined && { credential: turnCredential }),
-      }],
-      ...(iceRelayOnly && { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }),
+      iceServers: [
+        {
+          urls: turnServer,
+          ...(turnUsername !== undefined && { username: turnUsername }),
+          ...(turnCredential !== undefined && { credential: turnCredential }),
+        },
+      ],
+      ...(iceRelayOnly && {
+        iceTransportPolicy: "relay" as RTCIceTransportPolicy,
+      }),
     };
   }, []);
 
   // Calculate panel position from config and memoize it as the vector used in CloudXR3DUI.
   const controlPanelPositionVector = useMemo(
     () =>
-      getControlPanelPositionVector(config?.controlPanelPosition ?? 'center', CONTROL_PANEL_LAYOUT),
-    [config?.controlPanelPosition]
+      getControlPanelPositionVector(
+        config?.controlPanelPosition ?? "center",
+        CONTROL_PANEL_LAYOUT,
+      ),
+    [config?.controlPanelPosition],
   );
 
   // Sync XR mode state to body class for CSS styling
   useEffect(() => {
     if (isXRMode) {
-      document.body.classList.add('xr-mode');
+      document.body.classList.add("xr-mode");
     } else {
-      document.body.classList.remove('xr-mode');
+      document.body.classList.remove("xr-mode");
     }
 
     return () => {
-      document.body.classList.remove('xr-mode');
+      document.body.classList.remove("xr-mode");
     };
   }, [isXRMode]);
 
@@ -794,22 +875,26 @@ function App() {
 
       const channels = cloudXRSession.availableMessageChannels;
       if (channels.length > 0) {
-        console.info(`[MessageChannel] ${channels.length} channel(s) available:`);
+        console.info(
+          `[MessageChannel] ${channels.length} channel(s) available:`,
+        );
         channels.forEach((ch, i) => {
           const uuidHex = Array.from(ch.uuid as Uint8Array)
-            .map((b: number) => b.toString(16).padStart(2, '0'))
-            .join('');
-          console.info(
-            `  [${i}] uuid=${uuidHex} status=${ch.status}`
-          );
+            .map((b: number) => b.toString(16).padStart(2, "0"))
+            .join("");
+          console.info(`  [${i}] uuid=${uuidHex} status=${ch.status}`);
         });
 
         const channel = findChannelByUuid(channels, TELEOP_CHANNEL_UUID);
         if (!channel) {
-          console.info('[MessageChannel] Teleop channel not found yet, will retry...');
+          console.info(
+            "[MessageChannel] Teleop channel not found yet, will retry...",
+          );
           return;
         }
-        console.info('[MessageChannel] Found teleop channel, setting up receiver');
+        console.info(
+          "[MessageChannel] Found teleop channel, setting up receiver",
+        );
         receiverActive = true;
 
         const receiveMessages = async () => {
@@ -817,25 +902,25 @@ function App() {
             try {
               const data = await channel.receiveMessage();
               if (data === null) {
-                console.info('MessageChannel closed');
+                console.info("MessageChannel closed");
                 break;
               }
 
               // Decode and handle message
               const decoder = new TextDecoder();
               const messageText = decoder.decode(data);
-              console.info('Received message via MessageChannel:', messageText);
+              console.info("Received message via MessageChannel:", messageText);
 
               // Parse if JSON
               try {
                 const message = JSON.parse(messageText);
-                console.info('Parsed message:', message);
+                console.info("Parsed message:", message);
                 // Handle message here if needed
               } catch {
-                console.info('Non-JSON message:', messageText);
+                console.info("Non-JSON message:", messageText);
               }
             } catch (error) {
-              console.error('Error receiving message:', error);
+              console.error("Error receiving message:", error);
               break;
             }
           }
@@ -864,10 +949,10 @@ function App() {
       <Canvas
         events={noEvents}
         style={{
-          background: '#000',
-          width: '100vw',
-          height: '100vh',
-          position: 'fixed',
+          background: "#000",
+          width: "100vw",
+          height: "100vh",
+          position: "fixed",
           top: 0,
           left: 0,
           zIndex: -1,
@@ -877,14 +962,16 @@ function App() {
           depth: true,
           stencil: false,
           antialias:
-            deviceProfile.web?.webglAntialias ?? kPerformanceOptions.webglContext_antialias,
+            deviceProfile.web?.webglAntialias ??
+            kPerformanceOptions.webglContext_antialias,
           failIfMajorPerformanceCaveat: true,
-          powerPreference: deviceProfile.web?.powerPreference ?? 'high-performance', // R3F default, but being explicit
+          powerPreference:
+            deviceProfile.web?.powerPreference ?? "high-performance", // R3F default, but being explicit
           premultipliedAlpha: false,
           preserveDrawingBuffer: true, // Keep buffer for custom rendering
         }}
         camera={{ position: [0, 0, 0.65] }}
-        onWheel={e => {
+        onWheel={(e) => {
           e.preventDefault();
         }}
       >
@@ -895,12 +982,21 @@ function App() {
           <XROrigin />
           {cloudXR2DUI && config && (
             <>
+              <RecorderComponent
+                recorder={recorder}
+                onFrameRecord={onFrameRecord}
+                isConnected={isConnected}
+              />
+              <TraceVisualization
+                recorder={recorder}
+                showTrace={config.showTrace ?? false}
+              />
               <CloudXRComponent
                 config={config}
                 applicationName={`Isaac Teleop Web Client (${config.teleopPath})`}
                 iceServers={iceServersConfig}
                 onStatusChange={handleStatusChange}
-                onError={error => {
+                onError={(error) => {
                   if (cloudXR2DUI) {
                     cloudXR2DUI.showError(error);
                   }
@@ -909,7 +1005,9 @@ function App() {
                 onSessionReady={setCloudXRSession}
                 onServerAddress={setServerAddress}
                 onRenderPerformanceMetrics={handleRenderPerformanceMetrics}
-                onStreamingPerformanceMetrics={handleStreamingPerformanceMetrics}
+                onStreamingPerformanceMetrics={
+                  handleStreamingPerformanceMetrics
+                }
                 headless={!!config.headless}
               />
               {!config.headless && (
@@ -923,10 +1021,10 @@ function App() {
                   sessionStatus={sessionStatus}
                   playLabel={
                     isTeleopRunning
-                      ? 'Running'
+                      ? "Running"
                       : isCountingDown
                         ? `Starting in ${countdownRemaining} sec...`
-                        : 'Play'
+                        : "Play"
                   }
                   playInProgress={isCountingDown || isTeleopRunning}
                   countdownSeconds={countdownDuration}
@@ -938,6 +1036,16 @@ function App() {
                   renderFpsText={renderFpsText}
                   streamingFpsText={streamingFpsText}
                   poseToRenderText={poseToRenderText}
+                  showRecordingControls={config.showRecordingControls}
+                  recorderMode={recorderMode}
+                  hasSavedRecording={savedRecording !== null}
+                  recordedFrameCount={recordedFrameCount}
+                  onStartRecord={startRecord}
+                  onStopRecord={stopRecord}
+                  onStartReplay={startReplay}
+                  onStopReplay={stopReplay}
+                  onSaveRecording={saveRecording}
+                  showTrace={config.showTrace ?? false}
                 />
               )}
             </>
@@ -945,6 +1053,14 @@ function App() {
         </XR>
       </Canvas>
     </>
+  );
+}
+
+function App() {
+  return (
+    <RecorderProvider>
+      <AppContent />
+    </RecorderProvider>
   );
 }
 
