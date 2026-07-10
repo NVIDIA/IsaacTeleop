@@ -167,6 +167,7 @@ function AppContent() {
     startReplay,
     stopReplay,
     onSaveRecording: saveRecording,
+    onLoadRecording: loadRecording,
     onFrameRecord,
   } = useRecorder();
 
@@ -1045,6 +1046,7 @@ function AppContent() {
                   onStartReplay={startReplay}
                   onStopReplay={stopReplay}
                   onSaveRecording={saveRecording}
+                  onLoadRecording={loadRecording}
                   showTrace={config.showTrace ?? false}
                 />
               )}

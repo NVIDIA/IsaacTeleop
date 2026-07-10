@@ -172,7 +172,7 @@ export function TraceVisualization({
       leftGrip: makeTraceChannel("#4488ff"),
       rightGrip: makeTraceChannel("#44ff88"),
       leftWrist: makeTraceChannel("#ff4422"),
-      rightWrist: makeTraceChannel("#ff4422"),
+      rightWrist: makeTraceChannel("#ff44cc"),
     };
   }
   const traceChannels = Object.values(traceRef.current);
@@ -268,7 +268,7 @@ export function TraceVisualization({
         (geo.attributes.position as BufferAttribute).needsUpdate = true;
         (geo.attributes.color as BufferAttribute).needsUpdate = true;
         slot.points.visible = true;
-      } else if (!showTrace) {
+      } else {
         slot.points.visible = false;
       }
     };

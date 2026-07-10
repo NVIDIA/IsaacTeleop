@@ -140,6 +140,15 @@ describe('recordedFrameCount', () => {
     r.stopRecording();
   });
 
+  test('does not record when connected=false', () => {
+    const r = new XRInputRecorder();
+    r.startRecording();
+    r.beginFrame(makeFrame(), false);
+    r.beginFrame(makeFrame(), false);
+    expect(r.recordedFrameCount).toBe(0);
+    r.stopRecording();
+  });
+
   test('getRecording frames length matches recordedFrameCount', () => {
     const r = new XRInputRecorder();
     r.startRecording();
@@ -266,6 +275,12 @@ describe('exportJSON / importJSON', () => {
     expect(() =>
       XRInputRecorder.importJSON(JSON.stringify({ version: 99, frames: [] })),
     ).toThrow(/version/i);
+  });
+
+  test('importJSON throws when frames is not an array', () => {
+    expect(() =>
+      XRInputRecorder.importJSON(JSON.stringify({ version: 1, frames: null })),
+    ).toThrow(/malformed/i);
   });
 });
 

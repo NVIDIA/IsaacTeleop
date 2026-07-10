@@ -97,6 +97,7 @@ interface CloudXRUIProps {
   onStartReplay?: () => void;
   onStopReplay?: () => void;
   onSaveRecording?: () => void;
+  onLoadRecording?: () => void;
   /** Show/hide rolling path trace for hands/controllers. Driven by the 2D settings panel. */
   showTrace?: boolean;
 }
@@ -152,6 +153,7 @@ export default function CloudXR3DUI({
   onStartReplay,
   onStopReplay,
   onSaveRecording,
+  onLoadRecording,
   showTrace = false,
 }: CloudXRUIProps) {
   const MINIMIZE_ON_PLAY_KEY = "cxr.isaac.minimizeOnPlay";
@@ -582,7 +584,7 @@ export default function CloudXR3DUI({
                           </Text>
                         </Button>
                       )}
-                      {/* Save — only when there is a recording to save */}
+                      {/* Save / Load — only when idle */}
                       {recorderMode === "idle" && hasSavedRecording && (
                         <Button
                           {...xrButton("save-rec", onSaveRecording)}
@@ -599,6 +601,25 @@ export default function CloudXR3DUI({
                         >
                           <Text fontSize={30} color="black" fontWeight="medium">
                             Save
+                          </Text>
+                        </Button>
+                      )}
+                      {recorderMode === "idle" && (
+                        <Button
+                          {...xrButton("load-rec", onLoadRecording)}
+                          variant="default"
+                          width={120}
+                          height={72}
+                          borderRadius={20}
+                          backgroundColor="rgba(220, 220, 220, 0.9)"
+                          hover={{
+                            backgroundColor: "rgba(100, 150, 255, 1)",
+                            borderColor: "white",
+                            borderWidth: 2,
+                          }}
+                        >
+                          <Text fontSize={30} color="black" fontWeight="medium">
+                            Load
                           </Text>
                         </Button>
                       )}

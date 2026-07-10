@@ -246,7 +246,7 @@ export class XRInputRecorder {
    * while the CloudXR session is still initialising.
    */
   beginFrame(frame: XRFrame, connected = true): void {
-    if (this._mode === "recording") {
+    if (this._mode === "recording" && connected) {
       const entry = emptyFrame();
       for (const src of frame.session.inputSources) {
         const gp = serializeGamepad(src.gamepad);
@@ -334,6 +334,8 @@ export class XRInputRecorder {
     const r = JSON.parse(json) as Recording;
     if (r.version !== 1)
       throw new Error(`Unsupported recording version: ${r.version}`);
+    if (!Array.isArray(r.frames))
+      throw new Error("Malformed recording: frames is not an array");
     return r;
   }
 
@@ -453,13 +455,19 @@ export class XRInputRecorder {
     }
 
     if (this._mode === "replaying") {
+      const rframe = this._currentReplay;
       for (const src of frame.session.inputSources) {
         if (space === src.gripSpace) {
-          const rframe = this._currentReplay;
           if (src.handedness === "left")
             return makeFakePose(rframe.poses.leftGrip);
           if (src.handedness === "right")
             return makeFakePose(rframe.poses.rightGrip);
+        }
+        if (space === src.targetRaySpace) {
+          if (src.handedness === "left")
+            return makeFakePose(rframe.poses.leftAim);
+          if (src.handedness === "right")
+            return makeFakePose(rframe.poses.rightAim);
         }
       }
       return this._origGetPose!.call(frame, space, baseSpace);

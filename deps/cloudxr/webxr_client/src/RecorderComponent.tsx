@@ -54,7 +54,7 @@ export function RecorderComponent({
     const isVisible = session?.visibilityState === "visible";
 
     recorder.setSceneRefSpace(state.gl.xr.getReferenceSpace());
-    recorder.beginFrame(xrFrame, isConnected && (isVisible ?? true));
+    recorder.beginFrame(xrFrame, isConnected && isVisible);
 
     if (recorder.mode === "recording" && onFrameRecord) {
       tickRef.current++;
