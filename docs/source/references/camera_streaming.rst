@@ -183,11 +183,11 @@ the viewer on the workstation (``source: rtp``).
 
 .. warning::
 
-   Split mode exists for one situation: the cameras are on the robot, but Isaac Teleop runs on a
-   workstation, so the frames must be streamed to where Isaac Teleop is running. That costs a
-   full extra encode/decode hop — NVENC on the robot, UDP, NVDEC on the workstation — so
-   whenever a camera can attach directly to the machine running Isaac Teleop, run direct mode
-   instead. Wired networks only: there is no retransmit or FEC — one lost packet corrupts one
+   Split mode is **not recommended in most cases**. It exists for one situation: the cameras are
+   on the robot, but Isaac Teleop runs on a workstation, so the frames must be streamed to where
+   Isaac Teleop is running. That costs a full extra encode/decode hop — NVENC on the robot, UDP,
+   NVDEC on the workstation — so whenever a camera can attach directly to the machine running
+   Isaac Teleop, run direct mode instead. Wired networks only: there is no retransmit or FEC — one lost packet corrupts one
    frame until the next IDR (default every 5 s).
 
 In split mode every camera entry must pin ``width``, ``height``, and ``fps`` in the YAML — the
