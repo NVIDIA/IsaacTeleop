@@ -35,8 +35,6 @@ Requirements
   :doc:`quick start </getting_started/quick_start>` steps :ref:`run-cloudxr-server` and
   :ref:`connect-xr-headset`. No headset handy? ``--mode window`` renders to a desktop window
   instead and only needs a local display.
-- No IsaacTeleop source build and no camera required — setup installs everything from PyPI, and
-  the video-replay source runs hardware-free.
 
 Setup
 -----
@@ -56,18 +54,43 @@ probes system packages (GStreamer plugins, cairo / girepository headers, JetPack
 ``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line and prompts
 ``[y/N]`` — answering ``n`` or running non-interactively aborts.
 
-Useful flags: ``--no-{v4l2,oakd,rtp}``, ``--with-zed``, ``--sender-only``, ``--jetson``. Pass
-``--venv PATH`` to install into an existing virtual environment. To develop against a locally
-built wheel instead of the PyPI release, pass ``--wheel <path>`` (see
-:doc:`/getting_started/build_from_source/index`).
+By default ``setup`` provisions everything except ZED support; flags trim or extend that:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+
+   * - Flag
+     - Effect
+   * - ``--no-v4l2``
+     - Skip USB / UVC webcam support (``opencv-python``).
+   * - ``--no-oakd``
+     - Skip OAK-D support (``depthai``).
+   * - ``--no-rtp``
+     - Skip split-mode dependencies: the GStreamer system packages and the native NVENC/NVDEC
+       codec build. Direct mode still works.
+   * - ``--with-zed``
+     - Also build + install the ZED SDK's Python API (``pyzed``). Requires the ZED SDK on the
+       machine (default ``/usr/local/zed``; override with ``--zed-sdk PATH``).
+   * - ``--sender-only``
+     - Robot-side install: only what ``camera_streamer.py`` needs — skips ``isaacteleop`` and the
+       Vulkan viewer dependencies. ``deploy`` uses this on the robot automatically.
+   * - ``--jetson``
+     - JetPack-specific provisioning: installs ``cuda-nvrtc`` and creates the unversioned CUDA
+       library symlinks + ``ld.so`` wiring that JetPack images skip. Leave off on desktops.
+   * - ``--venv PATH``
+     - Install into an existing virtual environment instead of creating ``.venv/``.
+   * - ``--wheel PATH``
+     - Install a locally built ``isaacteleop`` wheel instead of the PyPI release — for developing
+       Isaac Teleop itself (see :doc:`/getting_started/build_from_source/index`).
 
 First run — no camera required
 ------------------------------
 
-The video-replay source (``type: video``) plays a recording through exactly the same source →
-QuadLayer → Televiz path a live camera uses, so it doubles as the quickest end-to-end check and
-as a stand-in feed while the real camera isn't available. A 10 s test clip ships with the repo
-(``test_data/recording.mp4``, via Git LFS) and ``configs/video.yaml`` already points at it:
+The video-replay source (``type: video``) plays a recording through exactly the same path a live
+camera uses, so it doubles as the quickest end-to-end check and as a stand-in feed while the real
+camera isn't available. A test clip ships with the repo and ``configs/video.yaml`` already points
+at it:
 
 .. code-block:: bash
 
@@ -85,23 +108,15 @@ as a stand-in feed while the real camera isn't available. A 10 s test clip ships
 and the clip looping on a plane in the headset — or in a desktop window (``mode=window,
 xr=False``) with the ``--mode window`` override.
 
-To replay your own recording — any file OpenCV's FFmpeg backend reads (mp4 / mkv / webm, H.264 /
-HEVC / AV1, ...) — edit ``path:`` in :code-file:`configs/video.yaml
-<examples/camera_viz/configs/video.yaml>`; relative paths resolve against the YAML's directory,
-not your working directory. ``loop: false`` holds the last frame instead of rewinding;
-``stereo: true`` splits a side-by-side recording (e.g. from a ZED) into per-eye views; ``width``
-/ ``height`` default to the file's native size.
-
-.. note::
-
-   There is also ``type: synthetic`` (``configs/synthetic.yaml``) — a GPU-generated moving test
-   pattern. It's a debugging tool for isolating the render path: no file, no decoder, no
-   hardware involved.
+To replay your own video, set a custom ``path:`` in :code-file:`configs/video.yaml
+<examples/camera_viz/configs/video.yaml>` — relative paths resolve against the YAML's directory.
+``loop: false`` holds the last frame instead of rewinding; ``stereo: true`` splits a side-by-side
+recording (e.g. from a ZED) into per-eye views.
 
 Supported sources
 -----------------
 
-The source kind is selected per ``cameras:`` entry by the YAML ``type:`` field:
+The source kind is selected by the ``type`` field of each entry in the YAML ``cameras`` list:
 
 .. list-table::
    :header-rows: 1
@@ -132,8 +147,8 @@ run with the matching config:
    ./camera_viz.sh run configs/v4l2.yaml     # or oakd.yaml / zed.yaml
 
 **You should see** the same startup lines as above with the camera's tag (``[v4l2]``,
-``[oakd]``, ``[zed]``) and the live feed. Multiple ``cameras:`` entries render as one plane
-each.
+``[oakd]``, ``[zed]``) and the live feed. Multiple entries in the ``cameras`` list render as one
+plane each.
 
 Display modes
 -------------
@@ -199,15 +214,16 @@ errors, and network blips.
 Loopback
 ^^^^^^^^
 
-``./camera_viz.sh loopback configs/v4l2.yaml`` runs the sender and viewer together on
-``127.0.0.1`` — the quickest way to smoke-test the RTP path on one machine. It also works
-camera-free with a mono ``type: video`` entry (set ``width`` / ``height`` / ``fps``).
+Loopback is a testing / debugging aid, not a deployment mode: ``./camera_viz.sh loopback
+configs/v4l2.yaml`` runs the sender and viewer together on ``127.0.0.1`` — the quickest way to
+smoke-test the RTP path on one machine. It also works camera-free with a mono ``type: video``
+entry (set ``width`` / ``height`` / ``fps``).
 
 Configuration
 -------------
 
-A single YAML drives both capture and visualization. Each ``cameras:`` entry becomes its own
-plane (and, in split mode, its own RTP port). Abbreviated:
+A single YAML drives both capture and visualization. Each entry in the ``cameras`` list becomes
+its own plane (and, in split mode, its own RTP port). Abbreviated:
 
 .. code-block:: yaml
 
