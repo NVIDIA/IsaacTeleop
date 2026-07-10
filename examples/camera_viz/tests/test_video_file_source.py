@@ -99,7 +99,9 @@ def test_probe_size_playback_and_color(tmp_path):
     clip = tmp_path / "blue.mp4"
     _write_clip(clip, [_solid(48, 64, (255, 0, 0))] * 10, fps=60.0)  # BGR blue
 
-    (source,) = build_local_camera({"name": "replay", "type": "video", "path": str(clip)})
+    (source,) = build_local_camera(
+        {"name": "replay", "type": "video", "path": str(clip)}
+    )
     assert source.spec.width == 64
     assert source.spec.height == 48
 

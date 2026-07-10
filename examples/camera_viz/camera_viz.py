@@ -146,7 +146,10 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 "decoder from the YAML, not from the wire"
             )
         placement = _placement_with_aspect(
-            placements_cfg.get(cam["name"]), int(cam["width"]), int(cam["height"]), is_xr
+            placements_cfg.get(cam["name"]),
+            int(cam["width"]),
+            int(cam["height"]),
+            is_xr,
         )
         stereo, baseline_mm = _stereo_for(cam, placements_cfg)
 

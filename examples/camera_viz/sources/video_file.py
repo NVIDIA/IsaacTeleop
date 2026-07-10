@@ -121,9 +121,7 @@ class VideoFileSource(PolledSource):
         # the mono layout.
         self._frame_w = out_w * eyes
         if stereo:
-            self._host_staging = alloc_pinned_host(
-                (out_h, self._frame_w, 3), np.uint8
-            )
+            self._host_staging = alloc_pinned_host((out_h, self._frame_w, 3), np.uint8)
             # Right-eye output buffers, rotated in lock-step with the base
             # class's (left-eye) triple-buffer.
             self._gpu_right = [
