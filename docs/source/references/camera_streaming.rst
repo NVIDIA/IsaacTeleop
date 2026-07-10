@@ -73,11 +73,9 @@ By default ``setup`` provisions everything except ZED support; flags trim or ext
      - Also build + install the ZED SDK's Python API (``pyzed``). Requires the ZED SDK on the
        machine (default ``/usr/local/zed``; override with ``--zed-sdk PATH``).
    * - ``--sender-only``
-     - Robot-side install: only what ``camera_streamer.py`` needs — skips ``isaacteleop`` and the
-       Vulkan viewer dependencies. ``deploy`` uses this on the robot automatically.
+     - Split mode only — robot-side install of just the sender's dependencies.
    * - ``--jetson``
-     - JetPack-specific provisioning: installs ``cuda-nvrtc`` and creates the unversioned CUDA
-       library symlinks + ``ld.so`` wiring that JetPack images skip. Leave off on desktops.
+     - Split mode only — extra CUDA wiring JetPack images need on the robot.
    * - ``--venv PATH``
      - Install into an existing virtual environment instead of creating ``.venv/``.
    * - ``--wheel PATH``
