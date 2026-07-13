@@ -48,7 +48,7 @@ Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `
 ./camera_viz.sh run configs/v4l2.yaml --mode window    # desktop window instead
 ```
 
-Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`, `video.yaml` (file replay — point `path:` at any recording).
+Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
 
 ## Mode 2 — Split (robot → workstation, RTP)
 

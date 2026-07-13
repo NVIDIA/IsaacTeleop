@@ -87,14 +87,14 @@ First run — no camera required
 
 The video-replay source (``type: video``) plays a recording through exactly the same path a live
 camera uses, so it doubles as the quickest end-to-end check and as a stand-in feed while the real
-camera isn't available. A test clip ships with the repo and ``configs/video.yaml`` already points
+camera isn't available. A test clip ships with the repo and ``configs/replay.yaml`` already points
 at it:
 
 .. code-block:: bash
 
    cd examples/camera_viz
-   ./camera_viz.sh run configs/video.yaml                 # XR headset (default)
-   ./camera_viz.sh run configs/video.yaml --mode window   # desktop window instead
+   ./camera_viz.sh run configs/replay.yaml                 # XR headset (default)
+   ./camera_viz.sh run configs/replay.yaml --mode window   # desktop window instead
 
 **You should see** the terminal report the session and the source coming up::
 
@@ -106,10 +106,10 @@ at it:
 and the clip looping on a plane in the headset — or in a desktop window (``mode=window,
 xr=False``) with the ``--mode window`` override.
 
-To replay your own video, set a custom ``path:`` in :code-file:`configs/video.yaml
-<examples/camera_viz/configs/video.yaml>` — relative paths resolve against the YAML's directory.
-``loop: false`` holds the last frame instead of rewinding; ``stereo: true`` splits a side-by-side
-recording (e.g. from a ZED) into per-eye views.
+To replay your own video, set a custom ``path:`` in :code-file:`configs/replay.yaml
+<examples/camera_viz/configs/replay.yaml>` — relative paths resolve against the YAML's directory.
+``loop: false`` holds the last frame instead of rewinding; ``stereo: true`` replays a side-by-side
+recording (e.g. from a ZED) as stereo, splitting each frame into per-eye views (direct mode only).
 
 Supported sources
 -----------------

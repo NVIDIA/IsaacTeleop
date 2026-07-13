@@ -440,7 +440,7 @@ EXAMPLES
     ./camera_viz.sh loopback configs/v4l2.yaml
     ./camera_viz.sh deploy --host 10.29.90.127 --user nvidia configs/v4l2.yaml
     ./camera_viz.sh run configs/v4l2.yaml
-    ./camera_viz.sh run configs/video.yaml --mode window   # no headset needed
+    ./camera_viz.sh run configs/replay.yaml --mode window   # no headset needed
 
     # Env-var style (avoids passwords in shell history / argv):
     export REMOTE_HOST=10.29.90.127 REMOTE_USER=nvidia

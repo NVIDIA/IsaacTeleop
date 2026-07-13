@@ -30,9 +30,10 @@ cameras:
     # set both to resize each frame on the CPU before upload.
     # width: 1280
     # height: 720
-    stereo: false               # true = side-by-side file, split into eyes.
-                                # Viewer-only: the RTP sender needs per-eye
-                                # streams and rejects single-source stereo.
+    stereo: false               # true = replay a side-by-side recording as
+                                # stereo, splitting each frame into left/right
+                                # eyes. Supported in direct mode only; the RTP
+                                # sender needs per-eye streams and rejects it.
     rtp:                        # only used when source: rtp + camera_streamer
       port: 5000
       bitrate_mbps: 15

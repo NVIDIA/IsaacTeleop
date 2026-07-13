@@ -7,3 +7,6 @@
 *.avi
 *.mov
 !test_data/*.mp4
+
+# Vendor SDK scratch (depthai telemetry, etc.) written at runtime.
+.cache/

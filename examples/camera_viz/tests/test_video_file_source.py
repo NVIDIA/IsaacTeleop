@@ -74,16 +74,20 @@ def test_missing_file_raises(tmp_path):
 
 
 def test_resolve_video_paths_anchors_to_yaml_dir(tmp_path):
+    # An already-absolute path must be left untouched. Build it from
+    # tmp_path so it's absolute on any OS (a POSIX "/abs" string is not
+    # absolute on Windows and would get re-anchored to the drive).
+    abs_path = str(tmp_path / "elsewhere" / "clip.mp4")
     cfg = {
         "cameras": [
             {"type": "video", "path": "clip.mp4"},
-            {"type": "video", "path": "/abs/clip.mp4"},
+            {"type": "video", "path": abs_path},
             {"type": "v4l2", "device": "/dev/video0"},
         ]
     }
     resolve_video_paths(cfg, tmp_path)
     assert cfg["cameras"][0]["path"] == str(tmp_path / "clip.mp4")
-    assert cfg["cameras"][1]["path"] == "/abs/clip.mp4"
+    assert cfg["cameras"][1]["path"] == abs_path
     assert "path" not in cfg["cameras"][2]
 
 
