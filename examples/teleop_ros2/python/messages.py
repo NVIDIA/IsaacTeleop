@@ -214,35 +214,39 @@ def build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     }
 
 
-def build_hand_msg_from_hand(
-    hand: OptionalTensorGroup,
+def build_hand_msg_from_hands(
+    left_hand: OptionalTensorGroup,
+    right_hand: OptionalTensorGroup,
     now,
     frame_id: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
 ) -> HandJointPoses | None:
-    """Build named hand joint poses for one hand."""
-    if hand.is_none:
+    """Build named hand joint poses for available hands, left then right."""
+    if left_hand.is_none and right_hand.is_none:
         return None
 
     msg = HandJointPoses()
     msg.header.stamp = now
     msg.header.frame_id = frame_id
 
-    positions = np.asarray(hand[HandInputIndex.JOINT_POSITIONS])
-    orientations = np.asarray(hand[HandInputIndex.JOINT_ORIENTATIONS])
-    joint_valid = np.asarray(hand[HandInputIndex.JOINT_VALID])
-    for joint_idx, joint_name in zip(HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES):
-        joint_is_valid = bool(joint_valid[joint_idx])
-        if joint_is_valid:
-            pose = to_pose(positions[joint_idx], orientations[joint_idx])
-            if transform_rot is not None or transform_trans is not None:
-                pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
-        else:
-            pose = to_pose([0.0, 0.0, 0.0])
-        msg.name.append(joint_name)
-        msg.pose.append(pose)
-        msg.is_valid.append(joint_is_valid)
+    for side, hand in (("left", left_hand), ("right", right_hand)):
+        if hand.is_none:
+            continue
+        positions = np.asarray(hand[HandInputIndex.JOINT_POSITIONS])
+        orientations = np.asarray(hand[HandInputIndex.JOINT_ORIENTATIONS])
+        joint_valid = np.asarray(hand[HandInputIndex.JOINT_VALID])
+        for joint_idx, joint_name in zip(HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES):
+            joint_is_valid = bool(joint_valid[joint_idx])
+            if joint_is_valid:
+                pose = to_pose(positions[joint_idx], orientations[joint_idx])
+                if transform_rot is not None or transform_trans is not None:
+                    pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
+            else:
+                pose = to_pose([0.0, 0.0, 0.0])
+            msg.name.append(f"{side}_{joint_name}")
+            msg.pose.append(pose)
+            msg.is_valid.append(joint_is_valid)
     return msg
 
 

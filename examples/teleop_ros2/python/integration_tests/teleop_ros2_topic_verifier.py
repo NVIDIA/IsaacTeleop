@@ -26,9 +26,12 @@ from tf2_msgs.msg import TFMessage
 
 _MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 _EXPECTED_TF_FRAMES = {"right_wrist", "left_wrist", "head"}
-_EXPECTED_HAND_POSE_NAMES = [
+_HAND_POSE_NAMES = [
     HandJointIndex(i).name
     for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)
+]
+_EXPECTED_HAND_POSE_NAMES = [
+    f"{side}_{name}" for side in ("left", "right") for name in _HAND_POSE_NAMES
 ]
 
 
@@ -277,14 +280,8 @@ class TopicVerifier(Node):
         if mode == "hand_teleop":
             return [
                 (
-                    "hand_left",
-                    "xr_teleop/hand_left",
-                    HandJointPoses,
-                    _assert_hand_joint_poses,
-                ),
-                (
-                    "hand_right",
-                    "xr_teleop/hand_right",
+                    "hand",
+                    "xr_teleop/hand",
                     HandJointPoses,
                     _assert_hand_joint_poses,
                 ),
