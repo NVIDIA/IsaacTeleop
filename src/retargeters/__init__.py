@@ -18,6 +18,8 @@ Available Retargeters:
     - GripperRetargeter: Pinch-based gripper control
     - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm
     - SO101GripperRetargeter: Proportional (analog) jaw closedness for the SO-101 gripper
+    - DVRKPSMClutchRetargeter: No-jump absolute tool-pose clutch for a dVRK PSM
+    - DVRKPSMGripperRetargeter: Intent-latched paired dVRK PSM jaw targets
     - JointStateRetargeter: Generic joint-space device (leader arm, exoskeleton) -> joint or EE action
     - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
     - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
@@ -110,6 +112,27 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "SO101GripperRetargeter": (
         ".SO101.gripper_retargeter",
         "SO101GripperRetargeter",
+        None,
+    ),
+    # .DVRK (dVRK PSM: Cartesian clutch and paired jaw targets)
+    "DVRKPSMClutchConfig": (
+        ".DVRK.psm_retargeter",
+        "DVRKPSMClutchConfig",
+        None,
+    ),
+    "DVRKPSMClutchRetargeter": (
+        ".DVRK.psm_retargeter",
+        "DVRKPSMClutchRetargeter",
+        None,
+    ),
+    "DVRKPSMGripperConfig": (
+        ".DVRK.psm_retargeter",
+        "DVRKPSMGripperConfig",
+        None,
+    ),
+    "DVRKPSMGripperRetargeter": (
+        ".DVRK.psm_retargeter",
+        "DVRKPSMGripperRetargeter",
         None,
     ),
     # .joint_space (generic joint-space devices: leader arms, exoskeletons, ...)
@@ -217,6 +240,11 @@ __all__ = [
     # SO-101 5-DOF arm retargeters
     "SO101ClutchRetargeter",
     "SO101GripperRetargeter",
+    # dVRK PSM retargeters
+    "DVRKPSMClutchConfig",
+    "DVRKPSMClutchRetargeter",
+    "DVRKPSMGripperConfig",
+    "DVRKPSMGripperRetargeter",
     # Generic joint-space device retargeters (leader arms, exoskeletons, ...)
     "JointStateRetargeter",
     "JointStateRetargeterConfig",

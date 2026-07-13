@@ -13,6 +13,8 @@ if(BUILD_PYTHON_BINDINGS)
         COMMAND ${CMAKE_COMMAND} -E rm -rf
             "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/retargeters/SO101/__pycache__"
         COMMAND ${CMAKE_COMMAND} -E rm -rf
+            "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/retargeters/DVRK/__pycache__"
+        COMMAND ${CMAKE_COMMAND} -E rm -rf
             "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/retargeters/joint_space/__pycache__"
         COMMAND ${CMAKE_COMMAND} -E rm -f
             "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/retargeters/CMakeLists.txt"
