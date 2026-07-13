@@ -451,31 +451,37 @@ independently:</p>
 <h2>End-to-end workflow<a class="headerlink" href="#end-to-end-workflow" title="Link to this heading">#</a></h2>
 <p>The same SO-101 embodiment runs in simulation and on real hardware, so a single workflow carries
 you from teleoperation to a deployed policy:</p>
-<ol class="arabic simple">
+<ol class="arabic">
 <li><p><strong>Teleoperate and collect.</strong> Drive the SO-101 with the <a class="reference internal" href="devices.html"><span class="doc">XR controller or the SO-101 Leader</span></a> and record demonstrations — in <a class="reference internal" href="data_collection_real.html"><span class="doc">real</span></a> and in
-<a class="reference internal" href="data_collection_sim.html"><span class="doc">simulation</span></a>. Both produce datasets in the LeRobot format.</p></li>
-</ol>
+<a class="reference internal" href="data_collection_sim.html"><span class="doc">simulation</span></a>. Both produce datasets in the LeRobot format.</p>
 <figure class="align-center" id="id3">
+<a class="reference internal image-reference" href="../../_images/xr-so-101-full.gif"><img alt="Teleoperation and data collection with LeRobot" src="../../_images/xr-so-101-full.gif" style="width: 600px;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Teleoperation and data collection with LeRobot.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</li>
+<li><p><strong>Train.</strong> Fine-tune a <a class="reference internal" href="training_groot.html"><span class="doc">GR00T N1.7</span></a> policy on the collected dataset.</p>
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="../../_images/sim-teleop-example-huggingface.gif"><img alt="Data collection with LeRobot" src="../../_images/sim-teleop-example-huggingface.gif" style="width: 600px;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Data Collection with LeRobot.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+<p><span class="caption-text">Data set preview with LeRobot.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-<ol class="arabic simple">
-<li><p><strong>Train.</strong> Fine-tune a <a class="reference internal" href="training_groot.html"><span class="doc">GR00T N1.7</span></a> policy on the collected dataset.</p></li>
-</ol>
-<figure class="align-center" id="id4">
+</li>
+<li><p><strong>Deploy.</strong> Take the policy from sim to real — see the <a class="reference external" href="https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/index.html" rel="noopener noreferrer" target="_blank">Sim-to-Real SO-101 learning path</a> —
+addressing the sim-to-real gap with domain randomization, sim/real co-training, and
+actuator-gap compensation.</p>
+<figure class="align-center" id="id5">
 <a class="reference internal image-reference" href="../../_images/so101_vial_to_rack_task.gif"><img alt="Trained GR00T N1.7 policy running on the SO-101" src="../../_images/so101_vial_to_rack_task.gif" style="width: 600px;" />
 </a>
 <figcaption>
-<p><span class="caption-text">The trained GR00T N1.7 policy running autonomously on the SO-101.</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+<p><span class="caption-text">The trained GR00T N1.7 policy running autonomously on the SO-101.</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-<ol class="arabic simple">
-<li><p><strong>Deploy.</strong> Take the policy from sim to real — see the <a class="reference external" href="https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/index.html" rel="noopener noreferrer" target="_blank">Sim-to-Real SO-101 learning path</a> —
-addressing the sim-to-real gap with domain randomization, sim/real co-training, and
-actuator-gap compensation.</p></li>
+</li>
 </ol>
 </section>
 <section id="in-this-section">
