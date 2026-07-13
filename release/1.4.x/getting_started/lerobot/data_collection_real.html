@@ -443,25 +443,38 @@ live, and <code class="docutils literal notranslate"><span class="pre">record.py
 (<code class="docutils literal notranslate"><span class="pre">xr_controller</span></code> | <code class="docutils literal notranslate"><span class="pre">so101_leader</span></code>).</p>
 <section id="before-you-start">
 <h2>Before you start<a class="headerlink" href="#before-you-start" title="Link to this heading">#</a></h2>
+<p>Follow the necessary one-time steps to set up your environment and hardware:</p>
 <ol class="arabic">
 <li><p>A working <strong>SO-101 follower</strong> — assembled, motors set up, and calibrated. See
 <a class="reference external" href="https://huggingface.co/docs/lerobot/en/so101" rel="noopener noreferrer" target="_blank">SO-101 support in LeRobot</a>.</p></li>
-<li><p>The <strong>isaac-teleop extra</strong> installed (<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> ships on public PyPI; its
-<code class="docutils literal notranslate"><span class="pre">[cloudxr,retargeters]</span></code> extras pull the CloudXR runtime bindings and the retargeter library):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">&#39;.[isaac-teleop]&#39;</span>
+<li><p>The example dependencies installed from a LeRobot source checkout. The LeRobot extras cover the
+SO-101 motor bus (<code class="docutils literal notranslate"><span class="pre">feetech</span></code>), the IK solver for the XR path (<code class="docutils literal notranslate"><span class="pre">kinematics</span></code>), and dataset
+recording (<code class="docutils literal notranslate"><span class="pre">dataset</span></code>). For Isaac Teleop, <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> brings the CloudXR runtime bindings and
+<code class="docutils literal notranslate"><span class="pre">retargeters-lite</span></code> is the default retargeter path (it resolves on both x86_64 and aarch64; the
+full <code class="docutils literal notranslate"><span class="pre">retargeters</span></code> extra is optional and x86_64-only):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[feetech,kinematics,dataset]&quot;</span><span class="w"> </span><span class="s2">&quot;huggingface_hub&gt;=1.5&quot;</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[cloudxr,retargeters-lite]~=1.3.131&quot;</span><span class="w"> </span><span class="s2">&quot;scipy&gt;=1.14&quot;</span>
 </pre></div>
 </div>
 </li>
-<li><p>Run the scripts from the example directory, and log in to the Hugging Face Hub — recorded
-datasets are pushed to the Hub by default (pass <code class="docutils literal notranslate"><span class="pre">--dataset.push_to_hub=false</span></code> to keep them
-local):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>examples/isaac_teleop_to_so101
-huggingface-cli<span class="w"> </span>login
+<li><p>Log in to the Hugging Face Hub — recorded datasets are pushed to the Hub by default (pass
+<code class="docutils literal notranslate"><span class="pre">--dataset.push_to_hub=false</span></code> to keep them local):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>hf<span class="w"> </span>auth<span class="w"> </span>login
+</pre></div>
+</div>
+</li>
+<li><p>Accept the CloudXR EULA once. The runtime auto-launches on connect and prompts for the EULA on
+stdin, which would hang a headless run, so accept it ahead of time:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula
 </pre></div>
 </div>
 </li>
 </ol>
-<p>Then follow the steps for your teleop device:</p>
+</section>
+<section id="teleop-and-data-recording">
+<h2>Teleop and data recording<a class="headerlink" href="#teleop-and-data-recording" title="Link to this heading">#</a></h2>
+<p>Run the scripts as modules from the LeRobot repository root (they use relative imports, so
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code> is required). Then follow the steps for your teleop device:</p>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-0">
@@ -469,17 +482,20 @@ XR controller</label><div class="sd-tab-content docutils">
 <p>The controller pose drives the follower’s end-effector through the clutch + IK pipeline,
 streamed over CloudXR.</p>
 <ol class="arabic">
-<li><p><strong>Fetch the robot model.</strong> The XR path solves inverse kinematics, so it needs the SO-101
-URDF and meshes (downloaded into <code class="docutils literal notranslate"><span class="pre">./SO101/</span></code>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>download_assets.py
-</pre></div>
+<li><p><strong>Connect a headset.</strong> On <code class="docutils literal notranslate"><span class="pre">connect()</span></code> the script auto-launches the CloudXR runtime
+(~30 s) — you do <strong>not</strong> need a separate terminal or to source <code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code>. Set
+<code class="docutils literal notranslate"><span class="pre">LEROBOT_CLOUDXR_SKIP_AUTOLAUNCH=1</span></code> to opt out when running CloudXR yourself. For headset
+pairing and firewall setup, follow the <a class="reference internal" href="../quick_start.html"><span class="doc">Quick Start</span></a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The XR path solves inverse kinematics, so it needs the SO-101 URDF and meshes. These are
+fetched automatically from the <code class="docutils literal notranslate"><span class="pre">lerobot/robot-urdfs</span></code> Hugging Face bucket into the
+LeRobot cache on first run — no manual download step.</p>
 </div>
 </li>
-<li><p><strong>Connect a headset.</strong> Bring up CloudXR and connect your XR headset — follow the
-<a class="reference internal" href="../quick_start.html"><span class="doc">Quick Start</span></a>.</p></li>
 <li><p><strong>(Optional) Try teleoperation without recording.</strong> A good way to check the setup before
 committing to a dataset:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>teleoperate.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>examples.isaac_teleop_to_so101.teleoperate<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.type<span class="o">=</span>so101_follower<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.port<span class="o">=</span>/dev/ttyACM0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.id<span class="o">=</span>so101_follower_arm<span class="w"> </span><span class="se">\</span>
@@ -490,13 +506,13 @@ committing to a dataset:</p>
 gripper. Release the grip to pause.</p>
 </li>
 <li><p><strong>Record a dataset.</strong> Add cameras and the dataset parameters:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>record.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>examples.isaac_teleop_to_so101.record<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.type<span class="o">=</span>so101_follower<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.port<span class="o">=</span>/dev/ttyACM0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.id<span class="o">=</span>so101_follower_arm<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--teleop.type<span class="o">=</span>xr_controller<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.cameras<span class="o">=</span><span class="s2">&quot;{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dataset.repo_id<span class="o">=</span>&lt;hf_user&gt;/&lt;dataset_name&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset.repo_id<span class="o">=</span><span class="k">$(</span>hf<span class="w"> </span>auth<span class="w"> </span>whoami<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.user&#39;</span><span class="k">)</span>/my_test_dataset<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.single_task<span class="o">=</span><span class="s2">&quot;Pick up vial from rack on the left side&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.num_episodes<span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.episode_time_s<span class="o">=</span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
@@ -510,9 +526,18 @@ gripper. Release the grip to pause.</p>
 <p><strong>Customizing the reset pose.</strong> On startup the XR path slews the arm to a built-in default
 reset pose (a comfortable mid-range pose) before handing control to the clutch — you do
 <strong>not</strong> need to record anything. To tailor it to your setup, back-drive the arm to the
-pose you want and run <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">override_reset_pose.py</span></code>; it writes <code class="docutils literal notranslate"><span class="pre">reset_pose.json</span></code>
-(git-ignored, user-local), which takes priority over the default on the next run. Pass
-<code class="docutils literal notranslate"><span class="pre">--reset_to_origin=false</span></code> to skip the slew and keep the arm where it is.</p>
+pose you want and run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>examples.isaac_teleop_to_so101.override_reset_pose<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--port<span class="w"> </span>/dev/ttyACM0<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--id<span class="w"> </span>so101_follower_arm
+</pre></div>
+</div>
+<p>This writes <code class="docutils literal notranslate"><span class="pre">$HF_LEROBOT_HOME/reset_poses/&lt;robot.name&gt;/&lt;robot.id&gt;.json</span></code> (<code class="docutils literal notranslate"><span class="pre">&lt;robot.name&gt;</span></code>
+is the follower type — <code class="docutils literal notranslate"><span class="pre">so_follower</span></code> for SO-100/SO-101 arms — and <code class="docutils literal notranslate"><span class="pre">&lt;robot.id&gt;</span></code> is the
+same arm identifier you pass as <code class="docutils literal notranslate"><span class="pre">--robot.id</span></code>, given here as <code class="docutils literal notranslate"><span class="pre">--id</span></code>). The pose is keyed
+per arm by <code class="docutils literal notranslate"><span class="pre">--robot.id</span></code>, so later runs with the same <code class="docutils literal notranslate"><span class="pre">--robot.id</span></code> pick it up
+automatically and slew to it instead of the default. Pass <code class="docutils literal notranslate"><span class="pre">--reset_to_origin=false</span></code> to
+skip the slew and keep the arm where it is.</p>
 </div>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
@@ -541,7 +566,7 @@ and reused on every run):</p>
 </li>
 <li><p><strong>(Optional) Try teleoperation without recording.</strong> <code class="docutils literal notranslate"><span class="pre">--launch_plugin</span></code> spawns the plugin
 after CloudXR is up; <code class="docutils literal notranslate"><span class="pre">--teleop.port</span></code> is the leader’s serial port:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>teleoperate.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>examples.isaac_teleop_to_so101.teleoperate<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.type<span class="o">=</span>so101_follower<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.port<span class="o">=</span>/dev/ttyACM0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.id<span class="o">=</span>so101_follower_arm<span class="w"> </span><span class="se">\</span>
@@ -555,7 +580,7 @@ after CloudXR is up; <code class="docutils literal notranslate"><span class="pre
 </li>
 <li><p><strong>Record a dataset.</strong> Same flags as teleoperation, plus the cameras and dataset parameters
 (keep <code class="docutils literal notranslate"><span class="pre">--launch_plugin</span></code> so the plugin is started):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>record.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>examples.isaac_teleop_to_so101.record<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.type<span class="o">=</span>so101_follower<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.port<span class="o">=</span>/dev/ttyACM0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.id<span class="o">=</span>so101_follower_arm<span class="w"> </span><span class="se">\</span>
@@ -564,7 +589,7 @@ after CloudXR is up; <code class="docutils literal notranslate"><span class="pre
 <span class="w">    </span>--teleop.id<span class="o">=</span>so101_leader_arm<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--launch_plugin<span class="o">=</span>/path/to/IsaacTeleop/install/plugins/so101_leader/so101_leader_plugin<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.cameras<span class="o">=</span><span class="s2">&quot;{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dataset.repo_id<span class="o">=</span>&lt;hf_user&gt;/&lt;dataset_name&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset.repo_id<span class="o">=</span><span class="k">$(</span>hf<span class="w"> </span>auth<span class="w"> </span>whoami<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.user&#39;</span><span class="k">)</span>/my_test_dataset<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.single_task<span class="o">=</span><span class="s2">&quot;Pick up vial from rack on the left side&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.num_episodes<span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.episode_time_s<span class="o">=</span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
@@ -594,20 +619,20 @@ no desktop session required:</p>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Right arrow →</p></td>
+<tr class="row-even"><td><p>Right arrow → (or <code class="docutils literal notranslate"><span class="pre">n</span></code>)</p></td>
 <td><p>End the current episode early and save it.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Left arrow ←</p></td>
+<tr class="row-odd"><td><p>Left arrow ← (or <code class="docutils literal notranslate"><span class="pre">r</span></code>)</p></td>
 <td><p>Discard the current take and re-record it.</p></td>
 </tr>
-<tr class="row-even"><td><p>Escape</p></td>
+<tr class="row-even"><td><p>Escape (or <code class="docutils literal notranslate"><span class="pre">q</span></code>)</p></td>
 <td><p>Stop after the current episode (already-saved episodes are kept).</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Set <code class="docutils literal notranslate"><span class="pre">LEROBOT_KEYBOARD_BACKEND</span></code> to override how keys are read — <code class="docutils literal notranslate"><span class="pre">auto</span></code> (the default; uses the
-terminal when one is attached, otherwise a global listener), <code class="docutils literal notranslate"><span class="pre">stdin</span></code>, <code class="docutils literal notranslate"><span class="pre">pynput</span></code>, or <code class="docutils literal notranslate"><span class="pre">none</span></code>.
+<p>Keys are read from the terminal when stdin is a TTY (so they work over SSH); with no TTY the
+example falls back to LeRobot’s default keyboard listener. No configuration is needed.
 The dataset is written under <code class="docutils literal notranslate"><span class="pre">$HF_LEROBOT_HOME/&lt;repo_id&gt;</span></code> and pushed to the Hub when recording
 finishes (unless <code class="docutils literal notranslate"><span class="pre">--dataset.push_to_hub=false</span></code>). Next, train a policy on it:
 <a class="reference internal" href="training_groot.html"><span class="doc">Model Training with GR00T</span></a>.</p>
@@ -664,6 +689,7 @@ finishes (unless <code class="docutils literal notranslate"><span class="pre">--
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#before-you-start">Before you start</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#teleop-and-data-recording">Teleop and data recording</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-controls">Recording controls</a></li>
 </ul>
   </nav></div>
@@ -747,7 +773,7 @@ finishes (unless <code class="docutils literal notranslate"><span class="pre">--
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 08, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 13, 2026.
       <br/>
     
   </p>

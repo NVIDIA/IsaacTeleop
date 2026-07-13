@@ -46,27 +46,34 @@ you from teleoperation to a deployed policy:
    <devices>` and record demonstrations — in :doc:`real <data_collection_real>` and in
    :doc:`simulation <data_collection_sim>`. Both produce datasets in the LeRobot format.
 
-.. Source: https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/_images/sim-teleop-example-huggingface.gif
-.. figure:: ../../_static/lerobot/sim-teleop-example-huggingface.gif
-   :alt: Data collection with LeRobot
-   :width: 600px
-   :align: center
+   .. figure:: ../../_static/lerobot/xr-so-101-full.gif
+      :alt: Teleoperation and data collection with LeRobot
+      :width: 600px
+      :align: center
 
-   Data Collection with LeRobot.
+      Teleoperation and data collection with LeRobot.
 
 #. **Train.** Fine-tune a :doc:`GR00T N1.7 <training_groot>` policy on the collected dataset.
 
-.. Source: https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/_images/so101_vial_to_rack_task.gif
-.. figure:: ../../_static/lerobot/so101_vial_to_rack_task.gif
-   :alt: Trained GR00T N1.7 policy running on the SO-101
-   :width: 600px
-   :align: center
+   .. Source: https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/_images/sim-teleop-example-huggingface.gif
+   .. figure:: ../../_static/lerobot/sim-teleop-example-huggingface.gif
+      :alt: Data collection with LeRobot
+      :width: 600px
+      :align: center
 
-   The trained GR00T N1.7 policy running autonomously on the SO-101.
+      Data set preview with LeRobot.
 
 #. **Deploy.** Take the policy from sim to real — see the `Sim-to-Real SO-101 learning path`_ —
    addressing the sim-to-real gap with domain randomization, sim/real co-training, and
    actuator-gap compensation.
+
+   .. Source: https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/_images/so101_vial_to_rack_task.gif
+   .. figure:: ../../_static/lerobot/so101_vial_to_rack_task.gif
+      :alt: Trained GR00T N1.7 policy running on the SO-101
+      :width: 600px
+      :align: center
+
+      The trained GR00T N1.7 policy running autonomously on the SO-101.
 
 In this section
 ---------------

@@ -15,26 +15,41 @@ live, and ``record.py`` does the same while saving a dataset. Both take the same
 Before you start
 ----------------
 
+Follow the necessary one-time steps to set up your environment and hardware:
+
 #. A working **SO-101 follower** — assembled, motors set up, and calibrated. See
    `SO-101 support in LeRobot`_.
 
-#. The **isaac-teleop extra** installed (``isaacteleop`` ships on public PyPI; its
-   ``[cloudxr,retargeters]`` extras pull the CloudXR runtime bindings and the retargeter library):
+#. The example dependencies installed from a LeRobot source checkout. The LeRobot extras cover the
+   SO-101 motor bus (``feetech``), the IK solver for the XR path (``kinematics``), and dataset
+   recording (``dataset``). For Isaac Teleop, ``cloudxr`` brings the CloudXR runtime bindings and
+   ``retargeters-lite`` is the default retargeter path (it resolves on both x86_64 and aarch64; the
+   full ``retargeters`` extra is optional and x86_64-only):
 
    .. code-block:: bash
 
-      uv pip install -e '.[isaac-teleop]'
+      uv pip install -e ".[feetech,kinematics,dataset]" "huggingface_hub>=1.5"
+      uv pip install "isaacteleop[cloudxr,retargeters-lite]~=1.3.131" "scipy>=1.14"
 
-#. Run the scripts from the example directory, and log in to the Hugging Face Hub — recorded
-   datasets are pushed to the Hub by default (pass ``--dataset.push_to_hub=false`` to keep them
-   local):
+#. Log in to the Hugging Face Hub — recorded datasets are pushed to the Hub by default (pass
+   ``--dataset.push_to_hub=false`` to keep them local):
 
    .. code-block:: bash
 
-      cd examples/isaac_teleop_to_so101
-      huggingface-cli login
+      hf auth login
 
-Then follow the steps for your teleop device:
+#. Accept the CloudXR EULA once. The runtime auto-launches on connect and prompts for the EULA on
+   stdin, which would hang a headless run, so accept it ahead of time:
+
+   .. code-block:: bash
+
+      python -m isaacteleop.cloudxr --accept-eula
+
+Teleop and data recording
+-------------------------
+
+Run the scripts as modules from the LeRobot repository root (they use relative imports, so
+``python -m`` is required). Then follow the steps for your teleop device:
 
 .. tab-set::
 
@@ -43,22 +58,23 @@ Then follow the steps for your teleop device:
       The controller pose drives the follower's end-effector through the clutch + IK pipeline,
       streamed over CloudXR.
 
-      #. **Fetch the robot model.** The XR path solves inverse kinematics, so it needs the SO-101
-         URDF and meshes (downloaded into ``./SO101/``):
+      #. **Connect a headset.** On ``connect()`` the script auto-launches the CloudXR runtime
+         (~30 s) — you do **not** need a separate terminal or to source ``cloudxr.env``. Set
+         ``LEROBOT_CLOUDXR_SKIP_AUTOLAUNCH=1`` to opt out when running CloudXR yourself. For headset
+         pairing and firewall setup, follow the :doc:`/getting_started/quick_start`.
 
-         .. code-block:: bash
+         .. note::
 
-            python download_assets.py
-
-      #. **Connect a headset.** Bring up CloudXR and connect your XR headset — follow the
-         :doc:`/getting_started/quick_start`.
+            The XR path solves inverse kinematics, so it needs the SO-101 URDF and meshes. These are
+            fetched automatically from the ``lerobot/robot-urdfs`` Hugging Face bucket into the
+            LeRobot cache on first run — no manual download step.
 
       #. **(Optional) Try teleoperation without recording.** A good way to check the setup before
          committing to a dataset:
 
          .. code-block:: bash
 
-            python teleoperate.py \
+            python -m examples.isaac_teleop_to_so101.teleoperate \
                 --robot.type=so101_follower \
                 --robot.port=/dev/ttyACM0 \
                 --robot.id=so101_follower_arm \
@@ -71,13 +87,13 @@ Then follow the steps for your teleop device:
 
          .. code-block:: bash
 
-            python record.py \
+            python -m examples.isaac_teleop_to_so101.record \
                 --robot.type=so101_follower \
                 --robot.port=/dev/ttyACM0 \
                 --robot.id=so101_follower_arm \
                 --teleop.type=xr_controller \
                 --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
-                --dataset.repo_id=<hf_user>/<dataset_name> \
+                --dataset.repo_id=$(hf auth whoami --format json | jq -r '.user')/my_test_dataset \
                 --dataset.single_task="Pick up vial from rack on the left side" \
                 --dataset.num_episodes=3 \
                 --dataset.episode_time_s=20 \
@@ -88,9 +104,20 @@ Then follow the steps for your teleop device:
          **Customizing the reset pose.** On startup the XR path slews the arm to a built-in default
          reset pose (a comfortable mid-range pose) before handing control to the clutch — you do
          **not** need to record anything. To tailor it to your setup, back-drive the arm to the
-         pose you want and run ``python override_reset_pose.py``; it writes ``reset_pose.json``
-         (git-ignored, user-local), which takes priority over the default on the next run. Pass
-         ``--reset_to_origin=false`` to skip the slew and keep the arm where it is.
+         pose you want and run:
+
+         .. code-block:: bash
+
+            python -m examples.isaac_teleop_to_so101.override_reset_pose \
+               --port /dev/ttyACM0 \
+               --id so101_follower_arm
+
+         This writes ``$HF_LEROBOT_HOME/reset_poses/<robot.name>/<robot.id>.json`` (``<robot.name>``
+         is the follower type — ``so_follower`` for SO-100/SO-101 arms — and ``<robot.id>`` is the
+         same arm identifier you pass as ``--robot.id``, given here as ``--id``). The pose is keyed
+         per arm by ``--robot.id``, so later runs with the same ``--robot.id`` pick it up
+         automatically and slew to it instead of the default. Pass ``--reset_to_origin=false`` to
+         skip the slew and keep the arm where it is.
 
    .. tab-item:: SO-101 Leader
 
@@ -123,7 +150,7 @@ Then follow the steps for your teleop device:
 
          .. code-block:: bash
 
-            python teleoperate.py \
+            python -m examples.isaac_teleop_to_so101.teleoperate \
                 --robot.type=so101_follower \
                 --robot.port=/dev/ttyACM0 \
                 --robot.id=so101_follower_arm \
@@ -139,7 +166,7 @@ Then follow the steps for your teleop device:
 
          .. code-block:: bash
 
-            python record.py \
+            python -m examples.isaac_teleop_to_so101.record \
                 --robot.type=so101_follower \
                 --robot.port=/dev/ttyACM0 \
                 --robot.id=so101_follower_arm \
@@ -148,7 +175,7 @@ Then follow the steps for your teleop device:
                 --teleop.id=so101_leader_arm \
                 --launch_plugin=/path/to/IsaacTeleop/install/plugins/so101_leader/so101_leader_plugin \
                 --robot.cameras="{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}" \
-                --dataset.repo_id=<hf_user>/<dataset_name> \
+                --dataset.repo_id=$(hf auth whoami --format json | jq -r '.user')/my_test_dataset \
                 --dataset.single_task="Pick up vial from rack on the left side" \
                 --dataset.num_episodes=3 \
                 --dataset.episode_time_s=20 \
@@ -169,15 +196,15 @@ no desktop session required:
 
    * - Key
      - Action
-   * - Right arrow →
+   * - Right arrow → (or ``n``)
      - End the current episode early and save it.
-   * - Left arrow ←
+   * - Left arrow ← (or ``r``)
      - Discard the current take and re-record it.
-   * - Escape
+   * - Escape (or ``q``)
      - Stop after the current episode (already-saved episodes are kept).
 
-Set ``LEROBOT_KEYBOARD_BACKEND`` to override how keys are read — ``auto`` (the default; uses the
-terminal when one is attached, otherwise a global listener), ``stdin``, ``pynput``, or ``none``.
+Keys are read from the terminal when stdin is a TTY (so they work over SSH); with no TTY the
+example falls back to LeRobot's default keyboard listener. No configuration is needed.
 The dataset is written under ``$HF_LEROBOT_HOME/<repo_id>`` and pushed to the Hub when recording
 finishes (unless ``--dataset.push_to_hub=false``). Next, train a policy on it:
 :doc:`training_groot`.
