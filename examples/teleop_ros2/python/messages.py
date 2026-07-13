@@ -11,7 +11,7 @@ import numpy as np
 from geometry_msgs.msg import Pose, PoseStamped
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
-from teleop_ros2_interfaces.msg import HandJointPose, HandJointPoses
+from teleop_ros2_interfaces.msg import HandJointPoses
 
 from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
 from isaacteleop.retargeting_engine.tensor_types.indices import (
@@ -240,9 +240,9 @@ def build_hand_msg_from_hand(
                 pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
         else:
             pose = to_pose([0.0, 0.0, 0.0])
-        msg.joints.append(
-            HandJointPose(name=joint_name, pose=pose, valid=joint_is_valid)
-        )
+        msg.name.append(joint_name)
+        msg.pose.append(pose)
+        msg.is_valid.append(joint_is_valid)
     return msg
 
 

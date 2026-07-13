@@ -3,4 +3,6 @@
 
 # Named hand joint poses in the same frame.
 std_msgs/Header header
-HandJointPose[] joints
+string[] name
+geometry_msgs/Pose[] pose
+bool[] is_valid

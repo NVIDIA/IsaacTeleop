@@ -60,9 +60,9 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 ## Published Topics
 
 - `xr_teleop/hand_left` (`teleop_ros2_interfaces/msg/HandJointPoses`)
-  - Named left OpenXR hand joint poses; `joints` has 25 entries, each with `name`, `pose`, and `valid`; includes `WRIST`, omits `PALM`
+  - Named left OpenXR hand joint poses; `name`, `pose`, and `is_valid` each have 25 index-aligned entries; includes `WRIST`, omits `PALM`
 - `xr_teleop/hand_right` (`teleop_ros2_interfaces/msg/HandJointPoses`)
-  - Named right OpenXR hand joint poses; `joints` has 25 entries, each with `name`, `pose`, and `valid`; includes `WRIST`, omits `PALM`
+  - Named right OpenXR hand joint poses; `name`, `pose`, and `is_valid` each have 25 index-aligned entries; includes `WRIST`, omits `PALM`
 - `xr_teleop/ee_pose_left` (`geometry_msgs/PoseStamped`)
   - Left hand/controller EE pose; published when the left EE source is active
 - `xr_teleop/ee_pose_right` (`geometry_msgs/PoseStamped`)

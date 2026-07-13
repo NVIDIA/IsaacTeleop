@@ -55,17 +55,18 @@ def _unpack_msgpack(msg: ByteMultiArray) -> dict:
 def _assert_hand_joint_poses(msg: HandJointPoses) -> None:
     if msg.header.frame_id != "world":
         raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
-    names = [joint.name for joint in msg.joints]
+    names = list(msg.name)
     if names != _EXPECTED_HAND_POSE_NAMES:
         raise ValueError("hand joint pose names do not match the expected order")
     if len(set(names)) != len(names):
         raise ValueError("hand joint pose names are not unique")
-    if not any(bool(joint.valid) for joint in msg.joints):
+    if len(msg.pose) != len(names) or len(msg.is_valid) != len(names):
+        raise ValueError("hand joint pose arrays differ in length")
+    if not any(bool(is_valid) for is_valid in msg.is_valid):
         raise ValueError("all hand joint poses are invalid")
 
     positions = []
-    for joint in msg.joints:
-        pose = joint.pose
+    for pose in msg.pose:
         position = (pose.position.x, pose.position.y, pose.position.z)
         orientation = (
             pose.orientation.x,
