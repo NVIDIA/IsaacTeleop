@@ -56,17 +56,22 @@ type SerializedGamepad = {
 };
 
 export type RecordedFrame = {
+  // Frame timestamp (ms) from XRFrame.predictedDisplayTime. Recorded, not read by replay.
+  t: number;
   poses: {
     leftGrip: SerializedPose;
     leftAim: SerializedPose;
     rightGrip: SerializedPose;
     rightAim: SerializedPose;
   };
+  // Head/viewer pose in scene reference space; null when no scene ref space is set.
+  // Recorded, not read by replay.
+  head: SerializedPose;
   gamepads: {
     left: SerializedGamepad | null;
     right: SerializedGamepad | null;
   };
-  // Optional: absent in recordings made before hand-tracking support was added
+  // Absent when the source device has no hand tracking.
   handJoints?: {
     left: (SerializedJoint | null)[];
     right: (SerializedJoint | null)[];
@@ -75,12 +80,14 @@ export type RecordedFrame = {
 
 export type Recording = {
   version: 1;
+  // Epoch ms at record start.
+  recordedAt?: number;
   frames: RecordedFrame[];
 };
 
 // ---- helpers ---------------------------------------------------------------
 
-function serializePose(pose: XRPose | undefined): SerializedPose {
+function serializePose(pose: XRPose | null | undefined): SerializedPose {
   if (!pose) return null;
   const { position: p, orientation: o } = pose.transform;
   return { px: p.x, py: p.y, pz: p.z, ox: o.x, oy: o.y, oz: o.z, ow: o.w };
@@ -162,7 +169,9 @@ function proxyInputSource(
 
 function emptyFrame(): RecordedFrame {
   return {
+    t: 0,
     poses: { leftGrip: null, leftAim: null, rightGrip: null, rightAim: null },
+    head: null,
     gamepads: { left: null, right: null },
   };
 }
@@ -178,6 +187,7 @@ export class XRInputRecorder {
 
   private _currentEntry: RecordedFrame | null = null;
   private _currentReplay: RecordedFrame = emptyFrame();
+  private _recordedAt: number | undefined = undefined;
 
   private _jointSpaceMap = new WeakMap<
     XRJointSpace,
@@ -212,6 +222,7 @@ export class XRInputRecorder {
       throw new Error("XRInputRecorder: already active");
     this._frames = [];
     this._currentEntry = null;
+    this._recordedAt = Date.now();
     this._installPatches();
     this._mode = "recording";
   }
@@ -248,6 +259,7 @@ export class XRInputRecorder {
   beginFrame(frame: XRFrame, connected = true): void {
     if (this._mode === "recording" && connected) {
       const entry = emptyFrame();
+      entry.t = frame.predictedDisplayTime;
       for (const src of frame.session.inputSources) {
         const gp = serializeGamepad(src.gamepad);
         if (src.handedness === "left") entry.gamepads.left = gp;
@@ -263,6 +275,12 @@ export class XRInputRecorder {
       const origGet = this._origGetPose;
       const origGetJoint = this._origGetJointPose;
       if (rs && origGet) {
+        // getViewerPose is unpatched, so this reads the real head pose.
+        if (typeof frame.getViewerPose === "function") {
+          entry.head = serializePose(
+            frame.getViewerPose(rs as XRReferenceSpace),
+          );
+        }
         for (const src of frame.session.inputSources) {
           const h = src.handedness;
           if (h !== "left" && h !== "right") continue;
@@ -326,6 +344,7 @@ export class XRInputRecorder {
   exportJSON(): string {
     return JSON.stringify({
       version: 1,
+      recordedAt: this._recordedAt,
       frames: this._frames,
     } satisfies Recording);
   }
@@ -340,7 +359,11 @@ export class XRInputRecorder {
   }
 
   getRecording(): Recording {
-    return { version: 1, frames: [...this._frames] };
+    return {
+      version: 1,
+      recordedAt: this._recordedAt,
+      frames: [...this._frames],
+    };
   }
 
   // ---- patch install / remove ----------------------------------------------

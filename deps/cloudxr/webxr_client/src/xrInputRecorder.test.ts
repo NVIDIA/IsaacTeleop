@@ -32,8 +32,10 @@ class FakeXRSession {
 
 class FakeXRFrame {
   readonly session: FakeXRSession;
-  constructor(session: FakeXRSession) {
+  readonly predictedDisplayTime: number;
+  constructor(session: FakeXRSession, predictedDisplayTime = 0) {
     this.session = session;
+    this.predictedDisplayTime = predictedDisplayTime;
   }
   getPose(_space: unknown, _ref: unknown): XRPose | null {
     return null;
@@ -43,10 +45,13 @@ class FakeXRFrame {
   }
 }
 
-function makeFrame(sources: Partial<XRInputSource>[] = []): XRFrame {
+function makeFrame(
+  sources: Partial<XRInputSource>[] = [],
+  time = 0,
+): XRFrame {
   const session = new FakeXRSession();
   session.inputSources = sources as XRInputSource[];
-  return new FakeXRFrame(session) as unknown as XRFrame;
+  return new FakeXRFrame(session, time) as unknown as XRFrame;
 }
 
 /** Record N frames and return the resulting Recording. */
@@ -298,6 +303,61 @@ describe('getRecording', () => {
     r.stopRecording();
 
     expect(snap.frames).toHaveLength(snapLen);
+  });
+});
+
+// ---- timestamp & head capture (recorded, not replayed) ----------------------
+
+describe('timestamp & head capture', () => {
+  test('captures predictedDisplayTime per frame as t', () => {
+    const r = new XRInputRecorder();
+    r.startRecording();
+    r.beginFrame(makeFrame([], 123));
+    r.beginFrame(makeFrame([], 456));
+    r.stopRecording();
+    const frames = r.getRecording().frames;
+    expect(frames[0].t).toBe(123);
+    expect(frames[1].t).toBe(456);
+  });
+
+  test('records recordedAt epoch on the Recording', () => {
+    const r = new XRInputRecorder();
+    r.startRecording();
+    r.beginFrame(makeFrame());
+    r.stopRecording();
+    expect(typeof r.getRecording().recordedAt).toBe('number');
+  });
+
+  test('captures head pose via getViewerPose when scene ref space is set', () => {
+    const r = new XRInputRecorder();
+    const frame = makeFrame();
+    (frame as any).getViewerPose = () => ({
+      transform: {
+        position: { x: 1, y: 2, z: 3 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 },
+      },
+    });
+    r.setSceneRefSpace({} as unknown as XRSpace);
+    r.startRecording();
+    r.beginFrame(frame);
+    r.stopRecording();
+    expect(r.getRecording().frames[0].head).toEqual({
+      px: 1,
+      py: 2,
+      pz: 3,
+      ox: 0,
+      oy: 0,
+      oz: 0,
+      ow: 1,
+    });
+  });
+
+  test('head is null when no scene ref space is set', () => {
+    const r = new XRInputRecorder();
+    r.startRecording();
+    r.beginFrame(makeFrame());
+    r.stopRecording();
+    expect(r.getRecording().frames[0].head).toBeNull();
   });
 });
 
