@@ -4,10 +4,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(teleop_ros2_interfaces)
 
-find_package(ament_cmake REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
-find_package(std_msgs REQUIRED)
+find_package(ament_cmake_auto REQUIRED)
+ament_auto_find_build_dependencies()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
     "msg/NamedPoseArray.msg"
@@ -17,4 +15,4 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 
 ament_export_dependencies(rosidl_default_runtime)
-ament_package()
+ament_auto_package()

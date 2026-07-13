@@ -114,6 +114,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     patchelf \
     pkg-config \
+    python3-colcon-common-extensions \
+    ros-${ROS_DISTRO}-ament-cmake-auto \
     ros-${ROS_DISTRO}-rosidl-default-generators \
     && rm -rf /var/lib/apt/lists/*
 
@@ -146,17 +148,18 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release \
     && bash -lc "source /opt/ros/${ROS_DISTRO}/setup.bash \
-        && cmake -B build/teleop_ros2_interfaces -S examples/teleop_ros2/teleop_ros2_interfaces \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
-        && cmake --build build/teleop_ros2_interfaces --config Release -j$(nproc) \
-        && cmake --install build/teleop_ros2_interfaces --config Release" \
+        && colcon build \
+            --base-paths examples/teleop_ros2/teleop_ros2_interfaces \
+            --build-base build/teleop_ros2_interfaces \
+            --install-base /opt/isaacteleop/install \
+            --merge-install \
+            --cmake-args -DCMAKE_BUILD_TYPE=Release" \
     && ccache --show-stats
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
-if [[ -f /opt/isaacteleop/install/share/teleop_ros2_interfaces/local_setup.bash ]]; then
-    source /opt/isaacteleop/install/share/teleop_ros2_interfaces/local_setup.bash
+if [[ -f /opt/isaacteleop/install/local_setup.bash ]]; then
+    source /opt/isaacteleop/install/local_setup.bash
 fi
 EOF
 

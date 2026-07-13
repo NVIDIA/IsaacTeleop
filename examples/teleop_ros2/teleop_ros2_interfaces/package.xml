@@ -10,15 +10,13 @@ SPDX-License-Identifier: Apache-2.0
   <maintainer email="sgrizan@nvidia.com">Sergey Grizan</maintainer>
   <license>Apache-2.0</license>
 
-  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
 
-  <build_depend>geometry_msgs</build_depend>
+  <depend>geometry_msgs</depend>
   <build_depend>rosidl_default_generators</build_depend>
-  <build_depend>std_msgs</build_depend>
+  <depend>std_msgs</depend>
 
-  <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
 
   <member_of_group>rosidl_interface_packages</member_of_group>
 </package>
