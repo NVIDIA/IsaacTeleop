@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include "inc/oxr/oxr_session.hpp"
@@ -92,6 +92,16 @@ OpenXRSessionHandles OpenXRSession::get_handles() const
     return OpenXRSessionHandles(instance_.get(), session_.get(), space_.get(), ::xrGetInstanceProcAddr);
 }
 
+void OpenXRSession::close() noexcept
+{
+    // Deliberate: no xrRequestExitSession/xrEndSession handshake. xrDestroy* on a
+    // RUNNING session is spec-legal; the clean-exit handshake needs an event pump this
+    // class lacks and does not fix the EPIPE (dead runtime IPC socket), only adds
+    // teardown-hang risk.
+    space_.reset();
+    session_.reset();
+    instance_.reset();
+}
 
 void OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions)
 {
