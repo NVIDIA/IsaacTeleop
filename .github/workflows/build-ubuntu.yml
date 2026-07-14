@@ -519,9 +519,6 @@ jobs:
     # Runs the documented Quick Start workflow against the candidate wheel on a
     # GPU runner: install package, launch CloudXR, source the generated env, run
     # the documented gripper retargeting example, and upload the logs/summary.
-    # The desktop browser/IWER path remains the documented headset-free client
-    # path; this baseline validates the runnable guide steps without scraping
-    # the published documentation site.
     runs-on: [self-hosted, linux, gpu, x64]
     needs: build-ubuntu
     timeout-minutes: 30

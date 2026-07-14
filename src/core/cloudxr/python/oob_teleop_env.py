@@ -391,15 +391,15 @@ def usb_ui_port() -> int:
 def usb_backend_port() -> int:
     """TCP port for the USB-local CloudXR backend (native client direct connection).
 
-    Reads the ``USB_BACKEND_PORT`` environment variable if set, else follows
-    :func:`cloudxr_server_port`. This port is exposed to the headset via
-    ``adb reverse``; override only when a host process already owns the
-    CloudXR runtime port.
+    Reads the ``USB_BACKEND_PORT`` environment variable if set, else falls back
+    to :data:`USB_BACKEND_DEFAULT_PORT` (49100). This port is exposed to the
+    headset via ``adb reverse``; override only when a host process already owns
+    the CloudXR runtime port.
     """
     raw = os.environ.get("USB_BACKEND_PORT", "").strip()
     if raw:
         return parse_env_port("USB_BACKEND_PORT", raw)
-    return cloudxr_server_port()
+    return USB_BACKEND_DEFAULT_PORT
 
 
 def usb_turn_port() -> int:
