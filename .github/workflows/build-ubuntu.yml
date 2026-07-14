@@ -526,6 +526,51 @@ jobs:
         # Run tests with CloudXR runtime
         ./scripts/run_tests_with_cloudxr.sh --python-version ${{ matrix.python_version }}
 
+  test-quick-start-e2e:
+    # Runs the documented Quick Start workflow against the candidate wheel on a
+    # GPU runner: install package, launch CloudXR, source the generated env, run
+    # the documented gripper retargeting example, and upload the logs/summary.
+    # The desktop browser/IWER path remains the documented headset-free client
+    # path; this baseline validates the runnable guide steps without scraping
+    # the published documentation site.
+    runs-on: [self-hosted, linux, gpu, x64]
+    needs: build-ubuntu
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Download isaacteleop wheel (x64, py3.11)
+      uses: actions/download-artifact@v7
+      with:
+        name: isaacteleop-wheels-x64-py3.11
+        path: quick-start-wheels
+
+    - name: Run Quick Start E2E workflow
+      env:
+        CI: true
+        QUICK_START_E2E_REQUIRE_WHEEL: "1"
+        QUICK_START_E2E_WHEEL_DIR: quick-start-wheels
+        QUICK_START_E2E_ARTIFACT_DIR: ${{ runner.temp }}/isaacteleop-quick-start-e2e
+      run: ./scripts/run_quick_start_e2e.sh
+
+    - name: Upload Quick Start E2E artifacts
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: quick-start-e2e-x64-py3.11
+        path: ${{ runner.temp }}/isaacteleop-quick-start-e2e/
+        if-no-files-found: warn
+        retention-days: 7
+
   test-teleop-ros2:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
     needs: build-ubuntu
@@ -831,6 +876,7 @@ jobs:
       - test-viz-gpu
       - test-viz-sanitizers
       - test-cloudxr
+      - test-quick-start-e2e
       - test-teleop-ros2
     if: ${{ always() }}
 
