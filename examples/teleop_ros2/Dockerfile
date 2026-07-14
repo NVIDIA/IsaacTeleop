@@ -128,7 +128,8 @@ COPY . /opt/isaacteleop
 # produces; a stale build/ would skip a clean CMake reconfigure. The build tree
 # is rebuilt from scratch every time -- ccache keeps recompiles cheap -- so each
 # build reconfigures against the current image rather than trusting cached
-# configure results.
+# configure results. Ament's Python tools come from apt, so the interface
+# package build below pins the ROS distro's system Python instead of uv's.
 RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
     rm -rf /opt/isaacteleop/install /opt/isaacteleop/build \
     && cmake -B build -S . \
@@ -153,7 +154,9 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
             --build-base build/teleop_ros2_interfaces \
             --install-base /opt/isaacteleop/install \
             --merge-install \
-            --cmake-args -DCMAKE_BUILD_TYPE=Release" \
+            --cmake-args \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DPython3_EXECUTABLE=/usr/bin/python3" \
     && ccache --show-stats
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
