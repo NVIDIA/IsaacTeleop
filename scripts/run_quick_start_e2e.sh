@@ -21,7 +21,10 @@ PIP_SPEC="${QUICK_START_E2E_PIP_SPEC:-isaacteleop[cloudxr,retargeters]~=1.0.0}"
 PIP_EXTRA_INDEX_URL="${QUICK_START_E2E_PIP_EXTRA_INDEX_URL:-https://pypi.nvidia.com}"
 CLOUDXR_READY_TIMEOUT_SEC="${QUICK_START_E2E_CLOUDXR_READY_TIMEOUT_SEC:-180}"
 EXAMPLE_TIMEOUT_SEC="${QUICK_START_E2E_EXAMPLE_TIMEOUT_SEC:-75}"
-PROXY_PORT="${QUICK_START_E2E_WSS_PROXY_PORT:-48322}"
+DEFAULT_CLOUDXR_SERVER_PORT=49100
+DEFAULT_WSS_PROXY_PORT=48322
+RUNTIME_PORT="${QUICK_START_E2E_RUNTIME_PORT:-}"
+PROXY_PORT="${QUICK_START_E2E_WSS_PROXY_PORT:-}"
 
 CLOUDXR_LOG="${ARTIFACT_DIR}/cloudxr-server.log"
 EXAMPLE_LOG="${ARTIFACT_DIR}/gripper-retargeting-example.log"
@@ -73,6 +76,8 @@ write_summary() {
   "guide": $(json_escape "${GUIDE_PATH}"),
   "cloudxr_log": $(json_escape "${CLOUDXR_LOG}"),
   "example_log": $(json_escape "${EXAMPLE_LOG}"),
+  "cloudxr_server_port": $(json_escape "${NV_CXR_SERVER_PORT:-}"),
+  "wss_proxy_port": $(json_escape "${PROXY_PORT:-}"),
   "gripper_output_lines": ${gripper_lines}
 }
 JSON
@@ -138,6 +143,55 @@ resolve_wheel() {
     fi
 
     printf '%s\n' "${wheels[0]}"
+}
+
+port_is_available() {
+    "${PYTHON_BIN}" - "$1" <<'PY'
+import socket
+import sys
+
+try:
+    port = int(sys.argv[1])
+except ValueError:
+    raise SystemExit(2) from None
+
+if not 1 <= port <= 65535:
+    raise SystemExit(2)
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    try:
+        sock.bind(("", port))
+    except OSError:
+        raise SystemExit(1) from None
+PY
+}
+
+pick_free_port() {
+    "${PYTHON_BIN}" - <<'PY'
+import socket
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+    sock.bind(("", 0))
+    print(sock.getsockname()[1])
+PY
+}
+
+resolve_port() {
+    local requested="$1"
+    local default_port="$2"
+
+    if [[ -n "${requested}" ]]; then
+        port_is_available "${requested}" || return $?
+        printf '%s\n' "${requested}"
+        return 0
+    fi
+
+    if port_is_available "${default_port}"; then
+        printf '%s\n' "${default_port}"
+        return 0
+    fi
+
+    pick_free_port
 }
 
 install_package() {
@@ -231,6 +285,17 @@ main() {
         fail "documented gripper example is missing"
 
     install_package
+
+    RUNTIME_PORT=$(resolve_port "${RUNTIME_PORT}" "${DEFAULT_CLOUDXR_SERVER_PORT}") || \
+        fail "requested CloudXR runtime port ${RUNTIME_PORT} is not available"
+    PROXY_PORT=$(resolve_port "${PROXY_PORT}" "${DEFAULT_WSS_PROXY_PORT}") || \
+        fail "requested WSS proxy port ${PROXY_PORT} is not available"
+    while [[ "${PROXY_PORT}" == "${RUNTIME_PORT}" ]]; do
+        PROXY_PORT=$(pick_free_port)
+    done
+    export NV_CXR_SERVER_PORT="${RUNTIME_PORT}"
+    export PROXY_PORT
+    log "Using CloudXR runtime port ${NV_CXR_SERVER_PORT} and WSS proxy port ${PROXY_PORT}"
 
     log "Step 3: starting CloudXR server with --accept-eula"
     "${VENV_DIR}/bin/python" -m isaacteleop.cloudxr \

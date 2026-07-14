@@ -11,6 +11,7 @@ import cloudxr_py_test_ns.oob_teleop_env as oob_teleop_env_under_test
 import pytest
 
 from cloudxr_py_test_ns.oob_teleop_env import (
+    CLOUDXR_SERVER_DEFAULT_PORT,
     FALLBACK_WEB_CLIENT_ORIGIN,
     TELEOP_WEB_CLIENT_BASE_ENV,
     TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
@@ -21,6 +22,7 @@ from cloudxr_py_test_ns.oob_teleop_env import (
     WSS_PROXY_DEFAULT_PORT,
     build_headset_bookmark_url,
     client_ui_fields_from_env,
+    cloudxr_server_port,
     default_initial_stream_config,
     default_web_client_origin,
     guess_lan_ipv4,
@@ -42,6 +44,7 @@ def clear_teleop_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove all teleop environment variables so tests start from a clean slate."""
     keys = (
         "PROXY_PORT",
+        "NV_CXR_SERVER_PORT",
         "USB_UI_PORT",
         "USB_BACKEND_PORT",
         "USB_TURN_PORT",
@@ -72,6 +75,28 @@ def test_wss_proxy_port_from_env(
     assert wss_proxy_port() == 50000
 
 
+def test_cloudxr_server_port_default(clear_teleop_env: None) -> None:
+    """CloudXR server port returns the runtime default when NV_CXR_SERVER_PORT is unset."""
+    assert cloudxr_server_port() == CLOUDXR_SERVER_DEFAULT_PORT
+
+
+def test_cloudxr_server_port_from_env(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """NV_CXR_SERVER_PORT env var overrides the default runtime backend port."""
+    monkeypatch.setenv("NV_CXR_SERVER_PORT", "49210")
+    assert cloudxr_server_port() == 49210
+
+
+def test_cloudxr_server_port_invalid_env_raises(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-integer NV_CXR_SERVER_PORT raises ValueError mentioning the variable name."""
+    monkeypatch.setenv("NV_CXR_SERVER_PORT", "not-a-port")
+    with pytest.raises(ValueError, match="NV_CXR_SERVER_PORT"):
+        cloudxr_server_port()
+
+
 def test_usb_ui_port_default(clear_teleop_env: None) -> None:
     """USB UI port returns the compile-time default when USB_UI_PORT is unset."""
     assert usb_ui_port() == USB_UI_DEFAULT_PORT
@@ -97,6 +122,14 @@ def test_usb_ui_port_invalid_env_raises(
 def test_usb_backend_port_default(clear_teleop_env: None) -> None:
     """USB backend port returns the compile-time default when USB_BACKEND_PORT is unset."""
     assert usb_backend_port() == USB_BACKEND_DEFAULT_PORT
+
+
+def test_usb_backend_port_follows_cloudxr_server_port(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """USB backend port follows NV_CXR_SERVER_PORT unless USB_BACKEND_PORT overrides it."""
+    monkeypatch.setenv("NV_CXR_SERVER_PORT", "49211")
+    assert usb_backend_port() == 49211
 
 
 def test_usb_backend_port_from_env(
