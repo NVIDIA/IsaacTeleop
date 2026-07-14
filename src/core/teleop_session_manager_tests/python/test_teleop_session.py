@@ -1082,6 +1082,39 @@ class TestSessionLifecycle:
         # but the exit stack has been unwound
         assert session._setup_complete is True
 
+    def test_exit_clears_oxr_session(self):
+        """After the with-block exits, the public oxr_session property honors its None contract."""
+        pipeline = MockPipeline(leaf_nodes=[])
+
+        config = make_config(pipeline)
+        with mock_session_dependencies():
+            session = TeleopSession(config)
+            with session as s:
+                assert s.oxr_session is not None
+
+        assert session.oxr_session is None
+
+    def test_exit_clears_oxr_session_even_if_cleanup_raises(self):
+        """oxr_session returns None post-exit even when a managed context's cleanup raises."""
+
+        class RaisingDeviceIOSession(MockDeviceIOSession):
+            def __exit__(self, *args):
+                raise RuntimeError("cleanup boom")
+
+        pipeline = MockPipeline(leaf_nodes=[])
+        config = make_config(pipeline)
+        with mock_session_dependencies(mock_dio=RaisingDeviceIOSession()):
+            session = TeleopSession(config)
+            session.__enter__()
+            assert session.oxr_session is not None
+
+            # The ExitStack unwind raises, but exception propagation is preserved
+            # and the reference is still cleared via the finally block.
+            with pytest.raises(RuntimeError, match="cleanup boom"):
+                session.__exit__(None, None, None)
+
+            assert session.oxr_session is None
+
     def test_context_manager_protocol(self):
         """TeleopSession works correctly as a context manager."""
         head = MockHeadSource()

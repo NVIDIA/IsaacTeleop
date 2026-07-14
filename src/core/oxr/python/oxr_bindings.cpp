@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <openxr/openxr.h>
@@ -44,11 +44,10 @@ PYBIND11_MODULE(_oxr, m)
     py::class_<core::OpenXRSession, std::shared_ptr<core::OpenXRSession>>(m, "OpenXRSession")
         .def(py::init<const std::string&, const std::vector<std::string>&>(), py::arg("app_name"),
              py::arg("extensions") = std::vector<std::string>())
-        .def("get_handles", &core::OpenXRSession::get_handles, "Get session handles for sharing")
+        .def("get_handles", &core::OpenXRSession::get_handles,
+             "Get session handles for sharing. Returns null handles after close()/context-manager exit.")
+        .def("close", &core::OpenXRSession::close,
+             "Release the native session immediately (usually automatic via context manager)")
         .def("__enter__", [](core::OpenXRSession& self) -> core::OpenXRSession& { return self; })
-        .def("__exit__",
-             [](core::OpenXRSession& self, py::object, py::object, py::object)
-             {
-                 // RAII cleanup handled automatically when object is destroyed
-             });
+        .def("__exit__", [](core::OpenXRSession& self, py::object, py::object, py::object) { self.close(); });
 }
