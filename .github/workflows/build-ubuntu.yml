@@ -567,7 +567,11 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: quick-start-e2e-x64-py3.11
-        path: ${{ runner.temp }}/isaacteleop-quick-start-e2e/
+        path: |
+          ${{ runner.temp }}/isaacteleop-quick-start-e2e/*.log
+          ${{ runner.temp }}/isaacteleop-quick-start-e2e/*.json
+          ${{ runner.temp }}/isaacteleop-quick-start-e2e/cloudxr/run/cloudxr.env
+          ${{ runner.temp }}/isaacteleop-quick-start-e2e/cloudxr/logs/**/*.log
         if-no-files-found: warn
         retention-days: 7
 

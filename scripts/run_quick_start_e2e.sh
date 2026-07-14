@@ -298,7 +298,7 @@ main() {
     log "Using CloudXR runtime port ${NV_CXR_SERVER_PORT} and WSS proxy port ${PROXY_PORT}"
 
     log "Step 3: starting CloudXR server with --accept-eula"
-    "${VENV_DIR}/bin/python" -m isaacteleop.cloudxr \
+    PYTHONUNBUFFERED=1 "${VENV_DIR}/bin/python" -u -m isaacteleop.cloudxr \
         --cloudxr-install-dir "${CLOUDXR_INSTALL_DIR}" \
         --accept-eula \
         > "${CLOUDXR_LOG}" 2>&1 &
