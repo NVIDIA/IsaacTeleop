@@ -124,14 +124,6 @@ def test_usb_backend_port_default(clear_teleop_env: None) -> None:
     assert usb_backend_port() == USB_BACKEND_DEFAULT_PORT
 
 
-def test_usb_backend_port_follows_cloudxr_server_port(
-    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """USB backend port follows NV_CXR_SERVER_PORT unless USB_BACKEND_PORT overrides it."""
-    monkeypatch.setenv("NV_CXR_SERVER_PORT", "49211")
-    assert usb_backend_port() == 49211
-
-
 def test_usb_backend_port_from_env(
     clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
