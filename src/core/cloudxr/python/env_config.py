@@ -50,6 +50,7 @@ class EnvConfig:
         "NV_CXR_ENABLE_PUSH_DEVICES": "true",
         "NV_CXR_ENABLE_TENSOR_DATA": "true",
         "NV_CXR_FILE_LOGGING": "true",
+        "NV_CXR_SERVER_PORT": None,  # optional; persisted when set in process env
         "NV_DEVICE_PROFILE": "auto-webrtc",
     }
 

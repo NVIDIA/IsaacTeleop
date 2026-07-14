@@ -23,10 +23,10 @@ from .oob_teleop_adb import (
     run_oob_connect,
 )
 from .oob_teleop_env import (
+    cloudxr_server_port,
     client_ui_fields_from_env,
     default_initial_stream_config,
     oob_progress,
-    usb_backend_port,
     wss_proxy_port,
 )
 from .oob_teleop_hub import OOB_WS_PATH
@@ -537,7 +537,7 @@ async def run(
 
     try:
         resolved_backend_port = (
-            usb_backend_port() if backend_port is None else backend_port
+            cloudxr_server_port() if backend_port is None else backend_port
         )
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
 
