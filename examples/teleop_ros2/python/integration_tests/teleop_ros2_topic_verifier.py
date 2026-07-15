@@ -15,8 +15,9 @@ from typing import Callable
 
 import msgpack
 import rclpy
-from constants import HAND_POSE_NAMES, TELEOP_MODES
+from constants import TELEOP_MODES
 from geometry_msgs.msg import PoseStamped, TwistStamped
+from isaacteleop.retargeting_engine.tensor_types.indices import HandJointIndex
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
@@ -25,8 +26,12 @@ from tf2_msgs.msg import TFMessage
 
 
 _EXPECTED_TF_FRAMES = {"right_wrist", "left_wrist", "head"}
+_HAND_POSE_NAMES = [
+    HandJointIndex(i).name
+    for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)
+]
 _EXPECTED_HAND_POSE_NAMES = [
-    f"{side}_{name}" for side in ("left", "right") for name in HAND_POSE_NAMES
+    f"{side}_{name}" for side in ("left", "right") for name in _HAND_POSE_NAMES
 ]
 
 

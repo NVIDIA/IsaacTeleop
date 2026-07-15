@@ -643,7 +643,7 @@ jobs:
             if docker exec \
               -e PYTHONUNBUFFERED=1 \
               "$RUN_NAME" bash -c \
-              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync integration_tests/teleop_ros2_topic_verifier.py --mode $mode"; then
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode"; then
               verifier_rc=0
             else
               verifier_rc=$?
