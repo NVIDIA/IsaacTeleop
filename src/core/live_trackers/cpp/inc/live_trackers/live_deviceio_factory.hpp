@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <deviceio_base/tracker_vendor.hpp>
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,8 +28,8 @@ class FrameMetadataTrackerOak;
 class IFrameMetadataTrackerOakImpl;
 class MessageChannelTracker;
 class IMessageChannelTrackerImpl;
-class FullBodyTrackerPico;
-class IFullBodyTrackerPicoImpl;
+class FullBodyTracker;
+class IFullBodyTrackerImpl;
 class Generic3AxisPedalTracker;
 class IGeneric3AxisPedalTrackerImpl;
 class OgloTactileTracker;
@@ -56,20 +58,29 @@ struct OpenXRSessionHandles;
 class LiveDeviceIOFactory
 {
 public:
-    /** Aggregate OpenXR extensions required by the given trackers for a live session. */
-    static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers);
-    /** Create tracker impl from a tracker instance using the same dispatch table as extension discovery. */
+    /**
+     * @brief Aggregate OpenXR extensions required by the given trackers for a live session.
+     *
+     * Vendored trackers (e.g. FullBodyTracker) resolve their required extensions through the
+     * vendor registry using the id selected in @p tracker_vendors (or the tracker's default
+     * vendor id when unlisted).
+     */
+    static std::vector<std::string> get_required_extensions(
+        const std::vector<std::shared_ptr<ITracker>>& trackers,
+        const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors = {});
+    /** Create tracker impl from a tracker instance using the same dispatch as extension discovery. */
     std::unique_ptr<ITrackerImpl> create_tracker_impl(const ITracker& tracker);
 
     LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                         mcap::McapWriter* writer,
-                        const std::vector<std::pair<const ITracker*, std::string>>& tracker_names);
+                        const std::vector<std::pair<const ITracker*, std::string>>& tracker_names,
+                        const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors = {});
 
     std::unique_ptr<IHeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker);
     std::unique_ptr<IHandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker);
     std::unique_ptr<IControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker);
     std::unique_ptr<IMessageChannelTrackerImpl> create_message_channel_tracker_impl(const MessageChannelTracker* tracker);
-    std::unique_ptr<IFullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
+    std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_pico_impl(const FullBodyTracker* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
     std::unique_ptr<IOgloTactileTrackerImpl> create_oglo_tactile_tracker_impl(const OgloTactileTracker* tracker);
@@ -88,6 +99,8 @@ private:
     const OpenXRSessionHandles& handles_;
     mcap::McapWriter* writer_;
     std::unordered_map<const ITracker*, std::string> name_map_;
+    // Per-tracker vendor selection for vendored trackers; absent -> tracker's default vendor id.
+    std::unordered_map<const ITracker*, TrackerVendor> vendor_map_;
 };
 
 } // namespace core

@@ -16,7 +16,7 @@ from ._deviceio_trackers import (
     TensorPushTracker,
     JointStateTracker,
     Se3Tracker,
-    FullBodyTrackerPico,
+    FullBodyTracker,
     ITrackerSession,
     NUM_JOINTS,
     JOINT_PALM,
@@ -25,11 +25,15 @@ from ._deviceio_trackers import (
     JOINT_INDEX_TIP,
 )
 
+# Deprecated alias for FullBodyTracker.
+FullBodyTrackerPico = FullBodyTracker
+
 __all__ = [
     "ControllerTracker",
     "MessageChannelStatus",
     "MessageChannelTracker",
     "FrameMetadataTrackerOak",
+    "FullBodyTracker",
     "FullBodyTrackerPico",
     "Generic3AxisPedalTracker",
     "OgloTactileTracker",

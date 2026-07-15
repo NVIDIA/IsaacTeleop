@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
-#include <deviceio_base/full_body_tracker_pico_base.hpp>
+#include <deviceio_base/full_body_tracker_base.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
@@ -21,9 +21,12 @@ namespace core
 
 using FullBodyMcapChannels = McapTrackerChannels<FullBodyPosePicoRecord, FullBodyPosePico>;
 
+// Live full-body impl for the "body.pico-xr" vendor: sources joints directly from
+// the native PICO XR_BD_body_tracking extension.
+//
 // Supports limp-mode: if body tracking hardware is unavailable, the constructor
 // succeeds but body_tracker_ remains XR_NULL_HANDLE and update() returns empty data.
-class LiveFullBodyTrackerPicoImpl : public IFullBodyTrackerPicoImpl
+class LiveFullBodyTrackerPicoImpl : public IFullBodyTrackerImpl
 {
 public:
     static std::vector<std::string> required_extensions()

@@ -157,7 +157,7 @@ void write_fixture(const std::filesystem::path& output_path, int frame_count)
     const auto hand_names = to_strings(core::HandRecordingTraits::recording_channels);
     const auto head_names = to_strings(core::HeadRecordingTraits::recording_channels);
     const auto pedal_names = to_strings(core::PedalRecordingTraits::recording_channels);
-    const auto full_body_names = to_strings(core::FullBodyPicoRecordingTraits::recording_channels);
+    const auto full_body_names = to_strings(core::FullBodyRecordingTraits::recording_channels);
 
     ControllerChannels controller_channels(
         *writer, "controllers", core::ControllerRecordingTraits::schema_name, controller_names);
@@ -165,7 +165,7 @@ void write_fixture(const std::filesystem::path& output_path, int frame_count)
     HeadChannels head_channels(*writer, "head", core::HeadRecordingTraits::schema_name, head_names);
     PedalChannels pedal_channels(*writer, "pedals", core::PedalRecordingTraits::schema_name, pedal_names);
     FullBodyChannels full_body_channels(
-        *writer, "full_body", core::FullBodyPicoRecordingTraits::schema_name, full_body_names);
+        *writer, "full_body", core::FullBodyRecordingTraits::schema_name, full_body_names);
 
     for (int frame = 0; frame < frame_count; ++frame)
     {

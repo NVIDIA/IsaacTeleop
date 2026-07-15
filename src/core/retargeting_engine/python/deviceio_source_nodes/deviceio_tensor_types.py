@@ -120,16 +120,20 @@ class JointStateOutputTrackedType(TensorType):
             )
 
 
-class FullBodyPosePicoTrackedType(TensorType):
-    """FullBodyPosePicoTrackedT wrapper type from DeviceIO FullBodyTrackerPico."""
+class FullBodyPoseTrackedType(TensorType):
+    """FullBodyPosePicoTrackedT wrapper type from DeviceIO FullBodyTracker.
+
+    Vendor-agnostic: the full-body tracker produces the same FullBodyPosePicoTrackedT
+    payload regardless of the live vendor (native XR, pushed tensor, ...).
+    """
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
 
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        if not isinstance(other, FullBodyPosePicoTrackedType):
+        if not isinstance(other, FullBodyPoseTrackedType):
             raise TypeError(
-                f"Expected FullBodyPosePicoTrackedType, got {type(other).__name__}"
+                f"Expected FullBodyPoseTrackedType, got {type(other).__name__}"
             )
         return True
 
@@ -138,6 +142,10 @@ class FullBodyPosePicoTrackedType(TensorType):
             raise TypeError(
                 f"Expected FullBodyPosePicoTrackedT for '{self.name}', got {type(value).__name__}"
             )
+
+
+# Deprecated alias for FullBodyPoseTrackedType.
+FullBodyPosePicoTrackedType = FullBodyPoseTrackedType
 
 
 class MessageChannelMessagesTrackedType(TensorType):
@@ -244,16 +252,20 @@ def DeviceIOJointStateOutputTracked() -> TensorGroupType:
     )
 
 
-def DeviceIOFullBodyPosePicoTracked() -> TensorGroupType:
-    """Tracked full body pose data from DeviceIO FullBodyTrackerPico.
+def DeviceIOFullBodyPoseTracked() -> TensorGroupType:
+    """Tracked full body pose data from DeviceIO FullBodyTracker.
 
     Contains:
         full_body_tracked: FullBodyPosePicoTrackedT wrapper (always set; .data is None when inactive)
     """
     return TensorGroupType(
-        "deviceio_full_body_pose_pico",
-        [FullBodyPosePicoTrackedType("full_body_tracked")],
+        "deviceio_full_body_pose",
+        [FullBodyPoseTrackedType("full_body_tracked")],
     )
+
+
+# Deprecated alias for DeviceIOFullBodyPoseTracked.
+DeviceIOFullBodyPosePicoTracked = DeviceIOFullBodyPoseTracked
 
 
 def DeviceIOMessageChannelMessagesTracked() -> TensorGroupType:

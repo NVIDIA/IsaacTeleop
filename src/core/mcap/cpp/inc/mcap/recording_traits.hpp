@@ -38,7 +38,7 @@ struct ControllerRecordingTraits
     static constexpr std::array replay_channels = { "left_controller", "right_controller" };
 };
 
-struct FullBodyPicoRecordingTraits
+struct FullBodyRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.FullBodyPosePicoRecord";
     static constexpr std::array recording_channels = { "full_body" };

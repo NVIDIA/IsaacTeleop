@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -18,7 +18,7 @@ from ..interface.tensor_group import TensorGroup
 from ..tensor_types import FullBodyInput, FullBodyInputIndex
 from ..interface.tensor_group_type import OptionalType
 from ..tensor_types.standard_types import NUM_BODY_JOINTS_PICO
-from .deviceio_tensor_types import DeviceIOFullBodyPosePicoTracked
+from .deviceio_tensor_types import DeviceIOFullBodyPoseTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
@@ -47,21 +47,21 @@ class FullBodySource(IDeviceIOSource):
     def __init__(self, name: str) -> None:
         """Initialize stateless full body source node.
 
-        Creates a FullBodyTrackerPico instance for TeleopSession to discover and use.
+        Creates a FullBodyTracker instance for TeleopSession to discover and use.
 
         Args:
             name: Unique name for this source node
         """
         import isaacteleop.deviceio as deviceio
 
-        self._body_tracker = deviceio.FullBodyTrackerPico()
+        self._body_tracker = deviceio.FullBodyTracker()
         super().__init__(name)
 
     def get_tracker(self) -> "ITracker":
-        """Get the FullBodyTrackerPico instance.
+        """Get the FullBodyTracker instance.
 
         Returns:
-            The FullBodyTrackerPico instance for TeleopSession to initialize
+            The FullBodyTracker instance for TeleopSession to initialize
         """
         return self._body_tracker
 
@@ -87,7 +87,7 @@ class FullBodySource(IDeviceIOSource):
     def input_spec(self) -> RetargeterIOType:
         """Declare DeviceIO full body input."""
         return {
-            "deviceio_full_body": DeviceIOFullBodyPosePicoTracked(),
+            "deviceio_full_body": DeviceIOFullBodyPoseTracked(),
         }
 
     def output_spec(self) -> RetargeterIOType:

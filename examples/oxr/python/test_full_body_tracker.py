@@ -1,12 +1,12 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Test script for FullBodyTrackerPico with XR_BD_body_tracking extension.
+Test script for FullBodyTracker with XR_BD_body_tracking extension.
 
 Demonstrates:
 - Getting full body pose data (24 joints from pelvis to hands)
-- Requires PICO device with body tracking support
+- Requires PICO device with body tracking support (default "body.pico-xr" vendor)
 """
 
 import time
@@ -22,7 +22,7 @@ print()
 
 # Test 1: Create full body tracker
 print("[Test 1] Creating full body tracker...")
-body_tracker = deviceio.FullBodyTrackerPico()
+body_tracker = deviceio.FullBodyTracker()
 print(f"✓ {body_tracker.get_name()} created")
 print()
 

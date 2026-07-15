@@ -3,7 +3,7 @@
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
-#include <deviceio_trackers/full_body_tracker_pico.hpp>
+#include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
@@ -209,12 +209,13 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "Get the current SE3 tracked snapshot (data is None when no data available; gate on "
             "data.is_valid before consuming the pose)");
 
-    py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
-        m, "FullBodyTrackerPico")
-        .def(py::init<>())
+    py::class_<core::FullBodyTracker, core::ITracker, std::shared_ptr<core::FullBodyTracker>>(m, "FullBodyTracker")
+        .def(py::init<>(),
+             "Construct a vendor-agnostic full body tracker marker. The live session selects the "
+             "vendor via VendorConfig (default: native PICO XR_BD_body_tracking); replay is vendor-neutral.")
         .def(
             "get_body_pose",
-            [](const core::FullBodyTrackerPico& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
+            [](const core::FullBodyTracker& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
             { return self.get_body_pose(session); },
             py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
 

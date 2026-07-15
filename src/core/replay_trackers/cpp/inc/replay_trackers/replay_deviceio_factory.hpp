@@ -17,8 +17,8 @@ class ITracker;
 class ITrackerImpl;
 class ControllerTracker;
 class IControllerTrackerImpl;
-class FullBodyTrackerPico;
-class IFullBodyTrackerPicoImpl;
+class FullBodyTracker;
+class IFullBodyTrackerImpl;
 class Generic3AxisPedalTracker;
 class IGeneric3AxisPedalTrackerImpl;
 class OgloTactileTracker;
@@ -57,7 +57,7 @@ public:
     std::unique_ptr<IHeadTrackerImpl> create_head_tracker_impl(const HeadTracker* tracker);
     std::unique_ptr<IHandTrackerImpl> create_hand_tracker_impl(const HandTracker* tracker);
     std::unique_ptr<IControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker);
-    std::unique_ptr<IFullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
+    std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_impl(const FullBodyTracker* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
     std::unique_ptr<IOgloTactileTrackerImpl> create_oglo_tactile_tracker_impl(const OgloTactileTracker* tracker);
