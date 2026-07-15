@@ -16,3 +16,9 @@ SPDX-License-Identifier: Apache-2.0
 
 - In source code files under this example, preserve the existing grouped/sorted organization for helpers, message builders, classes, and member functions: scan the surrounding order before inserting, and do not place helpers near call sites when the existing section is sorted.
 - In Python integration test verifier code, do not use bare `assert` for runtime validation; Python optimization can disable it, so raise explicit exceptions from validators.
+
+## Rename consistency
+
+- When renaming a symbol or concept, update semantically coupled type names,
+  fields, variables, constructor keywords, consumers, and tests in the same pass
+  so old and new vocabulary do not coexist.

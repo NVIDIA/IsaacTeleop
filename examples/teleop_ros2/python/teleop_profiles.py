@@ -12,7 +12,7 @@ from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
 from constants import SHARPA_HAND_RETARGETERS, HandRetargeter, StrEnum, TeleopMode
 
 
-class FramePublication(StrEnum):
+class PublishType(StrEnum):
     CONTROLLER_PAYLOAD = "controller_payload"
     EE_FROM_CONTROLLERS = "ee_from_controllers"
     EE_FROM_HANDS = "ee_from_hands"
@@ -49,7 +49,7 @@ class TeleopProfileSpec:
 
     mode: TeleopMode
     required_result_keys: frozenset[str]
-    publications: frozenset[FramePublication]
+    publish_types: frozenset[PublishType]
 
 
 TELEOP_PROFILE_SPECS = {
@@ -65,13 +65,13 @@ TELEOP_PROFILE_SPECS = {
                 "root_command",
             }
         ),
-        publications=frozenset(
+        publish_types=frozenset(
             {
-                FramePublication.CONTROLLER_PAYLOAD,
-                FramePublication.EE_FROM_CONTROLLERS,
-                FramePublication.FINGER_JOINTS,
-                FramePublication.HEAD,
-                FramePublication.ROOT_COMMAND,
+                PublishType.CONTROLLER_PAYLOAD,
+                PublishType.EE_FROM_CONTROLLERS,
+                PublishType.FINGER_JOINTS,
+                PublishType.HEAD,
+                PublishType.ROOT_COMMAND,
             }
         ),
     ),
@@ -89,14 +89,14 @@ TELEOP_PROFILE_SPECS = {
                 "root_command",
             }
         ),
-        publications=frozenset(
+        publish_types=frozenset(
             {
-                FramePublication.CONTROLLER_PAYLOAD,
-                FramePublication.EE_FROM_CONTROLLERS,
-                FramePublication.FINGER_JOINTS,
-                FramePublication.HAND_POSES,
-                FramePublication.HEAD,
-                FramePublication.ROOT_COMMAND,
+                PublishType.CONTROLLER_PAYLOAD,
+                PublishType.EE_FROM_CONTROLLERS,
+                PublishType.FINGER_JOINTS,
+                PublishType.HAND_POSES,
+                PublishType.HEAD,
+                PublishType.ROOT_COMMAND,
             }
         ),
     ),
@@ -112,30 +112,30 @@ TELEOP_PROFILE_SPECS = {
                 "root_command",
             }
         ),
-        publications=frozenset(
+        publish_types=frozenset(
             {
-                FramePublication.EE_FROM_HANDS,
-                FramePublication.FINGER_JOINTS,
-                FramePublication.HAND_POSES,
-                FramePublication.HEAD,
-                FramePublication.ROOT_COMMAND,
+                PublishType.EE_FROM_HANDS,
+                PublishType.FINGER_JOINTS,
+                PublishType.HAND_POSES,
+                PublishType.HEAD,
+                PublishType.ROOT_COMMAND,
             }
         ),
     ),
     TeleopProfile.CONTROLLER_RAW: TeleopProfileSpec(
         mode=TeleopMode.CONTROLLER_RAW,
         required_result_keys=frozenset({"controller_left", "controller_right"}),
-        publications=frozenset({FramePublication.CONTROLLER_PAYLOAD}),
+        publish_types=frozenset({PublishType.CONTROLLER_PAYLOAD}),
     ),
     TeleopProfile.FULL_BODY: TeleopProfileSpec(
         mode=TeleopMode.FULL_BODY,
         required_result_keys=frozenset(
             {"controller_left", "controller_right", "full_body"}
         ),
-        publications=frozenset(
+        publish_types=frozenset(
             {
-                FramePublication.CONTROLLER_PAYLOAD,
-                FramePublication.FULL_BODY_PAYLOAD,
+                PublishType.CONTROLLER_PAYLOAD,
+                PublishType.FULL_BODY_PAYLOAD,
             }
         ),
     ),

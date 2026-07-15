@@ -70,7 +70,7 @@ from messages import (
     build_head_msg,
 )
 from teleop_profiles import (
-    FramePublication,
+    PublishType,
     SessionResult,
     resolve_teleop_profile_spec,
     validate_session_result,
@@ -314,40 +314,34 @@ class TeleopRos2Node(Node):
                         now = self.get_clock().now().to_msg()
 
                         if (
-                            FramePublication.EE_FROM_HANDS
-                            in self._profile_spec.publications
+                            PublishType.EE_FROM_HANDS
+                            in self._profile_spec.publish_types
                         ):
                             self._publish_ee_pose_from_hands(result, now)
                         if (
-                            FramePublication.EE_FROM_CONTROLLERS
-                            in self._profile_spec.publications
+                            PublishType.EE_FROM_CONTROLLERS
+                            in self._profile_spec.publish_types
                         ):
                             self._publish_ee_pose_from_controllers(result, now)
-                        if (
-                            FramePublication.HAND_POSES
-                            in self._profile_spec.publications
-                        ):
+                        if PublishType.HAND_POSES in self._profile_spec.publish_types:
                             self._publish_hand_poses(result, now)
-                        if (
-                            FramePublication.ROOT_COMMAND
-                            in self._profile_spec.publications
-                        ):
+                        if PublishType.ROOT_COMMAND in self._profile_spec.publish_types:
                             self._publish_root_command(result, now)
                         if (
-                            FramePublication.FINGER_JOINTS
-                            in self._profile_spec.publications
+                            PublishType.FINGER_JOINTS
+                            in self._profile_spec.publish_types
                         ):
                             self._publish_finger_joints(result, now)
-                        if FramePublication.HEAD in self._profile_spec.publications:
+                        if PublishType.HEAD in self._profile_spec.publish_types:
                             self._publish_head(result, now)
                         if (
-                            FramePublication.CONTROLLER_PAYLOAD
-                            in self._profile_spec.publications
+                            PublishType.CONTROLLER_PAYLOAD
+                            in self._profile_spec.publish_types
                         ):
                             self._publish_controller_payload(result)
                         if (
-                            FramePublication.FULL_BODY_PAYLOAD
-                            in self._profile_spec.publications
+                            PublishType.FULL_BODY_PAYLOAD
+                            in self._profile_spec.publish_types
                         ):
                             self._publish_full_body_payload(result)
 

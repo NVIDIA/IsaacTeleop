@@ -18,7 +18,7 @@ from constants import (
 from session_config import validate_joint_name_alias_count
 from teleop_profiles import (
     TELEOP_PROFILE_SPECS,
-    FramePublication,
+    PublishType,
     TeleopProfile,
     TeleopProfileSpec,
     resolve_teleop_profile_spec,
@@ -71,10 +71,10 @@ def test_controller_profile_spec_is_resolved_for_selected_retargeter() -> None:
 
     assert "hand_left" not in controller_spec.required_result_keys
     assert "hand_right" not in controller_spec.required_result_keys
-    assert FramePublication.HAND_POSES not in controller_spec.publications
+    assert PublishType.HAND_POSES not in controller_spec.publish_types
 
     assert {"hand_left", "hand_right"} <= hands_spec.required_result_keys
-    assert FramePublication.HAND_POSES in hands_spec.publications
+    assert PublishType.HAND_POSES in hands_spec.publish_types
 
 
 @pytest.mark.parametrize(
