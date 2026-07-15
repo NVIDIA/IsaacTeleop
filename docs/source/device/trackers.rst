@@ -2,7 +2,7 @@ Device Trackers
 ===============
 
 Trackers (defined in :code-dir:`src/core/deviceio_trackers`) are the consumer-side API for reading device
-data from an active :code-file:`DeviceIOSession <src/core/deviceio_session/cpp/inc/deviceio/deviceio_session.hpp>`.
+data from an active :code-file:`DeviceIOSession <src/core/deviceio_session/cpp/inc/deviceio_session/deviceio_session.hpp>`.
 Each tracker manages one logical device, queries the OpenXR runtime every frame,
 and exposes the latest sample through typed ``get_*()`` accessors.
 
@@ -11,17 +11,17 @@ There are two categories of trackers:
 **OpenXR-direct trackers** -- read pose and input data through standard OpenXR
 APIs (``xrLocateSpace``, ``xrSyncActions``, etc.):
 
-- :code-file:`HeadTracker <src/core/deviceio_trackers/cpp/inc/deviceio/head_tracker.hpp>` -- HMD head pose
-- :code-file:`HandTracker <src/core/deviceio_trackers/cpp/inc/deviceio/hand_tracker.hpp>` -- articulated hand joints (left and right)
-- :code-file:`ControllerTracker <src/core/deviceio_trackers/cpp/inc/deviceio/controller_tracker.hpp>` -- controller poses and button/axis inputs (left and right)
-- :code-file:`FullBodyTrackerPico <src/core/deviceio_trackers/cpp/inc/deviceio/full_body_tracker_pico.hpp>` -- 24-joint full body pose (PICO ``XR_BD_body_tracking``)
+- :code-file:`HeadTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/head_tracker.hpp>` -- HMD head pose
+- :code-file:`HandTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/hand_tracker.hpp>` -- articulated hand joints (left and right)
+- :code-file:`ControllerTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/controller_tracker.hpp>` -- controller poses and button/axis inputs (left and right)
+- :code-file:`FullBodyTrackerPico <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/full_body_tracker_pico.hpp>` -- 24-joint full body pose (PICO ``XR_BD_body_tracking``)
 
 **SchemaTracker-based trackers** -- create new device type by defining a FlatBuffer schema and
 reading it from OpenXR tensor collections via the
 :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>` utility.
 
-- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio/frame_metadata_tracker_oak.hpp>` -- per-stream frame metadata from OAK cameras
-- :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp>` -- foot pedal axis values
+- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp>` -- per-stream frame metadata from OAK cameras
+- :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp>` -- foot pedal axis values
 
 All trackers follow the same lifecycle:
 
