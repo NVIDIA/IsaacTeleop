@@ -30,7 +30,12 @@ from typing import List, Optional
 import yaml
 
 from pipeline import FrameSource
-from sources import PairedFrameSource, build_local_camera, set_verbose
+from sources import (
+    PairedFrameSource,
+    build_local_camera,
+    resolve_video_paths,
+    set_verbose,
+)
 from transports import RtpH264Sender, make_encoder
 
 logger = logging.getLogger("camera_streamer")
@@ -136,10 +141,13 @@ class CameraSupervisor:
             )
 
         def build_one(source: FrameSource, port: int) -> RtpH264Sender:
+            # Encoder / sender geometry comes from the built source's spec,
+            # not the YAML — sources that size themselves (video replay
+            # probing its file) may omit width/height from the config.
             encoder = make_encoder(
                 rtp.get("encoder", self._default_encoder),
-                width=int(self._cfg["width"]),
-                height=int(self._cfg["height"]),
+                width=source.spec.width,
+                height=source.spec.height,
                 bitrate=int(rtp.get("bitrate_mbps", 15)) * 1_000_000,
                 fps=int(self._cfg.get("fps", 30)),
                 gop=int(rtp["gop"]) if "gop" in rtp else None,
@@ -150,8 +158,8 @@ class CameraSupervisor:
                 encoder=encoder,
                 host=self._host,
                 port=port,
-                width=int(self._cfg["width"]),
-                height=int(self._cfg["height"]),
+                width=source.spec.width,
+                height=source.spec.height,
                 fps=int(self._cfg.get("fps", 30)),
                 mtu=int(rtp.get("mtu", 1400)),
             )
@@ -278,6 +286,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # Top-level ``verbose:`` enables per-source periodic breadcrumbs.
     set_verbose(bool(cfg.get("verbose", False)))
+    resolve_video_paths(cfg, args.config.parent)
 
     streaming = cfg.get("streaming", {})
     host = args.host or streaming.get("host")

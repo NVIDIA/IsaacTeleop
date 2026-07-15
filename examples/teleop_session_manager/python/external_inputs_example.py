@@ -44,11 +44,13 @@ Scenario:
     so they both use ValueInput rather than custom subclasses.
 """
 
+import argparse
 import sys
 import time
 import numpy as np
 from pathlib import Path
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
@@ -172,6 +174,10 @@ class DeltaPositionRetargeter(BaseRetargeter):
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     # ==================================================================
     # 1. Build Pipeline
     # ==================================================================
@@ -282,7 +288,7 @@ def main() -> int:
         ],
     )
 
-    with TeleopSession(config) as session:
+    with CloudXRLauncher.launch_context(args), TeleopSession(config) as session:
         # ==============================================================
         # 3. Discover what external inputs the pipeline expects
         # ==============================================================

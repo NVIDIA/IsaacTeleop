@@ -46,6 +46,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxxf86vm-dev \
     swig \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rosidl-default-runtime \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv via standalone script (avoids PEP 668 "externally managed" pip on Ubuntu 24.04 / Jazzy)
@@ -113,6 +114,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     patchelf \
     pkg-config \
+    python3-colcon-common-extensions \
+    ros-${ROS_DISTRO}-ament-cmake-auto \
+    ros-${ROS_DISTRO}-rosidl-default-generators \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/isaacteleop
@@ -124,7 +128,8 @@ COPY . /opt/isaacteleop
 # produces; a stale build/ would skip a clean CMake reconfigure. The build tree
 # is rebuilt from scratch every time -- ccache keeps recompiles cheap -- so each
 # build reconfigures against the current image rather than trusting cached
-# configure results.
+# configure results. Ament's Python tools come from apt, so the interface
+# package build below pins the ROS distro's system Python instead of uv's.
 RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
     rm -rf /opt/isaacteleop/install /opt/isaacteleop/build \
     && cmake -B build -S . \
@@ -143,10 +148,22 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release \
+    && bash -lc "source /opt/ros/${ROS_DISTRO}/setup.bash \
+        && colcon build \
+            --base-paths examples/teleop_ros2/teleop_ros2_interfaces \
+            --build-base build/teleop_ros2_interfaces \
+            --install-base /opt/isaacteleop/install \
+            --merge-install \
+            --cmake-args \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DPython3_EXECUTABLE=/usr/bin/python3" \
     && ccache --show-stats
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
+if [[ -f /opt/isaacteleop/install/local_setup.bash ]]; then
+    source /opt/isaacteleop/install/local_setup.bash
+fi
 EOF
 
 COPY --chmod=755 <<'EOF' /usr/local/bin/teleop-entrypoint

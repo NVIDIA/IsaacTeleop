@@ -1,0 +1,12 @@
+# Replay clips for ``type: video`` — user-supplied or generated,
+# never committed. The shipped sample clip in test_data/ (Git LFS)
+# is the exception.
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.mov
+!test_data/*.mp4
+
+# Vendor SDK scratch (depthai telemetry, etc.) written at runtime.
+.cache/

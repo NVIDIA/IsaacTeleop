@@ -12,12 +12,14 @@ This example shows:
 3. Displaying velocity data
 """
 
+import argparse
 import sys
 import time
 import numpy as np
 from pathlib import Path
 from typing import Optional
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     ControllersSource,
@@ -163,6 +165,10 @@ class VelocityTracker(BaseRetargeter):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     # ==================================================================
     # Build Pipeline
     # ==================================================================
@@ -196,7 +202,7 @@ def main():
         ],
     )
 
-    with TeleopSession(config) as session:
+    with CloudXRLauncher.launch_context(args), TeleopSession(config) as session:
         print("\n" + "=" * 70)
         print("Velocity Tracker - Move your hands and controllers")
         print("Press Ctrl+C to exit")

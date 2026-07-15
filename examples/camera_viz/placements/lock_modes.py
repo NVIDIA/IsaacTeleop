@@ -1,11 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""World / head / lazy locked placements, ported from
-``examples/camera_streamer/operators/xr_plane_renderer/camera_plane.cpp``.
-
-Parameter names, defaults, and state-machine semantics are identical to
-the original ``CameraPlaneConfig`` so existing tuning carries over.
-"""
+"""World / head / lazy locked placement strategies."""
 
 from __future__ import annotations
 
@@ -30,7 +25,7 @@ from ._math import (
 
 @dataclass(frozen=True)
 class PlacementConfig:
-    """Mirrors ``CameraPlaneConfig`` (camera_plane.hpp:29).
+    """Per-plane placement tuning.
 
     ``size_meters`` is plane width/height in world units. The lazy-mode
     fields are no-ops for World / Head locks.
@@ -212,7 +207,6 @@ class LazyLocked(PlacementStrategy):
 def build(lock_mode: str, config: PlacementConfig) -> PlacementStrategy:
     """Factory used by the YAML loader.
 
-    Mode strings match camera_streamer's ``parse_lock_mode``:
     ``"world"`` → WorldLocked, ``"head"`` → HeadLocked, anything else
     (including ``"lazy"``) → LazyLocked.
     """

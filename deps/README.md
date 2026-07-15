@@ -47,7 +47,7 @@ machine and are located via `find_package`.
 
 ### Vulkan SDK / loader
 - **Locator**: `find_package(Vulkan REQUIRED)`
-- **Required by**: `viz/core/` when `BUILD_VIZ=ON` (also `examples/camera_streamer`).
+- **Required by**: `viz/core/` when `BUILD_VIZ=ON`.
 - **Linux**: `apt-get install libvulkan-dev` (provides headers + `libvulkan.so.1`).
 - **Windows**: install the LunarG Vulkan SDK and ensure `VULKAN_SDK` env var is set.
   CI uses `humbletim/install-vulkan-sdk@v1.2`.
@@ -57,7 +57,7 @@ machine and are located via `find_package`.
 ### CUDA Toolkit
 - **Locator**: `find_package(CUDAToolkit REQUIRED)`
 - **Required by**: `viz/core/` (`CudaTexture`, `DeviceImage` link to
-  `CUDA::cudart`) when `BUILD_VIZ=ON`; also `examples/camera_streamer/`.
+  `CUDA::cudart`) when `BUILD_VIZ=ON`.
 - **Min version**: 12.0
 - **CI**: installed via `Jimver/cuda-toolkit@v0.2.x` action with
   `nvcc` + `cudart` sub-packages.

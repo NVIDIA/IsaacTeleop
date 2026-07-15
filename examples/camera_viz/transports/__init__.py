@@ -7,8 +7,8 @@ agnostic — the codec layer lives in ``sources/`` (decoders, which feed
 into FrameSource) and in ``camera_streamer`` (encoders, which consume
 FrameSource).
 
-The split matches camera_streamer's gstreamer + nv_stream split: one
-side handles network packetization, the other handles GPU codec work.
+The split keeps network packetization on one side and GPU codec work
+on the other.
 """
 
 from ._encoder_factory import make_encoder

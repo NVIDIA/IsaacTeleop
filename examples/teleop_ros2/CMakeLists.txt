@@ -18,3 +18,7 @@ install(FILES README.md Dockerfile
 install(DIRECTORY configs assets
     DESTINATION examples/teleop_ros2
 )
+
+install(DIRECTORY teleop_ros2_interfaces
+    DESTINATION examples/teleop_ros2
+)

@@ -12,7 +12,13 @@ SPDX-License-Identifier: Apache-2.0
 - The image build disables some CI gates (`-DENABLE_CLANG_FORMAT_CHECK=OFF`, `-DBUILD_TESTING=OFF`), so a green Docker build does not mean C++ formatting or ctest pass. Validate those separately.
 - When creating temporary Docker images for `examples/teleop_ros2` validation, remove them before finishing the task unless the user explicitly asks to keep them.
 
-## Python Node Layout
+## Source Layout
 
-- In `python/teleop_ros2_node.py`, preserve the existing grouped/sorted organization for global non-member helpers and `TeleopRos2Node` member functions: scan the surrounding order before inserting, and do not place helpers near call sites when the existing section is sorted.
+- In source code files under this example, preserve the existing grouped/sorted organization for helpers, message builders, classes, and member functions: scan the surrounding order before inserting, and do not place helpers near call sites when the existing section is sorted.
 - In Python integration test verifier code, do not use bare `assert` for runtime validation; Python optimization can disable it, so raise explicit exceptions from validators.
+
+## Rename consistency
+
+- When renaming a symbol or concept, update semantically coupled type names,
+  fields, variables, constructor keywords, consumers, and tests in the same pass
+  so old and new vocabulary do not coexist.

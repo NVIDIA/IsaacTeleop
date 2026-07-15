@@ -17,6 +17,8 @@ dev = [
     "pytest",
     "numpy",
     "pyyaml>=6.0",
+    # Encodes + decodes the synthetic clips in test_video_file_source.py.
+    "opencv-python>=4.5",
 ]
 gpu = [
     "cupy-cuda12x",
