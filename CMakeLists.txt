@@ -180,6 +180,7 @@ if(BUILD_PLUGINS)
     # Build plugin utilities
     add_subdirectory(src/plugins/plugin_utils)
 
+    add_subdirectory(src/plugins/controller_se3_tracker)
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
     add_subdirectory(src/plugins/so101_leader)

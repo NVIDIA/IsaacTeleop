@@ -12,6 +12,7 @@
 #include "live_head_tracker_impl.hpp"
 #include "live_joint_state_tracker_impl.hpp"
 #include "live_message_channel_tracker_impl.hpp"
+#include "live_se3_tracker_impl.hpp"
 #include "live_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
@@ -23,6 +24,7 @@
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
@@ -103,6 +105,12 @@ std::unique_ptr<ITrackerImpl> try_create_joint_state_impl(LiveDeviceIOFactory& f
     return typed ? factory.create_joint_state_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_se3_tracker_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const Se3Tracker*>(&tracker);
+    return typed ? factory.create_se3_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const FrameMetadataTrackerOak*>(&tracker);
@@ -130,6 +138,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>,
       &try_create_haptic_command_reader_impl },
     { &try_add_extensions<JointStateTracker, LiveJointStateTrackerImpl>, &try_create_joint_state_impl },
+    { &try_add_extensions<Se3Tracker, LiveSe3TrackerImpl>, &try_create_se3_tracker_impl },
     { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
 };
 
@@ -291,6 +300,16 @@ std::unique_ptr<IJointStateTrackerImpl> LiveDeviceIOFactory::create_joint_state_
         channels = LiveJointStateTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveJointStateTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<ISe3TrackerImpl> LiveDeviceIOFactory::create_se3_tracker_impl(const Se3Tracker* tracker)
+{
+    std::unique_ptr<Se3TrackerMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveSe3TrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveSe3TrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_oak_impl(

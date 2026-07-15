@@ -12,6 +12,7 @@ pybind11_add_module(schema_py
     message_channel_bindings.h
     pedals_bindings.h
     pose_bindings.h
+    se3_tracker_bindings.h
     schema_module.cpp
 )
 
