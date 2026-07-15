@@ -91,6 +91,13 @@ To inspect the resolved settings after startup:
 
    cat ~/.cloudxr/run/cloudxr.env
 
+.. note::
+
+   If you prefer to run the runtime yourself in its own terminal — e.g. to keep
+   the headset connection alive across example restarts, or to use launch modes
+   like ``--host-client`` and ``--setup-oob`` — see
+   :doc:`/references/cloudxr`.
+
 .. list-table:: Environment variables
    :header-rows: 1
    :widths: 25 15 35 25
