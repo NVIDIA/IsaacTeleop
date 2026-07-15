@@ -39,16 +39,10 @@ TF frames published in hand_teleop and controller_teleop modes (configurable via
 """
 
 import time
-from typing import List
 
-import msgpack
-import msgpack_numpy as mnp
-import numpy as np
 import rclpy
 from geometry_msgs.msg import (
-    Pose,
     PoseStamped,
-    TransformStamped,
     TwistStamped,
 )
 from rclpy.node import Node
@@ -59,15 +53,15 @@ from tf2_ros import TransformBroadcaster
 
 from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.teleop_session_manager import SessionMode, TeleopSession
-from geometry import make_transform
 from messages import (
-    build_controller_payload,
-    build_ee_msg_from_controllers,
-    build_ee_msg_from_hands,
+    build_controller_msg,
+    build_ee_output_from_controllers,
+    build_ee_output_from_hands,
     build_finger_joints_msg,
-    build_full_body_payload,
+    build_full_body_msg,
     build_hand_msg,
-    build_head_msg,
+    build_head_output,
+    build_root_command_output,
 )
 from teleop_profiles import (
     PublishType,
@@ -80,9 +74,6 @@ from node_parameters import (
     create_node_parameters,
 )
 from session_config import build_session_config
-from tensor_group_helpers import (
-    head_is_valid,
-)
 
 
 class TeleopRos2Node(Node):
@@ -97,39 +88,6 @@ class TeleopRos2Node(Node):
         self._tf_broadcaster = TransformBroadcaster(self)
         self._create_publishers()
         self._config = build_session_config(self._params)
-
-    def _build_wrist_tfs(
-        self,
-        ee_msg: NamedPoseArray,
-    ) -> List[TransformStamped]:
-        """Build wrist TF transforms from valid EE pose entries."""
-        tfs = []
-        wrist_frames = {
-            "left": self._params.left_wrist_frame,
-            "right": self._params.right_wrist_frame,
-        }
-
-        def _get_orientation(pose: Pose) -> List[float]:
-            return [
-                pose.orientation.x,
-                pose.orientation.y,
-                pose.orientation.z,
-                pose.orientation.w,
-            ]
-
-        for side, pose, is_valid in zip(ee_msg.name, ee_msg.pose, ee_msg.is_valid):
-            if not is_valid:
-                continue
-            tfs.append(
-                make_transform(
-                    ee_msg.header.stamp,
-                    ee_msg.header.frame_id,
-                    wrist_frames[side],
-                    [pose.position.x, pose.position.y, pose.position.z],
-                    _get_orientation(pose),
-                )
-            )
-        return tfs
 
     def _create_publishers(self) -> None:
         self._pub_hand = self.create_publisher(NamedPoseArray, "xr_teleop/hand", 10)
@@ -154,33 +112,28 @@ class TeleopRos2Node(Node):
         self._pub_head = self.create_publisher(PoseStamped, "xr_teleop/head_pose", 10)
 
     def _publish_ee_pose_from_controllers(self, result: SessionResult, now) -> None:
-        left_ctrl = result["controller_left"]
-        right_ctrl = result["controller_right"]
-        ee_pose_msg = build_ee_msg_from_controllers(
-            left_ctrl,
-            right_ctrl,
+        ee_pose_msg, wrist_tfs = build_ee_output_from_controllers(
+            result["controller_left"],
+            result["controller_right"],
             now,
             self._params.world_frame,
+            self._params.left_wrist_frame,
+            self._params.right_wrist_frame,
             self._params.transform_rotation,
             self._params.transform_translation,
             self._params.controller_uses_hands_source,
         )
         self._pub_ee_pose.publish(ee_pose_msg)
-        wrist_tfs = self._build_wrist_tfs(ee_pose_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
     def _publish_controller_payload(self, result: SessionResult) -> None:
-        left_ctrl = result["controller_left"]
-        right_ctrl = result["controller_right"]
-        if left_ctrl.is_none and right_ctrl.is_none:
-            return
-
-        controller_payload = build_controller_payload(left_ctrl, right_ctrl)
-        payload = msgpack.packb(controller_payload, default=mnp.encode)
-        controller_msg = ByteMultiArray()
-        controller_msg.data = tuple(bytes([a]) for a in payload)
-        self._pub_controller.publish(controller_msg)
+        controller_msg = build_controller_msg(
+            result["controller_left"],
+            result["controller_right"],
+        )
+        if controller_msg is not None:
+            self._pub_controller.publish(controller_msg)
 
     def _publish_finger_joints(self, result: SessionResult, now) -> None:
         finger_joints_msg = build_finger_joints_msg(
@@ -193,15 +146,9 @@ class TeleopRos2Node(Node):
             self._pub_finger_joints.publish(finger_joints_msg)
 
     def _publish_full_body_payload(self, result: SessionResult) -> None:
-        full_body_data = result["full_body"]
-        if full_body_data.is_none:
-            return
-
-        body_payload = build_full_body_payload(full_body_data)
-        payload = msgpack.packb(body_payload, default=mnp.encode)
-        body_msg = ByteMultiArray()
-        body_msg.data = tuple(bytes([a]) for a in payload)
-        self._pub_full_body.publish(body_msg)
+        body_msg = build_full_body_msg(result["full_body"])
+        if body_msg is not None:
+            self._pub_full_body.publish(body_msg)
 
     def _publish_hand_poses(self, result: SessionResult, now) -> None:
         hand_msg = build_hand_msg(
@@ -215,72 +162,47 @@ class TeleopRos2Node(Node):
         self._pub_hand.publish(hand_msg)
 
     def _publish_ee_pose_from_hands(self, result: SessionResult, now) -> None:
-        left_hand = result["hand_left"]
-        right_hand = result["hand_right"]
-        ee_pose_msg = build_ee_msg_from_hands(
-            left_hand,
-            right_hand,
+        ee_pose_msg, wrist_tfs = build_ee_output_from_hands(
+            result["hand_left"],
+            result["hand_right"],
             now,
             self._params.world_frame,
+            self._params.left_wrist_frame,
+            self._params.right_wrist_frame,
             self._params.transform_rotation,
             self._params.transform_translation,
         )
         self._pub_ee_pose.publish(ee_pose_msg)
-        wrist_tfs = self._build_wrist_tfs(ee_pose_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
     def _publish_head(self, result: SessionResult, now) -> None:
-        head = result["head"]
-        if not head_is_valid(head):
-            return
-
-        head_msg = build_head_msg(
-            head,
-            now,
-            self._params.world_frame,
-            self._params.transform_rotation,
-            self._params.transform_translation,
-        )
-        if head_msg is None:
-            return
-
-        self._pub_head.publish(head_msg)
-        pose = head_msg.pose
-        head_tf = make_transform(
+        head_output = build_head_output(
+            result["head"],
             now,
             self._params.world_frame,
             self._params.head_frame,
-            [pose.position.x, pose.position.y, pose.position.z],
-            [
-                pose.orientation.x,
-                pose.orientation.y,
-                pose.orientation.z,
-                pose.orientation.w,
-            ],
+            self._params.transform_rotation,
+            self._params.transform_translation,
         )
+        if head_output is None:
+            return
+
+        head_msg, head_tf = head_output
+        self._pub_head.publish(head_msg)
         self._tf_broadcaster.sendTransform(head_tf)
 
     def _publish_root_command(self, result: SessionResult, now) -> None:
-        root_command = result["root_command"]
-        if root_command.is_none:
+        root_output = build_root_command_output(
+            result["root_command"],
+            now,
+            self._params.world_frame,
+        )
+        if root_output is None:
             return
 
-        cmd = np.asarray(root_command[0])
-        twist_msg = TwistStamped()
-        twist_msg.header.stamp = now
-        twist_msg.header.frame_id = self._params.world_frame
-        twist_msg.twist.linear.x = float(cmd[0])
-        twist_msg.twist.linear.y = float(cmd[1])
-        twist_msg.twist.linear.z = 0.0
-        twist_msg.twist.angular.z = float(cmd[2])
+        twist_msg, pose_msg = root_output
         self._pub_root_twist.publish(twist_msg)
-
-        pose_msg = PoseStamped()
-        pose_msg.header.stamp = now
-        pose_msg.header.frame_id = self._params.world_frame
-        pose_msg.pose.position.z = float(cmd[3])
-        pose_msg.pose.orientation.w = 1.0
         self._pub_root_pose.publish(pose_msg)
 
     def _run_session_loop(self, launcher: CloudXRLauncher | None = None) -> int:
