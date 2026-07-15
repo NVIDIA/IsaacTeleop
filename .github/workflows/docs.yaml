@@ -124,6 +124,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          # Images/GIFs/etc. are stored in Git LFS (see .gitattributes). Without
+          # this, the working tree holds LFS pointer files and Sphinx copies the
+          # pointers verbatim, so the deployed site serves broken images.
+          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -143,6 +148,10 @@ jobs:
         if: needs.check-repo.outputs.is-canonical-repo == 'true' && needs.check-repo.outputs.is-deploy-branch == 'true'
         run: |
           git fetch --prune --unshallow --tags
+          # sphinx-multiversion checks each ref out into its own worktree, which
+          # smudges LFS files from the local object cache. `lfs: true` above only
+          # fetched HEAD's objects, so pull the rest for every built ref here.
+          git lfs fetch --all
           make multi-docs
 
       - name: Upload docs artifact
