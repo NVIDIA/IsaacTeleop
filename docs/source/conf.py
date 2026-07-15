@@ -60,7 +60,7 @@ _smv_name = os.environ.get("SPHINX_MULTIVERSION_NAME", "")
 _DEFAULT_ICONS = {
     "teleop_version": "main",
     "teleop_url": "https://github.com/NVIDIA/IsaacTeleop",
-    "cloudxr_version": "6.1",
+    "cloudxr_version": "6.2",
     "cloudxr_url": "https://docs.nvidia.com/cloudxr-sdk",
     "lab_version": "3.0",
     "lab_url": "https://isaac-sim.github.io/IsaacLab",
