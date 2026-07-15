@@ -415,15 +415,14 @@ commands to the terminal.</p>
 <nav class="contents local" id="steps">
 <p class="topic-title">Steps</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#check-out-code-base-for-examples" id="id6">1. Check out code base (for examples)</a></p></li>
-<li><p><a class="reference internal" href="#install-the-isaacteleop-pip-package" id="id7">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></p></li>
-<li><p><a class="reference internal" href="#configure-cloudxr-optional" id="id8">3. Configure CloudXR (optional)</a></p></li>
-<li><p><a class="reference internal" href="#whitelist-ports-for-firewall" id="id9">4. Whitelist ports for Firewall</a></p></li>
-<li><p><a class="reference internal" href="#connect-an-xr-headset" id="id10">5. Connect an XR headset</a></p></li>
-<li><p><a class="reference internal" href="#load-cloudxr-environment-variables-optional" id="id11">6. Load CloudXR environment variables (optional)</a></p></li>
-<li><p><a class="reference internal" href="#run-a-teleop-example" id="id12">7. Run a teleop example</a></p></li>
-<li><p><a class="reference internal" href="#next-steps" id="id13">Next steps</a></p></li>
-<li><p><a class="reference internal" href="#more-information" id="id14">More Information</a></p></li>
+<li><p><a class="reference internal" href="#check-out-code-base-for-examples" id="id5">1. Check out code base (for examples)</a></p></li>
+<li><p><a class="reference internal" href="#install-the-isaacteleop-pip-package" id="id6">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></p></li>
+<li><p><a class="reference internal" href="#configure-cloudxr-optional" id="id7">3. Configure CloudXR (optional)</a></p></li>
+<li><p><a class="reference internal" href="#whitelist-ports-for-firewall" id="id8">4. Whitelist ports for Firewall</a></p></li>
+<li><p><a class="reference internal" href="#connect-an-xr-headset" id="id9">5. Connect an XR headset</a></p></li>
+<li><p><a class="reference internal" href="#run-a-teleop-example" id="id10">6. Run a teleop example</a></p></li>
+<li><p><a class="reference internal" href="#next-steps" id="id11">Next steps</a></p></li>
+<li><p><a class="reference internal" href="#more-information" id="id12">More Information</a></p></li>
 </ul>
 </nav>
 <section id="check-out-code-base-for-examples">
@@ -480,8 +479,7 @@ python<span class="w"> </span>examples/teleop/python/gripper_retargeting_example
 </div>
 <p>The teleop examples under <code class="docutils literal notranslate"><span class="pre">examples/teleop/python/</span></code> all register CloudXR’s
 launcher arguments through <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher.add_launcher_arguments()</span></code>, so
-the same <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> flag is available on each of them, as well
-as on the standalone <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code> runtime. (The ROS 2
+the same <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> flag is available on each of them. (The ROS 2
 example takes the equivalent <code class="docutils literal notranslate"><span class="pre">cloudxr_env_config</span></code> ROS parameter instead.)
 To inspect the resolved settings after startup:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.cloudxr/run/cloudxr.env
@@ -521,75 +519,7 @@ To inspect the resolved settings after startup:</p>
 </tbody>
 </table>
 </div>
-<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
-<summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">Run the CloudXR runtime standalone (optional)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<p class="sd-card-text">Some device and plugin workflows — for example Manus gloves, haptic feedback,
-or consuming an OpenXR plugin directly — run the CloudXR runtime as a
-separate, long-lived process instead of letting an example auto-launch it.
-Start it with:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr
-</pre></div>
-</div>
-<p class="sd-card-text">To bypass the interactive EULA prompt (e.g. for CI or headless runs), add
-<code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>. When you later run a teleop example against this
-already-running runtime, pass <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> so it attaches
-instead of starting its own (see <a class="reference internal" href="#load-cloudxr-environment-variables"><span class="std std-ref">6. Load CloudXR environment variables (optional)</span></a>).</p>
-<p class="sd-card-text">You should see output similar to:</p>
-<figure class="align-center" id="id2">
-<img alt="CloudXR run output" src="../_images/cloudxr-run-output.png" />
-<figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> CloudXR run output</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
-</figcaption>
-</figure>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p class="sd-card-text">Keep this terminal open — CloudXR must stay running for the duration of the
-session. Open a <strong>new terminal</strong> for the remaining steps.</p>
-<p class="sd-card-text">Also take note of the <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">/home/dev/.cloudxr/run/cloudxr.env</span></code> path it
-mentioned in the output. You will need to source it in step
-<a class="reference internal" href="#load-cloudxr-environment-variables"><span class="std std-ref">6. Load CloudXR environment variables (optional)</span></a>.</p>
-</div>
-<p class="sd-card-text">The launcher supports optional flags that can be combined to control how the
-headset connects and how the web client is delivered.</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<colgroup>
-<col style="width: 45.0%" />
-<col style="width: 55.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p class="sd-card-text">Command</p></th>
-<th class="head"><p class="sd-card-text">What it does</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code></p></td>
-<td><p class="sd-card-text">Plain: headset navigates to GitHub Pages URL over WiFi.</p></td>
-</tr>
-<tr class="row-odd"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--host-client</span></code></p></td>
-<td><p class="sd-card-text">Serves the web client at <code class="docutils literal notranslate"><span class="pre">https://&lt;ip&gt;:48322/client/</span></code> via the WSS
-proxy. No separate port, no USB or TURN relay required. Useful when
-GitHub Pages is unreachable.</p></td>
-</tr>
-<tr class="row-even"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span></code></p></td>
-<td><p class="sd-card-text">OOB hub + CDP automation: opens the browser on the headset and
-auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.</p></td>
-</tr>
-<tr class="row-odd"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span> <span class="pre">--host-client</span></code></p></td>
-<td><p class="sd-card-text">OOB hub + CDP with client at <code class="docutils literal notranslate"><span class="pre">/client/</span></code> on the WSS proxy
-(air-gapped / proxy use).</p></td>
-</tr>
-<tr class="row-even"><td><p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span> <span class="pre">--usb-local</span></code></p></td>
-<td><p class="sd-card-text">All traffic over USB: adb-reverse + coturn TURN relay + loopback
-HTTPS. Requires <code class="docutils literal notranslate"><span class="pre">coturn</span></code> and a WiFi-associated headset.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p class="sd-card-text"><code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> requires <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>.  See
-<a class="reference internal" href="../references/oob_teleop_control.html"><span class="doc">Out-of-Band Teleop Control</span></a> for full OOB documentation.</p>
-</div>
-</details></section>
+</section>
 <section id="whitelist-ports-for-firewall">
 <span id="whitelist-firewall-ports"></span><h2>4. Whitelist ports for Firewall<a class="headerlink" href="#whitelist-ports-for-firewall" title="Link to this heading">#</a></h2>
 <p>CloudXR requires certain network ports to be open. Depending on your firewall configuration, you
@@ -651,39 +581,40 @@ defaults reach you without clearing browser storage. Switch the profile to
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p class="sd-card-text">If GitHub Pages is unreachable (corporate network, air-gapped machine), start the server with
-<code class="docutils literal notranslate"><span class="pre">--host-client</span></code> in step <a class="reference internal" href="#run-cloudxr-server"><span class="std std-ref">3. Configure CloudXR (optional)</span></a> and open
-<code class="docutils literal notranslate"><span class="pre">https://&lt;your-ip&gt;:48322/client/</span></code> instead of the GitHub Pages URL. Port 48322 is already
-whitelisted in step <a class="reference internal" href="#whitelist-firewall-ports"><span class="std std-ref">4. Whitelist ports for Firewall</span></a>.</p>
+<p class="sd-card-text">If GitHub Pages is unreachable (corporate network, air-gapped machine), you can serve the web
+client locally from the CloudXR proxy and open <code class="docutils literal notranslate"><span class="pre">https://&lt;your-ip&gt;:48322/client/</span></code> instead of
+the GitHub Pages URL. Port 48322 is already whitelisted in step
+<a class="reference internal" href="#whitelist-firewall-ports"><span class="std std-ref">4. Whitelist ports for Firewall</span></a>. See <a class="reference internal" href="../references/oob_teleop_control.html"><span class="doc">Out-of-Band Teleop Control</span></a> for how to serve the
+client from the proxy.</p>
 </div>
 <div class="sd-tab-set docutils">
 <input checked="checked" id="sd-tab-item-0" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-0">
 CloudXR web client</label><div class="sd-tab-content docutils">
-<figure class="align-center" id="id3">
+<figure class="align-center" id="id2">
 <img alt="CloudXR web client usage instruction" src="../_images/cloudxr-web-client-howto.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> CloudXR web client usage instruction</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure:</strong> CloudXR web client usage instruction</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </div>
 <input id="sd-tab-item-1" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-1">
 Privacy warning</label><div class="sd-tab-content docutils">
-<figure class="align-default" id="id4">
+<figure class="align-default" id="id3">
 <img alt="Browser privacy warning for self-signed certificate" src="../_images/cloudxr_accept_cert_not_private.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> Browser privacy warning for self-signed certificate</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure:</strong> Browser privacy warning for self-signed certificate</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </div>
 <input id="sd-tab-item-2" name="sd-tab-set-0" type="radio">
 <label class="sd-tab-label" for="sd-tab-item-2">
 Certificate accepted</label><div class="sd-tab-content docutils">
-<figure class="align-default" id="id5">
+<figure class="align-default" id="id4">
 <img alt="Certificate accepted page" src="../_images/cloudxr_accept_cert_accepted.png" />
 <figcaption>
-<p><span class="caption-text"><strong>Figure:</strong> Certificate accepted page</span><a class="headerlink" href="#id5" title="Link to this image">#</a></p>
+<p><span class="caption-text"><strong>Figure:</strong> Certificate accepted page</span><a class="headerlink" href="#id4" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
 </div>
@@ -732,36 +663,8 @@ to connect to Isaac Teleop.</p>
 </div>
 </div>
 </details></section>
-<section id="load-cloudxr-environment-variables-optional">
-<span id="load-cloudxr-environment-variables"></span><h2>6. Load CloudXR environment variables (optional)<a class="headerlink" href="#load-cloudxr-environment-variables-optional" title="Link to this heading">#</a></h2>
-<p>The examples in this guide auto-launch CloudXR and set up the environment
-internally, so you can <strong>skip this step</strong>. It applies only if you started the
-runtime standalone (see <a class="reference internal" href="#run-cloudxr-server"><span class="std std-ref">3. Configure CloudXR (optional)</span></a>) — for example when driving a
-device plugin such as Manus gloves or haptic feedback over OpenXR.</p>
-<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
-<summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">Standalone runtime only</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<p class="sd-card-text">If you started the standalone runtime, open a new terminal and source the CloudXR
-environment variables it posted so that the OpenXR runtime points to CloudXR:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
-</pre></div>
-</div>
-<div class="admonition important">
-<p class="admonition-title">Important</p>
-<p class="sd-card-text">Make sure to run the rest of the commands in the same terminal. Or if you have to open a new
-terminal, source the CloudXR environment variables again.</p>
-<p class="sd-card-text">Because the runtime is already running, pass <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> to the teleop
-examples so they attach to it instead of auto-launching a second runtime (add
-<code class="docutils literal notranslate"><span class="pre">--no-launch-wss-proxy</span></code> as well if you also front it with an external WSS proxy):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>examples/teleop/python/gripper_retargeting_example_simple.py<span class="w"> </span><span class="se">\</span>
-<span class="w">   </span>--no-launch-cloudxr-runtime
-</pre></div>
-</div>
-</div>
-</div>
-</details></section>
 <section id="run-a-teleop-example">
-<span id="run-teleop-example"></span><h2>7. Run a teleop example<a class="headerlink" href="#run-a-teleop-example" title="Link to this heading">#</a></h2>
+<span id="run-teleop-example"></span><h2>6. Run a teleop example<a class="headerlink" href="#run-a-teleop-example" title="Link to this heading">#</a></h2>
 <p>Run the simplified gripper retargeting example. This demonstrates the full
 pipeline: reading XR controller input via CloudXR, retargeting it through the
 <code class="docutils literal notranslate"><span class="pre">GripperRetargeter</span></code>, and printing the resulting gripper command values:</p>
@@ -815,10 +718,10 @@ Lab Mimic and train imitation learning policies.</p>
 </div>
 <div class="sd-card-body docutils">
 <p class="sd-card-text"><strong>Teleoperation with Isaac ROS</strong></p>
-<p class="sd-card-text">Check out the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/examples/teleop_ros2" rel="noopener noreferrer" target="_blank">examples/teleop_ros2/</a> directory for an example on how to make a
-ROS 2 message publisher using Isaac Teleop.</p>
-<p class="sd-card-text">We are also working on a Unitree G1-based end-to-end teleoperation, data collection, and
-imitation learning solution for ROS2 in an upcoming <a class="reference external" href="https://nvidia-isaac-ros.github.io" rel="noopener noreferrer" target="_blank">Isaac ROS</a> release. Stay tuned!</p>
+<p class="sd-card-text">For a complete <a class="reference external" href="https://nvidia-isaac-ros.github.io" rel="noopener noreferrer" target="_blank">Isaac ROS</a> pipeline, follow <a class="reference external" href="https://docs.nvidia.com/learning/physical-ai/gr00t-e2e-workflow/latest/real-robot-workflow/real-teleop.html" rel="noopener noreferrer" target="_blank">Teleoperation with Isaac GR00T and Unitree G1</a>
+— an end-to-end workflow that combines Isaac Teleop, CloudXR, and ROS 2 to teleoperate a
+Unitree G1 humanoid. You validate the setup in MuJoCo, then deploy on real hardware over a
+Jetson AGX Thor, as a precursor to data collection and imitation learning.</p>
 <p class="sd-card-text trademark-notice"><em>ROS is a trademark of Open Robotics.</em></p>
 </div>
 </div>
@@ -893,8 +796,7 @@ from source</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configure-cloudxr-optional">3. Configure CloudXR (optional)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#whitelist-ports-for-firewall">4. Whitelist ports for Firewall</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connect-an-xr-headset">5. Connect an XR headset</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#load-cloudxr-environment-variables-optional">6. Load CloudXR environment variables (optional)</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-a-teleop-example">7. Run a teleop example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-a-teleop-example">6. Run a teleop example</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next steps</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#more-information">More Information</a></li>
 </ul>
