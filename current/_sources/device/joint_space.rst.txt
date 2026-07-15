@@ -11,7 +11,9 @@ retargeter serve them all, so adding a new joint-space device is just a new **pl
 small **config**.
 
 The **SO-101 leader arm** (`TheRobotStudio SO-ARM100 <https://github.com/TheRobotStudio/SO-ARM100>`_,
-6 Feetech STS3215 bus servos) is the reference instance.
+6 Feetech STS3215 bus servos) is the reference instance; the **reBot DevArm leader**
+(`Seeed reBot DevArm <https://github.com/Seeed-Projects/reBot-DevArm>`_, 7 Damiao DM-series
+motors) is a second instance built from the same recipe.
 
 At a glance
 -----------
@@ -97,6 +99,45 @@ The consumer side creates a ``JointStateSource(name=..., collection_id="so101_le
 joint_names=[...])`` on the same ``collection_id``; ``TeleopSession`` discovers and polls the
 ``JointStateTracker`` each frame.
 
+.. _rebot-devarm-leader-plugin:
+
+The reBot DevArm leader plugin
+------------------------------
+
+``rebot_devarm_leader`` reads the seven joints of the Seeed reBot DevArm (``joint1 .. joint6,
+gripper`` -- 7 Damiao DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on joints 4-6
+and the gripper) and pushes them to a tensor collection, mirroring the SO-101 plugin's structure
+and CLI shape. The motors sit on a CAN bus behind a Damiao USB-to-CAN serial adapter (USB
+CDC-ACM); ``DamiaoBus`` speaks the adapter's fixed-size binary framing directly -- no SDK
+dependency. As a *leader*, the plugin sends the **disable** control frame so the arm can be
+back-driven by hand (Damiao motors keep answering feedback requests while disabled), then
+requests one feedback frame per motor per cycle (command ``0xCC`` addressed via CAN id ``0x7FF``)
+and decodes the fixed-point position/velocity feedback, which lands directly in radians -- no
+tick conversion, only an optional per-joint sign and zero offset from a calibration file. With no
+device path it falls back to a **synthetic** trajectory, exactly like ``so101_leader``.
+
+.. code-block:: bash
+
+   # Synthetic backend (no hardware), default collection id "rebot_devarm_leader":
+   ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
+
+   # Real reBot DevArm on the Damiao USB-to-CAN adapter (Linux), optional calibration file:
+   ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin /dev/ttyACM0 rebot_devarm_leader rebot_devarm.calib
+
+   # Probe wiring, motor ids, and the decode path -- no OpenXR runtime needed:
+   ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin probe /dev/ttyACM0
+
+``probe`` exits ``0`` when every motor replied, and ``3`` when the motors replied but the gripper
+reads outside its physical travel: the Damiao multi-turn counter is volatile across power cycles,
+so the gripper (whose geared travel exceeds one turn) can wake up reading ``physical + 2*pi*k``
+and must be re-homed (closed against the mechanical stop and re-zeroed) before teleoperating.
+While wrapped, the running plugin streams the gripper joint with ``valid = false`` so consumers
+hold it instead of executing garbage.
+
+See the :code-file:`plugin README <src/plugins/rebot_devarm_leader/README.md>` for the
+calibration file format (name, command/feedback CAN ids, motor model, sign, zero offset) and
+hardware notes.
+
 Record and replay
 -----------------
 
@@ -118,7 +159,9 @@ Add another joint-space device
 Reuse everything above by writing only:
 
 #. A **plugin** that reads your hardware and fills ``JointStateOutput`` (positions; optionally
-   velocity/effort), modeled on :code-dir:`src/plugins/so101_leader`.
+   velocity/effort), modeled on :code-dir:`src/plugins/so101_leader` (or
+   :code-dir:`src/plugins/rebot_devarm_leader`, a second instance of the same recipe on a
+   different motor bus).
 #. A **config**: a ``collection_id``, the device joint names, and -- for ``ee_pose`` mode -- a URDF
    and end-effector link.
 
