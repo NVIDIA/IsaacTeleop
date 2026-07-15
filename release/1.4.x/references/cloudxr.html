@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Build System &#8212; Isaac Teleop Documentation</title>
+    <title>Dedicated CloudXR Runtime &#8212; Isaac Teleop Documentation</title>
   
   
   
@@ -51,15 +51,15 @@
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
     <script src="../_static/copybutton.js?v=f281be69"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
-    <script>DOCUMENTATION_OPTIONS.pagename = 'references/build';</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'references/cloudxr';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
 
     <link rel="icon" href="../_static/favicon.ico"/>
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Device Interface" href="../device/index.html" />
-    <link rel="prev" title="System Requirements" href="requirements.html" />
+    <link rel="next" title="Out-of-Band Teleop Control" href="oob_teleop_control.html" />
+    <link rel="prev" title="MCAP Recording &amp; Replay" href="mcap_record_replay.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -269,6 +269,23 @@
         <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
+
+<div class="version-switcher">
+  <label for="version-select" class="version-switcher__label">Version</label>
+  <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
+    <option value="cloudxr.html" selected>release/1.4.x</option>
+    <option value="../../../main/references/cloudxr.html" >main</option>
+    <option value="../../1.0.x/index.html" >release/1.0.x</option>
+    <option value="../../1.1.x/index.html" >release/1.1.x</option>
+    <option value="../../1.2.x/references/cloudxr.html" >release/1.2.x</option>
+    <option value="../../1.3.x/index.html" >release/1.3.x</option>
+    <option value="../../../v1.3.131/index.html" >v1.3.131</option>
+    <option value="../../../v1.1.8/index.html" >v1.1.8</option>
+    <option value="../../../v1.1.5/index.html" >v1.1.5</option>
+    <option value="../../../v1.0.193/index.html" >v1.0.193</option>
+    <option value="../../../v1.0.191/index.html" >v1.0.191</option>
+  </select>
+</div>
 </div>
         <div class="sidebar-primary-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
@@ -348,12 +365,12 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Dedicated CloudXR Runtime</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
@@ -391,7 +408,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Build System</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Dedicated CloudXR Runtime</span></li>
   </ul>
 </nav>
 </div>
@@ -408,125 +425,149 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="build-system">
-<h1>Build System<a class="headerlink" href="#build-system" title="Link to this heading">#</a></h1>
-<section id="project-structure">
-<h2>Project structure<a class="headerlink" href="#project-structure" title="Link to this heading">#</a></h2>
-<p>The layout below reflects the actual <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> hierarchy (root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> and <code class="docutils literal notranslate"><span class="pre">src/core/CMakeLists.txt</span></code>):</p>
-<div class="code-100col highlight-text notranslate"><div class="highlight"><pre><span></span>IsaacTeleop/
-├── CMakeLists.txt              # Top-level: deps, core, examples, plugins, etc.
-├── cmake/
-│   ├── SetupHunter.cmake       # BUILD_PLUGINS, Hunter for OAK/DepthAI
-│   ├── SetupPython.cmake       # BUILD_PYTHON_BINDINGS, uv-managed Python
-│   ├── ClangFormat.cmake       # clang_format_check / clang_format_fix
-│   └── ...
-├── deps/
-│   ├── CMakeLists.txt          # Adds third_party
-│   ├── third_party/CMakeLists.txt  # FetchContent: OpenXR, yaml-cpp, pybind11, etc.
-│   └── cloudxr/                # CloudXR (CI / optional)
-├── src/core/
-│   ├── CMakeLists.txt          # Core options, subdirs in dependency order
-│   ├── schema/                 # FlatBuffer schemas and generated code
-│   ├── oxr_utils/              # Header-only OpenXR utilities
-│   ├── plugin_manager/         # Plugin manager (C++ and Python)
-│   ├── oxr/                    # OpenXR session management (C++ and Python)
-│   ├── pusherio/               # PusherIO (depends on oxr)
-│   ├── deviceio/               # Device I/O library (C++ and Python)
-│   ├── mcap/                   # MCAP recording (depends on deviceio)
-│   ├── retargeting_engine/     # Retargeting (Python)
-│   ├── retargeting_engine_ui/  # Retargeting UI (Python)
-│   ├── teleop_session_manager/ # Teleop session manager (Python)
-│   ├── cloudxr/                # CloudXR runtime helper (Python)
-│   └── python/                 # Python wheel packaging (when BUILD_PYTHON_BINDINGS=ON)
-├── src/plugins/                # Built when BUILD_PLUGINS=ON
-│   ├── plugin_utils/
-│   ├── controller_synthetic_hands/
-│   ├── generic_3axis_pedal/
-│   ├── manus/
-│   ├── oak/                    # When BUILD_PLUGIN_OAK_CAMERA=ON
-|   └── haptikos/
-└── examples/
-    ├── oxr/                    # OpenXR examples (C++ and Python)
-    ├── retargeting/
-    ├── teleop_session_manager/
-    ├── teleop_ros2/
-    ├── schemaio/
-    └── native_openxr/
+  <section id="dedicated-cloudxr-runtime">
+<span id="id1"></span><h1>Dedicated CloudXR Runtime<a class="headerlink" href="#dedicated-cloudxr-runtime" title="Link to this heading">#</a></h1>
+<p>The teleop examples auto-launch the CloudXR runtime and its WSS proxy through
+<code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code> when they connect, so for the common workflow you never
+start the runtime yourself (see <a class="reference internal" href="../getting_started/quick_start.html#run-cloudxr-server"><span class="std std-ref">3. Configure CloudXR (optional)</span></a> in the quick start).
+Sometimes, though, you want the runtime running <strong>standalone in its own
+terminal</strong>:</p>
+<ul class="simple">
+<li><p>keep the runtime — and the headset connection — alive while you restart your
+teleop application repeatedly during development,</p></li>
+<li><p>point OpenXR applications that do not embed <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code> at CloudXR,</p></li>
+<li><p>use launch modes that only the standalone launcher exposes, such as serving
+the web client locally (<code class="docutils literal notranslate"><span class="pre">--host-client</span></code>) or the out-of-band automation
+flags (<code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>, <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code>).</p></li>
+</ul>
+<p>This page describes that dedicated workflow.</p>
+<nav class="contents local" id="sections">
+<p class="topic-title">Sections</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#start-the-runtime" id="id4">Start the runtime</a></p></li>
+<li><p><a class="reference internal" href="#optional-launch-modes" id="id5">Optional launch modes</a></p></li>
+<li><p><a class="reference internal" href="#load-cloudxr-environment-variables" id="id6">Load CloudXR environment variables</a></p></li>
+<li><p><a class="reference internal" href="#run-teleop-examples-against-the-dedicated-runtime" id="id7">Run teleop examples against the dedicated runtime</a></p></li>
+<li><p><a class="reference internal" href="#configuration" id="id8">Configuration</a></p></li>
+</ul>
+</nav>
+<section id="start-the-runtime">
+<h2>Start the runtime<a class="headerlink" href="#start-the-runtime" title="Link to this heading">#</a></h2>
+<p>With the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> package installed (including the <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> extra,
+see <a class="reference internal" href="../getting_started/quick_start.html#install-isaacteleop-pip-package"><span class="std std-ref">2. Install the isaacteleop pip package</span></a>), start the CloudXR runtime and WSS
+proxy. The first run downloads the CloudXR Web Client SDK and asks you to
+review and accept the EULA:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr
+</pre></div>
+</div>
+<p>To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the
+flag:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula
+</pre></div>
+</div>
+<p>You should see output similar to:</p>
+<figure class="align-center" id="id3">
+<img alt="CloudXR run output" src="../_images/cloudxr-run-output.png" />
+<figcaption>
+<p><span class="caption-text"><strong>Figure:</strong> CloudXR run output</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Keep this terminal open — CloudXR must stay running for the duration of the
+session (<code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> terminates it). Open a <strong>new terminal</strong> for the
+remaining steps.</p>
+<p>Also take note of the <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">~/.cloudxr/run/cloudxr.env</span></code> path mentioned
+in the output. You will need to source it in
+<a class="reference internal" href="#load-cloudxr-environment-variables"><span class="std std-ref">Load CloudXR environment variables</span></a>.</p>
+</div>
+</section>
+<section id="optional-launch-modes">
+<h2>Optional launch modes<a class="headerlink" href="#optional-launch-modes" title="Link to this heading">#</a></h2>
+<p>The launcher supports optional flags that can be combined to control how the
+headset connects and how the web client is delivered.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 45.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Command</p></th>
+<th class="head"><p>What it does</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span></code></p></td>
+<td><p>Plain: headset navigates to GitHub Pages URL over WiFi.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--host-client</span></code></p></td>
+<td><p>Serves the web client at <code class="docutils literal notranslate"><span class="pre">https://&lt;ip&gt;:48322/client/</span></code> via the WSS
+proxy. No separate port, no USB or TURN relay required. Useful when
+GitHub Pages is unreachable.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span></code></p></td>
+<td><p>OOB hub + CDP automation: opens the browser on the headset and
+auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span> <span class="pre">--host-client</span></code></p></td>
+<td><p>OOB hub + CDP with client at <code class="docutils literal notranslate"><span class="pre">/client/</span></code> on the WSS proxy
+(air-gapped / proxy use).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span> <span class="pre">--usb-local</span></code></p></td>
+<td><p>All traffic over USB: adb-reverse + coturn TURN relay + loopback
+HTTPS. Requires <code class="docutils literal notranslate"><span class="pre">coturn</span></code> and a WiFi-associated headset.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> requires <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>. See
+<a class="reference internal" href="oob_teleop_control.html"><span class="doc">Out-of-Band Teleop Control</span></a> for full OOB documentation.</p>
+</section>
+<section id="load-cloudxr-environment-variables">
+<span id="id2"></span><h2>Load CloudXR environment variables<a class="headerlink" href="#load-cloudxr-environment-variables" title="Link to this heading">#</a></h2>
+<p>On every start the runtime writes its resolved environment to
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/run/cloudxr.env</span></code> (the exact path is printed in the startup
+output). Sourcing it points the OpenXR loader at CloudXR — it sets
+<code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> along with the <code class="docutils literal notranslate"><span class="pre">NV_CXR_*</span></code> variables — so any OpenXR
+application started from that terminal connects to the dedicated runtime.</p>
+<p>Open a new terminal and source the setup script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Make sure to run the rest of the commands in the same terminal. If you have
+to open a new terminal, source the CloudXR environment variables again.</p>
+</div>
+</section>
+<section id="run-teleop-examples-against-the-dedicated-runtime">
+<h2>Run teleop examples against the dedicated runtime<a class="headerlink" href="#run-teleop-examples-against-the-dedicated-runtime" title="Link to this heading">#</a></h2>
+<p>The teleop examples under <code class="docutils literal notranslate"><span class="pre">examples/teleop/python/</span></code> launch their own runtime
+by default. When a dedicated runtime is already running, source the env file
+(previous section) and pass <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> so the example
+uses the running runtime instead of starting another one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
+python<span class="w"> </span>examples/teleop/python/gripper_retargeting_example_simple.py<span class="w"> </span><span class="se">\</span>
+<span class="w">      </span>--no-launch-cloudxr-runtime
 </pre></div>
 </div>
 </section>
-<section id="cmake-integration">
-<h2>CMake integration<a class="headerlink" href="#cmake-integration" title="Link to this heading">#</a></h2>
-<p>The project uses a modern CMake target-based approach. Libraries export targets (e.g. OXR, DEVICEIO, schema); include directories are propagated. Package config files are generated for use after install. See the respective <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code> in <code class="docutils literal notranslate"><span class="pre">src/core</span></code> and under <code class="docutils literal notranslate"><span class="pre">examples/</span></code> for target names and usage.</p>
-</section>
-<section id="using-the-python-wheel">
-<h2>Using the Python wheel<a class="headerlink" href="#using-the-python-wheel" title="Link to this heading">#</a></h2>
-<p>After building, install the wheel with <code class="docutils literal notranslate"><span class="pre">uv</span></code> or <code class="docutils literal notranslate"><span class="pre">pip</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>isaacteleop<span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
-
-<span class="c1"># or</span>
-pip<span class="w"> </span>install<span class="w"> </span>install/wheels/isaacteleop-*.whl
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
+<p>The standalone launcher accepts the same configuration flags as the embedded
+one:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span> <span class="pre">&lt;PATH&gt;</span></code> — a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> env file of CloudXR
+runtime overrides, e.g. <code class="docutils literal notranslate"><span class="pre">NV_DEVICE_PROFILE=auto-native</span></code>. See
+<a class="reference internal" href="../getting_started/quick_start.html#run-cloudxr-server"><span class="std std-ref">3. Configure CloudXR (optional)</span></a> in the quick start for the list of supported
+environment variables.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span> <span class="pre">&lt;PATH&gt;</span></code> — CloudXR install directory
+(default: <code class="docutils literal notranslate"><span class="pre">~/.cloudxr</span></code>).</p></li>
+</ul>
+<p>To inspect the active settings after startup:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.cloudxr/run/cloudxr.env
 </pre></div>
 </div>
-</section>
-<section id="output-locations">
-<h2>Output locations<a class="headerlink" href="#output-locations" title="Link to this heading">#</a></h2>
-<p>After a successful build and install:</p>
-<ul class="simple">
-<li><p><strong>C++ libraries:</strong> <code class="docutils literal notranslate"><span class="pre">build/src/core/</span></code> (and under each module)</p></li>
-<li><p><strong>Python wheel:</strong> <code class="docutils literal notranslate"><span class="pre">build/wheels/isaacteleop-*.whl</span></code></p></li>
-<li><p><strong>Examples (binaries):</strong> under <code class="docutils literal notranslate"><span class="pre">build/examples/</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">build/examples/oxr/cpp/</span></code>)</p></li>
-<li><p><strong>Installed files:</strong> <code class="docutils literal notranslate"><span class="pre">install/</span></code> (or your <code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code>)
-- Libraries: <code class="docutils literal notranslate"><span class="pre">install/lib/</span></code>
-- Headers: <code class="docutils literal notranslate"><span class="pre">install/include/</span></code>
-- Wheels: <code class="docutils literal notranslate"><span class="pre">install/wheels/</span></code>
-- Examples: <code class="docutils literal notranslate"><span class="pre">install/examples/</span></code></p></li>
-</ul>
-</section>
-<section id="troubleshooting">
-<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
-<section id="dependencies-fail-to-download">
-<h3>Dependencies fail to download<a class="headerlink" href="#dependencies-fail-to-download" title="Link to this heading">#</a></h3>
-<p>FetchContent in <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> requires network access. If downloads fail, check connectivity. Key repositories:</p>
-<ul class="simple">
-<li><p>OpenXR SDK: <a class="github reference external" href="https://github.com/KhronosGroup/OpenXR-SDK.git" rel="noopener noreferrer" target="_blank">KhronosGroup/OpenXR-SDK.git</a></p></li>
-<li><p>pybind11: <a class="github reference external" href="https://github.com/pybind/pybind11.git" rel="noopener noreferrer" target="_blank">pybind/pybind11.git</a></p></li>
-<li><p>yaml-cpp: <a class="github reference external" href="https://github.com/jbeder/yaml-cpp.git" rel="noopener noreferrer" target="_blank">jbeder/yaml-cpp.git</a></p></li>
-<li><p>FlatBuffers, Catch2, MCAP: see <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code> for URLs and tags.</p></li>
-</ul>
-<p>You can inspect the <code class="docutils literal notranslate"><span class="pre">_deps</span></code> directory in your build tree for fetch logs.</p>
-</section>
-<section id="cmake-can-t-find-openxr">
-<h3>CMake can’t find OpenXR<a class="headerlink" href="#cmake-can-t-find-openxr" title="Link to this heading">#</a></h3>
-<p>OpenXR is fetched automatically; it is not a system package. If configuration fails, try a clean configure:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>build
-cmake<span class="w"> </span>-B<span class="w"> </span>build
-</pre></div>
-</div>
-</section>
-<section id="examples-or-tests-can-t-find-the-library">
-<h3>Examples or tests can’t find the library<a class="headerlink" href="#examples-or-tests-can-t-find-the-library" title="Link to this heading">#</a></h3>
-<p>When building from the top-level, examples and tests use the build tree. Ensure you run
-<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--build</span> <span class="pre">build</span></code> from the project root and run executables from the build directory (or use
-<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">build</span></code> and run from <code class="docutils literal notranslate"><span class="pre">install/</span></code>).</p>
-</section>
-<section id="uv-or-python-version">
-<h3>uv or Python version<a class="headerlink" href="#uv-or-python-version" title="Link to this heading">#</a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code> requires <strong>uv</strong> and uses <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code>. Install uv as
-in <a class="reference internal" href="../getting_started/build_from_source/index.html#one-time-setup"><span class="std std-ref">One time setup</span></a> and pass <code class="docutils literal notranslate"><span class="pre">-DISAAC_TELEOP_PYTHON_VERSION=3.10</span></code> (or 3.11,
-3.12, 3.13) if you need a specific version.</p>
-</section>
-</section>
-<section id="reference">
-<h2>Reference<a class="headerlink" href="#reference" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>Root build and options: <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code></p></li>
-<li><p>Core modules and options: <code class="docutils literal notranslate"><span class="pre">src/core/CMakeLists.txt</span></code></p></li>
-<li><p>Dependencies: <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code></p></li>
-<li><p>Python and uv: <code class="docutils literal notranslate"><span class="pre">cmake/SetupPython.cmake</span></code></p></li>
-<li><p>Plugins and Hunter: <code class="docutils literal notranslate"><span class="pre">cmake/SetupHunter.cmake</span></code></p></li>
-<li><p>CI (Ubuntu, matrix build_type/python_version/arch): <code class="docutils literal notranslate"><span class="pre">.github/workflows/build-ubuntu.yml</span></code></p></li>
-</ul>
 </section>
 </section>
 
@@ -541,20 +582,20 @@ in <a class="reference internal" href="../getting_started/build_from_source/inde
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="requirements.html"
+       href="mcap_record_replay.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">System Requirements</p>
+        <p class="prev-next-title">MCAP Recording &amp; Replay</p>
       </div>
     </a>
     <a class="right-next"
-       href="../device/index.html"
+       href="oob_teleop_control.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Device Interface</p>
+        <p class="prev-next-title">Out-of-Band Teleop Control</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -579,18 +620,11 @@ in <a class="reference internal" href="../getting_started/build_from_source/inde
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#project-structure">Project structure</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-integration">CMake integration</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-the-python-wheel">Using the Python wheel</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-locations">Output locations</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dependencies-fail-to-download">Dependencies fail to download</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#cmake-can-t-find-openxr">CMake can’t find OpenXR</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#examples-or-tests-can-t-find-the-library">Examples or tests can’t find the library</a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#uv-or-python-version">uv or Python version</a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reference">Reference</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#start-the-runtime">Start the runtime</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-launch-modes">Optional launch modes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#load-cloudxr-environment-variables">Load CloudXR environment variables</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-teleop-examples-against-the-dedicated-runtime">Run teleop examples against the dedicated runtime</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
 </ul>
   </nav></div>
 
