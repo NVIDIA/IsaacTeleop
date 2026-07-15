@@ -10,26 +10,6 @@ import numpy as np
 from geometry_msgs.msg import Pose, TransformStamped
 from scipy.spatial.transform import Rotation
 
-from isaacteleop.retargeting_engine.tensor_types.indices import HandJointIndex
-
-
-def append_hand_poses(
-    poses: list[Pose],
-    joint_positions: np.ndarray,
-    joint_orientations: np.ndarray,
-    joint_valid: np.ndarray,
-    transform_rot: Rotation | None = None,
-    transform_trans: Sequence[float] | None = None,
-) -> None:
-    for joint_idx in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
-        if joint_valid[joint_idx]:
-            pose = to_pose(joint_positions[joint_idx], joint_orientations[joint_idx])
-            if transform_rot is not None or transform_trans is not None:
-                pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
-        else:
-            pose = to_pose([0.0, 0.0, 0.0])
-        poses.append(pose)
-
 
 def apply_manus_controller_to_hand_pose(pose: Pose, side: str) -> Pose:
     """

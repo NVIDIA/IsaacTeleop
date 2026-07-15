@@ -33,6 +33,7 @@ from constants import (
     HAND_RETARGETERS,
     TELEOP_MODES,
     HandRetargeter,
+    TeleopMode,
     resolve_hand_retargeter,
     uses_hands_source_for_controller,
 )
@@ -57,7 +58,7 @@ class CloudXRParams:
 class NodeParameters:
     """Resolved snapshot of every ROS parameter consumed by TeleopRos2Node."""
 
-    mode: str
+    mode: TeleopMode
     sleep_period_s: float
     hand_retargeter: HandRetargeter
     resolved_hand_retargeter: HandRetargeter
@@ -283,7 +284,7 @@ def _load_frames(node: Node) -> tuple[str, str, str, str]:
 
 
 def _load_hand_retargeter(
-    node: Node, mode: str
+    node: Node, mode: TeleopMode
 ) -> tuple[HandRetargeter, HandRetargeter, bool]:
     node.declare_parameter(
         "hand_retargeter",
@@ -311,7 +312,7 @@ def _load_hand_retargeter(
     controller_uses_hands_source = uses_hands_source_for_controller(
         mode, resolved_hand_retargeter
     )
-    if mode in ("hand_teleop", "controller_teleop"):
+    if mode in (TeleopMode.HAND_TELEOP, TeleopMode.CONTROLLER_TELEOP):
         node.get_logger().info(f"Hand retargeter: {resolved_hand_retargeter}")
     if controller_uses_hands_source:
         node.get_logger().info(
@@ -349,13 +350,15 @@ def _load_mcap_replay(
     return SessionMode.REPLAY, McapReplayConfig(str(replay_path))
 
 
-def _load_mode(node: Node) -> str:
-    node.declare_parameter("mode", "controller_teleop")
-    mode = node.get_parameter("mode").get_parameter_value().string_value
-    if mode not in TELEOP_MODES:
+def _load_mode(node: Node) -> TeleopMode:
+    node.declare_parameter("mode", TeleopMode.CONTROLLER_TELEOP.value)
+    raw_mode = node.get_parameter("mode").get_parameter_value().string_value
+    try:
+        mode = TeleopMode(raw_mode)
+    except ValueError as exc:
         raise ValueError(
-            f"Parameter 'mode' must be one of {TELEOP_MODES}, got {mode!r}"
-        )
+            f"Parameter 'mode' must be one of {TELEOP_MODES}, got {raw_mode!r}"
+        ) from exc
     node.get_logger().info(f"Mode: {mode}")
     return mode
 

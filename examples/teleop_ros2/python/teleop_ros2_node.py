@@ -69,6 +69,12 @@ from messages import (
     build_hand_msg,
     build_head_msg,
 )
+from teleop_profiles import (
+    FramePublication,
+    SessionResult,
+    resolve_teleop_profile_spec,
+    validate_session_result,
+)
 from node_parameters import (
     NodeParameters,
     create_node_parameters,
@@ -85,6 +91,9 @@ class TeleopRos2Node(Node):
     def __init__(self) -> None:
         super().__init__("teleop_ros2_node")
         self._params: NodeParameters = create_node_parameters(self)
+        self._profile_spec = resolve_teleop_profile_spec(
+            self._params.mode, self._params.resolved_hand_retargeter
+        )
         self._tf_broadcaster = TransformBroadcaster(self)
         self._create_publishers()
         self._config = build_session_config(self._params)
@@ -144,7 +153,7 @@ class TeleopRos2Node(Node):
         )
         self._pub_head = self.create_publisher(PoseStamped, "xr_teleop/head_pose", 10)
 
-    def _publish_ee_pose_from_controllers(self, result: dict, now) -> None:
+    def _publish_ee_pose_from_controllers(self, result: SessionResult, now) -> None:
         left_ctrl = result["controller_left"]
         right_ctrl = result["controller_right"]
         ee_pose_msg = build_ee_msg_from_controllers(
@@ -161,14 +170,7 @@ class TeleopRos2Node(Node):
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
-    def _publish_controller_payload(self, result: dict) -> None:
-        if self._params.mode not in (
-            "controller_raw",
-            "controller_teleop",
-            "full_body",
-        ):
-            return
-
+    def _publish_controller_payload(self, result: SessionResult) -> None:
         left_ctrl = result["controller_left"]
         right_ctrl = result["controller_right"]
         if left_ctrl.is_none and right_ctrl.is_none:
@@ -180,10 +182,7 @@ class TeleopRos2Node(Node):
         controller_msg.data = tuple(bytes([a]) for a in payload)
         self._pub_controller.publish(controller_msg)
 
-    def _publish_finger_joints(self, result: dict, now) -> None:
-        if self._params.mode not in ("controller_teleop", "hand_teleop"):
-            return
-
+    def _publish_finger_joints(self, result: SessionResult, now) -> None:
         finger_joints_msg = build_finger_joints_msg(
             result["finger_joints_left"],
             result["finger_joints_right"],
@@ -193,10 +192,7 @@ class TeleopRos2Node(Node):
         if finger_joints_msg is not None:
             self._pub_finger_joints.publish(finger_joints_msg)
 
-    def _publish_full_body_payload(self, result: dict) -> None:
-        if self._params.mode != "full_body":
-            return
-
+    def _publish_full_body_payload(self, result: SessionResult) -> None:
         full_body_data = result["full_body"]
         if full_body_data.is_none:
             return
@@ -207,7 +203,7 @@ class TeleopRos2Node(Node):
         body_msg.data = tuple(bytes([a]) for a in payload)
         self._pub_full_body.publish(body_msg)
 
-    def _publish_hand_poses(self, result: dict, now) -> None:
+    def _publish_hand_poses(self, result: SessionResult, now) -> None:
         hand_msg = build_hand_msg(
             result["hand_left"],
             result["hand_right"],
@@ -218,7 +214,7 @@ class TeleopRos2Node(Node):
         )
         self._pub_hand.publish(hand_msg)
 
-    def _publish_ee_pose_from_hands(self, result: dict, now) -> None:
+    def _publish_ee_pose_from_hands(self, result: SessionResult, now) -> None:
         left_hand = result["hand_left"]
         right_hand = result["hand_right"]
         ee_pose_msg = build_ee_msg_from_hands(
@@ -234,10 +230,7 @@ class TeleopRos2Node(Node):
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
-    def _publish_head(self, result: dict, now) -> None:
-        if self._params.mode not in ("controller_teleop", "hand_teleop"):
-            return
-
+    def _publish_head(self, result: SessionResult, now) -> None:
         head = result["head"]
         if not head_is_valid(head):
             return
@@ -268,10 +261,7 @@ class TeleopRos2Node(Node):
         )
         self._tf_broadcaster.sendTransform(head_tf)
 
-    def _publish_root_command(self, result: dict, now) -> None:
-        if self._params.mode not in ("hand_teleop", "controller_teleop"):
-            return
-
+    def _publish_root_command(self, result: SessionResult, now) -> None:
         root_command = result["root_command"]
         if root_command.is_none:
             return
@@ -312,7 +302,10 @@ class TeleopRos2Node(Node):
                         if launcher is not None:
                             launcher.health_check()
 
-                        result = session.step()
+                        result = validate_session_result(
+                            session.step(),
+                            self._profile_spec,
+                        )
 
                         # Keep ROS time and other callbacks updated in this
                         # manual loop so stamped messages progress with /clock.
@@ -320,21 +313,43 @@ class TeleopRos2Node(Node):
 
                         now = self.get_clock().now().to_msg()
 
-                        if self._params.mode == "hand_teleop":
+                        if (
+                            FramePublication.EE_FROM_HANDS
+                            in self._profile_spec.publications
+                        ):
                             self._publish_ee_pose_from_hands(result, now)
-                        elif self._params.mode == "controller_teleop":
+                        if (
+                            FramePublication.EE_FROM_CONTROLLERS
+                            in self._profile_spec.publications
+                        ):
                             self._publish_ee_pose_from_controllers(result, now)
                         if (
-                            self._params.mode == "hand_teleop"
-                            or self._params.controller_uses_hands_source
+                            FramePublication.HAND_POSES
+                            in self._profile_spec.publications
                         ):
                             self._publish_hand_poses(result, now)
-
-                        self._publish_root_command(result, now)
-                        self._publish_finger_joints(result, now)
-                        self._publish_head(result, now)
-                        self._publish_controller_payload(result)
-                        self._publish_full_body_payload(result)
+                        if (
+                            FramePublication.ROOT_COMMAND
+                            in self._profile_spec.publications
+                        ):
+                            self._publish_root_command(result, now)
+                        if (
+                            FramePublication.FINGER_JOINTS
+                            in self._profile_spec.publications
+                        ):
+                            self._publish_finger_joints(result, now)
+                        if FramePublication.HEAD in self._profile_spec.publications:
+                            self._publish_head(result, now)
+                        if (
+                            FramePublication.CONTROLLER_PAYLOAD
+                            in self._profile_spec.publications
+                        ):
+                            self._publish_controller_payload(result)
+                        if (
+                            FramePublication.FULL_BODY_PAYLOAD
+                            in self._profile_spec.publications
+                        ):
+                            self._publish_full_body_payload(result)
 
                         time.sleep(self._params.sleep_period_s)
             except RuntimeError as e:

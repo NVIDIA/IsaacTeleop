@@ -14,3 +14,12 @@ dependencies = [
     # dex-retargeting resolves to 0.5.x, keeping the env on NumPy 2 / Pinocchio 3.
     "nlopt>=2.8.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
