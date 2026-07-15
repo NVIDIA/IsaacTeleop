@@ -98,7 +98,8 @@ try
             print_se3_data(*tracked.data, received_count++);
         }
 
-        // Tick at ~90 Hz to match the controller_se3_tracker plugin's push rate.
+        // Tick at ~30 Hz. Each update drains all pending samples, so the printer keeps up
+        // even when a producer (e.g. controller_se3_tracker) pushes faster, at ~90 Hz.
         std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
 

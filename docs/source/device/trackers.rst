@@ -22,6 +22,8 @@ reading it from OpenXR tensor collections via the
 
 - :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp>` -- per-stream frame metadata from OAK cameras
 - :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp>` -- foot pedal axis values
+- :code-file:`JointStateTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/joint_state_tracker.hpp>` -- named joint-space device state (leader arms, exoskeletons, gloves, ...)
+- :code-file:`Se3Tracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/se3_tracker.hpp>` -- generic SE3 (6-DoF) pose sources (tracker pucks, mocap rigid bodies, logical trackers)
 
 All trackers follow the same lifecycle:
 
