@@ -37,6 +37,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace core
 {
@@ -206,6 +207,35 @@ const FullBodyVendorEntry& resolve_full_body_entry(const TrackerVendor* selected
     return resolve_full_body_vendor(selected ? std::string_view(selected->id) : FullBodyTracker::DEFAULT_VENDOR_ID);
 }
 
+// Validate per-tracker vendor selections independently of the tracker list:
+// reject selections on tracker types that do not support vendors, unknown vendor
+// ids, and duplicate entries. Shared by the factory constructor and
+// get_required_extensions() so both reject identical vendor configurations.
+// (Presence in the session's tracker list is checked by the callers that hold
+// that list.)
+void validate_vendor_selections(const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
+{
+    std::unordered_set<const ITracker*> seen;
+    for (const auto& [tracker, vendor] : tracker_vendors)
+    {
+        // Only vendored tracker types accept a vendor selection; reject any other so a
+        // misassigned (silently-ignored) selection surfaces as an error.
+        if (!dynamic_cast<const FullBodyTracker*>(tracker))
+        {
+            throw std::invalid_argument("LiveDeviceIOFactory: vendor selection '" + vendor.id +
+                                        "' provided for a tracker that does not support vendors");
+        }
+        // Reject unknown vendor ids up front rather than when the impl is built.
+        resolve_full_body_vendor(vendor.id);
+
+        if (!seen.insert(tracker).second)
+        {
+            throw std::invalid_argument("LiveDeviceIOFactory: duplicate vendor selection for a tracker (vendor id '" +
+                                        vendor.id + "')");
+        }
+    }
+}
+
 } // namespace
 
 std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(
@@ -213,6 +243,30 @@ std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(
     const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
 {
     std::set<std::string> all;
+
+    // Validate the complete vendor mapping before resolving extensions so that
+    // extension discovery and session construction accept identical configs.
+    // Mirror the session path's order: first reject selections for trackers
+    // absent from the list (as the DeviceIOSession constructor does), then the
+    // tracker-list-independent checks (unsupported type, unknown vendor id,
+    // duplicates) shared with the factory constructor.
+    if (!tracker_vendors.empty())
+    {
+        std::unordered_set<const ITracker*> known;
+        known.reserve(trackers.size());
+        for (const auto& tracker : trackers)
+            known.insert(tracker.get());
+
+        for (const auto& [tracker, vendor] : tracker_vendors)
+        {
+            if (known.find(tracker) == known.end())
+            {
+                throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: vendor selection '" +
+                                            vendor.id + "' references a tracker that is not in the trackers list");
+            }
+        }
+    }
+    validate_vendor_selections(tracker_vendors);
 
     // DeviceIOSession always owns an XrTimeConverter; match session requirements even with zero trackers.
     for (const auto& ext : XrTimeConverter::get_required_extensions())
@@ -268,24 +322,14 @@ LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
         }
     }
 
+    // Reject unsupported tracker types, unknown vendor ids, and duplicate entries
+    // using the same routine as get_required_extensions() so session construction
+    // and extension discovery accept identical vendor configurations. (Presence in
+    // the session's tracker list is validated by the DeviceIOSession constructor.)
+    validate_vendor_selections(tracker_vendors);
     for (const auto& [tracker, vendor] : tracker_vendors)
     {
-        // Only vendored tracker types accept a vendor selection; reject any other so a
-        // misassigned (silently-ignored) selection surfaces as an error.
-        if (!dynamic_cast<const FullBodyTracker*>(tracker))
-        {
-            throw std::invalid_argument("LiveDeviceIOFactory: vendor selection '" + vendor.id +
-                                        "' provided for a tracker that does not support vendors");
-        }
-        // Reject unknown vendor ids up front rather than when the impl is built.
-        resolve_full_body_vendor(vendor.id);
-
-        auto [it, inserted] = vendor_map_.emplace(tracker, vendor);
-        if (!inserted)
-        {
-            throw std::invalid_argument("LiveDeviceIOFactory: duplicate tracker pointer for vendor id '" + vendor.id +
-                                        "' (already mapped as '" + it->second.id + "')");
-        }
+        vendor_map_.emplace(tracker, vendor);
     }
 }
 
