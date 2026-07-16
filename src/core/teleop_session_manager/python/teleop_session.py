@@ -999,8 +999,10 @@ class TeleopSession:
 
             # Resolve per-source vendor selections (keyed by source name) into a
             # VendorConfig keyed by the source-owned tracker instance. Sources stay
-            # vendor-agnostic; the vendor is supplied by config.
-            vendor_config = None
+            # vendor-agnostic; the vendor is supplied by config. An empty
+            # VendorConfig (no selections) is the native default -- passing None to
+            # the bindings is a type error.
+            vendor_config = deviceio.VendorConfig()
             if self.config.tracker_vendors:
                 source_by_name = {source.name: source for source in self._sources}
                 vendor_entries = []
