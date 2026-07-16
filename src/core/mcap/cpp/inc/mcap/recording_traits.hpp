@@ -45,6 +45,11 @@ struct FullBodyRecordingTraits
     static constexpr std::array replay_channels = { "full_body" };
 };
 
+// Deprecated alias for the renamed FullBodyRecordingTraits (was
+// FullBodyPicoRecordingTraits before the vendor-agnostic rename). Retained so
+// existing consumers keep compiling; prefer FullBodyRecordingTraits.
+using FullBodyPicoRecordingTraits = FullBodyRecordingTraits;
+
 struct PedalRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.Generic3AxisPedalOutputRecord";

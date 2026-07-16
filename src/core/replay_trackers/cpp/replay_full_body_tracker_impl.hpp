@@ -36,4 +36,9 @@ private:
     std::unique_ptr<FullBodyMcapViewers> mcap_viewers_;
 };
 
+// Deprecated alias for the renamed ReplayFullBodyTrackerImpl (was
+// ReplayFullBodyTrackerPicoImpl before the vendor-neutral rename). Retained so
+// existing consumers keep compiling; prefer ReplayFullBodyTrackerImpl.
+using ReplayFullBodyTrackerPicoImpl = ReplayFullBodyTrackerImpl;
+
 } // namespace core
