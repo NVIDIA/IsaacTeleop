@@ -15,6 +15,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Shared apt build dependencies. Each job installs these plus its own extras
+# (ccache, clang-format, the OAK camera autotools chain).
+env:
+  CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev wayland-protocols
+
 jobs:
   build-ubuntu:
     # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
@@ -40,9 +45,9 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
-          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
-          libwayland-dev wayland-protocols autoconf automake libtool pkg-config libudev-dev
+        sudo apt-get install -y $CORE_APT_DEPS \
+          ccache clang-format-14 \
+          autoconf automake libtool pkg-config libudev-dev
 
     - name: Install coverage tooling
       if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
@@ -428,9 +433,8 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
-          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
-          libwayland-dev wayland-protocols
+        sudo apt-get install -y $CORE_APT_DEPS \
+          ccache clang-format-14
 
     - name: Install CUDA toolkit
       uses: ./.github/actions/setup-cuda
