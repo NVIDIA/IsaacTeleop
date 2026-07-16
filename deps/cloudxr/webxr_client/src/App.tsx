@@ -287,14 +287,23 @@ function App() {
         !autoConnectTriggeredRef.current
       ) {
         autoConnectTriggeredRef.current = true;
-        window.setTimeout(() => {
-          try {
-            cloudXR2DUI.requestConnect();
-          } catch (error) {
-            autoConnectTriggeredRef.current = false;
-            setErrorMessage(`Failed to auto-start XR session: ${error}`);
-          }
-        }, 0);
+        const requestConnect = (attemptsRemaining: number) => {
+          window.setTimeout(async () => {
+            try {
+              setErrorMessage('');
+              await cloudXR2DUI.requestConnect();
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              if (attemptsRemaining > 0 && message.includes('not connected to three.js')) {
+                requestConnect(attemptsRemaining - 1);
+                return;
+              }
+              autoConnectTriggeredRef.current = false;
+              setErrorMessage(`Failed to auto-start XR session: ${error}`);
+            }
+          }, 500);
+        };
+        requestConnect(20);
       }
     };
 
