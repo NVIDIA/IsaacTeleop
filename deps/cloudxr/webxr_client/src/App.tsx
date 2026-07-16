@@ -128,6 +128,15 @@ function isOobAutoConnectEnabled(searchParams: URLSearchParams): boolean {
   return v === '1' || v?.toLowerCase() === 'true';
 }
 
+function isOobHeadlessAutoConnect(searchParams: URLSearchParams): boolean {
+  const headless = readUrlParam(searchParams, 'headless');
+  return (
+    isOobEnabled(searchParams) &&
+    isOobAutoConnectEnabled(searchParams) &&
+    (headless === '1' || headless?.toLowerCase() === 'true')
+  );
+}
+
 function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null {
   if (!isOobEnabled(searchParams)) return null;
   const serverIP = readUrlParam(searchParams, 'serverIP')?.trim();
@@ -145,6 +154,10 @@ function App() {
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
   // IWER loading state
   const [iwerLoaded, setIwerLoaded] = useState(false);
+  const oobHeadlessAutoConnect = useMemo(
+    () => isOobHeadlessAutoConnect(new URLSearchParams(window.location.search)),
+    []
+  );
   // Capability state management
   const [capabilitiesValid, setCapabilitiesValid] = useState(false);
   const capabilitiesCheckedRef = useRef(false);
@@ -344,9 +357,10 @@ function App() {
         controller: {
           model: !hideControllerModel, // Allow UI to hide controller models while keeping input active
         },
-        // Request optional WebXR features - use property names, not optionalFeatures array!
-        handTracking: true,
-        bodyTracking: true,
+        // Headless OOB validation runs through desktop/IWER emulation. Keep that request minimal
+        // so unsupported headset-only features cannot prevent the automated session from starting.
+        handTracking: !oobHeadlessAutoConnect,
+        bodyTracking: !oobHeadlessAutoConnect,
         // Explicitly disable environment/scene feature requests to avoid extra headset prompts.
         anchors: false,
         layers: false,
@@ -359,7 +373,7 @@ function App() {
         offerSession: true,
       }),
     // hideControllerModel omitted: changing it must not recreate the store or the session would be lost
-    [xrFoveation, xrFrameBufferScaling]
+    [xrFoveation, xrFrameBufferScaling, oobHeadlessAutoConnect]
   );
 
   // Apply controller model visibility when the option changes. store.setController() updates
