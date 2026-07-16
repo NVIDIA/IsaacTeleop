@@ -229,8 +229,12 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
                 await send(
                     ws,
                     "Runtime.evaluate",
-                    {"expression": "document.getElementById('startButton')?.click()"},
+                    {
+                        "expression": "document.getElementById('startButton')?.click()",
+                        "userGesture": True,
+                    },
                 )
+                await asyncio.sleep(1.0)
                 diagnostic = await send(
                     ws,
                     "Runtime.evaluate",
