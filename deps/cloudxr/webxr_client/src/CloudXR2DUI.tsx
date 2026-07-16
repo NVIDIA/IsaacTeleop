@@ -1230,6 +1230,13 @@ export class CloudXR2DUI {
     }
   }
 
+  public requestConnect(): void {
+    if (!this.handleConnectClick) {
+      throw new Error('Connect handler is not ready');
+    }
+    this.handleConnectClick(new Event('click'));
+  }
+
   /**
    * Shows a status message in the UI with a specific type
    * @param message - Message to display

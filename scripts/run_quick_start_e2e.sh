@@ -272,7 +272,7 @@ run_client_probe() {
     local client_url
     local state_url
 
-    client_url="https://127.0.0.1:${PROXY_PORT}/client/?oobEnable=1&serverIP=127.0.0.1&port=${PROXY_PORT}&headless=true&autoRefreshMode=never&deviceFrameRate=72&codec=${TELEOP_CLIENT_CODEC}"
+    client_url="https://127.0.0.1:${PROXY_PORT}/client/?oobEnable=1&autoConnect=1&serverIP=127.0.0.1&port=${PROXY_PORT}&headless=true&autoRefreshMode=never&deviceFrameRate=72&codec=${TELEOP_CLIENT_CODEC}"
     state_url="https://127.0.0.1:${PROXY_PORT}/api/oob/v1/state"
 
     log "Step 5: connecting hosted desktop/IWER client and waiting for OOB streaming state"

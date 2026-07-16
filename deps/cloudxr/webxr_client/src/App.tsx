@@ -123,6 +123,11 @@ function isOobEnabled(searchParams: URLSearchParams): boolean {
   return v === '1' || v?.toLowerCase() === 'true';
 }
 
+function isOobAutoConnectEnabled(searchParams: URLSearchParams): boolean {
+  const v = readUrlParam(searchParams, 'autoConnect');
+  return v === '1' || v?.toLowerCase() === 'true';
+}
+
 function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null {
   if (!isOobEnabled(searchParams)) return null;
   const serverIP = readUrlParam(searchParams, 'serverIP')?.trim();
@@ -162,6 +167,7 @@ function App() {
   const countdownTimerRef = useRef<number | null>(null);
   /** Avoid repeating immersive session dumps on every XR store tick. */
   const immersiveSessionDumpLoggedRef = useRef(false);
+  const autoConnectTriggeredRef = useRef(false);
   const [countdownDuration, setCountdownDuration] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(COUNTDOWN_STORAGE_KEY);
@@ -272,6 +278,24 @@ function App() {
       setCapabilitiesValid(true);
       cloudXR2DUI.setStartButtonState(false, 'CONNECT');
       cloudXR2DUI.updateConnectButtonState();
+
+      const searchParams = new URLSearchParams(window.location.search);
+      if (
+        isOobEnabled(searchParams) &&
+        isOobAutoConnectEnabled(searchParams) &&
+        cloudXR2DUI.getConfiguration().headless &&
+        !autoConnectTriggeredRef.current
+      ) {
+        autoConnectTriggeredRef.current = true;
+        window.setTimeout(() => {
+          try {
+            cloudXR2DUI.requestConnect();
+          } catch (error) {
+            autoConnectTriggeredRef.current = false;
+            setErrorMessage(`Failed to auto-start XR session: ${error}`);
+          }
+        }, 0);
+      }
     };
 
     checkCapabilitiesOnce();
