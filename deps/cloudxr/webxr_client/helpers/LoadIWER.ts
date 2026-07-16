@@ -49,11 +49,11 @@ async function installBundledIWER(): Promise<boolean> {
   }
 }
 
-export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
+export async function loadIWERIfNeeded(forceIWER = false): Promise<IWERLoadResult> {
   let supportsImmersive = false;
   let iwerLoaded = false;
 
-  if ('xr' in navigator) {
+  if (!forceIWER && 'xr' in navigator) {
     try {
       const vr = await (navigator.xr as XRSystem).isSessionSupported?.('immersive-vr');
       const ar = await (navigator.xr as XRSystem).isSessionSupported?.('immersive-ar');
@@ -61,8 +61,12 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
     } catch (_) {}
   }
 
-  if (!supportsImmersive) {
-    console.info('Immersive mode not supported, installing bundled IWER fallback.');
+  if (forceIWER || !supportsImmersive) {
+    console.info(
+      forceIWER
+        ? 'Installing bundled IWER for automated headless validation.'
+        : 'Immersive mode not supported, installing bundled IWER fallback.'
+    );
     iwerLoaded = await installBundledIWER();
     supportsImmersive = iwerLoaded;
   }

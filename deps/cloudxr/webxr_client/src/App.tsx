@@ -205,7 +205,8 @@ function App() {
   // Note: React Three Fiber's emulation is disabled (emulate: false) to avoid conflicts
   useEffect(() => {
     const loadIWER = async () => {
-        const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
+        const { supportsImmersive, iwerLoaded: wasIwerLoaded } =
+          await loadIWERIfNeeded(oobHeadlessAutoConnect);
         if (!supportsImmersive) {
           setErrorMessage('Immersive mode not supported');
           setIwerLoaded(false);
@@ -222,7 +223,7 @@ function App() {
     };
 
     loadIWER();
-  }, []);
+  }, [oobHeadlessAutoConnect]);
 
   // Update button state when IWER fails and UI becomes ready
   useEffect(() => {
