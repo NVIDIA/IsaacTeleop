@@ -272,7 +272,7 @@ run_client_probe() {
     local client_url
     local state_url
 
-    client_url="https://127.0.0.1:${PROXY_PORT}/client/?oobEnable=1&serverIP=127.0.0.1&port=${PROXY_PORT}&headless=true&autoRefreshMode=never&deviceFrameRate=72"
+    client_url="https://127.0.0.1:${PROXY_PORT}/client/?oobEnable=1&serverIP=127.0.0.1&port=${PROXY_PORT}&headless=true&autoRefreshMode=never&deviceFrameRate=72&codec=${TELEOP_CLIENT_CODEC}"
     state_url="https://127.0.0.1:${PROXY_PORT}/api/oob/v1/state"
 
     log "Step 5: connecting hosted desktop/IWER client and waiting for OOB streaming state"
@@ -350,6 +350,7 @@ main() {
     if [[ "${VALIDATE_CLIENT}" == "1" ]]; then
         export TELEOP_STREAM_SERVER_IP="${TELEOP_STREAM_SERVER_IP:-127.0.0.1}"
         export TELEOP_STREAM_PORT="${TELEOP_STREAM_PORT:-${PROXY_PORT}}"
+        export TELEOP_CLIENT_CODEC="${TELEOP_CLIENT_CODEC:-h264}"
     fi
     log "Using CloudXR runtime port ${NV_CXR_SERVER_PORT} and WSS proxy port ${PROXY_PORT}"
 
