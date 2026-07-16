@@ -30,12 +30,15 @@ export interface IWERLoadResult {
 
 async function installBundledIWER(): Promise<boolean> {
   try {
+    const IWERModule = await import('iwer');
+    const IWERGlobal = (IWERModule as any).default ?? IWERModule;
     if (window.xrDevice) {
+      ensureRuntimeInstalled(window.xrDevice, IWERGlobal);
+      installNavigatorXRShim(window.xrDevice, IWERGlobal);
+      installMakeXRCompatibleShim();
       return true;
     }
 
-    const IWERModule = await import('iwer');
-    const IWERGlobal = (IWERModule as any).default ?? IWERModule;
     const XRDeviceCtor = IWERGlobal.XRDevice;
     const deviceProfile = IWERGlobal.metaQuest3;
     if (!XRDeviceCtor || !deviceProfile) {
@@ -44,13 +47,99 @@ async function installBundledIWER(): Promise<boolean> {
     }
 
     const device: XRDevice = new XRDeviceCtor(deviceProfile);
-    await device.installRuntime();
+    ensureRuntimeInstalled(device, IWERGlobal);
+    installNavigatorXRShim(device, IWERGlobal);
+    installMakeXRCompatibleShim();
     window.xrDevice = device;
+    const supportsVr = await (navigator.xr as XRSystem | undefined)
+      ?.isSessionSupported?.('immersive-vr')
+      .catch(() => false);
+    console.info('Bundled IWER runtime installed.', {
+      navigatorXR: navigator.xr?.constructor?.name ?? '',
+      requestSession: String((navigator.xr as XRSystem | undefined)?.requestSession).slice(
+        0,
+        80
+      ),
+      supportsImmersiveVr: Boolean(supportsVr),
+      supportedSessionModes: readSupportedSessionModes(device, IWERGlobal),
+    });
     return true;
   } catch (e) {
     console.warn('IWER runtime install failed:', e);
     return false;
   }
+}
+
+function ensureRuntimeInstalled(device: XRDevice, IWERGlobal: any): void {
+  const privateDevice = readPrivateDevice(device, IWERGlobal);
+  if (privateDevice?.xrSystem && navigator.xr === privateDevice.xrSystem) {
+    return;
+  }
+
+  (device as any).installRuntime?.({ forceInstall: true });
+}
+
+function readPrivateDevice(device: XRDevice, IWERGlobal: any): any {
+  try {
+    return IWERGlobal.P_DEVICE ? (device as any)[IWERGlobal.P_DEVICE] : undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
+function readSupportedSessionModes(device: XRDevice, IWERGlobal: any): string[] {
+  try {
+    const privateDevice = readPrivateDevice(device, IWERGlobal);
+    const modes = (device as any).supportedSessionModes ?? privateDevice?.supportedSessionModes;
+    return Array.isArray(modes) ? modes : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function installNavigatorXRShim(device: XRDevice, IWERGlobal: any): void {
+  const xrSystem = (() => {
+    try {
+      const privateDevice = readPrivateDevice(device, IWERGlobal);
+      return privateDevice?.xrSystem ?? (navigator.xr as XRSystem | undefined);
+    } catch (_) {
+      return navigator.xr as XRSystem | undefined;
+    }
+  })();
+  if (!xrSystem) {
+    return;
+  }
+
+  const defineXR = (target: object | undefined) => {
+    if (!target) {
+      return;
+    }
+    try {
+      Object.defineProperty(target, 'xr', {
+        value: xrSystem,
+        configurable: true,
+      });
+    } catch (_) {}
+  };
+
+  defineXR(window.navigator);
+  defineXR(Object.getPrototypeOf(window.navigator));
+}
+
+function installMakeXRCompatibleShim(): void {
+  const install = (ctor: unknown) => {
+    const prototype = (ctor as { prototype?: Record<string, unknown> } | undefined)?.prototype;
+    if (!prototype) {
+      return;
+    }
+    Object.defineProperty(prototype, 'makeXRCompatible', {
+      value: () => Promise.resolve(),
+      configurable: true,
+    });
+  };
+
+  install((window as any).WebGLRenderingContext);
+  install((window as any).WebGL2RenderingContext);
 }
 
 export async function loadIWERIfNeeded(forceIWER = false): Promise<IWERLoadResult> {

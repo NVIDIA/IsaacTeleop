@@ -372,7 +372,7 @@ function App() {
         handTracking: !oobHeadlessAutoConnect,
         bodyTracking: !oobHeadlessAutoConnect,
         customSessionInit: oobHeadlessAutoConnect
-          ? { requiredFeatures: ['local'], optionalFeatures: [] }
+          ? { requiredFeatures: ['local-floor'], optionalFeatures: [] }
           : undefined,
         // Explicitly disable environment/scene feature requests to avoid extra headset prompts.
         anchors: false,

@@ -144,6 +144,37 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
     from websockets.asyncio.client import connect as ws_connect
 
     next_id = 0
+    browser_events: list[str] = []
+
+    def record_event(msg: dict[str, Any]) -> None:
+        method = msg.get("method")
+        params = msg.get("params") or {}
+        entry: str | None = None
+        if method == "Runtime.consoleAPICalled":
+            args = []
+            for arg in params.get("args", []):
+                value = arg.get("value")
+                if value is None:
+                    value = arg.get("description")
+                args.append(str(value))
+            entry = f"console.{params.get('type', 'log')}: " + " ".join(args)
+        elif method == "Runtime.exceptionThrown":
+            details = params.get("exceptionDetails") or {}
+            entry = (
+                "exception: "
+                + str(details.get("text") or "")
+                + " "
+                + str((details.get("exception") or {}).get("description") or "")
+            )
+        elif method == "Log.entryAdded":
+            log_entry = params.get("entry") or {}
+            entry = f"log.{log_entry.get('level', 'info')}: " + str(
+                log_entry.get("text") or ""
+            )
+
+        if entry:
+            browser_events.append(entry[:1200])
+            del browser_events[:-25]
 
     async def send(
         ws, method: str, params: dict[str, Any] | None = None
@@ -156,6 +187,9 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
         while True:
             raw = await ws.recv()
             msg = json.loads(raw)
+            if "id" not in msg:
+                record_event(msg)
+                continue
             if msg.get("id") == next_id:
                 if "error" in msg:
                     raise ProbeError(f"CDP {method} failed: {msg['error']}")
@@ -165,6 +199,7 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
         for method, params in (
             ("Page.enable", None),
             ("Runtime.enable", None),
+            ("Log.enable", None),
             ("Security.enable", None),
             ("Security.setIgnoreCertificateErrors", {"ignore": True}),
         ):
@@ -226,21 +261,22 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
                             "clickCount": 1,
                         },
                     )
-                await send(
-                    ws,
-                    "Runtime.evaluate",
-                    {
-                        "expression": "document.getElementById('startButton')?.click()",
-                        "userGesture": True,
-                    },
-                )
                 await asyncio.sleep(1.0)
                 diagnostic = await send(
                     ws,
                     "Runtime.evaluate",
                     {
-                        "expression": """(() => {
+                        "expression": """(async () => {
                             const byId = (id) => document.getElementById(id);
+                            const stringifyFn = (fn) => {
+                                try { return String(fn).slice(0, 240); } catch (_) { return ''; }
+                            };
+                            let supportsImmersiveVr = null;
+                            try {
+                                supportsImmersiveVr = await navigator.xr?.isSessionSupported?.('immersive-vr');
+                            } catch (error) {
+                                supportsImmersiveVr = `error: ${error}`;
+                            }
                             return {
                                 buttonText: byId('startButton')?.textContent?.trim() || '',
                                 buttonDisabled: Boolean(byId('startButton')?.disabled),
@@ -250,8 +286,18 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
                                 port: byId('portInput')?.value || '',
                                 headless: Boolean(byId('cloudxrHeadless')?.checked),
                                 href: window.location.href,
+                                navigatorXR: navigator.xr?.constructor?.name || '',
+                                xrDevice: window.xrDevice?.constructor?.name || '',
+                                xrDeviceSupportedSessionModes: window.xrDevice?.supportedSessionModes || [],
+                                navigatorOwnXR: Object.hasOwn(window.navigator, 'xr'),
+                                navigatorPrototypeXR: Boolean(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(window.navigator), 'xr')),
+                                supportsImmersiveVr,
+                                requestSession: stringifyFn(navigator.xr?.requestSession),
+                                webglMakeXRCompatible: stringifyFn(window.WebGLRenderingContext?.prototype?.makeXRCompatible),
+                                webgl2MakeXRCompatible: stringifyFn(window.WebGL2RenderingContext?.prototype?.makeXRCompatible),
                             };
                         })()""",
+                        "awaitPromise": True,
                         "returnByValue": True,
                     },
                 )
@@ -261,6 +307,12 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
                     + json.dumps(value, sort_keys=True),
                     flush=True,
                 )
+                if browser_events:
+                    print(
+                        "Recent browser events after CONNECT: "
+                        + json.dumps(browser_events[-10:], sort_keys=True),
+                        flush=True,
+                    )
                 return
             if value.get("state") == "failed":
                 raise ProbeError(f"Client capability check failed: {value!r}")
