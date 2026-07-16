@@ -997,9 +997,27 @@ class TeleopSession:
             for tracker in self.config.trackers:
                 _add_tracker(tracker)
 
+            # Resolve per-source vendor selections (keyed by source name) into a
+            # VendorConfig keyed by the source-owned tracker instance. Sources stay
+            # vendor-agnostic; the vendor is supplied by config.
+            vendor_config = None
+            if self.config.tracker_vendors:
+                source_by_name = {source.name: source for source in self._sources}
+                vendor_entries = []
+                for source_name, vendor in self.config.tracker_vendors.items():
+                    source = source_by_name.get(source_name)
+                    if source is None:
+                        raise ValueError(
+                            "TeleopSessionConfig.tracker_vendors references unknown "
+                            f"DeviceIO source '{source_name}'. Known sources: "
+                            f"{sorted(source_by_name)}"
+                        )
+                    vendor_entries.append((source.get_tracker(), vendor))
+                vendor_config = deviceio.VendorConfig(vendor_entries)
+
             # Get required extensions from all trackers
             required_extensions = deviceio.DeviceIOSession.get_required_extensions(
-                trackers
+                trackers, vendor_config
             )
 
             # Resolve OpenXR handles
@@ -1013,7 +1031,9 @@ class TeleopSession:
 
             # Create DeviceIO session with all trackers
             self.deviceio_session = stack.enter_context(
-                deviceio.DeviceIOSession.run(trackers, handles, mcap_config)
+                deviceio.DeviceIOSession.run(
+                    trackers, handles, mcap_config, vendor_config
+                )
             )
 
         # Initialize plugins (if any)

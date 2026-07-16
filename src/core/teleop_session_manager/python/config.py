@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import IDeviceIOSink
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
@@ -28,7 +28,11 @@ from isaacteleop.retargeting_engine.tensor_types import BoolType
 from .teleop_state_manager_types import teleop_control_states
 
 if TYPE_CHECKING:
-    from isaacteleop.deviceio_session import McapRecordingConfig, McapReplayConfig
+    from isaacteleop.deviceio_session import (
+        McapRecordingConfig,
+        McapReplayConfig,
+        TrackerVendor,
+    )
     from teleopcore.oxr import OpenXRSessionHandles
 
 
@@ -336,6 +340,12 @@ class TeleopSessionConfig:
             ``name`` as the MCAP channel name).  Any ``tracker_names``
             explicitly provided in the config are **appended** after the
             auto-discovered sources.
+        tracker_vendors: Optional per-source vendor selection for vendored trackers
+            (live mode only), keyed by DeviceIO **source name**. Each value is a
+            ``deviceio.TrackerVendor(id, params)`` selecting how that source's tracker
+            is sourced (e.g. ``{"noitom_g1_action": TrackerVendor("body.noitom-pn",
+            {"collection_id": "noitom_mocap"})}``). Sources left out use their tracker's
+            default vendor. Keeps source nodes vendor-agnostic.
         retargeting_execution: Synchronous vs. pipelined execution settings for
             the main retargeting pipeline. Defaults to synchronous exact-current-frame
             behavior; set ``mode="pipelined"`` to opt into background execution.
@@ -386,6 +396,7 @@ class TeleopSessionConfig:
     verbose: bool = True
     oxr_handles: Optional[OpenXRSessionHandles] = None
     mcap_config: Optional[Union[McapRecordingConfig, McapReplayConfig]] = None
+    tracker_vendors: Dict[str, TrackerVendor] = field(default_factory=dict)
     retargeting_execution: RetargetingExecutionConfig = field(
         default_factory=RetargetingExecutionConfig
     )

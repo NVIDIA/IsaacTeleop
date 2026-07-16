@@ -724,7 +724,7 @@ def mock_session_dependencies(
 
     if collected_trackers is not None:
 
-        def get_ext_side_effect(trackers):
+        def get_ext_side_effect(trackers, vendor_config=None):
             collected_trackers.extend(trackers)
             return []
 
