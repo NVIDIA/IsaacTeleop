@@ -341,7 +341,9 @@ function App() {
   const hideControllerModel = cloudXR2DUI?.getConfiguration().hideControllerModel ?? false;
 
   // XR store must be created after we know which device profile is active.
-  // useMemo prevents re-creating the store for unrelated UI changes.
+  // In hosted headless validation, IWER is installed asynchronously after the
+  // first render. Recreate the store once XR readiness is established so it
+  // binds to the emulated runtime rather than Chrome's native navigator.xr.
   const store = useMemo(
     () =>
       createXRStore({
@@ -377,7 +379,7 @@ function App() {
         offerSession: true,
       }),
     // hideControllerModel omitted: changing it must not recreate the store or the session would be lost
-    [xrFoveation, xrFrameBufferScaling, oobHeadlessAutoConnect]
+    [xrFoveation, xrFrameBufferScaling, oobHeadlessAutoConnect, iwerLoaded]
   );
 
   // Apply controller model visibility when the option changes. store.setController() updates
