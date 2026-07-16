@@ -361,6 +361,9 @@ function App() {
         // so unsupported headset-only features cannot prevent the automated session from starting.
         handTracking: !oobHeadlessAutoConnect,
         bodyTracking: !oobHeadlessAutoConnect,
+        customSessionInit: oobHeadlessAutoConnect
+          ? { requiredFeatures: ['local'], optionalFeatures: [] }
+          : undefined,
         // Explicitly disable environment/scene feature requests to avoid extra headset prompts.
         anchors: false,
         layers: false,
