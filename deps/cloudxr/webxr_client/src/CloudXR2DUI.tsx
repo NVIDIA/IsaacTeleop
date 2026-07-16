@@ -59,6 +59,7 @@ import {
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
 } from '@helpers/utils';
+import type { StreamConfig } from '@helpers/controlChannel';
 import { URL_PARAMS } from './config/params';
 import { seedsFromParams } from './config/resolve';
 import {
@@ -1126,6 +1127,47 @@ export class CloudXR2DUI {
    */
   public getConfiguration(): AppConfig {
     return { ...this.currentConfiguration };
+  }
+
+  /**
+   * Applies stream settings received from the OOB hub without persisting them.
+   */
+  public applyOobStreamConfig(config: StreamConfig): void {
+    let changed = false;
+
+    if (typeof config.serverIP === 'string' && config.serverIP.trim()) {
+      const value = config.serverIP.trim();
+      if (this.serverIpInput.value !== value) {
+        this.serverIpInput.value = value;
+        changed = true;
+      }
+    }
+
+    if (typeof config.port === 'number' && Number.isFinite(config.port)) {
+      const value = String(config.port);
+      if (this.portInput.value !== value) {
+        this.portInput.value = value;
+        changed = true;
+      }
+    }
+
+    if (typeof config.codec === 'string') {
+      const before = this.codecSelect.value;
+      setSelectValueIfAvailable(this.codecSelect, config.codec);
+      changed = changed || this.codecSelect.value !== before;
+    }
+
+    if (typeof config.panelHiddenAtStart === 'boolean') {
+      const value = config.panelHiddenAtStart ? 'true' : 'false';
+      if (this.panelHiddenAtStartSelect.value !== value) {
+        this.panelHiddenAtStartSelect.value = value;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.updateConfiguration();
+    }
   }
 
   /**

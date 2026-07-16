@@ -347,6 +347,10 @@ main() {
     done
     export NV_CXR_SERVER_PORT="${RUNTIME_PORT}"
     export PROXY_PORT
+    if [[ "${VALIDATE_CLIENT}" == "1" ]]; then
+        export TELEOP_STREAM_SERVER_IP="${TELEOP_STREAM_SERVER_IP:-127.0.0.1}"
+        export TELEOP_STREAM_PORT="${TELEOP_STREAM_PORT:-${PROXY_PORT}}"
+    fi
     log "Using CloudXR runtime port ${NV_CXR_SERVER_PORT} and WSS proxy port ${PROXY_PORT}"
 
     local cloudxr_args=(

@@ -61,7 +61,7 @@ import { v5 } from 'uuid';
 import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
 import { readUrlParam } from './config/resolve';
 import CloudXR3DUI from './CloudXRUI';
-import { HeadsetControlChannel } from '@helpers/controlChannel';
+import { HeadsetControlChannel, type StreamConfig } from '@helpers/controlChannel';
 
 // Performance metrics signals - raw numeric data, one per callback cadence.
 // Signals update their value without triggering React re-renders.
@@ -702,8 +702,8 @@ function App() {
     const channel = new HeadsetControlChannel({
       url: hubWsUrl,
       token: readUrlParam(p, 'controlToken') ?? undefined,
-      onConfig: () => {
-        // Config push handling deferred to phase 2.
+      onConfig: (streamConfig: StreamConfig) => {
+        cloudXR2DUI.applyOobStreamConfig(streamConfig);
       },
       getMetricsSnapshot: () => {
         const snapshots: Array<{ cadence: string; metrics: Record<string, number> }> = [];

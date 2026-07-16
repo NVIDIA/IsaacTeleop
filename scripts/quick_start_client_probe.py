@@ -231,6 +231,32 @@ async def cdp_click_connect(ws_url: str, timeout: float) -> None:
                     "Runtime.evaluate",
                     {"expression": "document.getElementById('startButton')?.click()"},
                 )
+                diagnostic = await send(
+                    ws,
+                    "Runtime.evaluate",
+                    {
+                        "expression": """(() => {
+                            const byId = (id) => document.getElementById(id);
+                            return {
+                                buttonText: byId('startButton')?.textContent?.trim() || '',
+                                buttonDisabled: Boolean(byId('startButton')?.disabled),
+                                errorText: byId('errorMessageText')?.textContent?.trim() || '',
+                                errorClass: byId('errorMessageBox')?.className || '',
+                                serverIP: byId('serverIpInput')?.value || '',
+                                port: byId('portInput')?.value || '',
+                                headless: Boolean(byId('cloudxrHeadless')?.checked),
+                                href: window.location.href,
+                            };
+                        })()""",
+                        "returnByValue": True,
+                    },
+                )
+                value = (diagnostic.get("result") or {}).get("result", {}).get("value")
+                print(
+                    "Page diagnostic after CONNECT: "
+                    + json.dumps(value, sort_keys=True),
+                    flush=True,
+                )
                 return
             if value.get("state") == "failed":
                 raise ProbeError(f"Client capability check failed: {value!r}")
