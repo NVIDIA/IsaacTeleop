@@ -8,4 +8,4 @@ version: "1.0.0"
 devices:
   - path: "/arm/rebot_devarm_leader"
     type: "joint_state"
-    description: "reBot DevArm leader arm (7 Damiao DM-series motors over a USB-to-CAN serial adapter; synthetic fallback when no device path)"
+    description: "reBot DevArm leader arm (7 Damiao DM-series motors over a USB-to-CAN serial adapter, or 7 RobStride RS-series motors over SocketCAN; synthetic fallback when no device path)"

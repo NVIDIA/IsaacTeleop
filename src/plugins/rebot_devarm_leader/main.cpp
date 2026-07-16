@@ -16,8 +16,9 @@ int main(int argc, char** argv)
 try
 {
     // Probe mode: rebot_devarm_leader_plugin probe <device_path> [calibration_file] [seconds]
-    // Streams decoded joint positions to stdout to verify the bus / ids / decoding.
-    // No OpenXR runtime required.
+    // <device_path> is a serial path (/dev/ttyACM0, Damiao build) or a SocketCAN interface
+    // name (can0, RobStride build). Streams decoded joint positions to stdout to verify the
+    // bus / ids / decoding. No OpenXR runtime required.
     if (argc > 1 && std::string(argv[1]) == "probe")
     {
         const std::string device_path = (argc > 2) ? argv[2] : "";
@@ -27,7 +28,8 @@ try
     }
 
     // Usage: rebot_devarm_leader_plugin [device_path] [collection_id] [calibration_file]
-    // Empty device_path selects the synthetic backend (no hardware required).
+    // device_path: serial path (Damiao), SocketCAN interface name (RobStride), or empty for
+    // the synthetic backend (no hardware required).
     const std::string device_path = (argc > 1) ? argv[1] : "";
     const std::string collection_id = (argc > 2) ? argv[2] : "rebot_devarm_leader";
     const std::string calibration_path = (argc > 3) ? argv[3] : "";

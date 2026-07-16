@@ -4,6 +4,7 @@
 #include "rebot_devarm_leader_plugin.hpp"
 
 #include "damiao_bus.hpp"
+#include "robstride_bus.hpp"
 
 #include <flatbuffers/flatbuffers.h>
 #include <oxr/oxr_session.hpp>
@@ -88,6 +89,13 @@ double uint_to_float(uint32_t value, double limit, int bits)
     return static_cast<double>(value) * span / static_cast<double>((1u << bits) - 1) - limit;
 }
 
+//! A device path with a '/' is a serial port (Damiao dm-serial adapter); a bare name is a
+//! SocketCAN interface (RobStride backend). Empty selects the synthetic backend.
+bool is_robstride_path(const std::string& device_path)
+{
+    return !device_path.empty() && device_path.find('/') == std::string::npos;
+}
+
 //! Look up a Damiao model's feedback limits; falls back to the DM4310 values with a warning.
 ModelLimits model_limits(const std::string& model)
 {
@@ -135,7 +143,29 @@ RebotDevarmLeaderPlugin::RebotDevarmLeaderPlugin(const std::string& device_path,
         load_calibration(calibration_path);
     }
 
-    if (!device_path_.empty())
+    if (is_robstride_path(device_path_))
+    {
+        // Throws if the SocketCAN interface doesn't exist; throws unconditionally off Linux.
+        rs_bus_ = std::make_unique<RobStrideBus>(device_path_);
+        std::cout << "RebotDevarmLeaderPlugin: RobStride SocketCAN backend on " << device_path_ << std::endl;
+
+        // Leader arm: stop the motors so the operator can back-drive them by hand. RobStride
+        // motors keep answering parameter reads while stopped (verified on RS-series hardware).
+        for (int i = 0; i < kNumJoints; ++i)
+        {
+            if (!rs_bus_->disable(static_cast<uint8_t>(calibration_[i].motor_id)))
+            {
+                std::cerr << "RebotDevarmLeaderPlugin: warning: failed to send stop to motor 0x" << std::hex
+                          << calibration_[i].motor_id << std::dec << " (is " << device_path_ << " up?)" << std::endl;
+            }
+        }
+        // Drain any stop-command replies so the first feedback cycle starts clean.
+        RobStrideSample scratch;
+        while (rs_bus_->read_sample(scratch, kCollectTimeoutMs))
+        {
+        }
+    }
+    else if (!device_path_.empty())
     {
         // Throws on POSIX if the port can't be opened; throws unconditionally on Windows.
         bus_ = std::make_unique<DamiaoBus>(device_path_);
@@ -212,7 +242,12 @@ void RebotDevarmLeaderPlugin::load_calibration(const std::string& path)
                       << line_no << std::endl;
             continue;
         }
-        const ModelLimits limits = model_limits(model);
+        // The RobStride backend reads exact f32 values, so the model column only selects
+        // fixed-point limits on the Damiao backend; rs-* names keep the (unused) defaults.
+        const bool is_robstride_model = model.rfind("rs", 0) == 0 || model.rfind("RS", 0) == 0;
+        const ModelLimits limits = is_robstride_model ?
+                                       ModelLimits{ model.c_str(), calibration_[idx].p_max, calibration_[idx].v_max } :
+                                       model_limits(model);
         calibration_[idx] = JointCalibration{ static_cast<uint16_t>(motor_id),
                                               static_cast<uint16_t>(feedback_id),
                                               limits.p_max,
@@ -276,6 +311,52 @@ void RebotDevarmLeaderPlugin::read_hardware()
         }
     }
 
+    check_gripper_travel();
+}
+
+void RebotDevarmLeaderPlugin::read_hardware_robstride()
+{
+    // Request one parameter read per motor (alternating mechPos / mechVel inside the bus), then
+    // collect the exact-f32 replies. A motor that doesn't reply this cycle holds its last value
+    // so a transient bus hiccup never faults.
+    for (int i = 0; i < kNumJoints; ++i)
+    {
+        rs_bus_->request_feedback(static_cast<uint8_t>(calibration_[i].motor_id));
+    }
+
+    int replies = 0;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kCollectTimeoutMs);
+    RobStrideSample sample;
+    while (replies < kNumJoints && std::chrono::steady_clock::now() < deadline)
+    {
+        if (!rs_bus_->read_sample(sample, 1))
+        {
+            continue;
+        }
+        for (int i = 0; i < kNumJoints; ++i)
+        {
+            if (sample.motor_id != calibration_[i].motor_id)
+            {
+                continue;
+            }
+            if (sample.is_velocity)
+            {
+                velocities_[i] = calibration_[i].sign * sample.value;
+            }
+            else
+            {
+                positions_[i] = calibration_[i].sign * (sample.value - calibration_[i].offset_rad);
+            }
+            ++replies;
+            break;
+        }
+    }
+
+    check_gripper_travel();
+}
+
+void RebotDevarmLeaderPlugin::check_gripper_travel()
+{
     // Wrapped multi-turn gripper detection (see kGripperTravelMinRad). Latch the flag on a
     // rising edge only, so the warning prints once instead of at 90 Hz.
     const double gripper_pos = positions_[kGripperJointIndex];
@@ -325,6 +406,10 @@ void RebotDevarmLeaderPlugin::update()
     {
         read_hardware();
     }
+    else if (rs_bus_)
+    {
+        read_hardware_robstride();
+    }
     else
     {
         read_synthetic();
@@ -337,7 +422,9 @@ int run_probe(const std::string& device_path, const std::string& calibration_pat
 {
     if (device_path.empty())
     {
-        std::cerr << "probe: a serial device path is required (e.g. /dev/ttyACM0)" << std::endl;
+        std::cerr << "probe: a device is required: a serial path (e.g. /dev/ttyACM0, Damiao) or a "
+                     "SocketCAN interface name (e.g. can0, RobStride)"
+                  << std::endl;
         return 2;
     }
 
@@ -399,63 +486,114 @@ int run_probe(const std::string& device_path, const std::string& calibration_pat
         }
     }
 
-    DamiaoBus bus(device_path);
-    for (const auto& j : joints)
+    // Per-cycle status line, shared by both backends.
+    const auto print_cycle = [&joints](int cycle)
     {
-        bus.disable(j.motor_id); // back-drive mode; Damiao motors reply to 0xCC while disabled
-    }
-    CanFrame scratch;
-    while (bus.read_frame(scratch, kCollectTimeoutMs))
-    {
-    }
+        if (cycle % 10 != 0)
+        {
+            return;
+        }
+        std::cout << "probe:";
+        for (int i = 0; i < kNumJoints; ++i)
+        {
+            std::cout << "  " << kJointNames[i] << "=";
+            if (joints[i].seen)
+            {
+                std::cout << joints[i].pos;
+            }
+            else
+            {
+                std::cout << "---";
+            }
+        }
+        std::cout << std::endl;
+    };
 
     const auto t_end = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
-    int cycle = 0;
-    while (std::chrono::steady_clock::now() < t_end)
+    if (is_robstride_path(device_path))
     {
+        RobStrideBus bus(device_path);
         for (const auto& j : joints)
         {
-            bus.request_feedback(j.motor_id);
+            bus.disable(static_cast<uint8_t>(j.motor_id)); // back-drive; RS motors answer reads while stopped
         }
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kCollectTimeoutMs);
-        CanFrame frame;
-        while (std::chrono::steady_clock::now() < deadline)
+        RobStrideSample scratch;
+        while (bus.read_sample(scratch, kCollectTimeoutMs))
         {
-            if (!bus.read_frame(frame, 1))
-            {
-                continue;
-            }
-            for (auto& j : joints)
-            {
-                if (frame.arbitration_id == j.feedback_id && frame.dlc >= 8)
-                {
-                    const uint32_t pos_u = (static_cast<uint32_t>(frame.data[1]) << 8) | frame.data[2];
-                    j.pos = j.sign * (uint_to_float(pos_u, j.p_max, kPositionBits) - j.offset_rad);
-                    j.seen = true;
-                    break;
-                }
-            }
         }
 
-        if (cycle % 10 == 0)
+        int cycle = 0;
+        while (std::chrono::steady_clock::now() < t_end)
         {
-            std::cout << "probe:";
-            for (int i = 0; i < kNumJoints; ++i)
+            for (const auto& j : joints)
             {
-                std::cout << "  " << kJointNames[i] << "=";
-                if (joints[i].seen)
+                bus.request_feedback(static_cast<uint8_t>(j.motor_id));
+            }
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kCollectTimeoutMs);
+            RobStrideSample sample;
+            while (std::chrono::steady_clock::now() < deadline)
+            {
+                if (!bus.read_sample(sample, 1))
                 {
-                    std::cout << joints[i].pos;
+                    continue;
                 }
-                else
+                for (auto& j : joints)
                 {
-                    std::cout << "---";
+                    if (sample.motor_id == j.motor_id && !sample.is_velocity)
+                    {
+                        j.pos = j.sign * (sample.value - j.offset_rad);
+                        j.seen = true;
+                        break;
+                    }
                 }
             }
-            std::cout << std::endl;
+            print_cycle(cycle);
+            ++cycle;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        ++cycle;
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    else
+    {
+        DamiaoBus bus(device_path);
+        for (const auto& j : joints)
+        {
+            bus.disable(j.motor_id); // back-drive mode; Damiao motors reply to 0xCC while disabled
+        }
+        CanFrame scratch;
+        while (bus.read_frame(scratch, kCollectTimeoutMs))
+        {
+        }
+
+        int cycle = 0;
+        while (std::chrono::steady_clock::now() < t_end)
+        {
+            for (const auto& j : joints)
+            {
+                bus.request_feedback(j.motor_id);
+            }
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kCollectTimeoutMs);
+            CanFrame frame;
+            while (std::chrono::steady_clock::now() < deadline)
+            {
+                if (!bus.read_frame(frame, 1))
+                {
+                    continue;
+                }
+                for (auto& j : joints)
+                {
+                    if (frame.arbitration_id == j.feedback_id && frame.dlc >= 8)
+                    {
+                        const uint32_t pos_u = (static_cast<uint32_t>(frame.data[1]) << 8) | frame.data[2];
+                        j.pos = j.sign * (uint_to_float(pos_u, j.p_max, kPositionBits) - j.offset_rad);
+                        j.seen = true;
+                        break;
+                    }
+                }
+            }
+            print_cycle(cycle);
+            ++cycle;
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
     }
 
     bool all_ok = true;

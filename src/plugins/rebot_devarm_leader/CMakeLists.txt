@@ -5,6 +5,7 @@ add_executable(rebot_devarm_leader_plugin
     main.cpp
     rebot_devarm_leader_plugin.cpp
     damiao_bus.cpp
+    robstride_bus.cpp
 )
 
 target_link_libraries(rebot_devarm_leader_plugin PRIVATE

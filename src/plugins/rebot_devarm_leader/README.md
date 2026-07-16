@@ -10,19 +10,34 @@ gripper) leader joint angles as a `JointStateOutput` FlatBuffer over the OpenXR 
 using the generic **joint-space device** path
 (`JointStateTracker` / `JointStateSource` / `JointStateRetargeter`).
 
-The reBot DevArm is 7 Damiao DM-series MIT-protocol motors — DM4340P on joints 1–3, DM4310 on
-joints 4–6 and the gripper — on a CAN bus behind a Damiao USB-to-CAN serial adapter (USB CDC-ACM,
-the `dm-serial` transport also used by the vendor's DM_Control stack and the
-[reBotArm_control_py](https://github.com/Seeed-Projects/reBotArm_control_py) reference code).
-`DamiaoBus` (`damiao_bus.{hpp,cpp}`) speaks the adapter's fixed-size binary framing directly — no
-SDK dependency — and implements just what a *leader* needs: send the **disable** control frame so
-the arm can be back-driven by hand (Damiao motors keep answering feedback requests while
-disabled), then request one feedback frame per motor per cycle (command `0xCC` addressed via CAN
-id `0x7FF`) and decode position/velocity from the replies. Damiao feedback is fixed-point over
-the model's `[-p_max, p_max]` / `[-v_max, v_max]` limits and lands directly in radians — no tick
-conversion, only an optional per-joint sign and zero offset from a calibration file.
+Two motor builds of the arm are supported, selected by the shape of the device argument — a
+serial path (`/dev/ttyACM0`) picks the **Damiao** backend, a bare SocketCAN interface name
+(`can0`) picks the **RobStride** backend:
 
-When no serial device is given, the plugin falls back to a **synthetic** trajectory so the
+- **Damiao build**: 7 DM-series MIT-protocol motors — DM4340P on joints 1–3, DM4310 on joints
+  4–6 and the gripper — on a CAN bus behind a Damiao USB-to-CAN serial adapter (USB CDC-ACM, the
+  `dm-serial` transport also used by the vendor's DM_Control stack and the
+  [reBotArm_control_py](https://github.com/Seeed-Projects/reBotArm_control_py) reference code).
+  `DamiaoBus` (`damiao_bus.{hpp,cpp}`) speaks the adapter's fixed-size binary framing directly —
+  no SDK dependency — and implements just what a *leader* needs: send the **disable** control
+  frame so the arm can be back-driven by hand (Damiao motors keep answering feedback requests
+  while disabled), then request one feedback frame per motor per cycle (command `0xCC` addressed
+  via CAN id `0x7FF`) and decode position/velocity from the replies. Damiao feedback is
+  fixed-point over the model's `[-p_max, p_max]` / `[-v_max, v_max]` limits and lands directly
+  in radians — no tick conversion, only an optional per-joint sign and zero offset from a
+  calibration file.
+
+- **RobStride build**: 7 RS-series motors on classic CAN at 1 Mbps behind any SocketCAN
+  interface (e.g. a PCAN/candleLight USB adapter as `can0`). `RobStrideBus`
+  (`robstride_bus.{hpp,cpp}`) implements the leader subset of the RobStride private 29-bit
+  extended-id protocol directly — no SDK dependency: send the **stop** frame (comm type `0x04`)
+  for back-drive, then alternate single-parameter reads (comm type `0x11`) of `mechPos`
+  (`0x7019`) and `mechVel` (`0x701A`) per motor per cycle. Replies carry exact little-endian
+  IEEE f32 radians / rad/s, so the decode is **model-independent** — no fixed-point limit
+  tables — and each channel refreshes at 45 Hz with the plugin's 90 Hz loop, well under 20 % of
+  the 1 Mbps bus for 7 motors.
+
+When no device is given, the plugin falls back to a **synthetic** trajectory so the
 device → tracker → retargeter pipeline runs with no hardware (CI and headless bring-up).
 
 ## Run
@@ -35,12 +50,18 @@ device → tracker → retargeter pipeline runs with no hardware (CI and headles
 # "rebot_devarm_leader":
 ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin /dev/ttyACM0
 
+# Real reBot DevArm (RobStride build) on a SocketCAN interface (Linux):
+sudo ip link set can0 up type can bitrate 1000000   # once, after plugging the CAN adapter
+./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin can0
+
 # ... with a custom collection id and a calibration file:
 ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin /dev/ttyACM0 rebot_devarm_leader rebot_devarm.calib
 ```
 
-Args are positional: `[device_path] [collection_id] [calibration_file]`. The serial backend is
-Linux/macOS only (POSIX `termios`); the adapter enumerates as a CDC-ACM device (nominal 921600 bps).
+Args are positional: `[device_path] [collection_id] [calibration_file]`. A `device_path`
+containing `/` is a serial port (Damiao); a bare name is a SocketCAN interface (RobStride). The
+serial backend is Linux/macOS only (POSIX `termios`; the adapter enumerates as a CDC-ACM device,
+nominal 921600 bps); the SocketCAN backend is Linux only.
 
 ## Probe the hardware (no OpenXR runtime)
 
@@ -49,7 +70,8 @@ positions to stdout — use it to verify wiring, motor ids, and the decode path 
 full plugin:
 
 ```bash
-./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin probe /dev/ttyACM0
+./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin probe /dev/ttyACM0   # Damiao build
+./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin probe can0           # RobStride build
 # probe:  joint1=0.0012  joint2=-0.0034  ...  gripper=0.0001
 ```
 
@@ -78,9 +100,12 @@ gripper 7  23  4310    1  0.0
 
 - `motor_id` / `feedback_id`: the motor's command (ESC) and feedback (MST) CAN ids, decimal.
   Factory reBot DevArm ids are `1..7` / `0x11..0x17` (17..23) — the defaults, so a calibration
-  file is only needed for a sign flip, a zero offset, or a re-flashed id layout.
+  file is only needed for a sign flip, a zero offset, or a re-flashed id layout. On the
+  RobStride backend only `motor_id` (the RobStride device id, factory `1..7`) is used; replies
+  are matched by device id, so the `feedback_id` column is ignored.
 - `model`: Damiao model name (`4310`, `4310P`, `4340`, `4340P`) selecting the feedback
-  fixed-point limits.
+  fixed-point limits. RobStride motors report exact f32 values, so `rs-*` names (e.g. `rs-00`)
+  are accepted and ignored.
 - `sign`: `-1` for any joint that moves opposite the URDF convention.
 - `offset_rad`: feedback position at the joint's URDF zero pose. With the vendor's zeroing
   procedure (motors zeroed at the reference pose) this stays `0.0`.
