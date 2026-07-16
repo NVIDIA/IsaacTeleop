@@ -33,10 +33,10 @@ required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
 print(f"Required extensions: {required_extensions}")
 print()
 
-# Test 3: Show joint names from schema (BodyJointPico enum)
-print(f"[Test 3] Body joint names ({schema.BodyJointPico.NUM_JOINTS} joints):")
-for i in range(schema.BodyJointPico.NUM_JOINTS):
-    print(f"  [{i:2d}] {schema.BodyJointPico(i).name}")
+# Test 3: Show joint names from schema (BodyJoint enum)
+print(f"[Test 3] Body joint names ({schema.BodyJoint.NUM_JOINTS} joints):")
+for i in range(schema.BodyJoint.NUM_JOINTS):
+    print(f"  [{i:2d}] {schema.BodyJoint(i).name}")
 print()
 
 # Test 4: Initialize
@@ -70,10 +70,10 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
         if body_tracked.data is not None:
             valid_count = sum(
                 1
-                for i in range(schema.BodyJointPico.NUM_JOINTS)
+                for i in range(schema.BodyJoint.NUM_JOINTS)
                 if body_tracked.data.joints.joints(i).is_valid
             )
-            print(f"  Valid joints: {valid_count}/{schema.BodyJointPico.NUM_JOINTS}")
+            print(f"  Valid joints: {valid_count}/{schema.BodyJoint.NUM_JOINTS}")
         print()
 
         # Test 7: Run tracking loop
@@ -96,10 +96,10 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
 
                 if body_tracked.data is not None:
                     pelvis_pos = body_tracked.data.joints.joints(
-                        int(schema.BodyJointPico.PELVIS)
+                        int(schema.BodyJoint.PELVIS)
                     ).pose.position
                     head_pos = body_tracked.data.joints.joints(
-                        int(schema.BodyJointPico.HEAD)
+                        int(schema.BodyJoint.HEAD)
                     ).pose.position
                     print(
                         f"  [{elapsed:5.2f}s] Frame {frame_count:4d}"
@@ -128,9 +128,9 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
         if body_tracked.data is not None:
             print()
             print("  Joint positions:")
-            for i in range(schema.BodyJointPico.NUM_JOINTS):
+            for i in range(schema.BodyJoint.NUM_JOINTS):
                 joint = body_tracked.data.joints.joints(i)
-                name = schema.BodyJointPico(i).name
+                name = schema.BodyJoint(i).name
                 pos = joint.pose.position
                 rot = joint.pose.orientation
                 print(

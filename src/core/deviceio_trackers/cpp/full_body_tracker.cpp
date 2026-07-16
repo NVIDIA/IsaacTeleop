@@ -6,7 +6,7 @@
 namespace core
 {
 
-const FullBodyPosePicoTrackedT& FullBodyTracker::get_body_pose(const ITrackerSession& session) const
+const FullBodyPoseTrackedT& FullBodyTracker::get_body_pose(const ITrackerSession& session) const
 {
     return static_cast<const IFullBodyTrackerImpl&>(session.get_tracker_impl(*this)).get_body_pose();
 }

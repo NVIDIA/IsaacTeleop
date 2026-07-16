@@ -13,6 +13,7 @@ from .standard_types import (
     TransformMatrix,
     Generic3AxisPedalInput,
     NUM_HAND_JOINTS,
+    NUM_BODY_JOINTS,
     NUM_BODY_JOINTS_PICO,
     RobotHandJoints,
 )
@@ -33,6 +34,7 @@ from .indices import (
     Generic3AxisPedalInputIndex,
     FullBodyInputIndex,
     HandJointIndex,
+    BodyJointIndex,
     BodyJointPicoIndex,
     FingerIndex,
     ControllerHapticPulseField,
@@ -54,6 +56,7 @@ __all__ = [
     "TransformMatrix",
     "Generic3AxisPedalInput",
     "NUM_HAND_JOINTS",
+    "NUM_BODY_JOINTS",
     "NUM_BODY_JOINTS_PICO",
     "RobotHandJoints",
     # Tactile / haptic types
@@ -72,6 +75,7 @@ __all__ = [
     "Generic3AxisPedalInputIndex",
     "FullBodyInputIndex",
     "HandJointIndex",
+    "BodyJointIndex",
     "BodyJointPicoIndex",
     "FingerIndex",
     "ControllerHapticPulseField",

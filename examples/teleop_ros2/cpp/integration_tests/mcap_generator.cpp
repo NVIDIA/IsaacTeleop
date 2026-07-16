@@ -27,7 +27,7 @@ using ControllerChannels = core::McapTrackerChannels<core::ControllerSnapshotRec
 using HandChannels = core::McapTrackerChannels<core::HandPoseRecord, core::HandPose>;
 using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
 using PedalChannels = core::McapTrackerChannels<core::Generic3AxisPedalOutputRecord, core::Generic3AxisPedalOutput>;
-using FullBodyChannels = core::McapTrackerChannels<core::FullBodyPosePicoRecord, core::FullBodyPosePico>;
+using FullBodyChannels = core::McapTrackerChannels<core::FullBodyPoseRecord, core::FullBodyPose>;
 
 constexpr int kDefaultFrameCount = 1800;
 constexpr int64_t kFramePeriodNs = 16'666'667;
@@ -113,12 +113,12 @@ std::shared_ptr<core::Generic3AxisPedalOutputT> make_pedal_sample(int frame)
     return sample;
 }
 
-std::shared_ptr<core::FullBodyPosePicoT> make_full_body_sample(int frame)
+std::shared_ptr<core::FullBodyPoseT> make_full_body_sample(int frame)
 {
     const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
-    auto sample = std::make_shared<core::FullBodyPosePicoT>();
-    sample->joints = std::make_unique<core::BodyJointsPico>();
-    for (int joint = 0; joint < core::BodyJointPico_NUM_JOINTS; ++joint)
+    auto sample = std::make_shared<core::FullBodyPoseT>();
+    sample->joints = std::make_unique<core::BodyJoints>();
+    for (int joint = 0; joint < core::BodyJoint_NUM_JOINTS; ++joint)
     {
         // Per-joint offsets spread the joints into a plausible-looking body layout.
         const float joint_f = static_cast<float>(joint);

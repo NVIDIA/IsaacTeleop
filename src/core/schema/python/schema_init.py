@@ -62,13 +62,20 @@ from ._schema import (
     FrameMetadataOakTrackedT,
     FrameMetadataOakRecord,
     # Full body-related types.
-    BodyJointPico,
+    BodyJoint,
     BodyJointPose,
-    BodyJointsPico,
-    FullBodyPosePicoT,
-    FullBodyPosePicoTrackedT,
-    FullBodyPosePicoRecord,
+    BodyJoints,
+    FullBodyPoseT,
+    FullBodyPoseTrackedT,
+    FullBodyPoseRecord,
 )
+
+# Deprecated aliases for the renamed full-body schema types (use the generic names above).
+BodyJointPico = BodyJoint
+BodyJointsPico = BodyJoints
+FullBodyPosePicoT = FullBodyPoseT
+FullBodyPosePicoTrackedT = FullBodyPoseTrackedT
+FullBodyPosePicoRecord = FullBodyPoseRecord
 
 
 __all__ = [
@@ -126,8 +133,14 @@ __all__ = [
     "FrameMetadataOakRecord",
     # Full body types.
     "BodyJointPose",
-    "BodyJointsPico",
+    "BodyJoint",
+    "BodyJoints",
+    "FullBodyPoseT",
+    "FullBodyPoseTrackedT",
+    "FullBodyPoseRecord",
+    # Deprecated full-body aliases.
     "BodyJointPico",
+    "BodyJointsPico",
     "FullBodyPosePicoT",
     "FullBodyPosePicoTrackedT",
     "FullBodyPosePicoRecord",

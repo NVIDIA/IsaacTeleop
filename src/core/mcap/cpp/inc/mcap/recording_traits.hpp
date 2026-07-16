@@ -40,7 +40,7 @@ struct ControllerRecordingTraits
 
 struct FullBodyRecordingTraits
 {
-    static constexpr std::string_view schema_name = "core.FullBodyPosePicoRecord";
+    static constexpr std::string_view schema_name = "core.FullBodyPoseRecord";
     static constexpr std::array recording_channels = { "full_body" };
     static constexpr std::array replay_channels = { "full_body" };
 };

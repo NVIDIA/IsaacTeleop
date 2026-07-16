@@ -132,14 +132,14 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
 
     if (!tracked_.data)
     {
-        tracked_.data = std::make_shared<FullBodyPosePicoT>();
+        tracked_.data = std::make_shared<FullBodyPoseT>();
     }
 
     tracked_.data->all_joint_poses_tracked = locations.allJointPosesTracked;
 
     if (!tracked_.data->joints)
     {
-        tracked_.data->joints = std::make_shared<BodyJointsPico>();
+        tracked_.data->joints = std::make_shared<BodyJoints>();
     }
 
     for (uint32_t i = 0; i < XR_BODY_JOINT_COUNT_BD; ++i)
@@ -165,7 +165,7 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
     }
 }
 
-const FullBodyPosePicoTrackedT& LiveFullBodyTrackerPicoImpl::get_body_pose() const
+const FullBodyPoseTrackedT& LiveFullBodyTrackerPicoImpl::get_body_pose() const
 {
     return tracked_;
 }

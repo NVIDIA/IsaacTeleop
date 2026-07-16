@@ -186,7 +186,7 @@ On the server, body tracking data is consumed through the
 ``FullBodyTracker`` tracker (see :doc:`trackers` for the full tracker
 reference). The tracker exposes a ``get_body_pose()`` method that returns the
 24-joint skeleton each frame (or null when body tracking is not available).
-Joint data follows the ``FullBodyPosePico`` FlatBuffers schema defined in
+Joint data follows the ``FullBodyPose`` FlatBuffers schema defined in
 ``src/core/schema/fbs/full_body.fbs``.
 
 The ``all_joint_poses_tracked`` quality flag indicates whether every joint was

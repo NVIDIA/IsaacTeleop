@@ -8,15 +8,15 @@
 namespace core
 {
 
-struct FullBodyPosePicoTrackedT;
+struct FullBodyPoseTrackedT;
 
 // Abstract base interface for full body tracker implementations.
 // Vendor-agnostic: every live/replay backend (native XR, pushed tensor, ...)
-// implements this and produces the same FullBodyPosePicoTrackedT payload.
+// implements this and produces the same FullBodyPoseTrackedT payload.
 class IFullBodyTrackerImpl : public ITrackerImpl
 {
 public:
-    virtual const FullBodyPosePicoTrackedT& get_body_pose() const = 0;
+    virtual const FullBodyPoseTrackedT& get_body_pose() const = 0;
 };
 
 } // namespace core

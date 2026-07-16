@@ -19,7 +19,7 @@
 namespace core
 {
 
-using FullBodyMcapChannels = McapTrackerChannels<FullBodyPosePicoRecord, FullBodyPosePico>;
+using FullBodyMcapChannels = McapTrackerChannels<FullBodyPoseRecord, FullBodyPose>;
 
 // Live full-body impl for the "body.pico-xr" vendor: sources joints directly from
 // the native PICO XR_BD_body_tracking extension.
@@ -45,13 +45,13 @@ public:
     LiveFullBodyTrackerPicoImpl& operator=(LiveFullBodyTrackerPicoImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const FullBodyPosePicoTrackedT& get_body_pose() const override;
+    const FullBodyPoseTrackedT& get_body_pose() const override;
 
 private:
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
-    FullBodyPosePicoTrackedT tracked_;
+    FullBodyPoseTrackedT tracked_;
     int64_t last_update_time_ = 0;
 
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;

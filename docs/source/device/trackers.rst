@@ -196,9 +196,9 @@ produced it. When no vendor is selected, the default vendor ``body.pico-xr``
 reads the PICO ``XR_BD_body_tracking`` extension directly.
 
 - Schema: :code-file:`src/core/schema/fbs/full_body.fbs`
-- C++ header: ``#include <deviceio/full_body_tracker.hpp>``
+- C++ header: ``#include <deviceio_trackers/full_body_tracker.hpp>``
 - Python import: ``from isaacteleop.deviceio import FullBodyTracker``
-- Record channels: ``full_body`` | MCAP schema: ``core.FullBodyPosePicoRecord``
+- Record channels: ``full_body`` | MCAP schema: ``core.FullBodyPoseRecord``
 - Tests:
 
   - :code-file:`src/core/schema_tests/cpp/test_full_body.cpp`

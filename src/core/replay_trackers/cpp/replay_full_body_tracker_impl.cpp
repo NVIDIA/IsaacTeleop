@@ -27,7 +27,7 @@ ReplayFullBodyTrackerImpl::ReplayFullBodyTrackerImpl(std::unique_ptr<mcap::McapR
 {
 }
 
-const FullBodyPosePicoTrackedT& ReplayFullBodyTrackerImpl::get_body_pose() const
+const FullBodyPoseTrackedT& ReplayFullBodyTrackerImpl::get_body_pose() const
 {
     return tracked_;
 }

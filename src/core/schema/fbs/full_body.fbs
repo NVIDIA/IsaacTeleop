@@ -6,9 +6,10 @@ include "timestamp.fbs";
 
 namespace core;
 
-// Body joint indices for PICO body tracking (XR_BD_body_tracking extension).
+// Body joint indices (XR_BD_body_tracking extension layout).
+// Vendor-neutral: every full-body vendor produces joints in this order.
 // See: https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XrBodyJointBD
-enum BodyJointPico : uint8 {
+enum BodyJoint : uint8 {
     PELVIS = 0,
     LEFT_HIP = 1,
     RIGHT_HIP = 2,
@@ -48,16 +49,16 @@ struct BodyJointPose {
 
 // Fixed-size array of 24 body joint locations. This follows the joint format defined in:
 // See: https://registry.khronos.org/OpenXR/specs/1.1/html/xrspec.html#XR_BD_body_tracking
-struct BodyJointsPico {
+struct BodyJoints {
     joints: [BodyJointPose:24];
 }
 
-// Full body pose data for PICO body tracking (XR_BD_body_tracking extension).
+// Full body pose data (XR_BD_body_tracking joint layout, vendor-neutral).
 // All fields are always present when the parent Tracked/Record wrapper's data is non-null.
-table FullBodyPosePico {
+table FullBodyPose {
     // Vector of BodyJointPose.
     // For XR_BD_body_tracking, this is 24 joints.
-    joints: BodyJointsPico (id: 0);
+    joints: BodyJoints (id: 0);
 
     // allJointPosesTracked from the OpenXR extension — quality flag only.
     // When false, individual joint is_valid flags should be consulted.
@@ -66,18 +67,18 @@ table FullBodyPosePico {
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when body tracking is inactive).
-table FullBodyPosePicoTracked {
-    data: FullBodyPosePico (id: 0);
+table FullBodyPoseTracked {
+    data: FullBodyPose (id: 0);
 }
 
-// MCAP recording wrapper for FullBodyPosePico.
+// MCAP recording wrapper for FullBodyPose.
 //
 // Record types are the root types written to MCAP channels by the McapRecorder.
 // Trackers serialize into Record types via their serialize() method, but the
 // public query API returns the inner data type directly.
-table FullBodyPosePicoRecord {
-    data: FullBodyPosePico (id: 0);
+table FullBodyPoseRecord {
+    data: FullBodyPose (id: 0);
     timestamp: DeviceDataTimestamp (id: 1);
 }
 
-root_type FullBodyPosePicoRecord;
+root_type FullBodyPoseRecord;

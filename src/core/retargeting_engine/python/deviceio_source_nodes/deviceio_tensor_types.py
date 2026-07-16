@@ -19,7 +19,7 @@ from isaacteleop.schema import (
     ControllerSnapshotTrackedT,
     Generic3AxisPedalOutputTrackedT,
     JointStateOutputTrackedT,
-    FullBodyPosePicoTrackedT,
+    FullBodyPoseTrackedT,
     MessageChannelMessagesTrackedT,
 )
 
@@ -121,9 +121,9 @@ class JointStateOutputTrackedType(TensorType):
 
 
 class FullBodyPoseTrackedType(TensorType):
-    """FullBodyPosePicoTrackedT wrapper type from DeviceIO FullBodyTracker.
+    """FullBodyPoseTrackedT wrapper type from DeviceIO FullBodyTracker.
 
-    Vendor-agnostic: the full-body tracker produces the same FullBodyPosePicoTrackedT
+    Vendor-agnostic: the full-body tracker produces the same FullBodyPoseTrackedT
     payload regardless of the live vendor (native XR, pushed tensor, ...).
     """
 
@@ -138,9 +138,9 @@ class FullBodyPoseTrackedType(TensorType):
         return True
 
     def validate_value(self, value: Any) -> None:
-        if not isinstance(value, FullBodyPosePicoTrackedT):
+        if not isinstance(value, FullBodyPoseTrackedT):
             raise TypeError(
-                f"Expected FullBodyPosePicoTrackedT for '{self.name}', got {type(value).__name__}"
+                f"Expected FullBodyPoseTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
@@ -256,7 +256,7 @@ def DeviceIOFullBodyPoseTracked() -> TensorGroupType:
     """Tracked full body pose data from DeviceIO FullBodyTracker.
 
     Contains:
-        full_body_tracked: FullBodyPosePicoTrackedT wrapper (always set; .data is None when inactive)
+        full_body_tracked: FullBodyPoseTrackedT wrapper (always set; .data is None when inactive)
     """
     return TensorGroupType(
         "deviceio_full_body_pose",

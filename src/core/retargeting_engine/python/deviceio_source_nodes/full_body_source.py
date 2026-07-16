@@ -4,7 +4,7 @@
 """
 Full Body Source Node - DeviceIO to Retargeting Engine converter.
 
-Converts raw FullBodyPosePicoT flatbuffer data to standard FullBodyInput tensor format.
+Converts raw FullBodyPoseT flatbuffer data to standard FullBodyInput tensor format.
 """
 
 import numpy as np
@@ -17,20 +17,20 @@ from ..interface.retargeter_core_types import (
 from ..interface.tensor_group import TensorGroup
 from ..tensor_types import FullBodyInput, FullBodyInputIndex
 from ..interface.tensor_group_type import OptionalType
-from ..tensor_types.standard_types import NUM_BODY_JOINTS_PICO
+from ..tensor_types.standard_types import NUM_BODY_JOINTS
 from .deviceio_tensor_types import DeviceIOFullBodyPoseTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import FullBodyPosePicoT, FullBodyPosePicoTrackedT
+    from isaacteleop.schema import FullBodyPoseT, FullBodyPoseTrackedT
 
 
 class FullBodySource(IDeviceIOSource):
     """
-    Stateless converter: DeviceIO FullBodyPosePicoT -> FullBodyInput tensors.
+    Stateless converter: DeviceIO FullBodyPoseT -> FullBodyInput tensors.
 
     Inputs:
-        - "deviceio_full_body": Raw FullBodyPosePicoT flatbuffer
+        - "deviceio_full_body": Raw FullBodyPoseT flatbuffer
 
     Outputs (Optional — absent when body tracking is inactive):
         - "full_body": OptionalTensorGroup (check ``.is_none`` before access)
@@ -73,7 +73,7 @@ class FullBodySource(IDeviceIOSource):
 
         Returns:
             Dict with "deviceio_full_body" TensorGroup containing raw
-            FullBodyPosePicoT data.
+            FullBodyPoseT data.
         """
         body_pose = self._body_tracker.get_body_pose(deviceio_session)
         source_inputs = self.input_spec()
@@ -98,17 +98,17 @@ class FullBodySource(IDeviceIOSource):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
-        Convert DeviceIO FullBodyPosePicoT to standard FullBodyInput tensors.
+        Convert DeviceIO FullBodyPoseT to standard FullBodyInput tensors.
 
         Calls ``set_none()`` on the output when body tracking is inactive.
 
         Args:
-            inputs: Dict with "deviceio_full_body" containing FullBodyPosePicoTrackedT wrapper
+            inputs: Dict with "deviceio_full_body" containing FullBodyPoseTrackedT wrapper
             outputs: Dict with "full_body" OptionalTensorGroup
             context: Shared ComputeContext for the current step (carries GraphTime).
         """
-        tracked: "FullBodyPosePicoTrackedT" = inputs["deviceio_full_body"][0]
-        body_pose: "FullBodyPosePicoT | None" = tracked.data
+        tracked: "FullBodyPoseTrackedT" = inputs["deviceio_full_body"][0]
+        body_pose: "FullBodyPoseT | None" = tracked.data
 
         if body_pose is None:
             outputs["full_body"].set_none()
@@ -116,12 +116,12 @@ class FullBodySource(IDeviceIOSource):
 
         group = outputs["full_body"]
 
-        positions = np.zeros((NUM_BODY_JOINTS_PICO, 3), dtype=np.float32)
-        orientations = np.zeros((NUM_BODY_JOINTS_PICO, 4), dtype=np.float32)
-        valid = np.zeros(NUM_BODY_JOINTS_PICO, dtype=np.uint8)
+        positions = np.zeros((NUM_BODY_JOINTS, 3), dtype=np.float32)
+        orientations = np.zeros((NUM_BODY_JOINTS, 4), dtype=np.float32)
+        valid = np.zeros(NUM_BODY_JOINTS, dtype=np.uint8)
 
         if body_pose.joints is not None:
-            for i in range(NUM_BODY_JOINTS_PICO):
+            for i in range(NUM_BODY_JOINTS):
                 joint = body_pose.joints.joints(i)
                 positions[i] = [
                     joint.pose.position.x,

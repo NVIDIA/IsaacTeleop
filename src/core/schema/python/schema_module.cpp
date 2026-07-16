@@ -62,6 +62,6 @@ PYBIND11_MODULE(_schema, m)
     // Bind OAK types (StreamType enum, FrameMetadataOak table).
     core::bind_oak(m);
 
-    // Bind full body types (BodyJointPose, BodyJointsPico structs, FullBodyPosePicoT table).
+    // Bind full body types (BodyJointPose, BodyJoints structs, FullBodyPoseT table).
     core::bind_full_body(m);
 }

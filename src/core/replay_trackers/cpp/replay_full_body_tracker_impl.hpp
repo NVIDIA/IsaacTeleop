@@ -14,10 +14,10 @@
 namespace core
 {
 
-using FullBodyMcapViewers = McapTrackerViewers<FullBodyPosePicoRecord>;
+using FullBodyMcapViewers = McapTrackerViewers<FullBodyPoseRecord>;
 
 // Vendor-neutral replay impl: reads the recorded full-body channel regardless of
-// which live vendor produced it (all vendors record core.FullBodyPosePicoRecord).
+// which live vendor produced it (all vendors record core.FullBodyPoseRecord).
 class ReplayFullBodyTrackerImpl : public IFullBodyTrackerImpl
 {
 public:
@@ -29,10 +29,10 @@ public:
     ReplayFullBodyTrackerImpl& operator=(ReplayFullBodyTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const FullBodyPosePicoTrackedT& get_body_pose() const override;
+    const FullBodyPoseTrackedT& get_body_pose() const override;
 
 private:
-    FullBodyPosePicoTrackedT tracked_;
+    FullBodyPoseTrackedT tracked_;
     std::unique_ptr<FullBodyMcapViewers> mcap_viewers_;
 };
 

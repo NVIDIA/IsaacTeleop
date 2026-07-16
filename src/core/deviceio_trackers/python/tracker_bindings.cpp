@@ -215,7 +215,7 @@ PYBIND11_MODULE(_deviceio_trackers, m)
              "vendor via VendorConfig (default: native PICO XR_BD_body_tracking); replay is vendor-neutral.")
         .def(
             "get_body_pose",
-            [](const core::FullBodyTracker& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
+            [](const core::FullBodyTracker& self, const core::ITrackerSession& session) -> core::FullBodyPoseTrackedT
             { return self.get_body_pose(session); },
             py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
 
