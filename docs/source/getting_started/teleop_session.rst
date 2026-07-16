@@ -86,6 +86,7 @@ The main configuration object:
        verbose: bool = True                     # Print progress info
        oxr_handles: Optional[...] = None        # External OpenXR handles (optional)
        mcap_config: Optional[...] = None        # Required for REPLAY, optional for LIVE
+       tracker_vendors: Dict[str, TrackerVendor] = {}  # Per-source vendor selection, live only (optional)
        retargeting_execution: RetargetingExecutionConfig = ...
 
 When ``mode`` is ``SessionMode.REPLAY``, ``TeleopSession`` skips OpenXR
@@ -113,6 +114,30 @@ argument is a ``uint64`` handle value.
        app_name="MyApp",
        pipeline=pipeline,
        oxr_handles=handles,  # Skip internal OpenXR session creation
+   )
+
+Tracker vendor selection
+""""""""""""""""""""""""
+
+In live mode, ``tracker_vendors`` selects the backend ("vendor") for a source's
+vendored tracker -- for example which backend drives a ``FullBodySource``.
+Because DeviceIO source nodes own their trackers internally, the selection is
+keyed by DeviceIO **source name** rather than by tracker instance. Each value is
+a ``deviceio.TrackerVendor(id, params)``; sources left out use their tracker's
+default vendor, and unknown source names fail fast at session start. See
+:ref:`vendor-selection` for the underlying DeviceIO mechanism and the available
+vendor ids.
+
+.. code-block:: python
+
+   import isaacteleop.deviceio as deviceio
+
+   config = TeleopSessionConfig(
+       app_name="MyApp",
+       pipeline=pipeline,
+       tracker_vendors={
+           "full_body": deviceio.TrackerVendor("body.pico-xr"),
+       },
    )
 
 Retargeting execution
