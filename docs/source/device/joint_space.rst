@@ -12,8 +12,8 @@ small **config**.
 
 The **SO-101 leader arm** (`TheRobotStudio SO-ARM100 <https://github.com/TheRobotStudio/SO-ARM100>`_,
 6 Feetech STS3215 bus servos) is the reference instance; the **reBot DevArm leader**
-(`Seeed reBot DevArm <https://github.com/Seeed-Projects/reBot-DevArm>`_, 7 Damiao DM-series
-motors) is a second instance built from the same recipe.
+(`Seeed reBot DevArm <https://github.com/Seeed-Projects/reBot-DevArm>`_, 7 Damiao DM-series or
+RobStride RS-series motors) is a second instance built from the same recipe.
 
 At a glance
 -----------
@@ -105,16 +105,21 @@ The reBot DevArm leader plugin
 ------------------------------
 
 ``rebot_devarm_leader`` reads the seven joints of the Seeed reBot DevArm (``joint1 .. joint6,
-gripper`` -- 7 Damiao DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on joints 4-6
-and the gripper) and pushes them to a tensor collection, mirroring the SO-101 plugin's structure
-and CLI shape. The motors sit on a CAN bus behind a Damiao USB-to-CAN serial adapter (USB
-CDC-ACM); ``DamiaoBus`` speaks the adapter's fixed-size binary framing directly -- no SDK
+gripper``) and pushes them to a tensor collection, mirroring the SO-101 plugin's structure and
+CLI shape. The arm ships in **two motor builds**, and the plugin picks the backend from the shape
+of the device argument: a serial path containing ``/`` (e.g. ``/dev/ttyACM0``) selects the
+**Damiao** build, a bare SocketCAN interface name (e.g. ``can0``) selects the **RobStride** build
+(:ref:`below <rebot-devarm-robstride-build>`). With no device argument it falls back to a
+**synthetic** trajectory, exactly like ``so101_leader``.
+
+On the **Damiao build** (7 DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on
+joints 4-6 and the gripper) the motors sit on a CAN bus behind a Damiao USB-to-CAN serial adapter
+(USB CDC-ACM); ``DamiaoBus`` speaks the adapter's fixed-size binary framing directly -- no SDK
 dependency. As a *leader*, the plugin sends the **disable** control frame so the arm can be
 back-driven by hand (Damiao motors keep answering feedback requests while disabled), then
 requests one feedback frame per motor per cycle (command ``0xCC`` addressed via CAN id ``0x7FF``)
 and decodes the fixed-point position/velocity feedback, which lands directly in radians -- no
-tick conversion, only an optional per-joint sign and zero offset from a calibration file. With no
-device path it falls back to a **synthetic** trajectory, exactly like ``so101_leader``.
+tick conversion, only an optional per-joint sign and zero offset from a calibration file.
 
 .. code-block:: bash
 
@@ -137,6 +142,38 @@ hold it instead of executing garbage.
 See the :code-file:`plugin README <src/plugins/rebot_devarm_leader/README.md>` for the
 calibration file format (name, command/feedback CAN ids, motor model, sign, zero offset) and
 hardware notes.
+
+.. _rebot-devarm-robstride-build:
+
+The RobStride build
+~~~~~~~~~~~~~~~~~~~
+
+The **RobStride build** (7 RS-series motors) speaks classic CAN at **1 Mbps** through any
+SocketCAN adapter (PCAN, candleLight, ...); this backend is Linux-only. ``RobStrideBus``
+implements the leader subset of the RobStride private 29-bit extended-id CAN protocol directly --
+again no SDK dependency: it sends the **stop** frame (comm type ``0x04``) so the arm can be
+back-driven by hand, then alternates single-parameter reads (comm type ``0x11``) of ``mechPos``
+(``0x7019``) and ``mechVel`` (``0x701A``) per motor per cycle. Replies carry exact little-endian
+IEEE ``f32`` radians / rad/s, so the decode is **model-independent** -- no fixed-point limit
+tables. Each channel refreshes at 45 Hz with the plugin's 90 Hz loop, under 20% load of the
+1 Mbps bus for 7 motors.
+
+.. code-block:: bash
+
+   # Bring up the SocketCAN interface (once per boot):
+   sudo ip link set can0 up type can bitrate 1000000
+
+   # Real reBot DevArm (RobStride build) on a SocketCAN interface:
+   ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin can0
+
+   # Probe wiring, motor ids, and the decode path -- no OpenXR runtime needed:
+   ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin probe can0
+
+``probe`` uses the same exit codes as the Damiao build (``0`` all motors replied, ``1`` some
+missing, ``2`` no device, ``3`` gripper out of travel). The calibration file format is shared;
+on the RobStride backend only ``motor_id`` is used (replies are matched by device id, the
+``feedback_id`` column is ignored), and ``rs-*`` model names are accepted and ignored since the
+decode is model-independent. Factory RobStride device ids are ``1..7``; the host id is ``0xFD``.
 
 Record and replay
 -----------------
