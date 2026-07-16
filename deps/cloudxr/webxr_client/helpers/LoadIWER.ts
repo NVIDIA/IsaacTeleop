@@ -30,6 +30,10 @@ export interface IWERLoadResult {
 
 async function installBundledIWER(): Promise<boolean> {
   try {
+    if (window.xrDevice) {
+      return true;
+    }
+
     const IWERModule = await import('iwer');
     const IWERGlobal = (IWERModule as any).default ?? IWERModule;
     const XRDeviceCtor = IWERGlobal.XRDevice;
@@ -50,6 +54,10 @@ async function installBundledIWER(): Promise<boolean> {
 }
 
 export async function loadIWERIfNeeded(forceIWER = false): Promise<IWERLoadResult> {
+  if (forceIWER && window.xrDevice) {
+    return { supportsImmersive: true, iwerLoaded: true };
+  }
+
   let supportsImmersive = false;
   let iwerLoaded = false;
 

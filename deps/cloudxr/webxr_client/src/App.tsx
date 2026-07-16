@@ -153,7 +153,9 @@ function App() {
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
   // IWER loading state
-  const [iwerLoaded, setIwerLoaded] = useState(false);
+  const [iwerLoaded, setIwerLoaded] = useState(
+    () => sessionStorage.getItem('iwerPreloaded') === 'true'
+  );
   const oobHeadlessAutoConnect = useMemo(
     () => isOobHeadlessAutoConnect(new URLSearchParams(window.location.search)),
     []
@@ -205,20 +207,25 @@ function App() {
   // Note: React Three Fiber's emulation is disabled (emulate: false) to avoid conflicts
   useEffect(() => {
     const loadIWER = async () => {
-        const { supportsImmersive, iwerLoaded: wasIwerLoaded } =
-          await loadIWERIfNeeded(oobHeadlessAutoConnect);
-        if (!supportsImmersive) {
-          setErrorMessage('Immersive mode not supported');
-          setIwerLoaded(false);
-          setCapabilitiesValid(false);
-          capabilitiesCheckedRef.current = false; // Reset check flag on failure
-          return;
-        }
-      // IWER loaded successfully, now we can proceed with capability checks
+      if (oobHeadlessAutoConnect && sessionStorage.getItem('iwerPreloaded') === 'true') {
         setIwerLoaded(true);
+        return;
+      }
+
+      const { supportsImmersive, iwerLoaded: wasIwerLoaded } =
+        await loadIWERIfNeeded(oobHeadlessAutoConnect);
+      if (!supportsImmersive) {
+        setErrorMessage('Immersive mode not supported');
+        setIwerLoaded(false);
+        setCapabilitiesValid(false);
+        capabilitiesCheckedRef.current = false; // Reset check flag on failure
+        return;
+      }
+      // IWER loaded successfully, now we can proceed with capability checks
+      setIwerLoaded(true);
       // Store whether IWER was loaded for status message display later
-        if (wasIwerLoaded) {
-          sessionStorage.setItem('iwerWasLoaded', 'true');
+      if (wasIwerLoaded) {
+        sessionStorage.setItem('iwerWasLoaded', 'true');
       }
     };
 
