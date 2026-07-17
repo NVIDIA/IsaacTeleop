@@ -165,11 +165,21 @@ def main() -> None:
         oob_progress("usb-local", "preflight OK")
     elif args.setup_oob:
         # WiFi OOB: resolve LAN host + warn on port/ufw issues.
-        oob_progress("setup-oob", "preflight: adb, single headset, awake ...")
-        require_adb_on_path()
+        # TELEOP_OOB_HUB_ONLY skips all adb steps — hub starts, but the
+        # operator is responsible for opening the teleop page on the headset.
+        _oob_hub_only = bool(os.getenv("TELEOP_OOB_HUB_ONLY"))
+        if _oob_hub_only:
+            oob_progress(
+                "setup-oob",
+                "hub-only mode (TELEOP_OOB_HUB_ONLY) — skipping adb preflight",
+            )
+        else:
+            oob_progress("setup-oob", "preflight: adb, single headset, awake ...")
+            require_adb_on_path()
         _oob_lan_host = resolve_lan_host_for_oob()
-        assert_exactly_one_adb_device()
-        assert_headset_awake()
+        if not _oob_hub_only:
+            assert_exactly_one_adb_device()
+            assert_headset_awake()
         try:
             print_host_preflight_warnings(usb_local=False)
         except RuntimeError as exc:

@@ -38,6 +38,14 @@ This will:
 4. Accept the self-signed certificate and click CONNECT automatically
    via Chrome DevTools Protocol (CDP)
 
+To start the hub **without** any ``adb`` interaction — useful in containers,
+CI, or wireless-only environments — set ``TELEOP_OOB_HUB_ONLY=1`` and open
+the teleop URL on the headset manually:
+
+.. code-block:: bash
+
+   TELEOP_OOB_HUB_ONLY=1 python -m isaacteleop.cloudxr --accept-eula --setup-oob
+
 You should see output confirming the hub is running:
 
 .. code-block:: text
@@ -367,6 +375,18 @@ Environment variables
        (no fragment — the web client picks its own landing route). Set
        to e.g. ``/real/gear/dexmate`` to force a specific route. A
        leading ``#`` is stripped automatically.
+   * - ``TELEOP_OOB_HUB_ONLY``
+     - Set to any non-empty value (e.g. ``1``) to start the OOB hub
+       without any ``adb`` interaction. The hub starts normally and
+       accepts WebSocket connections, but the launcher skips
+       ``adb devices``, ``adb shell`` wakefulness checks, CDP port
+       forwarding, and the automated browser open + CONNECT click.
+       Useful in environments where ``adb`` is unavailable or
+       unreliable (CI, containers, wireless-only setups). The operator
+       must open the teleop page on the headset manually with the
+       correct ``oobEnable=1&serverIP=<HOST>&port=<PORT>`` parameters.
+       Only meaningful together with ``--setup-oob``; has no effect
+       without it.
    * - ``ANDROID_SERIAL``
      - Pin a specific adb device when more than one is connected. The
        launcher refuses to start with multiple devices unless this is
