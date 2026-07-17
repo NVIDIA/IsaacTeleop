@@ -18,16 +18,13 @@ namespace core
 // The tracker carries no vendor or backend state: a live session selects the
 // vendor (native XR hardware, an external pushed-tensor plugin, ...) via
 // VendorConfig, and replay reads the recorded channel regardless of vendor.
-// When no vendor is specified for this tracker, the live factory uses
-// DEFAULT_VENDOR_ID.
+// When no vendor is specified for this tracker, the live factory uses its
+// default vendor.
 class FullBodyTracker : public ITracker
 {
 public:
     //! Number of joints in XR_BD_body_tracking (0-23).
     static constexpr uint32_t JOINT_COUNT = 24;
-
-    //! Vendor id used when a live session does not select one for this tracker.
-    static constexpr std::string_view DEFAULT_VENDOR_ID = "body.pico-xr";
 
     std::string_view get_name() const override
     {

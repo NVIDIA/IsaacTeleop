@@ -31,7 +31,7 @@
 #include <oxr_utils/oxr_time.hpp>
 
 #include <cassert>
-#include <map>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -79,6 +79,12 @@ std::unique_ptr<ITrackerImpl> try_create_message_channel_impl(LiveDeviceIOFactor
 {
     auto* typed = dynamic_cast<const MessageChannelTracker*>(&tracker);
     return typed ? factory.create_message_channel_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_full_body_pico_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FullBodyTracker*>(&tracker);
+    return typed ? factory.create_full_body_tracker_pico_impl(typed) : nullptr;
 }
 
 std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
@@ -130,17 +136,23 @@ struct TrackerDispatchEntry
 {
     CollectExtensionsFn collect_extensions;
     TryCreateFn try_create;
+    // Vendor routing (last so single-vendor rows can omit them): a default-initialized row is a
+    // type's sole default vendor; multi-vendor types set vendor_id per row and clear is_default
+    // on the non-default rows.
+    std::string_view vendor_id = {};
+    bool is_default = true;
 };
 
-// Shared tracker dispatch table for both extension collection and impl creation.
-// Vendored trackers (FullBodyTracker) are intentionally absent here: they are
-// routed through the vendor registry (k_full_body_vendors) ahead of this table
-// in both get_required_extensions() and create_tracker_impl().
+// One row per (tracker type, vendor). A tracker type may have several vendor rows; is_default marks
+// the row chosen when no vendor is selected. Extension discovery and impl creation both scan this
+// table: keep rows whose vendor id matches the selection (or is_default when unselected), then the
+// row's type-checked thunk builds the concrete impl.
 inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<HeadTracker, LiveHeadTrackerImpl>, &try_create_head_impl },
     { &try_add_extensions<HandTracker, LiveHandTrackerImpl>, &try_create_hand_impl },
     { &try_add_extensions<ControllerTracker, LiveControllerTrackerImpl>, &try_create_controller_impl },
     { &try_add_extensions<MessageChannelTracker, LiveMessageChannelTrackerImpl>, &try_create_message_channel_impl },
+    { &try_add_extensions<FullBodyTracker, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl, "body.pico-xr" },
     { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
     { &try_add_extensions<TensorPushTracker, LiveTensorPushTrackerImpl>, &try_create_tensor_push_impl },
     { &try_add_extensions<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>,
@@ -151,47 +163,9 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<OgloTactileTracker, LiveOgloTactileTrackerImpl>, &try_create_oglo_impl },
 };
 
-// ---------------------------------------------------------------------------
-// Full-body vendor registry
-//
-// A vendor-agnostic FullBodyTracker is routed to a concrete live impl by a
-// string vendor id (e.g. "body.pico-xr"). New pre-built plugin vendors are added
-// by registering another entry here; the tracker marker never changes. The
-// params bag carries vendor-specific settings (unused for the native PICO impl).
-// ---------------------------------------------------------------------------
-
-using VendorParams = std::map<std::string, std::string>;
-
-struct FullBodyVendorEntry
-{
-    std::vector<std::string> (*required_extensions)();
-    std::unique_ptr<ITrackerImpl> (*build)(LiveDeviceIOFactory&, const FullBodyTracker&, const VendorParams&);
-};
-
-std::unique_ptr<ITrackerImpl> build_full_body_pico_xr(LiveDeviceIOFactory& factory,
-                                                      const FullBodyTracker& tracker,
-                                                      const VendorParams& /*params*/)
-{
-    return factory.create_full_body_tracker_pico_impl(&tracker);
-}
-
-const std::unordered_map<std::string_view, FullBodyVendorEntry> k_full_body_vendors = {
-    { "body.pico-xr", { &LiveFullBodyTrackerPicoImpl::required_extensions, &build_full_body_pico_xr } },
-};
-
-const FullBodyVendorEntry& resolve_full_body_vendor(std::string_view id)
-{
-    auto it = k_full_body_vendors.find(id);
-    if (it == k_full_body_vendors.end())
-    {
-        throw std::invalid_argument("LiveDeviceIOFactory: unknown full-body vendor id '" + std::string(id) + "'");
-    }
-    return it->second;
-}
-
 // Find a tracker's vendor selection in the config, or nullptr when unlisted.
-const TrackerVendor* find_full_body_vendor(const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors,
-                                           const ITracker* tracker)
+const TrackerVendor* find_tracker_vendor(const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors,
+                                         const ITracker* tracker)
 {
     for (const auto& [ptr, vendor] : tracker_vendors)
     {
@@ -201,10 +175,34 @@ const TrackerVendor* find_full_body_vendor(const std::vector<std::pair<const ITr
     return nullptr;
 }
 
-// Resolve the registry entry for a full-body vendor selection (nullptr -> default vendor id).
-const FullBodyVendorEntry& resolve_full_body_entry(const TrackerVendor* selected)
+// True when a dispatch row is the one selected for a tracker: the chosen vendor id, or the
+// type's default row when no vendor is selected.
+bool row_selected(const TrackerDispatchEntry& row, const TrackerVendor* selected)
 {
-    return resolve_full_body_vendor(selected ? std::string_view(selected->id) : FullBodyTracker::DEFAULT_VENDOR_ID);
+    return selected ? (row.vendor_id == selected->id) : row.is_default;
+}
+
+// No dispatch row produced an impl for a tracker (and its selected vendor); report why.
+[[noreturn]] void throw_unresolved_tracker(const char* context, const ITracker& tracker, const TrackerVendor* selected)
+{
+    if (selected)
+    {
+        throw std::invalid_argument(std::string(context) + ": no live vendor '" + selected->id + "' for tracker '" +
+                                    std::string(tracker.get_name()) + "'");
+    }
+    throw std::invalid_argument(std::string(context) + ": unsupported tracker type '" +
+                                std::string(tracker.get_name()) + "'");
+}
+
+// True when a dispatch row offers this vendor id, i.e. it names a live vendor a tracker can select.
+bool dispatch_has_vendor(std::string_view vendor_id)
+{
+    for (const auto& row : k_tracker_dispatch)
+    {
+        if (row.vendor_id == vendor_id)
+            return true;
+    }
+    return false;
 }
 
 // Validate per-tracker vendor selections independently of the tracker list:
@@ -226,7 +224,10 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
                                         "' provided for a tracker that does not support vendors");
         }
         // Reject unknown vendor ids up front rather than when the impl is built.
-        resolve_full_body_vendor(vendor.id);
+        if (!dispatch_has_vendor(vendor.id))
+        {
+            throw std::invalid_argument("LiveDeviceIOFactory: unknown vendor id '" + vendor.id + "'");
+        }
 
         if (!seen.insert(tracker).second)
         {
@@ -277,18 +278,13 @@ std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(
         if (!tracker)
             throw std::invalid_argument("LiveDeviceIOFactory: null tracker in trackers list");
 
-        // Vendored trackers resolve their extensions through the vendor registry.
-        if (dynamic_cast<const FullBodyTracker*>(tracker.get()))
-        {
-            const TrackerVendor* selected = find_full_body_vendor(tracker_vendors, tracker.get());
-            for (const auto& ext : resolve_full_body_entry(selected).required_extensions())
-                all.insert(ext);
-            continue;
-        }
+        const TrackerVendor* selected = find_tracker_vendor(tracker_vendors, tracker.get());
 
         bool matched = false;
         for (const auto& dispatch : k_tracker_dispatch)
         {
+            if (!row_selected(dispatch, selected))
+                continue;
             if (dispatch.collect_extensions(*tracker, all))
             {
                 matched = true;
@@ -297,10 +293,7 @@ std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(
         }
 
         if (!matched)
-        {
-            throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: unsupported tracker type '" +
-                                        std::string(tracker->get_name()) + "'");
-        }
+            throw_unresolved_tracker("LiveDeviceIOFactory::get_required_extensions", *tracker, selected);
     }
 
     return { all.begin(), all.end() };
@@ -314,12 +307,13 @@ LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
 {
     for (const auto& [tracker, name] : tracker_names)
     {
-        auto [it, inserted] = name_map_.emplace(tracker, name);
-        if (!inserted)
+        TrackerData& data = tracker_data_[tracker];
+        if (data.name.has_value())
         {
             throw std::invalid_argument("LiveDeviceIOFactory: duplicate tracker pointer for channel name '" + name +
-                                        "' (already mapped as '" + it->second + "')");
+                                        "' (already mapped as '" + *data.name + "')");
         }
+        data.name = name;
     }
 
     // Reject unsupported tracker types, unknown vendor ids, and duplicate entries
@@ -329,43 +323,44 @@ LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
     validate_vendor_selections(tracker_vendors);
     for (const auto& [tracker, vendor] : tracker_vendors)
     {
-        vendor_map_.emplace(tracker, vendor);
+        tracker_data_[tracker].vendor = vendor;
     }
 }
 
 std::unique_ptr<ITrackerImpl> LiveDeviceIOFactory::create_tracker_impl(const ITracker& tracker)
 {
-    // Vendored trackers resolve their concrete impl through the vendor registry.
-    if (const auto* full_body = dynamic_cast<const FullBodyTracker*>(&tracker))
-    {
-        auto it = vendor_map_.find(&tracker);
-        const TrackerVendor* selected = (it != vendor_map_.end()) ? &it->second : nullptr;
-        static const VendorParams k_no_params;
-        const VendorParams& params = selected ? selected->params : k_no_params;
-        return resolve_full_body_entry(selected).build(*this, *full_body, params);
-    }
+    const TrackerVendor* selected = find_vendor(&tracker);
 
     for (const auto& dispatch : k_tracker_dispatch)
     {
+        if (!row_selected(dispatch, selected))
+            continue;
         if (std::unique_ptr<ITrackerImpl> impl = dispatch.try_create(*this, tracker))
         {
             return impl;
         }
     }
-    throw std::invalid_argument("LiveDeviceIOFactory::create_tracker_impl: unsupported tracker type '" +
-                                std::string(tracker.get_name()) + "'");
+    throw_unresolved_tracker("LiveDeviceIOFactory::create_tracker_impl", tracker, selected);
 }
 
 bool LiveDeviceIOFactory::should_record(const ITracker* tracker) const
 {
-    return writer_ && name_map_.count(tracker);
+    auto it = tracker_data_.find(tracker);
+    return writer_ && it != tracker_data_.end() && it->second.name.has_value();
 }
 
 std::string_view LiveDeviceIOFactory::get_name(const ITracker* tracker) const
 {
-    auto it = name_map_.find(tracker);
-    assert(it != name_map_.end() && "get_name called for tracker not in name_map_ (call should_record first)");
-    return it->second;
+    auto it = tracker_data_.find(tracker);
+    assert(it != tracker_data_.end() && it->second.name.has_value() &&
+           "get_name called for tracker without a channel name (call should_record first)");
+    return *it->second.name;
+}
+
+const TrackerVendor* LiveDeviceIOFactory::find_vendor(const ITracker* tracker) const
+{
+    auto it = tracker_data_.find(tracker);
+    return (it != tracker_data_.end() && it->second.vendor) ? &*it->second.vendor : nullptr;
 }
 
 std::unique_ptr<IHeadTrackerImpl> LiveDeviceIOFactory::create_head_tracker_impl(const HeadTracker* tracker)

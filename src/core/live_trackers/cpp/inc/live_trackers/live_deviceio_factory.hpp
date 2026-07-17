@@ -6,6 +6,7 @@
 #include <deviceio_base/tracker_vendor.hpp>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -61,9 +62,8 @@ public:
     /**
      * @brief Aggregate OpenXR extensions required by the given trackers for a live session.
      *
-     * Vendored trackers (e.g. FullBodyTracker) resolve their required extensions through the
-     * vendor registry using the id selected in @p tracker_vendors (or the tracker's default
-     * vendor id when unlisted).
+     * Each tracker resolves its required extensions through the dispatch table using the vendor
+     * id selected in @p tracker_vendors (or its default vendor when unlisted).
      */
     static std::vector<std::string> get_required_extensions(
         const std::vector<std::shared_ptr<ITracker>>& trackers,
@@ -93,14 +93,21 @@ public:
         const FrameMetadataTrackerOak* tracker);
 
 private:
+    // Per-tracker data resolved from the session config: MCAP channel base name (recording) and
+    // vendor selection. A tracker appears only when it has one or the other.
+    struct TrackerData
+    {
+        std::optional<std::string> name; // MCAP channel base name; absent -> not recorded.
+        std::optional<TrackerVendor> vendor; // vendor selection; absent -> default vendor id.
+    };
+
     bool should_record(const ITracker* tracker) const;
     std::string_view get_name(const ITracker* tracker) const;
+    const TrackerVendor* find_vendor(const ITracker* tracker) const;
 
     const OpenXRSessionHandles& handles_;
     mcap::McapWriter* writer_;
-    std::unordered_map<const ITracker*, std::string> name_map_;
-    // Per-tracker vendor selection for vendored trackers; absent -> tracker's default vendor id.
-    std::unordered_map<const ITracker*, TrackerVendor> vendor_map_;
+    std::unordered_map<const ITracker*, TrackerData> tracker_data_;
 };
 
 } // namespace core
