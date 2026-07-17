@@ -208,8 +208,8 @@ class TeleopSession:
         self._active_retargeting_execution_mode: Optional[RetargetingExecutionMode] = (
             None
         )
-        self._is_active: bool = False
-        self._setup_complete: bool = False
+        # True from the start of __enter__ until __exit__ or rollback finishes.
+        self._in_context: bool = False
         # Discover sources and external leaves from pipeline
         self._discover_sources()
 
@@ -919,12 +919,15 @@ class TeleopSession:
 
         Returns:
             self for context manager protocol
+
+        Raises:
+            RuntimeError: If the session is already active.
         """
-        if self._is_active:
+        # Detect nested context-manager use; this does not make the session thread-safe.
+        if self._in_context:
             raise RuntimeError("TeleopSession is already active")
 
-        self._is_active = True
-        self._setup_complete = False
+        self._in_context = True
         stack = ExitStack()
         try:
             self._enter_resources(stack)
@@ -937,10 +940,9 @@ class TeleopSession:
                 logger.exception("Failed to roll back TeleopSession setup")
             finally:
                 self._oxr_session = None
-                self._is_active = False
+                self._in_context = False
             raise
 
-        self._setup_complete = True
         return self
 
     def _enter_resources(self, stack: ExitStack) -> None:
@@ -1054,7 +1056,7 @@ class TeleopSession:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context - cleanup resources."""
-        if not self._setup_complete:
+        if not self._in_context:
             return False
 
         runner_error = None
@@ -1079,14 +1081,13 @@ class TeleopSession:
         # exceptions from the user body, even if a child context manager would.
         try:
             self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
-            self._exit_stack = ExitStack()
         finally:
             # The ExitStack above closes the OpenXR session; drop our reference so the
             # public `oxr_session` property honors its documented None contract post-exit
             # rather than surfacing a torn-down session -- even if a managed context's
             # cleanup raised. (deviceio_session has no such property/contract.)
             self._oxr_session = None
-            self._is_active = False
+            self._in_context = False
 
         if runner_error is not None:
             raise runner_error
