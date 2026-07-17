@@ -128,27 +128,27 @@ class TeleopRos2Node(Node):
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
     def _publish_controller_payload(self, result: SessionResult) -> None:
-        controller_msg = build_controller_msg(
+        maybe_controller_msg = build_controller_msg(
             result["controller_left"],
             result["controller_right"],
         )
-        if controller_msg is not None:
-            self._pub_controller.publish(controller_msg)
+        if maybe_controller_msg is not None:
+            self._pub_controller.publish(maybe_controller_msg)
 
     def _publish_finger_joints(self, result: SessionResult, now) -> None:
-        finger_joints_msg = build_finger_joints_msg(
+        maybe_finger_joints_msg = build_finger_joints_msg(
             result["finger_joints_left"],
             result["finger_joints_right"],
             now,
             self._params.world_frame,
         )
-        if finger_joints_msg is not None:
-            self._pub_finger_joints.publish(finger_joints_msg)
+        if maybe_finger_joints_msg is not None:
+            self._pub_finger_joints.publish(maybe_finger_joints_msg)
 
     def _publish_full_body_payload(self, result: SessionResult) -> None:
-        body_msg = build_full_body_msg(result["full_body"])
-        if body_msg is not None:
-            self._pub_full_body.publish(body_msg)
+        maybe_body_msg = build_full_body_msg(result["full_body"])
+        if maybe_body_msg is not None:
+            self._pub_full_body.publish(maybe_body_msg)
 
     def _publish_hand_poses(self, result: SessionResult, now) -> None:
         hand_msg = build_hand_msg(
@@ -177,7 +177,7 @@ class TeleopRos2Node(Node):
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
     def _publish_head(self, result: SessionResult, now) -> None:
-        head_output = build_head_output(
+        maybe_head_output = build_head_output(
             result["head"],
             now,
             self._params.world_frame,
@@ -185,23 +185,23 @@ class TeleopRos2Node(Node):
             self._params.transform_rotation,
             self._params.transform_translation,
         )
-        if head_output is None:
+        if maybe_head_output is None:
             return
 
-        head_msg, head_tf = head_output
+        head_msg, head_tf = maybe_head_output
         self._pub_head.publish(head_msg)
         self._tf_broadcaster.sendTransform(head_tf)
 
     def _publish_root_command(self, result: SessionResult, now) -> None:
-        root_output = build_root_command_output(
+        maybe_root_output = build_root_command_output(
             result["root_command"],
             now,
             self._params.world_frame,
         )
-        if root_output is None:
+        if maybe_root_output is None:
             return
 
-        twist_msg, pose_msg = root_output
+        twist_msg, pose_msg = maybe_root_output
         self._pub_root_twist.publish(twist_msg)
         self._pub_root_pose.publish(pose_msg)
 
