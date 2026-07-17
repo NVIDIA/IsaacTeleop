@@ -757,7 +757,7 @@ async def run(
                         f"verified: adb reverse TURN {_usb_turn_port_resolved}",
                     )
 
-                if setup_oob:
+                if setup_oob and not os.getenv("TELEOP_OOB_HUB_ONLY"):
                     from .oob_teleop_adb import (  # noqa: PLC0415
                         build_teleop_url,
                         monitor_headset_wifi,
