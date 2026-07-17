@@ -108,12 +108,27 @@ The reBot DevArm leader plugin
 gripper``) and pushes them to a tensor collection, mirroring the SO-101 plugin's structure and
 CLI shape. The arm ships in **two motor builds**, and the plugin picks the backend from the shape
 of the device argument: a serial path containing ``/`` (e.g. ``/dev/ttyACM0``) selects the
-**Damiao** build, a bare SocketCAN interface name (e.g. ``can0``) selects the **RobStride** build
-(:ref:`below <rebot-devarm-robstride-build>`). With no device argument it falls back to a
-**synthetic** trajectory, exactly like ``so101_leader``.
+**Damiao** build (:ref:`below <rebot-devarm-damiao-build>`), a bare SocketCAN interface name
+(e.g. ``can0``) selects the **RobStride** build (:ref:`below <rebot-devarm-robstride-build>`).
+With no device argument it falls back to a **synthetic** trajectory, exactly like
+``so101_leader``:
 
-On the **Damiao build** (7 DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on
-joints 4-6 and the gripper) the motors sit on a CAN bus behind a Damiao USB-to-CAN serial adapter
+.. code-block:: bash
+
+   # Synthetic backend (no hardware), default collection id "rebot_devarm_leader":
+   ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
+
+Both builds share the calibration file format; see the
+:code-file:`plugin README <src/plugins/rebot_devarm_leader/README.md>` for the format
+(name, command/feedback CAN ids, motor model, sign, zero offset) and hardware notes.
+
+.. _rebot-devarm-damiao-build:
+
+The Damiao build
+~~~~~~~~~~~~~~~~
+
+The **Damiao build** (7 DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on
+joints 4-6 and the gripper) puts the motors on a CAN bus behind a Damiao USB-to-CAN serial adapter
 (USB CDC-ACM); ``DamiaoBus`` speaks the adapter's fixed-size binary framing directly -- no SDK
 dependency. As a *leader*, the plugin sends the **disable** control frame so the arm can be
 back-driven by hand (Damiao motors keep answering feedback requests while disabled), then
@@ -122,9 +137,6 @@ and decodes the fixed-point position/velocity feedback, which lands directly in 
 tick conversion, only an optional per-joint sign and zero offset from a calibration file.
 
 .. code-block:: bash
-
-   # Synthetic backend (no hardware), default collection id "rebot_devarm_leader":
-   ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
 
    # Real reBot DevArm on the Damiao USB-to-CAN adapter (Linux), optional calibration file:
    ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin /dev/ttyACM0 rebot_devarm_leader rebot_devarm.calib
@@ -138,10 +150,6 @@ so the gripper (whose geared travel exceeds one turn) can wake up reading ``phys
 and must be re-homed (closed against the mechanical stop and re-zeroed) before teleoperating.
 While wrapped, the running plugin streams the gripper joint with ``valid = false`` so consumers
 hold it instead of executing garbage.
-
-See the :code-file:`plugin README <src/plugins/rebot_devarm_leader/README.md>` for the
-calibration file format (name, command/feedback CAN ids, motor model, sign, zero offset) and
-hardware notes.
 
 .. _rebot-devarm-robstride-build:
 

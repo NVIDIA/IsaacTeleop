@@ -524,21 +524,28 @@ converting ticks to radians with per-joint calibration. With no device path it f
 <span class="pre">gripper</span></code>) and pushes them to a tensor collection, mirroring the SO-101 plugin’s structure and
 CLI shape. The arm ships in <strong>two motor builds</strong>, and the plugin picks the backend from the shape
 of the device argument: a serial path containing <code class="docutils literal notranslate"><span class="pre">/</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">/dev/ttyACM0</span></code>) selects the
-<strong>Damiao</strong> build, a bare SocketCAN interface name (e.g. <code class="docutils literal notranslate"><span class="pre">can0</span></code>) selects the <strong>RobStride</strong> build
-(<a class="reference internal" href="#rebot-devarm-robstride-build"><span class="std std-ref">below</span></a>). With no device argument it falls back to a
-<strong>synthetic</strong> trajectory, exactly like <code class="docutils literal notranslate"><span class="pre">so101_leader</span></code>.</p>
-<p>On the <strong>Damiao build</strong> (7 DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on
-joints 4-6 and the gripper) the motors sit on a CAN bus behind a Damiao USB-to-CAN serial adapter
+<strong>Damiao</strong> build (<a class="reference internal" href="#rebot-devarm-damiao-build"><span class="std std-ref">below</span></a>), a bare SocketCAN interface name
+(e.g. <code class="docutils literal notranslate"><span class="pre">can0</span></code>) selects the <strong>RobStride</strong> build (<a class="reference internal" href="#rebot-devarm-robstride-build"><span class="std std-ref">below</span></a>).
+With no device argument it falls back to a <strong>synthetic</strong> trajectory, exactly like
+<code class="docutils literal notranslate"><span class="pre">so101_leader</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id &quot;rebot_devarm_leader&quot;:</span>
+./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
+</pre></div>
+</div>
+<p>Both builds share the calibration file format; see the
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/rebot_devarm_leader/README.md" rel="noopener noreferrer" target="_blank">plugin README</a> for the format
+(name, command/feedback CAN ids, motor model, sign, zero offset) and hardware notes.</p>
+<section id="the-damiao-build">
+<span id="rebot-devarm-damiao-build"></span><h3>The Damiao build<a class="headerlink" href="#the-damiao-build" title="Link to this heading">#</a></h3>
+<p>The <strong>Damiao build</strong> (7 DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on
+joints 4-6 and the gripper) puts the motors on a CAN bus behind a Damiao USB-to-CAN serial adapter
 (USB CDC-ACM); <code class="docutils literal notranslate"><span class="pre">DamiaoBus</span></code> speaks the adapter’s fixed-size binary framing directly – no SDK
 dependency. As a <em>leader</em>, the plugin sends the <strong>disable</strong> control frame so the arm can be
 back-driven by hand (Damiao motors keep answering feedback requests while disabled), then
 requests one feedback frame per motor per cycle (command <code class="docutils literal notranslate"><span class="pre">0xCC</span></code> addressed via CAN id <code class="docutils literal notranslate"><span class="pre">0x7FF</span></code>)
 and decodes the fixed-point position/velocity feedback, which lands directly in radians – no
 tick conversion, only an optional per-joint sign and zero offset from a calibration file.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id &quot;rebot_devarm_leader&quot;:</span>
-./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
-
-<span class="c1"># Real reBot DevArm on the Damiao USB-to-CAN adapter (Linux), optional calibration file:</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Real reBot DevArm on the Damiao USB-to-CAN adapter (Linux), optional calibration file:</span>
 ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin<span class="w"> </span>/dev/ttyACM0<span class="w"> </span>rebot_devarm_leader<span class="w"> </span>rebot_devarm.calib
 
 <span class="c1"># Probe wiring, motor ids, and the decode path -- no OpenXR runtime needed:</span>
@@ -551,9 +558,7 @@ so the gripper (whose geared travel exceeds one turn) can wake up reading <code 
 and must be re-homed (closed against the mechanical stop and re-zeroed) before teleoperating.
 While wrapped, the running plugin streams the gripper joint with <code class="docutils literal notranslate"><span class="pre">valid</span> <span class="pre">=</span> <span class="pre">false</span></code> so consumers
 hold it instead of executing garbage.</p>
-<p>See the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/rebot_devarm_leader/README.md" rel="noopener noreferrer" target="_blank">plugin README</a> for the
-calibration file format (name, command/feedback CAN ids, motor model, sign, zero offset) and
-hardware notes.</p>
+</section>
 <section id="the-robstride-build">
 <span id="rebot-devarm-robstride-build"></span><h3>The RobStride build<a class="headerlink" href="#the-robstride-build" title="Link to this heading">#</a></h3>
 <p>The <strong>RobStride build</strong> (7 RS-series motors) speaks classic CAN at <strong>1 Mbps</strong> through any
@@ -669,6 +674,7 @@ the end-to-end example, and validation.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-schema">Data schema</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-so-101-leader-plugin">The SO-101 leader plugin</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rebot-devarm-leader-plugin">The reBot DevArm leader plugin</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-damiao-build">The Damiao build</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-robstride-build">The RobStride build</a></li>
 </ul>
 </li>
@@ -756,7 +762,7 @@ the end-to-end example, and validation.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 17, 2026.
       <br/>
     
   </p>
