@@ -28,7 +28,8 @@ fi
 
 MODE=full
 VENV_DIR="$CAMERA_VIZ_DIR/.venv"
-PYTHON_VERSION=3.12
+PYTHON_SPEC=
+PYTHON_VERSION=
 WHEEL=
 WITH_V4L2=true
 WITH_OAKD=true
@@ -47,7 +48,7 @@ while (( $# )); do
         --jetson)       JETSON=true; shift;;
         --venv)         VENV_DIR=$2; shift 2;;
         --wheel)        WHEEL=$2; shift 2;;
-        --python)       PYTHON_VERSION=$2; shift 2;;
+        --python)       PYTHON_SPEC=$2; shift 2;;
         --no-v4l2)      WITH_V4L2=false; shift;;
         --no-oakd)      WITH_OAKD=false; shift;;
         --no-rtp)       WITH_RTP=false; shift;;
@@ -56,6 +57,85 @@ while (( $# )); do
         *) echo "_install_deps.sh: unknown arg: $1" >&2; exit 1;;
     esac
 done
+
+is_supported_python_version() {
+    case "$1" in
+        3.10|3.11|3.12|3.13) return 0;;
+        *) return 1;;
+    esac
+}
+
+python_version_from_exe() {
+    "$1" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null
+}
+
+resolve_python() {
+    local version=""
+    local exe=""
+
+    # Re-running setup should respect the venv that is already on disk.
+    if [[ -x "$VENV_DIR/bin/python" ]]; then
+        version="$(python_version_from_exe "$VENV_DIR/bin/python" || true)"
+        if is_supported_python_version "$version"; then
+            PYTHON_SPEC="$VENV_DIR/bin/python"
+            PYTHON_VERSION="$version"
+            return 0
+        fi
+        echo "_install_deps.sh: existing venv uses unsupported Python $version; remove $VENV_DIR and re-run." >&2
+        exit 1
+    fi
+
+    if [[ -n "$PYTHON_SPEC" ]]; then
+        case "$PYTHON_SPEC" in
+            3.10|3.11|3.12|3.13)
+                exe="$(command -v "python$PYTHON_SPEC" || true)"
+                if [[ -x "$exe" ]]; then
+                    PYTHON_SPEC="$exe"
+                fi
+                PYTHON_VERSION="${PYTHON_SPEC##*python}"
+                is_supported_python_version "$PYTHON_VERSION" || PYTHON_VERSION="$PYTHON_SPEC"
+                ;;
+            *)
+                if [[ "$PYTHON_SPEC" == */* ]]; then
+                    exe="$PYTHON_SPEC"
+                else
+                    exe="$(command -v "$PYTHON_SPEC" || true)"
+                fi
+                if [[ -x "$exe" ]]; then
+                    version="$(python_version_from_exe "$exe" || true)"
+                    if is_supported_python_version "$version"; then
+                        PYTHON_SPEC="$exe"
+                        PYTHON_VERSION="$version"
+                    fi
+                fi
+                ;;
+        esac
+        if ! is_supported_python_version "$PYTHON_VERSION"; then
+            echo "_install_deps.sh: --python must resolve to Python 3.10, 3.11, 3.12, or 3.13 (got '$PYTHON_SPEC')." >&2
+            exit 1
+        fi
+        return 0
+    fi
+
+    # Prefer the distro/system Python when it is already in camera_viz's
+    # supported range. This keeps Ubuntu 22.04 / JetPack 6 on Python 3.10
+    # instead of asking apt for unavailable python3.12-dev packages.
+    for candidate in python3 python3.13 python3.12 python3.11 python3.10; do
+        exe="$(command -v "$candidate" || true)"
+        [[ -x "$exe" ]] || continue
+        version="$(python_version_from_exe "$exe" || true)"
+        if is_supported_python_version "$version"; then
+            PYTHON_SPEC="$exe"
+            PYTHON_VERSION="$version"
+            return 0
+        fi
+    done
+
+    # Last resort: let uv provision a managed interpreter.
+    PYTHON_SPEC=3.12
+    PYTHON_VERSION=3.12
+}
+resolve_python
 
 # major picks the cupy wheel (cupy-cuda12x / cupy-cuda13x).
 # major.minor picks the apt nvrtc package (cuda-nvrtc-12-6 on Orin/JP6,
@@ -312,7 +392,7 @@ fi
 
 echo "==> mode:   $MODE"
 echo "==> venv:   $VENV_DIR"
-echo "==> python: $PYTHON_VERSION"
+echo "==> python: $PYTHON_SPEC ($PYTHON_VERSION)"
 [[ "$MODE" == full ]] && echo "==> isaacteleop: $ISAACTELEOP_PKG"
 
 if [[ ! -d "$VENV_DIR" ]]; then
@@ -329,7 +409,7 @@ if [[ ! -d "$VENV_DIR" ]]; then
         }
         uv venv "$VENV_DIR" --python "$sys_py"
     else
-        uv venv "$VENV_DIR" --python "$PYTHON_VERSION"
+        uv venv "$VENV_DIR" --python "$PYTHON_SPEC"
     fi
 fi
 PY="$VENV_DIR/bin/python"

@@ -374,11 +374,11 @@ cmd_service_restart() {
 # ──────────────────────────────────────────────────────────────────────
 
 show_help() {
-    cat <<EOF
+    cat <<'EOF'
 camera_viz.sh — local development + Jetson deployment for camera_viz
 
 LOCAL
-    setup [--venv PATH] [--sender-only] [--jetson]
+    setup [--venv PATH] [--python PYTHON] [--sender-only] [--jetson]
           [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
                           Create .venv, install Python deps via uv into
                           the venv, build native codec. Python deps stay
@@ -393,6 +393,9 @@ LOCAL
                           PATH instead of creating one in-place.
                           examples/camera_viz/.venv is symlinked → PATH
                           so run / loopback pick it up too.
+                          --python PYTHON selects a supported interpreter
+                          (3.10-3.13, executable name, or path). Defaults
+                          to the local python3 when it is supported.
                           --sender-only skips isaacteleop + vulkan deps
                           (use on Jetson sender hosts).
                           --jetson adds JetPack-only checks: unversioned
