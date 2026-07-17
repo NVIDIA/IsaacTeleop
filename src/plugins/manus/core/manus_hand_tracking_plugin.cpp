@@ -692,12 +692,16 @@ void ManusTracker::OnRawDeviceDataStream(const RawDeviceDataInfo* raw_device_dat
         {
             continue;
         }
+
+        const size_t side = is_left ? 0 : 1;
         if (raw.sensorCount == 0)
         {
+            // Clear cached count so push_sensor_side stops emitting stale tips.
+            std::lock_guard<std::mutex> sensor_lock(tracker.m_sensor_mutex);
+            tracker.m_sensor_count[side] = 0;
             continue;
         }
 
-        const size_t side = is_left ? 0 : 1;
         const uint32_t count = std::min(raw.sensorCount, static_cast<uint32_t>(kManusSensorCount));
         std::lock_guard<std::mutex> sensor_lock(tracker.m_sensor_mutex);
         tracker.m_sensor_count[side] = count;
