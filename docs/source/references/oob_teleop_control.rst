@@ -40,7 +40,8 @@ This will:
 
 To start the hub **without** any ``adb`` interaction — useful in containers,
 CI, or wireless-only environments — set ``TELEOP_OOB_HUB_ONLY=1`` and open
-the teleop URL on the headset manually:
+the teleop URL on the headset manually. This mode supports WiFi setup only
+and is **not compatible with** ``--usb-local``:
 
 .. code-block:: bash
 
@@ -386,7 +387,9 @@ Environment variables
        must open the teleop page on the headset manually with the
        correct ``oobEnable=1&serverIP=<HOST>&port=<PORT>`` parameters.
        Only meaningful together with ``--setup-oob``; has no effect
-       without it.
+       without it. **Not compatible with** ``--usb-local`` — hub-only
+       mode supports WiFi setup only; the launcher rejects the
+       combination at startup.
    * - ``ANDROID_SERIAL``
      - Pin a specific adb device when more than one is connected. The
        launcher refuses to start with multiple devices unless this is

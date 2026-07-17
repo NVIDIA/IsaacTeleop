@@ -123,6 +123,14 @@ def main() -> None:
         )
         raise SystemExit(1)
 
+    if args.usb_local and os.getenv("TELEOP_OOB_HUB_ONLY"):
+        print(
+            "\n\033[31mTELEOP_OOB_HUB_ONLY is not compatible with --usb-local "
+            "(hub-only mode supports WiFi setup only).\033[0m\n",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
     # Valid flag combinations and what they mean:
     #
     #   (none)                        Plain: headset navigates to GitHub Pages URL over WiFi.
