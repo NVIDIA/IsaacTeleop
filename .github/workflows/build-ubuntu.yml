@@ -15,10 +15,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Shared apt build dependencies. Each job installs these plus its own extras
-# (ccache, clang-format, the OAK camera autotools chain).
 env:
+  # Shared apt build dependencies. Each job installs these plus its own extras
+  # (ccache, clang-format, the OAK camera autotools chain).
   CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev wayland-protocols
+  # Pin vcpkg to an immutable commit for reproducible, supply-chain-stable CI
+  # instead of tracking its moving default branch. Port versions are fixed by the
+  # consuming manifest's builtin-baseline (e.g. DepthAI's vcpkg.json), so this
+  # commit only needs to be recent enough to contain that baseline. Update the
+  # commit and its release-date comment together.
+  VCPKG_COMMIT: d015e31e90838a4c9dfa3eed45979bc70d9357fc  # 2026.05.25
 
 jobs:
   build-ubuntu:
@@ -97,14 +103,15 @@ jobs:
         path: |
           ~/vcpkg
           build/vcpkg_installed
-        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          vcpkg-${{ runner.os }}-${{ runner.arch }}-
+          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-
 
     - name: Setup vcpkg
       run: |
         if [ ! -f ~/vcpkg/vcpkg ]; then
           git clone https://github.com/microsoft/vcpkg ~/vcpkg
+          git -C ~/vcpkg checkout --detach "$VCPKG_COMMIT"
           ~/vcpkg/bootstrap-vcpkg.sh -disableMetrics
         fi
         echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
