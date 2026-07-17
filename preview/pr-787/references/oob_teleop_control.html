@@ -439,7 +439,8 @@ via Chrome DevTools Protocol (CDP)</p></li>
 </ol>
 <p>To start the hub <strong>without</strong> any <code class="docutils literal notranslate"><span class="pre">adb</span></code> interaction — useful in containers,
 CI, or wireless-only environments — set <code class="docutils literal notranslate"><span class="pre">TELEOP_OOB_HUB_ONLY=1</span></code> and open
-the teleop URL on the headset manually:</p>
+the teleop URL on the headset manually. This mode supports WiFi setup only
+and is <strong>not compatible with</strong> <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">TELEOP_OOB_HUB_ONLY</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob
 </pre></div>
 </div>
@@ -763,7 +764,9 @@ unreliable (CI, containers, wireless-only setups). The operator
 must open the teleop page on the headset manually with the
 correct <code class="docutils literal notranslate"><span class="pre">oobEnable=1&amp;serverIP=&lt;HOST&gt;&amp;port=&lt;PORT&gt;</span></code> parameters.
 Only meaningful together with <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code>; has no effect
-without it.</p></td>
+without it. <strong>Not compatible with</strong> <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code> — hub-only
+mode supports WiFi setup only; the launcher rejects the
+combination at startup.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ANDROID_SERIAL</span></code></p></td>
 <td><p>Pin a specific adb device when more than one is connected. The
