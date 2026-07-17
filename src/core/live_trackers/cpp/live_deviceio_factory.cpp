@@ -30,6 +30,7 @@
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
+#include <algorithm>
 #include <cassert>
 #include <optional>
 #include <set>
@@ -205,6 +206,25 @@ bool dispatch_has_vendor(std::string_view vendor_id)
     return false;
 }
 
+// True when a tracker's type has at least one vendored dispatch row (a row with a
+// non-empty vendor id). Derived from the table, not a hardcoded type: adding a
+// vendored row for a new tracker type makes that type vendor-selectable here with
+// no other change. collect_extensions doubles as the row's type probe -- it returns
+// true only for a tracker of the row's type (the scratch extensions it collects on
+// a match are discarded). Null is treated as unsupported.
+bool tracker_supports_vendors(const ITracker* tracker)
+{
+    if (!tracker)
+        return false;
+    std::set<std::string> scratch;
+    for (const auto& row : k_tracker_dispatch)
+    {
+        if (!row.vendor_id.empty() && row.collect_extensions(*tracker, scratch))
+            return true;
+    }
+    return false;
+}
+
 // Validate per-tracker vendor selections independently of the tracker list:
 // reject selections on tracker types that do not support vendors, unknown vendor
 // ids, and duplicate entries. Shared by the factory constructor and
@@ -218,7 +238,7 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
     {
         // Only vendored tracker types accept a vendor selection; reject any other so a
         // misassigned (silently-ignored) selection surfaces as an error.
-        if (!dynamic_cast<const FullBodyTracker*>(tracker))
+        if (!tracker_supports_vendors(tracker))
         {
             throw std::invalid_argument("LiveDeviceIOFactory: vendor selection '" + vendor.id +
                                         "' provided for a tracker that does not support vendors");
@@ -247,24 +267,17 @@ std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(
 
     // Validate the complete vendor mapping before resolving extensions so that
     // extension discovery and session construction accept identical configs.
-    // Mirror the session path's order: first reject selections for trackers
-    // absent from the list (as the DeviceIOSession constructor does), then the
-    // tracker-list-independent checks (unsupported type, unknown vendor id,
-    // duplicates) shared with the factory constructor.
-    if (!tracker_vendors.empty())
+    // Reject out-of-list selections first (matching the DeviceIOSession
+    // constructor's order), then the list-independent checks (unsupported type,
+    // unknown vendor id, duplicates) shared with the factory constructor.
+    for (const auto& [tracker, vendor] : tracker_vendors)
     {
-        std::unordered_set<const ITracker*> known;
-        known.reserve(trackers.size());
-        for (const auto& tracker : trackers)
-            known.insert(tracker.get());
-
-        for (const auto& [tracker, vendor] : tracker_vendors)
+        const bool in_list =
+            std::any_of(trackers.begin(), trackers.end(), [&](const auto& t) { return t.get() == tracker; });
+        if (!in_list)
         {
-            if (known.find(tracker) == known.end())
-            {
-                throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: vendor selection '" +
-                                            vendor.id + "' references a tracker that is not in the trackers list");
-            }
+            throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: vendor selection '" + vendor.id +
+                                        "' references a tracker that is not in the trackers list");
         }
     }
     validate_vendor_selections(tracker_vendors);
