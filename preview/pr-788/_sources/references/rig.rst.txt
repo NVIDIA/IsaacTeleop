@@ -48,9 +48,6 @@ Run a rig
    # from the Teleop repository root
    python -m isaacteleop.rig rigs/se3_tracker.yaml
 
-   # override rig parameters, e.g. track the left controller:
-   python -m isaacteleop.rig rigs/se3_tracker.yaml --set hand=left
-
    # a CloudXR runtime is already running elsewhere (skip the runtime pane):
    python -m isaacteleop.rig rigs/se3_tracker.yaml --no-runtime
 
@@ -88,7 +85,8 @@ What happens:
    client (from inside tmux — no nesting).
 
 Re-running the same rig just switches to the existing session; it does
-**not** re-apply ``--set`` or ``--no-runtime``. Start over with:
+**not** re-apply ``--no-runtime`` or pick up edits to the rig file. Start
+over with:
 
 .. code-block:: bash
 
@@ -109,7 +107,7 @@ own:
    name: se3_tracker              # rig id AND tmux session name (letters/digits/-/_)
    description: CloudXR runtime + SE3 controller tracker plugin + pose printer
    cwd: ..                        # pane working dir, relative to this file
-   params:                        # defaults; override at launch: --set hand=left
+   params:                        # shared values, substituted into the commands below
      hand: right
      collection_id: se3_tracker   # defined ONCE, referenced by both sides below
    # runtime: optional full-command override for the runtime pane; default:
@@ -143,9 +141,9 @@ Top-level keys:
        YAML's directory).
    * - ``params``
      - no
-     - Flat mapping of ``{placeholder}`` defaults. Override at launch with
-       repeatable ``--set KEY=VALUE``; unknown keys are rejected with the list
-       of declared params.
+     - Flat mapping of ``{placeholder}`` values shared by the commands
+       below — the rig file is the single source of configuration; edit it
+       (and relaunch with ``--kill``) to change them.
    * - ``runtime``
      - no
      - Full-command override for the runtime pane (e.g. to add
@@ -167,8 +165,8 @@ errors — a typo fails loudly at load time instead of misbehaving in a pane.
 
    Producers and consumers rendezvous on a shared ``collection_id``, and a
    mismatch is **silent no-data** by design. Define it once under ``params``
-   and reference it as ``{collection_id}`` in every command — then a single
-   ``--set collection_id=...`` changes both sides together.
+   and reference it as ``{collection_id}`` in every command — then one edit
+   in one place changes both sides together.
 
 .. warning::
 
@@ -210,6 +208,6 @@ Troubleshooting
    * - Runtime pane dies when a consumer starts
      - The consumer self-launched a second runtime; add
        ``--no-launch-cloudxr-runtime`` to its command in the rig.
-   * - ``--set`` seems ignored
+   * - Edits to the rig file seem ignored
      - The session already existed; relaunch after
        ``python -m isaacteleop.rig <rig.yaml> --kill``.
