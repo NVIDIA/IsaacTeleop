@@ -13,6 +13,38 @@ commands to the terminal.
    :depth: 1
    :backlinks: none
 
+.. _try-on-brev:
+
+Try It on Brev — No Local Setup Required
+-----------------------------------------
+
+Skip the install entirely: launch a pre-configured GPU cloud environment with a single click
+and experience the full Isaac Teleop retargeting pipeline inside an Isaac Lab simulation.
+
+.. note::
+
+   These Brev environments run IsaacTeleop against an **Isaac Lab simulation** backend —
+   a great way to explore the XR-to-robot pipeline in minutes. IsaacTeleop is not limited
+   to simulation; the same pipeline drives real robots, ROS 2 nodes, and custom backends.
+   For production use, follow the local setup steps below.
+
+.. grid:: 2
+   :gutter: 2
+
+   .. grid-item-card:: Launch on Brev — Isaac Lab 2.3
+      :link: https://brev.nvidia.com/launchable/deploy?launchableID=env-3B3ETyweD8hOcZfNzaE12cnGNBq
+      :link-type: url
+
+      Stable release · recommended for most users
+
+   .. grid-item-card:: Launch on Brev — Isaac Lab 3.0
+      :link: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-3B2jdZR8Ct0vQCzwseLuOZXoMyk
+      :link-type: url
+
+      Latest features · bleeding-edge
+
+----
+
 .. _check-out-code-base:
 
 1. Check out code base (for examples)
