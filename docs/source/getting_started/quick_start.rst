@@ -18,15 +18,23 @@ commands to the terminal.
 Try It on Brev — No Local Setup Required
 -----------------------------------------
 
-Skip the install entirely: launch a pre-configured GPU cloud environment with a single click
-and experience the full Isaac Teleop retargeting pipeline inside an Isaac Lab simulation.
+Skip local installation: launch a pre-configured GPU cloud environment in one click and get the
+**server side** of Isaac Teleop running — CloudXR streaming server plus the retargeting pipeline
+backed by an Isaac Lab simulation.
 
 .. note::
 
-   These Brev environments run IsaacTeleop against an **Isaac Lab simulation** backend —
-   a great way to explore the XR-to-robot pipeline in minutes. IsaacTeleop is not limited
-   to simulation; the same pipeline drives real robots, ROS 2 nodes, and custom backends.
-   For production use, follow the local setup steps below.
+   **What Brev sets up (server side):** CloudXR runtime, IsaacTeleop retargeting, and an Isaac Lab
+   simulation backend — all on a cloud GPU.
+
+   **What you still need to do (client side):** grab the IP address of your Brev instance, then
+   open `https://nvidia.github.io/IsaacTeleop/client <https://nvidia.github.io/IsaacTeleop/client>`__
+   in your headset or desktop browser, enter the IP, accept the self-signed certificate, and click
+   **Connect**. See step :ref:`connect-xr-headset` for the full walkthrough.
+
+   IsaacTeleop is not limited to simulation — the same pipeline drives real robots, ROS 2 nodes,
+   and custom backends. The Brev environments are a fast way to try the XR-to-robot pipeline
+   without any local setup.
 
 .. grid:: 2
    :gutter: 2
@@ -37,7 +45,7 @@ and experience the full Isaac Teleop retargeting pipeline inside an Isaac Lab si
 
       Stable release · recommended for most users
 
-   .. grid-item-card:: Launch on Brev — Isaac Lab 3.0
+   .. grid-item-card:: Launch on Brev — Isaac Lab 3.0 beta 1
       :link: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-3B2jdZR8Ct0vQCzwseLuOZXoMyk
       :link-type: url
 
