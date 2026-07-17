@@ -15,12 +15,15 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Pin vcpkg to an immutable commit for reproducible, supply-chain-stable CI
-# instead of tracking its moving default branch. Port versions are fixed by the
-# consuming manifest's builtin-baseline (e.g. DepthAI's vcpkg.json), so
-# this commit only needs to be recent enough to contain that baseline. Update
-# the commit and its release-date comment together.
 env:
+  # Shared apt build dependencies. Each job installs these plus its own extras
+  # (ccache, clang-format, the OAK camera autotools chain).
+  CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev wayland-protocols
+  # Pin vcpkg to an immutable commit for reproducible, supply-chain-stable CI
+  # instead of tracking its moving default branch. Port versions are fixed by the
+  # consuming manifest's builtin-baseline (e.g. DepthAI's vcpkg.json), so this
+  # commit only needs to be recent enough to contain that baseline. Update the
+  # commit and its release-date comment together.
   VCPKG_COMMIT: d015e31e90838a4c9dfa3eed45979bc70d9357fc  # 2026.05.25
 
 jobs:
@@ -48,9 +51,9 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
-          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
-          libwayland-dev wayland-protocols autoconf automake libtool pkg-config libudev-dev
+        sudo apt-get install -y $CORE_APT_DEPS \
+          ccache clang-format-14 \
+          autoconf automake libtool pkg-config libudev-dev
 
     - name: Install coverage tooling
       if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
@@ -437,9 +440,8 @@ jobs:
     - name: Install Apt dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache libvulkan-dev glslang-tools \
-          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev libxkbcommon-dev \
-          libwayland-dev wayland-protocols
+        sudo apt-get install -y $CORE_APT_DEPS \
+          ccache clang-format-14
 
     - name: Install CUDA toolkit
       uses: ./.github/actions/setup-cuda
