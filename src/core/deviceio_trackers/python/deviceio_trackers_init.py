@@ -14,6 +14,7 @@ from ._deviceio_trackers import (
     Generic3AxisPedalTracker,
     TensorPushTracker,
     JointStateTracker,
+    Se3Tracker,
     FullBodyTrackerPico,
     ITrackerSession,
     NUM_JOINTS,
@@ -40,5 +41,6 @@ __all__ = [
     "JOINT_THUMB_TIP",
     "JOINT_WRIST",
     "NUM_JOINTS",
+    "Se3Tracker",
     "ITrackerSession",
 ]

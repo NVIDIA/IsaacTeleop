@@ -16,6 +16,7 @@
 #include "oak_bindings.h"
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
+#include "se3_tracker_bindings.h"
 #include "timestamp_bindings.h"
 
 namespace py = pybind11;
@@ -44,6 +45,9 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind joint-state types (JointState, JointStateOutput tables) for generic joint-space devices.
     core::bind_joint_state(m);
+
+    // Bind SE3 tracker types (Se3TrackerPoseT table) for generic 6-DoF pose sources.
+    core::bind_se3_tracker(m);
 
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);

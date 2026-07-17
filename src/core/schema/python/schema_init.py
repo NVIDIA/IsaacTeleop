@@ -40,6 +40,11 @@ from ._schema import (
     JointStateOutput,
     JointStateOutputTrackedT,
     JointStateOutputRecord,
+    # SE3 tracker types (generic 6-DoF pose sources: tracker pucks, mocap rigid bodies, ...).
+    # Record classes drop the T suffix in Python by family convention.
+    Se3TrackerPoseT,
+    Se3TrackerPoseTrackedT,
+    Se3TrackerPoseRecord,
     # Message channel types.
     MessageChannelMessages,
     MessageChannelMessagesTrackedT,
@@ -95,6 +100,10 @@ __all__ = [
     "JointStateOutput",
     "JointStateOutputTrackedT",
     "JointStateOutputRecord",
+    # SE3 tracker types (generic 6-DoF pose sources).
+    "Se3TrackerPoseT",
+    "Se3TrackerPoseTrackedT",
+    "Se3TrackerPoseRecord",
     # Message channel types.
     "MessageChannelMessages",
     "MessageChannelMessagesTrackedT",
