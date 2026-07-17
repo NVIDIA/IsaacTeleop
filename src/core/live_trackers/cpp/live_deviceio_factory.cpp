@@ -198,6 +198,11 @@ bool row_selected(const TrackerDispatchEntry& row, const TrackerVendor* selected
 // True when a dispatch row offers this vendor id, i.e. it names a live vendor a tracker can select.
 bool dispatch_has_vendor(std::string_view vendor_id)
 {
+    // An empty id is the non-vendored-row sentinel (vendor_id = {}), never a selectable
+    // vendor. Reject it here so an empty TrackerVendor id is reported up front as an
+    // unknown vendor id instead of matching those sentinel rows and failing later.
+    if (vendor_id.empty())
+        return false;
     for (const auto& row : k_tracker_dispatch)
     {
         if (row.vendor_id == vendor_id)

@@ -40,4 +40,10 @@ private:
     static constexpr const char* TRACKER_NAME = "FullBodyTracker";
 };
 
+// Deprecated alias for the renamed FullBodyTracker (was FullBodyTrackerPico before the
+// vendor-agnostic rename). Retained so existing C++ consumers keep compiling; prefer
+// FullBodyTracker. Mirrors the Python alias and the ReplayFullBodyTrackerPicoImpl /
+// FullBodyPicoRecordingTraits C++ aliases added in the same change.
+using FullBodyTrackerPico = FullBodyTracker;
+
 } // namespace core

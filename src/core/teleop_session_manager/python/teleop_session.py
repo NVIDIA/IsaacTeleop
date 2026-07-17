@@ -1002,20 +1002,18 @@ class TeleopSession:
             # vendor-agnostic; the vendor is supplied by config. An empty
             # VendorConfig (no selections) is the native default -- passing None to
             # the bindings is a type error.
-            vendor_config = deviceio.VendorConfig()
-            if self.config.tracker_vendors:
-                source_by_name = {source.name: source for source in self._sources}
-                vendor_entries = []
-                for source_name, vendor in self.config.tracker_vendors.items():
-                    source = source_by_name.get(source_name)
-                    if source is None:
-                        raise ValueError(
-                            "TeleopSessionConfig.tracker_vendors references unknown "
-                            f"DeviceIO source '{source_name}'. Known sources: "
-                            f"{sorted(source_by_name)}"
-                        )
-                    vendor_entries.append((source.get_tracker(), vendor))
-                vendor_config = deviceio.VendorConfig(vendor_entries)
+            source_by_name = {source.name: source for source in self._sources}
+            vendor_entries = []
+            for source_name, vendor in self.config.tracker_vendors.items():
+                source = source_by_name.get(source_name)
+                if source is None:
+                    raise ValueError(
+                        "TeleopSessionConfig.tracker_vendors references unknown "
+                        f"DeviceIO source '{source_name}'. Known sources: "
+                        f"{sorted(source_by_name)}"
+                    )
+                vendor_entries.append((source.get_tracker(), vendor))
+            vendor_config = deviceio.VendorConfig(vendor_entries)
 
             # Get required extensions from all trackers
             required_extensions = deviceio.DeviceIOSession.get_required_extensions(

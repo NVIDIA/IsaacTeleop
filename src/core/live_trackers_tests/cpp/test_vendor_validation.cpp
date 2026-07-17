@@ -100,6 +100,14 @@ TEST_CASE("vendor validation: invalid configurations are rejected", "[live_track
         REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("unknown vendor id"));
     }
 
+    SECTION("an empty vendor id is rejected as unknown (not silently matched to the sentinel rows)")
+    {
+        // A default-constructed / empty TrackerVendor id must not match the empty
+        // vendor_id sentinel carried by non-vendored dispatch rows.
+        VendorList vendors{ { body.get(), core::TrackerVendor{ "" } } };
+        REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("unknown vendor id"));
+    }
+
     SECTION("a duplicate selection for the same tracker is rejected")
     {
         VendorList vendors{

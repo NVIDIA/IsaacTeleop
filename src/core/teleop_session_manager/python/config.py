@@ -343,9 +343,9 @@ class TeleopSessionConfig:
         tracker_vendors: Optional per-source vendor selection for vendored trackers
             (live mode only), keyed by DeviceIO **source name**. Each value is a
             ``deviceio.TrackerVendor(id, params)`` selecting how that source's tracker
-            is sourced (e.g. ``{"noitom_g1_action": TrackerVendor("body.noitom-pn",
-            {"collection_id": "noitom_mocap"})}``). Sources left out use their tracker's
-            default vendor. Keeps source nodes vendor-agnostic.
+            is sourced (e.g. ``{"full_body": TrackerVendor("body.pico-xr")}``). Sources
+            left out use their tracker's default vendor. Keeps source nodes
+            vendor-agnostic.
         retargeting_execution: Synchronous vs. pipelined execution settings for
             the main retargeting pipeline. Defaults to synchronous exact-current-frame
             behavior; set ``mode="pipelined"`` to opt into background execution.
