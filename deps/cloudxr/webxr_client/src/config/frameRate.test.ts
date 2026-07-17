@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { applyTargetFrameRate, FrameRateLogger, FrameRateSession } from './frameRate';
+import { applyTargetFrameRate, FrameRateLogger } from './frameRate';
 
 const logger = (): jest.Mocked<FrameRateLogger> => ({
   info: jest.fn(),
@@ -24,10 +24,12 @@ const logger = (): jest.Mocked<FrameRateLogger> => ({
 
 describe('applyTargetFrameRate', () => {
   it('applies a supported rate and returns the effective rate', async () => {
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       frameRate: 90,
       supportedFrameRates: new Float32Array([72, 90, 120]),
       updateTargetFrameRate: jest.fn(async rate => {
+        // @ts-expect-error the fake mutates the readonly attribute to emulate the browser.
         session.frameRate = rate;
       }),
     };
@@ -38,7 +40,8 @@ describe('applyTargetFrameRate', () => {
 
   it('does not request an unsupported rate', async () => {
     const updateTargetFrameRate = jest.fn(async () => {});
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       frameRate: 90,
       supportedFrameRates: new Float32Array([90, 120]),
       updateTargetFrameRate,
@@ -49,13 +52,15 @@ describe('applyTargetFrameRate', () => {
   });
 
   it('uses the current rate when the update API is unavailable', async () => {
-    const session: FrameRateSession = { frameRate: 90 };
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = { frameRate: 90 };
 
     await expect(applyTargetFrameRate(session, 72, logger())).resolves.toBe(90);
   });
 
   it('falls back to the current rate when the update is rejected', async () => {
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       frameRate: 90,
       supportedFrameRates: new Float32Array([72, 90]),
       updateTargetFrameRate: jest.fn(async () => {
@@ -71,7 +76,8 @@ describe('applyTargetFrameRate', () => {
     const update = new Promise<void>(resolve => {
       releaseUpdate = resolve;
     });
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       frameRate: 90,
       supportedFrameRates: new Float32Array([72, 90]),
       updateTargetFrameRate: jest.fn(() => update),
@@ -84,6 +90,7 @@ describe('applyTargetFrameRate', () => {
 
     await Promise.resolve();
     expect(completed).toBe(false);
+    // @ts-expect-error the fake mutates the readonly attribute to emulate the browser.
     session.frameRate = 72;
     releaseUpdate();
     await expect(applying).resolves.toBe(72);
@@ -91,7 +98,8 @@ describe('applyTargetFrameRate', () => {
 
   it('does not block CloudXR when the update never settles', async () => {
     const log = logger();
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       frameRate: 90,
       supportedFrameRates: new Float32Array([72, 90]),
       updateTargetFrameRate: jest.fn(() => new Promise<void>(() => {})),
@@ -106,16 +114,18 @@ describe('applyTargetFrameRate', () => {
   it('waits for frameratechange when the attribute updates late', async () => {
     const listeners: Array<() => void> = [];
     const removeEventListener = jest.fn();
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       frameRate: 90,
       supportedFrameRates: new Float32Array([72, 90]),
       updateTargetFrameRate: jest.fn(async () => {
         setTimeout(() => {
+          // @ts-expect-error the fake mutates the readonly attribute to emulate the browser.
           session.frameRate = 72;
           listeners.forEach(listener => listener());
         }, 5);
       }),
-      addEventListener: jest.fn((_type, listener) => {
+      addEventListener: jest.fn((_type: string, listener: () => void) => {
         listeners.push(listener);
       }),
       removeEventListener,
@@ -129,7 +139,8 @@ describe('applyTargetFrameRate', () => {
 
   it('advertises the accepted target even when the attribute lags past the grace', async () => {
     const log = logger();
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       frameRate: 90,
       supportedFrameRates: new Float32Array([72, 90]),
       updateTargetFrameRate: jest.fn(async () => {}),
@@ -144,7 +155,8 @@ describe('applyTargetFrameRate', () => {
   });
 
   it('trusts the accepted request when the browser does not expose frameRate', async () => {
-    const session: FrameRateSession = {
+    // @ts-expect-error partial XRSession fake; only the frame-rate members are exercised.
+    const session: XRSession = {
       supportedFrameRates: new Float32Array([72, 90]),
       updateTargetFrameRate: jest.fn(async () => {}),
     };
