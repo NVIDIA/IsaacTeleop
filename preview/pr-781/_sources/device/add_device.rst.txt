@@ -16,7 +16,7 @@ The reference implementation is the **generic 3-axis foot pedal**:
      - :code-dir:`src/plugins/generic_3axis_pedal`
    * - Tracker facade (``Generic3AxisPedalTracker``)
      - :code-file:`src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp` and
-       :code-file:`src/core/deviceio_trackers/cpp/inc/deviceio/generic_3axis_pedal_tracker.hpp`
+       :code-file:`src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp`
    * - Live backend (``LiveGeneric3AxisPedalTrackerImpl``)
      - :code-file:`src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp` and
        :code-file:`src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.hpp`
