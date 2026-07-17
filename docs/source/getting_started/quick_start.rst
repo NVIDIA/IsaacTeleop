@@ -15,26 +15,23 @@ commands to the terminal.
 
 .. _try-on-brev:
 
-Try It on Brev — No Local Setup Required
------------------------------------------
+Try It on Brev — Zero Setup
+---------------------------
 
-Skip local installation: launch a pre-configured GPU cloud environment in one click and get the
-**server side** of Isaac Teleop running — CloudXR streaming server plus the retargeting pipeline
-backed by an Isaac Lab simulation.
+Experience **Isaac Teleop** remote teleoperation with no local install. Brev provisions the
+server side — CloudXR runtime, retargeting pipeline, and an
+`Isaac Lab <https://developer.nvidia.com/isaac/lab>`__ simulation — on a cloud GPU.
+Just grab the instance IP and connect from your headset.
 
 .. note::
 
-   **What Brev sets up (server side):** CloudXR runtime, IsaacTeleop retargeting, and an Isaac Lab
-   simulation backend — all on a cloud GPU.
+   **Server (Brev):** CloudXR + Isaac Teleop retargeting + Isaac Lab sim on a cloud GPU.
 
-   **What you still need to do (client side):** grab the IP address of your Brev instance, then
-   open `https://nvidia.github.io/IsaacTeleop/client <https://nvidia.github.io/IsaacTeleop/client>`__
-   in your headset or desktop browser, enter the IP, accept the self-signed certificate, and click
-   **Connect**. See step :ref:`connect-xr-headset` for the full walkthrough.
+   **Client (you):** open the `web client <https://nvidia.github.io/IsaacTeleop/client>`__
+   in your headset or browser, enter the Brev instance IP, accept the certificate, and click
+   **Connect** — see step :ref:`connect-xr-headset`.
 
-   IsaacTeleop is not limited to simulation — the same pipeline drives real robots, ROS 2 nodes,
-   and custom backends. The Brev environments are a fast way to try the XR-to-robot pipeline
-   without any local setup.
+   Isaac Teleop is not limited to simulation; it drives real robots and ROS 2 pipelines too.
 
 .. grid:: 2
    :gutter: 2
@@ -43,13 +40,13 @@ backed by an Isaac Lab simulation.
       :link: https://brev.nvidia.com/launchable/deploy?launchableID=env-3B3ETyweD8hOcZfNzaE12cnGNBq
       :link-type: url
 
-      Stable release · recommended for most users
+      Stable
 
    .. grid-item-card:: Launch on Brev — Isaac Lab 3.0 beta 1
       :link: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-3B2jdZR8Ct0vQCzwseLuOZXoMyk
       :link-type: url
 
-      Latest features · bleeding-edge
+      Latest · recommended upgrade path
 
 ----
 
