@@ -42,7 +42,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useXR } from '@react-three/xr';
 import { useRef, useEffect } from 'react';
 import type { WebGLRenderer } from 'three';
-import { applyTargetFrameRate, FrameRateSession } from '../../src/config/frameRate';
+import { applyTargetFrameRate } from '../../src/config/frameRate';
 
 /**
  * Props for the CloudXRComponent.
@@ -151,14 +151,12 @@ export default function CloudXRComponent({
 
     if (webXRManager) {
       const handleSessionStart = async () => {
-        const xrSession: XRSession | null = (webXRManager as any).getSession
-          ? (webXRManager as any).getSession()
-          : null;
+        const xrSession = webXRManager.getSession();
 
         // CloudXR must advertise the rate actually used by the headset. Wait for WebXR to
         // apply the configured rate before creating the CloudXR session to avoid a pacing race.
         const effectiveDeviceFrameRate = xrSession
-          ? await applyTargetFrameRate(xrSession as XRSession & FrameRateSession, config.deviceFrameRate)
+          ? await applyTargetFrameRate(xrSession, config.deviceFrameRate)
           : config.deviceFrameRate;
 
         // Explicitly request the desired reference space from the XRSession to avoid
