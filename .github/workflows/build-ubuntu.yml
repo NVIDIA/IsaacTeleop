@@ -625,6 +625,61 @@ jobs:
         if-no-files-found: warn
         retention-days: 7
 
+  test-quick-start-isaac-lab-e2e:
+    # Optional Quick Start next-step validation: use Isaac Lab as the
+    # application under test. This runs only on runners where the repo variable
+    # QUICK_START_ISAAC_LAB_ROOT points at a provisioned Isaac Lab checkout.
+    if: ${{ vars.QUICK_START_ISAAC_LAB_ROOT != '' }}
+    runs-on: [self-hosted, linux, gpu, x64]
+    needs:
+      - build-ubuntu
+      - test-quick-start-client-e2e
+    timeout-minutes: 45
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Download isaacteleop wheel (x64, py3.11)
+      uses: actions/download-artifact@v7
+      with:
+        name: isaacteleop-wheels-x64-py3.11
+        path: quick-start-wheels
+
+    - name: Build hosted desktop web client
+      uses: ./.github/actions/build-cloudxr-web-client
+      with:
+        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
+    - name: Run Quick Start Isaac Lab E2E workflow
+      env:
+        CI: true
+        QUICK_START_ISAAC_LAB_ROOT: ${{ vars.QUICK_START_ISAAC_LAB_ROOT }}
+        QUICK_START_ISAAC_LAB_WHEEL_DIR: quick-start-wheels
+        QUICK_START_ISAAC_LAB_ARTIFACT_DIR: ${{ runner.temp }}/isaacteleop-quick-start-isaac-lab-e2e
+        TELEOP_WEB_CLIENT_STATIC_DIR: ${{ github.workspace }}/deps/cloudxr/webxr_client/build
+      run: ./scripts/run_quick_start_isaac_lab_e2e.sh
+
+    - name: Upload Quick Start Isaac Lab E2E artifacts
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: quick-start-isaac-lab-e2e-x64-py3.11
+        path: |
+          ${{ runner.temp }}/isaacteleop-quick-start-isaac-lab-e2e/*.log
+          ${{ runner.temp }}/isaacteleop-quick-start-isaac-lab-e2e/*.json
+          ${{ runner.temp }}/isaacteleop-quick-start-isaac-lab-e2e/cloudxr/run/cloudxr.env
+          ${{ runner.temp }}/isaacteleop-quick-start-isaac-lab-e2e/cloudxr/logs/**/*.log
+        if-no-files-found: warn
+        retention-days: 7
+
   test-teleop-ros2:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
     needs: build-ubuntu
