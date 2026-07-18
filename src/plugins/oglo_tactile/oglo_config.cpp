@@ -63,19 +63,12 @@ OgloDeviceConfig OgloDeviceConfig::parse(const std::string& json)
     nlohmann::json j = nlohmann::json::parse(json); // throws on malformed JSON
 
     OgloDeviceConfig cfg;
-    cfg.raw_json = json;
     cfg.schema_ver = get_or<int>(j, "schema_ver", 0);
     cfg.packet_format = get_or<std::string>(j, "packet_format", "");
     cfg.values_per_sample = get_or<int>(j, "values_per_sample", 80);
-    cfg.samples_per_packet = get_or<int>(j, "samples_per_packet", 0);
     cfg.rate_hz = get_or<int>(j, "rate_hz", 0);
-    cfg.sample_order = get_or<std::string>(j, "sample_order", "");
-    cfg.sample_shape = get_or<std::vector<int>>(j, "sample_shape", {});
-    cfg.channels = get_or<std::vector<std::string>>(j, "channels", {});
     cfg.side = side_from_string(get_or<std::string>(j, "side", ""));
     cfg.serial = get_or<std::string>(j, "serial", "");
-    cfg.fw_rev = get_or<std::string>(j, "fw_rev", "");
-    cfg.device_id = get_or<std::string>(j, "device_id", "");
 
     if (cfg.values_per_sample <= 0)
         throw std::runtime_error("OGLO Config: invalid values_per_sample");

@@ -5,12 +5,12 @@ SPDX-License-Identifier: Apache-2.0
 
 # OGLO Tactile Glove Plugin
 
-C++ plugin that streams **OGLO** tactile gloves over BLE and records them into the
-IsaacTeleop pipeline. Each glove (one BLE device per hand) provides **80 tactile
-taxels** (5 fingers × 4×4) plus a **6-axis IMU** at 100 Hz.
+C++ plugin that streams **OGLO** tactile gloves over BLE and pushes them into the
+IsaacTeleop pipeline over OpenXR. Each glove (one BLE device per hand) provides
+**80 tactile taxels** (5 fingers × 4×4) plus a **6-axis IMU** at 100 Hz.
 
 It follows the standard [Add a New Device](../../../docs/source/device/add_device.rst)
-pattern and is modeled on the OAK camera plugin, including its two recording modes.
+pattern and is modeled on the OAK camera plugin.
 
 ## Data path
 
@@ -19,8 +19,7 @@ OGLO glove (BLE notify, packed12 v5)
   → OgloBleClient (BlueZ over libdbus)        [BLE thread]
   → PacketParser (config-driven decode)       [BLE thread]
   → queue → IGloveSink                         [single consumer thread]
-       ├─ Mode 1: local MCAP file (mcap::McapWriter)
-       └─ Mode 2: SchemaPusher → host OgloTactileTracker → shared TeleopSession MCAP
+       → SchemaPusher → host OgloTactileTracker → shared TeleopSession MCAP
 ```
 
 The parser reads the device **Config characteristic** first and branches on the
@@ -51,32 +50,28 @@ cmake --build build --target oglo_tactile_plugin --parallel
 ## Usage
 
 ```bash
-# Mode 1 — standalone local MCAP (no OpenXR/TeleopSession needed)
-./build/src/plugins/oglo_tactile/oglo_tactile_plugin --side right --mcap-filename=right.mcap
-./build/src/plugins/oglo_tactile/oglo_tactile_plugin --side left  --mcap-filename=left.mcap
-
-# Mode 2 — push for a host tracker into a shared TeleopSession MCAP
+# Push for a host OgloTactileTracker into a shared TeleopSession MCAP
 ./build/src/plugins/oglo_tactile/oglo_tactile_plugin --side right --collection-prefix=oglo
+./build/src/plugins/oglo_tactile/oglo_tactile_plugin --side left  --collection-prefix=oglo
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--side left\|right` | **Required.** Selects the `OGLO LEFT` / `OGLO RIGHT` device. |
-| `--mcap-filename=PATH` | Mode 1: local MCAP output (mutually exclusive with `--collection-prefix`). |
-| `--collection-prefix=PREFIX` | Mode 2: OpenXR collection prefix (`PREFIX/left`, `PREFIX/right`). |
+| `--collection-prefix=PREFIX` | **Required.** OpenXR collection prefix (pushes `PREFIX/left`, `PREFIX/right`). |
 | `--device-name=NAME` | Pin an exact advertised BLE name (multiple gloves nearby). |
 | `--scan-timeout-ms=N` | BLE scan timeout (default 15000). |
 
-## MCAP output
+## Recorded output
 
-- Channel `oglo_left` / `oglo_right`, schema `core.OgloGloveSampleRecord` (flatbuffer).
-- Each message: `seq`, `device_time_us`, `taxels[80]` (raw 12-bit, `finger,row,col`),
-  `accel_x/y/z`, `gyro_x/y/z` (raw IMU LSB), plus a `DeviceDataTimestamp`
-  (`sample_time_local_common_clock` is on the shared host monotonic clock, so OGLO
-  aligns with Quest hand/head streams).
-- A `Metadata` record (`oglo_device_<side>`) stores the verbatim device Config
-  (side, schema, rate, finger `channels`, serial, fw_rev), making each dataset
-  self-describing.
+The plugin only pushes over OpenXR; recording happens host-side, where the
+`OgloTactileTracker` reads the pushed collection into the session MCAP. Per hand it
+writes channels `oglo_<side>/oglo` and `oglo_<side>/oglo_tracked`, schema
+`core.OgloGloveSampleRecord` (flatbuffer). Each message carries `seq`,
+`device_time_us`, `taxels[80]` (raw 12-bit, `finger,row,col`), `accel_x/y/z`,
+`gyro_x/y/z` (raw IMU LSB), plus a `DeviceDataTimestamp`
+(`sample_time_local_common_clock` is on the shared host monotonic clock, so OGLO
+aligns with Quest hand/head streams).
 
 ## Tests
 

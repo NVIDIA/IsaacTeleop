@@ -4,9 +4,8 @@
 # ==============================================================================
 # OGLO Tactile Glove Plugin (BLE)
 # ==============================================================================
-# Reads OGLO tactile gloves (80 taxels + 6-axis IMU per hand) over BLE and either
-# records a local MCAP (Mode 1) or pushes via OpenXR SchemaPusher for a host
-# tracker (Mode 2). Linux only (BlueZ).
+# Reads OGLO tactile gloves (80 taxels + 6-axis IMU per hand) over BLE and pushes
+# them via OpenXR SchemaPusher for a host tracker to record. Linux only (BlueZ).
 #
 # Enable with: cmake -B build -DBUILD_PLUGIN_OGLO=ON
 #
@@ -60,7 +59,6 @@ target_link_libraries(oglo_tactile_plugin PRIVATE
     pusherio::pusherio
     oxr::oxr_core
     isaacteleop_schema
-    mcap::mcap
     nlohmann_json::nlohmann_json
     PkgConfig::DBUS
 )

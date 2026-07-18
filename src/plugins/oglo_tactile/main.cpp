@@ -24,12 +24,10 @@ void signal_handler(int signal)
 
 void print_usage(const char* prog)
 {
-    std::cout << "Usage: " << prog << " --side left|right [options]\n"
+    std::cout << "Usage: " << prog << " --side left|right --collection-prefix=PREFIX [options]\n"
               << "\nRequired:\n"
               << "  --side left|right            Hand to connect (selects OGLO LEFT/RIGHT)\n"
-              << "\nOutput (exactly one):\n"
-              << "  --mcap-filename=PATH         Record to a local MCAP file (Mode 1)\n"
-              << "  --collection-prefix=PREFIX   Push via OpenXR for a host tracker (Mode 2)\n"
+              << "  --collection-prefix=PREFIX   Push via OpenXR for a host tracker\n"
               << "\nOptional:\n"
               << "  --device-name=NAME           Pin an exact advertised BLE name\n"
               << "  --scan-timeout-ms=N          Scan timeout (default 15000)\n"
@@ -57,10 +55,6 @@ try
             const std::string val = (arg == "--side") ? (i + 1 < argc ? argv[++i] : "") : arg.substr(7);
             opts.side = side_from_string(val);
             side_set = true;
-        }
-        else if (arg.rfind("--mcap-filename=", 0) == 0)
-        {
-            opts.mcap_filename = arg.substr(16);
         }
         else if (arg.rfind("--collection-prefix=", 0) == 0)
         {
@@ -108,6 +102,13 @@ try
     if (!side_set || opts.side == Side::Unknown)
     {
         std::cerr << "Error: --side left|right is required." << std::endl;
+        print_usage(argv[0]);
+        return 1;
+    }
+
+    if (opts.collection_prefix.empty())
+    {
+        std::cerr << "Error: --collection-prefix=PREFIX is required." << std::endl;
         print_usage(argv[0]);
         return 1;
     }

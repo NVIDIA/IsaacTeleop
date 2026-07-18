@@ -24,17 +24,16 @@ namespace oglo_tactile
 {
 
 //! Drives one OGLO glove end to end: BLE connect -> Config -> notify parse ->
-//! record / push. BLE notifications are parsed on the backend thread and queued;
-//! a single consumer thread (run()) drains the queue and owns the sink so all
-//! OpenXR / MCAP I/O happens on one thread.
+//! push. BLE notifications are parsed on the backend thread and queued; a single
+//! consumer thread (run()) drains the queue and owns the sink so all OpenXR I/O
+//! happens on one thread.
 class OgloTactilePlugin
 {
 public:
     struct Options
     {
         Side side = Side::Unknown;
-        std::string mcap_filename; //!< Mode 1 (XOR collection_prefix)
-        std::string collection_prefix; //!< Mode 2 (XOR mcap_filename)
+        std::string collection_prefix; //!< OpenXR collection prefix (required)
         std::string device_name_override; //!< pin a specific advertised name
         std::chrono::milliseconds scan_timeout{ 15000 };
         std::chrono::milliseconds stall_timeout{ 3000 }; //!< no-notify -> reconnect

@@ -54,15 +54,12 @@ Linux only (BlueZ). The plugin is off by default.
 Usage
 -----
 
-The plugin streams one glove (``--side``) and either records a local MCAP
-(**Mode 1**) or pushes via OpenXR for a host tracker (**Mode 2**):
+The plugin streams one glove (``--side``) and pushes it via OpenXR for a host
+``OgloTactileTracker`` to record:
 
 .. code-block:: bash
 
-   # Mode 1 — standalone local MCAP (no OpenXR / TeleopSession)
-   ./build/src/plugins/oglo_tactile/oglo_tactile_plugin --side right --mcap-filename=right.mcap
-
-   # Mode 2 — push for a host OgloTactileTracker into a shared session MCAP
+   # Push for a host OgloTactileTracker into a shared session MCAP
    ./build/src/plugins/oglo_tactile/oglo_tactile_plugin --side right --collection-prefix=oglo
 
 The packet parser reads the device **Config characteristic** first and branches
@@ -72,11 +69,12 @@ legacy schema-4 fallback), so payload sizes are never hardcoded.
 Recorded data
 -------------
 
-Channels ``oglo_left`` / ``oglo_right`` carry ``core.OgloGloveSampleRecord``:
-``seq``, ``device_time_us``, ``taxels[80]`` (raw 12-bit, ``finger,row,col``),
-and a 6-axis IMU, each with a ``DeviceDataTimestamp`` whose
-``sample_time_local_common_clock`` is on the shared host monotonic clock — so
-OGLO aligns in time with hand/head streams.
+The host ``OgloTactileTracker`` records per hand into channels
+``oglo_<side>/oglo`` and ``oglo_<side>/oglo_tracked``, carrying
+``core.OgloGloveSampleRecord``: ``seq``, ``device_time_us``, ``taxels[80]`` (raw
+12-bit, ``finger,row,col``), and a 6-axis IMU, each with a ``DeviceDataTimestamp``
+whose ``sample_time_local_common_clock`` is on the shared host monotonic clock —
+so OGLO aligns in time with hand/head streams.
 
 A complete data-collection demo (MetaQuest hand/head + both gloves + a live
 in-headset tactile heatmap) lives at

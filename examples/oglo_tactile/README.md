@@ -47,12 +47,7 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
    The BLE backend (BlueZ via libdbus, permissive) connects out of the box.
 
 3. **Gloves**: confirm both run firmware `0.7.1` (schema 5), are charged, and
-   advertise `OGLO LEFT` / `OGLO RIGHT`. Validate each glove standalone first:
-
-   ```bash
-   ./build/src/plugins/oglo_tactile/oglo_tactile_plugin --side right --mcap-filename=right.mcap
-   # press taxels; Ctrl+C; expect schema_ver:5, ~100Hz, seq continuous
-   ```
+   advertise `OGLO LEFT` / `OGLO RIGHT` (check with `bluetoothctl scan on`).
 
 4. **CloudXR**: install per the IsaacTeleop Quick Start (`pip install 'isaacteleop[cloudxr]'`).
 

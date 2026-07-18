@@ -23,7 +23,6 @@ namespace ble_uuids
 constexpr const char* kService = "4652535f-424c-4500-0000-000000000001";
 constexpr const char* kNotify = "4652535f-424c-4500-0001-000000000001"; // tactile + IMU stream
 constexpr const char* kConfig = "4652535f-424c-4500-0002-000000000001"; // device manifest (JSON)
-constexpr const char* kCommand = "4652535f-424c-4500-0003-000000000001"; // commands (write)
 } // namespace ble_uuids
 
 //! Advertised BLE name for a hand, e.g. "OGLO LEFT".
@@ -55,8 +54,6 @@ public:
 
     //! Register an optional connection-state observer (connect / drop events).
     virtual void on_state_change(StateCallback cb) = 0;
-
-    virtual bool is_connected() const = 0;
 
     //! Disconnect and quiesce notifications: after this returns, the backend
     //! must not invoke the @c NotifyCallback again until the next subscribe().

@@ -318,11 +318,6 @@ public:
         m_state_cb = std::move(cb);
     }
 
-    bool is_connected() const override
-    {
-        return m_connected.load(std::memory_order_relaxed);
-    }
-
     void disconnect() override
     {
         // Quiescence contract: stop and join the dispatch thread first so the
@@ -346,7 +341,6 @@ public:
         }
         m_notify_char_path.clear();
         m_config_char_path.clear();
-        m_connected.store(false, std::memory_order_relaxed);
     }
 
 private:
@@ -531,7 +525,6 @@ private:
 
     void notify_state(bool connected)
     {
-        m_connected.store(connected, std::memory_order_relaxed);
         if (m_state_cb)
             m_state_cb(connected);
     }
@@ -602,7 +595,6 @@ private:
 
     NotifyCallback m_notify_cb;
     StateCallback m_state_cb;
-    std::atomic<bool> m_connected{ false };
 
     std::thread m_dispatch_thread;
     std::atomic<bool> m_dispatch_run{ false };

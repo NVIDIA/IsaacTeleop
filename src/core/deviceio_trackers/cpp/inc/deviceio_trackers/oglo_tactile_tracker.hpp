@@ -15,8 +15,8 @@ namespace core
 /*!
  * @brief Facade for one OGLO tactile glove exposed as ``OgloGloveSampleTrackedT``.
  *
- * Reads a tensor collection pushed by the ``oglo_tactile`` plugin (Mode 2,
- * ``--collection-prefix``). One tracker per hand: construct with the matching
+ * Reads a tensor collection pushed by the ``oglo_tactile`` plugin
+ * (``--collection-prefix``). One tracker per hand: construct with the matching
  * ``collection_id`` (e.g. ``"oglo/left"`` / ``"oglo/right"``). After each
  * ``ITrackerSession::update()`` that includes this tracker, ``get_data(session)``
  * reflects the latest decoded sample; ``data`` is null until the first sample

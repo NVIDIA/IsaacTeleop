@@ -65,10 +65,10 @@ void OgloTactilePlugin::connect_and_subscribe()
               << " format=" << m_config.packet_format << " rate=" << m_config.rate_hz << "Hz"
               << " serial=" << m_config.serial << std::endl;
 
-    // The sink is created once (first connect); reconnects reuse it so the MCAP
-    // file / OpenXR collection stays continuous across drops.
+    // The sink is created once (first connect); reconnects reuse it so the
+    // OpenXR collection stays continuous across drops.
     if (!m_sink)
-        m_sink = create_glove_sink(m_opts.side, m_config, m_opts.mcap_filename, m_opts.collection_prefix);
+        m_sink = create_glove_sink(m_opts.side, m_opts.collection_prefix);
 
     m_ble->subscribe([this](const uint8_t* data, std::size_t len) { on_notify(data, len); });
     m_last_notify_ns.store(core::os_monotonic_now_ns(), std::memory_order_relaxed);
