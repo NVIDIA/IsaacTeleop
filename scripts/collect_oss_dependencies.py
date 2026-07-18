@@ -38,8 +38,12 @@ EXCLUDED_DIRS = {
 REQUIREMENTS_RE = re.compile(
     r"^\s*(?P<name>[A-Za-z0-9_.-]+)\s*(?P<specifier>(?:===|==|~=|!=|<=|>=|<|>).*)?$"
 )
-DOCKER_FROM_RE = re.compile(r"^\s*FROM\s+(?:--platform=\S+\s+)?(?P<image>\S+)", re.IGNORECASE)
-GITHUB_ACTION_RE = re.compile(r"uses:\s*(?P<action>[A-Za-z0-9_.-]+/[A-Za-z0-9_.\-/]+)@(?P<ref>[A-Za-z0-9_.\-/]+)")
+DOCKER_FROM_RE = re.compile(
+    r"^\s*FROM\s+(?:--platform=\S+\s+)?(?P<image>\S+)", re.IGNORECASE
+)
+GITHUB_ACTION_RE = re.compile(
+    r"uses:\s*(?P<action>[A-Za-z0-9_.-]+/[A-Za-z0-9_.\-/]+)@(?P<ref>[A-Za-z0-9_.\-/]+)"
+)
 CMAKE_FETCH_RE = re.compile(
     r"(?P<kind>FetchContent_Declare|ExternalProject_Add|CPMAddPackage)\s*\((?P<body>.*?)\)",
     re.IGNORECASE | re.DOTALL,
@@ -124,9 +128,7 @@ def _parse_pyproject(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     project = data.get("project", {})
     entries: list[dict[str, Any]] = []
     for dependency in project.get("dependencies", []) or []:
-        entries.append(
-            _python_dependency_entry(dependency, path, repo_root, "runtime")
-        )
+        entries.append(_python_dependency_entry(dependency, path, repo_root, "runtime"))
     optional = project.get("optional-dependencies", {}) or {}
     for scope, dependencies in optional.items():
         for dependency in dependencies or []:
@@ -403,8 +405,12 @@ def write_summary(report: dict[str, Any], summary_path: Path, limit: int = 200) 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--output", type=Path, default=Path("oss-report/dependency-inventory.json"))
-    parser.add_argument("--summary", type=Path, default=Path("oss-report/dependency-inventory.md"))
+    parser.add_argument(
+        "--output", type=Path, default=Path("oss-report/dependency-inventory.json")
+    )
+    parser.add_argument(
+        "--summary", type=Path, default=Path("oss-report/dependency-inventory.md")
+    )
     args = parser.parse_args()
 
     repo_root = args.repo_root.resolve()
