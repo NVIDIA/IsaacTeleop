@@ -147,7 +147,7 @@ class CloudXRLauncher:
             raise ValueError(
                 "start_wss_proxy=False is incompatible with enable_oob_hub, "
                 "setup_oob, usb_local, and host_client "
-                "(those features require the WSS proxy)"
+                "(each requires the WSS proxy)"
             )
 
         if self._usb_local or self._host_client:
