@@ -15,6 +15,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 env:
   # Shared apt build dependencies. Each job installs these plus its own extras
   # (ccache, clang-format, the OAK camera autotools chain).
