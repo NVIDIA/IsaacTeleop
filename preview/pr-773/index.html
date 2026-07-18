@@ -291,7 +291,7 @@
           
           
           
-          <a href="https://docs.nvidia.com/cloudxr-sdk" title="CloudXR" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/CloudXR-6.1-green.svg" class="icon-link-image" alt="CloudXR"/></a>
+          <a href="https://docs.nvidia.com/cloudxr-sdk" title="CloudXR" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/CloudXR-6.2-green.svg" class="icon-link-image" alt="CloudXR"/></a>
         </li>
         <li class="nav-item">
           
@@ -352,6 +352,7 @@
 <li class="toctree-l1"><a class="reference internal" href="references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a></li>
@@ -422,13 +423,13 @@ installation and first-run steps.</p>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/quick_start.html">Quick Start</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#check-out-code-base-optional">1. Check out code base (Optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#try-it-on-brev-zero-setup">Try It on Brev — Zero Setup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#check-out-code-base-for-examples">1. Check out code base (for examples)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#install-the-isaacteleop-pip-package">2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#run-cloudxr-server">3. Run CloudXR Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#configure-cloudxr-optional">3. Configure CloudXR (optional)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#whitelist-ports-for-firewall">4. Whitelist ports for Firewall</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#connect-an-xr-headset">5. Connect an XR headset</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#load-cloudxr-environment-variables">6. Load CloudXR environment variables</a></li>
-<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#run-a-teleop-example">7. Run a teleop example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#run-a-teleop-example">6. Run a teleop example</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#next-steps">Next steps</a></li>
 <li class="toctree-l2"><a class="reference internal" href="getting_started/quick_start.html#more-information">More Information</a></li>
 </ul>
@@ -516,12 +517,16 @@ installation and first-run steps.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="references/camera_streaming.html">Camera Streaming</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#modes">Modes</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#supported-cameras">Supported cameras</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#how-it-works">How it works</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#requirements">Requirements</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#setup">Setup</a></li>
-<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#running">Running</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#first-run-no-camera-required">First run — no camera required</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#supported-sources">Supported sources</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#running-with-a-real-camera">Running with a real camera</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#display-modes">Display modes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#split-mode-robot-workstation-over-rtp">Split mode — robot → workstation over RTP</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#how-it-works">How it works</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/camera_streaming.html#sharing-the-xr-session-with-teleopsession">Sharing the XR session with TeleopSession</a></li>
 </ul>
 </li>
@@ -530,6 +535,14 @@ installation and first-run steps.</p>
 <li class="toctree-l2"><a class="reference internal" href="references/mcap_record_replay.html#replaying-a-recording">Replaying a Recording</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/mcap_record_replay.html#runnable-example">Runnable Example</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/mcap_record_replay.html#api-reference">API Reference</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="references/cloudxr.html">Dedicated CloudXR Runtime</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/cloudxr.html#start-the-runtime">Start the runtime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/cloudxr.html#optional-launch-modes">Optional launch modes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/cloudxr.html#load-cloudxr-environment-variables">Load CloudXR environment variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/cloudxr.html#run-teleop-examples-against-the-dedicated-runtime">Run teleop examples against the dedicated runtime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/cloudxr.html#configuration">Configuration</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="references/oob_teleop_control.html">Out-of-Band Teleop Control</a><ul>
@@ -696,7 +709,7 @@ installation and first-run steps.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 18, 2026.
       <br/>
     
   </p>
