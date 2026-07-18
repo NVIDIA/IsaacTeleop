@@ -145,10 +145,16 @@ def wait_for_runtime_ready_sync(
     return False
 
 
+def _load_libcloudxr(sdk_path: str) -> ctypes.CDLL:
+    """Load libcloudxr.so with RTLD_DEEPBIND so the native stack resolves symbols from its own packaged libraries."""
+    deepbind = getattr(os, "RTLD_DEEPBIND", 0)
+    return ctypes.CDLL(os.path.join(sdk_path, "libcloudxr.so"), mode=deepbind)
+
+
 def runtime_version() -> str:
     """Query the CloudXR runtime version from the native library (major.minor.patch)."""
     sdk_path = _get_sdk_path()
-    lib = ctypes.CDLL(os.path.join(sdk_path, "libcloudxr.so"))
+    lib = _load_libcloudxr(sdk_path)
     if not hasattr(lib, "nv_cxr_get_runtime_version"):
         return "unknown"
     major, minor, patch = ctypes.c_uint32(), ctypes.c_uint32(), ctypes.c_uint32()
@@ -247,9 +253,7 @@ def run() -> None:
         os.close(devnull_fd)
         os.close(stderr_fd)
 
-    lib_path = os.path.join(sdk_path, "libcloudxr.so")
-    deepbind = getattr(os, "RTLD_DEEPBIND", 0)
-    lib = ctypes.CDLL(lib_path, mode=deepbind)
+    lib = _load_libcloudxr(sdk_path)
     svc = ctypes.c_void_p()
     # Signal handler must only call stop() after create() has run; avoid calling with null svc.
     state = {"service_created": False, "interrupted": False}

@@ -214,7 +214,7 @@ class TeleopSession:
 
     @property
     def oxr_session(self) -> Optional[oxr.OpenXRSession]:
-        """The internal OpenXR session, or ``None`` when using external handles (read-only)."""
+        """The internal OpenXR session, or ``None`` when using external handles or after the context manager exits (read-only)."""
         return self._oxr_session
 
     @property
@@ -1054,8 +1054,15 @@ class TeleopSession:
         # ExitStack automatically cleans up all managed contexts in reverse order.
         # Preserve TeleopSession's historical behavior of not suppressing
         # exceptions from the user body, even if a child context manager would.
-        self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
-        self._exit_stack = ExitStack()
+        try:
+            self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
+            self._exit_stack = ExitStack()
+        finally:
+            # The ExitStack above closes the OpenXR session; drop our reference so the
+            # public `oxr_session` property honors its documented None contract post-exit
+            # rather than surfacing a torn-down session -- even if a managed context's
+            # cleanup raised. (deviceio_session has no such property/contract.)
+            self._oxr_session = None
 
         if runner_error is not None:
             raise runner_error

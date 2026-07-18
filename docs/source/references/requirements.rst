@@ -12,7 +12,7 @@ Teleoperation to Robots with Input Devices
     :alt: Hardware requirements for teleoperation with extra input devices
     :class: no-image-zoom
 
-When using extra input devices (such as Manus Gloves, Logitech Rudder Pedals, OAK-D Camera, etc.),
+When using extra input devices (such as Manus Gloves, Logitech Rudder Pedals, OAK-D Camera, Haptikos Exoskeletons etc.),
 Isaac Teleop needs to be **run on a laptop or workstation**, that is connected to the robot via
 network.  The minimum requirements for the laptop/workstation are:
 

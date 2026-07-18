@@ -8,9 +8,10 @@ import time
 from typing import Dict, Sequence
 
 import numpy as np
-from geometry_msgs.msg import PoseArray, PoseStamped
+from geometry_msgs.msg import Pose, PoseStamped
 from scipy.spatial.transform import Rotation
 from sensor_msgs.msg import JointState
+from teleop_ros2_interfaces.msg import NamedPoseArray
 
 from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
 from isaacteleop.retargeting_engine.tensor_types.indices import (
@@ -21,9 +22,8 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     HeadPoseIndex,
 )
 
-from constants import BODY_JOINT_NAMES
+from constants import BODY_JOINT_NAMES, HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES
 from geometry import (
-    append_hand_poses,
     apply_manus_controller_to_hand_pose,
     apply_transform_to_pose,
     to_pose,
@@ -34,6 +34,78 @@ from tensor_group_helpers import (
     head_is_valid,
     joint_names_from_group_type,
 )
+
+
+def _compose_ee_msg(
+    left_pose: Pose | None,
+    right_pose: Pose | None,
+    now,
+    frame_id: str,
+) -> NamedPoseArray:
+    msg = NamedPoseArray()
+    msg.header.stamp = now
+    msg.header.frame_id = frame_id
+    for side, pose in (("left", left_pose), ("right", right_pose)):
+        # Set the pose and validity together so the parallel fields cannot diverge.
+        if pose is None:
+            pose = to_pose([0.0, 0.0, 0.0])
+            pose_is_valid = False
+        else:
+            pose_is_valid = True
+        msg.name.append(side)
+        msg.pose.append(pose)
+        msg.is_valid.append(pose_is_valid)
+    return msg
+
+
+def _compute_ee_pose_from_controller(
+    ctrl: OptionalTensorGroup,
+    side: str,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
+    controller_uses_hands_source: bool = False,
+) -> Pose | None:
+    if not controller_aim_is_valid(ctrl):
+        return None
+
+    pos = [float(x) for x in ctrl[ControllerInputIndex.AIM_POSITION]]
+    ori = [float(x) for x in ctrl[ControllerInputIndex.AIM_ORIENTATION]]
+    pose = to_pose(pos, ori)
+
+    if transform_rot is not None or transform_trans is not None:
+        pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
+
+    if controller_uses_hands_source:
+        pose = apply_manus_controller_to_hand_pose(pose, side)
+
+    return pose
+
+
+def _compute_ee_pose_from_hand(
+    hand: OptionalTensorGroup,
+    transform_rot: Rotation | None = None,
+    transform_trans: Sequence[float] | None = None,
+) -> Pose | None:
+    if not hand_wrist_is_valid(hand):
+        return None
+
+    positions = np.asarray(hand[HandInputIndex.JOINT_POSITIONS])
+    orientations = np.asarray(hand[HandInputIndex.JOINT_ORIENTATIONS])
+    pose = to_pose(
+        positions[HandJointIndex.WRIST],
+        orientations[HandJointIndex.WRIST],
+    )
+    if transform_rot is not None or transform_trans is not None:
+        pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
+    return pose
+
+
+def _to_pose_stamped(pose: Pose, now, frame_id: str) -> PoseStamped:
+    msg = PoseStamped()
+    msg.header.stamp = now
+    msg.header.frame_id = frame_id
+    msg.pose = pose
+    return msg
 
 
 def build_controller_payload(
@@ -119,43 +191,23 @@ def build_ee_msg_from_controllers(
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
     controller_uses_hands_source: bool = False,
-) -> PoseArray:
-    """Build a PoseArray with left then right controller/hand wrist poses."""
-    msg = PoseArray()
-    msg.header.stamp = now
-    msg.header.frame_id = frame_id
-
-    if controller_aim_is_valid(left_ctrl):
-        pos = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_POSITION]]
-        ori = [float(x) for x in left_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
-        pose = to_pose(pos, ori)
-
-        if transform_rot is not None or transform_trans is not None:
-            pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
-
-        if controller_uses_hands_source:
-            pose = apply_manus_controller_to_hand_pose(pose, "left")
-
-        msg.poses.append(pose)
-    else:
-        msg.poses.append(to_pose([0.0, 0.0, 0.0]))
-
-    if controller_aim_is_valid(right_ctrl):
-        pos = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_POSITION]]
-        ori = [float(x) for x in right_ctrl[ControllerInputIndex.AIM_ORIENTATION]]
-        pose = to_pose(pos, ori)
-
-        if transform_rot is not None or transform_trans is not None:
-            pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
-
-        if controller_uses_hands_source:
-            pose = apply_manus_controller_to_hand_pose(pose, "right")
-
-        msg.poses.append(pose)
-    else:
-        msg.poses.append(to_pose([0.0, 0.0, 0.0]))
-
-    return msg
+) -> NamedPoseArray:
+    """Build fixed left/right EE entries from controller aim poses."""
+    left_pose = _compute_ee_pose_from_controller(
+        left_ctrl,
+        "left",
+        transform_rot,
+        transform_trans,
+        controller_uses_hands_source,
+    )
+    right_pose = _compute_ee_pose_from_controller(
+        right_ctrl,
+        "right",
+        transform_rot,
+        transform_trans,
+        controller_uses_hands_source,
+    )
+    return _compose_ee_msg(left_pose, right_pose, now, frame_id)
 
 
 def build_ee_msg_from_hands(
@@ -165,39 +217,19 @@ def build_ee_msg_from_hands(
     frame_id: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
-) -> PoseArray:
-    """Build a PoseArray with left then right hand wrist poses (EE proxy)."""
-    msg = PoseArray()
-    msg.header.stamp = now
-    msg.header.frame_id = frame_id
-
-    if hand_wrist_is_valid(left_hand):
-        left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
-        left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        pose = to_pose(
-            left_positions[HandJointIndex.WRIST],
-            left_orientations[HandJointIndex.WRIST],
-        )
-        if transform_rot is not None or transform_trans is not None:
-            pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
-        msg.poses.append(pose)
-    else:
-        msg.poses.append(to_pose([0.0, 0.0, 0.0]))
-
-    if hand_wrist_is_valid(right_hand):
-        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
-        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        pose = to_pose(
-            right_positions[HandJointIndex.WRIST],
-            right_orientations[HandJointIndex.WRIST],
-        )
-        if transform_rot is not None or transform_trans is not None:
-            pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
-        msg.poses.append(pose)
-    else:
-        msg.poses.append(to_pose([0.0, 0.0, 0.0]))
-
-    return msg
+) -> NamedPoseArray:
+    """Build fixed left/right EE entries from hand wrist poses."""
+    left_pose = _compute_ee_pose_from_hand(
+        left_hand,
+        transform_rot,
+        transform_trans,
+    )
+    right_pose = _compute_ee_pose_from_hand(
+        right_hand,
+        transform_rot,
+        transform_trans,
+    )
+    return _compose_ee_msg(left_pose, right_pose, now, frame_id)
 
 
 def build_finger_joints_msg(
@@ -249,51 +281,40 @@ def build_full_body_payload(full_body: OptionalTensorGroup) -> Dict:
     }
 
 
-def build_hand_msg_from_hands(
+def build_hand_msg(
     left_hand: OptionalTensorGroup,
     right_hand: OptionalTensorGroup,
     now,
     frame_id: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
-) -> PoseArray:
-    """Build a PoseArray with finger joint poses, left hand then right hand."""
-    msg = PoseArray()
+) -> NamedPoseArray:
+    """Build fixed left/right hand joint entries with invalid placeholders."""
+    msg = NamedPoseArray()
     msg.header.stamp = now
     msg.header.frame_id = frame_id
 
-    if not left_hand.is_none:
-        left_positions = np.asarray(left_hand[HandInputIndex.JOINT_POSITIONS])
-        left_orientations = np.asarray(left_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        left_valid = np.asarray(left_hand[HandInputIndex.JOINT_VALID])
-        append_hand_poses(
-            msg.poses,
-            left_positions,
-            left_orientations,
-            left_valid,
-            transform_rot,
-            transform_trans,
-        )
-    else:
-        for _ in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
-            msg.poses.append(to_pose([0.0, 0.0, 0.0]))
-
-    if not right_hand.is_none:
-        right_positions = np.asarray(right_hand[HandInputIndex.JOINT_POSITIONS])
-        right_orientations = np.asarray(right_hand[HandInputIndex.JOINT_ORIENTATIONS])
-        right_valid = np.asarray(right_hand[HandInputIndex.JOINT_VALID])
-        append_hand_poses(
-            msg.poses,
-            right_positions,
-            right_orientations,
-            right_valid,
-            transform_rot,
-            transform_trans,
-        )
-    else:
-        for _ in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1):
-            msg.poses.append(to_pose([0.0, 0.0, 0.0]))
-
+    for side, hand in (("left", left_hand), ("right", right_hand)):
+        if hand.is_none:
+            for joint_name in HAND_POSE_NAMES:
+                msg.name.append(f"{side}_{joint_name}")
+                msg.pose.append(to_pose([0.0, 0.0, 0.0]))
+                msg.is_valid.append(False)
+            continue
+        positions = np.asarray(hand[HandInputIndex.JOINT_POSITIONS])
+        orientations = np.asarray(hand[HandInputIndex.JOINT_ORIENTATIONS])
+        joint_valid = np.asarray(hand[HandInputIndex.JOINT_VALID])
+        for joint_idx, joint_name in zip(HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES):
+            joint_is_valid = bool(joint_valid[joint_idx])
+            if joint_is_valid:
+                pose = to_pose(positions[joint_idx], orientations[joint_idx])
+                if transform_rot is not None or transform_trans is not None:
+                    pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
+            else:
+                pose = to_pose([0.0, 0.0, 0.0])
+            msg.name.append(f"{side}_{joint_name}")
+            msg.pose.append(pose)
+            msg.is_valid.append(joint_is_valid)
     return msg
 
 
@@ -314,8 +335,4 @@ def build_head_msg(
     if transform_rot is not None or transform_trans is not None:
         pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
 
-    msg = PoseStamped()
-    msg.header.stamp = now
-    msg.header.frame_id = frame_id
-    msg.pose = pose
-    return msg
+    return _to_pose_stamped(pose, now, frame_id)

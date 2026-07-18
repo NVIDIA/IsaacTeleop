@@ -166,8 +166,7 @@ class RtpH264Sender:
         # with the pipeline clock at push time, which is what
         # rtpjitterbuffer expects. Setting buf.pts here would fight the
         # appsrc and introduce drift between our synthetic monotonic
-        # counter and the actual arrival cadence (this is what the
-        # camera_streamer reference does — no manual PTS).
+        # counter and the actual arrival cadence.
         flow = self._appsrc.emit("push-buffer", buf)
         return flow == Gst.FlowReturn.OK
 

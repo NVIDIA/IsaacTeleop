@@ -163,8 +163,10 @@ add_custom_target(python_stubs
 add_custom_target(python_wheel ALL
     COMMAND ${CMAKE_COMMAND} -E echo "Building Python wheel with uv..."
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/wheels"
-    COMMAND uv build --wheel --out-dir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>" ||
-            python3 -m build --wheel --outdir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
+    COMMAND uv build --wheel --python ${ISAAC_TELEOP_PYTHON_VERSION}
+            --out-dir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>" ||
+            "${Python3_EXECUTABLE}" -m build --wheel
+            --outdir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
     DEPENDS python_stubs
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     COMMENT "Building Python wheel with uv (fallback to python -m build)"

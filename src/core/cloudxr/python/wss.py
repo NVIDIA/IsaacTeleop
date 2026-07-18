@@ -58,6 +58,7 @@ def _patch_request_parser_for_cors():
 
     @classmethod
     def _cors_aware_parse(cls, read_line):
+        """Monkey-patched ``Request.parse`` that maps OPTIONS requests to a synthetic CORS path."""
         try:
             return (yield from _orig_parse(cls, read_line))
         except ValueError as exc:
@@ -76,12 +77,15 @@ log = logging.getLogger("wss-proxy")
 
 @dataclass(frozen=True)
 class CertPaths:
+    """Resolved paths for the WSS TLS certificate and private key."""
+
     cert_dir: Path
     cert_file: Path
     key_file: Path
 
 
 def cert_paths_from_dir(cert_dir: Path) -> CertPaths:
+    """Return a :class:`CertPaths` with ``server.crt`` / ``server.key`` under *cert_dir*."""
     cert_dir = cert_dir.resolve()
     return CertPaths(
         cert_dir=cert_dir,
@@ -139,6 +143,7 @@ def ensure_certificate(cert_paths: CertPaths) -> None:
 
 
 def build_ssl_context(cert_paths: CertPaths) -> ssl.SSLContext:
+    """Build a TLS 1.2+ server :class:`ssl.SSLContext` from *cert_paths*."""
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.load_cert_chain(
         certfile=str(cert_paths.cert_file), keyfile=str(cert_paths.key_file)
@@ -156,6 +161,7 @@ CORS_HEADERS = {
 
 
 def _cert_html() -> bytes:
+    """Return minimal HTML confirming the self-signed certificate was accepted."""
     return (
         b"<!doctype html><html><head><meta charset=utf-8>"
         b"<style>body{font-family:system-ui,sans-serif;display:flex;"
@@ -241,6 +247,7 @@ def _stream_config_from_query(q: dict[str, str]) -> tuple[dict | None, str | Non
 
 
 def _oob_token(request, q: dict[str, str]) -> str | None:
+    """Extract the OOB control token from the ``X-Control-Token`` header or ``token`` query param."""
     h = request.headers.get("X-Control-Token")
     if h:
         return h
@@ -249,6 +256,7 @@ def _oob_token(request, q: dict[str, str]) -> str | None:
 
 
 def _json_response(status: int, phrase: str, body: dict) -> Response:
+    """Build a JSON :class:`Response` with CORS headers."""
     return Response(
         status,
         phrase,
@@ -258,7 +266,10 @@ def _json_response(status: int, phrase: str, body: dict) -> Response:
 
 
 def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
+    """Return the WSS HTTP request handler (OOB hub API, static ``/client/``, cert page)."""
+
     async def handle_http_request(connection, request):
+        """Dispatch non-WebSocket HTTP: CORS preflight, OOB APIs, static client, or cert HTML."""
         if request.headers.get("Upgrade", "").lower() == "websocket":
             return None
 
@@ -319,12 +330,14 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 b"Not found",
             )
 
+        # Static web client (--host-client): index.html + two JS bundles.
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
         ):
             _MIME = {
                 "index.html": "text/html; charset=utf-8",
                 "bundle.js": "application/javascript; charset=utf-8",
+                "bundle.emulator.js": "application/javascript; charset=utf-8",
             }
             tail = path[len("/client") :].lstrip("/") or "index.html"
             if tail not in _MIME:
@@ -338,10 +351,10 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 body = (static_dir / tail).read_bytes()
             except OSError:
                 return Response(
-                    503,
-                    "Service Unavailable",
+                    404,
+                    "Not Found",
                     Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
-                    b"Static file unavailable",
+                    b"Not found",
                 )
             return Response(
                 200,
@@ -361,6 +374,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
 
 
 def add_cors_headers(connection, request, response):
+    """``process_response`` hook: inject CORS headers into every WebSocket upgrade response."""
     response.headers.update(CORS_HEADERS)
 
 
@@ -395,6 +409,7 @@ def _is_backend_connection_refused(exc: BaseException) -> bool:
 
 
 async def _pipe(src, dst, label: str):
+    """Forward every message from *src* to *dst*, propagating the close frame."""
     try:
         async for msg in src:
             if isinstance(msg, str):
@@ -420,6 +435,7 @@ async def _pipe(src, dst, label: str):
 
 
 async def proxy_handler(client, backend_host: str, backend_port: int):
+    """Bidirectionally proxy a WebSocket *client* connection to *backend_host:backend_port*."""
     path = client.request.path or "/"
     backend_uri = f"ws://{backend_host}:{backend_port}{path}"
 
@@ -498,6 +514,7 @@ async def run(
     usb_local: bool = False,
     host_client: bool = False,
 ) -> None:
+    """Start the WSS proxy server and run until *stop_future* is resolved."""
     logger = log
     logger.setLevel(logging.INFO)
     logger.propagate = False
@@ -544,6 +561,7 @@ async def run(
             )
 
         def handler(ws):
+            """Route an incoming WebSocket to the OOB hub or the backend proxy."""
             if hub is not None:
                 path = _normalize_request_path(ws.request.path or "/")
                 if path == OOB_WS_PATH:
@@ -739,7 +757,7 @@ async def run(
                         f"verified: adb reverse TURN {_usb_turn_port_resolved}",
                     )
 
-                if setup_oob:
+                if setup_oob and not os.getenv("TELEOP_OOB_HUB_ONLY"):
                     from .oob_teleop_adb import (  # noqa: PLC0415
                         build_teleop_url,
                         monitor_headset_wifi,
@@ -774,6 +792,7 @@ async def run(
                         if hub is not None:
 
                             async def _announce_streaming():
+                                """Print a progress line once the headset confirms streaming has started."""
                                 cid, since = await hub.wait_for_streaming()
                                 ts = time.strftime("%H:%M:%S", time.localtime(since))
                                 oob_progress(

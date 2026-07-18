@@ -10,11 +10,12 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
-  - controller_teleop (default): ee_poses (from controller aim pose), root_twist,
-                       root_pose, finger_joints (retargeted TriHand angles),
-                       controller_data, head_pose, and TF transforms for
-                       left/right wrists and head
-  - hand_teleop: ee_poses (from hand tracking wrist), hand (finger joint poses),
+  - controller_teleop (default): ee_pose (from controller aim poses),
+                       root_twist, root_pose, finger_joints
+                       (retargeted TriHand angles), controller_data, head_pose,
+                       and TF transforms for left/right wrists and head
+  - hand_teleop: ee_pose (from hand tracking wrists), hand (named left and
+                 right joint poses),
                  finger_joints (retargeted Sharpa joint angles),
                  root_twist/root_pose (from foot pedal locomotion), head_pose,
                  and TF transforms for left/right wrists and head
@@ -22,8 +23,8 @@ published:
   - full_body: full_body and controller_data
 
 Topic names (remappable via ROS 2 remapping):
-  - xr_teleop/hand (PoseArray): [finger_joint_poses...]
-  - xr_teleop/ee_poses (PoseArray): [left_ee, right_ee]
+  - xr_teleop/hand (NamedPoseArray): named left and right hand joint poses
+  - xr_teleop/ee_pose (NamedPoseArray): named left and right EE poses
   - xr_teleop/root_twist (TwistStamped): root velocity command
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/head_pose (PoseStamped): head pose
@@ -46,7 +47,6 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import (
     Pose,
-    PoseArray,
     PoseStamped,
     TransformStamped,
     TwistStamped,
@@ -54,6 +54,7 @@ from geometry_msgs.msg import (
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
+from teleop_ros2_interfaces.msg import NamedPoseArray
 from tf2_ros import TransformBroadcaster
 
 from isaacteleop.cloudxr import CloudXRLauncher
@@ -65,8 +66,14 @@ from messages import (
     build_ee_msg_from_hands,
     build_finger_joints_msg,
     build_full_body_payload,
-    build_hand_msg_from_hands,
+    build_hand_msg,
     build_head_msg,
+)
+from teleop_profiles import (
+    PublishType,
+    SessionResult,
+    resolve_teleop_profile_spec,
+    validate_session_result,
 )
 from node_parameters import (
     NodeParameters,
@@ -74,8 +81,6 @@ from node_parameters import (
 )
 from session_config import build_session_config
 from tensor_group_helpers import (
-    controller_aim_is_valid,
-    hand_wrist_is_valid,
     head_is_valid,
 )
 
@@ -86,20 +91,23 @@ class TeleopRos2Node(Node):
     def __init__(self) -> None:
         super().__init__("teleop_ros2_node")
         self._params: NodeParameters = create_node_parameters(self)
+        self._profile_spec = resolve_teleop_profile_spec(
+            self._params.mode, self._params.resolved_hand_retargeter
+        )
         self._tf_broadcaster = TransformBroadcaster(self)
         self._create_publishers()
         self._config = build_session_config(self._params)
 
     def _build_wrist_tfs(
         self,
-        ee_msg: PoseArray,
-        *,
-        right_available: bool,
-        left_available: bool,
-        now,
+        ee_msg: NamedPoseArray,
     ) -> List[TransformStamped]:
-        """Build wrist TF transforms from a pre-built ee_poses PoseArray (left pose at index 0, right at index 1)."""
+        """Build wrist TF transforms from valid EE pose entries."""
         tfs = []
+        wrist_frames = {
+            "left": self._params.left_wrist_frame,
+            "right": self._params.right_wrist_frame,
+        }
 
         def _get_orientation(pose: Pose) -> List[float]:
             return [
@@ -109,24 +117,14 @@ class TeleopRos2Node(Node):
                 pose.orientation.w,
             ]
 
-        if left_available:
-            pose = ee_msg.poses[0]
+        for side, pose, is_valid in zip(ee_msg.name, ee_msg.pose, ee_msg.is_valid):
+            if not is_valid:
+                continue
             tfs.append(
                 make_transform(
-                    now,
-                    self._params.world_frame,
-                    self._params.left_wrist_frame,
-                    [pose.position.x, pose.position.y, pose.position.z],
-                    _get_orientation(pose),
-                )
-            )
-        if right_available:
-            pose = ee_msg.poses[1]
-            tfs.append(
-                make_transform(
-                    now,
-                    self._params.world_frame,
-                    self._params.right_wrist_frame,
+                    ee_msg.header.stamp,
+                    ee_msg.header.frame_id,
+                    wrist_frames[side],
                     [pose.position.x, pose.position.y, pose.position.z],
                     _get_orientation(pose),
                 )
@@ -134,8 +132,10 @@ class TeleopRos2Node(Node):
         return tfs
 
     def _create_publishers(self) -> None:
-        self._pub_hand = self.create_publisher(PoseArray, "xr_teleop/hand", 10)
-        self._pub_ee_pose = self.create_publisher(PoseArray, "xr_teleop/ee_poses", 10)
+        self._pub_hand = self.create_publisher(NamedPoseArray, "xr_teleop/hand", 10)
+        self._pub_ee_pose = self.create_publisher(
+            NamedPoseArray, "xr_teleop/ee_pose", 10
+        )
         self._pub_root_twist = self.create_publisher(
             TwistStamped, "xr_teleop/root_twist", 10
         )
@@ -153,10 +153,10 @@ class TeleopRos2Node(Node):
         )
         self._pub_head = self.create_publisher(PoseStamped, "xr_teleop/head_pose", 10)
 
-    def _publish_controller_outputs(self, result: dict, now) -> None:
+    def _publish_ee_pose_from_controllers(self, result: SessionResult, now) -> None:
         left_ctrl = result["controller_left"]
         right_ctrl = result["controller_right"]
-        ee_msg = build_ee_msg_from_controllers(
+        ee_pose_msg = build_ee_msg_from_controllers(
             left_ctrl,
             right_ctrl,
             now,
@@ -165,36 +165,12 @@ class TeleopRos2Node(Node):
             self._params.transform_translation,
             self._params.controller_uses_hands_source,
         )
-        if ee_msg.poses:
-            self._pub_ee_pose.publish(ee_msg)
-        wrist_tfs = self._build_wrist_tfs(
-            ee_msg,
-            right_available=controller_aim_is_valid(right_ctrl),
-            left_available=controller_aim_is_valid(left_ctrl),
-            now=now,
-        )
+        self._pub_ee_pose.publish(ee_pose_msg)
+        wrist_tfs = self._build_wrist_tfs(ee_pose_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
-        if self._params.controller_uses_hands_source:
-            hand_msg = build_hand_msg_from_hands(
-                result["hand_left"],
-                result["hand_right"],
-                now,
-                self._params.world_frame,
-                self._params.transform_rotation,
-                self._params.transform_translation,
-            )
-            if hand_msg.poses:
-                self._pub_hand.publish(hand_msg)
 
-    def _publish_controller_payload(self, result: dict) -> None:
-        if self._params.mode not in (
-            "controller_raw",
-            "controller_teleop",
-            "full_body",
-        ):
-            return
-
+    def _publish_controller_payload(self, result: SessionResult) -> None:
         left_ctrl = result["controller_left"]
         right_ctrl = result["controller_right"]
         if left_ctrl.is_none and right_ctrl.is_none:
@@ -206,10 +182,7 @@ class TeleopRos2Node(Node):
         controller_msg.data = tuple(bytes([a]) for a in payload)
         self._pub_controller.publish(controller_msg)
 
-    def _publish_finger_joints(self, result: dict, now) -> None:
-        if self._params.mode not in ("controller_teleop", "hand_teleop"):
-            return
-
+    def _publish_finger_joints(self, result: SessionResult, now) -> None:
         finger_joints_msg = build_finger_joints_msg(
             result["finger_joints_left"],
             result["finger_joints_right"],
@@ -219,10 +192,7 @@ class TeleopRos2Node(Node):
         if finger_joints_msg is not None:
             self._pub_finger_joints.publish(finger_joints_msg)
 
-    def _publish_full_body_payload(self, result: dict) -> None:
-        if self._params.mode != "full_body":
-            return
-
+    def _publish_full_body_payload(self, result: SessionResult) -> None:
         full_body_data = result["full_body"]
         if full_body_data.is_none:
             return
@@ -233,10 +203,21 @@ class TeleopRos2Node(Node):
         body_msg.data = tuple(bytes([a]) for a in payload)
         self._pub_full_body.publish(body_msg)
 
-    def _publish_hand_tracking_outputs(self, result: dict, now) -> None:
+    def _publish_hand_poses(self, result: SessionResult, now) -> None:
+        hand_msg = build_hand_msg(
+            result["hand_left"],
+            result["hand_right"],
+            now,
+            self._params.world_frame,
+            self._params.transform_rotation,
+            self._params.transform_translation,
+        )
+        self._pub_hand.publish(hand_msg)
+
+    def _publish_ee_pose_from_hands(self, result: SessionResult, now) -> None:
         left_hand = result["hand_left"]
         right_hand = result["hand_right"]
-        hand_msg = build_hand_msg_from_hands(
+        ee_pose_msg = build_ee_msg_from_hands(
             left_hand,
             right_hand,
             now,
@@ -244,32 +225,12 @@ class TeleopRos2Node(Node):
             self._params.transform_rotation,
             self._params.transform_translation,
         )
-        if hand_msg.poses:
-            self._pub_hand.publish(hand_msg)
-
-        ee_msg = build_ee_msg_from_hands(
-            left_hand,
-            right_hand,
-            now,
-            self._params.world_frame,
-            self._params.transform_rotation,
-            self._params.transform_translation,
-        )
-        if ee_msg.poses:
-            self._pub_ee_pose.publish(ee_msg)
-        wrist_tfs = self._build_wrist_tfs(
-            ee_msg,
-            right_available=hand_wrist_is_valid(right_hand),
-            left_available=hand_wrist_is_valid(left_hand),
-            now=now,
-        )
+        self._pub_ee_pose.publish(ee_pose_msg)
+        wrist_tfs = self._build_wrist_tfs(ee_pose_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
-    def _publish_head(self, result: dict, now) -> None:
-        if self._params.mode not in ("controller_teleop", "hand_teleop"):
-            return
-
+    def _publish_head(self, result: SessionResult, now) -> None:
         head = result["head"]
         if not head_is_valid(head):
             return
@@ -300,10 +261,7 @@ class TeleopRos2Node(Node):
         )
         self._tf_broadcaster.sendTransform(head_tf)
 
-    def _publish_root_command(self, result: dict, now) -> None:
-        if self._params.mode not in ("hand_teleop", "controller_teleop"):
-            return
-
+    def _publish_root_command(self, result: SessionResult, now) -> None:
         root_command = result["root_command"]
         if root_command.is_none:
             return
@@ -344,7 +302,10 @@ class TeleopRos2Node(Node):
                         if launcher is not None:
                             launcher.health_check()
 
-                        result = session.step()
+                        result = validate_session_result(
+                            session.step(),
+                            self._profile_spec,
+                        )
 
                         # Keep ROS time and other callbacks updated in this
                         # manual loop so stamped messages progress with /clock.
@@ -352,16 +313,37 @@ class TeleopRos2Node(Node):
 
                         now = self.get_clock().now().to_msg()
 
-                        if self._params.mode == "hand_teleop":
-                            self._publish_hand_tracking_outputs(result, now)
-                        elif self._params.mode == "controller_teleop":
-                            self._publish_controller_outputs(result, now)
-
-                        self._publish_root_command(result, now)
-                        self._publish_finger_joints(result, now)
-                        self._publish_head(result, now)
-                        self._publish_controller_payload(result)
-                        self._publish_full_body_payload(result)
+                        if (
+                            PublishType.EE_FROM_HANDS
+                            in self._profile_spec.publish_types
+                        ):
+                            self._publish_ee_pose_from_hands(result, now)
+                        if (
+                            PublishType.EE_FROM_CONTROLLERS
+                            in self._profile_spec.publish_types
+                        ):
+                            self._publish_ee_pose_from_controllers(result, now)
+                        if PublishType.HAND_POSES in self._profile_spec.publish_types:
+                            self._publish_hand_poses(result, now)
+                        if PublishType.ROOT_COMMAND in self._profile_spec.publish_types:
+                            self._publish_root_command(result, now)
+                        if (
+                            PublishType.FINGER_JOINTS
+                            in self._profile_spec.publish_types
+                        ):
+                            self._publish_finger_joints(result, now)
+                        if PublishType.HEAD in self._profile_spec.publish_types:
+                            self._publish_head(result, now)
+                        if (
+                            PublishType.CONTROLLER_PAYLOAD
+                            in self._profile_spec.publish_types
+                        ):
+                            self._publish_controller_payload(result)
+                        if (
+                            PublishType.FULL_BODY_PAYLOAD
+                            in self._profile_spec.publish_types
+                        ):
+                            self._publish_full_body_payload(result)
 
                         time.sleep(self._params.sleep_period_s)
             except RuntimeError as e:
@@ -390,6 +372,7 @@ class TeleopRos2Node(Node):
             accept_eula=self._params.cloudxr_params.accept_eula,
             setup_oob=self._params.cloudxr_params.setup_oob,
             usb_local=self._params.cloudxr_params.usb_local,
+            host_client=True,
         ) as launcher:
             self.get_logger().info(
                 "CloudXR runtime and WSS proxy started "

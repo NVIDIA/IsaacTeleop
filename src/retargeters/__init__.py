@@ -18,6 +18,7 @@ Available Retargeters:
     - GripperRetargeter: Pinch-based gripper control
     - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm
     - SO101GripperRetargeter: Proportional (analog) jaw closedness for the SO-101 gripper
+    - JointStateRetargeter: Generic joint-space device (leader arm, exoskeleton) -> joint or EE action
     - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
     - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
     - Se3AbsRetargeter: Absolute EE pose control
@@ -109,6 +110,17 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "SO101GripperRetargeter": (
         ".SO101.gripper_retargeter",
         "SO101GripperRetargeter",
+        None,
+    ),
+    # .joint_space (generic joint-space devices: leader arms, exoskeletons, ...)
+    "JointStateRetargeter": (
+        ".joint_space.joint_state_retargeter",
+        "JointStateRetargeter",
+        None,
+    ),
+    "JointStateRetargeterConfig": (
+        ".joint_space.joint_state_retargeter",
+        "JointStateRetargeterConfig",
         None,
     ),
     # .se3_retargeter  (requires retargeters-lite extra: scipy)
@@ -205,6 +217,9 @@ __all__ = [
     # SO-101 5-DOF arm retargeters
     "SO101ClutchRetargeter",
     "SO101GripperRetargeter",
+    # Generic joint-space device retargeters (leader arms, exoskeletons, ...)
+    "JointStateRetargeter",
+    "JointStateRetargeterConfig",
     "Se3AbsRetargeter",
     "Se3RelRetargeter",
     "Se3RetargeterConfig",

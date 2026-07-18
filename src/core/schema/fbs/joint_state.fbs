@@ -1,0 +1,73 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "pose.fbs";
+include "timestamp.fbs";
+
+namespace core;
+
+// One actuated degree of freedom as a (name -> value) record. `position` is the primary
+// value; `velocity` / `effort` are optional (populated per JointStateOutput.has_velocity /
+// has_effort). `name` is the lookup key, so downstream consumers read joints BY NAME
+// (order-independent). The gripper is modeled as just another named DOF (conventionally the
+// last one, name == "gripper") -- there is no dedicated gripper field.
+table JointState {
+  // Stable DOF name, e.g. "shoulder_pan", "gripper". Lookup key for the joints vector.
+  name: string (id: 0, key);
+
+  // DOF position. [rad] for revolute joints, [m] for prismatic joints.
+  position: float (id: 1);
+
+  // DOF velocity, parallel to position. [rad/s | m/s]. Meaningful only when has_velocity.
+  velocity: float (id: 2);
+
+  // DOF effort (motor torque / current / force). [N*m | A | N depending on device].
+  // Meaningful only when has_effort. Present for exoskeletons / bilateral force-feedback rigs.
+  effort: float (id: 3);
+
+  // Per-DOF validity. Defaults to true; set false when a single joint read is stale/missing.
+  valid: bool = true (id: 4);
+}
+
+// Per-frame state of a generic joint-space input device (leader arm, exoskeleton, glove, or
+// any joint-encoder source), as name:value joint records. All fields are present when the
+// parent Tracked/Record wrapper's data is non-null.
+table JointStateOutput {
+  // One entry per actuated DOF, keyed by JointState.name. The reference JointStateSource maps
+  // these into the configured joint order BY NAME (so wire order does not matter). `name` is a
+  // FlatBuffers key, so a C++ consumer may LookupByKey if the vector is built sorted
+  // (flatbuffers::CreateVectorOfSortedTables); the reference plugin/source do not require it.
+  joints: [JointState] (id: 0);
+
+  // Stable device identity for routing / calibration / multi-device setups
+  // (e.g. "so101_leader", or a serial number). Static per session.
+  device_id: string (id: 1);
+
+  // Which optional per-joint channels are populated this session.
+  has_velocity: bool (id: 2);
+  has_effort: bool (id: 3);
+
+  // OPTIONAL end-effector pose in the device base frame, for devices that run on-device forward
+  // kinematics. RESERVED: the reference JointStateRetargeter computes FK from the joint
+  // positions and does not consume this field yet; it is provided so device-side FK can be
+  // adopted without a schema change. Position [m], orientation quaternion [x, y, z, w].
+  ee_pose: Pose (id: 4);
+  ee_pose_valid: bool (id: 5);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when the device is inactive).
+table JointStateOutputTracked {
+  data: JointStateOutput (id: 0);
+}
+
+// MCAP recording wrapper for JointStateOutput.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table JointStateOutputRecord {
+  data: JointStateOutput (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type JointStateOutputRecord;

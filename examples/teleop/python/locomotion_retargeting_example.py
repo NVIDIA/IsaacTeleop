@@ -8,11 +8,13 @@ Demonstrates using LocomotionRootCmdRetargeter to generate robot base commands
 from VR controller inputs.
 """
 
+import argparse
 import sys
 import time
 from pathlib import Path
 import isaacteleop.deviceio as deviceio
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeters import (
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
@@ -31,6 +33,10 @@ PLUGIN_ROOT_ID = "synthetic_hands"
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("\n" + "=" * 80)
     print("  Locomotion Retargeting Example")
     print("=" * 80)
@@ -93,7 +99,10 @@ def main():
         plugins=plugins,
     )
 
-    with TeleopSession(session_config) as session:
+    with (
+        CloudXRLauncher.launch_context(args),
+        TeleopSession(session_config) as session,
+    ):
         # No need to inject session anymore
 
         start_time = time.time()

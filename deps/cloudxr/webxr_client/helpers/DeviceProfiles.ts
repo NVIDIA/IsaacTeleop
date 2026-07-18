@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+import { detectHeadset } from './BrowserCapabilities';
+
 // Device profiles provide per-device defaults used by the example UIs.
 // These are not hard requirements; they are applied as suggested values and remain user-editable.
 export type DeviceProfileId = 'custom' | 'quest2' | 'quest3' | 'quest3s' | 'pico4ultra';
@@ -86,8 +88,12 @@ const QUEST3_PROFILE: DeviceProfile = {
   cloudxr: {
     perEyeWidth: 2048,
     perEyeHeight: 1792,
-    deviceFrameRate: 90,
-    maxStreamingBitrateKbps: 150000,
+    // 72 FPS / 25 Mbps: measured stable on a wireless Quest 3 production deployment.
+    // The previous 90 FPS left sessions paced against a rate the stream did not hold
+    // there (frames landing out of phase), and 150 Mbps saturated the link while
+    // exceeding the 100 Mbps ceiling StreamSDK guidance warns about.
+    deviceFrameRate: 72,
+    maxStreamingBitrateKbps: 25000,
     codec: 'av1',
     enablePoseSmoothing: true,
     posePredictionFactor: 1.0,
@@ -175,4 +181,26 @@ export function resolveDeviceProfileId(value: string | null | undefined): Device
 
 export function getDeviceProfile(id: DeviceProfileId): DeviceProfile {
   return DEVICE_PROFILES[id] ?? CUSTOM_PROFILE;
+}
+
+/**
+ * Best-effort default profile from the headset user-agent, reusing the same UA detection
+ * as the browser capability check ({@link detectHeadset}).
+ *
+ * Per Meta's Browser Specs the UA platform token carries the model — "Quest 2", "Quest 3",
+ * "Quest Pro", "Quest" — but Quest 3, Quest 3S and Quest 3S Xbox Edition all report
+ * "Quest 3", so 3-vs-3S is not distinguishable (and our quest3/quest3s profiles are
+ * identical anyway). The only split that matters is hardware AV1 support: Quest 3/3S have
+ * it (→ quest3, AV1); Quest 2 / Quest 1 / Quest Pro do not (→ quest2, H.265). Pico →
+ * pico4ultra; non-headset (desktop/emulator) → custom. `ua` is injectable for testing.
+ */
+export function detectDeviceProfileId(ua: string = navigator.userAgent): DeviceProfileId {
+  switch (detectHeadset(ua)) {
+    case 'quest':
+      return /\bQuest 3\b/.test(ua) ? 'quest3' : 'quest2';
+    case 'pico':
+      return 'pico4ultra';
+    default:
+      return 'custom';
+  }
 }

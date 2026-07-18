@@ -65,8 +65,11 @@ see :ref:`device-interface-device-plugin` for details.
    * - `Pico Motion Tracker`_
      - Full body tracking
      - `Isaac Teleop Web Client`_ (browser)
-     - | Requires Pico OS 15.4.4U or newer
-       | Requires Pico Browser 4.0.40 or newer (Enterprise enabled)
+     - | Requires a `Pico 4 Ultra Enterprise`_ headset,
+       | or a consumer Pico 4 Ultra with **enterprise**
+       | **features activated** (contact PICO)
+       | Requires Pico OS 15.4.4U or newer
+       | Requires Pico Browser 4.0.40 or newer
 
 In addition to the fully integrated XR headsets, Isaac Teleop also supports standalone input
 devices. Those devices are typically directly connected to the workstation where the Isaac Teleop
@@ -79,15 +82,18 @@ session is running via USB or Bluetooth. See :ref:`device-interface-device-plugi
    * - Device
      - Input Modes
      - Client / Connection
-   * - `Manus Gloves`_
-     - High-fidelity finger tracking (Manus SDK)
-     - `Manus Gloves Plugin`_ (CLI tool)
+   * - `MANUS Gloves`_
+     - High-fidelity finger tracking (MANUS SDK)
+     - `MANUS Gloves Plugin`_ (CLI tool)
    * - `Logitech Rudder Pedals`_
      - 3-axis foot pedal
      - `Generic 3-axis Pedal Plugin`_ (CLI tool)
    * - `OAK-D Camera`_
      - Offline data recording
      - `OAK-D Camera Plugin`_ (CLI tool)
+   * - `Haptikos Exoskeletons`_
+     -  High-fidelity finger tracking and haptic feedback (Haptikos Robotics API)
+     - `Haptikos Plugin`_ (CLI tool)
 
 Planned Input Device Support
 -----------------------------
@@ -139,6 +145,8 @@ Targeted Robotics Embodiments
   including popular embodiments such as Unitree G1.
 - `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python>`_ to facilitate
   live retargeter tuning.
+- GR00T-WholeBodyControl SONIC whole-body control on Unitree G1 (Thor backpack); see
+  `GR00T-WholeBodyControl: Isaac Teleop Publisher Setup`_ to get started.
 
 Device Acquisition
 ------------------
@@ -160,18 +168,21 @@ directly. Each device name in the tables above links to the corresponding manufa
      - Meta Quest 2/3/3S
      -
    * - `Pico`_ (ByteDance)
-     - Pico 4 Ultra, Pico Motion Tracker
+     - Pico 4 Ultra, Pico 4 Ultra Enterprise, Pico Motion Tracker
      - | Veronica Li
        | Email: Veronica.li@bytedance.com
        | Mobile: +1 (909) 569-2774
-   * - `Manus`_
-     - Manus Gloves
-     -
+   * - `MANUS`_
+     - MANUS Metagloves Pro & MANUS Metagloves Pro Haptic
+     - sales@manus-meta.com
    * - `Logitech`_
      - Logitech Rudder Pedals
      -
    * - `Luxonis`_
      - OAK-D Camera
+     -
+   * - `Haptikos`_
+     - Haptikos Exoskeletons
      -
    * - `Haply`_
      - Haply (planned)
@@ -227,9 +238,10 @@ WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in ca
 .. _Apple: https://www.apple.com/
 .. _Meta: https://www.meta.com/
 .. _Pico: https://www.picoxr.com/
-.. _Manus: https://www.manus-meta.com/
+.. _MANUS: https://www.manus-meta.com/
 .. _Logitech: https://www.logitechg.com/
 .. _Luxonis: https://www.luxonis.com/
+.. _Haptikos: https://haptikos.tech/
 .. _Haply: https://www.haply.co/
 .. _`3Dconnexion`: https://3dconnexion.com/
 
@@ -237,11 +249,13 @@ WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in ca
 .. _`Apple Vision Pro`: https://www.apple.com/apple-vision-pro/
 .. _`Meta Quest 2/3/3S`: https://www.meta.com/quest/
 .. _`Pico 4 Ultra`: https://www.picoxr.com/products/pico4-ultra
+.. _`Pico 4 Ultra Enterprise`: https://www.picoxr.com/global/products/pico4-ultra-enterprise
 .. _`Pico Motion Tracker`: https://www.picoxr.com/global/products/pico-motion-tracker
-.. _`Manus Gloves`: https://www.manus-meta.com/products/quantum-metagloves
+.. _`MANUS Gloves`: https://www.manus-meta.com/robotics#nvidia
 .. _`Logitech Rudder Pedals`: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
 .. _`OAK-D Camera`: https://shop.luxonis.com/products/oak-d
 .. _`3D Space Mouse`: https://3dconnexion.com/us/spacemouse/
+.. _`Haptikos Exoskeletons`: https://haptikos.tech/product/haptikos/
 
 .. Social links
 .. _`NVIDIA Omniverse Discord invite`: https://discord.com/invite/nvidiaomniverse
@@ -249,6 +263,8 @@ WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in ca
 
 .. Other references
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
-.. _`Manus Gloves Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
+.. _`MANUS Gloves Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
 .. _`Generic 3-axis Pedal Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal
 .. _`OAK-D Camera Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oak
+.. _`Haptikos Plugin`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos
+.. _`GR00T-WholeBodyControl: Isaac Teleop Publisher Setup`: https://nvlabs.github.io/GR00T-WholeBodyControl/tutorials/isaac_teleop_publisher_setup.html

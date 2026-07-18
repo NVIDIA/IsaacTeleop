@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -32,6 +32,14 @@ class Generic3AxisPedalTracker;
 class IGeneric3AxisPedalTrackerImpl;
 class OgloTactileTracker;
 class IOgloTactileTrackerImpl;
+class TensorPushTracker;
+class ITensorPushTrackerImpl;
+class HapticCommandReaderTracker;
+class IHapticCommandReaderTrackerImpl;
+class JointStateTracker;
+class IJointStateTrackerImpl;
+class Se3Tracker;
+class ISe3TrackerImpl;
 class HandTracker;
 class IHandTrackerImpl;
 class HeadTracker;
@@ -65,6 +73,11 @@ public:
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
     std::unique_ptr<IOgloTactileTrackerImpl> create_oglo_tactile_tracker_impl(const OgloTactileTracker* tracker);
+    std::unique_ptr<ITensorPushTrackerImpl> create_tensor_push_tracker_impl(const TensorPushTracker* tracker);
+    std::unique_ptr<IHapticCommandReaderTrackerImpl> create_haptic_command_reader_tracker_impl(
+        const HapticCommandReaderTracker* tracker);
+    std::unique_ptr<IJointStateTrackerImpl> create_joint_state_tracker_impl(const JointStateTracker* tracker);
+    std::unique_ptr<ISe3TrackerImpl> create_se3_tracker_impl(const Se3Tracker* tracker);
     std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
 

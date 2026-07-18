@@ -1,13 +1,15 @@
 .. SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-Manus Gloves
+MANUS Gloves
 ============
 
-A Linux-only plugin for integrating `Manus <https://www.manus-meta.com/>`_ gloves
+A Linux-only plugin for integrating `MANUS <https://www.manus-meta.com/>`_ gloves
 into the Isaac Teleop framework. It provides full hand-joint tracking via the
 Manus SDK and injects the resulting poses into the OpenXR hand-tracking layer so
-any downstream retargeter can consume them transparently.
+any downstream retargeter can consume them transparently. Optionally it also
+publishes Manus flex-sensor (RawDeviceData) tip poses as ``JointStateOutput``
+tensors and consumes inbound haptic commands for vibration gloves.
 
 .. contents:: On this page
    :local:
@@ -35,7 +37,7 @@ Prerequisites
 Installation
 ------------
 
-Manus access has two halves: **device permissions** (kernel/udev, lives on the
+MANUS access has two halves: **device permissions** (kernel/udev, lives on the
 host) and **SDK + plugin build** (lives wherever you build, typically a
 container). The two scripts below split along that line.
 
@@ -122,7 +124,7 @@ Running the Plugin
 1. Start the CloudXR runtime and load its environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The Manus plugin connects to the Teleop session through the CloudXR / OpenXR
+The MANUS plugin connects to the Teleop session through the CloudXR / OpenXR
 runtime, so the runtime must be running and its environment sourced in the
 shell that launches the plugin.
 
@@ -140,7 +142,7 @@ that the runtime writes on startup. This points the OpenXR loader at CloudXR:
 
    source ~/.cloudxr/run/cloudxr.env
 
-See :ref:`run-cloudxr-server` and :ref:`load-cloudxr-environment-variables`
+See :ref:`run-cloudxr-server` and :ref:`whitelist-firewall-ports`
 in the Quick Start for the full CloudXR runtime setup, including EULA
 acceptance and firewall configuration.
 
@@ -167,12 +169,72 @@ SDK connection at a time.
 
    ./install/plugins/manus/manus_hand_plugin
 
+By default the plugin enables human hand injection, flex-sensor push, and
+haptic read. Restrict datasets with ``--datasets=`` (comma-separated):
+
+.. code-block:: bash
+
+   ./install/plugins/manus/manus_hand_plugin --datasets=human,sensors,haptic
+   ./install/plugins/manus/manus_hand_plugin --datasets=human          # skeleton only
+   ./install/plugins/manus/manus_hand_plugin --datasets=sensors        # flex sensors only
+
+Data paths
+----------
+
+Human (OpenXR hand injection)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Manus raw skeleton stream is mapped to 26 OpenXR hand joints and pushed
+through ``HandInjector`` (requires ``XR_NVX1_device_interface_base``). Downstream
+hosts consume hands via ``HandsSource`` as with any other hand-tracking plugin.
+
+Sensors (flex tips via SchemaPusher)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When gloves report at least five RawDeviceData flex sensors, the plugin pushes
+a ``JointStateOutput`` (tensor id ``joint_state``) on:
+
+- ``manus_sensors_left``
+- ``manus_sensors_right``
+
+Layout: 35 joints named ``j0``..``j34``. For sensor ``i`` in thumb→pinky order,
+``j[7*i : 7*i+7]`` is ``[x, y, z, qx, qy, qz, qw]`` (meters, quaternion xyzw)
+in the Manus SDK frame after the plugin's VUH coordinate setup. Poses are raw
+Manus flex transforms; hosts that mask against a re-framed skeleton must apply
+their own sensor-pose processing.
+
+This path requires CloudXR tensor **push** extensions
+(``XR_NVX1_push_tensor`` and ``XR_NVX1_tensor_data``). When sensors first become
+available the plugin logs ``sensors=on`` once per side.
+
+Host-side consumption example:
+
+.. code-block:: python
+
+   from isaacteleop.retargeting_engine.deviceio_source_nodes import JointStateSource
+
+   SENSOR_JOINTS = [f"j{i}" for i in range(35)]
+   left = JointStateSource(
+       name="manus_sensors_left",
+       collection_id="manus_sensors_left",
+       joint_names=SENSOR_JOINTS,
+   )
+   # Decode thumb tip: joints j0..j6 -> [x, y, z, qx, qy, qz, qw]
+
+Haptic (inbound vibration)
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The plugin reads ``HapticCommand`` on collection ``manus_glove_haptic``
+(``XR_NVX1_tensor_data``) and drives five finger motors via the Manus SDK.
+See the haptic feedback example and
+``isaacteleop.haptic_devices.glove.haptic_glove_device``.
+
 Wrist Positioning — Controllers vs Optical Hand Tracking
 ---------------------------------------------------------
 
-Two sources are available for positioning the Manus gloves in 3D space:
+Two sources are available for positioning the MANUS gloves in 3D space:
 
-- **Controller adapters** — attach Quest 3 controllers to the Manus Universal
+- **Controller adapters** — attach Quest 3 controllers to the MANUS Universal
   Mount on the back of the glove. The controller pose drives wrist placement.
 - **Optical hand tracking** — use the HMD's built-in optical hand tracking to
   position the hands. No physical controller adapter required.
@@ -205,7 +267,7 @@ Troubleshooting
      - The build configures RPATH automatically. If you moved the SDK after
        building, set ``LD_LIBRARY_PATH`` to its ``lib/`` directory.
    * - No data received
-     - Ensure Manus Core is running and the gloves are connected and calibrated.
+     - Ensure MANUS Core is running and the gloves are connected and calibrated.
    * - CloudXR runtime errors
      - Make sure the CloudXR runtime is running (``python -m isaacteleop.cloudxr``)
        and that ``~/.cloudxr/run/cloudxr.env`` has been sourced in the same
@@ -213,8 +275,8 @@ Troubleshooting
    * - Permission denied for USB devices
      - udev rules must be installed on the host. Run ``./install_udev_rules.sh``
        from the host (not inside a container), then unplug and replug the
-       dongle. Verify on the host with ``ls -l /dev/hidraw*`` — entries for the
-       Manus dongle should be mode ``0666``.
+       MANUS dongle. Verify on the host with ``ls -l /dev/hidraw*`` — entries for the
+       dongle should be mode ``0666``.
    * - ``udevadm control --reload-rules`` fails with "No such file or directory"
      - You're inside a container. ``systemd-udevd`` doesn't run in containers,
        so this command can never succeed there. Run ``install_udev_rules.sh``
@@ -230,5 +292,5 @@ License
 -------
 
 Source files are covered by their stated licenses (Apache-2.0). The Manus SDK is
-proprietary to Manus and is subject to its own license; it is **not** redistributed
+proprietary to MANUS and is subject to its own license; it is **not** redistributed
 by this project.

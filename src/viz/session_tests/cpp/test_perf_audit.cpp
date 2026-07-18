@@ -19,6 +19,7 @@ using viz::DisplayMode;
 using viz::VizSession;
 using viz::testing::ClearRectLayer;
 using viz::testing::is_gpu_available;
+using viz::testing::shared_vk_context;
 
 // Global new/delete overrides for this test binary. Counter only
 // increments while AllocCounter::Scope is alive so Catch2 / logging
@@ -117,6 +118,7 @@ TEST_CASE("VizCompositor populates GPU timestamps when gpu_timing is enabled", "
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
     cfg.gpu_timing = true;
@@ -173,6 +175,7 @@ TEST_CASE("VizCompositor leaves GPU timing zeroed when gpu_timing is disabled", 
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = 64;
     cfg.window_height = 64;
     // gpu_timing left at default (false).
@@ -200,6 +203,7 @@ TEST_CASE("Render hot path stays under per-frame allocation ceiling", "[gpu][viz
 
     VizSession::Config cfg{};
     cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context(); // share one instance across [gpu] tests
     cfg.window_width = kSide;
     cfg.window_height = kSide;
 

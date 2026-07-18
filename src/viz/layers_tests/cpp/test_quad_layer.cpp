@@ -28,6 +28,7 @@ using viz::VizBuffer;
 using viz::VkContext;
 
 using viz::testing::is_gpu_available;
+using viz::testing::shared_vk_context;
 
 // The arg-shape checks (format, resolution, render_pass) run before
 // the VkContext::is_initialized() check, so these unit tests can
@@ -67,8 +68,7 @@ TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles for every mailbox slot"
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     QuadLayer::Config cfg;
@@ -96,8 +96,7 @@ TEST_CASE("QuadLayer destroy is idempotent", "[gpu][quad_layer]")
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -114,8 +113,7 @@ TEST_CASE("QuadLayer::submit throws after destroy", "[gpu][quad_layer]")
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -140,8 +138,7 @@ TEST_CASE("QuadLayer::submit rejects mismatched dimensions / format / space", "[
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     QuadLayer::Config cfg;
@@ -199,8 +196,7 @@ TEST_CASE("QuadLayer submit accepts a non-default CUDA stream", "[gpu][quad_laye
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -246,8 +242,7 @@ TEST_CASE("QuadLayer back-to-back submits cycle through mailbox slots", "[gpu][q
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -303,8 +298,7 @@ TEST_CASE("QuadLayer visibility toggle is independent of pipeline state", "[gpu]
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -334,8 +328,7 @@ TEST_CASE("QuadLayer ctor rejects non-finite stereo_baseline_mm", "[gpu][quad_la
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
     QuadLayer::Config cfg;
     cfg.resolution = { 64, 64 };
@@ -350,8 +343,7 @@ TEST_CASE("QuadLayer stereo allocates paired DeviceImages for every slot", "[gpu
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
 
     QuadLayer::Config cfg;
@@ -375,8 +367,7 @@ TEST_CASE("QuadLayer mono device_image_right is null", "[gpu][quad_layer][stereo
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -396,8 +387,7 @@ TEST_CASE("QuadLayer mono submit(left, right) throws", "[gpu][quad_layer][stereo
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -437,8 +427,7 @@ TEST_CASE("QuadLayer stereo submit(left) throws", "[gpu][quad_layer][stereo]")
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -491,8 +480,7 @@ TEST_CASE("QuadLayer stereo submit lands matching L/R pair in the latest slot", 
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;
@@ -566,8 +554,7 @@ TEST_CASE("QuadLayer stereo rapid submits keep every L/R pair atomic", "[gpu][qu
     {
         SKIP("No Vulkan-capable GPU available");
     }
-    VkContext ctx;
-    ctx.init({});
+    auto& ctx = shared_vk_context();
     auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 32, 32 } });
 
     QuadLayer::Config cfg;

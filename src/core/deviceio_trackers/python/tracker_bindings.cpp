@@ -7,8 +7,11 @@
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/oglo_tactile_tracker.hpp>
+#include <deviceio_trackers/se3_tracker.hpp>
+#include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
@@ -162,6 +165,49 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             [](const core::OgloTactileTracker& self, const core::ITrackerSession& session) -> core::OgloGloveSampleTrackedT
             { return self.get_data(session); },
             py::arg("session"), "Get the current tactile glove tracked state (data is None when no data available)");
+
+    py::class_<core::TensorPushTracker, core::ITracker, std::shared_ptr<core::TensorPushTracker>> tensor_push_tracker(
+        m, "TensorPushTracker");
+    tensor_push_tracker.attr("DEFAULT_MAX_PAYLOAD_SIZE") =
+        static_cast<size_t>(core::TensorPushTracker::DEFAULT_MAX_PAYLOAD_SIZE);
+    tensor_push_tracker
+        .def(py::init<std::string, std::string, size_t>(), py::arg("collection_id"), py::arg("tensor_identifier"),
+             py::arg("max_payload_size") = core::TensorPushTracker::DEFAULT_MAX_PAYLOAD_SIZE,
+             "Generic producer ITracker: pushes opaque serialized payloads as tensor samples over "
+             "XR_NVX1_push_tensor. Pairs with a consumer on the same collection_id + tensor_identifier.")
+        .def(
+            "push",
+            [](const core::TensorPushTracker& self, const core::ITrackerSession& session, py::bytes payload)
+            {
+                const std::string bytes = payload;
+                const std::vector<uint8_t> buffer(bytes.begin(), bytes.end());
+                self.push(session, buffer);
+            },
+            py::arg("session"), py::arg("payload"),
+            "Push one serialized payload (bytes, length <= max_payload_size) to the paired consumer.");
+    py::class_<core::JointStateTracker, core::ITracker, std::shared_ptr<core::JointStateTracker>>(m, "JointStateTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a JointStateTracker for the given tensor collection ID (one generic "
+             "joint-space device: leader arm, exoskeleton, ...)")
+        .def(
+            "get_data",
+            [](const core::JointStateTracker& self, const core::ITrackerSession& session) -> core::JointStateOutputTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current joint-state tracked snapshot (data is None when no data available)");
+
+    py::class_<core::Se3Tracker, core::ITracker, std::shared_ptr<core::Se3Tracker>>(m, "Se3Tracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::Se3Tracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct an Se3Tracker for the given tensor collection ID (one generic SE3 "
+             "6-DoF pose source: tracker puck, mocap rigid body, logical tracker, ...)")
+        .def(
+            "get_data",
+            [](const core::Se3Tracker& self, const core::ITrackerSession& session) -> core::Se3TrackerPoseTrackedT
+            { return self.get_data(session); },
+            py::arg("session"),
+            "Get the current SE3 tracked snapshot (data is None when no data available; gate on "
+            "data.is_valid before consuming the pose)");
 
     py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
         m, "FullBodyTrackerPico")

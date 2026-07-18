@@ -6,8 +6,9 @@
 # ``camera_viz.sh setup`` (local) and ``camera_viz.sh deploy`` (over SSH).
 #
 # Modes:
-#   --full         viewer + sender (workstation). Installs isaacteleop wheel.
-#   --sender-only  sender path only. No wheel, no vulkan deps.
+#   --full         viewer + sender (workstation). Installs isaacteleop from PyPI
+#                  (or a local --wheel).
+#   --sender-only  sender path only. No isaacteleop, no vulkan deps.
 #
 # Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --no-rtp,
 #        --with-zed, --zed-sdk.
@@ -85,12 +86,26 @@ check_system_deps() {
 
     local pkgs=()
     # PyGObject lives in the venv (installed via uv below). What apt
-    # owns here is purely non-Python:
+    # owns here is:
+    #   * Python extension build metadata/headers when uv resolves to a
+    #     system Python (pycairo's Meson build asks for dependency('python')).
     #   * C build deps for the source build (libcairo / libgirepository /
-    #     pkg-config). uv-managed Python ships its own headers.
+    #     pkg-config).
     #   * Runtime Gst typelib (PyGObject loads it via gobject-introspection).
     #   * gst-inspect-1.0 for the plugin-presence probe below.
     command -v pkg-config >/dev/null 2>&1                       || pkgs+=(pkg-config)
+    local py_dev_ver="$PYTHON_VERSION"
+    if [[ "$MODE" == sender ]]; then
+        local sys_py
+        sys_py="$(command -v python3 || true)"
+        if [[ -x "$sys_py" ]]; then
+            py_dev_ver="$("$sys_py" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "$PYTHON_VERSION")"
+        fi
+    fi
+    if ! pkg-config --exists "python-$py_dev_ver" 2>/dev/null \
+            || [[ ! -f "/usr/include/python$py_dev_ver/Python.h" ]]; then
+        pkgs+=("python${py_dev_ver}-dev")
+    fi
     pkg-config --exists cairo 2>/dev/null                       || pkgs+=(libcairo2-dev)
     # Debian's libgirepository1.0-dev publishes the .pc file as
     # gobject-introspection-1.0, NOT girepository-1.0 — probe accordingly.
@@ -243,8 +258,35 @@ if ! command -v uv >/dev/null 2>&1; then
     else
         echo "==> installing uv (no system uv found)"
         if ! command -v curl >/dev/null 2>&1; then
-            echo "_install_deps.sh: 'curl' required to bootstrap uv. apt install curl." >&2
-            exit 1
+            if ! command -v apt-get >/dev/null 2>&1; then
+                echo "_install_deps.sh: 'curl' required to bootstrap uv. Install curl and re-run setup." >&2
+                exit 1
+            fi
+            cat >&2 <<EOF
+_install_deps.sh: 'curl' required to bootstrap uv.
+
+The exact command:
+  sudo apt-get update
+  sudo apt-get install -y --no-install-recommends curl
+EOF
+            curl_ans=""
+            if [[ -e /dev/tty ]]; then
+                read -r -p "Run those apt-get commands now? [y/N] " curl_ans </dev/tty || curl_ans=""
+            fi
+            case "${curl_ans,,}" in
+                y|yes)
+                    echo "==> installing curl (required to bootstrap uv)"
+                    if ! sudo -n true 2>/dev/null; then
+                        echo "    sudo password required (one-time)"
+                    fi
+                    sudo apt-get update -qq
+                    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl
+                    ;;
+                *)
+                    echo "_install_deps.sh: 'curl' required to bootstrap uv. Install curl and re-run setup." >&2
+                    exit 1
+                    ;;
+            esac
         fi
         curl -LsSf https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.local/bin:$PATH"
@@ -255,25 +297,23 @@ if ! command -v uv >/dev/null 2>&1; then
     fi
 fi
 
-# Resolve the wheel only in --full mode.
-if [[ "$MODE" == full ]]; then
-    if [[ -z "$WHEEL" ]]; then
-        if [[ -n "$REPO_ROOT" ]]; then
-            WHEEL=$(ls -1 "$REPO_ROOT"/build/wheels/isaacteleop-*.whl 2>/dev/null | head -1 || true)
-        fi
-    fi
-    [[ -n "$WHEEL" && -f "$WHEEL" ]] || {
-        echo "_install_deps.sh: no isaacteleop wheel found." >&2
-        echo "  Build one with: cmake --build build --target python_wheel" >&2
-        echo "  Or pass --wheel <path>. Or use --sender-only if this is a sender host." >&2
+# isaacteleop comes from PyPI by default (the published wheel includes the
+# viz module). --wheel <path> installs a locally built wheel instead — only
+# needed when developing against an unreleased build (see the build-from-source
+# docs). Sender-only deploys don't install isaacteleop at all.
+ISAACTELEOP_PKG="isaacteleop"
+if [[ "$MODE" == full && -n "$WHEEL" ]]; then
+    [[ -f "$WHEEL" ]] || {
+        echo "_install_deps.sh: --wheel '$WHEEL' not found." >&2
         exit 1
     }
+    ISAACTELEOP_PKG="$WHEEL"
 fi
 
 echo "==> mode:   $MODE"
 echo "==> venv:   $VENV_DIR"
 echo "==> python: $PYTHON_VERSION"
-[[ "$MODE" == full ]] && echo "==> wheel:  $WHEEL"
+[[ "$MODE" == full ]] && echo "==> isaacteleop: $ISAACTELEOP_PKG"
 
 if [[ ! -d "$VENV_DIR" ]]; then
     # Strict venv isolation: no --system-site-packages. PyGObject + every
@@ -321,7 +361,7 @@ fi
 # (libgirepository1.0-dev). 3.50.x supports both. Source-builds against
 # the C deps installed in ensure_apt_deps(); pycairo is a transitive dep.
 PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15")
-[[ "$MODE" == full ]] && PKGS=("$WHEEL" "${PKGS[@]}")
+[[ "$MODE" == full ]] && PKGS=("$ISAACTELEOP_PKG" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
 $WITH_RTP  && PKGS+=("pybind11>=2.11" "PyGObject>=3.42,<3.52")

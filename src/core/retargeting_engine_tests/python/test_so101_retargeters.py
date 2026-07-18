@@ -92,15 +92,18 @@ def _make_controller(
     grip_ori=_ID_QUAT,
     aim_ori=_ID_QUAT,
     trigger: float = 0.0,
+    grip_is_valid: bool = True,
 ) -> TensorGroup:
-    """Build a present (valid) ControllerInput TensorGroup with the given grip/aim pose / trigger.
+    """Build a present ControllerInput TensorGroup with the given grip/aim pose / trigger.
 
-    The grip pose drives roll; the aim pose (pointer ray) drives pitch.
+    The grip pose drives roll; the aim pose (pointer ray) drives pitch. ``grip_is_valid`` sets the
+    grip pose validity flag (OpenXR location-flag derived); pass ``False`` to model a present
+    controller whose grip pose is not yet localizable.
     """
     tg = TensorGroup(ControllerInput())
     tg[ControllerInputIndex.GRIP_POSITION] = np.asarray(grip_pos, dtype=np.float32)
     tg[ControllerInputIndex.GRIP_ORIENTATION] = np.asarray(grip_ori, dtype=np.float32)
-    tg[ControllerInputIndex.GRIP_IS_VALID] = True
+    tg[ControllerInputIndex.GRIP_IS_VALID] = grip_is_valid
     tg[ControllerInputIndex.AIM_ORIENTATION] = np.asarray(aim_ori, dtype=np.float32)
     tg[ControllerInputIndex.AIM_IS_VALID] = True
     tg[ControllerInputIndex.TRIGGER_VALUE] = float(trigger)
@@ -456,3 +459,63 @@ class TestSO101ClutchRetargeter:
         expected = expected / np.linalg.norm(expected)
         np.testing.assert_allclose(emitted, expected, atol=1e-6)
         assert np.linalg.norm(emitted) == pytest.approx(1.0, abs=1e-6)
+
+    @pytest.mark.parametrize(
+        "bad_grip_ori",
+        [
+            # valid-flagged but zero-norm composed quaternion
+            np.zeros(4, dtype=np.float32),
+            # valid-flagged but non-finite grip quaternion
+            np.full(4, np.nan, dtype=np.float32),
+        ],
+    )
+    def test_degenerate_grip_orientation_emits_finite_pose(self, bad_grip_ori):
+        """Defense-in-depth: a valid-flagged but degenerate grip quaternion must not emit NaN.
+
+        Even when the grip pose is flagged valid (so the ``GRIP_IS_VALID`` gate passes), a source
+        that emits a zero or non-finite grip quaternion would, after composing the calibration
+        offset, normalize to NaN and poison the downstream SE3 IK (``svdvals`` -> ``LinAlgError``
+        -> PhysX non-finite bounds). The clutch must instead emit a finite, unit-norm orientation,
+        holding the last good one (the seeded identity on the first frame).
+        """
+        r = SO101ClutchRetargeter(name="ee_pose")
+        inputs, outputs = _build_io(r)
+        inputs[ControllersSource.RIGHT] = _make_controller(
+            grip_pos=(0.5, -0.3, 0.7), grip_ori=bad_grip_ori
+        )
+        r.compute(inputs, outputs, _make_context())
+        pose = _read_pose(outputs)
+        assert np.all(np.isfinite(pose)), f"non-finite pose emitted: {pose}"
+        np.testing.assert_allclose(pose[3:], _ID_QUAT, atol=1e-6)
+        assert np.linalg.norm(pose[3:]) == pytest.approx(1.0, abs=1e-6)
+
+    def test_invalid_grip_pose_holds_last_without_latching(self):
+        """An invalid grip pose (OpenXR validity bits clear) is treated like a dropped frame.
+
+        When the controller is present but its grip pose is not localizable, the source flags
+        ``GRIP_IS_VALID`` False and passes through an untrusted (often all-zero) pose. The clutch
+        must hold the last commanded pose and must NOT latch its origin off that garbage pose, so
+        the first *valid* RUNNING frame still latches cleanly at the configured home.
+        """
+        r = SO101ClutchRetargeter(name="ee_pose")
+        home = np.array(_CLUTCH_HOME_EE_POS)
+
+        # Invalid grip pose on the first RUNNING frame: hold home + identity, do not latch.
+        inputs, outputs = _build_io(r)
+        inputs[ControllersSource.RIGHT] = _make_controller(
+            grip_pos=(9.0, 9.0, 9.0),
+            grip_ori=np.zeros(4, dtype=np.float32),
+            grip_is_valid=False,
+        )
+        r.compute(inputs, outputs, _make_context())
+        pose = _read_pose(outputs)
+        np.testing.assert_allclose(pose[:3], home, atol=1e-6)
+        np.testing.assert_allclose(pose[3:], _ID_QUAT, atol=1e-6)
+        assert r._origin is None  # not latched off the invalid pose
+
+        # A subsequent valid frame latches cleanly at home (no jump from the garbage pose).
+        inputs2, outputs2 = _build_io(r)
+        inputs2[ControllersSource.RIGHT] = _make_controller(grip_pos=(0.5, -0.3, 0.7))
+        r.compute(inputs2, outputs2, _make_context())
+        np.testing.assert_allclose(_read_pose(outputs2)[:3], home, atol=1e-6)
+        assert r._origin is not None

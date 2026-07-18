@@ -15,15 +15,24 @@ from typing import Callable
 
 import msgpack
 import rclpy
-from geometry_msgs.msg import PoseArray, PoseStamped, TwistStamped
+from constants import TELEOP_MODES
+from geometry_msgs.msg import PoseStamped, TwistStamped
+from isaacteleop.retargeting_engine.tensor_types.indices import HandJointIndex
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
+from teleop_ros2_interfaces.msg import NamedPoseArray
 from tf2_msgs.msg import TFMessage
 
 
-_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
 _EXPECTED_TF_FRAMES = {"right_wrist", "left_wrist", "head"}
+_HAND_POSE_NAMES = [
+    HandJointIndex(i).name
+    for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)
+]
+_EXPECTED_HAND_POSE_NAMES = [
+    f"{side}_{name}" for side in ("left", "right") for name in _HAND_POSE_NAMES
+]
 
 
 def _is_finite_sequence(values) -> bool:
@@ -46,13 +55,18 @@ def _unpack_msgpack(msg: ByteMultiArray) -> dict:
     )
 
 
-def _assert_pose_array(msg: PoseArray, *, expected_count: int) -> None:
+def _assert_named_pose_array(msg: NamedPoseArray, expected_names: list[str]) -> None:
     if msg.header.frame_id != "world":
         raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
-    if len(msg.poses) != expected_count:
-        raise ValueError(f"expected {expected_count} poses, got {len(msg.poses)}")
-    positions = []
-    for pose in msg.poses:
+    names = list(msg.name)
+    if names != expected_names:
+        raise ValueError("named pose entries do not match the expected order")
+    if len(set(names)) != len(names):
+        raise ValueError("named pose entries are not unique")
+    if len(msg.pose) != len(names) or len(msg.is_valid) != len(names):
+        raise ValueError("named pose arrays differ in length")
+
+    for pose in msg.pose:
         position = (pose.position.x, pose.position.y, pose.position.z)
         orientation = (
             pose.orientation.x,
@@ -61,12 +75,52 @@ def _assert_pose_array(msg: PoseArray, *, expected_count: int) -> None:
             pose.orientation.w,
         )
         if not _is_finite_sequence(position):
-            raise ValueError("pose position contains non-finite values")
+            raise ValueError("named pose position contains non-finite values")
         if not _is_finite_sequence(orientation):
-            raise ValueError("pose orientation contains non-finite values")
-        positions.extend(position)
-    if not any(abs(value) > 1e-6 for value in positions):
-        raise ValueError("pose array positions are all zero")
+            raise ValueError("named pose orientation contains non-finite values")
+
+
+def _assert_nonzero_pose_positions(msg: NamedPoseArray, label: str) -> None:
+    if not any(
+        abs(value) > 1e-6
+        for pose in msg.pose
+        for value in (pose.position.x, pose.position.y, pose.position.z)
+    ):
+        raise ValueError(f"{label} positions are all zero")
+
+
+def _assert_ee_pose_array(msg: NamedPoseArray) -> None:
+    _assert_named_pose_array(msg, ["left", "right"])
+    if not all(bool(is_valid) for is_valid in msg.is_valid):
+        raise ValueError("EE pose array contains an invalid entry")
+    _assert_nonzero_pose_positions(msg, "EE pose")
+
+
+def _assert_hand_pose_array(msg: NamedPoseArray) -> None:
+    _assert_named_pose_array(msg, _EXPECTED_HAND_POSE_NAMES)
+    if not any(bool(is_valid) for is_valid in msg.is_valid):
+        raise ValueError("all hand joint poses are invalid")
+    _assert_nonzero_pose_positions(msg, "hand joint pose")
+
+
+def _assert_pose_stamped(
+    msg: PoseStamped, *, require_nonzero_position: bool = False
+) -> None:
+    if msg.header.frame_id != "world":
+        raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
+    position = (msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
+    orientation = (
+        msg.pose.orientation.x,
+        msg.pose.orientation.y,
+        msg.pose.orientation.z,
+        msg.pose.orientation.w,
+    )
+    if not _is_finite_sequence(position):
+        raise ValueError("PoseStamped position contains non-finite values")
+    if not _is_finite_sequence(orientation):
+        raise ValueError("PoseStamped orientation contains non-finite values")
+    if require_nonzero_position and not any(abs(value) > 1e-6 for value in position):
+        raise ValueError("PoseStamped position is all zero")
 
 
 def _assert_joint_state(msg: JointState) -> None:
@@ -93,22 +147,6 @@ def _assert_twist(msg: TwistStamped) -> None:
     )
     if not _is_finite_sequence(values):
         raise ValueError("TwistStamped contains non-finite values")
-
-
-def _assert_root_pose(msg: PoseStamped) -> None:
-    if msg.header.frame_id != "world":
-        raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
-    position = (msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
-    orientation = (
-        msg.pose.orientation.x,
-        msg.pose.orientation.y,
-        msg.pose.orientation.z,
-        msg.pose.orientation.w,
-    )
-    if not _is_finite_sequence(position):
-        raise ValueError("PoseStamped position contains non-finite values")
-    if not _is_finite_sequence(orientation):
-        raise ValueError("PoseStamped orientation contains non-finite values")
 
 
 def _assert_controller_payload(msg: ByteMultiArray) -> None:
@@ -225,14 +263,14 @@ class TopicVerifier(Node):
         if mode == "controller_teleop":
             return [
                 (
-                    "ee_poses",
-                    "xr_teleop/ee_poses",
-                    PoseArray,
-                    lambda msg: _assert_pose_array(msg, expected_count=2),
+                    "ee_pose",
+                    "xr_teleop/ee_pose",
+                    NamedPoseArray,
+                    _assert_ee_pose_array,
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
-                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_root_pose),
-                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_root_pose),
+                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
+                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_pose_stamped),
                 (
                     "finger_joints",
                     "xr_teleop/finger_joints",
@@ -251,18 +289,18 @@ class TopicVerifier(Node):
                 (
                     "hand",
                     "xr_teleop/hand",
-                    PoseArray,
-                    lambda msg: _assert_pose_array(msg, expected_count=50),
+                    NamedPoseArray,
+                    _assert_hand_pose_array,
                 ),
                 (
-                    "ee_poses",
-                    "xr_teleop/ee_poses",
-                    PoseArray,
-                    lambda msg: _assert_pose_array(msg, expected_count=2),
+                    "ee_pose",
+                    "xr_teleop/ee_pose",
+                    NamedPoseArray,
+                    _assert_ee_pose_array,
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
-                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_root_pose),
-                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_root_pose),
+                ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
+                ("head_pose", "xr_teleop/head_pose", PoseStamped, _assert_pose_stamped),
                 (
                     "finger_joints",
                     "xr_teleop/finger_joints",
@@ -299,7 +337,7 @@ class TopicVerifier(Node):
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=_MODES, required=True)
+    parser.add_argument("--mode", choices=TELEOP_MODES, required=True)
     parser.add_argument("--timeout", type=float, default=20.0)
     return parser.parse_args()
 

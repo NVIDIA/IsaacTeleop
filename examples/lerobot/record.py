@@ -9,6 +9,7 @@ Demonstrates the modular architecture where you can:
 - Record tracking data to a LeRobot dataset with proper visualization support
 """
 
+import argparse
 import sys
 import time
 import numpy as np
@@ -16,10 +17,15 @@ from pathlib import Path
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
 import isaacteleop.schema as schema
+from isaacteleop.cloudxr import CloudXRLauncher
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("===========================================")
     print("OpenXR Tracking + LeRobot Dataset Recording")
     print("===========================================")
@@ -86,113 +92,118 @@ def main():
 
     # Create OpenXR session
     print("\nCreating OpenXR session...")
-    with oxr.OpenXRSession("ModularExample", required_extensions) as oxr_session:
-        handles = oxr_session.get_handles()
-        print("OpenXR session created")
+    with CloudXRLauncher.launch_context(args):
+        with oxr.OpenXRSession("ModularExample", required_extensions) as oxr_session:
+            handles = oxr_session.get_handles()
+            print("OpenXR session created")
 
-        # Create teleop session
-        print("\nInitializing teleop session...")
-        session = deviceio.DeviceIOSession.run(trackers, handles)
+            # Create teleop session
+            print("\nInitializing teleop session...")
+            session = deviceio.DeviceIOSession.run(trackers, handles)
 
-        with session:
-            print("Teleop session initialized with all trackers!")
-            print()
+            with session:
+                print("Teleop session initialized with all trackers!")
+                print()
 
-            # Main tracking loop
-            print("===========================================")
-            print("Tracking + Recording (60 seconds)...")
-            print("===========================================")
-            print()
+                # Main tracking loop
+                print("===========================================")
+                print("Tracking + Recording (60 seconds)...")
+                print("===========================================")
+                print()
 
-            frame_count = 0
-            start_time = time.time()
+                frame_count = 0
+                start_time = time.time()
 
-            try:
-                while time.time() - start_time < 10.0:
-                    # Update session and all trackers
-                    session.update()
+                try:
+                    while time.time() - start_time < 10.0:
+                        # Update session and all trackers
+                        session.update()
 
-                    # Get hand data
-                    left_tracked: schema.HandPoseTrackedT = hand_tracker.get_left_hand(
-                        session
-                    )
-                    right_tracked: schema.HandPoseTrackedT = (
-                        hand_tracker.get_right_hand(session)
-                    )
-                    head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(
-                        session
-                    )
+                        # Get hand data
+                        left_tracked: schema.HandPoseTrackedT = (
+                            hand_tracker.get_left_hand(session)
+                        )
+                        right_tracked: schema.HandPoseTrackedT = (
+                            hand_tracker.get_right_hand(session)
+                        )
+                        head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(
+                            session
+                        )
 
-                    # Extract positions and orientations (with defaults for invalid data)
-                    left_pos = np.zeros(3, dtype=np.float32)
-                    right_pos = np.zeros(3, dtype=np.float32)
+                        # Extract positions and orientations (with defaults for invalid data)
+                        left_pos = np.zeros(3, dtype=np.float32)
+                        right_pos = np.zeros(3, dtype=np.float32)
 
-                    if left_tracked.data is not None and left_tracked.data.joints:
-                        wrist = left_tracked.data.joints.poses(deviceio.JOINT_WRIST)
-                        if wrist.is_valid:
-                            pos = wrist.pose.position
-                            left_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
+                        if left_tracked.data is not None and left_tracked.data.joints:
+                            wrist = left_tracked.data.joints.poses(deviceio.JOINT_WRIST)
+                            if wrist.is_valid:
+                                pos = wrist.pose.position
+                                left_pos = np.array(
+                                    [pos.x, pos.y, pos.z], dtype=np.float32
+                                )
 
-                    if right_tracked.data is not None and right_tracked.data.joints:
-                        wrist = right_tracked.data.joints.poses(deviceio.JOINT_WRIST)
-                        if wrist.is_valid:
-                            pos = wrist.pose.position
-                            right_pos = np.array(
-                                [pos.x, pos.y, pos.z], dtype=np.float32
+                        if right_tracked.data is not None and right_tracked.data.joints:
+                            wrist = right_tracked.data.joints.poses(
+                                deviceio.JOINT_WRIST
                             )
+                            if wrist.is_valid:
+                                pos = wrist.pose.position
+                                right_pos = np.array(
+                                    [pos.x, pos.y, pos.z], dtype=np.float32
+                                )
 
-                    head_pos = np.zeros(3, dtype=np.float32)
-                    if head_tracked.data is not None and head_tracked.data.is_valid:
-                        pos = head_tracked.data.pose.position
-                        head_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
+                        head_pos = np.zeros(3, dtype=np.float32)
+                        if head_tracked.data is not None and head_tracked.data.is_valid:
+                            pos = head_tracked.data.pose.position
+                            head_pos = np.array([pos.x, pos.y, pos.z], dtype=np.float32)
 
-                    # STEP 3: Record frame to dataset
-                    observation_head = np.concatenate(
-                        [
-                            head_pos,  # head_pos(3)
-                        ]
-                    )
+                        # STEP 3: Record frame to dataset
+                        observation_head = np.concatenate(
+                            [
+                                head_pos,  # head_pos(3)
+                            ]
+                        )
 
-                    observation_left_hand = np.concatenate(
-                        [
-                            left_pos,  # left_hand_pos(3)
-                        ]
-                    )
+                        observation_left_hand = np.concatenate(
+                            [
+                                left_pos,  # left_hand_pos(3)
+                            ]
+                        )
 
-                    observation_right_hand = np.concatenate(
-                        [
-                            right_pos,  # right_hand_pos(3)
-                        ]
-                    )
+                        observation_right_hand = np.concatenate(
+                            [
+                                right_pos,  # right_hand_pos(3)
+                            ]
+                        )
 
-                    dataset.add_frame(
-                        {
-                            "task": "teleop_tracking",
-                            "observation.head": observation_head,
-                            "observation.left_hand": observation_left_hand,
-                            "observation.right_hand": observation_right_hand,
-                        }
-                    )
+                        dataset.add_frame(
+                            {
+                                "task": "teleop_tracking",
+                                "observation.head": observation_head,
+                                "observation.left_hand": observation_left_hand,
+                                "observation.right_hand": observation_right_hand,
+                            }
+                        )
 
-                    # Print every 60 frames (~1 second)
-                    if frame_count % 60 == 0:
-                        elapsed = time.time() - start_time
-                        print(f"[{elapsed:4.1f}s] Frame {frame_count} recorded")
+                        # Print every 60 frames (~1 second)
+                        if frame_count % 60 == 0:
+                            elapsed = time.time() - start_time
+                            print(f"[{elapsed:4.1f}s] Frame {frame_count} recorded")
 
-                    frame_count += 1
-                    time.sleep(0.016)  # ~60 FPS
-            except KeyboardInterrupt:
-                print("\nKeyboardInterrupt received, stopping recording early.")
+                        frame_count += 1
+                        time.sleep(0.016)  # ~60 FPS
+                except KeyboardInterrupt:
+                    print("\nKeyboardInterrupt received, stopping recording early.")
 
-            # STEP 4: Save episode
-            print(f"\nSaving episode with {frame_count} frames...")
-            dataset.save_episode()
-            print("Episode saved")
+                # STEP 4: Save episode
+                print(f"\nSaving episode with {frame_count} frames...")
+                dataset.save_episode()
+                print("Episode saved")
 
-            # Cleanup
-            print(f"\nProcessed {frame_count} frames")
-            print("Cleaning up (RAII)...")
-            print("Resources will be cleaned up when exiting 'with' blocks")
+                # Cleanup
+                print(f"\nProcessed {frame_count} frames")
+                print("Cleaning up (RAII)...")
+                print("Resources will be cleaned up when exiting 'with' blocks")
 
     # STEP 5: Finalize dataset (creates stats.json)
     print("\nFinalizing dataset...")

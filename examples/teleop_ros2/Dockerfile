@@ -44,8 +44,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrender-dev \
     libxfixes-dev \
     libxxf86vm-dev \
-    swig \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rosidl-default-runtime \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv via standalone script (avoids PEP 668 "externally managed" pip on Ubuntu 24.04 / Jazzy)
@@ -56,30 +56,7 @@ RUN uv python install ${PYTHON_VERSION} --quiet \
     && uv python find ${PYTHON_VERSION}
 
 # -----------------------------------------------------------------------------
-# Stage 1: build an nlopt wheel for platforms PyPI does not cover
-# -----------------------------------------------------------------------------
-FROM base AS nlopt_wheel
-ARG PYTHON_VERSION
-ARG TARGETARCH
-
-WORKDIR /tmp/nlopt-python
-RUN mkdir -p /opt/nlopt-wheels && \
-    if [ "${TARGETARCH}" = "arm64" ]; then \
-        apt-get update && apt-get install -y --no-install-recommends \
-            build-essential \
-            cmake \
-            git \
-            pkg-config \
-        && rm -rf /var/lib/apt/lists/* \
-        && git clone --depth 1 --branch 2.10.0 https://github.com/DanielBok/nlopt-python.git . \
-        && git submodule update --init --recursive \
-        && uv venv --python=${PYTHON_VERSION} /tmp/nlopt-wheel-venv \
-        && VIRTUAL_ENV=/tmp/nlopt-wheel-venv uv pip install numpy setuptools wheel \
-        && /tmp/nlopt-wheel-venv/bin/python setup.py bdist_wheel -d /opt/nlopt-wheels; \
-    fi
-
-# -----------------------------------------------------------------------------
-# Stage 2: fetch Sharpa Wave URDF assets
+# Stage 1: fetch Sharpa Wave URDF assets
 # -----------------------------------------------------------------------------
 FROM base AS sharpa_urdfs
 
@@ -91,7 +68,7 @@ COPY examples/teleop_ros2/configs/sharpa_wave_left_dexpilot.yml \
 RUN python3 scripts/fetch_sharpa_wave_urdfs.py --output-dir /opt/sharpa-wave-urdfs
 
 # -----------------------------------------------------------------------------
-# Stage 3: build and install
+# Stage 2: build and install
 # -----------------------------------------------------------------------------
 FROM base AS builder
 ARG ROS_DISTRO
@@ -113,6 +90,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     patchelf \
     pkg-config \
+    python3-colcon-common-extensions \
+    ros-${ROS_DISTRO}-ament-cmake-auto \
+    ros-${ROS_DISTRO}-rosidl-default-generators \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/isaacteleop
@@ -124,7 +104,8 @@ COPY . /opt/isaacteleop
 # produces; a stale build/ would skip a clean CMake reconfigure. The build tree
 # is rebuilt from scratch every time -- ccache keeps recompiles cheap -- so each
 # build reconfigures against the current image rather than trusting cached
-# configure results.
+# configure results. Ament's Python tools come from apt, so the interface
+# package build below pins the ROS distro's system Python instead of uv's.
 RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
     rm -rf /opt/isaacteleop/install /opt/isaacteleop/build \
     && cmake -B build -S . \
@@ -143,10 +124,22 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release \
+    && bash -lc "source /opt/ros/${ROS_DISTRO}/setup.bash \
+        && colcon build \
+            --base-paths examples/teleop_ros2/teleop_ros2_interfaces \
+            --build-base build/teleop_ros2_interfaces \
+            --install-base /opt/isaacteleop/install \
+            --merge-install \
+            --cmake-args \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DPython3_EXECUTABLE=/usr/bin/python3" \
     && ccache --show-stats
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
+if [[ -f /opt/isaacteleop/install/local_setup.bash ]]; then
+    source /opt/isaacteleop/install/local_setup.bash
+fi
 EOF
 
 COPY --chmod=755 <<'EOF' /usr/local/bin/teleop-entrypoint
@@ -157,7 +150,7 @@ exec "$@"
 EOF
 
 # -----------------------------------------------------------------------------
-# Stage 4: runtime image (install tree only)
+# Stage 3: runtime image (install tree only)
 # -----------------------------------------------------------------------------
 FROM base
 ARG PYTHON_VERSION
@@ -172,8 +165,6 @@ COPY deps/cloudxr/runtime/data/10_nvidia.json /usr/share/glvnd/egl_vendor.d/
 COPY deps/cloudxr/runtime/data/nvidia_icd.json /etc/vulkan/icd.d/
 ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
 
-COPY --from=nlopt_wheel /opt/nlopt-wheels /opt/nlopt-wheels
-
 # Pre-install heavy Python dependencies so they are cached independently of C++ builds.
 # Copy requirements from the context, avoiding any files from the 'builder' stage.
 COPY src/core/python/requirements.txt \
@@ -183,7 +174,7 @@ COPY src/core/python/requirements.txt \
      /tmp/
 RUN uv venv --python=${PYTHON_VERSION} && \
     uv pip install setuptools wheel && \
-    uv pip install --find-links=/opt/nlopt-wheels --no-build-isolation-package nlopt \
+    uv pip install \
         -r /tmp/requirements.txt \
         -r /tmp/requirements-retargeters.txt \
         -r /tmp/requirements-grounding.txt \
@@ -222,8 +213,7 @@ RUN set -eu; \
     wheel=$wheels; \
     version=$(basename "$wheel" | sed -E 's/^isaacteleop-([^-]+)-.*$/\1/'); \
     echo "== pinning isaacteleop==${version} =="; \
-    uv sync --no-dev --find-links=/opt/nlopt-wheels --upgrade-package "isaacteleop==${version}"
+    uv sync --no-dev --upgrade-package "isaacteleop==${version}"
 
-# Use --no-sync because the venv is already provisioned above, and the implicit
-# resync runs without --find-links and fails on aarch64 (no nlopt wheel on PyPI).
+# Use --no-sync because the venv is already provisioned above.
 ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "--no-sync", "teleop_ros2_node.py"]

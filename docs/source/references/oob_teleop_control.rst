@@ -38,6 +38,15 @@ This will:
 4. Accept the self-signed certificate and click CONNECT automatically
    via Chrome DevTools Protocol (CDP)
 
+To start the hub **without** any ``adb`` interaction — useful in containers,
+CI, or wireless-only environments — set ``TELEOP_OOB_HUB_ONLY=1`` and open
+the teleop URL on the headset manually. This mode supports WiFi setup only
+and is **not compatible with** ``--usb-local``:
+
+.. code-block:: bash
+
+   TELEOP_OOB_HUB_ONLY=1 python -m isaacteleop.cloudxr --accept-eula --setup-oob
+
 You should see output confirming the hub is running:
 
 .. code-block:: text
@@ -332,6 +341,11 @@ previously saved settings:
 - ``codec`` video codec
 - ``panelHiddenAtStart`` hide the control panel on load
 
+When no URL override is present, form fields restore from ``localStorage``, with one
+exception: a saved device profile other than ``Custom`` is re-applied from the current
+profile table at startup, so profile default updates (frame rate, bitrate, codec)
+reach returning clients. Only ``Custom`` keeps manually edited values.
+
 Environment variables
 ---------------------
 
@@ -362,6 +376,20 @@ Environment variables
        (no fragment — the web client picks its own landing route). Set
        to e.g. ``/real/gear/dexmate`` to force a specific route. A
        leading ``#`` is stripped automatically.
+   * - ``TELEOP_OOB_HUB_ONLY``
+     - Set to any non-empty value (e.g. ``1``) to start the OOB hub
+       without any ``adb`` interaction. The hub starts normally and
+       accepts WebSocket connections, but the launcher skips
+       ``adb devices``, ``adb shell`` wakefulness checks, CDP port
+       forwarding, and the automated browser open + CONNECT click.
+       Useful in environments where ``adb`` is unavailable or
+       unreliable (CI, containers, wireless-only setups). The operator
+       must open the teleop page on the headset manually with the
+       correct ``oobEnable=1&serverIP=<HOST>&port=<PORT>`` parameters.
+       Only meaningful together with ``--setup-oob``; has no effect
+       without it. **Not compatible with** ``--usb-local`` — hub-only
+       mode supports WiFi setup only; the launcher rejects the
+       combination at startup.
    * - ``ANDROID_SERIAL``
      - Pin a specific adb device when more than one is connected. The
        launcher refuses to start with multiple devices unless this is
@@ -402,8 +430,8 @@ On startup the launcher:
    traverse the network).
 2. Resolves the WebXR static directory from
    ``TELEOP_WEB_CLIENT_STATIC_DIR`` (default ``~/.cloudxr/static-client``)
-   and downloads ``index.html`` / ``bundle.js`` from
-   ``https://nvidia.github.io/IsaacTeleop/client/main/`` if either is missing.
+   and syncs missing ``index.html``, ``bundle.js``, and ``bundle.emulator.js`` from
+   the published client (see :doc:`../getting_started/build_from_source/webxr`).
 3. Serves that directory over HTTPS on 127.0.0.1:8080 with the same PEM
    the WSS proxy uses (Python ``http.server`` in a daemon thread).
 4. ``adb reverse`` for 8080 (static UI), 48322 (WSS), 49100 (backend),
@@ -451,6 +479,19 @@ interface is present. A runtime monitor also watches for mid-session
 Wi-Fi drops and prints a yellow warning so the cause is obvious without
 having to puzzle out a frozen WebRTC connection.
 
+Web client UI has no text (OOB / ``--host-client``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Cause:** Production webpack emits ``bundle.js`` (main app, including UIKit MSDF text)
+and ``bundle.emulator.js`` (desktop emulation only). If the static cache under
+``TELEOP_WEB_CLIENT_STATIC_DIR`` is missing or outdated — especially a truncated
+``bundle.js`` — in-VR text does not render.
+
+**Fix:** Ensure ``index.html``, ``bundle.js``, and ``bundle.emulator.js`` are present
+under the static dir — run the launcher once with network, copy a full ``npm run build``
+output, or use the GitHub Pages URL directly. See
+:doc:`../getting_started/build_from_source/webxr`.
+
 CDP: startButton marked failed / not actionable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -495,15 +536,14 @@ browser on the headset.
 WebXR static download fails (offline / proxy)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Cause:** The launcher fetches ``index.html`` / ``bundle.js`` from
-``https://nvidia.github.io/IsaacTeleop/client/main/`` into the static dir on
-first run.  Behind a proxy or with no internet, this fails and
-``--usb-local`` aborts.
+**Cause:** The launcher syncs ``index.html``, ``bundle.js``, and
+``bundle.emulator.js`` into the static dir on first run. Behind a proxy or with no
+internet, this fails and ``--usb-local`` aborts.
 
-**Fix:** Pre-stage the files (any way you like — ``curl``, container
-build step, internal mirror) into the static dir, then re-run.  The
-launcher only downloads when a file is missing or empty.  Override the
-target directory via ``TELEOP_WEB_CLIENT_STATIC_DIR``.
+**Fix:** Pre-stage the full client ``build/`` tree (or the published
+``/client/<version>/`` directory) into the static dir, then re-run.  The
+launcher only downloads missing or empty files.  Override the target directory
+via ``TELEOP_WEB_CLIENT_STATIC_DIR``.
 
 **Fix:** Set the SDK versions in ``deps/cloudxr/.env`` (copy from
 ``.env.default``) so the download script can resolve the right version,

@@ -39,10 +39,23 @@ from ._schema import (
     OgloGloveSample,
     OgloGloveSampleTrackedT,
     OgloGloveSampleRecord,
+    # Joint-state types (generic joint-space devices: leader arms, exoskeletons, ...).
+    JointState,
+    JointStateOutput,
+    JointStateOutputTrackedT,
+    JointStateOutputRecord,
+    # SE3 tracker types (generic 6-DoF pose sources: tracker pucks, mocap rigid bodies, ...).
+    # Record classes drop the T suffix in Python by family convention.
+    Se3TrackerPoseT,
+    Se3TrackerPoseTrackedT,
+    Se3TrackerPoseRecord,
     # Message channel types.
     MessageChannelMessages,
     MessageChannelMessagesTrackedT,
     MessageChannelMessagesRecord,
+    # Haptic command types (vendor-neutral cross-process device output).
+    HapticCommand,
+    pack_haptic_command,
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
@@ -90,10 +103,22 @@ __all__ = [
     "OgloGloveSample",
     "OgloGloveSampleTrackedT",
     "OgloGloveSampleRecord",
+    # Joint-state types (generic joint-space devices).
+    "JointState",
+    "JointStateOutput",
+    "JointStateOutputTrackedT",
+    "JointStateOutputRecord",
+    # SE3 tracker types (generic 6-DoF pose sources).
+    "Se3TrackerPoseT",
+    "Se3TrackerPoseTrackedT",
+    "Se3TrackerPoseRecord",
     # Message channel types.
     "MessageChannelMessages",
     "MessageChannelMessagesTrackedT",
     "MessageChannelMessagesRecord",
+    # Haptic command types.
+    "HapticCommand",
+    "pack_haptic_command",
     # Camera types.
     "StreamType",
     "FrameMetadataOak",

@@ -21,6 +21,7 @@ const { execSync } = require('child_process');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const webpack = require('webpack');
+const { eagerExceptEmulatorParserRules } = require('./webpack.chunkNames.js');
 
 function git(cmd) {
   try {
@@ -59,7 +60,9 @@ if (useLocalWebxrAssets) {
 }
 
 module.exports = {
-  entry: './src/index.tsx',
+  entry: {
+    main: ['./src/index.tsx'],
+  },
 
   // Enable webpack 5 persistent filesystem caching for faster incremental builds
   cache: {
@@ -72,6 +75,7 @@ module.exports = {
   // Module rules define how different file types are processed
   module: {
     rules: [
+      ...eagerExceptEmulatorParserRules,
       {
         test: /\.tsx?$/,
         use: {

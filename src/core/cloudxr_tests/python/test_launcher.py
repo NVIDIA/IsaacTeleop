@@ -3,6 +3,7 @@
 
 """Tests for isaacteleop.cloudxr.launcher — CloudXRLauncher lifecycle."""
 
+import argparse
 import os
 import signal
 import subprocess
@@ -13,11 +14,16 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from isaacteleop.cloudxr.launcher import CloudXRLauncher
+from isaacteleop.cloudxr.launcher import DEFAULT_DEVICE_PROFILE, CloudXRLauncher
 
 _posix_only = pytest.mark.skipif(
     sys.platform == "win32",
     reason="Process-group APIs (os.getpgid/os.killpg) are POSIX-only",
+)
+
+_windows_skip = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="CloudXR runtime process termination is not supported on Windows",
 )
 
 
@@ -47,8 +53,11 @@ class _FakeEnvConfig:
 
 def _make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> MagicMock:
     """Create a mock subprocess.Popen with configurable poll() behaviour."""
-    proc = MagicMock(spec=subprocess.Popen)
+    proc = MagicMock()
     proc.pid = pid
+    proc.terminate = MagicMock()
+    proc.kill = MagicMock()
+    proc.wait = MagicMock()
 
     if poll_returns is not None:
         seq = list(poll_returns)
@@ -96,7 +105,7 @@ def mock_launcher_deps(tmp_path, ready=True):
         ) as m_popen,
         patch.object(
             CloudXRLauncher,
-            "_start_wss_proxy",
+            "_start_wss_proxy_thread",
         ) as m_wss,
         patch.object(
             CloudXRLauncher,
@@ -127,16 +136,29 @@ class TestLauncherConstruction:
     """Tests for CloudXRLauncher construction (which starts the runtime)."""
 
     def test_construction_stores_parameters(self, tmp_path):
-        """Constructor stores install_dir, env_config, and accept_eula."""
+        """Constructor stores install_dir, env_config, device_profile, and accept_eula."""
         with mock_launcher_deps(tmp_path, ready=True):
             launcher = CloudXRLauncher(
                 install_dir="/opt/cloudxr",
                 env_config="/etc/cloudxr.env",
+                device_profile="AppleVisionPro",
                 accept_eula=True,
             )
         assert launcher._install_dir == "/opt/cloudxr"
         assert launcher._env_config == "/etc/cloudxr.env"
+        assert launcher._device_profile == "AppleVisionPro"
         assert launcher._accept_eula is True
+
+    def test_construction_passes_device_profile_to_env_config(self, tmp_path):
+        """Constructor forwards device_profile to EnvConfig.from_args."""
+        with mock_launcher_deps(tmp_path, ready=True) as mocks:
+            CloudXRLauncher(device_profile="auto-native")
+
+            mocks["from_args"].assert_called_once_with(
+                "~/.cloudxr",
+                None,
+                launcher_defaults={"NV_DEVICE_PROFILE": "auto-native"},
+            )
 
     def test_construction_launches_runtime_and_wss(self, tmp_path):
         """Successful construction calls Popen and WSS proxy."""
@@ -148,6 +170,7 @@ class TestLauncherConstruction:
             mocks["check_eula"].assert_called_once()
             mocks["cleanup"].assert_called_once()
 
+    @_windows_skip
     def test_construction_raises_on_runtime_failure(self, tmp_path):
         """RuntimeError when the runtime fails to become ready."""
         with mock_launcher_deps(tmp_path, ready=False) as mocks:
@@ -165,12 +188,29 @@ class TestLauncherConstruction:
             assert isinstance(launcher.wss_log_path, Path)
             assert "wss." in str(launcher.wss_log_path)
 
+    def test_construction_skips_wss_when_disabled(self, tmp_path):
+        """start_wss_proxy=False launches runtime only."""
+        with mock_launcher_deps(tmp_path, ready=True) as mocks:
+            launcher = CloudXRLauncher(start_wss_proxy=False)
+
+            mocks["popen"].assert_called_once()
+            mocks["wss"].assert_not_called()
+            assert launcher.wss_log_path is None
+            assert launcher._start_wss_proxy is False
+
+    def test_construction_rejects_wss_options_without_proxy(self, tmp_path):
+        """WSS-only options require start_wss_proxy=True."""
+        with mock_launcher_deps(tmp_path, ready=True):
+            with pytest.raises(ValueError, match="start_wss_proxy=False"):
+                CloudXRLauncher(start_wss_proxy=False, host_client=True)
+
 
 # ============================================================================
 # TestLauncherStop
 # ============================================================================
 
 
+@_windows_skip
 class TestLauncherStop:
     """Tests for CloudXRLauncher.stop()."""
 
@@ -238,6 +278,7 @@ class TestLauncherStop:
 # ============================================================================
 
 
+@_windows_skip
 class TestLauncherContextManager:
     """Tests for CloudXRLauncher used as a context manager."""
 
@@ -312,6 +353,218 @@ class TestCleanupStaleRuntime:
         assert not os.path.exists(ipc_socket)
         assert not os.path.exists(sentinel)
         assert not os.path.exists(cloudxr_pid)
+
+
+class TestLaunchArgumentHelpers:
+    """Tests for CloudXRLauncher CLI helper methods."""
+
+    def test_add_cloudxr_install_dir_argument_default(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
+        args = parser.parse_args([])
+        assert args.cloudxr_install_dir == os.path.expanduser("~/.cloudxr")
+
+    def test_add_cloudxr_install_dir_argument_custom(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
+        args = parser.parse_args(["--cloudxr-install-dir", "/opt/cloudxr"])
+        assert args.cloudxr_install_dir == "/opt/cloudxr"
+
+    def test_add_launcher_arguments_registers_both(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launcher_arguments(parser)
+        args = parser.parse_args(
+            [
+                "--cloudxr-install-dir",
+                "/opt/cloudxr",
+                "--cloudxr-device-profile",
+                "auto-webrtc",
+                "--cloudxr-env-config",
+                "/etc/cloudxr.env",
+                "--accept-eula",
+                "--no-launch-cloudxr-runtime",
+                "--no-launch-wss-proxy",
+            ]
+        )
+        assert args.cloudxr_install_dir == "/opt/cloudxr"
+        assert args.cloudxr_device_profile == "auto-webrtc"
+        assert args.cloudxr_env_config == "/etc/cloudxr.env"
+        assert args.accept_eula is True
+        assert args.launch_cloudxr_runtime is False
+        assert args.launch_wss_proxy is False
+
+    def test_add_launcher_arguments_defaults(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launcher_arguments(parser)
+        args = parser.parse_args([])
+        assert args.cloudxr_env_config is None
+        assert args.accept_eula is False
+        assert args.launch_wss_proxy is True
+
+    def test_add_cloudxr_device_profile_argument_default(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_cloudxr_device_profile_argument(parser)
+        args = parser.parse_args([])
+        assert args.cloudxr_device_profile == DEFAULT_DEVICE_PROFILE
+
+    def test_add_cloudxr_device_profile_argument_custom(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_cloudxr_device_profile_argument(parser)
+        args = parser.parse_args(["--cloudxr-device-profile", "AppleVisionPro"])
+        assert args.cloudxr_device_profile == "AppleVisionPro"
+
+    def test_add_launch_cloudxr_runtime_argument_defaults_true(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+        args = parser.parse_args([])
+        assert args.launch_cloudxr_runtime is True
+
+    def test_add_launch_cloudxr_runtime_argument_no_launch(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+        args = parser.parse_args(["--no-launch-cloudxr-runtime"])
+        assert args.launch_cloudxr_runtime is False
+
+    def test_add_launch_wss_proxy_argument_defaults_true(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_wss_proxy_argument(parser)
+        args = parser.parse_args([])
+        assert args.launch_wss_proxy is True
+
+    def test_add_launch_wss_proxy_argument_no_launch(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_wss_proxy_argument(parser)
+        args = parser.parse_args(["--no-launch-wss-proxy"])
+        assert args.launch_wss_proxy is False
+
+    def test_launch_context_skips_when_disabled(self) -> None:
+        args = argparse.Namespace(launch_cloudxr_runtime=False)
+        with CloudXRLauncher.launch_context(args) as launcher:
+            assert launcher is None
+
+    @_windows_skip
+    def test_launch_context_starts_when_enabled(self, tmp_path) -> None:
+        args = argparse.Namespace(
+            launch_cloudxr_runtime=True,
+            cloudxr_install_dir="/opt/cloudxr",
+            cloudxr_device_profile="Quest3",
+        )
+        with mock_launcher_deps(tmp_path) as mocks:
+            with CloudXRLauncher.launch_context(args) as launcher:
+                assert launcher is not None
+                assert launcher._runtime_proc is mocks["proc"]
+                assert launcher._install_dir == "/opt/cloudxr"
+                assert launcher._device_profile == "Quest3"
+            mocks["proc"].poll.return_value = 0
+
+    @_windows_skip
+    def test_launch_context_passes_device_profile_kwarg(self, tmp_path) -> None:
+        args = argparse.Namespace(
+            launch_cloudxr_runtime=True,
+            cloudxr_install_dir="/opt/cloudxr",
+            cloudxr_device_profile="Quest3",
+        )
+        with mock_launcher_deps(tmp_path) as mocks:
+            with CloudXRLauncher.launch_context(
+                args, device_profile="auto-native"
+            ) as launcher:
+                assert launcher is not None
+                assert launcher._device_profile == "auto-native"
+            mocks["proc"].poll.return_value = 0
+
+    @_windows_skip
+    def test_launch_context_passes_start_wss_proxy_kwarg(self, tmp_path) -> None:
+        args = argparse.Namespace(
+            launch_cloudxr_runtime=True,
+            cloudxr_install_dir="/opt/cloudxr",
+            cloudxr_device_profile="Quest3",
+            launch_wss_proxy=True,
+        )
+        with mock_launcher_deps(tmp_path) as mocks:
+            with CloudXRLauncher.launch_context(
+                args, start_wss_proxy=False
+            ) as launcher:
+                assert launcher is not None
+                assert launcher._start_wss_proxy is False
+                mocks["wss"].assert_not_called()
+            mocks["proc"].poll.return_value = 0
+
+    def test_resolve_accept_eula_none_falls_back_to_args(self) -> None:
+        args = argparse.Namespace(accept_eula=True)
+        assert CloudXRLauncher._resolve_accept_eula(args) is True
+        assert CloudXRLauncher._resolve_accept_eula(args, None) is True
+        args.accept_eula = False
+        assert CloudXRLauncher._resolve_accept_eula(args) is False
+
+    def test_resolve_accept_eula_explicit_override(self) -> None:
+        args = argparse.Namespace(accept_eula=True)
+        assert CloudXRLauncher._resolve_accept_eula(args, False) is False
+        args.accept_eula = False
+        assert CloudXRLauncher._resolve_accept_eula(args, True) is True
+
+    def test_stop_on_windows_raises_unsupported(self, tmp_path) -> None:
+        """Simulated win32 platform raises instead of calling POSIX APIs."""
+        with mock_launcher_deps(tmp_path, ready=True) as mocks:
+            launcher = CloudXRLauncher()
+            mocks["proc"].poll.return_value = None
+
+            with patch("isaacteleop.cloudxr.launcher.sys.platform", "win32"):
+                with pytest.raises(RuntimeError, match="not supported on Windows"):
+                    launcher.stop()
+
+
+class TestEnvConfigLauncherDefaults:
+    """Tests for EnvConfig launcher_defaults precedence."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_env_config_singleton(self):
+        from isaacteleop.cloudxr.env_config import EnvConfig
+
+        EnvConfig._instance = None
+        yield
+        EnvConfig._instance = None
+
+    def test_launcher_defaults_apply_when_unset(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("NV_DEVICE_PROFILE", raising=False)
+
+        from isaacteleop.cloudxr.env_config import EnvConfig
+
+        cfg = EnvConfig.from_args(
+            str(tmp_path),
+            launcher_defaults={"NV_DEVICE_PROFILE": "Quest3"},
+        )
+
+        assert cfg._resolved_env is not None
+        assert cfg._resolved_env["NV_DEVICE_PROFILE"] == "Quest3"
+
+    def test_env_file_overrides_launcher_defaults(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("NV_DEVICE_PROFILE", raising=False)
+        env_file = tmp_path / "custom.env"
+        env_file.write_text("NV_DEVICE_PROFILE=auto-native\n", encoding="utf-8")
+
+        from isaacteleop.cloudxr.env_config import EnvConfig
+
+        cfg = EnvConfig.from_args(
+            str(tmp_path),
+            env_file,
+            launcher_defaults={"NV_DEVICE_PROFILE": "Quest3"},
+        )
+
+        assert cfg._resolved_env is not None
+        assert cfg._resolved_env["NV_DEVICE_PROFILE"] == "auto-native"
+
+    def test_process_env_overrides_launcher_defaults(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("NV_DEVICE_PROFILE", "AppleVisionPro")
+
+        from isaacteleop.cloudxr.env_config import EnvConfig
+
+        cfg = EnvConfig.from_args(
+            str(tmp_path),
+            launcher_defaults={"NV_DEVICE_PROFILE": "Quest3"},
+        )
+
+        assert cfg._resolved_env is not None
+        assert cfg._resolved_env["NV_DEVICE_PROFILE"] == "AppleVisionPro"
 
 
 if __name__ == "__main__":

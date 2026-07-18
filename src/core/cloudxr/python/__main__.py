@@ -86,7 +86,8 @@ def _parse_args() -> argparse.Namespace:
             f"and HTTPS static web client on port {usb_ui_port()} "
             "(override via USB_UI_PORT env).  Files live under "
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client; missing "
-            "index.html / bundle.js are downloaded from the matching versioned "
+            "client assets (index.html, bundle.js, and bundle.emulator.js) "
+            "are downloaded from the matching versioned "
             "client under nvidia.github.io/IsaacTeleop/client/.  "
             "The launcher serves them with the same PEM as the WSS proxy.  "
             "Requirements: `coturn`, `adb` on PATH.  WebRTC ICE still needs a "
@@ -100,7 +101,8 @@ def _parse_args() -> argparse.Namespace:
         default=False,
         help=(
             "Serve the web client at /client/ on the WSS proxy port (default 48322). "
-            "Assets (index.html + bundle.js) are fetched once from the matching "
+            "Assets (index.html, bundle.js, and bundle.emulator.js) "
+            "are fetched once from the matching "
             "versioned release on nvidia.github.io/IsaacTeleop into "
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client.  "
             "No separate port, no build step, no adb required.  "
@@ -117,6 +119,14 @@ def main() -> None:
     if args.usb_local and not args.setup_oob:
         print(
             "\n\033[31m--usb-local requires --setup-oob.\033[0m\n",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    if args.usb_local and os.getenv("TELEOP_OOB_HUB_ONLY"):
+        print(
+            "\n\033[31mTELEOP_OOB_HUB_ONLY is not compatible with --usb-local "
+            "(hub-only mode supports WiFi setup only).\033[0m\n",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -163,11 +173,21 @@ def main() -> None:
         oob_progress("usb-local", "preflight OK")
     elif args.setup_oob:
         # WiFi OOB: resolve LAN host + warn on port/ufw issues.
-        oob_progress("setup-oob", "preflight: adb, single headset, awake ...")
-        require_adb_on_path()
+        # TELEOP_OOB_HUB_ONLY skips all adb steps — hub starts, but the
+        # operator is responsible for opening the teleop page on the headset.
+        _oob_hub_only = bool(os.getenv("TELEOP_OOB_HUB_ONLY"))
+        if _oob_hub_only:
+            oob_progress(
+                "setup-oob",
+                "hub-only mode (TELEOP_OOB_HUB_ONLY) — skipping adb preflight",
+            )
+        else:
+            oob_progress("setup-oob", "preflight: adb, single headset, awake ...")
+            require_adb_on_path()
         _oob_lan_host = resolve_lan_host_for_oob()
-        assert_exactly_one_adb_device()
-        assert_headset_awake()
+        if not _oob_hub_only:
+            assert_exactly_one_adb_device()
+            assert_headset_awake()
         try:
             print_host_preflight_warnings(usb_local=False)
         except RuntimeError as exc:
@@ -240,6 +260,7 @@ def main() -> None:
         stop = False
 
         def on_signal(sig, frame):
+            """Set the stop flag on SIGINT/SIGTERM."""
             nonlocal stop
             stop = True
 

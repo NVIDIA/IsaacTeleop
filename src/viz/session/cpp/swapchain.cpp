@@ -31,21 +31,23 @@ void check_vk(VkResult r, const char* what)
     }
 }
 
-// Pick a surface format. Prefer B8G8R8A8_SRGB (common Linux default,
-// matches our intermediate framebuffer's sRGB color space). Fall back
-// to any *_SRGB format. Else accept whatever the runtime offers first.
+// Pick a surface format. Prefer R8G8B8A8_SRGB so the direct-present path's
+// vkCmdCopyImage (raw bytes, no channel reorder) from our RGBA layer images
+// lands in the right channel order; a BGRA swapchain would swap R/B. Fall
+// back to B8G8R8A8_SRGB (common Linux default — the composited path blits, so
+// channel order is handled there), then any *_SRGB, then whatever's offered.
 VkSurfaceFormatKHR pick_surface_format(const std::vector<VkSurfaceFormatKHR>& formats)
 {
     for (const auto& f : formats)
     {
-        if (f.format == VK_FORMAT_B8G8R8A8_SRGB && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        if (f.format == VK_FORMAT_R8G8B8A8_SRGB && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
             return f;
         }
     }
     for (const auto& f : formats)
     {
-        if (f.format == VK_FORMAT_R8G8B8A8_SRGB && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        if (f.format == VK_FORMAT_B8G8R8A8_SRGB && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
         {
             return f;
         }

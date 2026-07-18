@@ -180,6 +180,9 @@ The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmak
    * - **Clang-format check**
      - ``ENABLE_CLANG_FORMAT_CHECK``
      - ``ON`` on Linux
+   * - **Televiz visualization**
+     - ``BUILD_VIZ``
+     - Auto: ``ON`` when Vulkan, the CUDA Toolkit, and ``glslangValidator`` are detected, else ``OFF``. Force with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``. (Most users don't need this — ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module.)
 
 .. list-table:: Plugin Specific Options
    :widths: 26 34 40
@@ -271,48 +274,6 @@ The CI uses ``ctest`` (see :code-file:`build-ubuntu.yml <.github/workflows/build
 The wheels are built in the ``./install/wheels/`` directory. Install the package from the wheels.
 Using ``pip``, you need to pass the ``--no-index`` option to automatically find the right wheel
 based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly different options.
-
-.. _aarch64-nlopt-wheel:
-
-.. note::
-   **ARM64 / aarch64 systems only** (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
-   ``nlopt`` wheels for ARM64, so pip cannot satisfy the ``retargeters`` extra automatically.
-   Build an ``nlopt`` wheel from source before running the install commands below
-   (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_):
-
-   .. code-block:: bash
-
-      # Install build tools
-      sudo apt-get install -y build-essential cmake git pkg-config swig
-
-      # Clone nlopt-python and build a wheel
-      git clone --depth 1 --branch 2.10.0 https://github.com/DanielBok/nlopt-python.git /tmp/nlopt-python
-      cd /tmp/nlopt-python
-      git submodule update --init --recursive
-
-      # The Python version must match your isaacteleop install exactly (3.10, 3.11, 3.12, or 3.13).
-      # nlopt builds a CPython ABI-specific extension (.cpython-311-*.so), so a wheel built
-      # with Python 3.11 will not load under Python 3.12 or vice versa.
-      uv venv --python=3.11 /tmp/nlopt-wheel-venv
-      VIRTUAL_ENV=/tmp/nlopt-wheel-venv uv pip install numpy setuptools wheel
-      /tmp/nlopt-wheel-venv/bin/python setup.py bdist_wheel -d /tmp/nlopt-wheels/
-
-   Then pass ``--find-links=/tmp/nlopt-wheels/`` when installing so the locally-built wheel is
-   used instead of attempting a PyPI download:
-
-   .. code-block:: bash
-
-      # pip
-      pip install "isaacteleop[retargeters,cloudxr,ui]" \
-          --find-links=./install/wheels/ \
-          --find-links=/tmp/nlopt-wheels/ \
-          --no-index --force-reinstall
-
-      # uv pip
-      uv pip install "isaacteleop[retargeters,cloudxr,ui]" \
-          --find-links=./install/wheels/ \
-          --find-links=/tmp/nlopt-wheels/ \
-          --reinstall
 
 .. code-block:: bash
 

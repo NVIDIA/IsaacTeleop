@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20)
@@ -11,6 +11,10 @@ add_library(deviceio_trackers STATIC
     message_channel_tracker.cpp
     generic_3axis_pedal_tracker.cpp
     oglo_tactile_tracker.cpp
+    tensor_push_tracker.cpp
+    haptic_command_reader_tracker.cpp
+    joint_state_tracker.cpp
+    se3_tracker.cpp
     frame_metadata_tracker_oak.cpp
     full_body_tracker_pico.cpp
     inc/deviceio_trackers/head_tracker.hpp
@@ -20,6 +24,10 @@ add_library(deviceio_trackers STATIC
     inc/deviceio_trackers/full_body_tracker_pico.hpp
     inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp
     inc/deviceio_trackers/oglo_tactile_tracker.hpp
+    inc/deviceio_trackers/tensor_push_tracker.hpp
+    inc/deviceio_trackers/haptic_command_reader_tracker.hpp
+    inc/deviceio_trackers/joint_state_tracker.hpp
+    inc/deviceio_trackers/se3_tracker.hpp
     inc/deviceio_trackers/frame_metadata_tracker_oak.hpp
 )
 

@@ -30,7 +30,13 @@ import isaacteleop.viz as viz
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import PairedFrameSource, RtpH264Source, build_local_camera, set_verbose
+from sources import (
+    PairedFrameSource,
+    RtpH264Source,
+    build_local_camera,
+    resolve_video_paths,
+    set_verbose,
+)
 
 
 @dataclass
@@ -75,18 +81,15 @@ _DEFAULT_PLANE_WIDTH_M = 1.0
 
 
 def _placement_with_aspect(
-    spec: Optional[dict], cam: dict, is_xr: bool
+    spec: Optional[dict], width: int, height: int, is_xr: bool
 ) -> Optional[PlacementStrategy]:
-    """Build the placement for ``cam``, filling in ``size`` from the
-    camera's aspect ratio when the YAML doesn't pin it. Width defaults
-    to 1.0 m so a 16:9 camera lands at 1.0 x 0.5625, a 3.55:1 SBS at
-    1.0 x 0.281."""
+    """Build the placement, filling in ``size`` from the source's aspect
+    ratio when the YAML doesn't pin it. Width defaults to 1.0 m so a
+    16:9 source lands at 1.0 x 0.5625, a 3.55:1 SBS at 1.0 x 0.281."""
     if spec is not None and "size" not in spec:
-        w = int(cam["width"])
-        h = int(cam["height"])
         spec = {
             **spec,
-            "size": [_DEFAULT_PLANE_WIDTH_M, _DEFAULT_PLANE_WIDTH_M * h / w],
+            "size": [_DEFAULT_PLANE_WIDTH_M, _DEFAULT_PLANE_WIDTH_M * height / width],
         }
     return _build_placement(spec, is_xr)
 
@@ -104,9 +107,15 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
     placements_cfg = cfg.get("display", {}).get("placements", {})
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
-        placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
+        cam_sources = build_local_camera(cam)
+        # Aspect comes from the built source's spec, not the YAML — video
+        # sources may omit width/height and size themselves from the file.
+        first = cam_sources[0].spec
+        placement = _placement_with_aspect(
+            placements_cfg.get(cam["name"]), first.width, first.height, is_xr
+        )
         stereo, baseline_mm = _stereo_for(cam, placements_cfg)
-        for source in build_local_camera(cam):
+        for source in cam_sources:
             entries.append(
                 SourceEntry(
                     source=source,
@@ -130,7 +139,18 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 f"camera_viz: camera {cam.get('name')!r} missing rtp.port; "
                 "required when source: rtp"
             )
-        placement = _placement_with_aspect(placements_cfg.get(cam["name"]), cam, is_xr)
+        if "width" not in cam or "height" not in cam:
+            raise ValueError(
+                f"camera_viz: camera {cam.get('name')!r} needs explicit "
+                "width/height when source: rtp — the receiver sizes its "
+                "decoder from the YAML, not from the wire"
+            )
+        placement = _placement_with_aspect(
+            placements_cfg.get(cam["name"]),
+            int(cam["width"]),
+            int(cam["height"]),
+            is_xr,
+        )
         stereo, baseline_mm = _stereo_for(cam, placements_cfg)
 
         if stereo:
@@ -182,7 +202,7 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
 def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSession:
     display = cfg.get("display", {})
     # --mode overrides display.mode when given.
-    mode_str = (mode_override or display.get("mode", "window")).lower()
+    mode_str = (mode_override or display.get("mode", "xr")).lower()
     session_cfg = viz.VizSessionConfig()
     if mode_str == "window":
         session_cfg.mode = viz.DisplayMode.kWindow
@@ -211,7 +231,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         "--mode",
         choices=("window", "xr"),
         default=None,
-        help="Override display.mode from the config (default: use the config's value).",
+        help="Override display.mode from the config "
+        "(default: the config's value, or xr when the config omits it).",
     )
     args = parser.parse_args(argv)
 
@@ -225,12 +246,13 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Top-level ``verbose:`` enables per-source periodic breadcrumbs.
     set_verbose(bool(cfg.get("verbose", False)))
+    resolve_video_paths(cfg, args.config.parent)
 
     source_mode = cfg.get("source", "local").lower()
     if source_mode not in ("local", "rtp"):
         raise ValueError(f"camera_viz: source must be local|rtp, got {source_mode!r}")
 
-    effective_mode = (args.mode or cfg.get("display", {}).get("mode", "window")).lower()
+    effective_mode = (args.mode or cfg.get("display", {}).get("mode", "xr")).lower()
     session = _make_session(cfg, mode_override=args.mode)
     is_xr = session.is_xr_mode()
 

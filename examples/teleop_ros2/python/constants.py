@@ -6,7 +6,10 @@
 
 from enum import Enum
 
-from isaacteleop.retargeting_engine.tensor_types.indices import BodyJointPicoIndex
+from isaacteleop.retargeting_engine.tensor_types.indices import (
+    BodyJointPicoIndex,
+    HandJointIndex,
+)
 
 try:
     from enum import StrEnum
@@ -24,10 +27,22 @@ class HandRetargeter(StrEnum):
     DEXPILOT = "dexpilot"
 
 
+class TeleopMode(StrEnum):
+    CONTROLLER_TELEOP = "controller_teleop"
+    HAND_TELEOP = "hand_teleop"
+    CONTROLLER_RAW = "controller_raw"
+    FULL_BODY = "full_body"
+
+
 BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
+HAND_POSE_JOINT_INDICES = tuple(
+    HandJointIndex(i)
+    for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)
+)
+HAND_POSE_NAMES = [joint.name for joint in HAND_POSE_JOINT_INDICES]
 HAND_RETARGETERS = tuple(retargeter.value for retargeter in HandRetargeter)
 SHARPA_HAND_RETARGETERS = (HandRetargeter.PINK_IK, HandRetargeter.DEXPILOT)
-TELEOP_MODES = ("controller_teleop", "hand_teleop", "controller_raw", "full_body")
+TELEOP_MODES = tuple(mode.value for mode in TeleopMode)
 
 TRIHAND_JOINT_NAMES = [
     "thumb_rotation",
@@ -73,16 +88,16 @@ DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM = (0, -1, 0, -1, 0, 0, 0, 0, -1)
 
 
 def resolve_hand_retargeter(
-    mode: str, hand_retargeter: HandRetargeter
+    mode: TeleopMode, hand_retargeter: HandRetargeter
 ) -> HandRetargeter:
     if hand_retargeter == HandRetargeter.MODE_DEFAULT:
-        if mode == "controller_teleop":
+        if mode == TeleopMode.CONTROLLER_TELEOP:
             return HandRetargeter.TRIHAND
-        if mode == "hand_teleop":
+        if mode == TeleopMode.HAND_TELEOP:
             return HandRetargeter.DEXPILOT
         return hand_retargeter
 
-    if mode == "hand_teleop" and hand_retargeter == HandRetargeter.TRIHAND:
+    if mode == TeleopMode.HAND_TELEOP and hand_retargeter == HandRetargeter.TRIHAND:
         raise ValueError(
             "Parameter 'hand_retargeter:=trihand' is only valid with "
             "mode:=controller_teleop"
@@ -92,6 +107,9 @@ def resolve_hand_retargeter(
 
 
 def uses_hands_source_for_controller(
-    mode: str, hand_retargeter: HandRetargeter
+    mode: TeleopMode, hand_retargeter: HandRetargeter
 ) -> bool:
-    return mode == "controller_teleop" and hand_retargeter in SHARPA_HAND_RETARGETERS
+    return (
+        mode == TeleopMode.CONTROLLER_TELEOP
+        and hand_retargeter in SHARPA_HAND_RETARGETERS
+    )

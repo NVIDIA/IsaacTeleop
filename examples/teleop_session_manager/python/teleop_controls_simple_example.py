@@ -15,10 +15,12 @@ Non-control demo plumbing (printing/observation retargeter) lives in
 ``teleop_controls_simple_helper.py``.
 """
 
+import argparse
 import sys
 import time
 from typing import Dict
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HeadSource,
     HandsSource,
@@ -69,52 +71,62 @@ def _build_control_signals(
 
 
 def main() -> int:
-    head = HeadSource(name="head")
-    hands = HandsSource(name="hands")
-    controllers = ControllersSource(name="controllers")
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
 
-    main_pipeline = build_observation_pipeline(head, hands, controllers)
+    with CloudXRLauncher.launch_context(args):
+        head = HeadSource(name="head")
+        hands = HandsSource(name="hands")
+        controllers = ControllersSource(name="controllers")
 
-    control_signals = _build_control_signals(controllers)
-    teleop_manager = DefaultTeleopStateManager(name="teleop_manager")
-    teleop_control_pipeline = teleop_manager.connect(
-        {
-            teleop_manager.INPUT_KILL: control_signals["kill_signal"].output("value"),
-            teleop_manager.INPUT_RUN_TOGGLE: control_signals[
-                "run_toggle_signal"
-            ].output("value"),
-            teleop_manager.INPUT_RESET: control_signals["reset_signal"].output("value"),
-        }
-    )
+        main_pipeline = build_observation_pipeline(head, hands, controllers)
 
-    config = TeleopSessionConfig(
-        app_name="TeleopControlsSimpleExample",
-        pipeline=main_pipeline,
-        teleop_control_pipeline=teleop_control_pipeline,
-    )
+        control_signals = _build_control_signals(controllers)
+        teleop_manager = DefaultTeleopStateManager(name="teleop_manager")
+        teleop_control_pipeline = teleop_manager.connect(
+            {
+                teleop_manager.INPUT_KILL: control_signals["kill_signal"].output(
+                    "value"
+                ),
+                teleop_manager.INPUT_RUN_TOGGLE: control_signals[
+                    "run_toggle_signal"
+                ].output("value"),
+                teleop_manager.INPUT_RESET: control_signals["reset_signal"].output(
+                    "value"
+                ),
+            }
+        )
 
-    with TeleopSession(config) as session:
-        print_header()
+        config = TeleopSessionConfig(
+            app_name="TeleopControlsSimpleExample",
+            pipeline=main_pipeline,
+            teleop_control_pipeline=teleop_control_pipeline,
+        )
 
-        # Example high-level hook: a caller can gate robot power/control using context.
-        robot_enabled: bool | None = None
+        with TeleopSession(config) as session:
+            print_header()
 
-        while True:
-            outputs = session.step()
-            context = session.last_context
-            if context is not None:
-                enabled_now = (
-                    context.execution_events.execution_state != ExecutionState.STOPPED
-                )
-                if robot_enabled is None or enabled_now != robot_enabled:
-                    robot_enabled = enabled_now
-                    print(f"[high-level] robot_enabled={robot_enabled}")
-                if context.execution_events.reset:
-                    print("[high-level] reset pulse received")
+            # Example high-level hook: a caller can gate robot power/control using context.
+            robot_enabled: bool | None = None
 
-            if session.frame_count % 30 == 0:
-                print_frame(outputs, session.get_elapsed_time())
-            time.sleep(0.016)
+            while True:
+                outputs = session.step()
+                context = session.last_context
+                if context is not None:
+                    enabled_now = (
+                        context.execution_events.execution_state
+                        != ExecutionState.STOPPED
+                    )
+                    if robot_enabled is None or enabled_now != robot_enabled:
+                        robot_enabled = enabled_now
+                        print(f"[high-level] robot_enabled={robot_enabled}")
+                    if context.execution_events.reset:
+                        print("[high-level] reset pulse received")
+
+                if session.frame_count % 30 == 0:
+                    print_frame(outputs, session.get_elapsed_time())
+                time.sleep(0.016)
     return 0
 
 

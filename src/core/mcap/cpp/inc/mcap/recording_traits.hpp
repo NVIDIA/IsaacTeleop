@@ -59,6 +59,20 @@ struct OgloRecordingTraits
     static constexpr std::array replay_channels = { "oglo_tracked" };
 };
 
+struct JointStateRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.JointStateOutputRecord";
+    static constexpr std::array recording_channels = { "joint_state", "joint_state_tracked" };
+    static constexpr std::array replay_channels = { "joint_state_tracked" };
+};
+
+struct Se3TrackerRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.Se3TrackerPoseRecord";
+    static constexpr std::array recording_channels = { "se3_tracker", "se3_tracker_tracked" };
+    static constexpr std::array replay_channels = { "se3_tracker_tracked" };
+};
+
 struct OakRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.FrameMetadataOakRecord";

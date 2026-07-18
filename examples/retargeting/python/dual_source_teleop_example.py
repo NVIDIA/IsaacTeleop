@@ -26,9 +26,11 @@ Pipeline structure:
                                                       └──> OutputCombiner
 """
 
+import argparse
 import sys
 import time
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
 )
@@ -44,148 +46,157 @@ from isaacteleop.teleop_session_manager import (
 
 
 def main() -> int:
-    print("=" * 80)
-    print("  Dual ControllersSource Teleop Example")
-    print("=" * 80)
-    print("Uses two ControllersSource nodes in a single pipeline.")
-    print("Each source feeds one SE3 retargeter for bimanual arm control.")
-    print("=" * 80 + "\n")
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
 
-    # ==================================================================
-    # Step 1: Create two separate ControllersSource nodes
-    # ==================================================================
-    # Each ControllersSource creates its own ControllerTracker internally.
-    # BUG: TeleopSession deduplicates trackers by type, so only the first
-    #       source's tracker will be registered with DeviceIO. The second
-    #       source's tracker is orphaned.
-
-    print("[Step 1] Creating two ControllersSource nodes...")
-    controller_left_source = ControllersSource(name="controller_left")
-    controller_right_source = ControllersSource(name="controller_right")
-    print(
-        f"  ✓ ControllersSource('controller_left')  - tracker id: {id(controller_left_source.get_tracker())}"
-    )
-    print(
-        f"  ✓ ControllersSource('controller_right') - tracker id: {id(controller_right_source.get_tracker())}"
-    )
-    print(
-        f"  ⚠ Both trackers are type: {type(controller_left_source.get_tracker()).__name__}"
-    )
-    print("    Only one will survive deduplication in TeleopSession.__enter__()")
-
-    # ==================================================================
-    # Step 2: Build retargeting pipeline
-    # ==================================================================
-    # Left arm: controller_left from first source
-    # Right arm: controller_right from second source
-
-    print("\n[Step 2] Building retargeting pipeline...")
-
-    # Left arm SE3 retargeter (using left controller from first source)
-    left_se3_config = Se3RetargeterConfig(
-        input_device=ControllersSource.LEFT,
-        use_wrist_position=True,
-        use_wrist_rotation=True,
-        zero_out_xy_rotation=False,
-    )
-    left_se3 = Se3AbsRetargeter(left_se3_config, name="left_se3")
-    connected_left = left_se3.connect(
-        {
-            ControllersSource.LEFT: controller_left_source.output(
-                ControllersSource.LEFT
-            ),
-        }
-    )
-    print("  ✓ Left SE3: controller_left_source.controller_left -> left_ee_pose")
-
-    # Right arm SE3 retargeter (using right controller from second source)
-    right_se3_config = Se3RetargeterConfig(
-        input_device=ControllersSource.RIGHT,
-        use_wrist_position=True,
-        use_wrist_rotation=True,
-        zero_out_xy_rotation=False,
-    )
-    right_se3 = Se3AbsRetargeter(right_se3_config, name="right_se3")
-    connected_right = right_se3.connect(
-        {
-            ControllersSource.RIGHT: controller_right_source.output(
-                ControllersSource.RIGHT
-            ),
-        }
-    )
-    print("  ✓ Right SE3: controller_right_source.controller_right -> right_ee_pose")
-
-    # ==================================================================
-    # Step 3: Combine outputs
-    # ==================================================================
-    print("\n[Step 3] Combining outputs...")
-
-    pipeline = OutputCombiner(
-        {
-            "left_ee_pose": connected_left.output("ee_pose"),
-            "right_ee_pose": connected_right.output("ee_pose"),
-        }
-    )
-    print("  ✓ Pipeline: 2 ControllersSource -> 2 Se3AbsRetargeter -> OutputCombiner")
-
-    # ==================================================================
-    # Step 4: Create and run TeleopSession
-    # ==================================================================
-    print("\n[Step 4] Creating TeleopSession...")
-
-    session_config = TeleopSessionConfig(
-        app_name="DualControllerSourceExample",
-        trackers=[],  # Auto-discovered from pipeline sources
-        pipeline=pipeline,
-    )
-
-    with TeleopSession(session_config) as session:
-        print("  ✓ Session initialized")
-
-        # Diagnostic: show which tracker survived deduplication
-        print("\n  [Diagnostic] Discovered sources:")
-        for source in session._sources:
-            tracker = source.get_tracker()
-            print(
-                f"    - {source.name}: tracker id={id(tracker)}, type={type(tracker).__name__}"
-            )
-
-        print("\n" + "=" * 80)
-        print("  Running Bimanual Controller Teleop (20 seconds)")
-        print("  Move left/right controllers to position arms")
+    with CloudXRLauncher.launch_context(args):
+        print("=" * 80)
+        print("  Dual ControllersSource Teleop Example")
+        print("=" * 80)
+        print("Uses two ControllersSource nodes in a single pipeline.")
+        print("Each source feeds one SE3 retargeter for bimanual arm control.")
         print("=" * 80 + "\n")
 
-        start_time = time.time()
-        duration = 20.0
+        # ==================================================================
+        # Step 1: Create two separate ControllersSource nodes
+        # ==================================================================
+        # Each ControllersSource creates its own ControllerTracker internally.
+        # BUG: TeleopSession deduplicates trackers by type, so only the first
+        #       source's tracker will be registered with DeviceIO. The second
+        #       source's tracker is orphaned.
 
-        while time.time() - start_time < duration:
-            # BUG: This will fail or produce incorrect results for the second source.
-            # The second ControllersSource polls its own tracker, which was never
-            # registered with DeviceIO (discarded during deduplication).
-            result = session.step()
+        print("[Step 1] Creating two ControllersSource nodes...")
+        controller_left_source = ControllersSource(name="controller_left")
+        controller_right_source = ControllersSource(name="controller_right")
+        print(
+            f"  ✓ ControllersSource('controller_left')  - tracker id: {id(controller_left_source.get_tracker())}"
+        )
+        print(
+            f"  ✓ ControllersSource('controller_right') - tracker id: {id(controller_right_source.get_tracker())}"
+        )
+        print(
+            f"  ⚠ Both trackers are type: {type(controller_left_source.get_tracker()).__name__}"
+        )
+        print("    Only one will survive deduplication in TeleopSession.__enter__()")
 
-            left_pose = result["left_ee_pose"][0]
-            right_pose = result["right_ee_pose"][0]
+        # ==================================================================
+        # Step 2: Build retargeting pipeline
+        # ==================================================================
+        # Left arm: controller_left from first source
+        # Right arm: controller_right from second source
 
-            if session.frame_count % 30 == 0:
-                elapsed = session.get_elapsed_time()
-                left_pos = left_pose[:3]
-                right_pos = right_pose[:3]
+        print("\n[Step 2] Building retargeting pipeline...")
 
-                print(f"[{elapsed:5.1f}s] Frame {session.frame_count}")
+        # Left arm SE3 retargeter (using left controller from first source)
+        left_se3_config = Se3RetargeterConfig(
+            input_device=ControllersSource.LEFT,
+            use_wrist_position=True,
+            use_wrist_rotation=True,
+            zero_out_xy_rotation=False,
+        )
+        left_se3 = Se3AbsRetargeter(left_se3_config, name="left_se3")
+        connected_left = left_se3.connect(
+            {
+                ControllersSource.LEFT: controller_left_source.output(
+                    ControllersSource.LEFT
+                ),
+            }
+        )
+        print("  ✓ Left SE3: controller_left_source.controller_left -> left_ee_pose")
+
+        # Right arm SE3 retargeter (using right controller from second source)
+        right_se3_config = Se3RetargeterConfig(
+            input_device=ControllersSource.RIGHT,
+            use_wrist_position=True,
+            use_wrist_rotation=True,
+            zero_out_xy_rotation=False,
+        )
+        right_se3 = Se3AbsRetargeter(right_se3_config, name="right_se3")
+        connected_right = right_se3.connect(
+            {
+                ControllersSource.RIGHT: controller_right_source.output(
+                    ControllersSource.RIGHT
+                ),
+            }
+        )
+        print(
+            "  ✓ Right SE3: controller_right_source.controller_right -> right_ee_pose"
+        )
+
+        # ==================================================================
+        # Step 3: Combine outputs
+        # ==================================================================
+        print("\n[Step 3] Combining outputs...")
+
+        pipeline = OutputCombiner(
+            {
+                "left_ee_pose": connected_left.output("ee_pose"),
+                "right_ee_pose": connected_right.output("ee_pose"),
+            }
+        )
+        print(
+            "  ✓ Pipeline: 2 ControllersSource -> 2 Se3AbsRetargeter -> OutputCombiner"
+        )
+
+        # ==================================================================
+        # Step 4: Create and run TeleopSession
+        # ==================================================================
+        print("\n[Step 4] Creating TeleopSession...")
+
+        session_config = TeleopSessionConfig(
+            app_name="DualControllerSourceExample",
+            trackers=[],  # Auto-discovered from pipeline sources
+            pipeline=pipeline,
+        )
+
+        with TeleopSession(session_config) as session:
+            print("  ✓ Session initialized")
+
+            # Diagnostic: show which tracker survived deduplication
+            print("\n  [Diagnostic] Discovered sources:")
+            for source in session._sources:
+                tracker = source.get_tracker()
                 print(
-                    f"  Left  arm: ({left_pos[0]:+6.3f}, {left_pos[1]:+6.3f}, {left_pos[2]:+6.3f})"
-                )
-                print(
-                    f"  Right arm: ({right_pos[0]:+6.3f}, {right_pos[1]:+6.3f}, {right_pos[2]:+6.3f})"
+                    f"    - {source.name}: tracker id={id(tracker)}, type={type(tracker).__name__}"
                 )
 
-            time.sleep(0.016)
+            print("\n" + "=" * 80)
+            print("  Running Bimanual Controller Teleop (20 seconds)")
+            print("  Move left/right controllers to position arms")
+            print("=" * 80 + "\n")
 
-        fps = session.frame_count / duration
-        print(f"\n  Done. Processed {session.frame_count} frames ({fps:.1f} FPS)")
+            start_time = time.time()
+            duration = 20.0
 
-    print("\n✅ Example completed successfully!")
+            while time.time() - start_time < duration:
+                # BUG: This will fail or produce incorrect results for the second source.
+                # The second ControllersSource polls its own tracker, which was never
+                # registered with DeviceIO (discarded during deduplication).
+                result = session.step()
+
+                left_pose = result["left_ee_pose"][0]
+                right_pose = result["right_ee_pose"][0]
+
+                if session.frame_count % 30 == 0:
+                    elapsed = session.get_elapsed_time()
+                    left_pos = left_pose[:3]
+                    right_pos = right_pose[:3]
+
+                    print(f"[{elapsed:5.1f}s] Frame {session.frame_count}")
+                    print(
+                        f"  Left  arm: ({left_pos[0]:+6.3f}, {left_pos[1]:+6.3f}, {left_pos[2]:+6.3f})"
+                    )
+                    print(
+                        f"  Right arm: ({right_pos[0]:+6.3f}, {right_pos[1]:+6.3f}, {right_pos[2]:+6.3f})"
+                    )
+
+                time.sleep(0.016)
+
+            fps = session.frame_count / duration
+            print(f"\n  Done. Processed {session.frame_count} frames ({fps:.1f} FPS)")
+
+        print("\n✅ Example completed successfully!")
     return 0
 
 

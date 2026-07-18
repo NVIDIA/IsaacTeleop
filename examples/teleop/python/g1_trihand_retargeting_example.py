@@ -11,10 +11,12 @@ This example shows:
 1. TriHandMotionControllerRetargeter - Simple VR controller-based hand control for G1 TriHand
 """
 
+import argparse
 import sys
 import time
 from pathlib import Path
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeters import (
     TriHandMotionControllerRetargeter,
@@ -31,6 +33,10 @@ PLUGIN_ROOT_ID = "synthetic_hands"
 
 def example_trihand_motion_controller():
     """Run TriHandMotionControllerRetargeter example with VR controllers."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     print("\n" + "=" * 80)
     print("  TriHandMotionControllerRetargeter Example")
     print("=" * 80)
@@ -112,7 +118,10 @@ def example_trihand_motion_controller():
         )
     session_config.plugins = plugins
 
-    with TeleopSession(session_config) as session:
+    with (
+        CloudXRLauncher.launch_context(args),
+        TeleopSession(session_config) as session,
+    ):
         # No session injection needed
 
         run_motion_controller_loop(session)

@@ -21,6 +21,14 @@ class FullBodyTrackerPico;
 class IFullBodyTrackerPicoImpl;
 class Generic3AxisPedalTracker;
 class IGeneric3AxisPedalTrackerImpl;
+class TensorPushTracker;
+class ITensorPushTrackerImpl;
+class HapticCommandReaderTracker;
+class IHapticCommandReaderTrackerImpl;
+class JointStateTracker;
+class IJointStateTrackerImpl;
+class Se3Tracker;
+class ISe3TrackerImpl;
 class HandTracker;
 class IHandTrackerImpl;
 class HeadTracker;
@@ -50,6 +58,11 @@ public:
     std::unique_ptr<IFullBodyTrackerPicoImpl> create_full_body_tracker_pico_impl(const FullBodyTrackerPico* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
+    std::unique_ptr<ITensorPushTrackerImpl> create_tensor_push_tracker_impl(const TensorPushTracker* tracker);
+    std::unique_ptr<IHapticCommandReaderTrackerImpl> create_haptic_command_reader_tracker_impl(
+        const HapticCommandReaderTracker* tracker);
+    std::unique_ptr<IJointStateTrackerImpl> create_joint_state_tracker_impl(const JointStateTracker* tracker);
+    std::unique_ptr<ISe3TrackerImpl> create_se3_tracker_impl(const Se3Tracker* tracker);
     std::unique_ptr<IMessageChannelTrackerImpl> create_message_channel_tracker_impl(const MessageChannelTracker* tracker);
 
 private:

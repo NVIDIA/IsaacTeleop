@@ -1,0 +1,34 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Vendor-neutral wire payload for the cross-process device-output path.
+// One haptic command for one named actuator endpoint. `endpoint` is the
+// device-defined channel name (e.g. "left" / "right" for hand-mounted
+// devices, "device" for a single grounded device); `values` is the
+// device-side payload (e.g. per-finger powers in [0, 1], a force vector,
+// ...). The schema does not lock the `values` length so different devices
+// document their own ordering in their plugin README.
+table HapticCommand {
+    endpoint: string (id: 0);
+    values: [float] (id: 1);
+}
+
+// Tracked wrapper for the in-memory reader API; data is null until the
+// first sample arrives or after the producer collection disappears.
+table HapticCommandTracked {
+    data: HapticCommand (id: 0);
+}
+
+// MCAP recording wrapper required by the SchemaTracker<RecordT, DataTableT>
+// template. Recording is disabled here -- the live reader passes
+// mcap_channels=nullptr.
+table HapticCommandRecord {
+    data: HapticCommand (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type HapticCommandRecord;

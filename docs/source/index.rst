@@ -53,6 +53,7 @@ Table of Contents
    getting_started/teleop_session
    getting_started/teleop_control_state_machine
    getting_started/televiz
+   getting_started/lerobot/index
    getting_started/contributing
 
 .. toctree::
@@ -65,6 +66,7 @@ Table of Contents
    references/retargeting/index
    references/camera_streaming
    references/mcap_record_replay
+   references/cloudxr
    references/oob_teleop_control
    references/egocentric_hand_reconstruction
    references/license

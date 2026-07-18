@@ -38,6 +38,16 @@ public:
     std::optional<Frame> begin_frame(int64_t predicted_display_time) override;
     const RenderTarget& render_target() const override;
     void record_post_render_pass(VkCommandBuffer cmd, const Frame& frame) override;
+
+    // Direct-present: blit a ProjectionLayer's single color image straight
+    // to the window swapchain, skipping the shared RT. Depth is unused in
+    // window mode. Empty views → clear to black.
+    bool supports_direct() const noexcept override
+    {
+        return true;
+    }
+    void record_direct(VkCommandBuffer cmd, const Frame& frame, const std::vector<DirectPresentView>& views) override;
+
     void end_frame(const Frame& frame) override;
     void abort_frame(const Frame& frame) override;
 

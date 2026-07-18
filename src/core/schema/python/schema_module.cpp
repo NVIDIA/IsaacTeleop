@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Python module entry point for Isaac Teleop schema bindings.
@@ -9,12 +9,15 @@
 #include "controller_bindings.h"
 #include "full_body_bindings.h"
 #include "hand_bindings.h"
+#include "haptic_command_bindings.h"
 #include "head_bindings.h"
+#include "joint_state_bindings.h"
 #include "message_channel_bindings.h"
 #include "oak_bindings.h"
 #include "oglo_tactile_bindings.h"
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
+#include "se3_tracker_bindings.h"
 #include "timestamp_bindings.h"
 
 namespace py = pybind11;
@@ -44,8 +47,17 @@ PYBIND11_MODULE(_schema, m)
     // Bind OGLO tactile glove types (OgloGloveSample table).
     core::bind_oglo_tactile(m);
 
+    // Bind joint-state types (JointState, JointStateOutput tables) for generic joint-space devices.
+    core::bind_joint_state(m);
+
+    // Bind SE3 tracker types (Se3TrackerPoseT table) for generic 6-DoF pose sources.
+    core::bind_se3_tracker(m);
+
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);
+
+    // Bind vendor-neutral HapticCommand table + pack_haptic_command() encoder.
+    core::bind_haptic_command(m);
 
     // Bind OAK types (StreamType enum, FrameMetadataOak table).
     core::bind_oak(m);

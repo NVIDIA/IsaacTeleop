@@ -37,6 +37,12 @@ export interface UrlParam {
   kind?: 'value' | 'checked';
   /** Optional check for the raw URL string; invalid values are ignored. */
   isValid?: (raw: string) => boolean;
+  /**
+   * One-line, user-facing description. Opt-in: only params with a `description`
+   * are listed in the in-app "URL parameters" help panel, so secrets/transport
+   * internals (tokens, ICE credentials) stay out by simply omitting it.
+   */
+  description?: string;
 }
 
 const oneOf =
@@ -48,39 +54,41 @@ const isNumber = (raw: string): boolean => raw.trim() !== '' && Number.isFinite(
 
 export const URL_PARAMS: UrlParam[] = [
   // --- Form-backed settings (seeded into a control, then read through the form) ---
-  { key: 'serverIP', elementId: 'serverIpInput' },
-  { key: 'port', elementId: 'portInput', isValid: isNumber },
-  { key: 'serverType', elementId: 'serverType', isValid: oneOf('manual', 'nvcf') },
-  { key: 'codec', elementId: 'codec', isValid: oneOf('h264', 'h265', 'av1') },
-  { key: 'immersiveMode', elementId: 'immersive', isValid: oneOf('ar', 'vr') },
+  { key: 'serverIP', elementId: 'serverIpInput', description: 'CloudXR server IP/hostname (default: page URL hostname).' },
+  { key: 'port', elementId: 'portInput', isValid: isNumber, description: 'CloudXR server port.' },
+  { key: 'serverType', elementId: 'serverType', isValid: oneOf('manual', 'nvcf'), description: 'Server backend: manual or nvcf.' },
+  { key: 'codec', elementId: 'codec', isValid: oneOf('h264', 'h265', 'av1'), description: 'Preferred video codec: h264, h265, or av1.' },
+  { key: 'immersiveMode', elementId: 'immersive', isValid: oneOf('ar', 'vr'), description: 'WebXR session mode: ar or vr.' },
   // deviceProfile is intentionally omitted: it is a preset that bulk-fills the fields below via a
   // change handler, which programmatic seeding does not trigger. Set the individual fields instead.
-  { key: 'deviceFrameRate', elementId: 'deviceFrameRate', isValid: isNumber },
-  { key: 'maxStreamingBitrateMbps', elementId: 'maxStreamingBitrateMbps', isValid: isNumber },
-  { key: 'perEyeWidth', elementId: 'perEyeWidth', isValid: isNumber },
-  { key: 'perEyeHeight', elementId: 'perEyeHeight', isValid: isNumber },
-  { key: 'reprojectionGridCols', elementId: 'reprojectionGridCols', isValid: isNumber },
-  { key: 'reprojectionGridRows', elementId: 'reprojectionGridRows', isValid: isNumber },
-  { key: 'enablePoseSmoothing', elementId: 'enablePoseSmoothing', isValid: isBool },
-  { key: 'posePredictionFactor', elementId: 'posePredictionFactor', isValid: isNumber },
-  { key: 'enableTexSubImage2D', elementId: 'enableTexSubImage2D', isValid: isBool },
-  { key: 'useQuestColorWorkaround', elementId: 'useQuestColorWorkaround', isValid: isBool },
-  { key: 'referenceSpace', elementId: 'referenceSpace', isValid: oneOf('auto', 'local-floor', 'local', 'viewer', 'unbounded') },
-  { key: 'xrOffsetX', elementId: 'xrOffsetX', isValid: isNumber },
-  { key: 'xrOffsetY', elementId: 'xrOffsetY', isValid: isNumber },
-  { key: 'xrOffsetZ', elementId: 'xrOffsetZ', isValid: isNumber },
-  { key: 'controlPanelPosition', elementId: 'controlPanelPosition', isValid: oneOf('left', 'center', 'right') },
-  { key: 'controllerModelVisibility', elementId: 'controllerModelVisibility', isValid: oneOf('show', 'hide') },
-  { key: 'panelHiddenAtStart', elementId: 'panelHiddenAtStart', isValid: isBool },
-  { key: 'headless', elementId: 'cloudxrHeadless', kind: 'checked', isValid: isBool },
-  { key: 'autoRefreshMode', elementId: 'cloudxrAutoRefreshMode', isValid: oneOf('never', 'clean', 'any') },
-  { key: 'proxyUrl', elementId: 'proxyUrl' },
-  { key: 'mediaAddress', elementId: 'mediaAddress' },
-  { key: 'mediaPort', elementId: 'mediaPort', isValid: isNumber },
+  { key: 'deviceFrameRate', elementId: 'deviceFrameRate', isValid: isNumber, description: 'Target device frame rate in FPS (e.g. 72, 90, 120).' },
+  { key: 'maxStreamingBitrateMbps', elementId: 'maxStreamingBitrateMbps', isValid: isNumber, description: 'Maximum streaming bitrate in Mbps.' },
+  { key: 'perEyeWidth', elementId: 'perEyeWidth', isValid: isNumber, description: 'Per-eye render width in pixels (multiple of 16, min 128).' },
+  { key: 'perEyeHeight', elementId: 'perEyeHeight', isValid: isNumber, description: 'Per-eye render height in pixels (multiple of 64, min 128).' },
+  { key: 'reprojectionGridCols', elementId: 'reprojectionGridCols', isValid: isNumber, description: 'Depth reprojection mesh columns (>= 2, with rows; blank = factor mode).' },
+  { key: 'reprojectionGridRows', elementId: 'reprojectionGridRows', isValid: isNumber, description: 'Depth reprojection mesh rows (>= 2, with columns; blank = factor mode).' },
+  { key: 'enablePoseSmoothing', elementId: 'enablePoseSmoothing', isValid: isBool, description: 'Smooth predicted positions to reduce jitter (true/false).' },
+  { key: 'posePredictionFactor', elementId: 'posePredictionFactor', isValid: isNumber, description: 'Pose prediction horizon scale, 0.0 (off) to 1.0 (full).' },
+  { key: 'enableTexSubImage2D', elementId: 'enableTexSubImage2D', isValid: isBool, description: 'Use texSubImage2D texture updates; faster on Quest (true/false).' },
+  { key: 'useQuestColorWorkaround', elementId: 'useQuestColorWorkaround', isValid: isBool, description: 'Display P3 color workaround for Quest 3 Browser (true/false).' },
+  { key: 'referenceSpace', elementId: 'referenceSpace', isValid: oneOf('auto', 'local-floor', 'local', 'viewer', 'unbounded'), description: 'XR reference space: auto, local-floor, local, viewer, or unbounded.' },
+  { key: 'xrOffsetX', elementId: 'xrOffsetX', isValid: isNumber, description: 'Reference-space X offset (horizontal) in centimeters.' },
+  { key: 'xrOffsetY', elementId: 'xrOffsetY', isValid: isNumber, description: 'Reference-space Y offset (vertical) in centimeters.' },
+  { key: 'xrOffsetZ', elementId: 'xrOffsetZ', isValid: isNumber, description: 'Reference-space Z offset (depth) in centimeters.' },
+  { key: 'controlPanelPosition', elementId: 'controlPanelPosition', isValid: oneOf('left', 'center', 'right'), description: 'In-XR control panel start position: left, center, or right.' },
+  { key: 'controllerModelVisibility', elementId: 'controllerModelVisibility', isValid: oneOf('show', 'hide'), description: 'Show or hide controller model meshes in XR.' },
+  { key: 'panelHiddenAtStart', elementId: 'panelHiddenAtStart', isValid: isBool, description: 'Start with the in-XR control panel hidden (true/false).' },
+  { key: 'headless', elementId: 'cloudxrHeadless', kind: 'checked', isValid: isBool, description: 'Headless: skip all client render code, keep tracking (true/false).' },
+  { key: 'autoRefreshMode', elementId: 'cloudxrAutoRefreshMode', isValid: oneOf('never', 'clean', 'any'), description: 'Reload page after session ends: never, clean, or any.' },
+  { key: 'proxyUrl', elementId: 'proxyUrl', description: 'Proxy URL for routing (HTTPS); leave empty for direct WSS.' },
+  { key: 'mediaAddress', elementId: 'mediaAddress', description: 'WebRTC media server address for NAT traversal (optional).' },
+  { key: 'mediaPort', elementId: 'mediaPort', isValid: isNumber, description: 'WebRTC media server port (0 = auto).' },
 
   // --- Direct params: read straight from the URL by app logic (no control, never stored) ---
   // TURN/ICE for NAT traversal and OOB hub, typically set in USB-local mode by oob_teleop_env.py.
   // No `isValid` here: the consumers apply their own interpretation (exact matching, regex, etc.).
+  // No `description`: these are set by tooling, not hand-edited, and some are secrets — keep them
+  // out of the user-facing help panel.
   { key: 'turnServer' },
   { key: 'turnUsername' },
   { key: 'turnCredential' },

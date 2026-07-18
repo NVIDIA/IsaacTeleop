@@ -424,7 +424,7 @@ def _streams_for_mode(
     rgb_height: int,
     rgb_fps: int,
 ) -> List[_StreamSpec]:
-    """Match camera_streamer's stream layouts exactly."""
+    """Build the OAK-D stream layout for the requested mode."""
     mode = mode.lower()
     if mode == "mono":
         return [_StreamSpec("mono", camera_socket, width, height, fps, "bgr")]

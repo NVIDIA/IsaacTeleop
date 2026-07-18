@@ -20,33 +20,35 @@ SPDX-License-Identifier: Apache-2.0
 | `v4l2`      | USB / UVC — anything `v4l2-ctl --list-formats-ext` shows |
 | `oakd`      | OAK-D mono RGB / LEFT / RIGHT (stereo not yet wired) |
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
+| `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
-Output: window or XR headset; one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
+Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
 
 ---
 
 ## Setup (one-time)
 
 ```bash
-cmake -B build -DBUILD_VIZ=ON
-cmake --build build --target python_wheel --parallel
 examples/camera_viz/camera_viz.sh setup
 source examples/camera_viz/.venv/bin/activate
 ```
 
-`setup` installs every Python dep into `.venv/` via `uv` (no `--system-site-packages`), builds the native NVENC/NVDEC codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts.
+`setup` installs `isaacteleop` (which bundles Televiz) and every other Python dep from PyPI into `.venv/` via `uv` (no `--system-site-packages`), builds the native NVENC/NVDEC codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
 
 Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
+
+> **Developing against a local build?** Pass `--wheel <path>` (e.g. `camera_viz.sh setup --wheel build/wheels/isaacteleop-*.whl`) to install a locally built wheel instead of the PyPI release. See the [build-from-source guide](../../docs/source/getting_started/build_from_source/index.rst).
 
 ---
 
 ## Mode 1 — Direct
 
 ```bash
-./camera_viz.sh run configs/v4l2.yaml
+./camera_viz.sh run configs/v4l2.yaml                  # XR headset (default)
+./camera_viz.sh run configs/v4l2.yaml --mode window    # desktop window instead
 ```
 
-Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`.
+Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
 
 ## Mode 2 — Split (robot → workstation, RTP)
 
@@ -92,12 +94,12 @@ encoder: auto | native | gstreamer
 cameras:
   - name: cam
     enabled: true
-    type: v4l2                # v4l2 | oakd | zed | synthetic
-    width: 2560
+    type: v4l2                # v4l2 | oakd | zed | synthetic | video
+    width: 2560               # video: optional — defaults to the file's size
     height: 720
     fps: 30
-    stereo: false             # zed / synthetic only — enables per-eye capture + SBS XR
-    # … type-specific fields (e.g. synthetic: disparity_px)
+    stereo: false             # zed / synthetic / video only — per-eye capture + SBS XR
+    # … type-specific fields (e.g. synthetic: disparity_px; video: path, loop)
     rtp:
       port: 5000              # left eye when stereo
       port_right: 5001        # required when stereo + source: rtp
@@ -106,7 +108,7 @@ cameras:
       # gpu_id: 0             # multi-GPU pin
 
 display:                      # camera_viz only
-  mode: window | xr
+  mode: xr | window           # default: xr
   window: { width, height }
   xr:     { near_z, far_z }
   clear_color: [r, g, b, a]
@@ -144,10 +146,11 @@ camera_viz/
 ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
 ├── pipeline/            — source ABC + threaded runner
 ├── placements/          — XR lock-mode strategies
-├── sources/             — V4L2 / OAK-D / ZED / synthetic / rtp_h264
+├── sources/             — V4L2 / OAK-D / ZED / synthetic / video replay / rtp_h264
 ├── transports/          — RTP sender + receiver, native + GStreamer
 ├── codec/               — native NVENC/NVDEC pybind module
 ├── configs/             — one YAML per camera kind
+├── test_data/           — sample replay clip (Git LFS)
 └── scripts/
     ├── _install_deps.sh             — installer (setup + deploy)
     └── camera-streamer.service.in   — systemd unit template

@@ -8,11 +8,13 @@ Demonstrates using TeleopSession with the new retargeting engine.
 Minimal boilerplate - just configure and run!
 """
 
+import argparse
 import sys
 import time
 from pathlib import Path
 import isaacteleop.deviceio as deviceio
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
@@ -31,6 +33,10 @@ PLUGIN_ROOT_ID = "synthetic_hands"
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    CloudXRLauncher.add_launcher_arguments(parser)
+    args = parser.parse_args()
+
     # ==================================================================
     # Setup: Create standard inputs (trackers + sources)
     # ==================================================================
@@ -80,7 +86,7 @@ def main():
         plugins=plugins,
     )
 
-    with TeleopSession(config) as session:
+    with CloudXRLauncher.launch_context(args), TeleopSession(config) as session:
         # No session injection needed
 
         print("\n" + "=" * 60)

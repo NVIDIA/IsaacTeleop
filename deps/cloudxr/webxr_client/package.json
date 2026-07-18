@@ -24,7 +24,8 @@
     "preset": "ts-jest",
     "testEnvironment": "node",
     "roots": [
-      "<rootDir>/src"
+      "<rootDir>/src",
+      "<rootDir>/helpers"
     ]
   },
   "dependencies": {
