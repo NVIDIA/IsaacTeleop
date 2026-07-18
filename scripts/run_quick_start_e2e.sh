@@ -21,6 +21,8 @@ PIP_SPEC="${QUICK_START_E2E_PIP_SPEC:-isaacteleop[cloudxr,retargeters]~=1.0.0}"
 PIP_EXTRA_INDEX_URL="${QUICK_START_E2E_PIP_EXTRA_INDEX_URL:-https://pypi.nvidia.com}"
 CLOUDXR_READY_TIMEOUT_SEC="${QUICK_START_E2E_CLOUDXR_READY_TIMEOUT_SEC:-180}"
 EXAMPLE_TIMEOUT_SEC="${QUICK_START_E2E_EXAMPLE_TIMEOUT_SEC:-75}"
+CLIENT_PROBE_TIMEOUT_SEC="${QUICK_START_E2E_CLIENT_PROBE_TIMEOUT_SEC:-90}"
+VALIDATE_CLIENT="${QUICK_START_E2E_VALIDATE_CLIENT:-0}"
 DEFAULT_CLOUDXR_SERVER_PORT=49100
 DEFAULT_WSS_PROXY_PORT=48322
 RUNTIME_PORT="${QUICK_START_E2E_RUNTIME_PORT:-}"
@@ -28,6 +30,8 @@ PROXY_PORT="${QUICK_START_E2E_WSS_PROXY_PORT:-}"
 
 CLOUDXR_LOG="${ARTIFACT_DIR}/cloudxr-server.log"
 EXAMPLE_LOG="${ARTIFACT_DIR}/gripper-retargeting-example.log"
+CLIENT_PROBE_LOG="${ARTIFACT_DIR}/client-probe.log"
+CLIENT_STATE_JSON="${ARTIFACT_DIR}/client-oob-state.json"
 SUMMARY_JSON="${ARTIFACT_DIR}/quick-start-e2e-summary.json"
 
 cloudxr_pid=""
@@ -76,6 +80,9 @@ write_summary() {
   "guide": $(json_escape "${GUIDE_PATH}"),
   "cloudxr_log": $(json_escape "${CLOUDXR_LOG}"),
   "example_log": $(json_escape "${EXAMPLE_LOG}"),
+  "client_probe_log": $(json_escape "${CLIENT_PROBE_LOG}"),
+  "client_state_json": $(json_escape "${CLIENT_STATE_JSON}"),
+  "client_validation": $(json_escape "${VALIDATE_CLIENT}"),
   "cloudxr_server_port": $(json_escape "${NV_CXR_SERVER_PORT:-}"),
   "wss_proxy_port": $(json_escape "${PROXY_PORT:-}"),
   "gripper_output_lines": ${gripper_lines}
@@ -186,6 +193,11 @@ resolve_port() {
         return 0
     fi
 
+    if [[ "${CI:-}" == "true" ]]; then
+        pick_free_port
+        return 0
+    fi
+
     if port_is_available "${default_port}"; then
         printf '%s\n' "${default_port}"
         return 0
@@ -237,6 +249,46 @@ port = int(sys.argv[1])
 with socket.create_connection(("127.0.0.1", port), timeout=5.0):
     pass
 PY
+}
+
+wait_for_wss_proxy_port() {
+    local timeout="$1"
+    local deadline=$((SECONDS + timeout))
+
+    while [[ "${SECONDS}" -lt "${deadline}" ]]; do
+        if check_wss_proxy_port >/dev/null 2>&1; then
+            return 0
+        fi
+        if [[ -n "${cloudxr_pid}" ]] && ! kill -0 "${cloudxr_pid}" 2>/dev/null; then
+            return 1
+        fi
+        sleep 1
+    done
+
+    return 1
+}
+
+run_client_probe() {
+    local client_url
+    local state_url
+
+    client_url="https://127.0.0.1:${PROXY_PORT}/client/?oobEnable=1&serverIP=127.0.0.1&port=${PROXY_PORT}&headless=true&autoRefreshMode=never&deviceFrameRate=72"
+    state_url="https://127.0.0.1:${PROXY_PORT}/api/oob/v1/state"
+
+    log "Step 5: connecting hosted desktop/IWER client and waiting for OOB streaming state"
+    local probe_rc=0
+    "${VENV_DIR}/bin/python" "${ROOT_DIR}/scripts/quick_start_client_probe.py" \
+        --client-url "${client_url}" \
+        --state-url "${state_url}" \
+        --timeout "${CLIENT_PROBE_TIMEOUT_SEC}" \
+        --summary-json "${CLIENT_STATE_JSON}" \
+        > "${CLIENT_PROBE_LOG}" 2>&1 || probe_rc=$?
+
+    if (( probe_rc != 0 )); then
+        log "===== client probe log ====="
+        cat "${CLIENT_PROBE_LOG}" || true
+        fail "desktop/IWER client probe exited with status ${probe_rc}"
+    fi
 }
 
 run_example() {
@@ -297,10 +349,17 @@ main() {
     export PROXY_PORT
     log "Using CloudXR runtime port ${NV_CXR_SERVER_PORT} and WSS proxy port ${PROXY_PORT}"
 
+    local cloudxr_args=(
+        --cloudxr-install-dir "${CLOUDXR_INSTALL_DIR}" \
+        --accept-eula
+    )
+    if [[ "${VALIDATE_CLIENT}" == "1" ]]; then
+        cloudxr_args+=(--host-client --enable-oob-hub)
+    fi
+
     log "Step 3: starting CloudXR server with --accept-eula"
     PYTHONUNBUFFERED=1 "${VENV_DIR}/bin/python" -u -m isaacteleop.cloudxr \
-        --cloudxr-install-dir "${CLOUDXR_INSTALL_DIR}" \
-        --accept-eula \
+        "${cloudxr_args[@]}" \
         > "${CLOUDXR_LOG}" 2>&1 &
     cloudxr_pid=$!
 
@@ -323,9 +382,13 @@ main() {
     assert_clean_log "CloudXR server log" "${CLOUDXR_LOG}"
 
     log "Step 4: firewall allow-list is a machine configuration step; CI validates the local WSS proxy port instead"
-    check_wss_proxy_port || fail "WSS proxy port ${PROXY_PORT} is not reachable on localhost"
+    wait_for_wss_proxy_port 30 || fail "WSS proxy port ${PROXY_PORT} is not reachable on localhost"
 
-    log "Step 5: desktop browser/IWER is the documented headset-free client path; this CI baseline does not inspect the website"
+    if [[ "${VALIDATE_CLIENT}" == "1" ]]; then
+        run_client_probe
+    else
+        log "Step 5: desktop browser/IWER is the documented headset-free client path; this CI baseline does not inspect the website"
+    fi
 
     run_example "${env_file}"
 

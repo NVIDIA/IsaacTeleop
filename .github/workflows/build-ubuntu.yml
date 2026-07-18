@@ -572,6 +572,53 @@ jobs:
         if-no-files-found: warn
         retention-days: 7
 
+  test-quick-start-client-e2e:
+    # Follow-up Quick Start validation: launch the locally hosted desktop/IWER
+    # client in a Chromium browser, click CONNECT, and require server-side OOB
+    # state to report a connected streaming client.
+    runs-on: [self-hosted, linux, gpu, x64]
+    needs: build-ubuntu
+    timeout-minutes: 35
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+
+    - name: Download isaacteleop wheel (x64, py3.11)
+      uses: actions/download-artifact@v7
+      with:
+        name: isaacteleop-wheels-x64-py3.11
+        path: quick-start-wheels
+
+    - name: Run Quick Start client E2E workflow
+      env:
+        CI: true
+        QUICK_START_E2E_REQUIRE_WHEEL: "1"
+        QUICK_START_E2E_VALIDATE_CLIENT: "1"
+        QUICK_START_E2E_WHEEL_DIR: quick-start-wheels
+        QUICK_START_E2E_ARTIFACT_DIR: ${{ runner.temp }}/isaacteleop-quick-start-client-e2e
+      run: ./scripts/run_quick_start_e2e.sh
+
+    - name: Upload Quick Start client E2E artifacts
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: quick-start-client-e2e-x64-py3.11
+        path: |
+          ${{ runner.temp }}/isaacteleop-quick-start-client-e2e/*.log
+          ${{ runner.temp }}/isaacteleop-quick-start-client-e2e/*.json
+          ${{ runner.temp }}/isaacteleop-quick-start-client-e2e/cloudxr/run/cloudxr.env
+          ${{ runner.temp }}/isaacteleop-quick-start-client-e2e/cloudxr/logs/**/*.log
+        if-no-files-found: warn
+        retention-days: 7
+
   test-teleop-ros2:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
     needs: build-ubuntu
@@ -878,6 +925,7 @@ jobs:
       - test-viz-sanitizers
       - test-cloudxr
       - test-quick-start-e2e
+      - test-quick-start-client-e2e
       - test-teleop-ros2
     if: ${{ always() }}
 

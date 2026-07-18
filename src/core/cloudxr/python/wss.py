@@ -511,6 +511,7 @@ async def run(
     backend_host: str = "localhost",
     backend_port: int | None = None,
     proxy_port: int | None = None,
+    enable_oob_hub: bool = False,
     setup_oob: bool = False,
     usb_local: bool = False,
     host_client: bool = False,
@@ -548,7 +549,7 @@ async def run(
         ssl_ctx = build_ssl_context(cert_paths)
 
         hub = None
-        if setup_oob:
+        if setup_oob or enable_oob_hub:
             from .oob_teleop_hub import OOBControlHub  # noqa: PLC0415
 
             control_token = os.environ.get("CONTROL_TOKEN") or None

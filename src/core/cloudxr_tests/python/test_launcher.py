@@ -204,6 +204,17 @@ class TestLauncherConstruction:
             with pytest.raises(ValueError, match="start_wss_proxy=False"):
                 CloudXRLauncher(start_wss_proxy=False, host_client=True)
 
+            with pytest.raises(ValueError, match="start_wss_proxy=False"):
+                CloudXRLauncher(start_wss_proxy=False, enable_oob_hub=True)
+
+    def test_construction_accepts_oob_hub_without_adb_setup(self, tmp_path):
+        """The OOB hub can be enabled without USB adb automation."""
+        with mock_launcher_deps(tmp_path, ready=True) as mocks:
+            launcher = CloudXRLauncher(enable_oob_hub=True)
+
+            mocks["wss"].assert_called_once()
+            assert launcher._enable_oob_hub is True
+            assert launcher._setup_oob is False
 
 # ============================================================================
 # TestLauncherStop

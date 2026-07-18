@@ -78,6 +78,7 @@ class CloudXRLauncher:
         env_config: str | Path | None = None,
         device_profile: str = DEFAULT_DEVICE_PROFILE,
         accept_eula: bool = False,
+        enable_oob_hub: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
@@ -100,6 +101,9 @@ class CloudXRLauncher:
             accept_eula: Accept the NVIDIA CloudXR EULA
                 non-interactively.  When ``False`` and the EULA marker
                 does not exist, the user is prompted on stdin.
+            enable_oob_hub: Enable the OOB teleop control hub without
+                USB adb automation. Useful for desktop-browser validation
+                that reads hub state via the WSS proxy.
             setup_oob: Enable the OOB teleop control hub and USB
                 adb automation in the WSS proxy.
             usb_local: Route teleop traffic over USB headset loopback via
@@ -121,23 +125,29 @@ class CloudXRLauncher:
             RuntimeError: If the EULA is not accepted or the runtime
                 fails to start within the timeout.
             ValueError: If *start_wss_proxy* is ``False`` while any WSS-only
-                option (*setup_oob*, *usb_local*, or *host_client*) is set.
+                option (*enable_oob_hub*, *setup_oob*, *usb_local*, or
+                *host_client*) is set.
         """
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
         self._device_profile = device_profile
         self._accept_eula = accept_eula
+        self._enable_oob_hub = enable_oob_hub
         self._setup_oob = setup_oob
         self._usb_local = usb_local
         self._host_client = host_client
         self._start_wss_proxy = start_wss_proxy
 
         if not self._start_wss_proxy and (
-            self._setup_oob or self._usb_local or self._host_client
+            self._enable_oob_hub
+            or self._setup_oob
+            or self._usb_local
+            or self._host_client
         ):
             raise ValueError(
-                "start_wss_proxy=False is incompatible with setup_oob, "
-                "usb_local, and host_client (those features require the WSS proxy)"
+                "start_wss_proxy=False is incompatible with enable_oob_hub, "
+                "setup_oob, usb_local, and host_client "
+                "(those features require the WSS proxy)"
             )
 
         if self._usb_local or self._host_client:
@@ -401,6 +411,7 @@ class CloudXRLauncher:
         env_config: str | Path | None = None,
         device_profile: str | None = None,
         accept_eula: bool | None = None,
+        enable_oob_hub: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
@@ -427,6 +438,7 @@ class CloudXRLauncher:
                 args, device_profile
             ),
             accept_eula=CloudXRLauncher._resolve_accept_eula(args, accept_eula),
+            enable_oob_hub=enable_oob_hub,
             setup_oob=setup_oob,
             usb_local=usb_local,
             host_client=host_client,
@@ -674,6 +686,7 @@ class CloudXRLauncher:
         self._wss_stop_future = stop_future
 
         setup_oob = self._setup_oob
+        enable_oob_hub = self._enable_oob_hub
         usb_local = self._usb_local
         host_client = self._host_client
 
@@ -684,6 +697,7 @@ class CloudXRLauncher:
                     wss_run(
                         log_file_path=log_path,
                         stop_future=stop_future,
+                        enable_oob_hub=enable_oob_hub,
                         setup_oob=setup_oob,
                         usb_local=usb_local,
                         host_client=host_client,
