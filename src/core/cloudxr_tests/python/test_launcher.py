@@ -216,6 +216,7 @@ class TestLauncherConstruction:
             assert launcher._enable_oob_hub is True
             assert launcher._setup_oob is False
 
+
 # ============================================================================
 # TestLauncherStop
 # ============================================================================
