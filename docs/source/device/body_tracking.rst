@@ -9,9 +9,19 @@ through the CloudXR WebXR client to the teleop server. The server exposes the
 body skeleton to applications through the ``FullBodyTrackerPico`` tracker and
 the OpenXR ``XR_BD_body_tracking`` extension.
 
-Body tracking support currently targets the **PICO 4 Ultra** with
+Body tracking support currently targets the **PICO 4 Ultra Enterprise** with
 **PICO Motion Trackers**. The rest of this guide covers PICO hardware setup
 and the BD skeleton format used on the server.
+
+.. important::
+
+   Full body tracking requires a
+   `PICO 4 Ultra Enterprise <https://www.picoxr.com/global/products/pico4-ultra-enterprise>`_
+   headset. PICO exposes body tracking to WebXR **only on the Enterprise
+   edition**: on the consumer PICO 4 Ultra, the browser does not grant the
+   ``body-tracking`` feature and no body data reaches the server, even with
+   Motion Trackers paired and calibrated. This is a PICO platform limitation
+   and cannot be worked around in Isaac Teleop.
 
 .. note::
 
@@ -30,8 +40,9 @@ Setting Up PICO Motion Trackers
 
 Full body tracking uses
 `PICO Motion Trackers <https://www.picoxr.com/global/products/pico-motion-tracker>`_
-paired with a PICO 4 Ultra headset. Make sure the PICO browser is updated to a
-version that supports body tracking. The following configurations are supported:
+paired with a PICO 4 Ultra Enterprise headset. Make sure the PICO browser is
+updated to a version that supports body tracking. The following configurations
+are supported:
 
 - **5 trackers:** best tracking quality across all 24 joints.
   Two wear modes are available: 2 ankles + 2 wrists + 1 waist, or 2 ankles +
@@ -184,9 +195,14 @@ joint ``is_valid`` flags to determine which joints have valid poses.
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
-- **No body tracking data arrives on the server.** Verify all PICO motion
-  trackers are paired, powered on, and calibrated. Confirm the PICO browser
-  is up to date.
+- **Body tracking cannot be enabled on a consumer PICO 4 Ultra.** PICO has
+  not released WebXR body tracking for the consumer edition; it is only
+  available on the PICO 4 Ultra Enterprise. There is no setting or firmware
+  update that enables it on consumer devices.
+- **No body tracking data arrives on the server.** Confirm the headset is a
+  PICO 4 Ultra **Enterprise** (see above). Verify all PICO motion trackers
+  are paired, powered on, and calibrated. Confirm the PICO browser is up to
+  date.
 - **Some joints report** ``is_valid: false``. The PICO runtime may
   temporarily lose tracking for individual joints during fast movement or
   partial occlusion. These joints will recover automatically once tracking is

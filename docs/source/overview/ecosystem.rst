@@ -65,8 +65,10 @@ see :ref:`device-interface-device-plugin` for details.
    * - `Pico Motion Tracker`_
      - Full body tracking
      - `Isaac Teleop Web Client`_ (browser)
-     - | Requires Pico OS 15.4.4U or newer
-       | Requires Pico Browser 4.0.40 or newer (Enterprise enabled)
+     - | Requires a `Pico 4 Ultra Enterprise`_ headset —
+       | **not supported on the consumer Pico 4 Ultra**
+       | Requires Pico OS 15.4.4U or newer
+       | Requires Pico Browser 4.0.40 or newer
 
 In addition to the fully integrated XR headsets, Isaac Teleop also supports standalone input
 devices. Those devices are typically directly connected to the workstation where the Isaac Teleop
@@ -165,7 +167,7 @@ directly. Each device name in the tables above links to the corresponding manufa
      - Meta Quest 2/3/3S
      -
    * - `Pico`_ (ByteDance)
-     - Pico 4 Ultra, Pico Motion Tracker
+     - Pico 4 Ultra, Pico 4 Ultra Enterprise, Pico Motion Tracker
      - | Veronica Li
        | Email: Veronica.li@bytedance.com
        | Mobile: +1 (909) 569-2774
@@ -246,6 +248,7 @@ WeChat app** (Discover → Scan) to join. Scanning with your phone's built-in ca
 .. _`Apple Vision Pro`: https://www.apple.com/apple-vision-pro/
 .. _`Meta Quest 2/3/3S`: https://www.meta.com/quest/
 .. _`Pico 4 Ultra`: https://www.picoxr.com/products/pico4-ultra
+.. _`Pico 4 Ultra Enterprise`: https://www.picoxr.com/global/products/pico4-ultra-enterprise
 .. _`Pico Motion Tracker`: https://www.picoxr.com/global/products/pico-motion-tracker
 .. _`MANUS Gloves`: https://www.manus-meta.com/robotics#nvidia
 .. _`Logitech Rudder Pedals`: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
