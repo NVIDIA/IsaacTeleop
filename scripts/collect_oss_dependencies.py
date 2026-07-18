@@ -95,7 +95,9 @@ def _entry(
 
 def _parse_requirement_text(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1
+    ):
         line = raw_line.split("#", maxsplit=1)[0].strip()
         if not line or line.startswith(("-", "--")) or "://" in line:
             continue
@@ -122,15 +124,21 @@ def _parse_pyproject(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     project = data.get("project", {})
     entries: list[dict[str, Any]] = []
     for dependency in project.get("dependencies", []) or []:
-        entries.append(_python_dependency_entry(dependency, path, repo_root, "runtime"))
+        entries.append(
+            _python_dependency_entry(dependency, path, repo_root, "runtime")
+        )
     optional = project.get("optional-dependencies", {}) or {}
     for scope, dependencies in optional.items():
         for dependency in dependencies or []:
-            entries.append(_python_dependency_entry(dependency, path, repo_root, str(scope)))
+            entries.append(
+                _python_dependency_entry(dependency, path, repo_root, str(scope))
+            )
     return entries
 
 
-def _python_dependency_entry(dependency: str, path: Path, repo_root: Path, scope: str) -> dict[str, Any]:
+def _python_dependency_entry(
+    dependency: str, path: Path, repo_root: Path, scope: str
+) -> dict[str, Any]:
     match = REQUIREMENTS_RE.match(dependency)
     if match:
         return _entry(
@@ -155,7 +163,12 @@ def _python_dependency_entry(dependency: str, path: Path, repo_root: Path, scope
 def _parse_package_json(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
     entries: list[dict[str, Any]] = []
-    for scope in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
+    for scope in (
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "optionalDependencies",
+    ):
         for name, version in (data.get(scope, {}) or {}).items():
             entries.append(
                 _entry(
@@ -197,7 +210,9 @@ def _parse_vcpkg_manifest(path: Path, repo_root: Path) -> list[dict[str, Any]]:
 
 def _parse_dockerfile(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1
+    ):
         match = DOCKER_FROM_RE.match(raw_line)
         if not match:
             continue
@@ -219,7 +234,9 @@ def _parse_dockerfile(path: Path, repo_root: Path) -> list[dict[str, Any]]:
 
 def _parse_github_workflow(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1
+    ):
         match = GITHUB_ACTION_RE.search(raw_line)
         if match:
             entries.append(
@@ -241,7 +258,10 @@ def _parse_cmake(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     for match in CMAKE_FETCH_RE.finditer(text):
         body = match.group("body")
-        fields = {field.group("key").upper(): field.group("value").strip('"') for field in CMAKE_KEY_VALUE_RE.finditer(body)}
+        fields = {
+            field.group("key").upper(): field.group("value").strip('"')
+            for field in CMAKE_KEY_VALUE_RE.finditer(body)
+        }
         name_match = CMAKE_NAME_RE.search(body)
         name = fields.get("NAME") or (name_match.group("name") if name_match else "")
         source = fields.get("GIT_REPOSITORY") or fields.get("URL") or ""
@@ -286,7 +306,10 @@ def collect(repo_root: Path) -> dict[str, Any]:
             elif name.startswith("dockerfile") or "/dockerfile" in relative.lower():
                 entries.extend(_parse_dockerfile(path, repo_root))
                 manifests["Dockerfile"] += 1
-            elif relative.startswith(".github/workflows/") and suffix in {".yml", ".yaml"}:
+            elif relative.startswith(".github/workflows/") and suffix in {
+                ".yml",
+                ".yaml",
+            }:
                 entries.extend(_parse_github_workflow(path, repo_root))
                 manifests["GitHub workflow"] += 1
             elif name == "cmakelists.txt" or suffix == ".cmake":
@@ -305,19 +328,34 @@ def collect(repo_root: Path) -> dict[str, Any]:
                 )
             )
 
-    entries.sort(key=lambda item: (item["ecosystem"], item["name"].lower(), item["path"], item["line"] or 0))
+    entries.sort(
+        key=lambda item: (
+            item["ecosystem"],
+            item["name"].lower(),
+            item["path"],
+            item["line"] or 0,
+        )
+    )
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "repo_root": str(repo_root),
         "manifest_counts": dict(sorted(manifests.items())),
-        "dependency_count": len([entry for entry in entries if entry["manifest_type"] != "parse-error"]),
-        "parse_error_count": len([entry for entry in entries if entry["manifest_type"] == "parse-error"]),
+        "dependency_count": len(
+            [entry for entry in entries if entry["manifest_type"] != "parse-error"]
+        ),
+        "parse_error_count": len(
+            [entry for entry in entries if entry["manifest_type"] == "parse-error"]
+        ),
         "dependencies": entries,
     }
 
 
 def write_summary(report: dict[str, Any], summary_path: Path, limit: int = 200) -> None:
-    counts = Counter(entry["ecosystem"] for entry in report["dependencies"] if entry["manifest_type"] != "parse-error")
+    counts = Counter(
+        entry["ecosystem"]
+        for entry in report["dependencies"]
+        if entry["manifest_type"] != "parse-error"
+    )
     lines = [
         "# OSS dependency inventory",
         "",
@@ -336,7 +374,15 @@ def write_summary(report: dict[str, Any], summary_path: Path, limit: int = 200) 
     lines.extend(["", "## Manifest coverage", ""])
     for manifest, count in report["manifest_counts"].items():
         lines.append(f"- `{manifest}`: `{count}`")
-    lines.extend(["", "## Dependency sample", "", "| Ecosystem | Name | Version | Scope | Source | Path |", "|---|---|---|---|---|---|"])
+    lines.extend(
+        [
+            "",
+            "## Dependency sample",
+            "",
+            "| Ecosystem | Name | Version | Scope | Source | Path |",
+            "|---|---|---|---|---|---|",
+        ]
+    )
     for entry in report["dependencies"][:limit]:
         path = entry["path"]
         if entry["line"]:
@@ -364,7 +410,9 @@ def main() -> int:
     repo_root = args.repo_root.resolve()
     report = collect(repo_root)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     args.summary.parent.mkdir(parents=True, exist_ok=True)
     write_summary(report, args.summary)
     return 0
