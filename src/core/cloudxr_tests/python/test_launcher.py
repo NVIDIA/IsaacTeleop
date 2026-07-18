@@ -399,6 +399,8 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args([])
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
+        assert args.cloudxr_device_profile == DEFAULT_DEVICE_PROFILE
+        assert args.launch_cloudxr_runtime is None
         assert args.launch_wss_proxy is True
 
     def test_add_cloudxr_device_profile_argument_default(self) -> None:
@@ -417,6 +419,12 @@ class TestLaunchArgumentHelpers:
         parser = argparse.ArgumentParser()
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
         args = parser.parse_args([])
+        assert args.launch_cloudxr_runtime is None
+
+    def test_add_launch_cloudxr_runtime_argument_launch(self) -> None:
+        parser = argparse.ArgumentParser()
+        CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+        args = parser.parse_args(["--launch-cloudxr-runtime"])
         assert args.launch_cloudxr_runtime is True
 
     def test_add_launch_cloudxr_runtime_argument_no_launch(self) -> None:
@@ -439,6 +447,49 @@ class TestLaunchArgumentHelpers:
 
     def test_launch_context_skips_when_disabled(self) -> None:
         args = argparse.Namespace(launch_cloudxr_runtime=False)
+        with CloudXRLauncher.launch_context(args) as launcher:
+            assert launcher is None
+
+    def test_resolve_launch_cloudxr_runtime_auto_launches_without_env(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.delenv("XR_RUNTIME_JSON", raising=False)
+        monkeypatch.delenv("NV_CXR_RUNTIME_DIR", raising=False)
+
+        args = argparse.Namespace(launch_cloudxr_runtime=None)
+
+        assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is True
+
+    def test_resolve_launch_cloudxr_runtime_auto_reuses_sourced_env(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("XR_RUNTIME_JSON", "/tmp/cloudxr/openxr.json")
+        monkeypatch.setenv("NV_CXR_RUNTIME_DIR", "/tmp/cloudxr/run")
+
+        args = argparse.Namespace(launch_cloudxr_runtime=None)
+
+        assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is False
+
+    def test_resolve_launch_cloudxr_runtime_explicit_overrides_env(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("XR_RUNTIME_JSON", "/tmp/cloudxr/openxr.json")
+        monkeypatch.setenv("NV_CXR_RUNTIME_DIR", "/tmp/cloudxr/run")
+
+        args = argparse.Namespace(launch_cloudxr_runtime=True)
+        assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is True
+
+        args.launch_cloudxr_runtime = False
+        assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is False
+
+    def test_launch_context_reuses_sourced_runtime_in_auto_mode(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("XR_RUNTIME_JSON", "/tmp/cloudxr/openxr.json")
+        monkeypatch.setenv("NV_CXR_RUNTIME_DIR", "/tmp/cloudxr/run")
+
+        args = argparse.Namespace(launch_cloudxr_runtime=None)
+
         with CloudXRLauncher.launch_context(args) as launcher:
             assert launcher is None
 
@@ -488,6 +539,10 @@ class TestLaunchArgumentHelpers:
                 assert launcher._start_wss_proxy is False
                 mocks["wss"].assert_not_called()
             mocks["proc"].poll.return_value = 0
+
+    def test_constructor_rejects_wss_features_without_wss_proxy(self) -> None:
+        with pytest.raises(ValueError, match="requires the WSS proxy"):
+            CloudXRLauncher(start_wss_proxy=False, host_client=True)
 
     def test_resolve_accept_eula_none_falls_back_to_args(self) -> None:
         args = argparse.Namespace(accept_eula=True)

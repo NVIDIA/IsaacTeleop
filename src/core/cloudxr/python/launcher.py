@@ -167,12 +167,8 @@ class CloudXRLauncher:
 
         self._cleanup_stale_runtime(env_cfg)
 
-        # The worker imports asyncio (via isaacteleop.cloudxr.runtime), which imports
-        # Python's ssl and loads the SYSTEM OpenSSL before the native stack dlopens the
-        # bundled one. Two OpenSSL builds in one process crash (SIGSEGV) inside
-        # SSL_CTX_use_certificate when the DTLS transport comes up on client connect.
-        # LD_PRELOAD the bundled libraries so every OpenSSL symbol in the worker
-        # resolves to the version libNvStreamServer.so was built against.
+        # Keep the runtime worker on the bundled OpenSSL libraries that the
+        # native CloudXR stack was built against.
         worker_env = os.environ.copy()
         native_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "native")
         bundled_ssl = [
@@ -240,11 +236,11 @@ class CloudXRLauncher:
         parser.add_argument(
             "--launch-cloudxr-runtime",
             action=argparse.BooleanOptionalAction,
-            default=True,
+            default=None,
             help=(
                 "Launch the CloudXR runtime and WSS proxy in-process before running "
-                "(default: true). Pass --no-launch-cloudxr-runtime when the runtime is "
-                "already running (e.g. after sourcing ~/.cloudxr/run/cloudxr.env)."
+                "By default, reuse a sourced CloudXR runtime environment when present "
+                "and launch otherwise."
             ),
         )
 
@@ -383,6 +379,21 @@ class CloudXRLauncher:
         return bool(getattr(args, "launch_wss_proxy", True))
 
     @staticmethod
+    def _has_sourced_cloudxr_runtime_env() -> bool:
+        """Return true when the current shell looks sourced from ``cloudxr.env``."""
+        return bool(
+            os.environ.get("XR_RUNTIME_JSON") and os.environ.get("NV_CXR_RUNTIME_DIR")
+        )
+
+    @staticmethod
+    def _resolve_launch_cloudxr_runtime(args: argparse.Namespace) -> bool:
+        """Resolve auto-launch behavior for documented two-terminal workflows."""
+        launch_cloudxr_runtime = getattr(args, "launch_cloudxr_runtime", None)
+        if launch_cloudxr_runtime is not None:
+            return bool(launch_cloudxr_runtime)
+        return not CloudXRLauncher._has_sourced_cloudxr_runtime_env()
+
+    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -395,10 +406,10 @@ class CloudXRLauncher:
         host_client: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
-        """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
+        """Start :class:`CloudXRLauncher` when runtime launch resolves true.
 
         Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
-        false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
+        false or when a sourced runtime should be reused.
 
         ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``, and
         ``start_wss_proxy`` default to the values registered by
@@ -407,7 +418,7 @@ class CloudXRLauncher:
         ``accept_eula``, pass ``False`` to force-disable even when the CLI flag
         is set.
         """
-        if not args.launch_cloudxr_runtime:
+        if not CloudXRLauncher._resolve_launch_cloudxr_runtime(args):
             return contextlib.nullcontext(None)
         return CloudXRLauncher(
             install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
@@ -462,7 +473,7 @@ class CloudXRLauncher:
             logger.info("CloudXR runtime process stopped")
 
     def health_check(self) -> None:
-        """Verify that the runtime process and WSS proxy are healthy.
+        """Verify that the runtime process and optional WSS proxy are healthy.
 
         Returns immediately when the runtime is running and, when the WSS
         proxy was started, its background thread is alive.  Raises
