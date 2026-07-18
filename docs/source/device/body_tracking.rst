@@ -15,13 +15,14 @@ and the BD skeleton format used on the server.
 
 .. important::
 
-   Full body tracking requires a
+   Full body tracking requires PICO's **enterprise features**. They are
+   available out of the box on the
    `PICO 4 Ultra Enterprise <https://www.picoxr.com/global/products/pico4-ultra-enterprise>`_
-   headset. PICO exposes body tracking to WebXR **only on the Enterprise
-   edition**: on the consumer PICO 4 Ultra, the browser does not grant the
-   ``body-tracking`` feature and no body data reaches the server, even with
-   Motion Trackers paired and calibrated. This is a PICO platform limitation
-   and cannot be worked around in Isaac Teleop.
+   headset. On a consumer PICO 4 Ultra, the browser does not grant the
+   ``body-tracking`` WebXR feature by default — no body data reaches the
+   server, even with Motion Trackers paired and calibrated. Consumer devices
+   can gain the feature through enterprise activation: contact PICO, then
+   use the **Activate enterprise account** option in the headset settings.
 
 .. note::
 
@@ -195,13 +196,13 @@ joint ``is_valid`` flags to determine which joints have valid poses.
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
-- **Body tracking cannot be enabled on a consumer PICO 4 Ultra.** PICO has
-  not released WebXR body tracking for the consumer edition; it is only
-  available on the PICO 4 Ultra Enterprise. There is no setting or firmware
-  update that enables it on consumer devices.
-- **No body tracking data arrives on the server.** Confirm the headset is a
-  PICO 4 Ultra **Enterprise** (see above). Verify all PICO motion trackers
-  are paired, powered on, and calibrated. Confirm the PICO browser is up to
+- **Body tracking does not work on a consumer PICO 4 Ultra.** WebXR body
+  tracking is an enterprise feature; consumer devices do not enable it by
+  default. Contact PICO about enterprise activation, then use the
+  **Activate enterprise account** option in the headset settings.
+- **No body tracking data arrives on the server.** Confirm the headset has
+  enterprise features (see above). Verify all PICO motion trackers are
+  paired, powered on, and calibrated. Confirm the PICO browser is up to
   date.
 - **Some joints report** ``is_valid: false``. The PICO runtime may
   temporarily lose tracking for individual joints during fast movement or

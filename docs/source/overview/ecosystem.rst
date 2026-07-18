@@ -65,8 +65,9 @@ see :ref:`device-interface-device-plugin` for details.
    * - `Pico Motion Tracker`_
      - Full body tracking
      - `Isaac Teleop Web Client`_ (browser)
-     - | Requires a `Pico 4 Ultra Enterprise`_ headset —
-       | **not supported on the consumer Pico 4 Ultra**
+     - | Requires a `Pico 4 Ultra Enterprise`_ headset,
+       | or a consumer Pico 4 Ultra with **enterprise**
+       | **features activated** (contact PICO)
        | Requires Pico OS 15.4.4U or newer
        | Requires Pico Browser 4.0.40 or newer
 
