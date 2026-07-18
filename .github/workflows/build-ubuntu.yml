@@ -597,6 +597,11 @@ jobs:
         name: isaacteleop-wheels-x64-py3.11
         path: quick-start-wheels
 
+    - name: Build hosted desktop web client
+      uses: ./.github/actions/build-cloudxr-web-client
+      with:
+        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
+
     - name: Run Quick Start client E2E workflow
       env:
         CI: true
@@ -604,6 +609,7 @@ jobs:
         QUICK_START_E2E_VALIDATE_CLIENT: "1"
         QUICK_START_E2E_WHEEL_DIR: quick-start-wheels
         QUICK_START_E2E_ARTIFACT_DIR: ${{ runner.temp }}/isaacteleop-quick-start-client-e2e
+        TELEOP_WEB_CLIENT_STATIC_DIR: ${{ github.workspace }}/deps/cloudxr/webxr_client/build
       run: ./scripts/run_quick_start_e2e.sh
 
     - name: Upload Quick Start client E2E artifacts

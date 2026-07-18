@@ -9,7 +9,8 @@
  * - ``bundle.emulator.js`` — desktop XR / IWER code and its transitive deps
  *
  * Routing (no per-package allowlists):
- *   lazy ``import()`` under ``@pmndrs/xr/dist`` → ``bundle.emulator.js``
+ *   lazy ``import()`` under ``@pmndrs/xr/dist`` or ``helpers/LoadIWER.ts`` →
+ *   ``bundle.emulator.js``
  *   all other dynamic imports (UIKit → msdf, zustand, fonts, …) → eager → ``bundle.js``
  *
  * The MSDF web worker is inlined via ``asset/inline`` (no separate worker file).
@@ -27,6 +28,10 @@ const EMULATOR_CHUNK = 'emulator';
  * @type {import('webpack').RuleSetRule[]}
  */
 const eagerExceptEmulatorParserRules = [
+  {
+    test: /[\\/]helpers[\\/]LoadIWER\.ts$/,
+    parser: { javascript: { dynamicImportMode: 'lazy' } },
+  },
   {
     test: /[\\/]@pmndrs[\\/]xr[\\/]dist[\\/]/,
     parser: { javascript: { dynamicImportMode: 'lazy' } },
