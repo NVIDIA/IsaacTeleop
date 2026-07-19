@@ -193,6 +193,11 @@ The ``all_joint_poses_tracked`` quality flag indicates whether every joint was
 successfully tracked in the current frame. When it is false, consult individual
 joint ``is_valid`` flags to determine which joints have valid poses.
 
+For a minimal C++ reader see ``examples/schemaio/full_body_printer.cpp``, which
+creates the tracker, queries the required OpenXR extensions, and prints the
+joint data each frame through ``DeviceIOSession``. The Python equivalent is
+``examples/oxr/python/test_full_body_tracker.py``.
+
 Troubleshooting
 ~~~~~~~~~~~~~~~
 
@@ -216,6 +221,12 @@ Full body sessions can be captured to MCAP and replayed offline through the
 same retargeting pipeline — no headset required during replay. See
 :doc:`../references/mcap_record_replay` for the recording / replay API and
 the ``record_full_body.py`` / ``replay_full_body.py`` example.
+
+Recording is also available directly from C++: pass a ``McapRecordingConfig``
+to ``DeviceIOSession::run()`` with the tracker mapped to the ``full_body``
+channel base name. ``examples/mcap_record_replay/cpp/record_full_body.cpp``
+demonstrates this — a file recorded there replays unchanged with
+``replay_full_body.py``.
 
 .. figure:: ../_static/full-body-replay.gif
    :alt: Full body skeleton replayed from an MCAP recording in viser
