@@ -486,21 +486,7 @@ pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;
 </div>
 <p>Instead of installing the package from PyPI, you can build from source and install the local wheel.
 See <a class="reference internal" href="build_from_source/index.html"><span class="doc">Build from Source</span></a> for more details.</p>
-<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
-<summary class="sd-summary-title sd-card-header">
-<span class="sd-summary-text">ARM64 / aarch64 only (e.g. NVIDIA DGX Spark)</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
-<p class="sd-card-text">PyPI does not publish pre-built <code class="docutils literal notranslate"><span class="pre">nlopt</span></code> wheels for ARM64, so the <code class="docutils literal notranslate"><span class="pre">retargeters</span></code> extra cannot
-be installed directly from PyPI
-(see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/452" rel="noopener noreferrer" target="_blank">issue #452</a>). Follow the
-<a class="reference internal" href="build_from_source/index.html#aarch64-nlopt-wheel"><span class="std std-ref">aarch64 nlopt wheel build steps</span></a> from the build-from-source guide
-first, then install <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> with an additional <code class="docutils literal notranslate"><span class="pre">--find-links</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;isaacteleop[cloudxr,retargeters]~=1.0.0&#39;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--find-links<span class="o">=</span>/tmp/nlopt-wheels/
-</pre></div>
-</div>
-</div>
-</details></section>
+</section>
 <section id="configure-cloudxr-optional">
 <span id="run-cloudxr-server"></span><h2>3. Configure CloudXR (optional)<a class="headerlink" href="#configure-cloudxr-optional" title="Link to this heading">#</a></h2>
 <p>The teleop examples in this guide auto-launch the CloudXR runtime and its WSS
@@ -930,7 +916,7 @@ from source</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 18, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 19, 2026.
       <br/>
     
   </p>
