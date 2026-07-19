@@ -13,7 +13,7 @@ namespace plugins
 namespace oglo_tactile
 {
 
-// OGLO tactile matrix geometry (fixed by the OGLO-MT-RDR-02 sensor flex).
+// OGLO tactile matrix geometry (fixed by the OGLO sensor flex).
 constexpr int kNumFingers = 5;
 constexpr int kRowsPerFinger = 4;
 constexpr int kColsPerFinger = 4;
@@ -48,7 +48,7 @@ struct GloveSample
 enum class PacketFormat
 {
     Unknown,
-    Packed12V5, //!< flags bit2 (0x04): 12-bit taxels + per-sample 6-axis raw IMU (FW >= 0.7.0).
+    Packed12V5, //!< flags bit2 (0x04): 12-bit taxels + per-sample 6-axis raw IMU.
     MethodC, //!< flags bit1 (0x02): schema-4, 16-bit taxels-only samples + one trailing IMU.
     MethodB, //!< flags bit0 (0x01): schema-4, 16-bit taxels + per-sample 17B IMU.
 };

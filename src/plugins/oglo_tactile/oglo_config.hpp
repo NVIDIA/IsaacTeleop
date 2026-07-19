@@ -23,9 +23,8 @@ Side side_from_string(const std::string& s) noexcept;
 
 //! Decoded contents of the OGLO Config characteristic (JSON).
 //!
-//! The firmware exposes the packet geometry here so the host never hardcodes
-//! sizes (per the OGLO firmware packet-format spec). Only the fields the plugin
-//! consumes at runtime are kept.
+//! The device exposes the packet geometry here so the host never hardcodes
+//! sizes. Only the fields the plugin consumes at runtime are kept.
 struct OgloDeviceConfig
 {
     int schema_ver = 0;

@@ -284,7 +284,8 @@ def main(argv: list[str] | None = None) -> int:
                 flush=True,
             )
             print(
-                "  Fix: pip uninstall -y cupy-cuda11x cupy-cuda12x && pip install cupy-cuda11x",
+                "  Fix: install the cupy build matching your CUDA driver "
+                "(e.g. `pip install cupy-cuda12x`, or `cupy-cuda11x` for CUDA 11).",
                 flush=True,
             )
             overlay = None

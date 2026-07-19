@@ -46,7 +46,7 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
    ```
    The BLE backend (BlueZ via libdbus, permissive) connects out of the box.
 
-3. **Gloves**: confirm both run firmware `0.7.1` (schema 5), are charged, and
+3. **Gloves**: confirm both run schema-5 firmware, are charged, and
    advertise `OGLO LEFT` / `OGLO RIGHT` (check with `bluetoothctl scan on`).
 
 4. **CloudXR**: install per the IsaacTeleop Quick Start (`pip install 'isaacteleop[cloudxr]'`).

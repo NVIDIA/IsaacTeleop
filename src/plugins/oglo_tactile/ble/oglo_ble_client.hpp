@@ -17,7 +17,7 @@ namespace plugins
 namespace oglo_tactile
 {
 
-// OGLO BLE GATT identifiers (firmware OGLO-MT-RDR-02, all schema revisions).
+// OGLO BLE GATT identifiers (all schema revisions).
 namespace ble_uuids
 {
 constexpr const char* kService = "4652535f-424c-4500-0000-000000000001";

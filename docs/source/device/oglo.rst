@@ -4,14 +4,21 @@
 OGLO Tactile Glove Plugin
 =========================
 
-C++ plugin that streams **OGLO** tactile gloves over BLE and records them through
-the standard DeviceIO path. Each glove (one BLE device per hand) provides **80
+C++ plugin that streams **OGLO** tactile gloves over BLE into the standard
+DeviceIO recording path. Each glove (one BLE device per hand) provides **80
 tactile taxels** (5 fingers × 4×4) plus a **6-axis IMU** at 100 Hz. Source and
 plugin README: :code-file:`src/plugins/oglo_tactile/README.md`.
 
 This plugin follows the :doc:`add_device` pattern (FlatBuffer schema → plugin
-``SchemaPusher`` → tracker → MCAP) and is modeled on the OAK camera plugin,
-including its two recording modes.
+``SchemaPusher`` → tracker → MCAP) and is modeled on the OAK camera plugin.
+
+.. figure:: ../_static/oglo-demo.gif
+   :align: center
+   :width: 100%
+
+   Both OGLO gloves driving a live per-finger contact heatmap while manipulating
+   an object — 80 taxels + a 6-axis IMU per hand, streamed over BLE at 100 Hz and
+   time-synced with the operator's hand/head tracking.
 
 .. contents:: On this page
    :local:
@@ -22,7 +29,7 @@ Components
 
 - **Schema** — :code-file:`src/core/schema/fbs/oglo_tactile.fbs`
   (``OgloGloveSample`` / ``OgloGloveSampleTracked`` / ``OgloGloveSampleRecord``).
-- **Plugin** — :code-dir:`src/plugins/oglo_tactile` (BLE read → parse → push/record).
+- **Plugin** — :code-dir:`src/plugins/oglo_tactile` (BLE read → parse → OpenXR push).
 - **Tracker** — ``OgloTactileTracker``
   (:code-file:`src/core/deviceio_trackers/cpp/inc/deviceio_trackers/oglo_tactile_tracker.hpp`)
   with live backend ``LiveOgloTactileTrackerImpl``
@@ -76,9 +83,50 @@ The host ``OgloTactileTracker`` records per hand into channels
 whose ``sample_time_local_common_clock`` is on the shared host monotonic clock —
 so OGLO aligns in time with hand/head streams.
 
+**Naming.** The glove's identity threads through several layers, but all of them
+derive from the single ``--collection-prefix`` you pick (``oglo`` below), with the
+hand side appended. For the **left** hand:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 44 24
+
+   * - Layer
+     - Where it is set
+     - Value (left hand)
+   * - CLI flag
+     - ``oglo_tactile_plugin --collection-prefix``
+     - ``oglo``
+   * - OpenXR collection id
+     - ``OgloTactileTracker("<prefix>/left")``
+     - ``oglo/left``
+   * - MCAP recording base name
+     - ``McapRecordingConfig`` tracker name
+     - ``oglo_left``
+   * - MCAP channels
+     - ``OgloRecordingTraits`` (``oglo``, ``oglo_tracked``)
+     - ``oglo_left/oglo``, ``oglo_left/oglo_tracked``
+   * - Plugin device path
+     - :code-file:`src/plugins/oglo_tactile/plugin.yaml`
+     - ``/glove/oglo_left``
+
+The right hand mirrors this (``right`` / ``oglo_right``), so ``mcap info`` on a
+recording shows ``oglo_left/oglo`` (+ ``_tracked``) and ``oglo_right/oglo``
+(+ ``_tracked``).
+
 A complete data-collection demo (MetaQuest hand/head + both gloves + a live
 in-headset tactile heatmap) lives at
 :code-dir:`examples/oglo_tactile`; see its ``README.md``.
+
+IMU frame
+---------
+
+Each sample includes a 6-axis IMU reading — a 3-axis accelerometer and 3-axis
+gyroscope — as raw ``int16`` sensor counts. Scale: accel ±8 g
+(``≈0.000244 g/LSB``), gyro ±2000 dps (``≈0.061 dps/LSB``). The IMU is
+wrist-mounted, so its axes form a single **wrist-fixed frame** — they track the
+wrist, not individual fingers, and are not aligned to an anatomical hand frame.
+Calibrate against gravity if you need absolute orientation.
 
 Tests
 -----

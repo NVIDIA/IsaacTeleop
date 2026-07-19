@@ -11,8 +11,7 @@ namespace core;
 // (5 x 4 x 4 = 80 taxels). The hand side (left/right) is conveyed by the
 // channel / collection name, mirroring how hand poses use left/right channels.
 //
-// Source device: OGLO-MT-RDR-02 reader, firmware >= 0.7.0 (CONFIG_SCHEMA_VER 5),
-// BLE "packed12 v5" stream at 100 Hz (see the OGLO firmware packet-format spec).
+// Source: OGLO glove, schema 5, "packed12 v5" BLE stream at 100 Hz.
 table OgloGloveSample {
   // Global sample sequence number (from the device). Monotonic; gaps indicate
   // dropped BLE notifications.
@@ -27,12 +26,14 @@ table OgloGloveSample {
   // (recorded as MCAP metadata at connection time).
   taxels: [uint16] (id: 2);
 
-  // 6-axis IMU, raw LSB (no on-device fusion in schema 5).
-  // Accelerometer (~0.000244 g/LSB at +/-8 g).
+  // 6-axis IMU, raw LSB (no on-device fusion in schema 5). For the axis
+  // orientation relative to the hand (mounting frame), see the "IMU frame"
+  // section of docs/source/device/oglo.rst.
+  // Accelerometer (~0.000244 g/LSB at +/-8 g full scale).
   accel_x: int16 (id: 3);
   accel_y: int16 (id: 4);
   accel_z: int16 (id: 5);
-  // Gyroscope (raw; +/-2000 dps full scale).
+  // Gyroscope (~0.061 dps/LSB at +/-2000 dps full scale).
   gyro_x: int16 (id: 6);
   gyro_y: int16 (id: 7);
   gyro_z: int16 (id: 8);
