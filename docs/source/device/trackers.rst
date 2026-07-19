@@ -205,6 +205,13 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
   - :code-file:`src/core/schema_tests/python/test_full_body.py`
   - :code-file:`examples/oxr/python/test_full_body_tracker.py`
 
+- Examples:
+
+  - :code-file:`examples/schemaio/full_body_printer.cpp`
+  - :code-file:`examples/mcap_record_replay/cpp/record_full_body.cpp`
+  - :code-file:`examples/mcap_record_replay/python/record_full_body.py`
+  - :code-file:`examples/mcap_record_replay/python/replay_full_body.py`
+
 .. note::
 
    ``FullBodyTrackerPico`` remains available as a deprecated alias for
