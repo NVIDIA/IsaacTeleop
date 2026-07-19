@@ -125,8 +125,9 @@ Each sample includes a 6-axis IMU reading — a 3-axis accelerometer and 3-axis
 gyroscope — as raw ``int16`` sensor counts. Scale: accel ±8 g
 (``≈0.000244 g/LSB``), gyro ±2000 dps (``≈0.061 dps/LSB``). The IMU is
 wrist-mounted, so its axes form a single **wrist-fixed frame** — they track the
-wrist, not individual fingers, and are not aligned to an anatomical hand frame.
-Calibrate against gravity if you need absolute orientation.
+wrist, not individual fingers, and are the sensor's own raw axes (not aligned to
+an anatomical hand frame). For absolute orientation, apply the IMU-to-hand
+extrinsic supplied with the hardware, or calibrate against gravity for just "up".
 
 Tests
 -----
