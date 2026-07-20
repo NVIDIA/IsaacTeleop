@@ -96,9 +96,14 @@ def make_config(tmp_path: Path, **kwargs) -> RigConfig:
 
 
 @pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
+def clean_env(monkeypatch, tmp_path):
     monkeypatch.delenv("TMUX", raising=False)
     monkeypatch.delenv("PYTHONPATH", raising=False)
+    # Hermetic run-dir resolution: launch_rig clears a stale runtime_started
+    # sentinel under the resolved run dir (default ~/.cloudxr/run), so the
+    # suite must never resolve to — and unlink in — a developer's real HOME.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("CXR_INSTALL_DIR", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -186,7 +191,8 @@ def test_fresh_launch_call_plan(tmp_path):
         lines = wrapper.splitlines()
         assert lines[0] == "stty -echo"
         assert "runtime_started" in lines[1]  # env wait+source line
-        assert lines[2].startswith("if [ -e ")  # auto-run gated on the sentinel
+        # Auto-run gated on the env having been SOURCED, not on the sentinel.
+        assert lines[2] == 'if [ "$rig_env_ready" -eq 1 ]; then'
         assert lines[3].startswith("echo ")  # banner announces the auto-run
         assert f"running: {expected}" in lines[3]
         assert f"sh -c {shlex.quote(expected)}" in lines  # command RUNS in wrapper
@@ -280,6 +286,23 @@ def test_existing_session_notes_ignored_settings(tmp_path, capsys):
     assert "kill it first" in out
 
 
+def test_existing_session_reattaches_despite_launch_preflight_failures(tmp_path):
+    """Reattach must win before any launch-only preflight: edits to a
+    running rig's YAML (ghost binary, missing cwd, undeclared placeholder)
+    must never block getting back into the live session.
+    """
+    config = make_config(
+        tmp_path,
+        cwd=tmp_path / "nope",
+        producers=(
+            ProcessConfig("ghost", "install/plugins/ghost/ghost_plugin {undeclared}"),
+        ),
+    )
+    tmux = FakeTmux(existing_sessions={"test_rig"})
+    launch_rig(config, run_tmux=tmux)  # must not raise
+    assert [c[0] for c in tmux.calls] == ["has-session", "attach-session"]
+
+
 # ---------------------------------------------------------------------------
 # kill_rig
 # ---------------------------------------------------------------------------
@@ -328,17 +351,19 @@ def test_no_runtime_skips_runtime_pane(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Worker auto-run: gated on the runtime sentinel, rerunnable via pre-type
+# Worker auto-run: gated on the env being sourced, rerunnable via pre-type
 # ---------------------------------------------------------------------------
 
 
-def test_command_runs_only_when_runtime_is_ready(tmp_path):
-    """Auto-run is gated on the sentinel: on wait timeout the command must
-    NOT run (it would fail confusingly without the CloudXR env).
+def test_command_runs_only_when_env_is_ready(tmp_path):
+    """Auto-run is gated on ``rig_env_ready`` (set only after cloudxr.env
+    sourced successfully): on wait timeout OR env-load failure the command
+    must NOT run (it would fail confusingly without the CloudXR env). The
+    sentinel alone is not enough — it can exist while the env failed to load.
 
-    The run line lives inside the ``if [ -e <sentinel> ]`` block; the rerun
-    pre-type lives after ``fi`` so BOTH paths leave the command at the
-    prompt (timeout: pre-typed but never run; happy path: rerun on Enter).
+    The run line lives inside the ``if [ "$rig_env_ready" -eq 1 ]`` block;
+    the rerun pre-type lives after ``fi`` so ALL paths leave the command at
+    the prompt (failure: pre-typed but never run; happy path: rerun on Enter).
     """
     tmux = FakeTmux()
     launch_rig(make_config(tmp_path), run_tmux=tmux)
@@ -347,7 +372,7 @@ def test_command_runs_only_when_runtime_is_ready(tmp_path):
     run_at = lines.index(
         f"sh -c {shlex.quote('install/plugins/foo/foo_plugin right cid')}"
     )
-    if_at = next(i for i, line in enumerate(lines) if line.startswith("if [ -e "))
+    if_at = lines.index('if [ "$rig_env_ready" -eq 1 ]; then')
     fi_at = lines.index("fi")
     assert if_at < run_at < fi_at
     # Exit status + rerun hint prints right after the command, inside the if.
@@ -356,6 +381,29 @@ def test_command_runs_only_when_runtime_is_ready(tmp_path):
     )
     assert run_at < exit_at < fi_at
     assert lines.index(pretype_line(wrapper)) > fi_at
+
+
+def test_env_ready_flag_set_only_after_successful_source(tmp_path):
+    """The wait line owns the ``rig_env_ready`` contract: initialized to 0
+    before the wait, promoted to 1 only in the branch where sourcing
+    ``cloudxr.env`` succeeded — behind a ``[ -r ... ]`` guard, because
+    ``.`` on a missing file aborts a non-interactive shell (killing the
+    pane wrapper). Each failure names its own cause: sentinel timeout vs
+    env-load failure have different remedies.
+    """
+    tmux = FakeTmux()
+    launch_rig(make_config(tmp_path), run_tmux=tmux)
+    wait = tmux.pane_commands()[1].splitlines()[1]
+    assert wait.startswith("rig_env_ready=0; ")  # init precedes the wait
+    env_file = str(Path("~/.cloudxr/run/cloudxr.env").expanduser())
+    # Promotion to 1 happens only behind the guarded successful source.
+    success = f"if [ -r {env_file} ] && . {env_file}; then rig_env_ready=1; "
+    assert success in wait
+    assert wait.count("rig_env_ready=1") == 1
+    # Distinct failure messages: timeout (runtime never came up) vs
+    # source-failure (runtime up, env unreadable) — both name a remedy.
+    assert "runtime not ready" in wait
+    assert f"loading {env_file} failed" in wait
 
 
 def test_ctrl_c_kills_the_app_not_the_pane(tmp_path):
@@ -379,8 +427,8 @@ def test_ctrl_c_kills_the_app_not_the_pane(tmp_path):
 
 
 def _env_wait_lines(tmux: FakeTmux) -> list[str]:
-    # The bounded-wait line, not the `if [ -e <sentinel> ]` auto-run gate
-    # (both mention the runtime_started sentinel).
+    # The bounded-wait line (the only wrapper line naming the sentinel; the
+    # auto-run gate tests the rig_env_ready flag it sets).
     return [
         line
         for wrapper in tmux.pane_commands()
@@ -422,23 +470,96 @@ def test_env_wait_still_runs_with_no_runtime(tmp_path):
 
 
 def test_env_wait_honors_cloudxr_install_dir_from_runtime_override(tmp_path):
+    # An absolute override dir must be hermetic (tmp_path-based): launch_rig
+    # clears a stale sentinel under the resolved run dir, and HOME pinning
+    # does not cover absolute --cloudxr-install-dir paths.
+    install = tmp_path / "cxr"
     config = make_config(
         tmp_path,
-        runtime="{python} -m isaacteleop.cloudxr --cloudxr-install-dir /opt/cxr",
+        runtime=f"{{python}} -m isaacteleop.cloudxr --cloudxr-install-dir {install}",
     )
     tmux = FakeTmux()
     launch_rig(config, run_tmux=tmux)
     wait = _env_wait_lines(tmux)[0]
-    assert "/opt/cxr/run/runtime_started" in wait
-    assert "/opt/cxr/run/cloudxr.env" in wait
+    assert f"{install}/run/runtime_started" in wait
+    assert f"{install}/run/cloudxr.env" in wait
 
 
 def test_env_wait_honors_cxr_install_dir_env_var(tmp_path, monkeypatch):
+    # Hermetic only via no_runtime=True (no sentinel unlink on that path) —
+    # a managed launch here would point an unlink at the real /srv/cloudxr.
     monkeypatch.setenv("CXR_INSTALL_DIR", "/srv/cloudxr")
     tmux = FakeTmux()
     launch_rig(make_config(tmp_path), no_runtime=True, run_tmux=tmux)
     wait = _env_wait_lines(tmux)[0]
     assert "/srv/cloudxr/run/cloudxr.env" in wait
+
+
+# ---------------------------------------------------------------------------
+# Stale runtime_started sentinel cleanup (managed runtimes only)
+# ---------------------------------------------------------------------------
+
+
+def _default_sentinel(tmp_path: Path) -> Path:
+    # clean_env pins HOME to tmp_path, so this is the resolved default run dir.
+    return tmp_path / ".cloudxr" / "run" / "runtime_started"
+
+
+def test_stale_sentinel_cleared_before_managed_launch(tmp_path):
+    """A sentinel left by a prior run must be gone before any pane exists:
+    workers probe it within milliseconds, while the new runtime needs
+    seconds to boot and delete it itself — the workers win that race.
+    """
+    sentinel = _default_sentinel(tmp_path)
+    sentinel.parent.mkdir(parents=True)
+    sentinel.touch()
+    launch_rig(make_config(tmp_path), run_tmux=FakeTmux())
+    assert not sentinel.exists()
+
+
+def test_no_runtime_preserves_external_sentinel(tmp_path):
+    # Under --no-runtime the sentinel belongs to an external, live runtime
+    # and is never recreated by this launch: deleting it would strand every
+    # worker for the full wait timeout.
+    sentinel = _default_sentinel(tmp_path)
+    sentinel.parent.mkdir(parents=True)
+    sentinel.touch()
+    launch_rig(make_config(tmp_path), no_runtime=True, run_tmux=FakeTmux())
+    assert sentinel.exists()
+
+
+def test_reattach_preserves_live_sentinel(tmp_path):
+    # Reattaching to an existing session must not clear the sentinel its
+    # (live) runtime owns — the delete sits after the reattach early-return.
+    sentinel = _default_sentinel(tmp_path)
+    sentinel.parent.mkdir(parents=True)
+    sentinel.touch()
+    tmux = FakeTmux(existing_sessions={"test_rig"})
+    launch_rig(make_config(tmp_path), run_tmux=tmux)
+    assert sentinel.exists()
+
+
+def test_absent_sentinel_is_not_an_error(tmp_path):
+    # First-ever launch: no run dir, no sentinel — the cleanup must be a
+    # silent no-op, not a crash.
+    assert not _default_sentinel(tmp_path).exists()
+    launch_rig(make_config(tmp_path), run_tmux=FakeTmux())  # must not raise
+
+
+def test_undeletable_sentinel_is_preflight_error(tmp_path, monkeypatch):
+    # A stale sentinel the user cannot remove (e.g. a root-owned run dir
+    # from a sudo-run runtime) must surface as a PreflightError with a
+    # remedy — never a raw traceback (the CLI promises exit codes only).
+    sentinel = _default_sentinel(tmp_path)
+    sentinel.parent.mkdir(parents=True)
+    sentinel.touch()
+
+    def deny(self, missing_ok=False):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(Path, "unlink", deny)
+    with pytest.raises(PreflightError, match="fix permissions"):
+        launch_rig(make_config(tmp_path), run_tmux=FakeTmux())
 
 
 # ---------------------------------------------------------------------------

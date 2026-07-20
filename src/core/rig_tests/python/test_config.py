@@ -83,6 +83,15 @@ def test_invalid_yaml_is_config_error(tmp_path):
         load_rig_config(path)
 
 
+def test_non_utf8_rig_file_is_config_error(tmp_path):
+    # Rig files are read as UTF-8 on every platform; a non-UTF-8 file must
+    # fail as a config error (never a stack trace), naming the real cause.
+    path = tmp_path / "rig.yaml"
+    path.write_bytes("name: café\n".encode("latin-1"))
+    with pytest.raises(RigConfigError, match="not valid UTF-8"):
+        load_rig_config(path)
+
+
 def test_unknown_top_level_key_is_hard_error(tmp_path):
     path = write_rig(tmp_path, MINIMAL + "streams: {}\n")
     with pytest.raises(RigConfigError, match=r"unknown top-level key.*streams"):

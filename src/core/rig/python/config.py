@@ -176,7 +176,11 @@ def load_rig_config(path: str | Path) -> RigConfig:
             "Teleop repository for an example"
         )
     try:
-        data = yaml.safe_load(source.read_text())
+        data = yaml.safe_load(source.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        raise RigConfigError(
+            f"{source}: not valid UTF-8 (rig files must be UTF-8 text): {exc}"
+        ) from exc
     except yaml.YAMLError as exc:
         raise RigConfigError(
             f"{source}: invalid YAML: {exc} — see rigs/se3_tracker.yaml for a valid example"

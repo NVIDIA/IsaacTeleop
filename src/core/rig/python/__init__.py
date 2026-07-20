@@ -13,8 +13,13 @@ Usage::
 
     python -m isaacteleop.rig rigs/se3_tracker.yaml
 
-The runtime pane starts immediately; producer/consumer panes are pre-typed
-but NOT executed — press Enter in each pane after the headset connects.
+The runtime pane starts immediately. Each producer/consumer pane waits
+(up to two minutes) for the runtime to come up, sources the CloudXR env,
+and then RUNS its command automatically. A command that exits early (the
+classic: started before the headset connected) is left pre-typed at an
+interactive prompt — one Enter reruns it. If the runtime never comes up
+(or its env fails to load) the command is NOT run; the pane prints what
+to do and leaves the command pre-typed.
 
 The YAML schema is the stable contract; the Python API below is exported
 for tests and power users on a best-effort basis.

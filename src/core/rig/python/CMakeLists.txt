@@ -21,6 +21,7 @@ foreach(PYTHON_FILE ${RIG_PYTHON_FILES})
 
     add_custom_command(
         OUTPUT "${OUTPUT_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${RIG_OUTPUT_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy "${PYTHON_FILE}" "${OUTPUT_PATH}"
         DEPENDS "${PYTHON_FILE}"
         COMMENT "Copying ${FILE_NAME} to rig package"

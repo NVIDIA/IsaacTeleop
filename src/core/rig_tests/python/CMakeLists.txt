@@ -8,9 +8,12 @@
 # Discover and add individual Python tests
 # This makes each test show up separately in CTest output
 
-# First, find all test files (only in this directory, not recursively)
+# First, find all test files (only in this directory, not recursively).
+# CONFIGURE_DEPENDS: a new test_*.py re-triggers cmake at build time, so
+# it registers with CTest without a manual reconfigure.
 file(GLOB TEST_FILES
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
+    CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.py"
 )
 

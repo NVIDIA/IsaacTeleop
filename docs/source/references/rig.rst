@@ -78,9 +78,9 @@ What happens:
    Anything that calls ``xrGetSystem`` before a headset connects exits with
    ``Failed to get OpenXR system`` — so if a pane's app started before you
    connected the headset to the printed URL, connect it and press
-   :kbd:`Enter` in that pane to rerun. If the runtime never comes up, the
-   pane does *not* run the command; it prints a remedy and leaves the
-   command pre-typed instead.
+   :kbd:`Enter` in that pane to rerun. If the runtime never comes up (or
+   its environment fails to load), the pane does *not* run the command; it
+   prints a remedy and leaves the command pre-typed instead.
 5. The launcher then attaches (from a plain shell) or switches your current
    client (from inside tmux — no nesting).
 
@@ -200,6 +200,11 @@ Troubleshooting
      - The pane is still waiting for the runtime's ``runtime_started``
        sentinel; check the runtime pane. After the (two-minute) wait times
        out, the pane prints a remedy and leaves the command pre-typed.
+   * - ``[cloudxr] runtime is up but loading ... failed``
+     - The runtime came up but its ``cloudxr.env`` could not be sourced;
+       the pane does not run its command. Check the error printed above
+       the message, ``source`` the file as the message says, then press
+       :kbd:`Enter` — the command is already pre-typed.
    * - ``[rig] command exited with status ...`` right after launch
      - The app auto-ran before the headset connected (classic:
        ``Failed to get OpenXR system``); connect the headset to the
