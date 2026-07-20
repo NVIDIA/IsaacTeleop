@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 Wuji Technology. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: wuji_glove_plugin
+description: "Wuji glove hand tracking"
+command: "./wuji_glove_plugin"
+version: "1.0.0"
+devices:
+  - path: "/hand/left"
+    type: "hand_tracker"
+    description: "Left Wuji glove"
+  - path: "/hand/right"
+    type: "hand_tracker"
+    description: "Right Wuji glove"

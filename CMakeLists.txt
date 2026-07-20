@@ -59,6 +59,7 @@ endif()
 # Options
 option(BUILD_PLUGINS "Build plugins" ON)
 option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
+option(BUILD_PLUGIN_WUJI_GLOVE "Build Wuji glove plugin (requires the wuji_sdk C SDK)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
@@ -189,6 +190,10 @@ if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/haptikos)
     if(BUILD_PLUGIN_OAK_CAMERA)
         add_subdirectory(src/plugins/oak)
+    endif()
+    # Gated: requires the wuji_sdk C library (set WUJI_SDK_INCLUDE_DIR + lib path).
+    if(BUILD_PLUGIN_WUJI_GLOVE)
+        add_subdirectory(src/plugins/wuji_glove)
     endif()
 endif()
 

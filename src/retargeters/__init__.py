@@ -18,6 +18,7 @@ Available Retargeters:
     - GripperRetargeter: Pinch-based gripper control
     - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm
     - SO101GripperRetargeter: Proportional (analog) jaw closedness for the SO-101 gripper
+    - WujiHandRetargeter: Retargeting for the Wuji hand via wuji_sdk.retargeting
     - JointStateRetargeter: Generic joint-space device (leader arm, exoskeleton) -> joint or EE action
     - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
     - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
@@ -111,6 +112,18 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
         ".SO101.gripper_retargeter",
         "SO101GripperRetargeter",
         None,
+    ),
+    # .wuji_hand_retargeter  (requires wuji extra: wuji-sdk[retarget],
+    # which transitively pulls nlopt, pinocchio, scipy)
+    "WujiHandRetargeter": (
+        ".wuji_hand_retargeter",
+        "WujiHandRetargeter",
+        "wuji",
+    ),
+    "WujiHandRetargeterConfig": (
+        ".wuji_hand_retargeter",
+        "WujiHandRetargeterConfig",
+        "wuji",
     ),
     # .joint_space (generic joint-space devices: leader arms, exoskeletons, ...)
     "JointStateRetargeter": (
@@ -217,6 +230,9 @@ __all__ = [
     # SO-101 5-DOF arm retargeters
     "SO101ClutchRetargeter",
     "SO101GripperRetargeter",
+    # Wuji hand retargeters (require wuji extra: wuji-sdk[retarget])
+    "WujiHandRetargeter",
+    "WujiHandRetargeterConfig",
     # Generic joint-space device retargeters (leader arms, exoskeletons, ...)
     "JointStateRetargeter",
     "JointStateRetargeterConfig",
