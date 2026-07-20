@@ -12,8 +12,12 @@ extensions from a retargeting pipeline without requiring an OpenXR runtime.
 import sys
 from unittest.mock import MagicMock
 
+import pytest
+
+import isaacteleop.deviceio as deviceio
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
+    FullBodySource,
     HandsSource,
     HeadSource,
 )
@@ -151,3 +155,65 @@ class TestGetRequiredOxrExtensionsFromPipeline:
 
         # No duplicates
         assert len(extensions) == len(set(extensions))
+
+
+# ============================================================================
+# Source-carried vendor selection
+# ============================================================================
+
+
+class TestSourceCarriedVendor:
+    """Vendor selection rides on the source and flows through pipeline introspection.
+
+    Extensions are vendor-dependent; because each source carries its own vendor
+    (``get_vendor()``), ``get_required_oxr_extensions_from_pipeline`` reflects the
+    selection with no extra argument -- the external-``oxr_handles`` flow gets the
+    right extensions straight from the pipeline.
+    """
+
+    def test_non_vendored_source_reports_no_vendor(self):
+        """Sources with no vendor argument default to None (tracker default vendor)."""
+        assert HandsSource(name="hands").get_vendor() is None
+        assert FullBodySource(name="full_body").get_vendor() is None
+
+    def test_source_exposes_its_vendor(self):
+        """A vendor passed to the source is retrievable via get_vendor()."""
+        vendor = deviceio.TrackerVendor("body.pico-xr")
+        body = FullBodySource(name="full_body", vendor=vendor)
+
+        assert body.get_vendor() is vendor
+
+    def test_source_vendor_drives_extensions(self):
+        """A vendored source contributes its vendor's extensions with no extra argument."""
+        body = FullBodySource(
+            name="full_body", vendor=deviceio.TrackerVendor("body.pico-xr")
+        )
+        pipeline = _mock_pipeline_with_leaf_nodes([body])
+
+        extensions = get_required_oxr_extensions_from_pipeline(pipeline)
+
+        # The Pico body vendor contributes its native body-tracking extension.
+        assert "XR_BD_body_tracking" in extensions
+
+    def test_default_vendor_matches_explicit_default(self):
+        """Omitting the vendor equals selecting the current (default) Pico vendor."""
+        default_pipeline = _mock_pipeline_with_leaf_nodes(
+            [FullBodySource(name="full_body")]
+        )
+        selected_pipeline = _mock_pipeline_with_leaf_nodes(
+            [FullBodySource(name="full_body", vendor=deviceio.TrackerVendor("body.pico-xr"))]
+        )
+
+        assert get_required_oxr_extensions_from_pipeline(
+            selected_pipeline
+        ) == get_required_oxr_extensions_from_pipeline(default_pipeline)
+
+    def test_unknown_vendor_id_raises(self):
+        """An unknown vendor id on a source is rejected during extension discovery."""
+        body = FullBodySource(
+            name="full_body", vendor=deviceio.TrackerVendor("body.does-not-exist")
+        )
+        pipeline = _mock_pipeline_with_leaf_nodes([body])
+
+        with pytest.raises(ValueError):
+            get_required_oxr_extensions_from_pipeline(pipeline)

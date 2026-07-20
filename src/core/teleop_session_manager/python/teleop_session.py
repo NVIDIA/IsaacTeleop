@@ -55,6 +55,7 @@ from .async_retarget_runner import (
     snapshot_retargeter_io,
     snapshot_pipeline_inputs,
 )
+from .helpers import build_vendor_config_from_sources
 from .teleop_state_manager_types import teleop_control_states
 
 
@@ -997,23 +998,9 @@ class TeleopSession:
             for tracker in self.config.trackers:
                 _add_tracker(tracker)
 
-            # Resolve per-source vendor selections (keyed by source name) into a
-            # VendorConfig keyed by the source-owned tracker instance. Sources stay
-            # vendor-agnostic; the vendor is supplied by config. An empty
-            # VendorConfig (no selections) is the native default -- passing None to
-            # the bindings is a type error.
-            source_by_name = {source.name: source for source in self._sources}
-            vendor_entries = []
-            for source_name, vendor in self.config.tracker_vendors.items():
-                source = source_by_name.get(source_name)
-                if source is None:
-                    raise ValueError(
-                        "TeleopSessionConfig.tracker_vendors references unknown "
-                        f"DeviceIO source '{source_name}'. Known sources: "
-                        f"{sorted(source_by_name)}"
-                    )
-                vendor_entries.append((source.get_tracker(), vendor))
-            vendor_config = deviceio.VendorConfig(vendor_entries)
+            # Vendored trackers carry their vendor on the source, so it travels
+            # with the pipeline into the VendorConfig (see the builder's docstring).
+            vendor_config = build_vendor_config_from_sources(self._sources)
 
             # Get required extensions from all trackers
             required_extensions = deviceio.DeviceIOSession.get_required_extensions(

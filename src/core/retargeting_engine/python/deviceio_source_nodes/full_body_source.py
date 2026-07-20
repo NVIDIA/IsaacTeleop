@@ -8,7 +8,7 @@ Converts raw FullBodyPoseT flatbuffer data to standard FullBodyInput tensor form
 """
 
 import numpy as np
-from typing import Any, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import (
     RetargeterIO,
@@ -21,7 +21,7 @@ from ..tensor_types.standard_types import NUM_BODY_JOINTS
 from .deviceio_tensor_types import DeviceIOFullBodyPoseTracked
 
 if TYPE_CHECKING:
-    from isaacteleop.deviceio import ITracker
+    from isaacteleop.deviceio import ITracker, TrackerVendor
     from isaacteleop.schema import FullBodyPoseT, FullBodyPoseTrackedT
 
 
@@ -44,18 +44,23 @@ class FullBodySource(IDeviceIOSource):
 
     FULL_BODY = "full_body"
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, vendor: "Optional[TrackerVendor]" = None) -> None:
         """Initialize stateless full body source node.
 
         Creates a FullBodyTracker instance for TeleopSession to discover and use.
 
         Args:
             name: Unique name for this source node
+            vendor: Optional ``deviceio.TrackerVendor`` selecting the backend that
+                sources body poses (e.g. ``TrackerVendor("body.pico-xr")``). Leave
+                ``None`` for the tracker's default vendor. Carried on the source so
+                the required OpenXR extensions and the live session both resolve it
+                from the pipeline directly.
         """
         import isaacteleop.deviceio as deviceio
 
         self._body_tracker = deviceio.FullBodyTracker()
-        super().__init__(name)
+        super().__init__(name, vendor=vendor)
 
     def get_tracker(self) -> "ITracker":
         """Get the FullBodyTracker instance.
