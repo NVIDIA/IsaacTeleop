@@ -345,21 +345,21 @@
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="joint_space.html">Generic Joint-Space Device</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Body Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptic_feedback.html">Haptic Feedback</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
-<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
-<li class="toctree-l2"><a class="reference internal" href="joint_space.html">Generic Joint-Space Device</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Body Tracking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="haptic_feedback.html">Haptic Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
-<li class="toctree-l2"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
-</ul>
-</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
@@ -401,9 +401,6 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    
-    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Device Interface</a></li>
-    
     <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Body Tracking</span></li>
   </ul>
 </nav>
@@ -427,9 +424,20 @@
 through the CloudXR WebXR client to the teleop server. The server exposes the
 body skeleton to applications through the <code class="docutils literal notranslate"><span class="pre">FullBodyTracker</span></code> tracker and
 the OpenXR <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code> extension.</p>
-<p>Body tracking support currently targets the <strong>PICO 4 Ultra</strong> with
+<p>Body tracking support currently targets the <strong>PICO 4 Ultra Enterprise</strong> with
 <strong>PICO Motion Trackers</strong>. The rest of this guide covers PICO hardware setup
 and the BD skeleton format used on the server.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Full body tracking requires PICO’s <strong>enterprise features</strong>. They are
+available out of the box on the
+<a class="reference external" href="https://www.picoxr.com/global/products/pico4-ultra-enterprise" rel="noopener noreferrer" target="_blank">PICO 4 Ultra Enterprise</a>
+headset. On a consumer PICO 4 Ultra, the browser does not grant the
+<code class="docutils literal notranslate"><span class="pre">body-tracking</span></code> WebXR feature by default — no body data reaches the
+server, even with Motion Trackers paired and calibrated. Consumer devices
+can gain the feature through enterprise activation: contact PICO, then
+use the <strong>Activate enterprise account</strong> option in the headset settings.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Meta Quest 3/3S also expose body tracking to WebXR via inside-out body
@@ -462,8 +470,9 @@ and accuracy is lower since there are no physical trackers. See
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Setting Up PICO Motion Trackers</a><a class="headerlink" href="#setting-up-pico-motion-trackers" title="Link to this heading">#</a></h2>
 <p>Full body tracking uses
 <a class="reference external" href="https://www.picoxr.com/global/products/pico-motion-tracker" rel="noopener noreferrer" target="_blank">PICO Motion Trackers</a>
-paired with a PICO 4 Ultra headset. Make sure the PICO browser is updated to a
-version that supports body tracking. The following configurations are supported:</p>
+paired with a PICO 4 Ultra Enterprise headset. Make sure the PICO browser is
+updated to a version that supports body tracking. The following configurations
+are supported:</p>
 <ul class="simple">
 <li><p><strong>5 trackers:</strong> best tracking quality across all 24 joints.
 Two wear modes are available: 2 ankles + 2 wrists + 1 waist, or 2 ankles +
@@ -634,7 +643,7 @@ frame.</p>
 <code class="docutils literal notranslate"><span class="pre">FullBodyTracker</span></code> tracker (see <a class="reference internal" href="trackers.html"><span class="doc">Device Trackers</span></a> for the full tracker
 reference). The tracker exposes a <code class="docutils literal notranslate"><span class="pre">get_body_pose()</span></code> method that returns the
 24-joint skeleton each frame (or null when body tracking is not available).
-Joint data follows the <code class="docutils literal notranslate"><span class="pre">FullBodyPosePico</span></code> FlatBuffers schema defined in
+Joint data follows the <code class="docutils literal notranslate"><span class="pre">FullBodyPose</span></code> FlatBuffers schema defined in
 <code class="docutils literal notranslate"><span class="pre">src/core/schema/fbs/full_body.fbs</span></code>.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">all_joint_poses_tracked</span></code> quality flag indicates whether every joint was
 successfully tracked in the current frame. When it is false, consult individual
@@ -643,9 +652,14 @@ joint <code class="docutils literal notranslate"><span class="pre">is_valid</spa
 <section id="troubleshooting">
 <h3><a class="toc-backref" href="#id8" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p><strong>No body tracking data arrives on the server.</strong> Verify all PICO motion
-trackers are paired, powered on, and calibrated. Confirm the PICO browser
-is up to date.</p></li>
+<li><p><strong>Body tracking does not work on a consumer PICO 4 Ultra.</strong> WebXR body
+tracking is an enterprise feature; consumer devices do not enable it by
+default. Contact PICO about enterprise activation, then use the
+<strong>Activate enterprise account</strong> option in the headset settings.</p></li>
+<li><p><strong>No body tracking data arrives on the server.</strong> Confirm the headset has
+enterprise features (see above). Verify all PICO motion trackers are
+paired, powered on, and calibrated. Confirm the PICO browser is up to
+date.</p></li>
 <li><p><strong>Some joints report</strong> <code class="docutils literal notranslate"><span class="pre">is_valid:</span> <span class="pre">false</span></code>. The PICO runtime may
 temporarily lose tracking for individual joints during fast movement or
 partial occlusion. These joints will recover automatically once tracking is
@@ -828,7 +842,7 @@ tracker-based PICO solution, particularly for lower-body joints.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
       <br/>
     
   </p>

@@ -345,21 +345,21 @@
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Generic Joint-Space Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptic_feedback.html">Haptic Feedback</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
-<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Generic Joint-Space Device</a></li>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="haptic_feedback.html">Haptic Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
-<li class="toctree-l2"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
-</ul>
-</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
@@ -401,9 +401,6 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    
-    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Device Interface</a></li>
-    
     <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Generic Joint-Space Device</span></li>
   </ul>
 </nav>
@@ -430,8 +427,8 @@ retargeter serve them all, so adding a new joint-space device is just a new <str
 small <strong>config</strong>.</p>
 <p>The <strong>SO-101 leader arm</strong> (<a class="reference external" href="https://github.com/TheRobotStudio/SO-ARM100" rel="noopener noreferrer" target="_blank">TheRobotStudio SO-ARM100</a>,
 6 Feetech STS3215 bus servos) is the reference instance; the <strong>reBot DevArm leader</strong>
-(<a class="reference external" href="https://github.com/Seeed-Projects/reBot-DevArm" rel="noopener noreferrer" target="_blank">Seeed reBot DevArm</a>, 7 Damiao DM-series
-motors) is a second instance built from the same recipe.</p>
+(<a class="reference external" href="https://github.com/Seeed-Projects/reBot-DevArm" rel="noopener noreferrer" target="_blank">Seeed reBot DevArm</a>, 7 Damiao DM-series or
+RobStride RS-series motors) is a second instance built from the same recipe.</p>
 <section id="at-a-glance">
 <h2>At a glance<a class="headerlink" href="#at-a-glance" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -521,20 +518,31 @@ converting ticks to radians with per-joint calibration. With no device path it f
 <section id="the-rebot-devarm-leader-plugin">
 <span id="rebot-devarm-leader-plugin"></span><h2>The reBot DevArm leader plugin<a class="headerlink" href="#the-rebot-devarm-leader-plugin" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">rebot_devarm_leader</span></code> reads the seven joints of the Seeed reBot DevArm (<code class="docutils literal notranslate"><span class="pre">joint1</span> <span class="pre">..</span> <span class="pre">joint6,</span>
-<span class="pre">gripper</span></code> – 7 Damiao DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on joints 4-6
-and the gripper) and pushes them to a tensor collection, mirroring the SO-101 plugin’s structure
-and CLI shape. The motors sit on a CAN bus behind a Damiao USB-to-CAN serial adapter (USB
-CDC-ACM); <code class="docutils literal notranslate"><span class="pre">DamiaoBus</span></code> speaks the adapter’s fixed-size binary framing directly – no SDK
+<span class="pre">gripper</span></code>) and pushes them to a tensor collection, mirroring the SO-101 plugin’s structure and
+CLI shape. The arm ships in <strong>two motor builds</strong>, and the plugin picks the backend from the shape
+of the device argument: a serial path containing <code class="docutils literal notranslate"><span class="pre">/</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">/dev/ttyACM0</span></code>) selects the
+<strong>Damiao</strong> build (<a class="reference internal" href="#rebot-devarm-damiao-build"><span class="std std-ref">below</span></a>), a bare SocketCAN interface name
+(e.g. <code class="docutils literal notranslate"><span class="pre">can0</span></code>) selects the <strong>RobStride</strong> build (<a class="reference internal" href="#rebot-devarm-robstride-build"><span class="std std-ref">below</span></a>).
+With no device argument it falls back to a <strong>synthetic</strong> trajectory, exactly like
+<code class="docutils literal notranslate"><span class="pre">so101_leader</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id &quot;rebot_devarm_leader&quot;:</span>
+./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
+</pre></div>
+</div>
+<p>Both builds share the calibration file format; see the
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/rebot_devarm_leader/README.md" rel="noopener noreferrer" target="_blank">plugin README</a> for the format
+(name, command/feedback CAN ids, motor model, sign, zero offset) and hardware notes.</p>
+<section id="the-damiao-build">
+<span id="rebot-devarm-damiao-build"></span><h3>The Damiao build<a class="headerlink" href="#the-damiao-build" title="Link to this heading">#</a></h3>
+<p>The <strong>Damiao build</strong> (7 DM-series MIT-protocol motors: DM4340P on joints 1-3, DM4310 on
+joints 4-6 and the gripper) puts the motors on a CAN bus behind a Damiao USB-to-CAN serial adapter
+(USB CDC-ACM); <code class="docutils literal notranslate"><span class="pre">DamiaoBus</span></code> speaks the adapter’s fixed-size binary framing directly – no SDK
 dependency. As a <em>leader</em>, the plugin sends the <strong>disable</strong> control frame so the arm can be
 back-driven by hand (Damiao motors keep answering feedback requests while disabled), then
 requests one feedback frame per motor per cycle (command <code class="docutils literal notranslate"><span class="pre">0xCC</span></code> addressed via CAN id <code class="docutils literal notranslate"><span class="pre">0x7FF</span></code>)
 and decodes the fixed-point position/velocity feedback, which lands directly in radians – no
-tick conversion, only an optional per-joint sign and zero offset from a calibration file. With no
-device path it falls back to a <strong>synthetic</strong> trajectory, exactly like <code class="docutils literal notranslate"><span class="pre">so101_leader</span></code>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id &quot;rebot_devarm_leader&quot;:</span>
-./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
-
-<span class="c1"># Real reBot DevArm on the Damiao USB-to-CAN adapter (Linux), optional calibration file:</span>
+tick conversion, only an optional per-joint sign and zero offset from a calibration file.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Real reBot DevArm on the Damiao USB-to-CAN adapter (Linux), optional calibration file:</span>
 ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin<span class="w"> </span>/dev/ttyACM0<span class="w"> </span>rebot_devarm_leader<span class="w"> </span>rebot_devarm.calib
 
 <span class="c1"># Probe wiring, motor ids, and the decode path -- no OpenXR runtime needed:</span>
@@ -547,9 +555,34 @@ so the gripper (whose geared travel exceeds one turn) can wake up reading <code 
 and must be re-homed (closed against the mechanical stop and re-zeroed) before teleoperating.
 While wrapped, the running plugin streams the gripper joint with <code class="docutils literal notranslate"><span class="pre">valid</span> <span class="pre">=</span> <span class="pre">false</span></code> so consumers
 hold it instead of executing garbage.</p>
-<p>See the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/rebot_devarm_leader/README.md" rel="noopener noreferrer" target="_blank">plugin README</a> for the
-calibration file format (name, command/feedback CAN ids, motor model, sign, zero offset) and
-hardware notes.</p>
+</section>
+<section id="the-robstride-build">
+<span id="rebot-devarm-robstride-build"></span><h3>The RobStride build<a class="headerlink" href="#the-robstride-build" title="Link to this heading">#</a></h3>
+<p>The <strong>RobStride build</strong> (7 RS-series motors) speaks classic CAN at <strong>1 Mbps</strong> through any
+SocketCAN adapter (PCAN, candleLight, …); this backend is Linux-only. <code class="docutils literal notranslate"><span class="pre">RobStrideBus</span></code>
+implements the leader subset of the RobStride private 29-bit extended-id CAN protocol directly –
+again no SDK dependency: it sends the <strong>stop</strong> frame (comm type <code class="docutils literal notranslate"><span class="pre">0x04</span></code>) so the arm can be
+back-driven by hand, then alternates single-parameter reads (comm type <code class="docutils literal notranslate"><span class="pre">0x11</span></code>) of <code class="docutils literal notranslate"><span class="pre">mechPos</span></code>
+(<code class="docutils literal notranslate"><span class="pre">0x7019</span></code>) and <code class="docutils literal notranslate"><span class="pre">mechVel</span></code> (<code class="docutils literal notranslate"><span class="pre">0x701A</span></code>) per motor per cycle. Replies carry exact little-endian
+IEEE <code class="docutils literal notranslate"><span class="pre">f32</span></code> radians / rad/s, so the decode is <strong>model-independent</strong> – no fixed-point limit
+tables. Each channel refreshes at 45 Hz with the plugin’s 90 Hz loop, under 20% load of the
+1 Mbps bus for 7 motors.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Bring up the SocketCAN interface (once per boot):</span>
+sudo<span class="w"> </span>ip<span class="w"> </span>link<span class="w"> </span><span class="nb">set</span><span class="w"> </span>can0<span class="w"> </span>up<span class="w"> </span><span class="nb">type</span><span class="w"> </span>can<span class="w"> </span>bitrate<span class="w"> </span><span class="m">1000000</span>
+
+<span class="c1"># Real reBot DevArm (RobStride build) on a SocketCAN interface:</span>
+./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin<span class="w"> </span>can0
+
+<span class="c1"># Probe wiring, motor ids, and the decode path -- no OpenXR runtime needed:</span>
+./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin<span class="w"> </span>probe<span class="w"> </span>can0
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">probe</span></code> uses the same exit codes as the Damiao build (<code class="docutils literal notranslate"><span class="pre">0</span></code> all motors replied, <code class="docutils literal notranslate"><span class="pre">1</span></code> some
+missing, <code class="docutils literal notranslate"><span class="pre">2</span></code> no device, <code class="docutils literal notranslate"><span class="pre">3</span></code> gripper out of travel). The calibration file format is shared;
+on the RobStride backend only <code class="docutils literal notranslate"><span class="pre">motor_id</span></code> is used (replies are matched by device id, the
+<code class="docutils literal notranslate"><span class="pre">feedback_id</span></code> column is ignored), and <code class="docutils literal notranslate"><span class="pre">rs-*</span></code> model names are accepted and ignored since the
+decode is model-independent. Factory RobStride device ids are <code class="docutils literal notranslate"><span class="pre">1..7</span></code>; the host id is <code class="docutils literal notranslate"><span class="pre">0xFD</span></code>.</p>
+</section>
 </section>
 <section id="record-and-replay">
 <h2>Record and replay<a class="headerlink" href="#record-and-replay" title="Link to this heading">#</a></h2>
@@ -637,7 +670,11 @@ the end-to-end example, and validation.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#at-a-glance">At a glance</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-schema">Data schema</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-so-101-leader-plugin">The SO-101 leader plugin</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rebot-devarm-leader-plugin">The reBot DevArm leader plugin</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rebot-devarm-leader-plugin">The reBot DevArm leader plugin</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-damiao-build">The Damiao build</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-robstride-build">The RobStride build</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#record-and-replay">Record and replay</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#add-another-joint-space-device">Add another joint-space device</a></li>
 </ul>
@@ -722,7 +759,7 @@ the end-to-end example, and validation.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
       <br/>
     
   </p>

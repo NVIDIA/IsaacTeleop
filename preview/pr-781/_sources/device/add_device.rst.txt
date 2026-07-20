@@ -1,5 +1,14 @@
+.. _device-interface-device-plugin:
+
 Add a New Device
 ================
+
+For new hardware that requires a custom driver or SDK, create an Isaac Teleop device plugin
+(C++ level). Plugins push data via OpenXR tensor collections. Existing plugins include Manus
+gloves, OAK-D camera, Haptikos exoskeletons, controller synthetic hands, and foot pedals. After
+creating the plugin, update the retargeting pipeline config to consume data from the new plugin's
+source node. See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_
+for examples.
 
 To add a new device that streams typed data over the OpenXR runtime, follow these four steps.
 The reference implementation is the **generic 3-axis foot pedal**:

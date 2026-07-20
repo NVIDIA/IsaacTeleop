@@ -59,7 +59,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Add a New Device" href="add_device.html" />
-    <link rel="prev" title="Device Interface" href="index.html" />
+    <link rel="prev" title="Contributing" href="../getting_started/contributing.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -345,21 +345,21 @@
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
-<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
 <ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Device Trackers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="joint_space.html">Generic Joint-Space Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptic_feedback.html">Haptic Feedback</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
-<li class="toctree-l1 current active has-children"><a class="reference internal" href="index.html">Device Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
-<li class="toctree-l2 current active"><a class="current reference internal" href="#">Device Trackers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
-<li class="toctree-l2"><a class="reference internal" href="joint_space.html">Generic Joint-Space Device</a></li>
-<li class="toctree-l2"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
-<li class="toctree-l2"><a class="reference internal" href="haptic_feedback.html">Haptic Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
-<li class="toctree-l2"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
-<li class="toctree-l2"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
-</ul>
-</details></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
@@ -401,9 +401,6 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    
-    <li class="breadcrumb-item"><a href="index.html" class="nav-link">Device Interface</a></li>
-    
     <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Device Trackers</span></li>
   </ul>
 </nav>
@@ -622,9 +619,9 @@ produced it. When no vendor is selected, the default vendor <code class="docutil
 reads the PICO <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code> extension directly.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/full_body.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/full_body.fbs</a></p></li>
-<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio/full_body_tracker.hpp&gt;</span></code></p></li>
+<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio_trackers/full_body_tracker.hpp&gt;</span></code></p></li>
 <li><p>Python import: <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaacteleop.deviceio</span> <span class="pre">import</span> <span class="pre">FullBodyTracker</span></code></p></li>
-<li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">full_body</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.FullBodyPosePicoRecord</span></code></p></li>
+<li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">full_body</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.FullBodyPoseRecord</span></code></p></li>
 <li><p>Tests:</p>
 <ul>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema_tests/cpp/test_full_body.cpp" rel="noopener noreferrer" target="_blank">src/core/schema_tests/cpp/test_full_body.cpp</a></p></li>
@@ -763,12 +760,12 @@ selection is expressed per DeviceIO source via
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="index.html"
+       href="../getting_started/contributing.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Device Interface</p>
+        <p class="prev-next-title">Contributing</p>
       </div>
     </a>
     <a class="right-next"
@@ -898,7 +895,7 @@ selection is expressed per DeviceIO source via
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
       <br/>
     
   </p>
