@@ -137,17 +137,17 @@ struct TrackerDispatchEntry
 {
     CollectExtensionsFn collect_extensions;
     TryCreateFn try_create;
-    // Vendor routing (last so single-vendor rows can omit them): a default-initialized row is a
-    // type's sole default vendor; multi-vendor types set vendor_id per row and clear is_default
-    // on the non-default rows.
+    // Vendor routing (last so single-vendor rows can omit it): a default-initialized row is a
+    // type's sole vendor; multi-vendor types set vendor_id per row and list the default vendor
+    // first (see k_tracker_dispatch).
     std::string_view vendor_id = {};
-    bool is_default = true;
 };
 
-// One row per (tracker type, vendor). A tracker type may have several vendor rows; is_default marks
-// the row chosen when no vendor is selected. Extension discovery and impl creation both scan this
-// table: keep rows whose vendor id matches the selection (or is_default when unselected), then the
-// row's type-checked thunk builds the concrete impl.
+// One row per (tracker type, vendor). A tracker type may have several vendor rows; the first row
+// for a type is the one chosen when no vendor is selected. Extension discovery and impl creation
+// both scan this table in order: keep rows whose vendor id matches the selection (or, when
+// unselected, every row and let the type-checked thunk pick the first match), then the row's
+// type-checked thunk builds the concrete impl.
 inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     { &try_add_extensions<HeadTracker, LiveHeadTrackerImpl>, &try_create_head_impl },
     { &try_add_extensions<HandTracker, LiveHandTrackerImpl>, &try_create_hand_impl },
@@ -176,11 +176,12 @@ const TrackerVendor* find_tracker_vendor(const std::vector<std::pair<const ITrac
     return nullptr;
 }
 
-// True when a dispatch row is the one selected for a tracker: the chosen vendor id, or the
-// type's default row when no vendor is selected.
+// True when a dispatch row may be selected for a tracker. With a vendor selected, only its
+// row matches. With none, every row is a candidate: the scanning loop breaks on the first
+// type match, so the first row for the tracker's type -- its default vendor -- wins.
 bool row_selected(const TrackerDispatchEntry& row, const TrackerVendor* selected)
 {
-    return selected ? (row.vendor_id == selected->id) : row.is_default;
+    return selected ? (row.vendor_id == selected->id) : true;
 }
 
 // No dispatch row produced an impl for a tracker (and its selected vendor); report why.
