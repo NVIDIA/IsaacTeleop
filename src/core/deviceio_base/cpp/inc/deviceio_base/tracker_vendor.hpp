@@ -16,9 +16,11 @@ namespace core
 // chosen at live-session construction, not baked into the tracker marker, so a
 // single tracker type stays vendor-agnostic.
 //
-// `id` is a string so new pre-built plugin vendors can be selected without
-// recompiling core (e.g. "body.pico-xr"). `params` carries vendor-specific
-// settings as free-form strings, mirroring plugin CLI arguments
+// `id` is a string (rather than an enum baked into the tracker marker) so vendor
+// routing stays decoupled from the tracker type. The selectable vendors are the
+// live factory's compile-time dispatch table (e.g. "body.pico-xr"), so adding a
+// vendor still means extending that table and rebuilding core. `params` carries
+// vendor-specific settings as free-form strings, mirroring plugin CLI arguments
 // (e.g. {"max_flatbuffer_size": "16384"}).
 struct TrackerVendor
 {
