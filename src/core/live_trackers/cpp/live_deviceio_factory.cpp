@@ -266,6 +266,13 @@ bool tracker_accepts_vendor(const ITracker* tracker, std::string_view vendor_id)
     return false;
 }
 
+// Identify a tracker in an error message by its name, tolerating a null pointer
+// (validation can run before the tracker list is known to hold no nulls).
+std::string tracker_name_for_error(const ITracker* tracker)
+{
+    return tracker ? std::string(tracker->get_name()) : std::string("<null>");
+}
+
 // Validate per-tracker vendor selections independently of the tracker list:
 // reject selections on tracker types that do not support vendors, unknown vendor
 // ids, vendor ids that belong to a different tracker type, and duplicate entries.
@@ -282,25 +289,27 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
         if (!tracker_supports_vendors(tracker))
         {
             throw std::invalid_argument("LiveDeviceIOFactory: vendor selection '" + vendor.id +
-                                        "' provided for a tracker that does not support vendors");
+                                        "' provided for tracker '" + tracker_name_for_error(tracker) +
+                                        "', whose type does not support vendors");
         }
         // Reject unknown vendor ids up front rather than when the impl is built.
         if (!dispatch_has_vendor(vendor.id))
         {
-            throw std::invalid_argument("LiveDeviceIOFactory: unknown vendor id '" + vendor.id + "'");
+            throw std::invalid_argument("LiveDeviceIOFactory: unknown vendor id '" + vendor.id + "' for tracker '" +
+                                        tracker_name_for_error(tracker) + "'");
         }
         // The id names a real vendor, but reject it unless it belongs to this
         // tracker's own type so a cross-type pairing fails here instead of later.
         if (!tracker_accepts_vendor(tracker, vendor.id))
         {
             throw std::invalid_argument("LiveDeviceIOFactory: vendor id '" + vendor.id +
-                                        "' is not available for this tracker type");
+                                        "' is not available for tracker '" + tracker_name_for_error(tracker) + "'");
         }
 
         if (!seen.insert(tracker).second)
         {
-            throw std::invalid_argument("LiveDeviceIOFactory: duplicate vendor selection for a tracker (vendor id '" +
-                                        vendor.id + "')");
+            throw std::invalid_argument("LiveDeviceIOFactory: duplicate vendor selection for tracker '" +
+                                        tracker_name_for_error(tracker) + "' (vendor id '" + vendor.id + "')");
         }
     }
 }
@@ -325,7 +334,8 @@ std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(
         if (!in_list)
         {
             throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: vendor selection '" + vendor.id +
-                                        "' references a tracker that is not in the trackers list");
+                                        "' references tracker '" + tracker_name_for_error(tracker) +
+                                        "' that is not in the trackers list");
         }
     }
     validate_vendor_selections(tracker_vendors);

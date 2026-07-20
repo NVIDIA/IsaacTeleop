@@ -22,6 +22,12 @@ namespace core
 namespace
 {
 
+// Identify a tracker in an error message by its name, tolerating a null pointer.
+std::string tracker_name_for_error(const ITracker* tracker)
+{
+    return tracker ? std::string(tracker->get_name()) : std::string("<null>");
+}
+
 bool tracker_in_list(const std::vector<std::shared_ptr<ITracker>>& trackers, const ITracker* tracker_ptr)
 {
     for (const auto& t : trackers)
@@ -46,8 +52,8 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     {
         if (!tracker_in_list(trackers, tracker_ptr))
         {
-            throw std::invalid_argument("DeviceIOSession: vendor selection '" + vendor.id +
-                                        "' references a tracker that is not in the trackers list");
+            throw std::invalid_argument("DeviceIOSession: vendor selection '" + vendor.id + "' references tracker '" +
+                                        tracker_name_for_error(tracker_ptr) + "' that is not in the trackers list");
         }
     }
 
