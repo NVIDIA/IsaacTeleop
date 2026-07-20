@@ -196,7 +196,10 @@ joint ``is_valid`` flags to determine which joints have valid poses.
 For a minimal C++ reader see ``examples/schemaio/full_body_printer.cpp``, which
 creates the tracker, queries the required OpenXR extensions, and prints the
 joint data each frame through ``DeviceIOSession``. The Python equivalent is
-``examples/oxr/python/test_full_body_tracker.py``.
+``examples/oxr/python/test_full_body_tracker.py``. Running
+``python -m isaacteleop.rig rigs/full_body.yaml`` starts the CloudXR runtime,
+this printer, and the C++ MCAP recorder together in one tmux session (see
+:ref:`rig-launcher`).
 
 Troubleshooting
 ~~~~~~~~~~~~~~~
@@ -209,6 +212,11 @@ Troubleshooting
   enterprise features (see above). Verify all PICO motion trackers are
   paired, powered on, and calibrated. Confirm the PICO browser is up to
   date.
+- **The printer prints** ``[body tracking inactive]``. The headset is
+  connected but body tracking is unavailable: check that the Motion Trackers
+  are paired and calibrated and that the headset has enterprise body-tracking
+  support. A printer that never reaches ``[Step 4] Reading samples...`` is
+  still waiting for the runtime / headset instead.
 - **Some joints report** ``is_valid: false``. The PICO runtime may
   temporarily lose tracking for individual joints during fast movement or
   partial occlusion. These joints will recover automatically once tracking is
@@ -226,7 +234,9 @@ Recording is also available directly from C++: pass a ``McapRecordingConfig``
 to ``DeviceIOSession::run()`` with the tracker mapped to the ``full_body``
 channel base name. ``examples/mcap_record_replay/cpp/record_full_body.cpp``
 demonstrates this — a file recorded there replays unchanged with
-``replay_full_body.py``.
+``replay_full_body.py``. The ``rigs/full_body.yaml`` rig includes a recorder
+pane running this example; each :kbd:`Enter` rerun in that pane writes a fresh
+timestamped take.
 
 .. figure:: ../_static/full-body-replay.gif
    :alt: Full body skeleton replayed from an MCAP recording in viser
