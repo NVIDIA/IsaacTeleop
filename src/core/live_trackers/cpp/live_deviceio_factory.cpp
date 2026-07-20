@@ -248,12 +248,30 @@ bool tracker_supports_vendors(const ITracker* tracker)
     return false;
 }
 
+// True when a dispatch row offers `vendor_id` for this tracker's own type, i.e. the
+// selection is valid for this specific tracker rather than merely for some other
+// vendored type. Scoping the id to the tracker's type is what makes a cross-type
+// pairing (a valid id belonging to a different type) fail here, with a precise
+// error, instead of later during impl creation. Null tracker or empty id are never
+// accepted.
+bool tracker_accepts_vendor(const ITracker* tracker, std::string_view vendor_id)
+{
+    if (!tracker || vendor_id.empty())
+        return false;
+    for (const auto& row : k_tracker_dispatch)
+    {
+        if (row.vendor_id == vendor_id && row.matches(*tracker))
+            return true;
+    }
+    return false;
+}
+
 // Validate per-tracker vendor selections independently of the tracker list:
 // reject selections on tracker types that do not support vendors, unknown vendor
-// ids, and duplicate entries. Shared by the factory constructor and
-// get_required_extensions() so both reject identical vendor configurations.
-// (Presence in the session's tracker list is checked by the callers that hold
-// that list.)
+// ids, vendor ids that belong to a different tracker type, and duplicate entries.
+// Shared by the factory constructor and get_required_extensions() so both reject
+// identical vendor configurations. (Presence in the session's tracker list is
+// checked by the callers that hold that list.)
 void validate_vendor_selections(const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
 {
     std::unordered_set<const ITracker*> seen;
@@ -270,6 +288,13 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
         if (!dispatch_has_vendor(vendor.id))
         {
             throw std::invalid_argument("LiveDeviceIOFactory: unknown vendor id '" + vendor.id + "'");
+        }
+        // The id names a real vendor, but reject it unless it belongs to this
+        // tracker's own type so a cross-type pairing fails here instead of later.
+        if (!tracker_accepts_vendor(tracker, vendor.id))
+        {
+            throw std::invalid_argument("LiveDeviceIOFactory: vendor id '" + vendor.id +
+                                        "' is not available for this tracker type");
         }
 
         if (!seen.insert(tracker).second)
