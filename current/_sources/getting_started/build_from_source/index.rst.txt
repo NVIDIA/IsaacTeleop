@@ -142,7 +142,7 @@ Useful targets:
 Other Build options
 ~~~~~~~~~~~~~~~~~~~
 
-The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmake/SetupPython.cmake`, and :code-file:`cmake/SetupHunter.cmake`):
+The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`cmake/SetupPython.cmake`):
 
 .. list-table:: Common CMake Options
    :widths: 20 36 44
