@@ -20,8 +20,9 @@ the command), pre-types the rig command into its own pane while echo is
 off (the keystrokes buffer invisibly in the tty), restores echo, and execs
 the user's shell — whose line editor then displays the buffered command
 once, at a real prompt, editable and awaiting Enter. If the runtime never
-comes up the wrapper does NOT run the command (it would fail confusingly
-without the env); it prints a remedy and pre-types the command instead.
+comes up (or its env fails to load) the wrapper does NOT run the command
+(it would fail confusingly without the env); it prints a remedy and
+pre-types the command instead.
 
 All tmux interaction goes through a single injectable ``run_tmux`` seam so
 the pane plan is unit-testable without tmux or a headset.
@@ -61,6 +62,11 @@ _BUILD_REMEDY = (
 #: auto-loading the CloudXR env (matches the runtime's own startup timeout
 #: order of magnitude; the pane prints a manual remedy on expiry).
 CLOUDXR_ENV_WAIT_TIMEOUT_SEC = 120
+
+#: Sentinel file the runtime creates in its run dir once it is actually
+#: serving. Worker panes wait on it; the launcher deletes a stale one
+#: before starting a managed runtime (see :func:`launch_rig`).
+_RUNTIME_STARTED_SENTINEL = "runtime_started"
 
 #: Height of the runtime pane in the ``main-horizontal`` layout. The runtime
 #: only prints status lines and the web-client URL, so it gets a slim strip
@@ -167,24 +173,43 @@ def _cloudxr_env_wait_command(run_dir: Path) -> str:
     """Build the shell line each worker pane RUNS to load the CloudXR env.
 
     OpenXR producers/consumers need the env the runtime writes to
-    ``<run_dir>/cloudxr.env`` (``XR_RUNTIME_JSON`` etc.). The runtime deletes
-    any stale ``runtime_started`` sentinel at startup and recreates it only
-    once it is actually serving, so the sentinel is the "runtime successfully
-    started" signal to wait on. The wait is bounded: a runtime that never
-    comes up leaves an actionable message in the pane, not a stuck loop.
+    ``<run_dir>/cloudxr.env`` (``XR_RUNTIME_JSON`` etc.). The launcher
+    deletes any stale ``runtime_started`` sentinel before starting a managed
+    runtime, and the runtime recreates it only once it is actually serving,
+    so the sentinel is the "runtime successfully started" signal to wait on.
+    The wait is bounded: a runtime that never comes up leaves an actionable
+    message in the pane, not a stuck loop.
+
+    Sets ``rig_env_ready=1`` only after ``cloudxr.env`` was successfully
+    sourced; :func:`_worker_pane_command` gates the auto-run on that shell
+    variable. Both the ``.`` and the flag assignment run in the wrapper's
+    top-level shell — never a subshell — so the variable AND the sourced
+    exports survive into the rest of the wrapper (and the final exec'd
+    shell). The ``[ -r ... ]`` guard is load-bearing: ``.`` is a POSIX
+    special built-in that aborts a non-interactive shell when the file is
+    missing or unreadable, which would kill the pane wrapper.
     """
-    sentinel = shlex.quote(str(run_dir / "runtime_started"))
+    sentinel = shlex.quote(str(run_dir / _RUNTIME_STARTED_SENTINEL))
     env_file = str(run_dir / "cloudxr.env")
+    quoted_env = shlex.quote(env_file)
     ok_msg = shlex.quote("[cloudxr] runtime is up — env loaded")
-    fail_msg = shlex.quote(
+    source_fail_msg = shlex.quote(
+        f"[cloudxr] runtime is up but loading {env_file} failed — see any "
+        f"errors above, then run: source {env_file}"
+    )
+    timeout_msg = shlex.quote(
         f"[cloudxr] runtime not ready after {CLOUDXR_ENV_WAIT_TIMEOUT_SEC}s — "
         f"check the runtime pane, then run: source {env_file}"
     )
     return (
+        f"rig_env_ready=0; "
         f"i=0; until [ -e {sentinel} ] || [ $i -ge {CLOUDXR_ENV_WAIT_TIMEOUT_SEC} ]; "
         f"do sleep 1; i=$((i+1)); done; "
-        f"if [ -e {sentinel} ]; then . {shlex.quote(env_file)} && echo {ok_msg}; "
-        f"else echo {fail_msg}; fi"
+        f"if [ -e {sentinel} ]; then "
+        f"if [ -r {quoted_env} ] && . {quoted_env}; then "
+        f"rig_env_ready=1; echo {ok_msg}; "
+        f"else echo {source_fail_msg}; fi; "
+        f"else echo {timeout_msg}; fi"
     )
 
 
@@ -213,19 +238,47 @@ def launch_rig(
     ``params:`` block and are substituted into every command that
     references them (edit the file to change them).
 
+    An existing session is re-attached BEFORE any launch-only preflight
+    (plan substitution, cwd/command checks): edits to a running rig's YAML
+    can never block getting back into the live session.
+
     Args:
         config: The parsed rig (see :func:`~.config.load_rig_config`).
         no_runtime: Skip the runtime pane (a CloudXR runtime is already
             running elsewhere, e.g. after ``python -m isaacteleop.cloudxr``).
         run_tmux: Injectable tmux seam for tests. When ``None`` the real
-            tmux is used and environment preflight checks (tmux on PATH,
-            interpreter can import isaacteleop.cloudxr) run first.
+            tmux is used: tmux-on-PATH is checked immediately (the session
+            probe needs it) and the interpreter-can-import-
+            isaacteleop.cloudxr probe runs with the launch-only preflight.
 
     Raises:
         PreflightError: When a launch precondition fails.
         RigConfigError: On bad placeholders.
     """
     env = os.environ
+
+    using_real_tmux = run_tmux is None
+    if using_real_tmux:
+        _check_tmux_installed()
+        run_tmux = _run_tmux
+
+    # Reattach must win before any launch-only preflight below: a broken
+    # edit to a running rig's YAML must never block reattachment.
+    session = config.name
+    if _session_exists(run_tmux, session):
+        message = (
+            f"session '{session}' already exists — switching to it "
+            f"(kill with: python -m isaacteleop.rig {config.source} --kill)"
+        )
+        if no_runtime:
+            message += (
+                "\nnote: --no-runtime ignored for an existing session; "
+                "kill it first to relaunch with new settings"
+            )
+        print(message)
+        _goto_session(run_tmux, session, env)
+        return
+
     params = config.params
 
     # Resolve the pane plan. Runtime first (starts immediately); producers
@@ -270,30 +323,25 @@ def launch_rig(
         [*config.producers, *config.consumers], runtime_managed=not no_runtime
     ):
         print(warning, file=sys.stderr)
-
-    if run_tmux is None:
-        _check_tmux_installed()
-        if any("{python}" in raw for _, _, raw, _, _ in plan):
-            _check_python_can_import_cloudxr(env)
-        run_tmux = _run_tmux
-
-    session = config.name
-    if _session_exists(run_tmux, session):
-        message = (
-            f"session '{session}' already exists — switching to it "
-            f"(kill with: python -m isaacteleop.rig {config.source} --kill)"
-        )
-        if no_runtime:
-            message += (
-                "\nnote: --no-runtime ignored for an existing session; "
-                "kill it first to relaunch with new settings"
-            )
-        print(message)
-        _goto_session(run_tmux, session, env)
-        return
+    if using_real_tmux and any("{python}" in raw for _, _, raw, _, _ in plan):
+        _check_python_can_import_cloudxr(env)
 
     runtime_resolved = plan[0][3] if not no_runtime else None
     cloudxr_run_dir = _cloudxr_run_dir(runtime_resolved, env)
+    if not no_runtime:
+        # A stale sentinel from a prior run must not gate workers open before
+        # THIS runtime is serving: workers spawn (and test the sentinel)
+        # within milliseconds, while the runtime needs seconds to boot and
+        # delete it itself. Under --no-runtime the sentinel belongs to the
+        # external runtime — never touch it.
+        stale = cloudxr_run_dir / _RUNTIME_STARTED_SENTINEL
+        try:
+            stale.unlink(missing_ok=True)
+        except OSError as exc:
+            raise PreflightError(
+                f"cannot remove stale {stale}: {exc} — fix permissions on "
+                f"{cloudxr_run_dir} (was the runtime run with sudo?)"
+            ) from exc
     _create_session(run_tmux, session, config.cwd, plan, env, cloudxr_run_dir)
     _print_instructions(session, config.description, plan)
     _goto_session(run_tmux, session, env)
@@ -394,7 +442,7 @@ def _worker_pane_command(
 
     With tty echo off (so none of this machinery ever appears as typed
     input): wait for the runtime and source the CloudXR env (see
-    :func:`_cloudxr_env_wait_command`). Runtime up? Print the auto-run
+    :func:`_cloudxr_env_wait_command`). Env sourced? Print the auto-run
     banner and RUN the command (echo restored so the app's tty behaves
     normally; via ``sh -c`` so a syntax error in the command cannot kill
     the wrapper, and never ``exec`` — the pane must survive the exit); when
@@ -402,20 +450,22 @@ def _worker_pane_command(
     by pre-typing the command WITHOUT Enter (with echo off again), restore
     echo, and exec the user's shell — which inherits the sourced env
     (``cloudxr.env`` uses ``export``) and displays the pre-typed command
-    once, at its prompt: one Enter reruns. On sentinel timeout the command
-    is NOT run (it would fail confusingly without the env); the wait line
-    already printed the remedy and the pre-typed command awaits.
+    once, at its prompt: one Enter reruns. On wait timeout OR env-load
+    failure the command is NOT run (it would fail confusingly without the
+    env): the auto-run is gated on the ``rig_env_ready`` shell variable the
+    wait line sets only after a successful source — never on the sentinel,
+    which can exist while the env failed to load. The wait line already
+    printed the remedy and the pre-typed command awaits.
 
     ``trap : INT`` while the command runs: Ctrl+C must kill the app, not
     the wrapper (a non-interactive sh whose foreground child dies of
     SIGINT exits too — taking the pane with it — unless INT is trapped).
     """
-    sentinel = shlex.quote(str(run_dir / "runtime_started"))
     return "\n".join(
         [
             "stty -echo",
             _cloudxr_env_wait_command(run_dir),
-            f"if [ -e {sentinel} ]; then",
+            'if [ "$rig_env_ready" -eq 1 ]; then',
             _autorun_banner(role, name, command, footgun),
             "stty echo",
             "trap : INT",
