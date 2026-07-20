@@ -46,8 +46,8 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     {
         if (!tracker_in_list(trackers, tracker_ptr))
         {
-            throw std::invalid_argument("DeviceIOSession: VendorConfig references tracker with vendor id '" +
-                                        vendor.id + "' that is not in the session's tracker list");
+            throw std::invalid_argument("DeviceIOSession: vendor selection '" + vendor.id +
+                                        "' references a tracker that is not in the trackers list");
         }
     }
 
@@ -58,7 +58,7 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
             if (!tracker_in_list(trackers, tracker_ptr))
             {
                 throw std::invalid_argument("DeviceIOSession: McapRecordingConfig references tracker '" + name +
-                                            "' that is not in the session's tracker list");
+                                            "' that is not in the trackers list");
             }
         }
 
