@@ -428,9 +428,20 @@
 through the CloudXR WebXR client to the teleop server. The server exposes the
 body skeleton to applications through the <code class="docutils literal notranslate"><span class="pre">FullBodyTrackerPico</span></code> tracker and
 the OpenXR <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code> extension.</p>
-<p>Body tracking support currently targets the <strong>PICO 4 Ultra</strong> with
+<p>Body tracking support currently targets the <strong>PICO 4 Ultra Enterprise</strong> with
 <strong>PICO Motion Trackers</strong>. The rest of this guide covers PICO hardware setup
 and the BD skeleton format used on the server.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>Full body tracking requires PICO’s <strong>enterprise features</strong>. They are
+available out of the box on the
+<a class="reference external" href="https://www.picoxr.com/global/products/pico4-ultra-enterprise" rel="noopener noreferrer" target="_blank">PICO 4 Ultra Enterprise</a>
+headset. On a consumer PICO 4 Ultra, the browser does not grant the
+<code class="docutils literal notranslate"><span class="pre">body-tracking</span></code> WebXR feature by default — no body data reaches the
+server, even with Motion Trackers paired and calibrated. Consumer devices
+can gain the feature through enterprise activation: contact PICO, then
+use the <strong>Activate enterprise account</strong> option in the headset settings.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Meta Quest 3/3S also expose body tracking to WebXR via inside-out body
@@ -463,8 +474,9 @@ and accuracy is lower since there are no physical trackers. See
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Setting Up PICO Motion Trackers</a><a class="headerlink" href="#setting-up-pico-motion-trackers" title="Link to this heading">#</a></h2>
 <p>Full body tracking uses
 <a class="reference external" href="https://www.picoxr.com/global/products/pico-motion-tracker" rel="noopener noreferrer" target="_blank">PICO Motion Trackers</a>
-paired with a PICO 4 Ultra headset. Make sure the PICO browser is updated to a
-version that supports body tracking. The following configurations are supported:</p>
+paired with a PICO 4 Ultra Enterprise headset. Make sure the PICO browser is
+updated to a version that supports body tracking. The following configurations
+are supported:</p>
 <ul class="simple">
 <li><p><strong>5 trackers:</strong> best tracking quality across all 24 joints.
 Two wear modes are available: 2 ankles + 2 wrists + 1 waist, or 2 ankles +
@@ -644,9 +656,14 @@ joint <code class="docutils literal notranslate"><span class="pre">is_valid</spa
 <section id="troubleshooting">
 <h3><a class="toc-backref" href="#id8" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h3>
 <ul class="simple">
-<li><p><strong>No body tracking data arrives on the server.</strong> Verify all PICO motion
-trackers are paired, powered on, and calibrated. Confirm the PICO browser
-is up to date.</p></li>
+<li><p><strong>Body tracking does not work on a consumer PICO 4 Ultra.</strong> WebXR body
+tracking is an enterprise feature; consumer devices do not enable it by
+default. Contact PICO about enterprise activation, then use the
+<strong>Activate enterprise account</strong> option in the headset settings.</p></li>
+<li><p><strong>No body tracking data arrives on the server.</strong> Confirm the headset has
+enterprise features (see above). Verify all PICO motion trackers are
+paired, powered on, and calibrated. Confirm the PICO browser is up to
+date.</p></li>
 <li><p><strong>Some joints report</strong> <code class="docutils literal notranslate"><span class="pre">is_valid:</span> <span class="pre">false</span></code>. The PICO runtime may
 temporarily lose tracking for individual joints during fast movement or
 partial occlusion. These joints will recover automatically once tracking is
@@ -829,7 +846,7 @@ tracker-based PICO solution, particularly for lower-body joints.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
       <br/>
     
   </p>

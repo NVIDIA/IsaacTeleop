@@ -483,9 +483,9 @@ to an interactive shell with the same command pre-typed at the prompt.
 Anything that calls <code class="docutils literal notranslate"><span class="pre">xrGetSystem</span></code> before a headset connects exits with
 <code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">get</span> <span class="pre">OpenXR</span> <span class="pre">system</span></code> — so if a pane’s app started before you
 connected the headset to the printed URL, connect it and press
-<kbd class="kbd docutils literal notranslate">Enter</kbd> in that pane to rerun. If the runtime never comes up, the
-pane does <em>not</em> run the command; it prints a remedy and leaves the
-command pre-typed instead.</p></li>
+<kbd class="kbd docutils literal notranslate">Enter</kbd> in that pane to rerun. If the runtime never comes up (or
+its environment fails to load), the pane does <em>not</em> run the command; it
+prints a remedy and leaves the command pre-typed instead.</p></li>
 <li><p>The launcher then attaches (from a plain shell) or switches your current
 client (from inside tmux — no nesting).</p></li>
 </ol>
@@ -619,17 +619,23 @@ activate the right venv (or <code class="docutils literal notranslate"><span cla
 sentinel; check the runtime pane. After the (two-minute) wait times
 out, the pane prints a remedy and leaves the command pre-typed.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">...</span></code> right after launch</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">[cloudxr]</span> <span class="pre">runtime</span> <span class="pre">is</span> <span class="pre">up</span> <span class="pre">but</span> <span class="pre">loading</span> <span class="pre">...</span> <span class="pre">failed</span></code></p></td>
+<td><p>The runtime came up but its <code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code> could not be sourced;
+the pane does not run its command. Check the error printed above
+the message, <code class="docutils literal notranslate"><span class="pre">source</span></code> the file as the message says, then press
+<kbd class="kbd docutils literal notranslate">Enter</kbd> — the command is already pre-typed.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">...</span></code> right after launch</p></td>
 <td><p>The app auto-ran before the headset connected (classic:
 <code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">get</span> <span class="pre">OpenXR</span> <span class="pre">system</span></code>); connect the headset to the
 runtime’s URL, then press <kbd class="kbd docutils literal notranslate">Enter</kbd> in the pane — the command is
 already pre-typed at the prompt.</p></td>
 </tr>
-<tr class="row-even"><td><p>Runtime pane dies when a consumer starts</p></td>
+<tr class="row-odd"><td><p>Runtime pane dies when a consumer starts</p></td>
 <td><p>The consumer self-launched a second runtime; add
 <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> to its command in the rig.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Edits to the rig file seem ignored</p></td>
+<tr class="row-even"><td><p>Edits to the rig file seem ignored</p></td>
 <td><p>The session already existed; relaunch after
 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">&lt;rig.yaml&gt;</span> <span class="pre">--kill</span></code>.</p></td>
 </tr>
@@ -774,7 +780,7 @@ already pre-typed at the prompt.</p></td>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
       <br/>
     
   </p>

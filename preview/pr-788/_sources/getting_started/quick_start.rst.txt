@@ -13,6 +13,43 @@ commands to the terminal.
    :depth: 1
    :backlinks: none
 
+.. _try-on-brev:
+
+Try It on Brev — Zero Setup
+---------------------------
+
+Experience **Isaac Teleop** remote teleoperation with no local install. Brev provisions the
+server side — CloudXR runtime, retargeting pipeline, and an
+`Isaac Lab <https://developer.nvidia.com/isaac/lab>`__ simulation — on a cloud GPU.
+Just grab the instance IP and connect from your headset.
+
+.. note::
+
+   **Server (Brev):** CloudXR + Isaac Teleop retargeting + Isaac Lab sim on a cloud GPU.
+
+   **Client (you):** open the `web client <https://nvidia.github.io/IsaacTeleop/client>`__
+   in your headset or browser, enter the Brev instance IP, accept the certificate, and click
+   **Connect** — see step :ref:`connect-xr-headset`.
+
+   Isaac Teleop is not limited to simulation; it drives real robots and ROS 2 pipelines too.
+
+.. grid:: 2
+   :gutter: 2
+
+   .. grid-item-card:: Launch on Brev — Isaac Lab 2.3
+      :link: https://brev.nvidia.com/launchable/deploy?launchableID=env-3B3ETyweD8hOcZfNzaE12cnGNBq
+      :link-type: url
+
+      Stable
+
+   .. grid-item-card:: Launch on Brev — Isaac Lab 3.0 beta 1
+      :link: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-3B2jdZR8Ct0vQCzwseLuOZXoMyk
+      :link-type: url
+
+      Latest · recommended upgrade path
+
+----
+
 .. _check-out-code-base:
 
 1. Check out code base (for examples)
@@ -43,20 +80,6 @@ from PyPI (or from a local wheel if you built from source):
 
 Instead of installing the package from PyPI, you can build from source and install the local wheel.
 See :doc:`build_from_source/index` for more details.
-
-.. dropdown:: ARM64 / aarch64 only (e.g. NVIDIA DGX Spark)
-
-   PyPI does not publish pre-built ``nlopt`` wheels for ARM64, so the ``retargeters`` extra cannot
-   be installed directly from PyPI
-   (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_). Follow the
-   :ref:`aarch64 nlopt wheel build steps <aarch64-nlopt-wheel>` from the build-from-source guide
-   first, then install ``isaacteleop`` with an additional ``--find-links``:
-
-   .. code-block:: bash
-
-      pip install 'isaacteleop[cloudxr,retargeters]~=1.0.0' \
-          --extra-index-url https://pypi.nvidia.com \
-          --find-links=/tmp/nlopt-wheels/
 
 .. _run-cloudxr-server:
 

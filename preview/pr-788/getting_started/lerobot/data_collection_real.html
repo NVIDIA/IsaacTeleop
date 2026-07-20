@@ -435,8 +435,8 @@ live, and <code class="docutils literal notranslate"><span class="pre">record.py
 <li><p>The example dependencies installed from a LeRobot source checkout. The LeRobot extras cover the
 SO-101 motor bus (<code class="docutils literal notranslate"><span class="pre">feetech</span></code>), the IK solver for the XR path (<code class="docutils literal notranslate"><span class="pre">kinematics</span></code>), and dataset
 recording (<code class="docutils literal notranslate"><span class="pre">dataset</span></code>). For Isaac Teleop, <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> brings the CloudXR runtime bindings and
-<code class="docutils literal notranslate"><span class="pre">retargeters-lite</span></code> is the default retargeter path (it resolves on both x86_64 and aarch64; the
-full <code class="docutils literal notranslate"><span class="pre">retargeters</span></code> extra is optional and x86_64-only):</p>
+<code class="docutils literal notranslate"><span class="pre">retargeters-lite</span></code> is the default retargeter path on both x86_64 and aarch64; the full
+<code class="docutils literal notranslate"><span class="pre">retargeters</span></code> extra is optional:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[feetech,kinematics,dataset]&quot;</span><span class="w"> </span><span class="s2">&quot;huggingface_hub&gt;=1.5&quot;</span>
 uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[cloudxr,retargeters-lite]~=1.3.131&quot;</span><span class="w"> </span><span class="s2">&quot;scipy&gt;=1.14&quot;</span>
 </pre></div>
@@ -758,7 +758,7 @@ finishes (unless <code class="docutils literal notranslate"><span class="pre">--
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
       <br/>
     
   </p>
