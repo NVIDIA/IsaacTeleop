@@ -117,7 +117,19 @@ PYBIND11_MODULE(_deviceio_session, m)
                      }
                      return config;
                  }),
-             py::arg("tracker_vendors") = std::vector<std::pair<std::shared_ptr<core::ITracker>, core::TrackerVendor>>{});
+             py::arg("tracker_vendors") = std::vector<std::pair<std::shared_ptr<core::ITracker>, core::TrackerVendor>>{})
+        .def(
+            "get_tracker_vendors",
+            [](const core::VendorConfig& c)
+            {
+                py::list result;
+                for (const auto& [tracker, vendor] : c.tracker_vendors)
+                {
+                    result.append(py::make_tuple(py::cast(tracker), vendor));
+                }
+                return result;
+            },
+            "Return the list of (tracker, TrackerVendor) pairs.");
 
     // ---- DeviceIOSession (live) ----
     py::class_<core::PyDeviceIOSession, core::ITrackerSession, std::unique_ptr<core::PyDeviceIOSession>>(
