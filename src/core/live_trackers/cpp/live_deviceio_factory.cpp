@@ -46,16 +46,23 @@ namespace core
 namespace
 {
 
+// Pure type probe for a dispatch row: true when `tracker` is dynamically a TrackerT.
+// Kept separate from try_add_extensions so callers that only need the type test (e.g.
+// tracker_supports_vendors) do not run -- and then discard -- the extension collection.
+template <typename TrackerT>
+bool is_tracker_type(const ITracker& tracker)
+{
+    return dynamic_cast<const TrackerT*>(&tracker) != nullptr;
+}
+
 template <typename TrackerT, typename ImplT>
 bool try_add_extensions(const ITracker& tracker, std::set<std::string>& out)
 {
-    if (dynamic_cast<const TrackerT*>(&tracker))
-    {
-        for (const auto& ext : ImplT::required_extensions())
-            out.insert(ext);
-        return true;
-    }
-    return false;
+    if (!is_tracker_type<TrackerT>(tracker))
+        return false;
+    for (const auto& ext : ImplT::required_extensions())
+        out.insert(ext);
+    return true;
 }
 
 std::unique_ptr<ITrackerImpl> try_create_head_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
@@ -131,11 +138,14 @@ std::unique_ptr<ITrackerImpl> try_create_oglo_impl(LiveDeviceIOFactory& factory,
 }
 
 using CollectExtensionsFn = bool (*)(const ITracker&, std::set<std::string>&);
+using TypeMatchesFn = bool (*)(const ITracker&);
 using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(LiveDeviceIOFactory&, const ITracker&);
 
 struct TrackerDispatchEntry
 {
     CollectExtensionsFn collect_extensions;
+    // Pure type probe for this row's tracker type (see is_tracker_type); no side effects.
+    TypeMatchesFn matches;
     TryCreateFn try_create;
     // Vendor routing (last so single-vendor rows can omit it): a default-initialized row is a
     // type's sole vendor; multi-vendor types set vendor_id per row and list the default vendor
@@ -143,25 +153,34 @@ struct TrackerDispatchEntry
     std::string_view vendor_id = {};
 };
 
+// Build a dispatch row for a (tracker type, impl) pair, wiring up its extension
+// collector, type probe, and impl builder. vendor_id defaults to the non-vendored
+// sentinel; pass it to declare a vendored row.
+template <typename TrackerT, typename ImplT>
+constexpr TrackerDispatchEntry make_dispatch_entry(TryCreateFn try_create, std::string_view vendor_id = {})
+{
+    return TrackerDispatchEntry{ &try_add_extensions<TrackerT, ImplT>, &is_tracker_type<TrackerT>, try_create, vendor_id };
+}
+
 // One row per (tracker type, vendor). A tracker type may have several vendor rows; the first row
 // for a type is the one chosen when no vendor is selected. Extension discovery and impl creation
 // both scan this table in order: keep rows whose vendor id matches the selection (or, when
 // unselected, every row and let the type-checked thunk pick the first match), then the row's
 // type-checked thunk builds the concrete impl.
 inline const TrackerDispatchEntry k_tracker_dispatch[] = {
-    { &try_add_extensions<HeadTracker, LiveHeadTrackerImpl>, &try_create_head_impl },
-    { &try_add_extensions<HandTracker, LiveHandTrackerImpl>, &try_create_hand_impl },
-    { &try_add_extensions<ControllerTracker, LiveControllerTrackerImpl>, &try_create_controller_impl },
-    { &try_add_extensions<MessageChannelTracker, LiveMessageChannelTrackerImpl>, &try_create_message_channel_impl },
-    { &try_add_extensions<FullBodyTracker, LiveFullBodyTrackerPicoImpl>, &try_create_full_body_pico_impl, "body.pico-xr" },
-    { &try_add_extensions<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>, &try_create_generic_pedal_impl },
-    { &try_add_extensions<TensorPushTracker, LiveTensorPushTrackerImpl>, &try_create_tensor_push_impl },
-    { &try_add_extensions<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>,
-      &try_create_haptic_command_reader_impl },
-    { &try_add_extensions<JointStateTracker, LiveJointStateTrackerImpl>, &try_create_joint_state_impl },
-    { &try_add_extensions<Se3Tracker, LiveSe3TrackerImpl>, &try_create_se3_tracker_impl },
-    { &try_add_extensions<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>, &try_create_oak_impl },
-    { &try_add_extensions<OgloTactileTracker, LiveOgloTactileTrackerImpl>, &try_create_oglo_impl },
+    make_dispatch_entry<HeadTracker, LiveHeadTrackerImpl>(&try_create_head_impl),
+    make_dispatch_entry<HandTracker, LiveHandTrackerImpl>(&try_create_hand_impl),
+    make_dispatch_entry<ControllerTracker, LiveControllerTrackerImpl>(&try_create_controller_impl),
+    make_dispatch_entry<MessageChannelTracker, LiveMessageChannelTrackerImpl>(&try_create_message_channel_impl),
+    make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerPicoImpl>(&try_create_full_body_pico_impl, "body.pico-xr"),
+    make_dispatch_entry<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>(&try_create_generic_pedal_impl),
+    make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
+    make_dispatch_entry<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>(
+        &try_create_haptic_command_reader_impl),
+    make_dispatch_entry<JointStateTracker, LiveJointStateTrackerImpl>(&try_create_joint_state_impl),
+    make_dispatch_entry<Se3Tracker, LiveSe3TrackerImpl>(&try_create_se3_tracker_impl),
+    make_dispatch_entry<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>(&try_create_oak_impl),
+    make_dispatch_entry<OgloTactileTracker, LiveOgloTactileTrackerImpl>(&try_create_oglo_impl),
 };
 
 // Find a tracker's vendor selection in the config, or nullptr when unlisted.
@@ -215,17 +234,15 @@ bool dispatch_has_vendor(std::string_view vendor_id)
 // True when a tracker's type has at least one vendored dispatch row (a row with a
 // non-empty vendor id). Derived from the table, not a hardcoded type: adding a
 // vendored row for a new tracker type makes that type vendor-selectable here with
-// no other change. collect_extensions doubles as the row's type probe -- it returns
-// true only for a tracker of the row's type (the scratch extensions it collects on
-// a match are discarded). Null is treated as unsupported.
+// no other change. Each row's `matches` predicate is the type probe (a pure
+// dynamic_cast, no side effects). Null is treated as unsupported.
 bool tracker_supports_vendors(const ITracker* tracker)
 {
     if (!tracker)
         return false;
-    std::set<std::string> scratch;
     for (const auto& row : k_tracker_dispatch)
     {
-        if (!row.vendor_id.empty() && row.collect_extensions(*tracker, scratch))
+        if (!row.vendor_id.empty() && row.matches(*tracker))
             return true;
     }
     return false;
