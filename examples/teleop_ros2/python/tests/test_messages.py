@@ -2,25 +2,45 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for tensor-group to ROS-message conversion."""
+"""Behavioral tests for teleoperation publication-output builders."""
 
+import msgpack
 import numpy as np
 from builtin_interfaces.msg import Time
+from std_msgs.msg import ByteMultiArray
 
-from isaacteleop.retargeting_engine.interface import OptionalTensorGroup, TensorGroup
+from isaacteleop.retargeting_engine.interface import (
+    OptionalTensorGroup,
+    TensorGroup,
+    TensorGroupType,
+)
 from isaacteleop.retargeting_engine.tensor_types import (
+    DLDataType,
+    NDArrayType,
+    NUM_BODY_JOINTS_PICO,
     NUM_HAND_JOINTS,
     ControllerInput,
     ControllerInputIndex,
+    FullBodyInput,
+    FullBodyInputIndex,
     HandInput,
     HandInputIndex,
+    HandJointIndex,
+    HeadPose,
+    HeadPoseIndex,
+    RobotHandJoints,
 )
 
-from constants import HAND_POSE_NAMES
+from constants import BODY_JOINT_NAMES, HAND_POSE_NAMES
 from messages import (
-    build_controller_payload,
-    build_ee_msg_from_controllers,
+    build_controller_msg,
+    build_ee_output_from_controllers,
+    build_ee_output_from_hands,
+    build_finger_joints_msg,
+    build_full_body_msg,
     build_hand_msg,
+    build_head_output,
+    build_root_command_output,
 )
 
 
@@ -51,6 +71,21 @@ def _active_controller() -> TensorGroup:
     return controller
 
 
+def _active_full_body() -> TensorGroup:
+    full_body = TensorGroup(FullBodyInput())
+    positions = np.zeros((NUM_BODY_JOINTS_PICO, 3), dtype=np.float32)
+    positions[0] = [1.0, 2.0, 3.0]
+    orientations = np.zeros((NUM_BODY_JOINTS_PICO, 4), dtype=np.float32)
+    orientations[:, 3] = 1.0
+    valid = np.zeros(NUM_BODY_JOINTS_PICO, dtype=np.uint8)
+    valid[0] = 1
+
+    full_body[FullBodyInputIndex.JOINT_POSITIONS] = positions
+    full_body[FullBodyInputIndex.JOINT_ORIENTATIONS] = orientations
+    full_body[FullBodyInputIndex.JOINT_VALID] = valid
+    return full_body
+
+
 def _active_hand() -> TensorGroup:
     hand = TensorGroup(HandInput())
     positions = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
@@ -66,40 +101,43 @@ def _active_hand() -> TensorGroup:
     return hand
 
 
-def test_ee_message_has_fixed_entries_and_invalid_placeholder() -> None:
-    left = _active_controller()
-    right = OptionalTensorGroup(ControllerInput())
-
-    msg = build_ee_msg_from_controllers(left, right, Time(), "world")
-
-    assert list(msg.name) == ["left", "right"]
-    assert list(msg.is_valid) == [True, False]
-    assert msg.pose[0].position.x == 4.0
-    assert msg.pose[1].position.x == 0.0
-    assert msg.pose[1].orientation.w == 1.0
+def _active_head() -> TensorGroup:
+    head = TensorGroup(HeadPose())
+    head[HeadPoseIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    head[HeadPoseIndex.ORIENTATION] = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+    head[HeadPoseIndex.IS_VALID] = True
+    return head
 
 
-def test_hand_message_has_stable_names_and_absent_side_placeholders() -> None:
-    left = _active_hand()
-    right = OptionalTensorGroup(HandInput())
-
-    msg = build_hand_msg(left, right, Time(), "world")
-
-    expected_names = [
-        f"{side}_{name}" for side in ("left", "right") for name in HAND_POSE_NAMES
-    ]
-    assert list(msg.name) == expected_names
-    assert len(msg.pose) == len(expected_names)
-    assert all(msg.is_valid[: len(HAND_POSE_NAMES)])
-    assert not any(msg.is_valid[len(HAND_POSE_NAMES) :])
-    assert "left_PALM" not in msg.name
+def _decode_payload(msg: ByteMultiArray) -> dict:
+    return msgpack.unpackb(b"".join(msg.data), raw=False)
 
 
-def test_controller_payload_schema_and_absent_side_defaults() -> None:
-    payload = build_controller_payload(
+def _root_command(values: list[float] | None) -> OptionalTensorGroup:
+    group_type = TensorGroupType(
+        "root_command",
+        [
+            NDArrayType(
+                "command",
+                shape=(4,),
+                dtype=DLDataType.FLOAT,
+                dtype_bits=32,
+            )
+        ],
+    )
+    root_command = OptionalTensorGroup(group_type)
+    if values is not None:
+        root_command[0] = np.asarray(values, dtype=np.float32)
+    return root_command
+
+
+def test_build_controller_msg_encodes_schema_and_absent_side_defaults() -> None:
+    msg = build_controller_msg(
         _active_controller(), OptionalTensorGroup(ControllerInput())
     )
 
+    assert msg is not None
+    payload = _decode_payload(msg)
     assert set(payload) == {
         "timestamp",
         "left_thumbstick",
@@ -133,3 +171,208 @@ def test_controller_payload_schema_and_absent_side_defaults() -> None:
     assert payload["left_thumbstick"] == [0.25, -0.5]
     assert payload["right_aim_position"] == [0.0, 0.0, 0.0]
     assert payload["right_aim_orientation"] == [0.0, 0.0, 0.0, 1.0]
+
+
+def test_build_controller_msg_returns_none_when_both_sides_absent() -> None:
+    assert (
+        build_controller_msg(
+            OptionalTensorGroup(ControllerInput()),
+            OptionalTensorGroup(ControllerInput()),
+        )
+        is None
+    )
+
+
+def test_build_ee_output_from_controllers_keeps_message_and_tfs_consistent() -> None:
+    msg, transforms = build_ee_output_from_controllers(
+        _active_controller(),
+        OptionalTensorGroup(ControllerInput()),
+        Time(sec=12, nanosec=34),
+        "world",
+        "left_wrist",
+        "right_wrist",
+    )
+
+    assert msg.header.stamp.sec == 12
+    assert msg.header.stamp.nanosec == 34
+    assert msg.header.frame_id == "world"
+    assert list(msg.name) == ["left", "right"]
+    assert list(msg.is_valid) == [True, False]
+    assert msg.pose[0].position.x == 4.0
+    assert msg.pose[1].position.x == 0.0
+    assert msg.pose[1].orientation.w == 1.0
+    assert len(transforms) == 1
+    transform = transforms[0]
+    assert transform.header.stamp.sec == 12
+    assert transform.header.stamp.nanosec == 34
+    assert transform.header.frame_id == "world"
+    assert transform.child_frame_id == "left_wrist"
+    assert transform.transform.translation.x == 4.0
+    assert transform.transform.translation.y == 5.0
+    assert transform.transform.translation.z == 6.0
+    assert transform.transform.rotation.w == 1.0
+
+
+def test_build_ee_output_from_hands_uses_valid_wrist_entries() -> None:
+    msg, transforms = build_ee_output_from_hands(
+        _active_hand(),
+        OptionalTensorGroup(HandInput()),
+        Time(),
+        "world",
+        "left_wrist",
+        "right_wrist",
+    )
+
+    wrist_x = float(HandJointIndex.WRIST)
+    assert list(msg.name) == ["left", "right"]
+    assert list(msg.is_valid) == [True, False]
+    assert msg.pose[0].position.x == wrist_x
+    assert len(transforms) == 1
+    assert transforms[0].child_frame_id == "left_wrist"
+    assert transforms[0].transform.translation.x == wrist_x
+
+
+def test_build_finger_joints_msg_combines_present_sides() -> None:
+    left = TensorGroup(
+        RobotHandJoints("left_finger_joints", ["left_index", "left_thumb"])
+    )
+    left[0] = 1.0
+    left[1] = 2.0
+    right_type = RobotHandJoints("right_finger_joints", ["right_index"])
+
+    msg = build_finger_joints_msg(
+        left,
+        OptionalTensorGroup(right_type),
+        Time(sec=12, nanosec=34),
+        "world",
+    )
+
+    assert msg is not None
+    assert msg.header.stamp.sec == 12
+    assert msg.header.stamp.nanosec == 34
+    assert msg.header.frame_id == "world"
+    assert list(msg.name) == ["left_index", "left_thumb"]
+    assert list(msg.position) == [1.0, 2.0]
+
+
+def test_build_finger_joints_msg_returns_none_when_both_sides_are_absent() -> None:
+    left_type = RobotHandJoints("left_finger_joints", ["left_index"])
+    right_type = RobotHandJoints("right_finger_joints", ["right_index"])
+
+    assert (
+        build_finger_joints_msg(
+            OptionalTensorGroup(left_type),
+            OptionalTensorGroup(right_type),
+            Time(),
+            "world",
+        )
+        is None
+    )
+
+
+def test_build_full_body_msg_encodes_schema() -> None:
+    msg = build_full_body_msg(_active_full_body())
+
+    assert msg is not None
+    payload = _decode_payload(msg)
+    assert set(payload) == {
+        "timestamp",
+        "joint_names",
+        "joint_positions",
+        "joint_orientations",
+        "joint_valid",
+    }
+    assert isinstance(payload["timestamp"], int)
+    assert payload["joint_names"] == BODY_JOINT_NAMES
+    assert payload["joint_positions"][0] == [1.0, 2.0, 3.0]
+    assert payload["joint_orientations"][0] == [0.0, 0.0, 0.0, 1.0]
+    assert payload["joint_valid"][0] is True
+    assert not any(payload["joint_valid"][1:])
+
+
+def test_build_full_body_msg_returns_none_when_input_is_absent() -> None:
+    assert build_full_body_msg(OptionalTensorGroup(FullBodyInput())) is None
+
+
+def test_build_hand_msg_keeps_stable_names_and_absent_side_placeholders() -> None:
+    msg = build_hand_msg(
+        _active_hand(),
+        OptionalTensorGroup(HandInput()),
+        Time(),
+        "world",
+    )
+
+    expected_names = [
+        f"{side}_{name}" for side in ("left", "right") for name in HAND_POSE_NAMES
+    ]
+    assert list(msg.name) == expected_names
+    assert len(msg.pose) == len(expected_names)
+    assert all(msg.is_valid[: len(HAND_POSE_NAMES)])
+    assert not any(msg.is_valid[len(HAND_POSE_NAMES) :])
+    assert "left_PALM" not in msg.name
+
+
+def test_build_head_output_keeps_pose_and_tf_consistent() -> None:
+    output = build_head_output(
+        _active_head(),
+        Time(sec=12, nanosec=34),
+        "world",
+        "head",
+    )
+
+    assert output is not None
+    head_msg, transform = output
+    assert head_msg.header.stamp.sec == 12
+    assert head_msg.header.stamp.nanosec == 34
+    assert head_msg.header.frame_id == "world"
+    assert head_msg.pose.position.x == 1.0
+    assert head_msg.pose.position.y == 2.0
+    assert head_msg.pose.position.z == 3.0
+    assert head_msg.pose.orientation.w == 1.0
+    assert transform.header.stamp.sec == 12
+    assert transform.header.stamp.nanosec == 34
+    assert transform.header.frame_id == "world"
+    assert transform.child_frame_id == "head"
+    assert transform.transform.translation.x == 1.0
+    assert transform.transform.translation.y == 2.0
+    assert transform.transform.translation.z == 3.0
+    assert transform.transform.rotation.w == 1.0
+
+
+def test_build_head_output_returns_none_when_head_is_absent() -> None:
+    assert (
+        build_head_output(
+            OptionalTensorGroup(HeadPose()),
+            Time(),
+            "world",
+            "head",
+        )
+        is None
+    )
+
+
+def test_build_root_command_output_maps_twist_and_height() -> None:
+    output = build_root_command_output(
+        _root_command([1.0, -2.0, 3.0, 0.75]),
+        Time(sec=12, nanosec=34),
+        "world",
+    )
+
+    assert output is not None
+    twist_msg, pose_msg = output
+    assert twist_msg.header.stamp.sec == 12
+    assert twist_msg.header.stamp.nanosec == 34
+    assert twist_msg.header.frame_id == "world"
+    assert twist_msg.twist.linear.x == 1.0
+    assert twist_msg.twist.linear.y == -2.0
+    assert twist_msg.twist.linear.z == 0.0
+    assert twist_msg.twist.angular.z == 3.0
+    assert pose_msg.header.stamp.sec == 12
+    assert pose_msg.header.stamp.nanosec == 34
+    assert pose_msg.header.frame_id == "world"
+    assert pose_msg.pose.position.z == 0.75
+    assert pose_msg.pose.orientation.w == 1.0
+
+
+def test_build_root_command_output_returns_none_when_input_is_absent() -> None:
+    assert build_root_command_output(_root_command(None), Time(), "world") is None
