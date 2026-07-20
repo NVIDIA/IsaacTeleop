@@ -9,7 +9,8 @@
  * session with its required extensions, and passes a McapRecordingConfig to
  * DeviceIOSession::run() — the tracker impl then writes MCAP samples during each
  * session->update() call. Unlike the Python example this does not launch the CloudXR runtime;
- * start it (and connect the headset) before running.
+ * start it (and connect the headset) before running — or launch the runtime, printer, and
+ * recorder together with python -m isaacteleop.rig rigs/full_body.yaml.
  *
  * Usage:
  *     record_full_body [duration_seconds] [output.mcap]

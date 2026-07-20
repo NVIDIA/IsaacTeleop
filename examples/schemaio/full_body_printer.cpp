@@ -9,6 +9,8 @@
  * 24-joint body skeleton through DeviceIOSession. Requires a runtime with body tracking support
  * (e.g. CloudXR streaming from a PICO 4 Ultra Enterprise with Motion Trackers); when the system
  * does not support body tracking the tracker runs in limp mode and no samples are printed.
+ * Launch it together with the CloudXR runtime and the MCAP recorder via
+ * python -m isaacteleop.rig rigs/full_body.yaml.
  *
  * To record a full-body session to MCAP from C++, see
  * examples/mcap_record_replay/cpp/record_full_body.cpp.
@@ -88,18 +90,27 @@ try
     std::cout << "[Step 4] Reading samples..." << std::endl;
 
     size_t received_count = 0;
+    size_t tick_count = 0;
     while (received_count < MAX_SAMPLES)
     {
         // Update session (this calls update on all trackers).
         session->update();
 
-        // Print current data if available. tracked.data stays null while body tracking is
-        // inactive (limp mode or the runtime has not started delivering joints yet).
+        // Print current data if available. tracked.data is null only in limp mode (body tracking
+        // unsupported); a supported-but-untracked body still delivers data with valid=0/24 joints.
         const auto& tracked = tracker->get_body_pose(*session);
         if (tracked.data)
         {
             print_body_pose(*tracked.data, received_count++);
         }
+        else if (tick_count % 30 == 0)
+        {
+            // Heartbeat once per second (~30th tick at 30 Hz) so an inactive session is visible
+            // instead of silent. Same literal as record_full_body.cpp so both siblings report
+            // this state identically.
+            std::cout << "[body tracking inactive]" << std::endl;
+        }
+        ++tick_count;
 
         // Tick at ~30 Hz.
         std::this_thread::sleep_for(std::chrono::milliseconds(33));
