@@ -273,12 +273,12 @@
 <div class="version-switcher">
   <label for="version-select" class="version-switcher__label">Version</label>
   <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="../../release/1.4.x/getting_started/teleop_session.html" >release/1.4.x</option>
     <option value="teleop_session.html" selected>main</option>
     <option value="../../release/1.0.x/getting_started/teleop_session.html" >release/1.0.x</option>
     <option value="../../release/1.1.x/getting_started/teleop_session.html" >release/1.1.x</option>
     <option value="../../release/1.2.x/getting_started/teleop_session.html" >release/1.2.x</option>
     <option value="../../release/1.3.x/getting_started/teleop_session.html" >release/1.3.x</option>
+    <option value="../../release/1.4.x/getting_started/teleop_session.html" >release/1.4.x</option>
     <option value="../../v1.3.131/getting_started/teleop_session.html" >v1.3.131</option>
     <option value="../../v1.1.8/getting_started/teleop_session.html" >v1.1.8</option>
     <option value="../../v1.1.5/getting_started/teleop_session.html" >v1.1.5</option>
@@ -541,6 +541,28 @@ argument is a <code class="docutils literal notranslate"><span class="pre">uint6
 <span class="p">)</span>
 </pre></div>
 </div>
+<section id="tracker-vendor-selection">
+<h4>Tracker vendor selection<a class="headerlink" href="#tracker-vendor-selection" title="Link to this heading">#</a></h4>
+<p>In live mode, a vendored source selects the backend (“vendor”) for its tracker
+– for example which backend drives a <code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code>. The selection is
+carried <strong>on the source</strong> via its <code class="docutils literal notranslate"><span class="pre">vendor</span></code> argument, a
+<code class="docutils literal notranslate"><span class="pre">deviceio.TrackerVendor(id,</span> <span class="pre">params)</span></code>; sources left at the default use their
+tracker’s default vendor. Because the vendor travels with the source, it is part
+of the pipeline: <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> picks it up automatically, and
+<code class="docutils literal notranslate"><span class="pre">get_required_oxr_extensions_from_pipeline(pipeline)</span></code> reports the matching
+OpenXR extensions with no extra argument (important for the external-<code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code>
+flow). See <a class="reference internal" href="../device/trackers.html#vendor-selection"><span class="std std-ref">Vendor Selection</span></a> for the underlying DeviceIO mechanism and the
+available vendor ids.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacteleop.deviceio</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">deviceio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.deviceio_source_nodes</span><span class="w"> </span><span class="kn">import</span> <span class="n">FullBodySource</span>
+
+<span class="c1"># Select the backend on the source; it flows through the pipeline into the session.</span>
+<span class="n">full_body</span> <span class="o">=</span> <span class="n">FullBodySource</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;full_body&quot;</span><span class="p">,</span> <span class="n">vendor</span><span class="o">=</span><span class="n">deviceio</span><span class="o">.</span><span class="n">TrackerVendor</span><span class="p">(</span><span class="s2">&quot;body.pico-xr&quot;</span><span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
 <section id="retargeting-execution">
 <h4>Retargeting execution<a class="headerlink" href="#retargeting-execution" title="Link to this heading">#</a></h4>
 <p><code class="docutils literal notranslate"><span class="pre">TeleopSession.step()</span></code> runs retargeting synchronously by default: each call
@@ -804,7 +826,12 @@ the most recent returned output</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">get_required_oxr_extensions_from_pipeline(pipeline)</span> <span class="pre">-&gt;</span> <span class="pre">List[str]</span></code> –
 Discover the OpenXR extensions needed by a retargeting pipeline by
 traversing its DeviceIO source leaf nodes. Returns a sorted, deduplicated
-list of extension name strings.</p></li>
+list of extension name strings. Extensions are vendor-dependent, but each
+source carries its own vendor selection, so the result already reflects them
+– when you create the OpenXR session yourself and feed the handles in via
+<code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code>, the enabled extensions match the session that gets built
+with no extra argument. Select a vendor on the source (e.g.
+<code class="docutils literal notranslate"><span class="pre">FullBodySource(name=&quot;full_body&quot;,</span> <span class="pre">vendor=deviceio.TrackerVendor(&quot;body.pico-xr&quot;))</span></code>).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">create_standard_inputs(trackers)</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">IDeviceIOSource]</span></code> –
 Convenience function that creates <code class="docutils literal notranslate"><span class="pre">HandsSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>,
 and/or <code class="docutils literal notranslate"><span class="pre">HeadSource</span></code> instances from a list of tracker objects.</p></li>
@@ -967,6 +994,7 @@ of input sources.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-start">Quick Start</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration-classes">Configuration Classes</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#teleopsessionconfig">TeleopSessionConfig</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#tracker-vendor-selection">Tracker vendor selection</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#retargeting-execution">Retargeting execution</a></li>
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#deadline-pacing-tuning">Deadline pacing tuning</a></li>
 </ul>

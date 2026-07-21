@@ -115,6 +115,30 @@ argument is a ``uint64`` handle value.
        oxr_handles=handles,  # Skip internal OpenXR session creation
    )
 
+Tracker vendor selection
+""""""""""""""""""""""""
+
+In live mode, a vendored source selects the backend ("vendor") for its tracker
+-- for example which backend drives a ``FullBodySource``. The selection is
+carried **on the source** via its ``vendor`` argument, a
+``deviceio.TrackerVendor(id, params)``; sources left at the default use their
+tracker's default vendor. Because the vendor travels with the source, it is part
+of the pipeline: ``TeleopSession`` picks it up automatically, and
+``get_required_oxr_extensions_from_pipeline(pipeline)`` reports the matching
+OpenXR extensions with no extra argument (important for the external-``oxr_handles``
+flow). See :ref:`vendor-selection` for the underlying DeviceIO mechanism and the
+available vendor ids.
+
+.. code-block:: python
+
+   import isaacteleop.deviceio as deviceio
+   from isaacteleop.retargeting_engine.deviceio_source_nodes import FullBodySource
+
+   # Select the backend on the source; it flows through the pipeline into the session.
+   full_body = FullBodySource(
+       name="full_body", vendor=deviceio.TrackerVendor("body.pico-xr")
+   )
+
 Retargeting execution
 """""""""""""""""""""
 
@@ -382,7 +406,12 @@ The module also exports two utility functions:
 - ``get_required_oxr_extensions_from_pipeline(pipeline) -> List[str]`` --
   Discover the OpenXR extensions needed by a retargeting pipeline by
   traversing its DeviceIO source leaf nodes. Returns a sorted, deduplicated
-  list of extension name strings.
+  list of extension name strings. Extensions are vendor-dependent, but each
+  source carries its own vendor selection, so the result already reflects them
+  -- when you create the OpenXR session yourself and feed the handles in via
+  ``oxr_handles``, the enabled extensions match the session that gets built
+  with no extra argument. Select a vendor on the source (e.g.
+  ``FullBodySource(name="full_body", vendor=deviceio.TrackerVendor("body.pico-xr"))``).
 
 - ``create_standard_inputs(trackers) -> Dict[str, IDeviceIOSource]`` --
   Convenience function that creates ``HandsSource``, ``ControllersSource``,

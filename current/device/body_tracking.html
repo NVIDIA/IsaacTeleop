@@ -424,7 +424,7 @@
 <h1>Body Tracking<a class="headerlink" href="#body-tracking" title="Link to this heading">#</a></h1>
 <p>Isaac Teleop supports streaming full-body tracking data from an XR headset
 through the CloudXR WebXR client to the teleop server. The server exposes the
-body skeleton to applications through the <code class="docutils literal notranslate"><span class="pre">FullBodyTrackerPico</span></code> tracker and
+body skeleton to applications through the <code class="docutils literal notranslate"><span class="pre">FullBodyTracker</span></code> tracker and
 the OpenXR <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code> extension.</p>
 <p>Body tracking support currently targets the <strong>PICO 4 Ultra Enterprise</strong> with
 <strong>PICO Motion Trackers</strong>. The rest of this guide covers PICO hardware setup
@@ -642,10 +642,10 @@ frame.</p>
 <section id="server-side-access">
 <h3><a class="toc-backref" href="#id7" role="doc-backlink">Server-side access</a><a class="headerlink" href="#server-side-access" title="Link to this heading">#</a></h3>
 <p>On the server, body tracking data is consumed through the
-<code class="docutils literal notranslate"><span class="pre">FullBodyTrackerPico</span></code> tracker (see <a class="reference internal" href="trackers.html"><span class="doc">Device Trackers</span></a> for the full tracker
+<code class="docutils literal notranslate"><span class="pre">FullBodyTracker</span></code> tracker (see <a class="reference internal" href="trackers.html"><span class="doc">Device Trackers</span></a> for the full tracker
 reference). The tracker exposes a <code class="docutils literal notranslate"><span class="pre">get_body_pose()</span></code> method that returns the
 24-joint skeleton each frame (or null when body tracking is not available).
-Joint data follows the <code class="docutils literal notranslate"><span class="pre">FullBodyPosePico</span></code> FlatBuffers schema defined in
+Joint data follows the <code class="docutils literal notranslate"><span class="pre">FullBodyPose</span></code> FlatBuffers schema defined in
 <code class="docutils literal notranslate"><span class="pre">src/core/schema/fbs/full_body.fbs</span></code>.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">all_joint_poses_tracked</span></code> quality flag indicates whether every joint was
 successfully tracked in the current frame. When it is false, consult individual
