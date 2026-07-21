@@ -16,6 +16,12 @@ SPDX-License-Identifier: Apache-2.0
 
 - In source code files under this example, preserve the existing grouped/sorted organization for helpers, message builders, classes, and member functions: scan the surrounding order before inserting, and do not place helpers near call sites when the existing section is sorted.
 - In Python integration test verifier code, do not use bare `assert` for runtime validation; Python optimization can disable it, so raise explicit exceptions from validators.
+- Keep ROS publisher methods at one abstraction level: call one output-specific pure
+  builder, then publish or broadcast its result. Compose payload construction and
+  transport encoding inside the message-builder module, not in the node.
+- Do not extract a one-use mapping helper merely to shorten a builder; keep the
+  complete output mapping together unless the helper is reused or represents an
+  independently tested contract.
 
 ## Rename consistency
 

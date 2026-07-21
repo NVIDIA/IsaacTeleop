@@ -14,7 +14,7 @@ Overview
 
 The main component is :code-file:`TeleopSession <src/core/teleop_session_manager/python/teleop_session.py>`, which manages the complete lifecycle
 of a teleop session. It wraps the lower-level
-:code-file:`DeviceIOSession <src/core/deviceio/cpp/inc/deviceio/deviceio_session.hpp>`
+:code-file:`DeviceIOSession <src/core/deviceio_session/cpp/inc/deviceio_session/deviceio_session.hpp>`
 and :doc:`device trackers <../device/trackers>` so that callers don't need to
 manage them directly:
 

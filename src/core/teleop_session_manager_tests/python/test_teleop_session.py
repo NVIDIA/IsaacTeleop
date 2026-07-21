@@ -1052,8 +1052,130 @@ class TestSessionLifecycle:
                 assert s is session
                 assert s.oxr_session is mock_oxr
                 assert s.deviceio_session is mock_dio
-                assert s._setup_complete is True
                 assert s.frame_count == 0
+
+    def test_enter_rejects_nested_active_session(self):
+        """A session should be reusable after exit but not re-enterable while active."""
+        config = make_config(MockPipeline(leaf_nodes=[]))
+
+        with mock_session_dependencies():
+            session = TeleopSession(config)
+            with session:
+                with pytest.raises(RuntimeError, match="already active"):
+                    session.__enter__()
+
+            with session:
+                pass
+
+    @pytest.mark.parametrize(
+        "failure_stage", ["openxr", "deviceio", "plugin_1", "plugin_2"]
+    )
+    def test_enter_failure_exits_previously_acquired_resources_once(
+        self, tmp_path, failure_stage
+    ):
+        """A failed __enter__ should propagate after unwinding resources in reverse order."""
+        events = []
+        failures_remaining = {failure_stage}
+
+        class TrackedContext:
+            def __init__(self, name):
+                self.name = name
+
+            def get_handles(self):
+                return MockOpenXRHandles()
+
+            def __enter__(self):
+                events.append(("enter", self.name))
+                if self.name in failures_remaining:
+                    failures_remaining.remove(self.name)
+                    raise RuntimeError(f"{self.name} failed")
+                return self
+
+            def __exit__(self, *args):
+                events.append(("exit", self.name))
+                return True
+
+        plugin_contexts = {
+            name: TrackedContext(name) for name in ("plugin_1", "plugin_2")
+        }
+
+        class TrackedPluginManager:
+            def get_plugin_names(self):
+                return list(plugin_contexts)
+
+            def start(self, plugin_name, *args):
+                return plugin_contexts[plugin_name]
+
+        plugins = [
+            PluginConfig(
+                plugin_name=name,
+                plugin_root_id="/root",
+                search_paths=[tmp_path],
+            )
+            for name in plugin_contexts
+        ]
+        config = make_config(MockPipeline(leaf_nodes=[]), plugins=plugins)
+
+        with mock_session_dependencies(
+            mock_oxr=TrackedContext("openxr"),
+            mock_dio=TrackedContext("deviceio"),
+            mock_pm=TrackedPluginManager(),
+        ):
+            session = TeleopSession(config)
+            with pytest.raises(RuntimeError, match=f"{failure_stage} failed"):
+                session.__enter__()
+
+        resource_order = ["openxr", "deviceio", "plugin_1", "plugin_2"]
+        failure_index = resource_order.index(failure_stage)
+        expected_events = [
+            ("enter", name) for name in resource_order[: failure_index + 1]
+        ]
+        expected_events.extend(
+            ("exit", name) for name in reversed(resource_order[:failure_index])
+        )
+        assert events == expected_events
+        assert session.oxr_session is None
+
+        events.clear()
+        with mock_session_dependencies(
+            mock_oxr=TrackedContext("openxr"),
+            mock_dio=TrackedContext("deviceio"),
+            mock_pm=TrackedPluginManager(),
+        ):
+            with session:
+                pass
+
+        expected_events = [("enter", name) for name in resource_order]
+        expected_events.extend(("exit", name) for name in reversed(resource_order))
+        assert events == expected_events
+
+    def test_enter_preserves_setup_error_if_rollback_fails(self, caplog):
+        """A resource cleanup error should not replace the setup error."""
+        session = TeleopSession(make_config(MockPipeline(leaf_nodes=[])))
+
+        class FailingExit:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                raise RuntimeError("rollback failed")
+
+        def fail_setup(stack):
+            stack.enter_context(FailingExit())
+            raise ValueError("setup failed")
+
+        with (
+            caplog.at_level(logging.ERROR),
+            patch.object(session, "_enter_resources", side_effect=fail_setup),
+            pytest.raises(ValueError, match="setup failed"),
+        ):
+            session.__enter__()
+
+        assert "Failed to roll back TeleopSession setup" in caplog.text
+
+        with mock_session_dependencies():
+            with session:
+                pass
 
     def test_enter_initializes_runtime_state(self):
         """__enter__ should reset frame count and record start time."""
@@ -1068,19 +1190,28 @@ class TestSessionLifecycle:
                 assert s.frame_count == 0
                 assert before <= s.start_time <= after
 
-    def test_exit_cleans_up(self):
-        """__exit__ should clean up via ExitStack."""
+    def test_exit_is_noop_when_session_is_not_active(self):
+        """A direct __exit__ after context exit should not repeat resource cleanup."""
         pipeline = MockPipeline(leaf_nodes=[])
 
-        config = make_config(pipeline)
-        with mock_session_dependencies():
-            session = TeleopSession(config)
-            with session as s:
-                assert s._setup_complete is True
+        class CountingOpenXRSession(MockOpenXRSession):
+            def __init__(self):
+                super().__init__()
+                self.exit_count = 0
 
-        # After exit, setup_complete is still True (not reset)
-        # but the exit stack has been unwound
-        assert session._setup_complete is True
+            def __exit__(self, *args):
+                self.exit_count += 1
+
+        mock_oxr = CountingOpenXRSession()
+        config = make_config(pipeline)
+        with mock_session_dependencies(mock_oxr=mock_oxr):
+            session = TeleopSession(config)
+            with session:
+                pass
+
+            assert mock_oxr.exit_count == 1
+            assert session.__exit__(None, None, None) is False
+            assert mock_oxr.exit_count == 1
 
     def test_exit_clears_oxr_session(self):
         """After the with-block exits, the public oxr_session property honors its None contract."""
@@ -1126,7 +1257,7 @@ class TestSessionLifecycle:
             session = TeleopSession(config)
             with session as s:
                 entered = True
-                assert s._setup_complete is True
+                assert s is session
 
         assert entered is True
 
