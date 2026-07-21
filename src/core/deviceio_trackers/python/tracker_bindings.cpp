@@ -9,6 +9,7 @@
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/oglo_tactile_tracker.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
@@ -152,6 +153,18 @@ PYBIND11_MODULE(_deviceio_trackers, m)
                const core::ITrackerSession& session) -> core::Generic3AxisPedalOutputTrackedT
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
+
+    py::class_<core::OgloTactileTracker, core::ITracker, std::shared_ptr<core::OgloTactileTracker>>(
+        m, "OgloTactileTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::OgloTactileTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct an OgloTactileTracker for the given tensor collection ID "
+             "(e.g. 'oglo/left' / 'oglo/right', matching the oglo_tactile plugin's --collection-prefix)")
+        .def(
+            "get_glove_data",
+            [](const core::OgloTactileTracker& self, const core::ITrackerSession& session) -> core::OgloGloveSampleTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current tactile glove tracked state (data is None when no data available)");
 
     py::class_<core::TensorPushTracker, core::ITracker, std::shared_ptr<core::TensorPushTracker>> tensor_push_tracker(
         m, "TensorPushTracker");

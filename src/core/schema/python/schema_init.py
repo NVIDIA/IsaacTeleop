@@ -35,6 +35,10 @@ from ._schema import (
     Generic3AxisPedalOutput,
     Generic3AxisPedalOutputTrackedT,
     Generic3AxisPedalOutputRecord,
+    # OGLO tactile glove types.
+    OgloGloveSample,
+    OgloGloveSampleTrackedT,
+    OgloGloveSampleRecord,
     # Joint-state types (generic joint-space devices: leader arms, exoskeletons, ...).
     JointState,
     JointStateOutput,
@@ -95,6 +99,10 @@ __all__ = [
     "Generic3AxisPedalOutput",
     "Generic3AxisPedalOutputTrackedT",
     "Generic3AxisPedalOutputRecord",
+    # OGLO tactile glove types.
+    "OgloGloveSample",
+    "OgloGloveSampleTrackedT",
+    "OgloGloveSampleRecord",
     # Joint-state types (generic joint-space devices).
     "JointState",
     "JointStateOutput",
