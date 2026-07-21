@@ -12,9 +12,10 @@
 //                   no-selection, path) resolves and returns extensions.
 //   2. rejected   - a vendor selection on a non-vendored tracker type.
 //   3. rejected   - an unknown vendor id.
-//   4. rejected   - a duplicate selection for the same tracker.
+//   4. rejected   - non-empty vendor params (no consumer reads them yet).
+//   5. rejected   - a duplicate selection for the same tracker.
 // Plus the sibling presence check in get_required_extensions():
-//   5. rejected   - a selection referencing a tracker absent from the list.
+//   6. rejected   - a selection referencing a tracker absent from the list.
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -106,6 +107,15 @@ TEST_CASE("vendor validation: invalid configurations are rejected", "[live_track
         // vendor_id sentinel carried by non-vendored dispatch rows.
         VendorList vendors{ { body.get(), core::TrackerVendor{ "" } } };
         REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("unknown vendor id"));
+    }
+
+    SECTION("a non-empty vendor params map is rejected while no vendor consumes it")
+    {
+        // params is bound and reserved, but no impl reads it yet; a non-empty map
+        // must be rejected rather than silently dropped.
+        VendorList vendors{ { body.get(),
+                              core::TrackerVendor{ "body.pico-xr", { { "max_flatbuffer_size", "16384" } } } } };
+        REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("params are not supported"));
     }
 
     SECTION("a duplicate selection for the same tracker is rejected")

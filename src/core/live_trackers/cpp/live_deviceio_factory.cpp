@@ -275,10 +275,11 @@ std::string tracker_name_for_error(const ITracker* tracker)
 
 // Validate per-tracker vendor selections independently of the tracker list:
 // reject selections on tracker types that do not support vendors, unknown vendor
-// ids, vendor ids that belong to a different tracker type, and duplicate entries.
-// Shared by the factory constructor and get_required_extensions() so both reject
-// identical vendor configurations. (Presence in the session's tracker list is
-// checked by the callers that hold that list.)
+// ids, vendor ids that belong to a different tracker type, non-empty vendor params
+// (no consumer reads them yet), and duplicate entries. Shared by the factory
+// constructor and get_required_extensions() so both reject identical vendor
+// configurations. (Presence in the session's tracker list is checked by the
+// callers that hold that list.)
 void validate_vendor_selections(const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
 {
     std::unordered_set<const ITracker*> seen;
@@ -304,6 +305,14 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
         {
             throw std::invalid_argument("LiveDeviceIOFactory: vendor id '" + vendor.id +
                                         "' is not available for tracker '" + tracker_name_for_error(tracker) + "'");
+        }
+        // No impl consumes TrackerVendor::params yet, so a non-empty map would be
+        // silently dropped. Reject it to keep the contract strict; accepting params
+        // once a vendor reads them is an additive, backward-compatible change.
+        if (!vendor.params.empty())
+        {
+            throw std::invalid_argument("LiveDeviceIOFactory: vendor params are not supported yet for tracker '" +
+                                        tracker_name_for_error(tracker) + "' (vendor id '" + vendor.id + "')");
         }
 
         if (!seen.insert(tracker).second)
