@@ -57,7 +57,10 @@ packages = [
     "isaacteleop.cloudxr",
     "isaacteleop.rig",
     "isaacteleop.haptic_devices",
-@VIZ_PACKAGES_BLOCK@@ROBOTIC_GROUNDING_PACKAGES_BLOCK@]
+@CLOUDXR_EXP_PACKAGES_BLOCK@
+@VIZ_PACKAGES_BLOCK@
+@ROBOTIC_GROUNDING_PACKAGES_BLOCK@
+]
 include-package-data = false
 
 [tool.setuptools.package-data]
@@ -71,7 +74,9 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "isaacteleop.schema" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.cloudxr" = ["native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
 "isaacteleop.haptic_devices" = ["*.so", "*.pyd", "*.pyi"]
-@VIZ_PACKAGE_DATA_BLOCK@@ROBOTIC_GROUNDING_PACKAGE_DATA_BLOCK@
+@CLOUDXR_EXP_PACKAGE_DATA_BLOCK@
+@VIZ_PACKAGE_DATA_BLOCK@
+@ROBOTIC_GROUNDING_PACKAGE_DATA_BLOCK@
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

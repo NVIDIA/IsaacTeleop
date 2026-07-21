@@ -3,6 +3,8 @@
 import asyncio
 import ctypes
 import glob
+import importlib
+import importlib.util
 import multiprocessing
 import os
 import shutil
@@ -11,6 +13,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from .env_config import get_env_config
 
@@ -27,6 +30,72 @@ RUNTIME_TERMINATE_TIMEOUT_SEC: float = 10
 
 RUNTIME_POLL_INTERVAL_SEC: float = 0.5
 """Polling interval [s] used by :func:`wait_for_runtime_ready_sync`."""
+
+_CLOUDXR_EXP_ENV = "ISAAC_TELEOP_CLOUDXR_EXP"
+_CLOUDXR_MODULE = "isaacteleop.cloudxr"
+_CLOUDXR_EXP_MODULE = "isaacteleop.cloudxr_exp"
+
+
+def _is_tegra_t234() -> bool:
+    """Return True on Jetson Orin-class platforms (T234 / CHIPID 0x23)."""
+    boot = Path("/etc/nv_boot_control.conf")
+    if boot.is_file():
+        try:
+            text = boot.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            text = ""
+        for line in text.splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() == "TEGRA_CHIPID" and value.strip() == "0x23":
+                return True
+
+    compatible = Path("/proc/device-tree/compatible")
+    if compatible.is_file():
+        try:
+            data = compatible.read_bytes().decode("utf-8", errors="ignore")
+        except OSError:
+            data = ""
+        if "tegra234" in data:
+            return True
+    return False
+
+
+def _should_use_exp() -> bool:
+    """Return True when the experimental CloudXR runtime should be used."""
+    raw = os.environ.get(_CLOUDXR_EXP_ENV, "").strip().lower()
+    if not raw:
+        return _is_tegra_t234()
+    return raw in ("1", "true", "yes", "on")
+
+
+def _is_exp_available() -> bool:
+    try:
+        return importlib.util.find_spec(f"{_CLOUDXR_EXP_MODULE}.runtime") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+def resolve_cloudxr_runtime_module() -> str:
+    """Return the module prefix whose ``runtime.run`` should be spawned."""
+    if _should_use_exp():
+        if not _is_exp_available():
+            raise RuntimeError(
+                f"Experimental CloudXR runtime package {_CLOUDXR_EXP_MODULE} is not installed. "
+                f"Rebuild with -DENABLE_CLOUDXR_EXP_BUNDLE=ON to include it, "
+                f"or set {_CLOUDXR_EXP_ENV}=0 to force the stable runtime."
+            )
+        return _CLOUDXR_EXP_MODULE
+    return _CLOUDXR_MODULE
+
+
+def get_sdk_path() -> str:
+    """Return ``native/`` for the resolved stable or experimental runtime package."""
+    mod = resolve_cloudxr_runtime_module()
+    pkg = importlib.import_module(mod)
+    sdk_dir = os.path.join(os.path.dirname(os.path.abspath(pkg.__file__)), "native")
+    if not os.path.isfile(os.path.join(sdk_dir, "libcloudxr.so")):
+        raise RuntimeError(f"CloudXR SDK missing libcloudxr.so at {sdk_dir}.")
+    return sdk_dir
 
 
 def _write_eula_marker(marker: str) -> None:
@@ -63,17 +132,6 @@ def check_eula(*, accept_eula: bool | None = None) -> None:
         sys.exit(1)
 
     _write_eula_marker(marker)
-
-
-def _get_sdk_path() -> str | None:
-    """Return the path to the bundled CloudXR native libs (wheel package data), or None."""
-    this_dir = os.path.dirname(os.path.abspath(__file__))
-    native_dir = os.path.join(this_dir, "native")
-
-    if not os.path.isfile(os.path.join(native_dir, "libcloudxr.so")):
-        raise RuntimeError(f"CloudXR SDK missing libcloudxr.so at {native_dir}. ")
-
-    return native_dir
 
 
 async def wait_for_runtime_ready(
@@ -152,8 +210,8 @@ def _load_libcloudxr(sdk_path: str) -> ctypes.CDLL:
 
 
 def runtime_version() -> str:
-    """Query the CloudXR runtime version from the native library (major.minor.patch)."""
-    sdk_path = _get_sdk_path()
+    """Query the selected CloudXR runtime version (major.minor.patch)."""
+    sdk_path = get_sdk_path()
     lib = _load_libcloudxr(sdk_path)
     if not hasattr(lib, "nv_cxr_get_runtime_version"):
         return "unknown"
@@ -209,7 +267,7 @@ def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
 def run() -> None:
     """Run the CloudXR runtime service until SIGINT/SIGTERM. Blocks until shutdown."""
     cfg = get_env_config()
-    sdk_path = _get_sdk_path()
+    sdk_path = get_sdk_path()
     run_dir = cfg.openxr_run_dir()
     openxr_dir = _setup_openxr_dir(sdk_path, run_dir)
 
