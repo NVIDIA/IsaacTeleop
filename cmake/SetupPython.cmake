@@ -150,15 +150,46 @@ if(BUILD_PYTHON_BINDINGS)
         else()
             set(_venv_python "${_build_venv}/bin/python")
         endif()
-        # Reuse an existing venv when possible. If the directory exists but the
-        # interpreter is missing, fail fast and require explicit cleanup.
-        if(EXISTS "${_build_venv}" AND NOT EXISTS "${_venv_python}")
-            message(FATAL_ERROR
-                "Found stale build venv directory at ${_build_venv}, but no interpreter at ${_venv_python}. "
-                "Please remove ${_build_venv} and reconfigure."
+        # Reuse the venv when its interpreter still runs. bin/python is an absolute
+        # symlink into a uv-managed Python, so it is only valid in the environment
+        # that created the venv.
+        set(_venv_usable FALSE)
+        if(EXISTS "${_venv_python}")
+            execute_process(
+                COMMAND "${_venv_python}" --version
+                RESULT_VARIABLE _venv_python_ok
+                OUTPUT_QUIET
+                ERROR_QUIET
             )
+            if(_venv_python_ok EQUAL 0)
+                set(_venv_usable TRUE)
+            endif()
         endif()
-        if(NOT EXISTS "${_venv_python}")
+
+        if(_venv_usable)
+            message(STATUS "Reusing existing build venv at ${_build_venv}")
+        elseif(EXISTS "${_build_venv}")
+            # Directory is present but its interpreter is not usable. Describe the
+            # actual failure: a dangling bin/python symlink (the common case when the
+            # venv was created in a different environment, e.g. a dev container vs the
+            # host, whose uv-managed Python lives elsewhere) versus an interpreter that
+            # is present but does not run. Only the former means the target is missing.
+            if(IS_SYMLINK "${_venv_python}" AND NOT EXISTS "${_venv_python}")
+                file(READ_SYMLINK "${_venv_python}" _venv_link_target)
+                string(CONCAT _venv_detail
+                    "Its interpreter symlink is broken: ${_venv_python} -> "
+                    "${_venv_link_target} (target does not exist). This build venv was "
+                    "created in a different environment whose uv-managed Python lives "
+                    "elsewhere.")
+            else()
+                set(_venv_detail "Its interpreter ${_venv_python} is missing or does not run.")
+            endif()
+            message(FATAL_ERROR
+                "Build venv at ${_build_venv} has no working Python interpreter. "
+                "${_venv_detail}\n"
+                "Remove the build directory ${CMAKE_BINARY_DIR} (or run 'cmake --fresh') "
+                "and reconfigure to recreate the venv for this environment.")
+        else()
             execute_process(
                 COMMAND "${UV_EXECUTABLE}" venv --python "${Python3_EXECUTABLE}" "${_build_venv}"
                 RESULT_VARIABLE _venv_ok
@@ -167,8 +198,6 @@ if(BUILD_PYTHON_BINDINGS)
             if(NOT _venv_ok EQUAL 0)
                 message(FATAL_ERROR "Failed to create build venv: ${_venv_err}")
             endif()
-        else()
-            message(STATUS "Reusing existing build venv at ${_build_venv}")
         endif()
         execute_process(
             COMMAND "${UV_EXECUTABLE}" pip install --python "${_venv_python}" "numpy>=2.0"
