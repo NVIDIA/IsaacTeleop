@@ -46,6 +46,62 @@ static_assert(sizeof(core::BodyJoints) == 24 * sizeof(core::BodyJointPose),
               "BodyJoints should contain exactly 24 BodyJointPose entries");
 
 // =============================================================================
+// Compile-time verification of the deprecated "...Pico" back-compat aliases.
+//
+// full_body_compat.hpp is an opt-in header: nothing else in-tree includes it and
+// the generated header does not pull it in, so without this block a mistyped alias
+// (e.g. BodyJointPico_HEAD mapped to BodyJoint_NECK) would compile and ship
+// silently. Lock every alias to its renamed target here, mirroring the Python
+// TestDeprecatedPicoAliases coverage. The references are intentionally to
+// [[deprecated]] names, so suppress that diagnostic for this block only.
+// =============================================================================
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+#include <schema/full_body_compat.hpp>
+
+// Type aliases resolve to the renamed generated types.
+static_assert(std::is_same_v<core::FullBodyPosePico, core::FullBodyPose>);
+static_assert(std::is_same_v<core::FullBodyPosePicoT, core::FullBodyPoseT>);
+static_assert(std::is_same_v<core::FullBodyPosePicoTracked, core::FullBodyPoseTracked>);
+static_assert(std::is_same_v<core::FullBodyPosePicoTrackedT, core::FullBodyPoseTrackedT>);
+static_assert(std::is_same_v<core::FullBodyPosePicoRecord, core::FullBodyPoseRecord>);
+static_assert(std::is_same_v<core::FullBodyPosePicoRecordT, core::FullBodyPoseRecordT>);
+static_assert(std::is_same_v<core::BodyJointsPico, core::BodyJoints>);
+static_assert(std::is_same_v<core::BodyJointPico, core::BodyJoint>);
+
+// Every enumerator alias keeps its renamed target's numeric value.
+static_assert(core::BodyJointPico_PELVIS == core::BodyJoint_PELVIS);
+static_assert(core::BodyJointPico_LEFT_HIP == core::BodyJoint_LEFT_HIP);
+static_assert(core::BodyJointPico_RIGHT_HIP == core::BodyJoint_RIGHT_HIP);
+static_assert(core::BodyJointPico_SPINE1 == core::BodyJoint_SPINE1);
+static_assert(core::BodyJointPico_LEFT_KNEE == core::BodyJoint_LEFT_KNEE);
+static_assert(core::BodyJointPico_RIGHT_KNEE == core::BodyJoint_RIGHT_KNEE);
+static_assert(core::BodyJointPico_SPINE2 == core::BodyJoint_SPINE2);
+static_assert(core::BodyJointPico_LEFT_ANKLE == core::BodyJoint_LEFT_ANKLE);
+static_assert(core::BodyJointPico_RIGHT_ANKLE == core::BodyJoint_RIGHT_ANKLE);
+static_assert(core::BodyJointPico_SPINE3 == core::BodyJoint_SPINE3);
+static_assert(core::BodyJointPico_LEFT_FOOT == core::BodyJoint_LEFT_FOOT);
+static_assert(core::BodyJointPico_RIGHT_FOOT == core::BodyJoint_RIGHT_FOOT);
+static_assert(core::BodyJointPico_NECK == core::BodyJoint_NECK);
+static_assert(core::BodyJointPico_LEFT_COLLAR == core::BodyJoint_LEFT_COLLAR);
+static_assert(core::BodyJointPico_RIGHT_COLLAR == core::BodyJoint_RIGHT_COLLAR);
+static_assert(core::BodyJointPico_HEAD == core::BodyJoint_HEAD);
+static_assert(core::BodyJointPico_LEFT_SHOULDER == core::BodyJoint_LEFT_SHOULDER);
+static_assert(core::BodyJointPico_RIGHT_SHOULDER == core::BodyJoint_RIGHT_SHOULDER);
+static_assert(core::BodyJointPico_LEFT_ELBOW == core::BodyJoint_LEFT_ELBOW);
+static_assert(core::BodyJointPico_RIGHT_ELBOW == core::BodyJoint_RIGHT_ELBOW);
+static_assert(core::BodyJointPico_LEFT_WRIST == core::BodyJoint_LEFT_WRIST);
+static_assert(core::BodyJointPico_RIGHT_WRIST == core::BodyJoint_RIGHT_WRIST);
+static_assert(core::BodyJointPico_LEFT_HAND == core::BodyJoint_LEFT_HAND);
+static_assert(core::BodyJointPico_RIGHT_HAND == core::BodyJoint_RIGHT_HAND);
+static_assert(core::BodyJointPico_NUM_JOINTS == core::BodyJoint_NUM_JOINTS);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
+// =============================================================================
 // Compile-time verification of BodyJoint enum.
 // =============================================================================
 static_assert(core::BodyJoint_PELVIS == 0, "PELVIS should be index 0");

@@ -104,8 +104,8 @@ def get_required_oxr_extensions_from_pipeline(pipeline: Any) -> List[str]:
     """
     import isaacteleop.deviceio as deviceio
 
-    trackers = _get_trackers_from_pipeline(pipeline)
     sources = _get_sources_from_pipeline(pipeline)
+    trackers = [source.get_tracker() for source in sources]
     vendor_config = build_vendor_config_from_sources(sources)
     extensions = deviceio.DeviceIOSession.get_required_extensions(
         trackers, vendor_config

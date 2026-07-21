@@ -2696,13 +2696,18 @@ class TestReplayModeRejectsVendorSelection:
         TeleopSession(config)  # get_vendor() is None -> no raise
 
     def test_vendored_source_in_live_is_allowed(self):
-        """LIVE mode honors the vendor, so construction must not raise."""
+        """A vendored source does not trip the replay-only guard in LIVE mode.
+
+        Construction must not raise: vendor validation is a live-session concern
+        deferred to session entry (``__enter__`` -> ``VendorConfig``), so unlike
+        REPLAY there is no construction-time rejection here.
+        """
         config = TeleopSessionConfig(
             app_name="test",
             pipeline=MockPipeline(leaf_nodes=[self._vendored_head_source()]),
             mode=SessionMode.LIVE,
         )
-        TeleopSession(config)  # live mode honors the vendor -> no raise
+        TeleopSession(config)  # replay-only guard does not fire in LIVE -> no raise
 
 
 class TestReplayModeSessionEnter:

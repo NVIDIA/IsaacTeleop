@@ -17,7 +17,7 @@ from isaacteleop.retargeting_engine.interface import (
 from isaacteleop.retargeting_engine.tensor_types import (
     DLDataType,
     NDArrayType,
-    NUM_BODY_JOINTS_PICO,
+    NUM_BODY_JOINTS,
     NUM_HAND_JOINTS,
     ControllerInput,
     ControllerInputIndex,
@@ -73,11 +73,11 @@ def _active_controller() -> TensorGroup:
 
 def _active_full_body() -> TensorGroup:
     full_body = TensorGroup(FullBodyInput())
-    positions = np.zeros((NUM_BODY_JOINTS_PICO, 3), dtype=np.float32)
+    positions = np.zeros((NUM_BODY_JOINTS, 3), dtype=np.float32)
     positions[0] = [1.0, 2.0, 3.0]
-    orientations = np.zeros((NUM_BODY_JOINTS_PICO, 4), dtype=np.float32)
+    orientations = np.zeros((NUM_BODY_JOINTS, 4), dtype=np.float32)
     orientations[:, 3] = 1.0
-    valid = np.zeros(NUM_BODY_JOINTS_PICO, dtype=np.uint8)
+    valid = np.zeros(NUM_BODY_JOINTS, dtype=np.uint8)
     valid[0] = 1
 
     full_body[FullBodyInputIndex.JOINT_POSITIONS] = positions

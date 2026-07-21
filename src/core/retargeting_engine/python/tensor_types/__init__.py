@@ -16,7 +16,6 @@ from .standard_types import (
     Generic3AxisPedalInput,
     NUM_HAND_JOINTS,
     NUM_BODY_JOINTS,
-    NUM_BODY_JOINTS_PICO,
     RobotHandJoints,
 )
 from .tactile_types import (
@@ -58,7 +57,6 @@ __all__ = [
     "Generic3AxisPedalInput",
     "NUM_HAND_JOINTS",
     "NUM_BODY_JOINTS",
-    "NUM_BODY_JOINTS_PICO",
     "RobotHandJoints",
     # Tactile / haptic types
     "TactileVector",
@@ -84,7 +82,10 @@ __all__ = [
 
 # Deprecated re-exports resolved lazily so access emits a DeprecationWarning; kept out
 # of __all__ and the eager imports above so importing this module stays quiet.
-_DEPRECATED_ALIASES = {"BodyJointPicoIndex": "BodyJointIndex"}
+_DEPRECATED_ALIASES = {
+    "BodyJointPicoIndex": "BodyJointIndex",
+    "NUM_BODY_JOINTS_PICO": "NUM_BODY_JOINTS",
+}
 
 
 def __getattr__(name: str):

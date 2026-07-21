@@ -17,9 +17,6 @@ from .ndarray_types import NDArrayType, DLDataType
 NUM_HAND_JOINTS = 26  # XR_HAND_JOINT_COUNT_EXT from OpenXR
 NUM_BODY_JOINTS = 24  # XR_BODY_JOINT_COUNT_BD from XR_BD_body_tracking
 
-# Deprecated alias for NUM_BODY_JOINTS.
-NUM_BODY_JOINTS_PICO = NUM_BODY_JOINTS
-
 # ============================================================================
 # Hand Tracking Types
 # ============================================================================

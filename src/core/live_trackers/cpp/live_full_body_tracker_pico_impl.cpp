@@ -58,7 +58,7 @@ LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHand
         }
         if (!body_tracking_props.supportsBodyTracking)
         {
-            std::cerr << "[FullBodyTrackerPico] Body tracking not supported by this system, running in limp mode"
+            std::cerr << "[FullBodyTracker] Body tracking not supported by this system, running in limp mode"
                       << std::endl;
             return;
         }
@@ -85,7 +85,7 @@ LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHand
         throw std::runtime_error("Failed to create body tracker: " + std::to_string(result));
     }
 
-    std::cout << "FullBodyTrackerPico initialized (24 joints)" << std::endl;
+    std::cout << "FullBodyTracker initialized (24 joints)" << std::endl;
 }
 
 LiveFullBodyTrackerPicoImpl::~LiveFullBodyTrackerPicoImpl()
@@ -127,7 +127,7 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
     if (XR_FAILED(result))
     {
         tracked_.data.reset();
-        throw std::runtime_error("[FullBodyTrackerPico] xrLocateBodyJointsBD failed: " + std::to_string(result));
+        throw std::runtime_error("[FullBodyTracker] xrLocateBodyJointsBD failed: " + std::to_string(result));
     }
 
     if (!tracked_.data)
