@@ -28,6 +28,8 @@ from .env_config import EnvConfig
 from .runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
+    get_sdk_path,
+    resolve_cloudxr_runtime_module,
     check_eula,
     wait_for_runtime_ready_sync,
 )
@@ -39,7 +41,7 @@ DEFAULT_DEVICE_PROFILE = "Quest3"
 _RUNTIME_WORKER_CODE = """\
 import sys, os
 sys.path = [p for p in sys.path if p]
-from isaacteleop.cloudxr.runtime import run
+from {runtime_mod}.runtime import run
 run()
 """
 
@@ -174,9 +176,11 @@ class CloudXRLauncher:
         # LD_PRELOAD the bundled libraries so every OpenSSL symbol in the worker
         # resolves to the version libNvStreamServer.so was built against.
         worker_env = os.environ.copy()
-        native_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "native")
+        runtime_mod = resolve_cloudxr_runtime_module()
+        sdk_dir = get_sdk_path()
+        logger.info("CloudXR Runtime: module=%s sdk_path=%s", runtime_mod, sdk_dir)
         bundled_ssl = [
-            os.path.join(native_dir, lib)
+            os.path.join(sdk_dir, lib)
             for lib in ("libcrypto_nvst.so.3", "libssl_nvst.so.3")
         ]
         if all(os.path.isfile(lib) for lib in bundled_ssl):
@@ -185,7 +189,11 @@ class CloudXRLauncher:
             worker_env["LD_PRELOAD"] = f"{preload} {prev}" if prev else preload
 
         self._runtime_proc = subprocess.Popen(
-            [sys.executable, "-c", _RUNTIME_WORKER_CODE],
+            [
+                sys.executable,
+                "-c",
+                _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
+            ],
             env=worker_env,
             stderr=subprocess.PIPE,
             start_new_session=True,

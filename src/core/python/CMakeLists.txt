@@ -24,6 +24,17 @@ else()
     set(VIZ_PACKAGE_DATA_BLOCK "")
 endif()
 
+# isaacteleop.cloudxr_exp when ENABLE_CLOUDXR_EXP_BUNDLE=ON.
+if(ENABLE_CLOUDXR_EXP_BUNDLE)
+    set(CLOUDXR_EXP_PACKAGES_BLOCK
+        "    \"isaacteleop.cloudxr_exp\",\n")
+    set(CLOUDXR_EXP_PACKAGE_DATA_BLOCK
+        "\"isaacteleop.cloudxr_exp\" = [\"native/*.so\", \"native/*.so.*\", \"native/openxr_cloudxr.json\"]\n")
+else()
+    set(CLOUDXR_EXP_PACKAGES_BLOCK "")
+    set(CLOUDXR_EXP_PACKAGE_DATA_BLOCK "")
+endif()
+
 set(ROBOTIC_GROUNDING_SRC "${CMAKE_SOURCE_DIR}/deps/v2d/src/robotic_grounding")
 if(BUNDLE_ROBOTIC_GROUNDING)
     if(NOT EXISTS "${ROBOTIC_GROUNDING_SRC}/__init__.py")
