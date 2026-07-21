@@ -18,7 +18,6 @@ See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.htm
 """
 
 import argparse
-import contextlib
 import sys
 import time
 from datetime import datetime
@@ -30,7 +29,12 @@ from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import BODY_JOINT_NAMES, build_full_body_pipeline
+from common import (
+    BODY_JOINT_NAMES,
+    add_cloudxr_arguments,
+    build_full_body_pipeline,
+    cloudxr_launch_context,
+)
 
 
 def main(argv: list[str]) -> int:
@@ -39,6 +43,7 @@ def main(argv: list[str]) -> int:
         "duration", nargs="?", type=float, default=5.0, help="Recording duration (s)"
     )
     parser.add_argument("output", nargs="?", help="Output .mcap path")
+    add_cloudxr_arguments(parser)
     args = parser.parse_args(argv[1:])
 
     duration_s: float = args.duration
@@ -52,7 +57,6 @@ def main(argv: list[str]) -> int:
         mcap_path = out_dir / f"full_body_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 
     print(f"[record] writing {mcap_path} for {duration_s:.1f}s")
-    print("[record] connecting to existing CloudXR instance")
 
     config = TeleopSessionConfig(
         app_name="McapFullBodyRecordExample",
@@ -60,7 +64,11 @@ def main(argv: list[str]) -> int:
         mcap_config=McapRecordingConfig(str(mcap_path)),
     )
 
-    with contextlib.nullcontext(None):
+    with cloudxr_launch_context(args) as launcher:
+        if launcher is not None:
+            print(
+                f"[record] CloudXR runtime started (WSS log: {launcher.wss_log_path})"
+            )
         with TeleopSession(config) as session:
             start = time.time()
             while time.time() - start < duration_s:

@@ -12,9 +12,14 @@ Viz classes (used by replay_* and live_* scripts): ``HandViz``,
 Rendering helpers: ``HandJoints``, ``HAND_BONES``, ``BODY_BONES``.
 """
 
+import argparse
+import contextlib
+import os
+
 import numpy as np
 import viser
 
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     FullBodySource,
@@ -49,6 +54,68 @@ from isaacteleop.retargeting_engine.tensor_types.ndarray_types import (
 
 
 _ZERO_POSITIONS = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
+
+
+# ---------------------------------------------------------------------------
+# CloudXR launcher helpers shared across record / live scripts
+# ---------------------------------------------------------------------------
+
+
+def add_cloudxr_arguments(parser: argparse.ArgumentParser) -> None:
+    """Register CloudXR launcher arguments on ``parser``.
+
+    Adds ``--launch-cloudxr-runtime`` (default: true) and
+    ``--no-launch-cloudxr-runtime`` to skip launching when a CloudXR instance
+    is already running (e.g. from GR00T-WholeBodyControl).  Also registers
+    ``--accept-eula`` and ``--cloudxr-install-dir`` for when the launcher is
+    active.  Source the CloudXR env file before running without the launcher::
+
+        source ~/.cloudxr/run/cloudxr.env
+    """
+    parser.add_argument(
+        "--launch-cloudxr-runtime",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Launch the CloudXR runtime and WSS proxy before connecting "
+            "(default: true). Pass --no-launch-cloudxr-runtime to connect "
+            "to an already-running instance (source ~/.cloudxr/run/cloudxr.env first)."
+        ),
+    )
+    parser.add_argument(
+        "--accept-eula",
+        action="store_true",
+        help="Accept the NVIDIA CloudXR EULA non-interactively (required on first launch).",
+    )
+    parser.add_argument(
+        "--cloudxr-install-dir",
+        default=os.path.expanduser("~/.cloudxr"),
+        metavar="PATH",
+        help="CloudXR install directory (default: ~/.cloudxr).",
+    )
+
+
+def cloudxr_launch_context(
+    args: argparse.Namespace,
+) -> contextlib.AbstractContextManager:
+    """Return a context manager that launches CloudXR or is a no-op.
+
+    When ``args.launch_cloudxr_runtime`` is true (the default), returns a
+    :class:`~isaacteleop.cloudxr.CloudXRLauncher` context manager that starts
+    the runtime and WSS proxy.  When false, returns
+    :func:`contextlib.nullcontext` so the caller can always write::
+
+        with cloudxr_launch_context(args) as launcher:
+            if launcher is not None:
+                print(f"WSS log: {launcher.wss_log_path}")
+            ...
+    """
+    if not args.launch_cloudxr_runtime:
+        return contextlib.nullcontext(None)
+    return CloudXRLauncher(
+        install_dir=args.cloudxr_install_dir,
+        accept_eula=args.accept_eula,
+    )
 
 
 HANDS_CHANNEL = "hands"
