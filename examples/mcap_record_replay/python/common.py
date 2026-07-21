@@ -43,10 +43,14 @@ from isaacteleop.retargeting_engine.tensor_types import (
     HandInput,
     HandInputIndex,
 )
-from isaacteleop.retargeting_engine.tensor_types.indices import (
-    BodyJointPicoIndex as BodyJointIndex,
-    ControllerInputIndex,
-)
+from isaacteleop.retargeting_engine.tensor_types.indices import ControllerInputIndex
+
+try:
+    from isaacteleop.retargeting_engine.tensor_types.indices import BodyJointIndex
+except ImportError:
+    from isaacteleop.retargeting_engine.tensor_types.indices import (  # type: ignore[no-redef]
+        BodyJointPicoIndex as BodyJointIndex,
+    )
 from isaacteleop.retargeting_engine.tensor_types.ndarray_types import (
     DLDataType,
     NDArrayType,
