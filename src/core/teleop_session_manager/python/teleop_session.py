@@ -213,6 +213,8 @@ class TeleopSession:
         self._in_context: bool = False
         # Discover sources and external leaves from pipeline
         self._discover_sources()
+        # Vendor selection is a live-only concern; reject it up front in replay.
+        self._reject_vendor_selection_in_replay()
 
     @property
     def oxr_session(self) -> Optional[oxr.OpenXRSession]:
@@ -307,6 +309,30 @@ class TeleopSession:
         for source in self._sources:
             tracker = source.get_tracker()
             self._tracker_to_source[id(tracker)] = source
+
+    def _reject_vendor_selection_in_replay(self) -> None:
+        """Reject source-carried vendor selections when mode is REPLAY.
+
+        Vendor selection is a live-session concern: the live path routes each
+        source's ``get_vendor()`` into a ``VendorConfig``, but replay reads the
+        recorded channel regardless of vendor. Without this guard a vendor set on
+        a source would be silently ignored in REPLAY. Fail fast instead, matching
+        the fail-fast convention on the live path (unknown vendor ids and
+        non-vendored trackers both raise).
+        """
+        if self.config.mode != SessionMode.REPLAY:
+            return
+        vendored = [
+            source for source in self._sources if source.get_vendor() is not None
+        ]
+        if vendored:
+            names = ", ".join(sorted(source.name for source in vendored))
+            raise ValueError(
+                f"Vendor selection is only valid in SessionMode.LIVE, but "
+                f"source(s) {names} carry a vendor and mode is SessionMode.REPLAY. "
+                f"Replay reads the recorded channel regardless of vendor; remove "
+                f"the vendor selection or run in LIVE mode."
+            )
 
     def get_external_input_specs(self) -> Dict[str, RetargeterIOType]:
         """Get the input specifications for all external leaf nodes that need inputs.

@@ -2663,6 +2663,48 @@ class TestReplayModeConfigValidation:
         assert config.mode == SessionMode.LIVE
 
 
+class TestReplayModeRejectsVendorSelection:
+    """Vendor selection is live-only; a vendored source in REPLAY must fail fast."""
+
+    @staticmethod
+    def _vendored_head_source():
+        source = MockHeadSource(name="head")
+        # MockDeviceIOSource defaults get_vendor() to None; set any non-None
+        # selection to simulate a vendored source.
+        source._vendor = object()
+        return source
+
+    def test_vendored_source_in_replay_raises(self):
+        """A source carrying a vendor is rejected at construction in REPLAY mode."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[self._vendored_head_source()]),
+            mode=SessionMode.REPLAY,
+            mcap_config=MagicMock(),
+        )
+        with pytest.raises(ValueError, match="Vendor selection is only valid"):
+            TeleopSession(config)
+
+    def test_unvendored_source_in_replay_is_allowed(self):
+        """A default (unvendored) source constructs fine in REPLAY mode."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[MockHeadSource(name="head")]),
+            mode=SessionMode.REPLAY,
+            mcap_config=MagicMock(),
+        )
+        TeleopSession(config)  # get_vendor() is None -> no raise
+
+    def test_vendored_source_in_live_is_allowed(self):
+        """LIVE mode honors the vendor, so construction must not raise."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[self._vendored_head_source()]),
+            mode=SessionMode.LIVE,
+        )
+        TeleopSession(config)  # live mode honors the vendor -> no raise
+
+
 class TestReplayModeSessionEnter:
     """Tests for TeleopSession.__enter__ when mode is REPLAY."""
 
