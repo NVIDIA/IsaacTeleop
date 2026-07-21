@@ -7,6 +7,7 @@
 #include <schema/haptic_command_generated.h>
 
 #include <cstdint>
+#include <string_view>
 
 namespace core
 {
@@ -20,6 +21,7 @@ public:
 
     void update(int64_t monotonic_time_ns) override;
     const HapticCommandTrackedT& get_data() const override;
+    const HapticCommandTrackedT& get_data(std::string_view endpoint) const override;
 
 private:
     HapticCommandTrackedT tracked_;
