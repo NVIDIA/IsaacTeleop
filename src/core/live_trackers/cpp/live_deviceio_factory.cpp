@@ -30,7 +30,6 @@
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
-#include <algorithm>
 #include <cassert>
 #include <optional>
 #include <set>
@@ -273,13 +272,11 @@ std::string tracker_name_for_error(const ITracker* tracker)
     return tracker ? std::string(tracker->get_name()) : std::string("<null>");
 }
 
-// Validate per-tracker vendor selections independently of the tracker list:
-// reject selections on tracker types that do not support vendors, unknown vendor
-// ids, vendor ids that belong to a different tracker type, non-empty vendor params
-// (no consumer reads them yet), and duplicate entries. Shared by the factory
-// constructor and get_required_extensions() so both reject identical vendor
-// configurations. (Presence in the session's tracker list is checked by the
-// callers that hold that list.)
+} // namespace
+
+// Defined in this translation unit because it consults the private vendor dispatch table
+// (k_tracker_dispatch above); the anonymous-namespace helpers it calls stay visible here. See the
+// header for the full contract.
 void validate_vendor_selections(const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
 {
     std::unordered_set<const ITracker*> seen;
@@ -323,31 +320,13 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
     }
 }
 
-} // namespace
-
 std::vector<std::string> LiveDeviceIOFactory::get_required_extensions(
     const std::vector<std::shared_ptr<ITracker>>& trackers,
     const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
 {
     std::set<std::string> all;
 
-    // Validate the complete vendor mapping before resolving extensions so that
-    // extension discovery and session construction accept identical configs.
-    // Reject out-of-list selections first (matching the DeviceIOSession
-    // constructor's order), then the list-independent checks (unsupported type,
-    // unknown vendor id, duplicates) shared with the factory constructor.
-    for (const auto& [tracker, vendor] : tracker_vendors)
-    {
-        const bool in_list =
-            std::any_of(trackers.begin(), trackers.end(), [&](const auto& t) { return t.get() == tracker; });
-        if (!in_list)
-        {
-            throw std::invalid_argument("LiveDeviceIOFactory::get_required_extensions: vendor selection '" + vendor.id +
-                                        "' references tracker '" + tracker_name_for_error(tracker) +
-                                        "' that is not in the trackers list");
-        }
-    }
-    validate_vendor_selections(tracker_vendors);
+    // Precondition: DeviceIOSession has validated tracker_vendors (see @pre); this only resolves.
 
     // DeviceIOSession always owns an XrTimeConverter; match session requirements even with zero trackers.
     for (const auto& ext : XrTimeConverter::get_required_extensions())
@@ -385,6 +364,8 @@ LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                                          const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
     : handles_(handles), writer_(writer)
 {
+    // Precondition: DeviceIOSession has validated tracker_vendors (see the ctor @pre); assume valid.
+
     for (const auto& [tracker, name] : tracker_names)
     {
         TrackerData& data = tracker_data_[tracker];
@@ -396,11 +377,6 @@ LiveDeviceIOFactory::LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
         data.name = name;
     }
 
-    // Reject unsupported tracker types, unknown vendor ids, and duplicate entries
-    // using the same routine as get_required_extensions() so session construction
-    // and extension discovery accept identical vendor configurations. (Presence in
-    // the session's tracker list is validated by the DeviceIOSession constructor.)
-    validate_vendor_selections(tracker_vendors);
     for (const auto& [tracker, vendor] : tracker_vendors)
     {
         tracker_data_[tracker].vendor = vendor;

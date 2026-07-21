@@ -64,13 +64,21 @@ public:
      *
      * Each tracker resolves its required extensions through the dispatch table using the vendor
      * id selected in @p tracker_vendors (or its default vendor when unlisted).
+     *
+     * @pre @p tracker_vendors is a validated vendor config (see validate_vendor_selections()).
+     *      Passing an invalid config is undefined behavior; DeviceIOSession validates before
+     *      calling this.
      */
     static std::vector<std::string> get_required_extensions(
         const std::vector<std::shared_ptr<ITracker>>& trackers,
         const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors = {});
+
     /** Create tracker impl from a tracker instance using the same dispatch as extension discovery. */
     std::unique_ptr<ITrackerImpl> create_tracker_impl(const ITracker& tracker);
 
+    // @pre @p tracker_vendors is a validated vendor config (see validate_vendor_selections()).
+    // The factory assumes validity; passing an invalid config is undefined behavior.
+    // DeviceIOSession validates before constructing the factory.
     LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                         mcap::McapWriter* writer,
                         const std::vector<std::pair<const ITracker*, std::string>>& tracker_names,
@@ -109,5 +117,19 @@ private:
     mcap::McapWriter* writer_;
     std::unordered_map<const ITracker*, TrackerData> tracker_data_;
 };
+
+/**
+ * @brief Validate per-tracker vendor selections against the live vendor dispatch table.
+ *
+ * Rejects selections on tracker types that do not support vendors, unknown vendor ids, vendor
+ * ids that belong to a different tracker type, non-empty vendor params, and duplicate entries.
+ * Throws std::invalid_argument on the first violation. List-independent: the caller checks that
+ * each selection references a tracker it owns.
+ *
+ * This owns the dispatch-driven vendor rules; the factory assumes a config that has passed here.
+ * DeviceIOSession runs this (with its own tracker-list presence check) before opening any
+ * recording output and before constructing the factory.
+ */
+void validate_vendor_selections(const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors);
 
 } // namespace core

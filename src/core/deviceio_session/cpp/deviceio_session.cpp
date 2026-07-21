@@ -38,6 +38,25 @@ bool tracker_in_list(const std::vector<std::shared_ptr<ITracker>>& trackers, con
     return false;
 }
 
+// Fully validate a vendor config against the session's tracker list before anything consumes it.
+// DeviceIOSession is the single owner of vendor validation: the live factory assumes a validated
+// config and treats an invalid one as undefined behavior. Two parts: the tracker-list presence
+// check (done here since the session holds the list) and the dispatch-driven vendor-validity check
+// (delegated to validate_vendor_selections(), which owns the vendor dispatch table).
+void validate_vendor_config(const std::vector<std::shared_ptr<ITracker>>& trackers,
+                            const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors)
+{
+    for (const auto& [tracker_ptr, vendor] : tracker_vendors)
+    {
+        if (!tracker_in_list(trackers, tracker_ptr))
+        {
+            throw std::invalid_argument("DeviceIOSession: vendor selection '" + vendor.id + "' references tracker '" +
+                                        tracker_name_for_error(tracker_ptr) + "' that is not in the trackers list");
+        }
+    }
+    validate_vendor_selections(tracker_vendors);
+}
+
 } // namespace
 
 DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
@@ -48,14 +67,9 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
 {
     std::vector<std::pair<const ITracker*, std::string>> tracker_names;
 
-    for (const auto& [tracker_ptr, vendor] : vendor_config.tracker_vendors)
-    {
-        if (!tracker_in_list(trackers, tracker_ptr))
-        {
-            throw std::invalid_argument("DeviceIOSession: vendor selection '" + vendor.id + "' references tracker '" +
-                                        tracker_name_for_error(tracker_ptr) + "' that is not in the trackers list");
-        }
-    }
+    // Validate up front, before the MCAP writer opens below, so an invalid config leaves no
+    // stray recording file on disk.
+    validate_vendor_config(trackers, vendor_config.tracker_vendors);
 
     if (recording_config)
     {
@@ -100,6 +114,8 @@ DeviceIOSession::~DeviceIOSession() = default;
 std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                                                   const VendorConfig& vendor_config)
 {
+    // Validate here too, so an extension query rejects a bad vendor config just like construction.
+    validate_vendor_config(trackers, vendor_config.tracker_vendors);
     return LiveDeviceIOFactory::get_required_extensions(trackers, vendor_config.tracker_vendors);
 }
 
