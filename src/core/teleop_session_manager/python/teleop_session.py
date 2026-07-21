@@ -974,6 +974,11 @@ class TeleopSession:
 
     def _enter_resources(self, stack: ExitStack) -> None:
         """Acquire and initialize resources for one context-manager run."""
+        # config is mutable between construction and entry, so revalidate the
+        # replay-only vendor guard here: a mode flipped to REPLAY after __init__
+        # must still fail fast rather than silently ignore a source's vendor.
+        self._reject_vendor_selection_in_replay()
+
         # Reset run-scoped plugin containers on each context entry.
         self.plugin_managers = []
         self.plugin_contexts = []

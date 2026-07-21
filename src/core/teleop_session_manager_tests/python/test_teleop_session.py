@@ -2709,6 +2709,28 @@ class TestReplayModeRejectsVendorSelection:
         )
         TeleopSession(config)  # replay-only guard does not fire in LIVE -> no raise
 
+    def test_mode_flipped_to_replay_after_construction_rejects_on_enter(self):
+        """The guard re-runs on context entry, not just at construction.
+
+        config is mutable, so a session built in LIVE with a vendored source
+        (which does not raise at construction) that is later switched to REPLAY
+        must still fail fast on ``__enter__`` rather than silently ignore the
+        source's vendor while replaying. Replay dependencies are fully mocked so
+        the only thing that can reject entry is the revalidated vendor guard.
+        """
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[self._vendored_head_source()]),
+            mode=SessionMode.LIVE,
+        )
+        session = TeleopSession(config)  # LIVE at construction -> no raise
+        config.mode = SessionMode.REPLAY
+        config.mcap_config = MagicMock()
+        with mock_replay_dependencies():
+            with pytest.raises(ValueError, match="Vendor selection is only valid"):
+                with session:
+                    pass
+
 
 class TestReplayModeSessionEnter:
     """Tests for TeleopSession.__enter__ when mode is REPLAY."""
