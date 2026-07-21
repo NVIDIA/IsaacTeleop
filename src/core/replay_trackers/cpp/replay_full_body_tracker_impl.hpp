@@ -37,8 +37,10 @@ private:
 };
 
 // Deprecated alias for the renamed ReplayFullBodyTrackerImpl (was
-// ReplayFullBodyTrackerPicoImpl before the vendor-neutral rename). Retained so
-// existing consumers keep compiling; prefer ReplayFullBodyTrackerImpl.
-using ReplayFullBodyTrackerPicoImpl = ReplayFullBodyTrackerImpl;
+// ReplayFullBodyTrackerPicoImpl before the vendor-neutral rename). Retained so source
+// referencing the old type name keeps compiling (with a deprecation warning); prefer
+// ReplayFullBodyTrackerImpl.
+using ReplayFullBodyTrackerPicoImpl [[deprecated("renamed to core::ReplayFullBodyTrackerImpl")]] =
+    ReplayFullBodyTrackerImpl;
 
 } // namespace core

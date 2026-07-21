@@ -3,6 +3,8 @@
 
 """Isaac Teleop DeviceIO Trackers — tracker classes for device I/O."""
 
+import warnings
+
 from ._deviceio_trackers import (
     ITracker,
     HandTracker,
@@ -25,8 +27,23 @@ from ._deviceio_trackers import (
     JOINT_INDEX_TIP,
 )
 
-# Deprecated alias for FullBodyTracker.
-FullBodyTrackerPico = FullBodyTracker
+# Deprecated aliases resolved lazily via __getattr__ so that accessing them emits a
+# DeprecationWarning. Intentionally omitted from __all__ so `import *` no longer pulls
+# the old names.
+_DEPRECATED_ALIASES = {"FullBodyTrackerPico": "FullBodyTracker"}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ControllerTracker",
@@ -34,7 +51,6 @@ __all__ = [
     "MessageChannelTracker",
     "FrameMetadataTrackerOak",
     "FullBodyTracker",
-    "FullBodyTrackerPico",
     "Generic3AxisPedalTracker",
     "OgloTactileTracker",
     "TensorPushTracker",

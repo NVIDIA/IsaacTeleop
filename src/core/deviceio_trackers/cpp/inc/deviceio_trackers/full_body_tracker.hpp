@@ -41,9 +41,12 @@ private:
 };
 
 // Deprecated alias for the renamed FullBodyTracker (was FullBodyTrackerPico before the
-// vendor-agnostic rename). Retained so existing C++ consumers keep compiling; prefer
-// FullBodyTracker. Mirrors the Python alias and the ReplayFullBodyTrackerPicoImpl /
-// FullBodyPicoRecordingTraits C++ aliases added in the same change.
-using FullBodyTrackerPico = FullBodyTracker;
+// vendor-agnostic rename). Retained so source referencing the old type name keeps
+// compiling (with a deprecation warning); prefer FullBodyTracker. Note the old
+// full_body_tracker_pico.hpp / full_body_tracker_pico_base.hpp headers were removed and
+// there is no IFullBodyTrackerPicoImpl alias, so include-path and impl-interface users
+// must update. Mirrors the Python alias and the ReplayFullBodyTrackerPicoImpl /
+// FullBodyPicoRecordingTraits C++ aliases.
+using FullBodyTrackerPico [[deprecated("renamed to core::FullBodyTracker")]] = FullBodyTracker;
 
 } // namespace core

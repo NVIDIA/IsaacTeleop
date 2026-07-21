@@ -46,9 +46,10 @@ struct FullBodyRecordingTraits
 };
 
 // Deprecated alias for the renamed FullBodyRecordingTraits (was
-// FullBodyPicoRecordingTraits before the vendor-agnostic rename). Retained so
-// existing consumers keep compiling; prefer FullBodyRecordingTraits.
-using FullBodyPicoRecordingTraits = FullBodyRecordingTraits;
+// FullBodyPicoRecordingTraits before the vendor-agnostic rename). Retained so source
+// referencing the old type name keeps compiling (with a deprecation warning); prefer
+// FullBodyRecordingTraits.
+using FullBodyPicoRecordingTraits [[deprecated("renamed to core::FullBodyRecordingTraits")]] = FullBodyRecordingTraits;
 
 struct PedalRecordingTraits
 {
