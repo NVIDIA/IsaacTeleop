@@ -55,6 +55,7 @@ packages = [
     "isaacteleop.retargeting_engine_ui",
     "isaacteleop.teleop_session_manager",
     "isaacteleop.cloudxr",
+    "isaacteleop.rig",
     "isaacteleop.haptic_devices",
 @VIZ_PACKAGES_BLOCK@@ROBOTIC_GROUNDING_PACKAGES_BLOCK@]
 include-package-data = false

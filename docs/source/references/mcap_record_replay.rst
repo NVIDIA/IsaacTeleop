@@ -161,7 +161,7 @@ Replay runs headless — no headset required:
    uv run python replay_hand.py --loop                # repeat until Ctrl+C
    uv run python replay_hand.py --port 8090           # change viser port
 
-Open the printed URL (default http://localhost:8080) in a browser to see the
+Open the printed URL (default ``http://localhost:8080``) in a browser to see the
 left (green) and right (blue) hand skeletons update each frame.
 
 The ``record_controller.py`` / ``replay_controller.py`` and

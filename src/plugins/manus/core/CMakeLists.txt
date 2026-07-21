@@ -19,9 +19,11 @@ target_link_libraries(manus_plugin_core
         deviceio::deviceio_trackers
     OpenXR::openxr_loader
     oxr::oxr_core
+    pusherio::pusherio
   PRIVATE
     oxr::oxr_utils
     Teleop::openxr_extensions
+    isaacteleop_schema
 )
 
 set_target_properties(manus_plugin_core PROPERTIES

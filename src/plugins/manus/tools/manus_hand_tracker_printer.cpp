@@ -20,8 +20,9 @@ try
 
     std::cout << "[Manus] Initializing Manus Tracker..." << std::endl;
 
-    // Initialize the Manus tracker
-    auto& tracker = plugins::manus::ManusTracker::instance("ManusHandPrinter");
+    plugins::manus::ManusPluginConfig config;
+    config.app_name = "ManusHandPrinter";
+    auto& tracker = plugins::manus::ManusTracker::instance(config);
 
     // Start Vulkan visualizer in a background thread.
     // If X11 or Vulkan is unavailable the thread exits cleanly and printing
