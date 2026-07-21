@@ -196,9 +196,17 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "Get the current SE3 tracked snapshot (data is None when no data available; gate on "
             "data.is_valid before consuming the pose)");
 
-    py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>>(
-        m, "FullBodyTrackerPico")
-        .def(py::init<>())
+    py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>> full_body_tracker(
+        m, "FullBodyTrackerPico");
+    full_body_tracker.attr("DEFAULT_MAX_FLATBUFFER_SIZE") =
+        static_cast<size_t>(core::FullBodyTrackerPico::DEFAULT_MAX_FLATBUFFER_SIZE);
+    full_body_tracker.def(py::init<>())
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::FullBodyTrackerPico::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a FullBodyTrackerPico that reads FullBodyPosePico samples from an OpenXR tensor collection")
+        .def_property_readonly("uses_external_collection", &core::FullBodyTrackerPico::uses_external_collection)
+        .def_property_readonly("collection_id", &core::FullBodyTrackerPico::collection_id)
+        .def_property_readonly("max_flatbuffer_size", &core::FullBodyTrackerPico::max_flatbuffer_size)
         .def(
             "get_body_pose",
             [](const core::FullBodyTrackerPico& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
