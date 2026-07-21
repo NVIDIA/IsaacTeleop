@@ -30,7 +30,7 @@
  */
 
 import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -176,6 +176,12 @@ export function TraceVisualization({
     };
   }
   const traceChannels = Object.values(traceRef.current);
+
+  // Clear accumulated dots whenever the recorder mode changes so traces from a
+  // prior recording don't ghost under the next live trace or replay.
+  useEffect(() => {
+    traceRef.current && Object.values(traceRef.current).forEach(ch => ch.buf.clear());
+  }, [recorder.mode]);
 
   useFrame((state) => {
     const t = traceRef.current!;

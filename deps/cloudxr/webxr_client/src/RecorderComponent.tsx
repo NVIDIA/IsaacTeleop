@@ -24,7 +24,7 @@
  */
 
 import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 
 import type { XRInputRecorder } from "./xrInputRecorder";
 
@@ -42,6 +42,14 @@ export function RecorderComponent({
   isConnected,
 }: RecorderComponentProps) {
   const tickRef = useRef(0);
+
+  // Ensure prototype patches are always removed even on unexpected unmount.
+  useEffect(() => {
+    return () => {
+      if (recorder.mode === "recording") recorder.stopRecording();
+      else if (recorder.mode === "replaying") recorder.stopReplay();
+    };
+  }, [recorder]);
 
   useFrame((state) => {
     const xrFrame = state.gl.xr.getFrame() as XRFrame | null;

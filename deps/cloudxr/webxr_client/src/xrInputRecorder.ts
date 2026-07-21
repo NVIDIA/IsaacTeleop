@@ -193,6 +193,7 @@ export class XRInputRecorder {
     XRJointSpace,
     { hand: "left" | "right"; index: number }
   >();
+  private _lastJointMapSession: XRSession | null = null;
 
   private _origGetPose: typeof XRFrame.prototype.getPose | null = null;
   private _origGetJointPose: typeof XRFrame.prototype.getJointPose | null =
@@ -540,6 +541,8 @@ export class XRInputRecorder {
   // ---- joint map builder ---------------------------------------------------
 
   private _ensureJointMap(session: XRSession): void {
+    if (this._lastJointMapSession === session) return;
+    this._lastJointMapSession = session;
     for (const src of session.inputSources) {
       if (!src.hand) continue;
       const hand = src.handedness;
