@@ -18,12 +18,12 @@ See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.htm
 """
 
 import argparse
+import contextlib
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
 
-from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
@@ -36,7 +36,6 @@ def main(argv: list[str]) -> int:
         "duration", nargs="?", type=float, default=5.0, help="Recording duration (s)"
     )
     parser.add_argument("output", nargs="?", help="Output .mcap path")
-    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
     duration_s: float = args.duration
@@ -50,6 +49,7 @@ def main(argv: list[str]) -> int:
         mcap_path = out_dir / f"hands_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 
     print(f"[record] writing {mcap_path} for {duration_s:.1f}s")
+    print("[record] connecting to existing CloudXR instance")
 
     config = TeleopSessionConfig(
         app_name="McapHandRecordExample",
@@ -57,11 +57,7 @@ def main(argv: list[str]) -> int:
         mcap_config=McapRecordingConfig(str(mcap_path)),
     )
 
-    with CloudXRLauncher.launch_context(args) as launcher:
-        if launcher is not None:
-            print(
-                f"[record] CloudXR runtime started (WSS log: {launcher.wss_log_path})"
-            )
+    with contextlib.nullcontext(None):
         with TeleopSession(config) as session:
             start = time.time()
             while time.time() - start < duration_s:

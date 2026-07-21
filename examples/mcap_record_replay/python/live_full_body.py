@@ -18,13 +18,13 @@ See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.htm
 """
 
 import argparse
+import contextlib
 import sys
 import time
 
 import numpy as np
 import viser
 
-from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
@@ -39,7 +39,6 @@ def main(argv: list[str]) -> int:
         help="Viser HTTP bind address (default: 127.0.0.1; pass 0.0.0.0 to expose externally)",
     )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
-    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
     server = viser.ViserServer(host=args.host, port=args.port)
@@ -51,9 +50,8 @@ def main(argv: list[str]) -> int:
         pipeline=build_full_body_pipeline(),
     )
 
-    with CloudXRLauncher.launch_context(args) as launcher:
-        if launcher is not None:
-            print(f"[live] CloudXR runtime started (WSS log: {launcher.wss_log_path})")
+    with contextlib.nullcontext(None):
+        print("[live] connecting to existing CloudXR instance")
         print("[live] waiting for headset connection… (Ctrl+C to stop)")
 
         with TeleopSession(config) as session:
