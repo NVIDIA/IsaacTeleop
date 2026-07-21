@@ -364,6 +364,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
@@ -495,7 +496,6 @@ following issue for progress: <a class="github reference external" href="https:/
     <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>                     <span class="c1"># Print progress info</span>
     <span class="n">oxr_handles</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># External OpenXR handles (optional)</span>
     <span class="n">mcap_config</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># Required for REPLAY, optional for LIVE</span>
-    <span class="n">tracker_vendors</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">TrackerVendor</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># Per-source vendor selection, live only (optional)</span>
     <span class="n">retargeting_execution</span><span class="p">:</span> <span class="n">RetargetingExecutionConfig</span> <span class="o">=</span> <span class="o">...</span>
 </pre></div>
 </div>
@@ -525,22 +525,22 @@ argument is a <code class="docutils literal notranslate"><span class="pre">uint6
 </div>
 <section id="tracker-vendor-selection">
 <h4>Tracker vendor selection<a class="headerlink" href="#tracker-vendor-selection" title="Link to this heading">#</a></h4>
-<p>In live mode, <code class="docutils literal notranslate"><span class="pre">tracker_vendors</span></code> selects the backend (“vendor”) for a source’s
-vendored tracker – for example which backend drives a <code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code>.
-Because DeviceIO source nodes own their trackers internally, the selection is
-keyed by DeviceIO <strong>source name</strong> rather than by tracker instance. Each value is
-a <code class="docutils literal notranslate"><span class="pre">deviceio.TrackerVendor(id,</span> <span class="pre">params)</span></code>; sources left out use their tracker’s
-default vendor, and unknown source names fail fast at session start. See
-<a class="reference internal" href="../device/trackers.html#vendor-selection"><span class="std std-ref">Vendor Selection</span></a> for the underlying DeviceIO mechanism and the available
-vendor ids.</p>
+<p>In live mode, a vendored source selects the backend (“vendor”) for its tracker
+– for example which backend drives a <code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code>. The selection is
+carried <strong>on the source</strong> via its <code class="docutils literal notranslate"><span class="pre">vendor</span></code> argument, a
+<code class="docutils literal notranslate"><span class="pre">deviceio.TrackerVendor(id,</span> <span class="pre">params)</span></code>; sources left at the default use their
+tracker’s default vendor. Because the vendor travels with the source, it is part
+of the pipeline: <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> picks it up automatically, and
+<code class="docutils literal notranslate"><span class="pre">get_required_oxr_extensions_from_pipeline(pipeline)</span></code> reports the matching
+OpenXR extensions with no extra argument (important for the external-<code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code>
+flow). See <a class="reference internal" href="../device/trackers.html#vendor-selection"><span class="std std-ref">Vendor Selection</span></a> for the underlying DeviceIO mechanism and the
+available vendor ids.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">isaacteleop.deviceio</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">deviceio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.deviceio_source_nodes</span><span class="w"> </span><span class="kn">import</span> <span class="n">FullBodySource</span>
 
-<span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
-    <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
-    <span class="n">tracker_vendors</span><span class="o">=</span><span class="p">{</span>
-        <span class="s2">&quot;full_body&quot;</span><span class="p">:</span> <span class="n">deviceio</span><span class="o">.</span><span class="n">TrackerVendor</span><span class="p">(</span><span class="s2">&quot;body.pico-xr&quot;</span><span class="p">),</span>
-    <span class="p">},</span>
+<span class="c1"># Select the backend on the source; it flows through the pipeline into the session.</span>
+<span class="n">full_body</span> <span class="o">=</span> <span class="n">FullBodySource</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;full_body&quot;</span><span class="p">,</span> <span class="n">vendor</span><span class="o">=</span><span class="n">deviceio</span><span class="o">.</span><span class="n">TrackerVendor</span><span class="p">(</span><span class="s2">&quot;body.pico-xr&quot;</span><span class="p">)</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -808,7 +808,12 @@ the most recent returned output</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">get_required_oxr_extensions_from_pipeline(pipeline)</span> <span class="pre">-&gt;</span> <span class="pre">List[str]</span></code> –
 Discover the OpenXR extensions needed by a retargeting pipeline by
 traversing its DeviceIO source leaf nodes. Returns a sorted, deduplicated
-list of extension name strings.</p></li>
+list of extension name strings. Extensions are vendor-dependent, but each
+source carries its own vendor selection, so the result already reflects them
+– when you create the OpenXR session yourself and feed the handles in via
+<code class="docutils literal notranslate"><span class="pre">oxr_handles</span></code>, the enabled extensions match the session that gets built
+with no extra argument. Select a vendor on the source (e.g.
+<code class="docutils literal notranslate"><span class="pre">FullBodySource(name=&quot;full_body&quot;,</span> <span class="pre">vendor=deviceio.TrackerVendor(&quot;body.pico-xr&quot;))</span></code>).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">create_standard_inputs(trackers)</span> <span class="pre">-&gt;</span> <span class="pre">Dict[str,</span> <span class="pre">IDeviceIOSource]</span></code> –
 Convenience function that creates <code class="docutils literal notranslate"><span class="pre">HandsSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>,
 and/or <code class="docutils literal notranslate"><span class="pre">HeadSource</span></code> instances from a list of tracker objects.</p></li>
@@ -1080,7 +1085,7 @@ of input sources.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 21, 2026.
       <br/>
     
   </p>

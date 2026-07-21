@@ -364,6 +364,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
@@ -729,9 +730,10 @@ trackers, and unknown vendor ids, are rejected at session construction.</p>
 <code class="docutils literal notranslate"><span class="pre">VendorConfig</span></code> applies to live sessions only. The vendor registry is open for
 additional pre-built plugin vendors without changing the tracker marker.</p>
 <p>When driving devices through the higher-level teleop session manager, vendor
-selection is expressed per DeviceIO source via
-<code class="docutils literal notranslate"><span class="pre">TeleopSessionConfig.tracker_vendors</span></code>; see
-<a class="reference internal" href="../getting_started/teleop_session.html"><span class="doc">Teleop Session</span></a>.</p>
+selection is carried on the DeviceIO source itself via its <code class="docutils literal notranslate"><span class="pre">vendor</span></code> argument
+(e.g. <code class="docutils literal notranslate"><span class="pre">FullBodySource(name=&quot;full_body&quot;,</span> <span class="pre">vendor=deviceio.TrackerVendor(&quot;body.pico-xr&quot;))</span></code>),
+so it travels with the pipeline into both extension discovery and session
+construction; see <a class="reference internal" href="../getting_started/teleop_session.html"><span class="doc">Teleop Session</span></a>.</p>
 </section>
 <section id="usage-examples">
 <span id="tracker-usage-example"></span><h2>Usage Examples<a class="headerlink" href="#usage-examples" title="Link to this heading">#</a></h2>
@@ -895,7 +897,7 @@ selection is expressed per DeviceIO source via
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 20, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 21, 2026.
       <br/>
     
   </p>

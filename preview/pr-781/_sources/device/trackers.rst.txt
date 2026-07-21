@@ -303,9 +303,10 @@ Replay is always vendor-neutral: the replay full-body impl reads the recorded
 additional pre-built plugin vendors without changing the tracker marker.
 
 When driving devices through the higher-level teleop session manager, vendor
-selection is expressed per DeviceIO source via
-``TeleopSessionConfig.tracker_vendors``; see
-:doc:`../getting_started/teleop_session`.
+selection is carried on the DeviceIO source itself via its ``vendor`` argument
+(e.g. ``FullBodySource(name="full_body", vendor=deviceio.TrackerVendor("body.pico-xr"))``),
+so it travels with the pipeline into both extension discovery and session
+construction; see :doc:`../getting_started/teleop_session`.
 
 .. _tracker-usage-example:
 
