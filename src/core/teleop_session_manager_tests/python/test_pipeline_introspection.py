@@ -201,7 +201,11 @@ class TestSourceCarriedVendor:
             [FullBodySource(name="full_body")]
         )
         selected_pipeline = _mock_pipeline_with_leaf_nodes(
-            [FullBodySource(name="full_body", vendor=deviceio.TrackerVendor("body.pico-xr"))]
+            [
+                FullBodySource(
+                    name="full_body", vendor=deviceio.TrackerVendor("body.pico-xr")
+                )
+            ]
         )
 
         assert get_required_oxr_extensions_from_pipeline(

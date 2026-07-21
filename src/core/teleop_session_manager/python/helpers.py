@@ -107,7 +107,9 @@ def get_required_oxr_extensions_from_pipeline(pipeline: Any) -> List[str]:
     trackers = _get_trackers_from_pipeline(pipeline)
     sources = _get_sources_from_pipeline(pipeline)
     vendor_config = build_vendor_config_from_sources(sources)
-    extensions = deviceio.DeviceIOSession.get_required_extensions(trackers, vendor_config)
+    extensions = deviceio.DeviceIOSession.get_required_extensions(
+        trackers, vendor_config
+    )
 
     # Deduplicate — multiple trackers may require the same extensions.
     return sorted(set(extensions))
