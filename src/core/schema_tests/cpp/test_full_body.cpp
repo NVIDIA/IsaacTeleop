@@ -56,8 +56,8 @@ static_assert(sizeof(core::BodyJoints) == 24 * sizeof(core::BodyJointPose),
 // [[deprecated]] names, so suppress that diagnostic for this block only.
 // =============================================================================
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 #include <schema/full_body_compat.hpp>
 
@@ -98,7 +98,7 @@ static_assert(core::BodyJointPico_LEFT_HAND == core::BodyJoint_LEFT_HAND);
 static_assert(core::BodyJointPico_RIGHT_HAND == core::BodyJoint_RIGHT_HAND);
 static_assert(core::BodyJointPico_NUM_JOINTS == core::BodyJoint_NUM_JOINTS);
 #if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
+#    pragma GCC diagnostic pop
 #endif
 
 // =============================================================================
