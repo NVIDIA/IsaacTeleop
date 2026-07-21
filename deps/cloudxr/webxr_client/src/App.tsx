@@ -300,6 +300,9 @@ function App() {
       createXRStore({
         emulate: false, // Disable IWER emulation from react in favor of custom iwer loading function
         foveation: xrFoveation,
+        // CloudXRComponent applies the configured rate before CloudXR negotiates the stream.
+        // Disabling the store's automatic "high" preference avoids racing that negotiation.
+        frameRate: false,
         frameBufferScaling: xrFrameBufferScaling,
         // Use local WebXR input profile assets only when bundled (optional build without assets)
         ...(process.env.WEBXR_ASSETS_VERSION && {
@@ -378,23 +381,6 @@ function App() {
       } else {
         setErrorMessage('Unrecognized immersive mode');
       }
-      store.setFrameRate((supportedFrameRates: ArrayLike<number>): number | false => {
-        let frameRate = ui.getConfiguration().deviceFrameRate;
-        let found = false;
-        for (let i = 0; i < supportedFrameRates.length; ++i) {
-          if (supportedFrameRates[i] === frameRate) {
-            found = true;
-            break;
-          }
-        }
-        if (found) {
-          console.info('Changed frame rate to', frameRate);
-          return frameRate;
-        } else {
-          console.error('Failed to change frame rate to', frameRate);
-          return false;
-        }
-      });
     };
 
     ui.setupConnectButtonHandler(doConnect, (error: Error) => {

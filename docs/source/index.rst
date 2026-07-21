@@ -58,15 +58,28 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 2
+   :caption: Devices
+
+   device/trackers
+   device/add_device
+   device/joint_space
+   device/body_tracking
+   device/haptic_feedback
+   device/manus
+   device/oak
+   device/haptikos
+
+.. toctree::
+   :maxdepth: 2
    :caption: References
 
    references/requirements
    references/build
-   device/index
    references/retargeting/index
    references/camera_streaming
    references/mcap_record_replay
    references/cloudxr
+   references/rig
    references/oob_teleop_control
    references/egocentric_hand_reconstruction
    references/oss_license_vulnerability_report
@@ -76,5 +89,4 @@ Indices and tables
 ------------------
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`

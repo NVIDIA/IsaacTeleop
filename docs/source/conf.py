@@ -144,7 +144,7 @@ _GH_BRANCH = html_context["github_version"]
 
 def _parse_code_role(text):
     """Parse role text as 'path' or 'label <path>'. Returns (label, path)."""
-    text = text.strip()
+    text = " ".join(text.split())  # collapse newlines from source line wrapping
     if " <" in text and text.endswith(">"):
         label, path = text.rsplit(" <", 1)
         return label.strip(), path[:-1].strip()

@@ -208,7 +208,8 @@ class TeleopSession:
         self._active_retargeting_execution_mode: Optional[RetargetingExecutionMode] = (
             None
         )
-        self._setup_complete: bool = False
+        # True from the start of __enter__ until __exit__ or rollback finishes.
+        self._in_context: bool = False
         # Discover sources and external leaves from pipeline
         self._discover_sources()
 
@@ -918,7 +919,34 @@ class TeleopSession:
 
         Returns:
             self for context manager protocol
+
+        Raises:
+            RuntimeError: If the session is already active.
         """
+        # Detect nested context-manager use; this does not make the session thread-safe.
+        if self._in_context:
+            raise RuntimeError("TeleopSession is already active")
+
+        self._in_context = True
+        stack = ExitStack()
+        try:
+            self._enter_resources(stack)
+            self._exit_stack = stack.pop_all()
+        except BaseException as error:
+            try:
+                # Give resources the setup error, but do not let one suppress it.
+                stack.__exit__(type(error), error, error.__traceback__)
+            except BaseException:
+                logger.exception("Failed to roll back TeleopSession setup")
+            finally:
+                self._oxr_session = None
+                self._in_context = False
+            raise
+
+        return self
+
+    def _enter_resources(self, stack: ExitStack) -> None:
+        """Acquire and initialize resources for one context-manager run."""
         # Reset run-scoped plugin containers on each context entry.
         self.plugin_managers = []
         self.plugin_contexts = []
@@ -942,7 +970,7 @@ class TeleopSession:
                 )
 
         if self.config.mode == SessionMode.REPLAY:
-            self.deviceio_session = self._exit_stack.enter_context(
+            self.deviceio_session = stack.enter_context(
                 deviceio.ReplaySession.run(mcap_config)
             )
         else:
@@ -978,13 +1006,13 @@ class TeleopSession:
             if self.config.oxr_handles is not None:
                 handles = self.config.oxr_handles
             else:
-                self._oxr_session = self._exit_stack.enter_context(
+                self._oxr_session = stack.enter_context(
                     oxr.OpenXRSession(self.config.app_name, required_extensions)
                 )
                 handles = self._oxr_session.get_handles()
 
             # Create DeviceIO session with all trackers
-            self.deviceio_session = self._exit_stack.enter_context(
+            self.deviceio_session = stack.enter_context(
                 deviceio.DeviceIOSession.run(trackers, handles, mcap_config)
             )
 
@@ -1014,7 +1042,7 @@ class TeleopSession:
                     plugin_config.plugin_root_id,
                     plugin_config.plugin_args,
                 )
-                self._exit_stack.enter_context(context)
+                stack.enter_context(context)
                 self.plugin_contexts.append(context)
 
         # Initialize runtime state
@@ -1026,12 +1054,9 @@ class TeleopSession:
         self._async_runner = None
         self._active_retargeting_execution_mode = self.config.retargeting_execution.mode
 
-        self._setup_complete = True
-        return self
-
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context - cleanup resources."""
-        if not self._setup_complete:
+        if not self._in_context:
             return False
 
         runner_error = None
@@ -1056,13 +1081,13 @@ class TeleopSession:
         # exceptions from the user body, even if a child context manager would.
         try:
             self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
-            self._exit_stack = ExitStack()
         finally:
             # The ExitStack above closes the OpenXR session; drop our reference so the
             # public `oxr_session` property honors its documented None contract post-exit
             # rather than surfacing a torn-down session -- even if a managed context's
             # cleanup raised. (deviceio_session has no such property/contract.)
             self._oxr_session = None
+            self._in_context = False
 
         if runner_error is not None:
             raise runner_error
