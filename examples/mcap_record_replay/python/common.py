@@ -44,7 +44,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     HandInputIndex,
 )
 from isaacteleop.retargeting_engine.tensor_types.indices import (
-    BodyJointIndex,
+    BodyJointPicoIndex as BodyJointIndex,
     ControllerInputIndex,
 )
 from isaacteleop.retargeting_engine.tensor_types.ndarray_types import (
