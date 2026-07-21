@@ -724,7 +724,7 @@ def mock_session_dependencies(
 
     if collected_trackers is not None:
 
-        def get_ext_side_effect(trackers):
+        def get_ext_side_effect(trackers, vendor_config=None):
             collected_trackers.extend(trackers)
             return []
 
@@ -2661,6 +2661,75 @@ class TestReplayModeConfigValidation:
             pipeline=MockPipeline(),
         )
         assert config.mode == SessionMode.LIVE
+
+
+class TestReplayModeRejectsVendorSelection:
+    """Vendor selection is live-only; a vendored source in REPLAY must fail fast."""
+
+    @staticmethod
+    def _vendored_head_source():
+        source = MockHeadSource(name="head")
+        # MockDeviceIOSource defaults get_vendor() to None; set any non-None
+        # selection to simulate a vendored source.
+        source._vendor = object()
+        return source
+
+    def test_vendored_source_in_replay_raises(self):
+        """A source carrying a vendor is rejected at construction in REPLAY mode."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[self._vendored_head_source()]),
+            mode=SessionMode.REPLAY,
+            mcap_config=MagicMock(),
+        )
+        with pytest.raises(ValueError, match="Vendor selection is only valid"):
+            TeleopSession(config)
+
+    def test_unvendored_source_in_replay_is_allowed(self):
+        """A default (unvendored) source constructs fine in REPLAY mode."""
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[MockHeadSource(name="head")]),
+            mode=SessionMode.REPLAY,
+            mcap_config=MagicMock(),
+        )
+        TeleopSession(config)  # get_vendor() is None -> no raise
+
+    def test_vendored_source_in_live_is_allowed(self):
+        """A vendored source does not trip the replay-only guard in LIVE mode.
+
+        Construction must not raise: vendor validation is a live-session concern
+        deferred to session entry (``__enter__`` -> ``VendorConfig``), so unlike
+        REPLAY there is no construction-time rejection here.
+        """
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[self._vendored_head_source()]),
+            mode=SessionMode.LIVE,
+        )
+        TeleopSession(config)  # replay-only guard does not fire in LIVE -> no raise
+
+    def test_mode_flipped_to_replay_after_construction_rejects_on_enter(self):
+        """The guard re-runs on context entry, not just at construction.
+
+        config is mutable, so a session built in LIVE with a vendored source
+        (which does not raise at construction) that is later switched to REPLAY
+        must still fail fast on ``__enter__`` rather than silently ignore the
+        source's vendor while replaying. Replay dependencies are fully mocked so
+        the only thing that can reject entry is the revalidated vendor guard.
+        """
+        config = TeleopSessionConfig(
+            app_name="test",
+            pipeline=MockPipeline(leaf_nodes=[self._vendored_head_source()]),
+            mode=SessionMode.LIVE,
+        )
+        session = TeleopSession(config)  # LIVE at construction -> no raise
+        config.mode = SessionMode.REPLAY
+        config.mcap_config = MagicMock()
+        with mock_replay_dependencies():
+            with pytest.raises(ValueError, match="Vendor selection is only valid"):
+                with session:
+                    pass
 
 
 class TestReplayModeSessionEnter:

@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Python bindings for the FullBodyPosePico FlatBuffer schema.
-// Includes BodyJointPose struct, BodyJointsPico struct, and FullBodyPosePicoT table.
+// Python bindings for the FullBodyPose FlatBuffer schema.
+// Includes BodyJointPose struct, BodyJoints struct, and FullBodyPoseT table.
 
 #pragma once
 
@@ -23,33 +23,33 @@ namespace core
 
 inline void bind_full_body(py::module& m)
 {
-    // Bind BodyJointPico enum (joint indices for XR_BD_body_tracking).
-    py::enum_<BodyJointPico>(m, "BodyJointPico")
-        .value("PELVIS", BodyJointPico_PELVIS)
-        .value("LEFT_HIP", BodyJointPico_LEFT_HIP)
-        .value("RIGHT_HIP", BodyJointPico_RIGHT_HIP)
-        .value("SPINE1", BodyJointPico_SPINE1)
-        .value("LEFT_KNEE", BodyJointPico_LEFT_KNEE)
-        .value("RIGHT_KNEE", BodyJointPico_RIGHT_KNEE)
-        .value("SPINE2", BodyJointPico_SPINE2)
-        .value("LEFT_ANKLE", BodyJointPico_LEFT_ANKLE)
-        .value("RIGHT_ANKLE", BodyJointPico_RIGHT_ANKLE)
-        .value("SPINE3", BodyJointPico_SPINE3)
-        .value("LEFT_FOOT", BodyJointPico_LEFT_FOOT)
-        .value("RIGHT_FOOT", BodyJointPico_RIGHT_FOOT)
-        .value("NECK", BodyJointPico_NECK)
-        .value("LEFT_COLLAR", BodyJointPico_LEFT_COLLAR)
-        .value("RIGHT_COLLAR", BodyJointPico_RIGHT_COLLAR)
-        .value("HEAD", BodyJointPico_HEAD)
-        .value("LEFT_SHOULDER", BodyJointPico_LEFT_SHOULDER)
-        .value("RIGHT_SHOULDER", BodyJointPico_RIGHT_SHOULDER)
-        .value("LEFT_ELBOW", BodyJointPico_LEFT_ELBOW)
-        .value("RIGHT_ELBOW", BodyJointPico_RIGHT_ELBOW)
-        .value("LEFT_WRIST", BodyJointPico_LEFT_WRIST)
-        .value("RIGHT_WRIST", BodyJointPico_RIGHT_WRIST)
-        .value("LEFT_HAND", BodyJointPico_LEFT_HAND)
-        .value("RIGHT_HAND", BodyJointPico_RIGHT_HAND)
-        .value("NUM_JOINTS", BodyJointPico_NUM_JOINTS);
+    // Bind BodyJoint enum (joint indices for XR_BD_body_tracking).
+    py::enum_<BodyJoint>(m, "BodyJoint")
+        .value("PELVIS", BodyJoint_PELVIS)
+        .value("LEFT_HIP", BodyJoint_LEFT_HIP)
+        .value("RIGHT_HIP", BodyJoint_RIGHT_HIP)
+        .value("SPINE1", BodyJoint_SPINE1)
+        .value("LEFT_KNEE", BodyJoint_LEFT_KNEE)
+        .value("RIGHT_KNEE", BodyJoint_RIGHT_KNEE)
+        .value("SPINE2", BodyJoint_SPINE2)
+        .value("LEFT_ANKLE", BodyJoint_LEFT_ANKLE)
+        .value("RIGHT_ANKLE", BodyJoint_RIGHT_ANKLE)
+        .value("SPINE3", BodyJoint_SPINE3)
+        .value("LEFT_FOOT", BodyJoint_LEFT_FOOT)
+        .value("RIGHT_FOOT", BodyJoint_RIGHT_FOOT)
+        .value("NECK", BodyJoint_NECK)
+        .value("LEFT_COLLAR", BodyJoint_LEFT_COLLAR)
+        .value("RIGHT_COLLAR", BodyJoint_RIGHT_COLLAR)
+        .value("HEAD", BodyJoint_HEAD)
+        .value("LEFT_SHOULDER", BodyJoint_LEFT_SHOULDER)
+        .value("RIGHT_SHOULDER", BodyJoint_RIGHT_SHOULDER)
+        .value("LEFT_ELBOW", BodyJoint_LEFT_ELBOW)
+        .value("RIGHT_ELBOW", BodyJoint_RIGHT_ELBOW)
+        .value("LEFT_WRIST", BodyJoint_LEFT_WRIST)
+        .value("RIGHT_WRIST", BodyJoint_RIGHT_WRIST)
+        .value("LEFT_HAND", BodyJoint_LEFT_HAND)
+        .value("RIGHT_HAND", BodyJoint_RIGHT_HAND)
+        .value("NUM_JOINTS", BodyJoint_NUM_JOINTS);
 
     // Bind BodyJointPose struct (pose, is_valid).
     py::class_<BodyJointPose>(m, "BodyJointPose")
@@ -70,90 +70,85 @@ inline void bind_full_body(py::module& m)
                         ")), is_valid=" + (self.is_valid() ? "True" : "False") + ")";
              });
 
-    // Bind BodyJointsPico struct (fixed-size array of 24 BodyJointPose).
-    py::class_<BodyJointsPico>(m, "BodyJointsPico")
+    // Bind BodyJoints struct (fixed-size array of 24 BodyJointPose).
+    py::class_<BodyJoints>(m, "BodyJoints")
         .def(py::init<>())
         .def(
             "joints",
-            [](const BodyJointsPico& self, size_t index) -> const BodyJointPose*
+            [](const BodyJoints& self, size_t index) -> const BodyJointPose*
             {
-                if (index >= static_cast<size_t>(BodyJointPico_NUM_JOINTS))
+                if (index >= static_cast<size_t>(BodyJoint_NUM_JOINTS))
                 {
-                    throw py::index_error("BodyJointsPico index out of range (must be 0-23)");
+                    throw py::index_error("BodyJoints index out of range (must be 0-23)");
                 }
                 return (*self.joints())[index];
             },
             py::arg("index"), py::return_value_policy::reference_internal,
             "Get the BodyJointPose at the specified index (0 to NUM_JOINTS-1).")
-        .def("__repr__", [](const BodyJointsPico&) { return "BodyJointsPico(joints=[...24 BodyJointPose entries...])"; });
+        .def("__repr__", [](const BodyJoints&) { return "BodyJoints(joints=[...24 BodyJointPose entries...])"; });
 
-    // Bind FullBodyPosePicoT class (FlatBuffers object API for tables).
-    py::class_<FullBodyPosePicoT, std::shared_ptr<FullBodyPosePicoT>>(m, "FullBodyPosePicoT")
+    // Bind FullBodyPoseT class (FlatBuffers object API for tables).
+    py::class_<FullBodyPoseT, std::shared_ptr<FullBodyPoseT>>(m, "FullBodyPoseT")
         .def(py::init(
             []()
             {
-                auto obj = std::make_shared<FullBodyPosePicoT>();
-                obj->joints = std::make_shared<BodyJointsPico>();
+                auto obj = std::make_shared<FullBodyPoseT>();
+                obj->joints = std::make_shared<BodyJoints>();
                 return obj;
             }))
         .def(py::init(
-                 [](const BodyJointsPico& joints)
+                 [](const BodyJoints& joints)
                  {
-                     auto obj = std::make_shared<FullBodyPosePicoT>();
-                     obj->joints = std::make_shared<BodyJointsPico>(joints);
+                     auto obj = std::make_shared<FullBodyPoseT>();
+                     obj->joints = std::make_shared<BodyJoints>(joints);
                      return obj;
                  }),
              py::arg("joints"))
         .def_property_readonly(
-            "joints", [](const FullBodyPosePicoT& self) -> const BodyJointsPico* { return self.joints.get(); },
+            "joints", [](const FullBodyPoseT& self) -> const BodyJoints* { return self.joints.get(); },
             py::return_value_policy::reference_internal)
         .def("__repr__",
-             [](const FullBodyPosePicoT& self)
+             [](const FullBodyPoseT& self)
              {
                  std::string joints_str = "None";
                  if (self.joints)
                  {
-                     joints_str = "BodyJointsPico(joints=[...24 entries...])";
+                     joints_str = "BodyJoints(joints=[...24 entries...])";
                  }
-                 return "FullBodyPosePicoT(joints=" + joints_str + ")";
+                 return "FullBodyPoseT(joints=" + joints_str + ")";
              });
 
-    py::class_<FullBodyPosePicoRecordT, std::shared_ptr<FullBodyPosePicoRecordT>>(m, "FullBodyPosePicoRecord")
+    py::class_<FullBodyPoseRecordT, std::shared_ptr<FullBodyPoseRecordT>>(m, "FullBodyPoseRecord")
         .def(py::init<>())
         .def(py::init(
-                 [](const FullBodyPosePicoT& data, const DeviceDataTimestamp& timestamp)
+                 [](const FullBodyPoseT& data, const DeviceDataTimestamp& timestamp)
                  {
-                     auto obj = std::make_shared<FullBodyPosePicoRecordT>();
-                     obj->data = std::make_shared<FullBodyPosePicoT>(data);
+                     auto obj = std::make_shared<FullBodyPoseRecordT>();
+                     obj->data = std::make_shared<FullBodyPoseT>(data);
                      obj->timestamp = std::make_shared<core::DeviceDataTimestamp>(timestamp);
                      return obj;
                  }),
              py::arg("data"), py::arg("timestamp"))
         .def_property_readonly(
-            "data", [](const FullBodyPosePicoRecordT& self) -> std::shared_ptr<FullBodyPosePicoT> { return self.data; })
-        .def_readonly("timestamp", &FullBodyPosePicoRecordT::timestamp)
-        .def("__repr__",
-             [](const FullBodyPosePicoRecordT& self) {
-                 return "FullBodyPosePicoRecord(data=" + std::string(self.data ? "FullBodyPosePicoT(...)" : "None") + ")";
-             });
+            "data", [](const FullBodyPoseRecordT& self) -> std::shared_ptr<FullBodyPoseT> { return self.data; })
+        .def_readonly("timestamp", &FullBodyPoseRecordT::timestamp)
+        .def("__repr__", [](const FullBodyPoseRecordT& self)
+             { return "FullBodyPoseRecord(data=" + std::string(self.data ? "FullBodyPoseT(...)" : "None") + ")"; });
 
-    py::class_<FullBodyPosePicoTrackedT, std::shared_ptr<FullBodyPosePicoTrackedT>>(m, "FullBodyPosePicoTrackedT")
+    py::class_<FullBodyPoseTrackedT, std::shared_ptr<FullBodyPoseTrackedT>>(m, "FullBodyPoseTrackedT")
         .def(py::init<>())
         .def(py::init(
-                 [](const FullBodyPosePicoT& data)
+                 [](const FullBodyPoseT& data)
                  {
-                     auto obj = std::make_shared<FullBodyPosePicoTrackedT>();
-                     obj->data = std::make_shared<FullBodyPosePicoT>(data);
+                     auto obj = std::make_shared<FullBodyPoseTrackedT>();
+                     obj->data = std::make_shared<FullBodyPoseT>(data);
                      return obj;
                  }),
              py::arg("data"))
         .def_property_readonly(
-            "data", [](const FullBodyPosePicoTrackedT& self) -> std::shared_ptr<FullBodyPosePicoT> { return self.data; })
-        .def("__repr__",
-             [](const FullBodyPosePicoTrackedT& self) {
-                 return std::string("FullBodyPosePicoTrackedT(data=") +
-                        (self.data ? "FullBodyPosePicoT(...)" : "None") + ")";
-             });
+            "data", [](const FullBodyPoseTrackedT& self) -> std::shared_ptr<FullBodyPoseT> { return self.data; })
+        .def("__repr__", [](const FullBodyPoseTrackedT& self)
+             { return std::string("FullBodyPoseTrackedT(data=") + (self.data ? "FullBodyPoseT(...)" : "None") + ")"; });
 }
 
 } // namespace core

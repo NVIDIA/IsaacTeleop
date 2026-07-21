@@ -28,7 +28,10 @@ from isaacteleop.retargeting_engine.tensor_types import BoolType
 from .teleop_state_manager_types import teleop_control_states
 
 if TYPE_CHECKING:
-    from isaacteleop.deviceio_session import McapRecordingConfig, McapReplayConfig
+    from isaacteleop.deviceio_session import (
+        McapRecordingConfig,
+        McapReplayConfig,
+    )
     from teleopcore.oxr import OpenXRSessionHandles
 
 

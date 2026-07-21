@@ -55,6 +55,7 @@ from .async_retarget_runner import (
     snapshot_retargeter_io,
     snapshot_pipeline_inputs,
 )
+from .helpers import build_vendor_config_from_sources
 from .teleop_state_manager_types import teleop_control_states
 
 
@@ -212,6 +213,8 @@ class TeleopSession:
         self._in_context: bool = False
         # Discover sources and external leaves from pipeline
         self._discover_sources()
+        # Vendor selection is a live-only concern; reject it up front in replay.
+        self._reject_vendor_selection_in_replay()
 
     @property
     def oxr_session(self) -> Optional[oxr.OpenXRSession]:
@@ -306,6 +309,30 @@ class TeleopSession:
         for source in self._sources:
             tracker = source.get_tracker()
             self._tracker_to_source[id(tracker)] = source
+
+    def _reject_vendor_selection_in_replay(self) -> None:
+        """Reject source-carried vendor selections when mode is REPLAY.
+
+        Vendor selection is a live-session concern: the live path routes each
+        source's ``get_vendor()`` into a ``VendorConfig``, but replay reads the
+        recorded channel regardless of vendor. Without this guard a vendor set on
+        a source would be silently ignored in REPLAY. Fail fast instead, matching
+        the fail-fast convention on the live path (unknown vendor ids and
+        non-vendored trackers both raise).
+        """
+        if self.config.mode != SessionMode.REPLAY:
+            return
+        vendored = [
+            source for source in self._sources if source.get_vendor() is not None
+        ]
+        if vendored:
+            names = ", ".join(sorted(source.name for source in vendored))
+            raise ValueError(
+                f"Vendor selection is only valid in SessionMode.LIVE, but "
+                f"source(s) {names} carry a vendor and mode is SessionMode.REPLAY. "
+                f"Replay reads the recorded channel regardless of vendor; remove "
+                f"the vendor selection or run in LIVE mode."
+            )
 
     def get_external_input_specs(self) -> Dict[str, RetargeterIOType]:
         """Get the input specifications for all external leaf nodes that need inputs.
@@ -947,6 +974,11 @@ class TeleopSession:
 
     def _enter_resources(self, stack: ExitStack) -> None:
         """Acquire and initialize resources for one context-manager run."""
+        # config is mutable between construction and entry, so revalidate the
+        # replay-only vendor guard here: a mode flipped to REPLAY after __init__
+        # must still fail fast rather than silently ignore a source's vendor.
+        self._reject_vendor_selection_in_replay()
+
         # Reset run-scoped plugin containers on each context entry.
         self.plugin_managers = []
         self.plugin_contexts = []
@@ -997,9 +1029,13 @@ class TeleopSession:
             for tracker in self.config.trackers:
                 _add_tracker(tracker)
 
+            # Vendored trackers carry their vendor on the source, so it travels
+            # with the pipeline into the VendorConfig (see the builder's docstring).
+            vendor_config = build_vendor_config_from_sources(self._sources)
+
             # Get required extensions from all trackers
             required_extensions = deviceio.DeviceIOSession.get_required_extensions(
-                trackers
+                trackers, vendor_config
             )
 
             # Resolve OpenXR handles
@@ -1013,7 +1049,9 @@ class TeleopSession:
 
             # Create DeviceIO session with all trackers
             self.deviceio_session = stack.enter_context(
-                deviceio.DeviceIOSession.run(trackers, handles, mcap_config)
+                deviceio.DeviceIOSession.run(
+                    trackers, handles, mcap_config, vendor_config
+                )
             )
 
         # Initialize plugins (if any)

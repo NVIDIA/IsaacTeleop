@@ -15,7 +15,7 @@ from .ndarray_types import NDArrayType, DLDataType
 
 # Constants
 NUM_HAND_JOINTS = 26  # XR_HAND_JOINT_COUNT_EXT from OpenXR
-NUM_BODY_JOINTS_PICO = 24  # XR_BODY_JOINT_COUNT_BD from XR_BD_body_tracking
+NUM_BODY_JOINTS = 24  # XR_BODY_JOINT_COUNT_BD from XR_BD_body_tracking
 
 # ============================================================================
 # Hand Tracking Types
@@ -211,8 +211,8 @@ def FullBodyInput() -> TensorGroupType:
     """
     Standard TensorGroupType for full body tracking data.
 
-    Matches the FullBodyPosePico schema from full_body.fbs with 24 joints
-    (XR_BD_body_tracking extension for PICO devices).
+    Matches the FullBodyPose schema from full_body.fbs with 24 joints
+    (XR_BD_body_tracking extension layout).
 
     Fields:
         - joint_positions: (24, 3) float32 array - XYZ positions for each joint
@@ -229,19 +229,19 @@ def FullBodyInput() -> TensorGroupType:
         [
             NDArrayType(
                 "body_joint_positions",
-                shape=(NUM_BODY_JOINTS_PICO, 3),
+                shape=(NUM_BODY_JOINTS, 3),
                 dtype=DLDataType.FLOAT,
                 dtype_bits=32,
             ),
             NDArrayType(
                 "body_joint_orientations",
-                shape=(NUM_BODY_JOINTS_PICO, 4),
+                shape=(NUM_BODY_JOINTS, 4),
                 dtype=DLDataType.FLOAT,
                 dtype_bits=32,
             ),
             NDArrayType(
                 "body_joint_valid",
-                shape=(NUM_BODY_JOINTS_PICO,),
+                shape=(NUM_BODY_JOINTS,),
                 dtype=DLDataType.UINT,
                 dtype_bits=8,
             ),

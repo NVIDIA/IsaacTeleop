@@ -7,6 +7,8 @@ This module provides Python bindings for FlatBuffer-based message types
 used in teleoperation, including poses, and controller data.
 """
 
+import warnings
+
 from ._schema import (
     # Timestamp types.
     DeviceDataTimestamp,
@@ -62,13 +64,35 @@ from ._schema import (
     FrameMetadataOakTrackedT,
     FrameMetadataOakRecord,
     # Full body-related types.
-    BodyJointPico,
+    BodyJoint,
     BodyJointPose,
-    BodyJointsPico,
-    FullBodyPosePicoT,
-    FullBodyPosePicoTrackedT,
-    FullBodyPosePicoRecord,
+    BodyJoints,
+    FullBodyPoseT,
+    FullBodyPoseTrackedT,
+    FullBodyPoseRecord,
 )
+
+# Deprecated aliases for the renamed full-body schema types, resolved lazily via
+# __getattr__ so accessing them emits a DeprecationWarning. Omitted from __all__.
+_DEPRECATED_ALIASES = {
+    "BodyJointPico": "BodyJoint",
+    "BodyJointsPico": "BodyJoints",
+    "FullBodyPosePicoT": "FullBodyPoseT",
+    "FullBodyPosePicoTrackedT": "FullBodyPoseTrackedT",
+    "FullBodyPosePicoRecord": "FullBodyPoseRecord",
+}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
@@ -126,9 +150,9 @@ __all__ = [
     "FrameMetadataOakRecord",
     # Full body types.
     "BodyJointPose",
-    "BodyJointsPico",
-    "BodyJointPico",
-    "FullBodyPosePicoT",
-    "FullBodyPosePicoTrackedT",
-    "FullBodyPosePicoRecord",
+    "BodyJoint",
+    "BodyJoints",
+    "FullBodyPoseT",
+    "FullBodyPoseTrackedT",
+    "FullBodyPoseRecord",
 ]

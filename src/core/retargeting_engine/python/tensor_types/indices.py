@@ -6,12 +6,13 @@ Dynamically generated indices for standard TensorGroupTypes.
 
 This module provides IntEnum classes for indexing into standard tensor groups
 (HandInput, HeadPose, ControllerInput, Generic3AxisPedalInput, FullBodyInput) and standard joint arrays
-(HandJointIndex, BodyJointPicoIndex).
+(HandJointIndex, BodyJointIndex).
 
 The indices for TensorGroupTypes are generated automatically from the type definitions
 to ensure they always match the schema.
 """
 
+import warnings
 from typing import Any
 from enum import IntEnum
 from .standard_types import (
@@ -79,8 +80,8 @@ class HandJointIndex(IntEnum):
     LITTLE_TIP = 25
 
 
-class BodyJointPicoIndex(IntEnum):
-    """Indices for PICO body joints (XR_BD_body_tracking, 24 joints)."""
+class BodyJointIndex(IntEnum):
+    """Indices for body joints (XR_BD_body_tracking layout, 24 joints)."""
 
     PELVIS = 0
     LEFT_HIP = 1
@@ -106,6 +107,23 @@ class BodyJointPicoIndex(IntEnum):
     RIGHT_WRIST = 21
     LEFT_HAND = 22
     RIGHT_HAND = 23
+
+
+# Deprecated alias for BodyJointIndex, resolved lazily via __getattr__ so accessing
+# it emits a DeprecationWarning.
+_DEPRECATED_ALIASES = {"BodyJointPicoIndex": "BodyJointIndex"}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class FingerIndex(IntEnum):

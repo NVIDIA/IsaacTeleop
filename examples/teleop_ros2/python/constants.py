@@ -7,7 +7,7 @@
 from enum import Enum
 
 from isaacteleop.retargeting_engine.tensor_types.indices import (
-    BodyJointPicoIndex,
+    BodyJointIndex,
     HandJointIndex,
 )
 
@@ -34,7 +34,7 @@ class TeleopMode(StrEnum):
     FULL_BODY = "full_body"
 
 
-BODY_JOINT_NAMES = [e.name for e in BodyJointPicoIndex]
+BODY_JOINT_NAMES = [e.name for e in BodyJointIndex]
 HAND_POSE_JOINT_INDICES = tuple(
     HandJointIndex(i)
     for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)

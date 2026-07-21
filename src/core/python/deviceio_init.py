@@ -8,6 +8,8 @@ Prefer importing directly:
     from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
 """
 
+import warnings
+
 from isaacteleop.deviceio_trackers import (
     ITracker,
     HandTracker,
@@ -20,7 +22,7 @@ from isaacteleop.deviceio_trackers import (
     OgloTactileTracker,
     TensorPushTracker,
     JointStateTracker,
-    FullBodyTrackerPico,
+    FullBodyTracker,
     NUM_JOINTS,
     JOINT_PALM,
     JOINT_WRIST,
@@ -33,6 +35,8 @@ from isaacteleop.deviceio_session import (
     McapRecordingConfig,
     McapReplayConfig,
     ReplaySession,
+    TrackerVendor,
+    VendorConfig,
 )
 
 from ..oxr import OpenXRSessionHandles
@@ -68,15 +72,33 @@ __all__ = [
     "OgloTactileTracker",
     "TensorPushTracker",
     "JointStateTracker",
-    "FullBodyTrackerPico",
+    "FullBodyTracker",
     "OpenXRSessionHandles",
     "DeviceIOSession",
     "McapRecordingConfig",
     "McapReplayConfig",
     "ReplaySession",
+    "TrackerVendor",
+    "VendorConfig",
     "NUM_JOINTS",
     "JOINT_PALM",
     "JOINT_WRIST",
     "JOINT_THUMB_TIP",
     "JOINT_INDEX_TIP",
 ]
+
+# Deprecated re-exports resolved lazily so access emits a DeprecationWarning; kept out
+# of __all__ and out of the eager imports above so importing this module stays quiet.
+_DEPRECATED_ALIASES = {"FullBodyTrackerPico": "FullBodyTracker"}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
