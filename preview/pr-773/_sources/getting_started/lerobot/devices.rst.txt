@@ -101,7 +101,8 @@ Learn more
 
 For the device and retargeting internals behind these flows, see the Isaac Teleop references:
 
-- :doc:`/device/index` — the device interface and plugin model.
+- :doc:`/device/trackers` — the device interface (trackers).
+- :doc:`/device/add_device` — the device plugin model.
 - :doc:`/device/joint_space` — the SO-101 leader (joint-space) device and its plugin.
 - :doc:`/references/retargeting/index` — the retargeting interface.
 - :doc:`/references/retargeting/so101` — the SO-101 (5-DOF arm) retargeters used by the XR

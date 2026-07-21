@@ -344,15 +344,26 @@
 <li class="toctree-l1"><a class="reference internal" href="getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started/contributing.html">Contributing</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="device/trackers.html">Device Trackers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/add_device.html">Add a New Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/joint_space.html">Generic Joint-Space Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/body_tracking.html">Body Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/haptic_feedback.html">Haptic Feedback</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/manus.html">MANUS Gloves</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/oak.html">OAK Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device/haptikos.html">Haptikos Exoskeletons</a></li>
+</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/build.html">Build System</a></li>
-<li class="toctree-l1"><a class="reference internal" href="device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references/license.html">License</a></li>
@@ -488,6 +499,79 @@ installation and first-run steps.</p>
 </ul>
 </div>
 <div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="device/trackers.html">Device Trackers</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/trackers.html#data-schema-convention">Data Schema Convention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/trackers.html#tracker-reference">Tracker Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/trackers.html#usage-examples">Usage Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/add_device.html">Add a New Device</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/add_device.html#step-1-define-the-data-schema">Step 1: Define the data schema</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/add_device.html#step-2-implement-a-device-plugin">Step 2: Implement a device plugin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/add_device.html#step-3-implement-a-tracker">Step 3: Implement a tracker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/add_device.html#step-4-implement-a-simple-c-printer-optional">Step 4: Implement a simple C++ printer (optional)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/add_device.html#schema-io-example-build-and-run">Schema IO example: build and run</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/joint_space.html">Generic Joint-Space Device</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/joint_space.html#at-a-glance">At a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/joint_space.html#data-schema">Data schema</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/joint_space.html#the-so-101-leader-plugin">The SO-101 leader plugin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/joint_space.html#the-rebot-devarm-leader-plugin">The reBot DevArm leader plugin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/joint_space.html#record-and-replay">Record and replay</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/joint_space.html#add-another-joint-space-device">Add another joint-space device</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/body_tracking.html">Body Tracking</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/body_tracking.html#setting-up-pico-motion-trackers">Setting Up PICO Motion Trackers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/body_tracking.html#how-full-body-tracking-works">How Full Body Tracking Works</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/body_tracking.html#recording-and-replay">Recording and Replay</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/body_tracking.html#quest-body-tracking-limited-support">Quest Body Tracking (Limited Support)</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/haptic_feedback.html">Haptic Feedback</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/haptic_feedback.html#architecture">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptic_feedback.html#example">Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptic_feedback.html#running">Running</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptic_feedback.html#adding-a-new-haptic-device">Adding a new haptic device</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptic_feedback.html#see-also">See also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/manus.html">MANUS Gloves</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#components">Components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#running-the-plugin">Running the Plugin</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#data-paths">Data paths</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#wrist-positioning-controllers-vs-optical-hand-tracking">Wrist Positioning — Controllers vs Optical Hand Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/manus.html#license">License</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/oak.html">OAK Camera Plugin</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#features">Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#build">Build</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#usage">Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#architecture">Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#dependencies">Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#output-format">Output Format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/oak.html#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="device/haptikos.html">Haptikos Exoskeletons</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="device/haptikos.html#components">Components</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptikos.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptikos.html#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptikos.html#important-information">Important Information</a></li>
+<li class="toctree-l2"><a class="reference internal" href="device/haptikos.html#license">License</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="references/requirements.html">System Requirements</a><ul>
@@ -503,10 +587,6 @@ installation and first-run steps.</p>
 <li class="toctree-l2"><a class="reference internal" href="references/build.html#output-locations">Output locations</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/build.html#troubleshooting">Troubleshooting</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/build.html#reference">Reference</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="device/index.html">Device Interface</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="device/index.html#isaac-teleop-device-plugin-c-level">Isaac Teleop device plugin (C++ level)</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="references/retargeting/index.html">Retargeting Interface</a><ul>
@@ -545,6 +625,13 @@ installation and first-run steps.</p>
 <li class="toctree-l2"><a class="reference internal" href="references/cloudxr.html#configuration">Configuration</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="references/rig.html">Rig Launcher</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="references/rig.html#prerequisites">Prerequisites</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/rig.html#run-a-rig">Run a rig</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/rig.html#the-rig-yaml">The rig YAML</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references/rig.html#troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="references/oob_teleop_control.html">Out-of-Band Teleop Control</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#quick-start">Quick start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="references/oob_teleop_control.html#adb-automation">ADB automation</a></li>
@@ -577,7 +664,6 @@ installation and first-run steps.</p>
 <h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
-<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
 <li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
 </ul>
 </section>
@@ -709,7 +795,7 @@ installation and first-run steps.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 18, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 21, 2026.
       <br/>
     
   </p>

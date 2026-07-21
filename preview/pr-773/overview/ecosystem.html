@@ -345,15 +345,26 @@
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../device/trackers.html">Device Trackers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/add_device.html">Add a New Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/joint_space.html">Generic Joint-Space Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/body_tracking.html">Body Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/haptic_feedback.html">Haptic Feedback</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/manus.html">MANUS Gloves</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/oak.html">OAK Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/haptikos.html">Haptikos Exoskeletons</a></li>
+</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
@@ -458,7 +469,7 @@ streamlined device workflow and consistent data schemas.</p>
 custom device integrations and ongoing maintenance. It supports multiple XR headsets and tracking
 peripherals. Each device provides different input modes, which determine which retargeters and
 control schemes are available. Easily extend support for additional devices through a plugin system;
-see <a class="reference internal" href="../device/index.html#device-interface-device-plugin"><span class="std std-ref">Isaac Teleop device plugin (C++ level)</span></a> for details.</p>
+see <a class="reference internal" href="../device/add_device.html#device-interface-device-plugin"><span class="std std-ref">Add a New Device</span></a> for details.</p>
 <div class="pst-scrollable-table-container"><table class="table" id="id9">
 <caption><span class="caption-text">XR Headsets and Tracking Peripherals</span><a class="headerlink" href="#id9" title="Link to this table">#</a></caption>
 <colgroup>
@@ -494,8 +505,11 @@ see <a class="reference internal" href="../device/index.html#device-interface-de
 <td><p>Full body tracking</p></td>
 <td><p><a class="reference external" href="https://nvidia.github.io/IsaacTeleop/client/main/" rel="noopener noreferrer" target="_blank">Isaac Teleop Web Client</a> (browser)</p></td>
 <td><div class="line-block">
+<div class="line">Requires a <a class="reference external" href="https://www.picoxr.com/global/products/pico4-ultra-enterprise" rel="noopener noreferrer" target="_blank">Pico 4 Ultra Enterprise</a> headset,</div>
+<div class="line">or a consumer Pico 4 Ultra with <strong>enterprise</strong></div>
+<div class="line"><strong>features activated</strong> (contact PICO)</div>
 <div class="line">Requires Pico OS 15.4.4U or newer</div>
-<div class="line">Requires Pico Browser 4.0.40 or newer (Enterprise enabled)</div>
+<div class="line">Requires Pico Browser 4.0.40 or newer</div>
 </div>
 </td>
 </tr>
@@ -504,7 +518,7 @@ see <a class="reference internal" href="../device/index.html#device-interface-de
 </div>
 <p>In addition to the fully integrated XR headsets, Isaac Teleop also supports standalone input
 devices. Those devices are typically directly connected to the workstation where the Isaac Teleop
-session is running via USB or Bluetooth. See <a class="reference internal" href="../device/index.html#device-interface-device-plugin"><span class="std std-ref">Isaac Teleop device plugin (C++ level)</span></a> for more details.</p>
+session is running via USB or Bluetooth. See <a class="reference internal" href="../device/add_device.html#device-interface-device-plugin"><span class="std std-ref">Add a New Device</span></a> for more details.</p>
 <div class="pst-scrollable-table-container"><table class="table" id="id10">
 <caption><span class="caption-text">Standalone Input Devices</span><a class="headerlink" href="#id10" title="Link to this table">#</a></caption>
 <colgroup>
@@ -636,7 +650,7 @@ directly. Each device name in the tables above links to the corresponding manufa
 <td></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference external" href="https://www.picoxr.com/" rel="noopener noreferrer" target="_blank">Pico</a> (ByteDance)</p></td>
-<td><p>Pico 4 Ultra, Pico Motion Tracker</p></td>
+<td><p>Pico 4 Ultra, Pico 4 Ultra Enterprise, Pico Motion Tracker</p></td>
 <td><div class="line-block">
 <div class="line">Veronica Li</div>
 <div class="line">Email: <a class="reference external" href="mailto:Veronica&#46;li&#37;&#52;&#48;bytedance&#46;com">Veronica<span>&#46;</span>li<span>&#64;</span>bytedance<span>&#46;</span>com</a></div>
@@ -853,7 +867,7 @@ single chat group, so that discussions stay consolidated in one place.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 18, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 21, 2026.
       <br/>
     
   </p>

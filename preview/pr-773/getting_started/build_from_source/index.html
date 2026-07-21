@@ -348,15 +348,26 @@
 <li class="toctree-l1"><a class="reference internal" href="../lerobot/index.html">LeRobot and SO-101</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
 </ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../device/trackers.html">Device Trackers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/add_device.html">Add a New Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/joint_space.html">Generic Joint-Space Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/body_tracking.html">Body Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/haptic_feedback.html">Haptic Feedback</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/manus.html">MANUS Gloves</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/oak.html">OAK Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/haptikos.html">Haptikos Exoskeletons</a></li>
+</ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../device/index.html">Device Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/license.html">License</a></li>
@@ -542,7 +553,7 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 </section>
 <section id="other-build-options">
 <h3>Other Build options<a class="headerlink" href="#other-build-options" title="Link to this heading">#</a></h3>
-<p>The CMake options (defined in root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt" rel="noopener noreferrer" target="_blank">CMakeLists.txt</a>, <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake" rel="noopener noreferrer" target="_blank">cmake/SetupPython.cmake</a>, and <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupHunter.cmake" rel="noopener noreferrer" target="_blank">cmake/SetupHunter.cmake</a>):</p>
+<p>The CMake options (defined in root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakeLists.txt" rel="noopener noreferrer" target="_blank">CMakeLists.txt</a> and <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/SetupPython.cmake" rel="noopener noreferrer" target="_blank">cmake/SetupPython.cmake</a>):</p>
 <div class="pst-scrollable-table-container"><table class="table" id="id2">
 <caption><span class="caption-text">Common CMake Options</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
 <colgroup>
@@ -695,44 +706,6 @@ ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class=
 <p>The wheels are built in the <code class="docutils literal notranslate"><span class="pre">./install/wheels/</span></code> directory. Install the package from the wheels.
 Using <code class="docutils literal notranslate"><span class="pre">pip</span></code>, you need to pass the <code class="docutils literal notranslate"><span class="pre">--no-index</span></code> option to automatically find the right wheel
 based on the Python version.  Note that <code class="docutils literal notranslate"><span class="pre">pip</span></code> and <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code> has slightly different options.</p>
-<div class="admonition note" id="aarch64-nlopt-wheel">
-<p class="admonition-title">Note</p>
-<p><strong>ARM64 / aarch64 systems only</strong> (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
-<code class="docutils literal notranslate"><span class="pre">nlopt</span></code> wheels for ARM64, so pip cannot satisfy the <code class="docutils literal notranslate"><span class="pre">retargeters</span></code> extra automatically.
-Build an <code class="docutils literal notranslate"><span class="pre">nlopt</span></code> wheel from source before running the install commands below
-(see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/452" rel="noopener noreferrer" target="_blank">issue #452</a>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install build tools</span>
-sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>git<span class="w"> </span>pkg-config<span class="w"> </span>swig
-
-<span class="c1"># Clone nlopt-python and build a wheel</span>
-git<span class="w"> </span>clone<span class="w"> </span>--depth<span class="w"> </span><span class="m">1</span><span class="w"> </span>--branch<span class="w"> </span><span class="m">2</span>.10.0<span class="w"> </span>https://github.com/DanielBok/nlopt-python.git<span class="w"> </span>/tmp/nlopt-python
-<span class="nb">cd</span><span class="w"> </span>/tmp/nlopt-python
-git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
-
-<span class="c1"># The Python version must match your isaacteleop install exactly (3.10, 3.11, 3.12, or 3.13).</span>
-<span class="c1"># nlopt builds a CPython ABI-specific extension (.cpython-311-*.so), so a wheel built</span>
-<span class="c1"># with Python 3.11 will not load under Python 3.12 or vice versa.</span>
-uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="o">=</span><span class="m">3</span>.11<span class="w"> </span>/tmp/nlopt-wheel-venv
-<span class="nv">VIRTUAL_ENV</span><span class="o">=</span>/tmp/nlopt-wheel-venv<span class="w"> </span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>numpy<span class="w"> </span>setuptools<span class="w"> </span>wheel
-/tmp/nlopt-wheel-venv/bin/python<span class="w"> </span>setup.py<span class="w"> </span>bdist_wheel<span class="w"> </span>-d<span class="w"> </span>/tmp/nlopt-wheels/
-</pre></div>
-</div>
-<p>Then pass <code class="docutils literal notranslate"><span class="pre">--find-links=/tmp/nlopt-wheels/</span></code> when installing so the locally-built wheel is
-used instead of attempting a PyPI download:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># pip</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--find-links<span class="o">=</span>/tmp/nlopt-wheels/<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--no-index<span class="w"> </span>--force-reinstall
-
-<span class="c1"># uv pip</span>
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--find-links<span class="o">=</span>/tmp/nlopt-wheels/<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--reinstall
-</pre></div>
-</div>
-</div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --no-index to use only wheels in ./install/wheels/;</span>
 <span class="c1"># Pass --force-reinstall to replace an existing install.</span>
 pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
@@ -892,7 +865,7 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 18, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 21, 2026.
       <br/>
     
   </p>
