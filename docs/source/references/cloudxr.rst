@@ -148,6 +148,10 @@ one:
   platforms. On Tegra T234 it is selected automatically; if the package is
   missing the launcher fails. Set ``ISAAC_TELEOP_CLOUDXR_EXP=0`` to force the
   stable runtime.
+- ``ISAAC_TELEOP_CLOUDXR_JOIN_MAIN=1`` — join the CloudXR service on the main
+  thread (avoids a ``Couldn't create autoTSSkey mapping`` abort on some
+  platforms). On Orin this is selected automatically. Set
+  ``ISAAC_TELEOP_CLOUDXR_JOIN_MAIN=0`` to force the default worker-thread join.
 
 To inspect the active settings after startup:
 

@@ -153,6 +153,7 @@ class CloudXRLauncher:
         self._wss_stop_future: asyncio.Future | None = None
         self._wss_log_path: Path | None = None
         self._atexit_registered = False
+        self._prev_signal_handlers: dict[int, object] = {}
 
         env_cfg = EnvConfig.from_args(
             self._install_dir,
@@ -200,6 +201,12 @@ class CloudXRLauncher:
         )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
+        if not self._atexit_registered:
+            atexit.register(self.stop)
+            self._atexit_registered = True
+        # SIGTERM/SIGINT do not run atexit; stop the session-scoped runtime first.
+        self._install_signal_handlers()
+
         if not wait_for_runtime_ready_sync(is_process_alive=self._is_runtime_alive):
             detail = self._collect_startup_failure_detail(logs_dir_path)
             self.stop()
@@ -208,10 +215,6 @@ class CloudXRLauncher:
                 f"{RUNTIME_STARTUP_TIMEOUT_SEC}s.  {detail}"
             )
         logger.info("CloudXR runtime ready")
-
-        if not self._atexit_registered:
-            atexit.register(self.stop)
-            self._atexit_registered = True
 
         if self._start_wss_proxy:
             wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
@@ -454,6 +457,7 @@ class CloudXRLauncher:
                 The process handle is retained so callers can retry or
                 inspect the still-running process.
         """
+        self._restore_signal_handlers()
         self._stop_wss_proxy()
 
         if self._runtime_proc is not None:
@@ -506,6 +510,44 @@ class CloudXRLauncher:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _install_signal_handlers(self) -> None:
+        """Install SIGTERM/SIGINT handlers that call :meth:`stop`, then the prior handler."""
+        if threading.current_thread() is not threading.main_thread():
+            return
+
+        self._restore_signal_handlers()
+
+        def _make_handler(prev):
+            def _handler(signum, frame):
+                try:
+                    self.stop()
+                finally:
+                    if callable(prev):
+                        prev(signum, frame)
+                    else:
+                        signal.signal(signum, prev)
+                        if prev == signal.SIG_DFL:
+                            os.kill(os.getpid(), signum)
+
+            return _handler
+
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            try:
+                prev = signal.getsignal(sig)
+                signal.signal(sig, _make_handler(prev))
+            except (ValueError, OSError):
+                continue
+            self._prev_signal_handlers[sig] = prev
+
+    def _restore_signal_handlers(self) -> None:
+        """Restore signal handlers saved by :meth:`_install_signal_handlers`."""
+        while self._prev_signal_handlers:
+            sig, prev = self._prev_signal_handlers.popitem()
+            try:
+                signal.signal(sig, prev)
+            except (ValueError, OSError):
+                pass
 
     @staticmethod
     def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:

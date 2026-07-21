@@ -12,6 +12,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from isaacteleop.cloudxr.runtime import (
+    _should_join_main,
     _should_use_exp,
     get_sdk_path,
     resolve_cloudxr_runtime_module,
@@ -36,7 +37,7 @@ class _FakeEnvConfig:
 
 
 # ============================================================================
-# TestShouldUseExp / resolve / get_sdk_path
+# TestShouldUseExp / TestShouldJoinMain / resolve / get_sdk_path
 # ============================================================================
 
 
@@ -65,6 +66,33 @@ class TestShouldUseExp:
         assert _should_use_exp() is False
         monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_EXP", "false")
         assert _should_use_exp() is False
+
+
+class TestShouldJoinMain:
+    """Tests for ISAAC_TELEOP_CLOUDXR_JOIN_MAIN selection."""
+
+    def test_default_is_false_off_tegra(self, monkeypatch):
+        monkeypatch.delenv("ISAAC_TELEOP_CLOUDXR_JOIN_MAIN", raising=False)
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: False)
+        assert _should_join_main() is False
+
+    def test_auto_true_on_t234(self, monkeypatch):
+        monkeypatch.delenv("ISAAC_TELEOP_CLOUDXR_JOIN_MAIN", raising=False)
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: True)
+        assert _should_join_main() is True
+
+    def test_accepts_truthy(self, monkeypatch):
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_JOIN_MAIN", "1")
+        assert _should_join_main() is True
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_JOIN_MAIN", "true")
+        assert _should_join_main() is True
+
+    def test_rejects_falsy_even_on_t234(self, monkeypatch):
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: True)
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_JOIN_MAIN", "0")
+        assert _should_join_main() is False
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_JOIN_MAIN", "false")
+        assert _should_join_main() is False
 
 
 class TestResolveCloudxrRuntimeModule:
