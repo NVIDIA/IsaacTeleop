@@ -134,6 +134,8 @@ function sampleValid(key: string): string {
     referenceSpace: 'auto',
     controlPanelPosition: 'center',
     controllerModelVisibility: 'show',
+    showTraceInXR: 'false',
+    showRecordingControls: 'false',
     autoRefreshMode: 'clean',
     enablePoseSmoothing: 'true',
     enableTexSubImage2D: 'true',
