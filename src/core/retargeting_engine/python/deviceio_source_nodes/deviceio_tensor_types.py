@@ -9,6 +9,7 @@ Each TrackedT always exists (never None) and contains a `.data` property that ho
 the raw flatbuffer object (or None when the tracker is inactive).
 """
 
+import warnings
 from enum import IntEnum
 from typing import Any
 from ..interface.tensor_type import TensorType
@@ -144,10 +145,6 @@ class FullBodyPoseTrackedType(TensorType):
             )
 
 
-# Deprecated alias for FullBodyPoseTrackedType.
-FullBodyPosePicoTrackedType = FullBodyPoseTrackedType
-
-
 class MessageChannelMessagesTrackedType(TensorType):
     """MessageChannelMessagesTrackedT wrapper type from DeviceIO MessageChannelTracker."""
 
@@ -264,10 +261,6 @@ def DeviceIOFullBodyPoseTracked() -> TensorGroupType:
     )
 
 
-# Deprecated alias for DeviceIOFullBodyPoseTracked.
-DeviceIOFullBodyPosePicoTracked = DeviceIOFullBodyPoseTracked
-
-
 def DeviceIOMessageChannelMessagesTracked() -> TensorGroupType:
     """Tracked message wrapper from DeviceIO MessageChannelTracker."""
     return TensorGroupType(
@@ -290,3 +283,23 @@ def MessageChannelStatusGroup() -> TensorGroupType:
         "message_channel_status",
         [MessageChannelStatusType("status")],
     )
+
+
+# Deprecated aliases resolved lazily via __getattr__ so accessing them emits a
+# DeprecationWarning.
+_DEPRECATED_ALIASES = {
+    "FullBodyPosePicoTrackedType": "FullBodyPoseTrackedType",
+    "DeviceIOFullBodyPosePicoTracked": "DeviceIOFullBodyPoseTracked",
+}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

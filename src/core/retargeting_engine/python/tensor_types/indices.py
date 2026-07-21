@@ -12,6 +12,7 @@ The indices for TensorGroupTypes are generated automatically from the type defin
 to ensure they always match the schema.
 """
 
+import warnings
 from typing import Any
 from enum import IntEnum
 from .standard_types import (
@@ -108,8 +109,21 @@ class BodyJointIndex(IntEnum):
     RIGHT_HAND = 23
 
 
-# Deprecated alias for BodyJointIndex.
-BodyJointPicoIndex = BodyJointIndex
+# Deprecated alias for BodyJointIndex, resolved lazily via __getattr__ so accessing
+# it emits a DeprecationWarning.
+_DEPRECATED_ALIASES = {"BodyJointPicoIndex": "BodyJointIndex"}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class FingerIndex(IntEnum):

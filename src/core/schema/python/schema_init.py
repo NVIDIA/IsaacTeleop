@@ -7,6 +7,8 @@ This module provides Python bindings for FlatBuffer-based message types
 used in teleoperation, including poses, and controller data.
 """
 
+import warnings
+
 from ._schema import (
     # Timestamp types.
     DeviceDataTimestamp,
@@ -70,12 +72,27 @@ from ._schema import (
     FullBodyPoseRecord,
 )
 
-# Deprecated aliases for the renamed full-body schema types (use the generic names above).
-BodyJointPico = BodyJoint
-BodyJointsPico = BodyJoints
-FullBodyPosePicoT = FullBodyPoseT
-FullBodyPosePicoTrackedT = FullBodyPoseTrackedT
-FullBodyPosePicoRecord = FullBodyPoseRecord
+# Deprecated aliases for the renamed full-body schema types, resolved lazily via
+# __getattr__ so accessing them emits a DeprecationWarning. Omitted from __all__.
+_DEPRECATED_ALIASES = {
+    "BodyJointPico": "BodyJoint",
+    "BodyJointsPico": "BodyJoints",
+    "FullBodyPosePicoT": "FullBodyPoseT",
+    "FullBodyPosePicoTrackedT": "FullBodyPoseTrackedT",
+    "FullBodyPosePicoRecord": "FullBodyPoseRecord",
+}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 __all__ = [
@@ -138,10 +155,4 @@ __all__ = [
     "FullBodyPoseT",
     "FullBodyPoseTrackedT",
     "FullBodyPoseRecord",
-    # Deprecated full-body aliases.
-    "BodyJointPico",
-    "BodyJointsPico",
-    "FullBodyPosePicoT",
-    "FullBodyPosePicoTrackedT",
-    "FullBodyPosePicoRecord",
 ]

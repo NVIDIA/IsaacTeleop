@@ -288,16 +288,25 @@ class TestFullBodyPoseRecordTimestamp:
 
 
 class TestDeprecatedPicoAliases:
-    """Deprecated ``...Pico`` names must still resolve to the renamed generic types."""
+    """Deprecated ``...Pico`` names still resolve to the renamed generic types and
+    now emit a DeprecationWarning on access."""
 
-    def test_aliases_are_the_generic_types(self):
-        """The legacy schema names alias the renamed generic types."""
+    def test_aliases_resolve_and_warn(self):
+        """Each legacy schema name warns and resolves to its renamed generic type."""
         from isaacteleop import schema
 
-        assert schema.FullBodyPosePicoT is schema.FullBodyPoseT
-        assert schema.FullBodyPosePicoTrackedT is schema.FullBodyPoseTrackedT
-        assert schema.FullBodyPosePicoRecord is schema.FullBodyPoseRecord
-        assert schema.BodyJointsPico is schema.BodyJoints
-        assert schema.BodyJointPico is schema.BodyJoint
-        # The aliased enum exposes the same joint members/values.
-        assert int(schema.BodyJointPico.RIGHT_HAND) == 23
+        cases = [
+            ("FullBodyPosePicoT", "FullBodyPoseT"),
+            ("FullBodyPosePicoTrackedT", "FullBodyPoseTrackedT"),
+            ("FullBodyPosePicoRecord", "FullBodyPoseRecord"),
+            ("BodyJointsPico", "BodyJoints"),
+            ("BodyJointPico", "BodyJoint"),
+        ]
+        for old, new in cases:
+            with pytest.warns(DeprecationWarning, match=old):
+                deprecated = getattr(schema, old)
+            assert deprecated is getattr(schema, new)
+
+        # The aliased enum still exposes the same joint members/values.
+        with pytest.warns(DeprecationWarning, match="BodyJointPico"):
+            assert int(schema.BodyJointPico.RIGHT_HAND) == 23

@@ -3,6 +3,8 @@
 
 """DeviceIO Source Nodes - Stateless converters from DeviceIO to retargeting engine formats."""
 
+import warnings
+
 from .interface import IDeviceIOSource
 from .sink_interface import IDeviceIOSink
 from .head_source import HeadSource
@@ -26,14 +28,12 @@ from .deviceio_tensor_types import (
     Generic3AxisPedalOutputTrackedType,
     JointStateOutputTrackedType,
     FullBodyPoseTrackedType,
-    FullBodyPosePicoTrackedType,
     DeviceIOHeadPoseTracked,
     DeviceIOHandPoseTracked,
     DeviceIOControllerSnapshotTracked,
     DeviceIOGeneric3AxisPedalOutputTracked,
     DeviceIOJointStateOutputTracked,
     DeviceIOFullBodyPoseTracked,
-    DeviceIOFullBodyPosePicoTracked,
     MessageChannelMessagesTrackedType,
     MessageChannelConnectionStatus,
     MessageChannelStatusType,
@@ -63,7 +63,6 @@ __all__ = [
     "Generic3AxisPedalOutputTrackedType",
     "JointStateOutputTrackedType",
     "FullBodyPoseTrackedType",
-    "FullBodyPosePicoTrackedType",
     "MessageChannelMessagesTrackedType",
     "MessageChannelConnectionStatus",
     "MessageChannelStatusType",
@@ -73,8 +72,26 @@ __all__ = [
     "DeviceIOGeneric3AxisPedalOutputTracked",
     "DeviceIOJointStateOutputTracked",
     "DeviceIOFullBodyPoseTracked",
-    "DeviceIOFullBodyPosePicoTracked",
     "DeviceIOMessageChannelMessagesTracked",
     "MessageChannelMessagesTrackedGroup",
     "MessageChannelStatusGroup",
 ]
+
+# Deprecated re-exports resolved lazily so access emits a DeprecationWarning; kept out
+# of __all__ and the eager imports above so importing this module stays quiet.
+_DEPRECATED_ALIASES = {
+    "FullBodyPosePicoTrackedType": "FullBodyPoseTrackedType",
+    "DeviceIOFullBodyPosePicoTracked": "DeviceIOFullBodyPoseTracked",
+}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
