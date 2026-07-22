@@ -251,14 +251,17 @@ function interpolateGamepad(
   alpha: number,
 ): SerializedGamepad | null {
   if (!from || !to) return from;
+  // A layout change means the input source changed. Keep the complete earlier
+  // sample until the next timestamp instead of partially mixing two devices.
+  if (from.axes.length !== to.axes.length || from.buttons.length !== to.buttons.length) {
+    return from;
+  }
   return {
-    axes: from.axes.map((value, index) =>
-      index < to.axes.length ? lerp(value, to.axes[index], alpha) : value,
-    ),
+    axes: from.axes.map((value, index) => lerp(value, to.axes[index], alpha)),
     buttons: from.buttons.map((button, index) => {
       const next = to.buttons[index];
       return {
-        value: next ? lerp(button.value, next.value, alpha) : button.value,
+        value: lerp(button.value, next.value, alpha),
         pressed: button.pressed,
         touched: button.touched,
       };

@@ -211,6 +211,20 @@ describe("lifecycle and frame advancement", () => {
     expect(recorder.currentFrame?.handJoints.left.wrist?.px).toBe(7);
   });
 
+  test("holds the earlier gamepad sample when controller layouts differ", () => {
+    const first = timedFrame(0, 0);
+    const second = timedFrame(100, 10);
+    second.gamepads.left!.axes.push(20);
+    second.gamepads.left!.buttons.push({ value: 20, pressed: true, touched: true });
+
+    const recorder = new XRInputRecorder();
+    recorder.startReplay(recording(first, second), false);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1000), sceneSpace);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1050), sceneSpace);
+
+    expect(recorder.currentFrame?.gamepads.left).toEqual(first.gamepads.left);
+  });
+
   test("holds the final timed sample before looping", () => {
     const recorder = new XRInputRecorder();
     recorder.startReplay(recording(timedFrame(0, 0), timedFrame(100, 10)), true, "time");
