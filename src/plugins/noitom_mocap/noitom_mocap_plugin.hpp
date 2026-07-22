@@ -80,7 +80,7 @@ private:
     bool application_open_ = false;
     bool warned_no_avatars_ = false;
 
-    core::FullBodyPosePicoT frame_;
+    core::FullBodyPoseT frame_;
     int64_t latest_sample_time_raw_device_clock_ns_ = 0;
 };
 

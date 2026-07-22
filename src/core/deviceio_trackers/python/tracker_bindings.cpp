@@ -3,12 +3,13 @@
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
-#include <deviceio_trackers/full_body_tracker_pico.hpp>
+#include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/oglo_tactile_tracker.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
@@ -153,6 +154,18 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
 
+    py::class_<core::OgloTactileTracker, core::ITracker, std::shared_ptr<core::OgloTactileTracker>>(
+        m, "OgloTactileTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::OgloTactileTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct an OgloTactileTracker for the given tensor collection ID "
+             "(e.g. 'oglo/left' / 'oglo/right', matching the oglo_tactile plugin's --collection-prefix)")
+        .def(
+            "get_glove_data",
+            [](const core::OgloTactileTracker& self, const core::ITrackerSession& session) -> core::OgloGloveSampleTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current tactile glove tracked state (data is None when no data available)");
+
     py::class_<core::TensorPushTracker, core::ITracker, std::shared_ptr<core::TensorPushTracker>> tensor_push_tracker(
         m, "TensorPushTracker");
     tensor_push_tracker.attr("DEFAULT_MAX_PAYLOAD_SIZE") =
@@ -196,20 +209,13 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "Get the current SE3 tracked snapshot (data is None when no data available; gate on "
             "data.is_valid before consuming the pose)");
 
-    py::class_<core::FullBodyTrackerPico, core::ITracker, std::shared_ptr<core::FullBodyTrackerPico>> full_body_tracker(
-        m, "FullBodyTrackerPico");
-    full_body_tracker.attr("DEFAULT_MAX_FLATBUFFER_SIZE") =
-        static_cast<size_t>(core::FullBodyTrackerPico::DEFAULT_MAX_FLATBUFFER_SIZE);
-    full_body_tracker.def(py::init<>())
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::FullBodyTrackerPico::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a FullBodyTrackerPico that reads FullBodyPosePico samples from an OpenXR tensor collection")
-        .def_property_readonly("uses_external_collection", &core::FullBodyTrackerPico::uses_external_collection)
-        .def_property_readonly("collection_id", &core::FullBodyTrackerPico::collection_id)
-        .def_property_readonly("max_flatbuffer_size", &core::FullBodyTrackerPico::max_flatbuffer_size)
+    py::class_<core::FullBodyTracker, core::ITracker, std::shared_ptr<core::FullBodyTracker>>(m, "FullBodyTracker")
+        .def(py::init<>(),
+             "Construct a vendor-agnostic full body tracker marker. The live session selects the "
+             "vendor via VendorConfig (default: native PICO XR_BD_body_tracking); replay is vendor-neutral.")
         .def(
             "get_body_pose",
-            [](const core::FullBodyTrackerPico& self, const core::ITrackerSession& session) -> core::FullBodyPosePicoTrackedT
+            [](const core::FullBodyTracker& self, const core::ITrackerSession& session) -> core::FullBodyPoseTrackedT
             { return self.get_body_pose(session); },
             py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
 

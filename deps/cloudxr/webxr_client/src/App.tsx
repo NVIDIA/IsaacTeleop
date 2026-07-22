@@ -62,6 +62,9 @@ import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
 import { readUrlParam } from './config/resolve';
 import CloudXR3DUI from './CloudXRUI';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
+import { RecorderProvider, useRecorder } from './RecorderContext';
+import { RecorderComponent } from './RecorderComponent';
+import { TraceVisualization } from './TraceVisualization';
 
 // Performance metrics signals - raw numeric data, one per callback cadence.
 // Signals update their value without triggering React re-renders.
@@ -134,7 +137,8 @@ function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null
   return `wss://${host}:${portStr}/oob/v1/ws`;
 }
 
-function App() {
+function AppContent() {
+  const { recorder, onLoadRecording } = useRecorder();
   const COUNTDOWN_MAX_SECONDS = 9;
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
@@ -300,6 +304,9 @@ function App() {
       createXRStore({
         emulate: false, // Disable IWER emulation from react in favor of custom iwer loading function
         foveation: xrFoveation,
+        // CloudXRComponent applies the configured rate before CloudXR negotiates the stream.
+        // Disabling the store's automatic "high" preference avoids racing that negotiation.
+        frameRate: false,
         frameBufferScaling: xrFrameBufferScaling,
         // Use local WebXR input profile assets only when bundled (optional build without assets)
         ...(process.env.WEBXR_ASSETS_VERSION && {
@@ -378,23 +385,6 @@ function App() {
       } else {
         setErrorMessage('Unrecognized immersive mode');
       }
-      store.setFrameRate((supportedFrameRates: ArrayLike<number>): number | false => {
-        let frameRate = ui.getConfiguration().deviceFrameRate;
-        let found = false;
-        for (let i = 0; i < supportedFrameRates.length; ++i) {
-          if (supportedFrameRates[i] === frameRate) {
-            found = true;
-            break;
-          }
-        }
-        if (found) {
-          console.info('Changed frame rate to', frameRate);
-          return frameRate;
-        } else {
-          console.error('Failed to change frame rate to', frameRate);
-          return false;
-        }
-      });
     };
 
     ui.setupConnectButtonHandler(doConnect, (error: Error) => {
@@ -417,6 +407,12 @@ function App() {
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  useEffect(() => {
+    const button = document.getElementById('loadRecordingBtn');
+    button?.addEventListener('click', onLoadRecording);
+    return () => button?.removeEventListener('click', onLoadRecording);
+  }, [onLoadRecording]);
 
   // Update HTML error message display when error state changes
   useEffect(() => {
@@ -909,9 +905,15 @@ function App() {
           <XROrigin />
           {cloudXR2DUI && config && (
             <>
+              <RecorderComponent
+                isConnected={isConnected}
+                showTrace={config.showTrace ?? false}
+              />
+              <TraceVisualization showTrace={config.showTrace ?? false} />
               <CloudXRComponent
                 config={config}
                 applicationName={`Isaac Teleop Web Client (${config.teleopPath})`}
+                trackingFrameAdapter={recorder.adaptTrackingFrame}
                 iceServers={iceServersConfig}
                 onStatusChange={handleStatusChange}
                 onError={error => {
@@ -952,6 +954,7 @@ function App() {
                   renderFpsText={renderFpsText}
                   streamingFpsText={streamingFpsText}
                   poseToRenderText={poseToRenderText}
+                  showRecordingControls={config.showRecordingControls}
                 />
               )}
             </>
@@ -959,6 +962,14 @@ function App() {
         </XR>
       </Canvas>
     </>
+  );
+}
+
+function App() {
+  return (
+    <RecorderProvider>
+      <AppContent />
+    </RecorderProvider>
   );
 }
 

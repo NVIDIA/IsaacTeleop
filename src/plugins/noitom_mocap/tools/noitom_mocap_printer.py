@@ -11,7 +11,10 @@ import time
 
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
-from isaacteleop.schema import BodyJointPico
+from isaacteleop.schema import BodyJoint
+
+
+_NOITOM_VENDOR_ID = "body.noitom"
 
 
 _JOINT_NAMES = (
@@ -58,7 +61,7 @@ def _print_frame(
     elapsed_s: float,
     max_joints: int,
 ) -> None:
-    joint_count = int(BodyJointPico.NUM_JOINTS)
+    joint_count = int(BodyJoint.NUM_JOINTS)
     valid_joints = (
         0
         if frame.joints is None
@@ -100,8 +103,24 @@ def main() -> int:
     parser.add_argument("--max-joints", type=int, default=6)
     args = parser.parse_args()
 
-    tracker = deviceio.FullBodyTrackerPico(args.collection_id, args.max_flatbuffer_size)
-    required_extensions = deviceio.DeviceIOSession.get_required_extensions([tracker])
+    tracker = deviceio.FullBodyTracker()
+    vendor_config = deviceio.VendorConfig(
+        [
+            (
+                tracker,
+                deviceio.TrackerVendor(
+                    _NOITOM_VENDOR_ID,
+                    {
+                        "collection_id": args.collection_id,
+                        "max_flatbuffer_size": str(args.max_flatbuffer_size),
+                    },
+                ),
+            )
+        ]
+    )
+    required_extensions = deviceio.DeviceIOSession.get_required_extensions(
+        [tracker], vendor_config
+    )
 
     print("Noitom full-body printer")
     print(f"  collection_id={args.collection_id}")
@@ -117,7 +136,9 @@ def main() -> int:
 
     with oxr.OpenXRSession("NoitomMocapPrinter", required_extensions) as oxr_session:
         handles = oxr_session.get_handles()
-        with deviceio.DeviceIOSession.run([tracker], handles) as session:
+        with deviceio.DeviceIOSession.run(
+            [tracker], handles, vendor_config=vendor_config
+        ) as session:
             while args.duration <= 0.0 or time.monotonic() - start_s < args.duration:
                 session.update()
                 tracked = tracker.get_body_pose(session)

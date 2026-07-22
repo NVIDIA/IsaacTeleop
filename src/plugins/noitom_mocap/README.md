@@ -8,9 +8,11 @@ SPDX-License-Identifier: Apache-2.0
 Optional plugin that reads Noitom Hybrid Data Server data through MocapApi and
 publishes IsaacTeleop full-body samples over OpenXR tensor data.
 
-The plugin converts Noitom avatar joints to the existing `FullBodyPosePico`
+The plugin converts Noitom avatar joints to the existing `FullBodyPose`
 layout and publishes tensor identifier `full_body` in collection
-`noitom_mocap`. Consumers use `FullBodyTrackerPico("noitom_mocap")`.
+`noitom_mocap`. Consumers use `FullBodyTracker()` with the `body.noitom`
+vendor selected; vendor parameters carry the collection ID and maximum sample
+size from the Noitom-specific source.
 
 Positions are read from the Noitom SDK in centimeters and published in meters.
 MCAP timestamps use the local monotonic clock for local/common time fields and

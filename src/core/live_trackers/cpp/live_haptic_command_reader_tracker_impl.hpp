@@ -11,7 +11,10 @@
 #include <schema/haptic_command_generated.h>
 
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace core
@@ -38,10 +41,18 @@ public:
 
     void update(int64_t monotonic_time_ns) override;
     const HapticCommandTrackedT& get_data() const override;
+    const HapticCommandTrackedT& get_data(std::string_view endpoint) const override;
 
 private:
     HapticCommandSchemaTracker schema_reader_;
-    HapticCommandTrackedT tracked_;
+    // Latest command per endpoint. One push-tensor collection carries every
+    // endpoint's command (each tagged by HapticCommand.endpoint); bucketing by
+    // that tag keeps concurrent endpoints (e.g. left/right) from overwriting one
+    // another the way a single latest-sample slot would.
+    std::map<std::string, HapticCommandTrackedT, std::less<>> tracked_by_endpoint_;
+    // Endpoint of the most recently drained sample, backing the no-arg get_data().
+    std::string latest_endpoint_;
+    std::vector<SchemaTrackerBase::SampleResult> samples_;
 };
 
 } // namespace core

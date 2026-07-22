@@ -17,7 +17,7 @@ from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
-    DeviceIOFullBodyPosePicoTracked,
+    DeviceIOFullBodyPoseTracked,
     IDeviceIOSource,
 )
 from isaacteleop.retargeting_engine.interface import (
@@ -31,7 +31,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     FullBodyInput,
     FullBodyInputIndex,
 )
-from isaacteleop.schema import BodyJointPico
+from isaacteleop.schema import BodyJoint
 from isaacteleop.teleop_session_manager import (
     PluginConfig,
     TeleopSession,
@@ -43,6 +43,7 @@ DEFAULT_COLLECTION_ID = "noitom_mocap"
 DEFAULT_MAX_FLATBUFFER_SIZE = 16 * 1024
 PLUGIN_NAME = "noitom_mocap"
 PLUGIN_ROOT_ID = "noitom_mocap"
+NOITOM_VENDOR_ID = "body.noitom"
 
 
 class NoitomFullBodySource(IDeviceIOSource):
@@ -53,11 +54,15 @@ class NoitomFullBodySource(IDeviceIOSource):
     def __init__(self, name: str, collection_id: str, max_flatbuffer_size: int) -> None:
         import isaacteleop.deviceio as deviceio
 
-        self._body_tracker = deviceio.FullBodyTrackerPico(
-            collection_id,
-            max_flatbuffer_size,
+        self._body_tracker = deviceio.FullBodyTracker()
+        vendor = deviceio.TrackerVendor(
+            NOITOM_VENDOR_ID,
+            {
+                "collection_id": collection_id,
+                "max_flatbuffer_size": str(max_flatbuffer_size),
+            },
         )
-        super().__init__(name)
+        super().__init__(name, vendor=vendor)
 
     def get_tracker(self):
         return self._body_tracker
@@ -69,7 +74,7 @@ class NoitomFullBodySource(IDeviceIOSource):
         return {"deviceio_full_body": group}
 
     def input_spec(self) -> RetargeterIOType:
-        return {"deviceio_full_body": DeviceIOFullBodyPosePicoTracked()}
+        return {"deviceio_full_body": DeviceIOFullBodyPoseTracked()}
 
     def output_spec(self) -> RetargeterIOType:
         return {self.FULL_BODY: OptionalType(FullBodyInput())}
@@ -86,12 +91,12 @@ class NoitomFullBodySource(IDeviceIOSource):
             outputs[self.FULL_BODY].set_none()
             return
 
-        positions = np.zeros((int(BodyJointPico.NUM_JOINTS), 3), dtype=np.float32)
-        orientations = np.zeros((int(BodyJointPico.NUM_JOINTS), 4), dtype=np.float32)
-        valid = np.zeros(int(BodyJointPico.NUM_JOINTS), dtype=np.uint8)
+        positions = np.zeros((int(BodyJoint.NUM_JOINTS), 3), dtype=np.float32)
+        orientations = np.zeros((int(BodyJoint.NUM_JOINTS), 4), dtype=np.float32)
+        valid = np.zeros(int(BodyJoint.NUM_JOINTS), dtype=np.uint8)
 
         if body_pose.joints is not None:
-            for index in range(int(BodyJointPico.NUM_JOINTS)):
+            for index in range(int(BodyJoint.NUM_JOINTS)):
                 joint = body_pose.joints.joints(index)
                 positions[index] = [
                     joint.pose.position.x,
@@ -190,7 +195,7 @@ def main(argv: list[str]) -> int:
         mcap_config=McapRecordingConfig(str(mcap_path)),
     )
 
-    joint_count = int(BodyJointPico.NUM_JOINTS)
+    joint_count = int(BodyJoint.NUM_JOINTS)
     print(f"[record] writing {mcap_path} for {args.duration:.1f}s")
     print(f"[record] collection_id={args.collection_id}")
 

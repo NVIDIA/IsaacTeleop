@@ -25,6 +25,7 @@
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -91,23 +92,26 @@ void ManusTracker::update()
     // Update DeviceIOSession which handles time conversion and tracker updates internally
     m_deviceio_session->update();
 
-    // Latest-wins: the hardware only retains the most recent vibration call,
-    // so dropping intermediate samples on a slow tick is fine. The generic
-    // HapticCommand carries an endpoint string ("left"/"right"); commands for
-    // other endpoints or with a non-5-finger values vector are ignored (this
-    // plugin only drives 5-finger gloves).
+    // Latest-wins per endpoint: the hardware only retains the most recent
+    // vibration call, so dropping intermediate samples on a slow tick is fine.
+    // The producer pushes an independent HapticCommand per hand on one
+    // collection, so read each side separately -- reading a single latest sample
+    // would let whichever hand was pushed last clobber the other. Non-5-finger
+    // payloads are ignored (this plugin only drives 5-finger gloves).
     if (m_haptic_reader)
     {
-        const auto& tracked = m_haptic_reader->get_data(*m_deviceio_session);
-        if (tracked.data && tracked.data->values.size() == kManusFingerCount &&
-            (tracked.data->endpoint == "left" || tracked.data->endpoint == "right"))
+        for (const std::string_view endpoint : { std::string_view("left"), std::string_view("right") })
         {
-            std::array<float, kManusFingerCount> powers{};
-            for (size_t i = 0; i < kManusFingerCount; ++i)
+            const auto& tracked = m_haptic_reader->get_data(*m_deviceio_session, endpoint);
+            if (tracked.data && tracked.data->values.size() == kManusFingerCount)
             {
-                powers[i] = tracked.data->values[i];
+                std::array<float, kManusFingerCount> powers{};
+                for (size_t i = 0; i < kManusFingerCount; ++i)
+                {
+                    powers[i] = tracked.data->values[i];
+                }
+                apply_haptic_command(endpoint == "left", powers);
             }
-            apply_haptic_command(tracked.data->endpoint == "left", powers);
         }
     }
 

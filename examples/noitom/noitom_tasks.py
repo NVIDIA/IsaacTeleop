@@ -19,12 +19,12 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g
     LocomanipulationG1EnvCfg,
 )
 from isaacteleop.schema import (
-    BodyJointPico,
-    FullBodyPosePicoT,
-    FullBodyPosePicoTrackedT,
+    BodyJoint,
+    FullBodyPoseT,
+    FullBodyPoseTrackedT,
 )
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
-    DeviceIOFullBodyPosePicoTracked,
+    DeviceIOFullBodyPoseTracked,
     IDeviceIOSource,
 )
 from isaacteleop.retargeting_engine.interface import (
@@ -79,6 +79,7 @@ _NOITOM_SHOULDER_TARGET_COLOR = (0.2, 1.0, 0.35, 1.0)
 _NOITOM_SHOULDER_TARGET_MARKER_SIZE = 0.02
 _NOITOM_PLUGIN_NAME = "noitom_mocap"
 _NOITOM_PLUGIN_ROOT_ID = "noitom_mocap"
+_NOITOM_VENDOR_ID = "body.noitom"
 
 
 def g1_action_dim(*, use_arm_ik_frame_tasks: bool) -> int:
@@ -123,29 +124,29 @@ class NoitomG1Settings:
 
 
 _FULL_BODY_BONES = (
-    (BodyJointPico.PELVIS, BodyJointPico.SPINE1),
-    (BodyJointPico.SPINE1, BodyJointPico.SPINE2),
-    (BodyJointPico.SPINE2, BodyJointPico.SPINE3),
-    (BodyJointPico.SPINE3, BodyJointPico.NECK),
-    (BodyJointPico.NECK, BodyJointPico.HEAD),
-    (BodyJointPico.SPINE3, BodyJointPico.LEFT_COLLAR),
-    (BodyJointPico.LEFT_COLLAR, BodyJointPico.LEFT_SHOULDER),
-    (BodyJointPico.LEFT_SHOULDER, BodyJointPico.LEFT_ELBOW),
-    (BodyJointPico.LEFT_ELBOW, BodyJointPico.LEFT_WRIST),
-    (BodyJointPico.LEFT_WRIST, BodyJointPico.LEFT_HAND),
-    (BodyJointPico.SPINE3, BodyJointPico.RIGHT_COLLAR),
-    (BodyJointPico.RIGHT_COLLAR, BodyJointPico.RIGHT_SHOULDER),
-    (BodyJointPico.RIGHT_SHOULDER, BodyJointPico.RIGHT_ELBOW),
-    (BodyJointPico.RIGHT_ELBOW, BodyJointPico.RIGHT_WRIST),
-    (BodyJointPico.RIGHT_WRIST, BodyJointPico.RIGHT_HAND),
-    (BodyJointPico.PELVIS, BodyJointPico.LEFT_HIP),
-    (BodyJointPico.LEFT_HIP, BodyJointPico.LEFT_KNEE),
-    (BodyJointPico.LEFT_KNEE, BodyJointPico.LEFT_ANKLE),
-    (BodyJointPico.LEFT_ANKLE, BodyJointPico.LEFT_FOOT),
-    (BodyJointPico.PELVIS, BodyJointPico.RIGHT_HIP),
-    (BodyJointPico.RIGHT_HIP, BodyJointPico.RIGHT_KNEE),
-    (BodyJointPico.RIGHT_KNEE, BodyJointPico.RIGHT_ANKLE),
-    (BodyJointPico.RIGHT_ANKLE, BodyJointPico.RIGHT_FOOT),
+    (BodyJoint.PELVIS, BodyJoint.SPINE1),
+    (BodyJoint.SPINE1, BodyJoint.SPINE2),
+    (BodyJoint.SPINE2, BodyJoint.SPINE3),
+    (BodyJoint.SPINE3, BodyJoint.NECK),
+    (BodyJoint.NECK, BodyJoint.HEAD),
+    (BodyJoint.SPINE3, BodyJoint.LEFT_COLLAR),
+    (BodyJoint.LEFT_COLLAR, BodyJoint.LEFT_SHOULDER),
+    (BodyJoint.LEFT_SHOULDER, BodyJoint.LEFT_ELBOW),
+    (BodyJoint.LEFT_ELBOW, BodyJoint.LEFT_WRIST),
+    (BodyJoint.LEFT_WRIST, BodyJoint.LEFT_HAND),
+    (BodyJoint.SPINE3, BodyJoint.RIGHT_COLLAR),
+    (BodyJoint.RIGHT_COLLAR, BodyJoint.RIGHT_SHOULDER),
+    (BodyJoint.RIGHT_SHOULDER, BodyJoint.RIGHT_ELBOW),
+    (BodyJoint.RIGHT_ELBOW, BodyJoint.RIGHT_WRIST),
+    (BodyJoint.RIGHT_WRIST, BodyJoint.RIGHT_HAND),
+    (BodyJoint.PELVIS, BodyJoint.LEFT_HIP),
+    (BodyJoint.LEFT_HIP, BodyJoint.LEFT_KNEE),
+    (BodyJoint.LEFT_KNEE, BodyJoint.LEFT_ANKLE),
+    (BodyJoint.LEFT_ANKLE, BodyJoint.LEFT_FOOT),
+    (BodyJoint.PELVIS, BodyJoint.RIGHT_HIP),
+    (BodyJoint.RIGHT_HIP, BodyJoint.RIGHT_KNEE),
+    (BodyJoint.RIGHT_KNEE, BodyJoint.RIGHT_ANKLE),
+    (BodyJoint.RIGHT_ANKLE, BodyJoint.RIGHT_FOOT),
 )
 DEFAULT_NOITOM_G1_SETTINGS = NoitomG1Settings()
 
@@ -401,8 +402,13 @@ class NoitomG1ActionSource(IDeviceIOSource):
         """Initialize the Noitom DeviceIO tracker and retargeter."""
         import isaacteleop.deviceio as deviceio
 
-        self._tracker = deviceio.FullBodyTrackerPico(
-            settings.collection_id, settings.max_flatbuffer_size
+        self._tracker = deviceio.FullBodyTracker()
+        vendor = deviceio.TrackerVendor(
+            _NOITOM_VENDOR_ID,
+            {
+                "collection_id": settings.collection_id,
+                "max_flatbuffer_size": str(settings.max_flatbuffer_size),
+            },
         )
         self._collection_id = settings.collection_id
         self._enable_motion = settings.enable_motion
@@ -417,7 +423,7 @@ class NoitomG1ActionSource(IDeviceIOSource):
         self._no_data_count = 0
         self._first_frame_printed = False
         self._calibration_fail_count = 0
-        super().__init__(name)
+        super().__init__(name, vendor=vendor)
 
     def get_tracker(self):
         """Return the Noitom mocap tracker used by this source."""
@@ -432,7 +438,7 @@ class NoitomG1ActionSource(IDeviceIOSource):
 
     def input_spec(self) -> RetargeterIOType:
         """Declare the raw full-body DeviceIO input."""
-        return {_FULL_BODY_INPUT: DeviceIOFullBodyPosePicoTracked()}
+        return {_FULL_BODY_INPUT: DeviceIOFullBodyPoseTracked()}
 
     def output_spec(self) -> RetargeterIOType:
         """Declare the flattened G1 action output."""
@@ -462,8 +468,8 @@ class NoitomG1ActionSource(IDeviceIOSource):
             )
 
         # Read the raw tracked data from DeviceIO
-        tracked: FullBodyPosePicoTrackedT = inputs[_FULL_BODY_INPUT][0]
-        frame: FullBodyPosePicoT | None = tracked.data
+        tracked: FullBodyPoseTrackedT = inputs[_FULL_BODY_INPUT][0]
+        frame: FullBodyPoseT | None = tracked.data
 
         # --- First-frame diagnostic ---
         if not self._first_frame_printed:
@@ -547,7 +553,7 @@ class NoitomG1ActionSource(IDeviceIOSource):
         self._print_status(frame, body_yaw_delta, context)
 
     def _print_status(
-        self, frame: FullBodyPosePicoT, body_yaw_delta: float, context: ComputeContext
+        self, frame: FullBodyPoseT, body_yaw_delta: float, context: ComputeContext
     ) -> None:
         if self._print_period_s <= 0.0:
             return
@@ -574,7 +580,7 @@ class NoitomG1ActionSource(IDeviceIOSource):
             )
         print(
             "NoitomG1ActionSource: "
-            f"joints={_valid_joint_count(frame)}/{int(BodyJointPico.NUM_JOINTS)} "
+            f"joints={_valid_joint_count(frame)}/{int(BodyJoint.NUM_JOINTS)} "
             f"motion={motion} calibrated={calib} "
             f"yaw_delta={body_yaw_delta:+.3f} "
             f"motion_scale={self._retargeter.retargeting_settings.motion_scale:.2f} "
@@ -642,7 +648,7 @@ class _NoitomReferenceVisualizer:
 
     def update(
         self,
-        frame: FullBodyPosePicoT,
+        frame: FullBodyPoseT,
         retargeter: NoitomG1Retargeter,
     ) -> None:
         if not self._enabled:
@@ -678,8 +684,8 @@ class _NoitomReferenceVisualizer:
             wrist_starts, wrist_ends, wrist_colors = self._frame_highlight_markers(
                 draw_positions,
                 (
-                    int(BodyJointPico.LEFT_WRIST),
-                    int(BodyJointPico.RIGHT_WRIST),
+                    int(BodyJoint.LEFT_WRIST),
+                    int(BodyJoint.RIGHT_WRIST),
                 ),
                 _NOITOM_WRIST_TARGET_COLOR,
                 _NOITOM_WRIST_TARGET_MARKER_SIZE,
@@ -693,8 +699,8 @@ class _NoitomReferenceVisualizer:
             elbow_starts, elbow_ends, elbow_colors = self._frame_highlight_markers(
                 draw_positions,
                 (
-                    int(BodyJointPico.LEFT_ELBOW),
-                    int(BodyJointPico.RIGHT_ELBOW),
+                    int(BodyJoint.LEFT_ELBOW),
+                    int(BodyJoint.RIGHT_ELBOW),
                 ),
                 _NOITOM_ELBOW_TARGET_COLOR,
                 _NOITOM_ELBOW_TARGET_MARKER_SIZE,
@@ -709,8 +715,8 @@ class _NoitomReferenceVisualizer:
                 self._frame_highlight_markers(
                     draw_positions,
                     (
-                        int(BodyJointPico.LEFT_SHOULDER),
-                        int(BodyJointPico.RIGHT_SHOULDER),
+                        int(BodyJoint.LEFT_SHOULDER),
+                        int(BodyJoint.RIGHT_SHOULDER),
                     ),
                     _NOITOM_SHOULDER_TARGET_COLOR,
                     _NOITOM_SHOULDER_TARGET_MARKER_SIZE,
@@ -786,7 +792,7 @@ class _NoitomReferenceVisualizer:
 
     def _reference_positions(
         self,
-        frame: FullBodyPosePicoT,
+        frame: FullBodyPoseT,
         calib_view: Any | None,
     ) -> dict[int, np.ndarray]:
         if self._pelvis_relative:
@@ -862,18 +868,18 @@ class _NoitomReferenceVisualizer:
         return starts, ends, colors
 
 
-def _joint_position_map(frame: FullBodyPosePicoT) -> dict[int, np.ndarray]:
+def _joint_position_map(frame: FullBodyPoseT) -> dict[int, np.ndarray]:
     positions: dict[int, np.ndarray] = {}
     if frame.joints is None:
         return positions
-    for index in range(int(BodyJointPico.NUM_JOINTS)):
+    for index in range(int(BodyJoint.NUM_JOINTS)):
         position = _joint_position(frame, index)
         if position is not None:
             positions[index] = position
     return positions
 
 
-def _joint_position(frame: FullBodyPosePicoT, joint_index: int) -> np.ndarray | None:
+def _joint_position(frame: FullBodyPoseT, joint_index: int) -> np.ndarray | None:
     if frame.joints is None:
         return None
     joint = frame.joints.joints(int(joint_index))
@@ -885,25 +891,25 @@ def _joint_position(frame: FullBodyPosePicoT, joint_index: int) -> np.ndarray | 
     return None
 
 
-def _valid_joint_count(frame: FullBodyPosePicoT) -> int:
+def _valid_joint_count(frame: FullBodyPoseT) -> int:
     if frame.joints is None:
         return 0
     count = 0
-    for index in range(int(BodyJointPico.NUM_JOINTS)):
+    for index in range(int(BodyJoint.NUM_JOINTS)):
         if frame.joints.joints(index).is_valid:
             count += 1
     return count
 
 
-def _raw_full_body_status(frame: FullBodyPosePicoT) -> str:
-    left_wrist = _joint_position(frame, BodyJointPico.LEFT_WRIST)
-    right_wrist = _joint_position(frame, BodyJointPico.RIGHT_WRIST)
-    pelvis = _joint_position(frame, BodyJointPico.PELVIS)
-    spine3 = _joint_position(frame, BodyJointPico.SPINE3)
-    left_shoulder = _joint_position(frame, BodyJointPico.LEFT_SHOULDER)
-    right_shoulder = _joint_position(frame, BodyJointPico.RIGHT_SHOULDER)
-    left_elbow = _joint_position(frame, BodyJointPico.LEFT_ELBOW)
-    right_elbow = _joint_position(frame, BodyJointPico.RIGHT_ELBOW)
+def _raw_full_body_status(frame: FullBodyPoseT) -> str:
+    left_wrist = _joint_position(frame, BodyJoint.LEFT_WRIST)
+    right_wrist = _joint_position(frame, BodyJoint.RIGHT_WRIST)
+    pelvis = _joint_position(frame, BodyJoint.PELVIS)
+    spine3 = _joint_position(frame, BodyJoint.SPINE3)
+    left_shoulder = _joint_position(frame, BodyJoint.LEFT_SHOULDER)
+    right_shoulder = _joint_position(frame, BodyJoint.RIGHT_SHOULDER)
+    left_elbow = _joint_position(frame, BodyJoint.LEFT_ELBOW)
+    right_elbow = _joint_position(frame, BodyJoint.RIGHT_ELBOW)
 
     missing = []
     if pelvis is None:
@@ -935,16 +941,16 @@ def _raw_full_body_status(frame: FullBodyPosePicoT) -> str:
     )
 
 
-def _calibration_diagnostics(frame: FullBodyPosePicoT) -> str:
+def _calibration_diagnostics(frame: FullBodyPoseT) -> str:
     """Detailed calibration diagnostics: which joints are valid/invalid."""
-    pelvis = _joint_position(frame, BodyJointPico.PELVIS)
-    spine3 = _joint_position(frame, BodyJointPico.SPINE3)
-    left_shoulder = _joint_position(frame, BodyJointPico.LEFT_SHOULDER)
-    right_shoulder = _joint_position(frame, BodyJointPico.RIGHT_SHOULDER)
-    left_elbow = _joint_position(frame, BodyJointPico.LEFT_ELBOW)
-    right_elbow = _joint_position(frame, BodyJointPico.RIGHT_ELBOW)
-    left_wrist = _joint_position(frame, BodyJointPico.LEFT_WRIST)
-    right_wrist = _joint_position(frame, BodyJointPico.RIGHT_WRIST)
+    pelvis = _joint_position(frame, BodyJoint.PELVIS)
+    spine3 = _joint_position(frame, BodyJoint.SPINE3)
+    left_shoulder = _joint_position(frame, BodyJoint.LEFT_SHOULDER)
+    right_shoulder = _joint_position(frame, BodyJoint.RIGHT_SHOULDER)
+    left_elbow = _joint_position(frame, BodyJoint.LEFT_ELBOW)
+    right_elbow = _joint_position(frame, BodyJoint.RIGHT_ELBOW)
+    left_wrist = _joint_position(frame, BodyJoint.LEFT_WRIST)
+    right_wrist = _joint_position(frame, BodyJoint.RIGHT_WRIST)
 
     required = {
         "pelvis": pelvis,
@@ -958,7 +964,7 @@ def _calibration_diagnostics(frame: FullBodyPosePicoT) -> str:
     }
     valid = [k for k, v in required.items() if v is not None]
     missing = [k for k, v in required.items() if v is None]
-    total_joints = int(BodyJointPico.NUM_JOINTS)
+    total_joints = int(BodyJoint.NUM_JOINTS)
     all_valid = sum(
         1
         for i in range(total_joints)

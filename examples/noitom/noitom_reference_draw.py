@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from isaacteleop.schema import BodyJointPico
+from isaacteleop.schema import BodyJoint
 
 from noitom_retargeting import noitom_position_to_isaac
 
@@ -48,16 +48,16 @@ class ReferenceSkeletonLengths:
 
 ARM_CHAIN_JOINTS = frozenset(
     {
-        int(BodyJointPico.LEFT_COLLAR),
-        int(BodyJointPico.LEFT_SHOULDER),
-        int(BodyJointPico.LEFT_ELBOW),
-        int(BodyJointPico.LEFT_WRIST),
-        int(BodyJointPico.LEFT_HAND),
-        int(BodyJointPico.RIGHT_COLLAR),
-        int(BodyJointPico.RIGHT_SHOULDER),
-        int(BodyJointPico.RIGHT_ELBOW),
-        int(BodyJointPico.RIGHT_WRIST),
-        int(BodyJointPico.RIGHT_HAND),
+        int(BodyJoint.LEFT_COLLAR),
+        int(BodyJoint.LEFT_SHOULDER),
+        int(BodyJoint.LEFT_ELBOW),
+        int(BodyJoint.LEFT_WRIST),
+        int(BodyJoint.LEFT_HAND),
+        int(BodyJoint.RIGHT_COLLAR),
+        int(BodyJoint.RIGHT_SHOULDER),
+        int(BodyJoint.RIGHT_ELBOW),
+        int(BodyJoint.RIGHT_WRIST),
+        int(BodyJoint.RIGHT_HAND),
     }
 )
 
@@ -65,17 +65,17 @@ ARM_CHAIN_JOINTS = frozenset(
 def extract_raw_yup_positions(
     frame: Any,
 ) -> tuple[dict[int, np.ndarray], np.ndarray | None]:
-    """Read valid Noitom joint positions (Y-up meters) from a FullBodyPosePico frame."""
+    """Read valid Noitom joint positions (Y-up meters) from a FullBodyPose frame."""
     if frame.joints is None:
         return {}, None
     positions: dict[int, np.ndarray] = {}
-    for index in range(int(BodyJointPico.NUM_JOINTS)):
+    for index in range(int(BodyJoint.NUM_JOINTS)):
         joint = frame.joints.joints(index)
         if not joint.is_valid:
             continue
         point = joint.pose.position
         positions[int(index)] = np.array([point.x, point.y, point.z], dtype=np.float64)
-    return positions, positions.get(int(BodyJointPico.PELVIS))
+    return positions, positions.get(int(BodyJoint.PELVIS))
 
 
 def reference_joint_scale(
@@ -115,10 +115,10 @@ def build_reference_skeleton_positions(
 def reference_torso_forward_xy(
     positions: dict[int, np.ndarray],
     *,
-    pelvis_index: int = int(BodyJointPico.PELVIS),
-    spine3_index: int = int(BodyJointPico.SPINE3),
-    left_shoulder_index: int = int(BodyJointPico.LEFT_SHOULDER),
-    right_shoulder_index: int = int(BodyJointPico.RIGHT_SHOULDER),
+    pelvis_index: int = int(BodyJoint.PELVIS),
+    spine3_index: int = int(BodyJoint.SPINE3),
+    left_shoulder_index: int = int(BodyJoint.LEFT_SHOULDER),
+    right_shoulder_index: int = int(BodyJoint.RIGHT_SHOULDER),
 ) -> np.ndarray | None:
     pelvis = positions.get(pelvis_index)
     spine3 = positions.get(spine3_index)
@@ -208,27 +208,27 @@ def apply_robot_link_lengths(
     arm_scale = float(arm_length_scale)
     span_scale = float(shoulder_span_scale)
     out = dict(positions)
-    out[int(BodyJointPico.PELVIS)] = anchor.copy()
+    out[int(BodyJoint.PELVIS)] = anchor.copy()
 
     torso_nominal_total = (
         3.0 * lengths.torso_segment + lengths.neck + lengths.head
     ) * scale
     torso_scale = 1.0
-    head_src = positions.get(int(BodyJointPico.HEAD))
-    pelvis_src = positions.get(int(BodyJointPico.PELVIS))
+    head_src = positions.get(int(BodyJoint.HEAD))
+    pelvis_src = positions.get(int(BodyJoint.PELVIS))
     if head_src is not None and pelvis_src is not None and torso_nominal_total > 1e-6:
         src_head_dist = float(np.linalg.norm(head_src - pelvis_src))
         torso_scale = float(np.clip(src_head_dist / torso_nominal_total, 0.6, 1.8))
 
     torso_chain = (
-        (int(BodyJointPico.SPINE1), lengths.torso_segment),
-        (int(BodyJointPico.SPINE2), lengths.torso_segment),
-        (int(BodyJointPico.SPINE3), lengths.torso_segment),
-        (int(BodyJointPico.NECK), lengths.neck),
-        (int(BodyJointPico.HEAD), lengths.head),
+        (int(BodyJoint.SPINE1), lengths.torso_segment),
+        (int(BodyJoint.SPINE2), lengths.torso_segment),
+        (int(BodyJoint.SPINE3), lengths.torso_segment),
+        (int(BodyJoint.NECK), lengths.neck),
+        (int(BodyJoint.HEAD), lengths.head),
     )
     parent_robot = anchor
-    parent_mocap = positions.get(int(BodyJointPico.PELVIS), anchor)
+    parent_mocap = positions.get(int(BodyJoint.PELVIS), anchor)
     up_fallback = np.array([0.0, 0.0, 1.0], dtype=np.float64)
     for joint_index, segment_length in torso_chain:
         child_mocap = positions.get(joint_index)
@@ -240,10 +240,10 @@ def apply_robot_link_lengths(
         parent_robot = robot_pos
         parent_mocap = child_mocap
 
-    left_shoulder_src = positions.get(int(BodyJointPico.LEFT_SHOULDER))
-    right_shoulder_src = positions.get(int(BodyJointPico.RIGHT_SHOULDER))
-    spine3_robot = out.get(int(BodyJointPico.SPINE3))
-    spine3_src = positions.get(int(BodyJointPico.SPINE3))
+    left_shoulder_src = positions.get(int(BodyJoint.LEFT_SHOULDER))
+    right_shoulder_src = positions.get(int(BodyJoint.RIGHT_SHOULDER))
+    spine3_robot = out.get(int(BodyJoint.SPINE3))
+    spine3_src = positions.get(int(BodyJoint.SPINE3))
 
     default_left = anchor + _pelvis_frame_offset_to_world(
         np.asarray(lengths.left_shoulder_offset, dtype=np.float64)
@@ -290,17 +290,17 @@ def apply_robot_link_lengths(
     arm_specs = (
         (
             left_shoulder_robot,
-            int(BodyJointPico.LEFT_SHOULDER),
-            int(BodyJointPico.LEFT_ELBOW),
-            int(BodyJointPico.LEFT_WRIST),
-            int(BodyJointPico.LEFT_HAND),
+            int(BodyJoint.LEFT_SHOULDER),
+            int(BodyJoint.LEFT_ELBOW),
+            int(BodyJoint.LEFT_WRIST),
+            int(BodyJoint.LEFT_HAND),
         ),
         (
             right_shoulder_robot,
-            int(BodyJointPico.RIGHT_SHOULDER),
-            int(BodyJointPico.RIGHT_ELBOW),
-            int(BodyJointPico.RIGHT_WRIST),
-            int(BodyJointPico.RIGHT_HAND),
+            int(BodyJoint.RIGHT_SHOULDER),
+            int(BodyJoint.RIGHT_ELBOW),
+            int(BodyJoint.RIGHT_WRIST),
+            int(BodyJoint.RIGHT_HAND),
         ),
     )
     for shoulder, shoulder_index, elbow_index, wrist_index, hand_index in arm_specs:
@@ -324,11 +324,11 @@ def apply_robot_link_lengths(
             lengths.hand_extension * scale * arm_scale
         )
 
-    spine3 = out.get(int(BodyJointPico.SPINE3))
+    spine3 = out.get(int(BodyJoint.SPINE3))
     if spine3 is not None:
         for collar_index, shoulder_index in (
-            (int(BodyJointPico.LEFT_COLLAR), int(BodyJointPico.LEFT_SHOULDER)),
-            (int(BodyJointPico.RIGHT_COLLAR), int(BodyJointPico.RIGHT_SHOULDER)),
+            (int(BodyJoint.LEFT_COLLAR), int(BodyJoint.LEFT_SHOULDER)),
+            (int(BodyJoint.RIGHT_COLLAR), int(BodyJoint.RIGHT_SHOULDER)),
         ):
             shoulder_pos = out.get(shoulder_index)
             if shoulder_pos is not None:
@@ -341,10 +341,10 @@ def align_reference_skeleton_to_robot(
     positions: dict[int, np.ndarray],
     pelvis_anchor: np.ndarray,
     *,
-    pelvis_index: int = int(BodyJointPico.PELVIS),
-    spine3_index: int = int(BodyJointPico.SPINE3),
-    left_shoulder_index: int = int(BodyJointPico.LEFT_SHOULDER),
-    right_shoulder_index: int = int(BodyJointPico.RIGHT_SHOULDER),
+    pelvis_index: int = int(BodyJoint.PELVIS),
+    spine3_index: int = int(BodyJoint.SPINE3),
+    left_shoulder_index: int = int(BodyJoint.LEFT_SHOULDER),
+    right_shoulder_index: int = int(BodyJoint.RIGHT_SHOULDER),
     robot_forward_xy: np.ndarray | None = None,
 ) -> dict[int, np.ndarray]:
     """Rotate the skeleton about pelvis so it faces the G1 robot (+Y in scene)."""
@@ -411,7 +411,7 @@ def aligned_reference_skeleton_from_frame(
     arm_length_scale: float = 1.0,
     shoulder_span_scale: float = 1.0,
 ) -> dict[int, np.ndarray]:
-    """Full pipeline: FullBodyPosePico -> robot-aligned joint positions in Isaac world."""
+    """Full pipeline: FullBodyPose -> robot-aligned joint positions in Isaac world."""
     raw_positions, pelvis_raw = extract_raw_yup_positions(frame)
     if pelvis_raw is None or not raw_positions:
         return {}

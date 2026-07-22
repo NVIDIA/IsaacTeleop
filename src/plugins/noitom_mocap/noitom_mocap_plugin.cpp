@@ -3,7 +3,6 @@
 
 #include "noitom_mocap_plugin.hpp"
 
-#include <deviceio_trackers/full_body_tracker_pico.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <openxr/openxr.h>
 #include <oxr/oxr_session.hpp>
@@ -31,6 +30,7 @@ namespace
 {
 
 constexpr float SDK_CENTIMETERS_TO_METERS = 0.01f;
+constexpr std::string_view FULL_BODY_TENSOR_IDENTIFIER = "full_body";
 constexpr const char* ANSI_ORANGE = "\033[38;5;208m";
 constexpr const char* ANSI_RESET = "\033[0m";
 
@@ -87,57 +87,57 @@ std::string normalize_joint_name(std::string_view name)
     return result;
 }
 
-std::optional<core::BodyJointPico> map_noitom_joint_name(std::string_view name)
+std::optional<core::BodyJoint> map_noitom_joint_name(std::string_view name)
 {
     const std::string normalized = normalize_joint_name(name);
     if (normalized == "hips" || normalized == "hip" || normalized == "pelvis")
-        return core::BodyJointPico_PELVIS;
+        return core::BodyJoint_PELVIS;
     if (normalized == "leftupleg" || normalized == "lefthip")
-        return core::BodyJointPico_LEFT_HIP;
+        return core::BodyJoint_LEFT_HIP;
     if (normalized == "rightupleg" || normalized == "righthip")
-        return core::BodyJointPico_RIGHT_HIP;
+        return core::BodyJoint_RIGHT_HIP;
     if (normalized == "spine")
-        return core::BodyJointPico_SPINE1;
+        return core::BodyJoint_SPINE1;
     if (normalized == "spine1")
-        return core::BodyJointPico_SPINE2;
+        return core::BodyJoint_SPINE2;
     if (normalized == "spine2" || normalized == "chest")
-        return core::BodyJointPico_SPINE3;
+        return core::BodyJoint_SPINE3;
     if (normalized == "leftleg" || normalized == "leftknee")
-        return core::BodyJointPico_LEFT_KNEE;
+        return core::BodyJoint_LEFT_KNEE;
     if (normalized == "rightleg" || normalized == "rightknee")
-        return core::BodyJointPico_RIGHT_KNEE;
+        return core::BodyJoint_RIGHT_KNEE;
     if (normalized == "leftfoot" || normalized == "leftankle")
-        return core::BodyJointPico_LEFT_ANKLE;
+        return core::BodyJoint_LEFT_ANKLE;
     if (normalized == "rightfoot" || normalized == "rightankle")
-        return core::BodyJointPico_RIGHT_ANKLE;
+        return core::BodyJoint_RIGHT_ANKLE;
     if (normalized == "lefttoebase" || normalized == "lefttoe")
-        return core::BodyJointPico_LEFT_FOOT;
+        return core::BodyJoint_LEFT_FOOT;
     if (normalized == "righttoebase" || normalized == "righttoe")
-        return core::BodyJointPico_RIGHT_FOOT;
+        return core::BodyJoint_RIGHT_FOOT;
     if (normalized == "neck")
-        return core::BodyJointPico_NECK;
+        return core::BodyJoint_NECK;
     if (normalized == "head")
-        return core::BodyJointPico_HEAD;
+        return core::BodyJoint_HEAD;
     if (normalized == "leftshoulder" || normalized == "leftcollar")
-        return core::BodyJointPico_LEFT_COLLAR;
+        return core::BodyJoint_LEFT_COLLAR;
     if (normalized == "rightshoulder" || normalized == "rightcollar")
-        return core::BodyJointPico_RIGHT_COLLAR;
+        return core::BodyJoint_RIGHT_COLLAR;
     if (normalized == "leftarm" || normalized == "leftupperarm")
-        return core::BodyJointPico_LEFT_SHOULDER;
+        return core::BodyJoint_LEFT_SHOULDER;
     if (normalized == "rightarm" || normalized == "rightupperarm")
-        return core::BodyJointPico_RIGHT_SHOULDER;
+        return core::BodyJoint_RIGHT_SHOULDER;
     if (normalized == "leftforearm" || normalized == "leftelbow")
-        return core::BodyJointPico_LEFT_ELBOW;
+        return core::BodyJoint_LEFT_ELBOW;
     if (normalized == "rightforearm" || normalized == "rightelbow")
-        return core::BodyJointPico_RIGHT_ELBOW;
+        return core::BodyJoint_RIGHT_ELBOW;
     if (normalized == "lefthand" || normalized == "leftwrist")
-        return core::BodyJointPico_LEFT_WRIST;
+        return core::BodyJoint_LEFT_WRIST;
     if (normalized == "righthand" || normalized == "rightwrist")
-        return core::BodyJointPico_RIGHT_WRIST;
+        return core::BodyJoint_RIGHT_WRIST;
     if (normalized == "lefthandend" || normalized == "lefthandtip")
-        return core::BodyJointPico_LEFT_HAND;
+        return core::BodyJoint_LEFT_HAND;
     if (normalized == "righthandend" || normalized == "righthandtip")
-        return core::BodyJointPico_RIGHT_HAND;
+        return core::BodyJoint_RIGHT_HAND;
     return std::nullopt;
 }
 
@@ -415,10 +415,10 @@ bool NoitomMocapPlugin::handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle)
         return false;
     }
 
-    frame_.joints = std::make_shared<core::BodyJointsPico>();
+    frame_.joints = std::make_shared<core::BodyJoints>();
     frame_.all_joint_poses_tracked = false;
-    std::array<bool, core::BodyJointPico_NUM_JOINTS> seen{};
-    for (uint8_t i = 0; i < static_cast<uint8_t>(core::BodyJointPico_NUM_JOINTS); ++i)
+    std::array<bool, core::BodyJoint_NUM_JOINTS> seen{};
+    for (uint8_t i = 0; i < static_cast<uint8_t>(core::BodyJoint_NUM_JOINTS); ++i)
     {
         frame_.joints->mutable_joints()->Mutate(i, make_invalid_body_joint_pose());
     }
@@ -436,7 +436,7 @@ bool NoitomMocapPlugin::handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle)
         frame_.joints->mutable_joints()->Mutate(index, joint_pose);
         seen[index] = valid;
 
-        auto backfill_endpoint = [&](core::BodyJointPico endpoint)
+        auto backfill_endpoint = [&](core::BodyJoint endpoint)
         {
             const auto endpoint_index = static_cast<uint8_t>(endpoint);
             if (seen[endpoint_index])
@@ -447,21 +447,21 @@ bool NoitomMocapPlugin::handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle)
             seen[endpoint_index] = valid;
         };
 
-        if (*slot == core::BodyJointPico_LEFT_WRIST)
+        if (*slot == core::BodyJoint_LEFT_WRIST)
         {
-            backfill_endpoint(core::BodyJointPico_LEFT_HAND);
+            backfill_endpoint(core::BodyJoint_LEFT_HAND);
         }
-        else if (*slot == core::BodyJointPico_RIGHT_WRIST)
+        else if (*slot == core::BodyJoint_RIGHT_WRIST)
         {
-            backfill_endpoint(core::BodyJointPico_RIGHT_HAND);
+            backfill_endpoint(core::BodyJoint_RIGHT_HAND);
         }
-        else if (*slot == core::BodyJointPico_LEFT_ANKLE)
+        else if (*slot == core::BodyJoint_LEFT_ANKLE)
         {
-            backfill_endpoint(core::BodyJointPico_LEFT_FOOT);
+            backfill_endpoint(core::BodyJoint_LEFT_FOOT);
         }
-        else if (*slot == core::BodyJointPico_RIGHT_ANKLE)
+        else if (*slot == core::BodyJoint_RIGHT_ANKLE)
         {
-            backfill_endpoint(core::BodyJointPico_RIGHT_FOOT);
+            backfill_endpoint(core::BodyJoint_RIGHT_FOOT);
         }
     };
 
@@ -515,7 +515,7 @@ bool NoitomMocapPlugin::handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle)
     frame_.all_joint_poses_tracked = std::all_of(seen.begin(), seen.end(), [](bool value) { return value; });
     std::cout << "NoitomMocapPlugin: converted avatar=" << avatar_index << " posture=" << posture_index
               << " valid_full_body_joints=" << std::count(seen.begin(), seen.end(), true) << "/"
-              << static_cast<int>(core::BodyJointPico_NUM_JOINTS) << std::endl;
+              << static_cast<int>(core::BodyJoint_NUM_JOINTS) << std::endl;
     return true;
 }
 
@@ -599,12 +599,11 @@ void NoitomMocapPlugin::ensure_pusher(size_t flatbuffer_size)
     // Keep the OpenXR tensor collection stable. SchemaPusher pads smaller samples
     // to max_flatbuffer_size before publishing.
     pusher_ = std::make_unique<core::SchemaPusher>(
-        session_->get_handles(),
-        core::SchemaPusherConfig{ .collection_id = config_.collection_id,
-                                  .max_flatbuffer_size = config_.max_flatbuffer_size,
-                                  .tensor_identifier = std::string(core::FullBodyTrackerPico::TENSOR_IDENTIFIER),
-                                  .localized_name = "Noitom Full Body",
-                                  .app_name = "NoitomMocapPlugin" });
+        session_->get_handles(), core::SchemaPusherConfig{ .collection_id = config_.collection_id,
+                                                           .max_flatbuffer_size = config_.max_flatbuffer_size,
+                                                           .tensor_identifier = std::string(FULL_BODY_TENSOR_IDENTIFIER),
+                                                           .localized_name = "Noitom Full Body",
+                                                           .app_name = "NoitomMocapPlugin" });
     std::cout << "NoitomMocapPlugin: push tensor sample size set to " << config_.max_flatbuffer_size << " bytes"
               << std::endl;
 }
@@ -612,7 +611,7 @@ void NoitomMocapPlugin::ensure_pusher(size_t flatbuffer_size)
 void NoitomMocapPlugin::push_frame(int64_t sample_time_local_common_clock_ns, int64_t sample_time_raw_device_clock_ns)
 {
     flatbuffers::FlatBufferBuilder builder(config_.max_flatbuffer_size);
-    auto offset = core::FullBodyPosePico::Pack(builder, &frame_);
+    auto offset = core::FullBodyPose::Pack(builder, &frame_);
     builder.Finish(offset);
     ensure_pusher(builder.GetSize());
     pusher_->push_buffer(builder.GetBufferPointer(), builder.GetSize(), sample_time_local_common_clock_ns,

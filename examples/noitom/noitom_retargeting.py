@@ -28,9 +28,9 @@ from isaacteleop.retargeting_engine.interface.tunable_parameter import FloatPara
 from isaacteleop.retargeting_engine.interface.tensor_group_type import TensorGroupType
 from isaacteleop.retargeting_engine.tensor_types import DLDataType, NDArrayType
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
-    DeviceIOFullBodyPosePicoTracked,
+    DeviceIOFullBodyPoseTracked,
 )
-from isaacteleop.schema import BodyJointPico
+from isaacteleop.schema import BodyJoint
 
 # PNS/Noitom Y-up -> Isaac Z-up. PNS forward is -Z; axis remap maps it to Isaac -Y.
 # Retarget / debug draw then apply operator_faces_robot (+180 deg Z) to align with G1 (+Y).
@@ -706,7 +706,7 @@ class NoitomG1Retargeter(BaseRetargeter):
         return self.current_arm_targets
 
     def input_spec(self) -> RetargeterIOType:
-        return {"full_body_tracked": DeviceIOFullBodyPosePicoTracked()}
+        return {"full_body_tracked": DeviceIOFullBodyPoseTracked()}
 
     def output_spec(self) -> RetargeterIOType:
         wrist_type = NDArrayType(
@@ -807,7 +807,7 @@ def _quat_to_array(point: Any) -> np.ndarray:
     )
 
 
-def _joint_pose(frame: Any, joint_index: BodyJointPico | int) -> SE3Pose | None:
+def _joint_pose(frame: Any, joint_index: BodyJoint | int) -> SE3Pose | None:
     if frame.joints is None:
         return None
     joint = frame.joints.joints(int(joint_index))
@@ -824,10 +824,10 @@ def _joint_pose(frame: Any, joint_index: BodyJointPico | int) -> SE3Pose | None:
 
 
 def _build_torso_frame(frame: Any) -> _TorsoFrame | None:
-    pelvis = _joint_pose(frame, BodyJointPico.PELVIS)
-    spine = _joint_pose(frame, BodyJointPico.SPINE3)
-    left_shoulder = _joint_pose(frame, BodyJointPico.LEFT_SHOULDER)
-    right_shoulder = _joint_pose(frame, BodyJointPico.RIGHT_SHOULDER)
+    pelvis = _joint_pose(frame, BodyJoint.PELVIS)
+    spine = _joint_pose(frame, BodyJoint.SPINE3)
+    left_shoulder = _joint_pose(frame, BodyJoint.LEFT_SHOULDER)
+    right_shoulder = _joint_pose(frame, BodyJoint.RIGHT_SHOULDER)
     if (
         pelvis is None
         or spine is None
@@ -867,9 +867,9 @@ def _parse_arm(
     frame: Any,
     torso: _TorsoFrame,
     pelvis_world: np.ndarray,
-    shoulder_index: BodyJointPico,
-    elbow_index: BodyJointPico,
-    wrist_index: BodyJointPico,
+    shoulder_index: BodyJoint,
+    elbow_index: BodyJoint,
+    wrist_index: BodyJoint,
 ) -> _ArmCalibration | None:
     shoulder = _joint_pose(frame, shoulder_index)
     elbow = _joint_pose(frame, elbow_index)
@@ -901,7 +901,7 @@ def _parse_arm(
 def _parse_upper_body(
     frame: Any,
 ) -> tuple[_TorsoFrame, _ArmCalibration, _ArmCalibration, np.ndarray] | None:
-    pelvis_pose = _joint_pose(frame, BodyJointPico.PELVIS)
+    pelvis_pose = _joint_pose(frame, BodyJoint.PELVIS)
     torso = _build_torso_frame(frame)
     if pelvis_pose is None or torso is None:
         return None
@@ -910,17 +910,17 @@ def _parse_upper_body(
         frame,
         torso,
         pelvis_world,
-        BodyJointPico.LEFT_SHOULDER,
-        BodyJointPico.LEFT_ELBOW,
-        BodyJointPico.LEFT_WRIST,
+        BodyJoint.LEFT_SHOULDER,
+        BodyJoint.LEFT_ELBOW,
+        BodyJoint.LEFT_WRIST,
     )
     right = _parse_arm(
         frame,
         torso,
         pelvis_world,
-        BodyJointPico.RIGHT_SHOULDER,
-        BodyJointPico.RIGHT_ELBOW,
-        BodyJointPico.RIGHT_WRIST,
+        BodyJoint.RIGHT_SHOULDER,
+        BodyJoint.RIGHT_ELBOW,
+        BodyJoint.RIGHT_WRIST,
     )
     if left is None or right is None:
         return None
@@ -1267,7 +1267,7 @@ def compute_robot_reference_positions(
     torso, left, right, _pelvis_world = parsed
     yaw_delta = _resolve_yaw_delta(current_yaw - calib.body_yaw_isaac, settings)
     anchor = settings.robot_pelvis_world.astype(np.float64)
-    positions: dict[int, np.ndarray] = {int(BodyJointPico.PELVIS): anchor.copy()}
+    positions: dict[int, np.ndarray] = {int(BodyJoint.PELVIS): anchor.copy()}
 
     _fill_torso_reference_positions(frame, positions, anchor, yaw_delta, settings)
 
@@ -1276,19 +1276,19 @@ def compute_robot_reference_positions(
             left,
             neutral_left,
             True,
-            BodyJointPico.LEFT_SHOULDER,
-            BodyJointPico.LEFT_ELBOW,
-            BodyJointPico.LEFT_WRIST,
-            BodyJointPico.LEFT_HAND,
+            BodyJoint.LEFT_SHOULDER,
+            BodyJoint.LEFT_ELBOW,
+            BodyJoint.LEFT_WRIST,
+            BodyJoint.LEFT_HAND,
         ),
         (
             right,
             neutral_right,
             False,
-            BodyJointPico.RIGHT_SHOULDER,
-            BodyJointPico.RIGHT_ELBOW,
-            BodyJointPico.RIGHT_WRIST,
-            BodyJointPico.RIGHT_HAND,
+            BodyJoint.RIGHT_SHOULDER,
+            BodyJoint.RIGHT_ELBOW,
+            BodyJoint.RIGHT_WRIST,
+            BodyJoint.RIGHT_HAND,
         ),
     ):
         shoulder_robot, elbow_robot, wrist_robot = _arm_fk_robot_blended(
@@ -1309,11 +1309,11 @@ def compute_robot_reference_positions(
             )
         positions[int(hand_idx)] = wrist_robot + forearm_dir * _ROBOT_HAND_EXTENSION
 
-    spine3 = positions.get(int(BodyJointPico.SPINE3))
+    spine3 = positions.get(int(BodyJoint.SPINE3))
     if spine3 is not None:
         for collar_idx, shoulder_idx in (
-            (BodyJointPico.LEFT_COLLAR, BodyJointPico.LEFT_SHOULDER),
-            (BodyJointPico.RIGHT_COLLAR, BodyJointPico.RIGHT_SHOULDER),
+            (BodyJoint.LEFT_COLLAR, BodyJoint.LEFT_SHOULDER),
+            (BodyJoint.RIGHT_COLLAR, BodyJoint.RIGHT_SHOULDER),
         ):
             shoulder_pos = positions.get(int(shoulder_idx))
             if shoulder_pos is not None:
@@ -1330,22 +1330,22 @@ def _fill_torso_reference_positions(
     settings: NoitomRetargetingSettings,
 ) -> None:
     chain = (
-        BodyJointPico.PELVIS,
-        BodyJointPico.SPINE1,
-        BodyJointPico.SPINE2,
-        BodyJointPico.SPINE3,
-        BodyJointPico.NECK,
-        BodyJointPico.HEAD,
+        BodyJoint.PELVIS,
+        BodyJoint.SPINE1,
+        BodyJoint.SPINE2,
+        BodyJoint.SPINE3,
+        BodyJoint.NECK,
+        BodyJoint.HEAD,
     )
     segment_lengths = {
-        BodyJointPico.SPINE1: _ROBOT_TORSO_SEGMENT_Z,
-        BodyJointPico.SPINE2: _ROBOT_TORSO_SEGMENT_Z,
-        BodyJointPico.SPINE3: _ROBOT_TORSO_SEGMENT_Z,
-        BodyJointPico.NECK: _ROBOT_NECK_SEGMENT,
-        BodyJointPico.HEAD: _ROBOT_HEAD_SEGMENT,
+        BodyJoint.SPINE1: _ROBOT_TORSO_SEGMENT_Z,
+        BodyJoint.SPINE2: _ROBOT_TORSO_SEGMENT_Z,
+        BodyJoint.SPINE3: _ROBOT_TORSO_SEGMENT_Z,
+        BodyJoint.NECK: _ROBOT_NECK_SEGMENT,
+        BodyJoint.HEAD: _ROBOT_HEAD_SEGMENT,
     }
     prev_robot = anchor.copy()
-    prev_mocap = _joint_pose(frame, BodyJointPico.PELVIS)
+    prev_mocap = _joint_pose(frame, BodyJoint.PELVIS)
     if prev_mocap is None:
         return
     prev_mocap_pos = prev_mocap.position.copy()
@@ -1482,11 +1482,9 @@ def _shoulder_se3_from_aligned_positions(
     settings: NoitomRetargetingSettings,
 ) -> SE3Pose | None:
     shoulder_index = int(
-        BodyJointPico.LEFT_SHOULDER if is_left else BodyJointPico.RIGHT_SHOULDER
+        BodyJoint.LEFT_SHOULDER if is_left else BodyJoint.RIGHT_SHOULDER
     )
-    elbow_index = int(
-        BodyJointPico.LEFT_ELBOW if is_left else BodyJointPico.RIGHT_ELBOW
-    )
+    elbow_index = int(BodyJoint.LEFT_ELBOW if is_left else BodyJoint.RIGHT_ELBOW)
     shoulder = positions.get(shoulder_index)
     if shoulder is None:
         return None
@@ -1521,11 +1519,9 @@ def _elbow_se3_from_aligned_positions(
     nominal: SE3Pose,
     settings: NoitomRetargetingSettings,
 ) -> SE3Pose | None:
-    elbow_index = int(
-        BodyJointPico.LEFT_ELBOW if is_left else BodyJointPico.RIGHT_ELBOW
-    )
+    elbow_index = int(BodyJoint.LEFT_ELBOW if is_left else BodyJoint.RIGHT_ELBOW)
     shoulder_index = int(
-        BodyJointPico.LEFT_SHOULDER if is_left else BodyJointPico.RIGHT_SHOULDER
+        BodyJoint.LEFT_SHOULDER if is_left else BodyJoint.RIGHT_SHOULDER
     )
     elbow = positions.get(elbow_index)
     if elbow is None:
@@ -1549,12 +1545,8 @@ def _wrist_se3_from_aligned_positions(
     nominal: SE3Pose,
     settings: NoitomRetargetingSettings,
 ) -> SE3Pose | None:
-    wrist_index = int(
-        BodyJointPico.LEFT_WRIST if is_left else BodyJointPico.RIGHT_WRIST
-    )
-    elbow_index = int(
-        BodyJointPico.LEFT_ELBOW if is_left else BodyJointPico.RIGHT_ELBOW
-    )
+    wrist_index = int(BodyJoint.LEFT_WRIST if is_left else BodyJoint.RIGHT_WRIST)
+    elbow_index = int(BodyJoint.LEFT_ELBOW if is_left else BodyJoint.RIGHT_ELBOW)
     wrist = positions.get(wrist_index)
     if wrist is None:
         return None

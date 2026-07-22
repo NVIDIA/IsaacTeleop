@@ -42,6 +42,7 @@ import { useThree, useFrame } from '@react-three/fiber';
 import { useXR } from '@react-three/xr';
 import { useRef, useEffect } from 'react';
 import type { WebGLRenderer } from 'three';
+import { applyTargetFrameRate } from '../../src/config/frameRate';
 
 /**
  * Props for the CloudXRComponent.
@@ -94,6 +95,12 @@ interface CloudXRComponentProps {
   headless?: boolean;
 
   /**
+   * Optionally adapt the frame used for tracking submission. The original
+   * frame is always retained for client-side rendering and reprojection.
+   */
+  trackingFrameAdapter?: (frame: XRFrame) => XRFrame;
+
+  /**
    * Custom ICE server configuration (STUN/TURN) for WebRTC.
    * In USB-local mode, set this to a TURN server accessible via adb reverse
    * with iceTransportPolicy 'relay' so WebRTC can gather candidates without WiFi.
@@ -115,6 +122,7 @@ export default function CloudXRComponent({
   onStreamingPerformanceMetrics,
   metricsSettings = {},
   headless = false,
+  trackingFrameAdapter,
   iceServers,
 }: CloudXRComponentProps) {
   const threeRenderer: WebGLRenderer = useThree().gl;
@@ -150,13 +158,18 @@ export default function CloudXRComponent({
 
     if (webXRManager) {
       const handleSessionStart = async () => {
+        const xrSession = webXRManager.getSession();
+
+        // CloudXR must advertise the rate actually used by the headset. Wait for WebXR to
+        // apply the configured rate before creating the CloudXR session to avoid a pacing race.
+        const effectiveDeviceFrameRate = xrSession
+          ? await applyTargetFrameRate(xrSession, config.deviceFrameRate)
+          : config.deviceFrameRate;
+
         // Explicitly request the desired reference space from the XRSession to avoid
         // inheriting a default 'local-floor' space that could stack with UI offsets.
         let referenceSpace: XRReferenceSpace | null = null;
         try {
-          const xrSession: XRSession | null = (webXRManager as any).getSession
-            ? (webXRManager as any).getSession()
-            : null;
           if (xrSession) {
             if (config.referenceSpaceType === 'auto') {
               const fallbacks: XRReferenceSpaceType[] = [
@@ -243,7 +256,7 @@ export default function CloudXRComponent({
             codec: config.codec,
             gl: gl,
             referenceSpace: referenceSpace,
-            deviceFrameRate: config.deviceFrameRate,
+            deviceFrameRate: effectiveDeviceFrameRate,
             maxStreamingBitrateKbps: config.maxStreamingBitrateMbps * 1000, // Convert Mbps to Kbps
             enablePoseSmoothing: config.enablePoseSmoothing,
             posePredictionFactor: config.posePredictionFactor,
@@ -429,7 +442,8 @@ export default function CloudXRComponent({
         try {
           // Send the tracking state (including viewer pose and hand/controller data) to the server;
           // that triggers server-side rendering for the frame.
-          cxrSession.sendTrackingStateToServer(timestamp, xrFrame);
+          const trackingFrame = trackingFrameAdapter?.(xrFrame) ?? xrFrame;
+          cxrSession.sendTrackingStateToServer(timestamp, trackingFrame);
 
           if (!headless) {
             const layer: XRWebGLLayer = webXRManager.getBaseLayer() as XRWebGLLayer;

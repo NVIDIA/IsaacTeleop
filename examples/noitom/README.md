@@ -11,10 +11,10 @@ pipeline from Noitom full-body mocap.
 
 The `noitom_mocap` plugin reads Noitom Hybrid Data Server data through
 MocapApi, converts each avatar update to the existing IsaacTeleop
-`FullBodyPosePico` layout, and publishes it on tensor identifier `full_body`
+`FullBodyPose` layout, and publishes it on tensor identifier `full_body`
 inside the `noitom_mocap` OpenXR tensor collection. The Python task consumes
-that stream with `FullBodyTrackerPico("noitom_mocap")`. Plugin launch defaults,
-including the HDS endpoint, live in
+that stream through the generic `FullBodyTracker()` with the `body.noitom`
+vendor selected. Plugin launch defaults, including the HDS endpoint, live in
 [`plugin.yaml`](../../src/plugins/noitom_mocap/plugin.yaml). Before installing,
 set its `--host` and `--port` arguments to the Hybrid Data Server TCP endpoint.
 
@@ -52,7 +52,7 @@ uv run python examples/noitom/record_noitom_full_body.py \
   10 examples/noitom/recordings/noitom_full_body.mcap
 ```
 
-The resulting MCAP uses the standard `core.FullBodyPosePicoRecord` schema and
+The resulting MCAP uses the standard `core.FullBodyPoseRecord` schema and
 the standard `full_body` channel, so the generic replay script can play it back:
 
 ![Noitom MCAP replay](assets/replay.gif)
@@ -109,7 +109,7 @@ default.
 Pipeline:
 
 ```text
-FullBodyPosePico
+FullBodyPose (`body.noitom` vendor)
   -> torso frame (pelvis, SPINE3, shoulders)
   -> posture-based arm targets (shoulder, elbow, wrist)
   -> Pink IK frame-task action [wrists, elbows, shoulders, hands, locomotion]
