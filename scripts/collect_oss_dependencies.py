@@ -219,7 +219,14 @@ def _parse_dockerfile(path: Path, repo_root: Path) -> list[dict[str, Any]]:
         if not match:
             continue
         image = match.group("image").split("@", maxsplit=1)[0]
-        name, _, version = image.partition(":")
+        last_colon = image.rfind(":")
+        last_slash = image.rfind("/")
+        if last_colon > last_slash:
+            name = image[:last_colon]
+            version = image[last_colon + 1 :]
+        else:
+            name = image
+            version = ""
         entries.append(
             _entry(
                 ecosystem="container",
