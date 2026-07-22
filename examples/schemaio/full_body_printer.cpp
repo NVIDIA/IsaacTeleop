@@ -9,8 +9,8 @@
  * 24-joint body skeleton through DeviceIOSession. Requires a runtime with body tracking support
  * (e.g. CloudXR streaming from a PICO 4 Ultra Enterprise with Motion Trackers); when the system
  * does not support body tracking the tracker runs in limp mode and no samples are printed.
- * Launch it together with the CloudXR runtime and the MCAP recorder via
- * python -m isaacteleop.rig rigs/full_body.yaml.
+ * The full_body rig (rigs/full_body.yaml) launches this printer together with the CloudXR
+ * runtime and the MCAP recorder in one tmux session.
  *
  * To record a full-body session to MCAP from C++, see
  * examples/mcap_record_replay/cpp/record_full_body.cpp.
@@ -36,6 +36,21 @@ using namespace schemaio_example;
 namespace
 {
 
+// Joint poses are unspecified while their tracking is lost — gate on is_valid per joint
+// (all_joint_poses_tracked is a whole-skeleton quality flag only).
+void print_joint(const char* label, const core::BodyJointPose& joint)
+{
+    if (joint.is_valid())
+    {
+        const auto& position = joint.pose().position();
+        std::cout << " " << label << "=[" << position.x() << ", " << position.y() << ", " << position.z() << "]";
+    }
+    else
+    {
+        std::cout << " " << label << "=[not tracked]";
+    }
+}
+
 void print_body_pose(const core::FullBodyPoseT& data, size_t sample_count)
 {
     const auto& joints = *data.joints->joints();
@@ -49,14 +64,11 @@ void print_body_pose(const core::FullBodyPoseT& data, size_t sample_count)
         }
     }
 
-    // Joint poses are unspecified while their tracking is lost — gate on is_valid per joint
-    // (all_joint_poses_tracked is a whole-skeleton quality flag only).
-    const auto& pelvis = joints[core::BodyJoint_PELVIS]->pose().position();
-    const auto& head = joints[core::BodyJoint_HEAD]->pose().position();
-
     std::cout << "Sample " << sample_count << std::fixed << std::setprecision(3) << " valid=" << valid_count << "/"
-              << core::FullBodyTracker::JOINT_COUNT << " pelvis=[" << pelvis.x() << ", " << pelvis.y() << ", "
-              << pelvis.z() << "] head=[" << head.x() << ", " << head.y() << ", " << head.z() << "]" << std::endl;
+              << core::FullBodyTracker::JOINT_COUNT;
+    print_joint("pelvis", *joints[core::BodyJoint_PELVIS]);
+    print_joint("head", *joints[core::BodyJoint_HEAD]);
+    std::cout << std::endl;
 }
 
 } // namespace
@@ -89,9 +101,13 @@ try
     // Step 4: Read samples by updating the session
     std::cout << "[Step 4] Reading samples..." << std::endl;
 
+    // Bound the loop so it cannot spin forever when no samples ever arrive (limp mode): a
+    // healthy session delivers a sample almost every tick, so twice the sample budget is ample.
+    constexpr size_t MAX_TICKS = 2 * MAX_SAMPLES;
+
     size_t received_count = 0;
     size_t tick_count = 0;
-    while (received_count < MAX_SAMPLES)
+    while (received_count < MAX_SAMPLES && tick_count < MAX_TICKS)
     {
         // Update session (this calls update on all trackers).
         session->update();
@@ -116,6 +132,10 @@ try
         std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
 
+    if (received_count == 0)
+    {
+        std::cout << "\nNo body tracking samples received — body tracking is inactive or unsupported." << std::endl;
+    }
     std::cout << "\nDone. Received " << received_count << " samples." << std::endl;
     return 0;
 }

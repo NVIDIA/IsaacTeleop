@@ -5,21 +5,19 @@
  * @file record_full_body.cpp
  * @brief Record a live full-body tracking session to an MCAP file using only the C++ API.
  *
- * C++ counterpart of record_full_body.py. Creates a FullBodyTracker, opens an OpenXR
- * session with its required extensions, and passes a McapRecordingConfig to
- * DeviceIOSession::run() — the tracker impl then writes MCAP samples during each
- * session->update() call. Unlike the Python example this does not launch the CloudXR runtime;
- * start it (and connect the headset) before running — or launch the runtime, printer, and
- * recorder together with python -m isaacteleop.rig rigs/full_body.yaml.
+ * Creates a FullBodyTracker, opens an OpenXR session with its required extensions, and
+ * passes a McapRecordingConfig to DeviceIOSession::run() — the tracker impl then writes
+ * MCAP samples during each session->update() call. This application does not launch the
+ * CloudXR runtime; start it (and connect the headset) before running, or use the full_body
+ * rig (rigs/full_body.yaml) to launch the runtime, printer, and recorder together.
  *
  * Usage:
  *     record_full_body [duration_seconds] [output.mcap]
  *
  * Defaults: 5 seconds -> full_body_<timestamp>.mcap in the current directory.
  *
- * The recording uses the same "full_body" channel base name as FullBodySource in the Python
- * examples, so the file replays unchanged with
- * examples/mcap_record_replay/python/replay_full_body.py.
+ * The recording is written to the standard "full_body" channel, so any Isaac Teleop
+ * replay tooling can read it (see the MCAP record & replay documentation).
  */
 
 #include <deviceio_session/deviceio_session.hpp>
@@ -41,9 +39,9 @@
 namespace
 {
 
-// Channel base name matching FullBodySource(name="full_body") in the Python examples. MCAP
-// topics become "<base_name>/<sub_channel>", so this must be "full_body" for the recording to
-// be readable by replay_full_body.py.
+// Standard channel base name for full-body recordings. MCAP topics become
+// "<base_name>/<sub_channel>", and replay tooling reads the "full_body" channel, so this
+// must not change.
 constexpr const char* MCAP_BASE_NAME = "full_body";
 
 std::string default_output_path()
@@ -124,17 +122,15 @@ try
         }
         ++frame_count;
 
-        // Tick at ~60 Hz, matching record_full_body.py.
+        // Tick at ~60 Hz.
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
 
     // Destroying the session closes the MCAP writer and emits the summary/statistics block that
-    // replay tooling (e.g. replay_full_body.py) relies on — exit normally rather than aborting.
+    // replay tooling relies on — exit normally rather than aborting.
     session.reset();
 
     std::cout << "[record] done — " << mcap_path << std::endl;
-    std::cout << "[record] replay with: python examples/mcap_record_replay/python/replay_full_body.py " << mcap_path
-              << std::endl;
     return 0;
 }
 catch (const std::exception& e)
