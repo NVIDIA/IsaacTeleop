@@ -138,7 +138,7 @@ function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null
 }
 
 function AppContent() {
-  const { recorder, onLoadRecording } = useRecorder();
+  const { recorder, onLoadRecording, setReplayPacing } = useRecorder();
   const COUNTDOWN_MAX_SECONDS = 9;
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
@@ -749,6 +749,10 @@ function AppContent() {
     () => (cloudXR2DUI ? cloudXR2DUI.getConfiguration() : null),
     [cloudXR2DUI, configVersion]
   );
+
+  useEffect(() => {
+    setReplayPacing(config?.replayPacing ?? 'time');
+  }, [config?.replayPacing, setReplayPacing]);
 
   // Build ICE server config from URL params (set in USB-local mode by oob_teleop_env.py).
   // turnServer e.g. "turn:127.0.0.1:3478?transport=tcp", iceRelayOnly=1 forces relay-only ICE.

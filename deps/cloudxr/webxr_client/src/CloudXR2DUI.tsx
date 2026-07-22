@@ -61,6 +61,7 @@ import {
 } from '@helpers/utils';
 import { URL_PARAMS } from './config/params';
 import { seedsFromParams } from './config/resolve';
+import type { ReplayPacing } from './xrInputRecorder';
 import {
   getGridValidationError,
   getGridValidationMessageForConnect,
@@ -74,6 +75,7 @@ import {
 type AppConfig = CloudXRConfig & ReactUIConfig & {
   showTrace: boolean;
   showRecordingControls: boolean;
+  replayPacing: ReplayPacing;
 };
 
 /**
@@ -171,6 +173,7 @@ export class CloudXR2DUI {
   private controllerModelVisibilitySelect!: HTMLSelectElement;
   private showTraceInXRSelect!: HTMLSelectElement;
   private showRecordingControlsSelect!: HTMLSelectElement;
+  private replayPacingSelect!: HTMLSelectElement;
   /** Skip client CloudXR `render` (headless: client blit off; tracking on) */
   private headlessInput!: HTMLInputElement;
   /** When to reload the page after the XR session ends (never / clean / any) */
@@ -469,6 +472,7 @@ export class CloudXR2DUI {
     this.showTraceInXRSelect = this.getElement<HTMLSelectElement>('showTraceInXR');
     this.showRecordingControlsSelect =
       this.getElement<HTMLSelectElement>('showRecordingControls');
+    this.replayPacingSelect = this.getElement<HTMLSelectElement>('replayPacing');
     this.headlessInput = this.getElement<HTMLInputElement>('cloudxrHeadless');
     this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>('cloudxrAutoRefreshMode');
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
@@ -527,6 +531,7 @@ export class CloudXR2DUI {
       hideControllerModel: false,
       showTrace: false,
       showRecordingControls: false,
+      replayPacing: 'time',
       headless: false,
       autoRefreshMode: 'clean',
       teleopPath: DEFAULT_TELEOP_PATH,
@@ -571,6 +576,7 @@ export class CloudXR2DUI {
       { el: this.controllerModelVisibilitySelect, key: 'controllerModelVisibility' },
       { el: this.showTraceInXRSelect, key: 'showTraceInXR' },
       { el: this.showRecordingControlsSelect, key: 'showRecordingControls' },
+      { el: this.replayPacingSelect, key: 'replayPacing' },
       { el: this.autoRefreshModeSelect, key: 'autoRefreshMode' },
     ];
   }
@@ -812,6 +818,7 @@ export class CloudXR2DUI {
     addListener(this.controllerModelVisibilitySelect, 'change', updateConfig);
     addListener(this.showTraceInXRSelect, 'change', updateConfig);
     addListener(this.showRecordingControlsSelect, 'change', updateConfig);
+    addListener(this.replayPacingSelect, 'change', updateConfig);
     addListener(this.headlessInput, 'change', () => {
       savePerProject('headless', this.teleopPath, this.headlessInput.checked ? 'true' : 'false');
       this.applyHeadlessImmersiveDropdown();
@@ -1024,6 +1031,7 @@ export class CloudXR2DUI {
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
       showTrace: this.showTraceInXRSelect.value === 'true',
       showRecordingControls: this.showRecordingControlsSelect.value === 'true',
+      replayPacing: this.replayPacingSelect.value === 'frame' ? 'frame' : 'time',
       // See immersiveMode above: when true, callers must start an immersive-vr WebXR session.
       headless: this.headlessInput.checked,
       autoRefreshMode: parseAutoRefreshMode(

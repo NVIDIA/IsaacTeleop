@@ -136,6 +136,7 @@ function sampleValid(key: string): string {
     controllerModelVisibility: 'show',
     showTraceInXR: 'false',
     showRecordingControls: 'false',
+    replayPacing: 'time',
     autoRefreshMode: 'clean',
     enablePoseSmoothing: 'true',
     enableTexSubImage2D: 'true',

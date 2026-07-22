@@ -1092,6 +1092,16 @@ limitations under the License.
                             <button id="loadRecordingBtn" class="reset-button">Load Recording…</button>
                         </div>
                         <div class="config-section">
+                            <label for="replayPacing" class="input-label">Replay Pacing</label>
+                            <select id="replayPacing" class="ui-input config-input">
+                                <option value="frame">Frame paced</option>
+                                <option value="time" selected>Time paced</option>
+                            </select>
+                            <div class="config-text">
+                                Frame paced sends one recorded sample per XR frame. Time paced follows the recording timestamps and interpolates between samples.
+                            </div>
+                        </div>
+                        <div class="config-section">
                             <label for="enablePoseSmoothing" class="input-label">Pose Smoothing</label>
                             <select id="enablePoseSmoothing" class="ui-input config-input">
                                 <option value="true" selected>Enabled</option>
