@@ -6,7 +6,7 @@ Body Tracking
 
 Isaac Teleop supports streaming full-body tracking data from an XR headset
 through the CloudXR WebXR client to the teleop server. The server exposes the
-body skeleton to applications through the ``FullBodyTrackerPico`` tracker and
+body skeleton to applications through the ``FullBodyTracker`` tracker and
 the OpenXR ``XR_BD_body_tracking`` extension.
 
 Body tracking support currently targets the **PICO 4 Ultra Enterprise** with
@@ -183,10 +183,10 @@ Server-side access
 ~~~~~~~~~~~~~~~~~~
 
 On the server, body tracking data is consumed through the
-``FullBodyTrackerPico`` tracker (see :doc:`trackers` for the full tracker
+``FullBodyTracker`` tracker (see :doc:`trackers` for the full tracker
 reference). The tracker exposes a ``get_body_pose()`` method that returns the
 24-joint skeleton each frame (or null when body tracking is not available).
-Joint data follows the ``FullBodyPosePico`` FlatBuffers schema defined in
+Joint data follows the ``FullBodyPose`` FlatBuffers schema defined in
 ``src/core/schema/fbs/full_body.fbs``.
 
 The ``all_joint_poses_tracked`` quality flag indicates whether every joint was
