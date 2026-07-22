@@ -5,7 +5,7 @@
  * @file full_body_printer.cpp
  * @brief Standalone application that reads and prints PICO full-body poses from the OpenXR runtime.
  *
- * This application demonstrates using FullBodyTrackerPico (XR_BD_body_tracking) to read the
+ * This application demonstrates using FullBodyTracker (XR_BD_body_tracking) to read the
  * 24-joint body skeleton through DeviceIOSession. Requires a runtime with body tracking support
  * (e.g. CloudXR streaming from a PICO 4 Ultra Enterprise with Motion Trackers); when the system
  * does not support body tracking the tracker runs in limp mode and no samples are printed.
@@ -19,7 +19,7 @@
 #include "common_utils.hpp"
 
 #include <deviceio_session/deviceio_session.hpp>
-#include <deviceio_trackers/full_body_tracker_pico.hpp>
+#include <deviceio_trackers/full_body_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 #include <schema/full_body_generated.h>
 
@@ -36,12 +36,12 @@ using namespace schemaio_example;
 namespace
 {
 
-void print_body_pose(const core::FullBodyPosePicoT& data, size_t sample_count)
+void print_body_pose(const core::FullBodyPoseT& data, size_t sample_count)
 {
     const auto& joints = *data.joints->joints();
 
     uint32_t valid_count = 0;
-    for (uint32_t i = 0; i < core::FullBodyTrackerPico::JOINT_COUNT; ++i)
+    for (uint32_t i = 0; i < core::FullBodyTracker::JOINT_COUNT; ++i)
     {
         if (joints[i]->is_valid())
         {
@@ -51,11 +51,11 @@ void print_body_pose(const core::FullBodyPosePicoT& data, size_t sample_count)
 
     // Joint poses are unspecified while their tracking is lost — gate on is_valid per joint
     // (all_joint_poses_tracked is a whole-skeleton quality flag only).
-    const auto& pelvis = joints[core::BodyJointPico_PELVIS]->pose().position();
-    const auto& head = joints[core::BodyJointPico_HEAD]->pose().position();
+    const auto& pelvis = joints[core::BodyJoint_PELVIS]->pose().position();
+    const auto& head = joints[core::BodyJoint_HEAD]->pose().position();
 
     std::cout << "Sample " << sample_count << std::fixed << std::setprecision(3) << " valid=" << valid_count << "/"
-              << core::FullBodyTrackerPico::JOINT_COUNT << " pelvis=[" << pelvis.x() << ", " << pelvis.y() << ", "
+              << core::FullBodyTracker::JOINT_COUNT << " pelvis=[" << pelvis.x() << ", " << pelvis.y() << ", "
               << pelvis.z() << "] head=[" << head.x() << ", " << head.y() << ", " << head.z() << "]" << std::endl;
 }
 
@@ -67,8 +67,8 @@ try
     std::cout << "Full Body Printer (XR_BD_body_tracking)" << std::endl;
 
     // Step 1: Create the tracker
-    std::cout << "[Step 1] Creating FullBodyTrackerPico..." << std::endl;
-    auto tracker = std::make_shared<core::FullBodyTrackerPico>();
+    std::cout << "[Step 1] Creating FullBodyTracker..." << std::endl;
+    auto tracker = std::make_shared<core::FullBodyTracker>();
 
     // Step 2: Get required extensions and create OpenXR session
     std::cout << "[Step 2] Creating OpenXR session with required extensions..." << std::endl;
