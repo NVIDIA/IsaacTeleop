@@ -9,13 +9,13 @@ flatbuffer data into standard retargeting engine tensor formats.
 """
 
 from abc import abstractmethod
-from typing import Any, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from ..interface.base_retargeter import BaseRetargeter
 from ..interface.retargeter_core_types import RetargeterIO
 
 if TYPE_CHECKING:
-    from isaacteleop.deviceio import ITracker
+    from isaacteleop.deviceio import ITracker, TrackerVendor
 
 
 class IDeviceIOSource(BaseRetargeter):
@@ -39,6 +39,28 @@ class IDeviceIOSource(BaseRetargeter):
     5. Pass raw data as inputs to the retargeting pipeline
     6. Keep all session management in one place
     """
+
+    def __init__(self, name: str, vendor: "Optional[TrackerVendor]" = None) -> None:
+        """Initialize a DeviceIO source node.
+
+        Args:
+            name: Name identifier for this source node.
+            vendor: Optional vendor selection for a vendored tracker (live mode
+                only). Leave ``None`` for the tracker's default vendor. The vendor
+                travels with the source so pipeline introspection (required OpenXR
+                extensions) and session construction both resolve it directly from
+                the pipeline, without a separate source-name-keyed config map.
+        """
+        super().__init__(name)
+        self._vendor = vendor
+
+    def get_vendor(self) -> "Optional[TrackerVendor]":
+        """Get this source's vendor selection, or ``None`` for the tracker default.
+
+        Used by TeleopSession and the extension-discovery helpers to build the
+        DeviceIO ``VendorConfig`` for vendored trackers.
+        """
+        return self._vendor
 
     @abstractmethod
     def get_tracker(self) -> "ITracker":

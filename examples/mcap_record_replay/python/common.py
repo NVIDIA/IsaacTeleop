@@ -39,7 +39,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     HandInputIndex,
 )
 from isaacteleop.retargeting_engine.tensor_types.indices import (
-    BodyJointPicoIndex,
+    BodyJointIndex,
     ControllerInputIndex,
 )
 from isaacteleop.retargeting_engine.tensor_types.ndarray_types import (
@@ -52,7 +52,7 @@ _ZERO_POSITIONS = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
 
 
 HANDS_CHANNEL = "hands"
-BODY_JOINT_NAMES = [joint.name for joint in BodyJointPicoIndex]
+BODY_JOINT_NAMES = [joint.name for joint in BodyJointIndex]
 
 # ---------------------------------------------------------------------------
 # Color palette shared across all viz scripts
@@ -149,7 +149,7 @@ def build_full_body_pipeline():
 
 
 # PICO body-joint connectivity (parent → child) for skeleton rendering.
-# Indices follow BodyJointPicoIndex: 0=PELVIS, 1/2=LEFT/RIGHT_HIP, 3/6/9=SPINE1/2/3,
+# Indices follow BodyJointIndex: 0=PELVIS, 1/2=LEFT/RIGHT_HIP, 3/6/9=SPINE1/2/3,
 # 4/5=LEFT/RIGHT_KNEE, 7/8=LEFT/RIGHT_ANKLE, 10/11=LEFT/RIGHT_FOOT, 12=NECK,
 # 13/14=LEFT/RIGHT_COLLAR, 15=HEAD, 16/17=LEFT/RIGHT_SHOULDER,
 # 18/19=LEFT/RIGHT_ELBOW, 20/21=LEFT/RIGHT_WRIST, 22/23=LEFT/RIGHT_HAND — 24 total.

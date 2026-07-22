@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
 #include <deviceio_base/tracker.hpp>
+#include <deviceio_base/tracker_vendor.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 
@@ -39,6 +40,21 @@ struct McapRecordingConfig
     std::vector<std::pair<const ITracker*, std::string>> tracker_names;
 };
 
+/**
+ * @brief Per-session vendor selection for vendored trackers (live sessions only).
+ *
+ * tracker_vendors maps each ITracker pointer to the vendor (id + params) used to
+ * source it. Trackers not listed fall back to their default vendor id. Vendor is a
+ * live-session concern (native XR hardware vs. an external pushed-tensor plugin);
+ * replay reads the recorded channel regardless of vendor. Pass to
+ * DeviceIOSession::run() and get_required_extensions(); an empty config selects
+ * every tracker's default vendor.
+ */
+struct VendorConfig
+{
+    std::vector<std::pair<const ITracker*, TrackerVendor>> tracker_vendors;
+};
+
 // OpenXR DeviceIO Session - manages trackers and optional MCAP recording.
 // When a McapRecordingConfig is provided, the session owns and drives a
 // mcap::McapWriter; each tracker impl registers its own channels and writes
@@ -47,13 +63,17 @@ class DeviceIOSession : public ITrackerSession
 {
 public:
     // Static helper — required OpenXR extensions for the given trackers (live factory; not per-tracker API).
-    static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers);
+    // Vendored trackers resolve their extensions through the vendor id selected in vendor_config.
+    static std::vector<std::string> get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers,
+                                                            const VendorConfig& vendor_config = {});
 
     // Static factory - Create and initialize a session with trackers.
-    // Optionally pass a McapRecordingConfig to enable automatic MCAP recording.
+    // Optionally pass a McapRecordingConfig to enable automatic MCAP recording, and a
+    // VendorConfig to select the vendor for any vendored trackers.
     static std::unique_ptr<DeviceIOSession> run(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                                 const OpenXRSessionHandles& handles,
-                                                std::optional<McapRecordingConfig> recording_config = std::nullopt);
+                                                std::optional<McapRecordingConfig> recording_config = std::nullopt,
+                                                VendorConfig vendor_config = {});
 
     // Destructor defined in .cpp where mcap::McapWriter is fully defined
     ~DeviceIOSession();
@@ -83,7 +103,8 @@ public:
 private:
     DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& trackers,
                     const OpenXRSessionHandles& handles,
-                    std::optional<McapRecordingConfig> recording_config);
+                    std::optional<McapRecordingConfig> recording_config,
+                    VendorConfig vendor_config);
 
     const OpenXRSessionHandles handles_;
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;

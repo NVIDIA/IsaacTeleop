@@ -998,6 +998,14 @@ limitations under the License.
                                 Show or hide WebXR controller model meshes in XR. Input remains active either way.
                             </div>
                         </div>
+                        <div class="config-section">
+                            <label for="showTraceInXR" class="input-label">Hand/Controller Trace</label>
+                            <select id="showTraceInXR" class="ui-input config-input">
+                                <option value="false" selected>Hide</option>
+                                <option value="true">Show</option>
+                            </select>
+                            <div class="config-text">Show rolling hand and controller path traces in XR.</div>
+                        </div>
 
                         <div class="config-section">
                             <label for="controlPanelPosition" class="input-label">Control Panel Start Position</label>
@@ -1074,6 +1082,25 @@ limitations under the License.
                 <details class="settings-group" id="group-troubleshooting">
                     <summary>Troubleshooting</summary>
                     <div class="settings-group-body">
+                        <div class="config-section">
+                            <label for="showRecordingControls" class="input-label">Recording Controls</label>
+                            <select id="showRecordingControls" class="ui-input config-input">
+                                <option value="false" selected>Hide</option>
+                                <option value="true">Show</option>
+                            </select>
+                            <div class="config-text">Show Record / Replay / Save controls in XR.</div>
+                            <button id="loadRecordingBtn" class="reset-button">Load Recording…</button>
+                        </div>
+                        <div class="config-section">
+                            <label for="replayPacing" class="input-label">Replay Pacing</label>
+                            <select id="replayPacing" class="ui-input config-input">
+                                <option value="frame">Frame paced</option>
+                                <option value="time" selected>Time paced</option>
+                            </select>
+                            <div class="config-text">
+                                Frame paced sends one recorded sample per XR frame. Time paced follows the recording timestamps and interpolates between samples.
+                            </div>
+                        </div>
                         <div class="config-section">
                             <label for="enablePoseSmoothing" class="input-label">Pose Smoothing</label>
                             <select id="enablePoseSmoothing" class="ui-input config-input">

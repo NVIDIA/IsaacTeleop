@@ -84,4 +84,7 @@ if(BUILD_TESTING)
 
     # Replay DeviceIO session tests (C++)
     add_subdirectory(replay_deviceio_session_tests/cpp)
+
+    # Live trackers tests (C++)
+    add_subdirectory(live_trackers_tests/cpp)
 endif()

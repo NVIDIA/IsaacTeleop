@@ -14,10 +14,12 @@ namespace core
 {
 
 // Consumer ITracker (plugin side): reads the most-recent HapticCommand
-// FlatBuffer pushed by a TensorPushTracker on the same `collection_id`
-// (the producer encodes a HapticCommand and pushes it under the canonical
-// "haptic_command" tensor identifier). A vendor plugin reuses this directly
-// instead of writing its own SchemaTracker boilerplate.
+// FlatBuffer per endpoint pushed by a TensorPushTracker on the same
+// `collection_id` (the producer encodes one HapticCommand per endpoint and
+// pushes them under the canonical "haptic_command" tensor identifier). Commands
+// are bucketed by their `endpoint` field so multiple endpoints (e.g. left/right)
+// sharing one collection are read independently. A vendor plugin reuses this
+// directly instead of writing its own SchemaTracker boilerplate.
 class HapticCommandReaderTracker : public ITracker
 {
 public:
@@ -31,9 +33,14 @@ public:
         return TRACKER_NAME;
     }
 
-    // `tracked.data` is null until the first sample arrives or after the
-    // producer collection disappears from the tensor list.
+    // Latest command across all endpoints (backward compatible). Correct for a
+    // single-endpoint device; a multi-endpoint device should use the endpoint
+    // overload, as this returns whichever endpoint was pushed last.
     const HapticCommandTrackedT& get_data(const ITrackerSession& session) const;
+
+    // Latest command for `endpoint`; `tracked.data` is null until a sample for
+    // that endpoint arrives, or after the producer collection disappears.
+    const HapticCommandTrackedT& get_data(const ITrackerSession& session, std::string_view endpoint) const;
 
     const std::string& collection_id() const
     {

@@ -21,6 +21,7 @@ from rig_py_test_ns.config import (
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SE3_RIG = REPO_ROOT / "rigs" / "se3_tracker.yaml"
+FULL_BODY_RIG = REPO_ROOT / "rigs" / "full_body.yaml"
 
 
 def write_rig(tmp_path: Path, body: str) -> Path:
@@ -38,7 +39,7 @@ consumers:
 
 
 # ---------------------------------------------------------------------------
-# Loading the shipped exemplar
+# Loading the shipped rigs
 # ---------------------------------------------------------------------------
 
 
@@ -59,6 +60,30 @@ def test_load_se3_rig():
 
 def test_se3_rig_has_no_footguns():
     config = load_rig_config(SE3_RIG)
+    assert (
+        find_runtime_footguns(
+            [*config.producers, *config.consumers], runtime_managed=True
+        )
+        == []
+    )
+
+
+def test_load_full_body_rig():
+    config = load_rig_config(FULL_BODY_RIG)
+    assert config.name == "full_body"
+    assert config.description
+    assert config.cwd == REPO_ROOT  # cwd: .. resolves against rigs/
+    assert config.runtime is None
+    assert config.runtime_command == DEFAULT_RUNTIME_COMMAND
+    # Consumer-only rig: both panes read the runtime directly, so there are no
+    # producers, no params, and no collection_id to rendezvous on.
+    assert config.params == {}
+    assert len(config.producers) == 0
+    assert len(config.consumers) == 2
+
+
+def test_full_body_rig_has_no_footguns():
+    config = load_rig_config(FULL_BODY_RIG)
     assert (
         find_runtime_footguns(
             [*config.producers, *config.consumers], runtime_managed=True
