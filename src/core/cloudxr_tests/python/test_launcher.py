@@ -480,7 +480,9 @@ class TestLaunchArgumentHelpers:
 
         args = argparse.Namespace(launch_cloudxr_runtime=None)
 
-        with patch.object(CloudXRLauncher, "_is_local_tcp_port_open", return_value=True):
+        with patch.object(
+            CloudXRLauncher, "_is_local_tcp_port_open", return_value=True
+        ):
             assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is False
 
     def test_resolve_launch_cloudxr_runtime_restarts_stale_sourced_env(
@@ -491,7 +493,9 @@ class TestLaunchArgumentHelpers:
 
         args = argparse.Namespace(launch_cloudxr_runtime=None)
 
-        with patch.object(CloudXRLauncher, "_is_local_tcp_port_open", return_value=False):
+        with patch.object(
+            CloudXRLauncher, "_is_local_tcp_port_open", return_value=False
+        ):
             assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is True
 
     def test_resolve_launch_cloudxr_runtime_explicit_overrides_env(
@@ -514,7 +518,9 @@ class TestLaunchArgumentHelpers:
 
         args = argparse.Namespace(launch_cloudxr_runtime=None)
 
-        with patch.object(CloudXRLauncher, "_is_local_tcp_port_open", return_value=True):
+        with patch.object(
+            CloudXRLauncher, "_is_local_tcp_port_open", return_value=True
+        ):
             with CloudXRLauncher.launch_context(args) as launcher:
                 assert launcher is None
 
