@@ -12,9 +12,11 @@
  * rig (rigs/full_body.yaml) to launch the runtime, printer, and recorder together.
  *
  * Usage:
- *     record_full_body [duration_seconds] [output.mcap]
+ *     record_full_body [duration_seconds] [output.mcap | output_dir/]
  *
- * Defaults: 5 seconds -> full_body_<timestamp>.mcap in the current directory.
+ * Defaults: 5 seconds -> full_body_<timestamp>.mcap in the current directory. When the
+ * output argument is a directory (existing, or with a trailing slash), it is created if
+ * needed and each run writes a fresh timestamped file inside it.
  *
  * The recording is written to the standard "full_body" channel, so any Isaac Teleop
  * replay tooling can read it (see the MCAP record & replay documentation).
@@ -28,6 +30,7 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -54,6 +57,19 @@ std::string default_output_path()
     return name.str();
 }
 
+// An existing directory (or a path with a trailing slash) receives a timestamped file
+// inside it — created if needed — so repeated runs never clobber a previous take.
+std::string resolve_output_path(const std::string& arg)
+{
+    const std::filesystem::path path(arg);
+    if (std::filesystem::is_directory(path) || (!arg.empty() && arg.back() == '/'))
+    {
+        std::filesystem::create_directories(path);
+        return (path / default_output_path()).string();
+    }
+    return arg;
+}
+
 uint32_t count_valid_joints(const core::FullBodyPoseT& data)
 {
     uint32_t valid_count = 0;
@@ -73,7 +89,7 @@ int main(int argc, char** argv)
 try
 {
     const double duration_s = (argc > 1) ? std::stod(argv[1]) : 5.0;
-    const std::string mcap_path = (argc > 2) ? argv[2] : default_output_path();
+    const std::string mcap_path = (argc > 2) ? resolve_output_path(argv[2]) : default_output_path();
 
     std::cout << "[record] writing " << mcap_path << " for " << duration_s << "s" << std::endl;
 
