@@ -5,7 +5,7 @@
  * @file record_full_body.cpp
  * @brief Record a live full-body tracking session to an MCAP file using only the C++ API.
  *
- * C++ counterpart of record_full_body.py. Creates a FullBodyTrackerPico, opens an OpenXR
+ * C++ counterpart of record_full_body.py. Creates a FullBodyTracker, opens an OpenXR
  * session with its required extensions, and passes a McapRecordingConfig to
  * DeviceIOSession::run() — the tracker impl then writes MCAP samples during each
  * session->update() call. Unlike the Python example this does not launch the CloudXR runtime;
@@ -23,7 +23,7 @@
  */
 
 #include <deviceio_session/deviceio_session.hpp>
-#include <deviceio_trackers/full_body_tracker_pico.hpp>
+#include <deviceio_trackers/full_body_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 #include <schema/full_body_generated.h>
 
@@ -56,10 +56,10 @@ std::string default_output_path()
     return name.str();
 }
 
-uint32_t count_valid_joints(const core::FullBodyPosePicoT& data)
+uint32_t count_valid_joints(const core::FullBodyPoseT& data)
 {
     uint32_t valid_count = 0;
-    for (uint32_t i = 0; i < core::FullBodyTrackerPico::JOINT_COUNT; ++i)
+    for (uint32_t i = 0; i < core::FullBodyTracker::JOINT_COUNT; ++i)
     {
         if ((*data.joints->joints())[i]->is_valid())
         {
@@ -80,7 +80,7 @@ try
     std::cout << "[record] writing " << mcap_path << " for " << duration_s << "s" << std::endl;
 
     // Step 1: Create the tracker
-    auto tracker = std::make_shared<core::FullBodyTrackerPico>();
+    auto tracker = std::make_shared<core::FullBodyTracker>();
 
     // Step 2: Get required extensions and create OpenXR session
     std::vector<std::shared_ptr<core::ITracker>> trackers = { tracker };
@@ -114,7 +114,7 @@ try
             if (tracked.data)
             {
                 std::cout << "  joints=" << count_valid_joints(*tracked.data) << "/"
-                          << core::FullBodyTrackerPico::JOINT_COUNT;
+                          << core::FullBodyTracker::JOINT_COUNT;
             }
             else
             {
