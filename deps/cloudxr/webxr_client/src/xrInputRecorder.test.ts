@@ -415,8 +415,17 @@ describe("serialization", () => {
     { version: 1, frames: null },
     { version: 1, frames: [{ ...frameData(), timeMs: undefined }] },
     { version: 1, frames: [frameData(2), frameData(1)] },
+    null,
+    42,
+    [],
   ])("rejects incompatible or malformed recordings", (value) => {
     expect(() => XRInputRecorder.importJSON(JSON.stringify(value))).toThrow();
+  });
+
+  test("rejects non-JSON input with a clear message", () => {
+    expect(() => XRInputRecorder.importJSON("not json {")).toThrow(
+      "File is not valid JSON",
+    );
   });
 
   test("returns a recording snapshot", () => {
