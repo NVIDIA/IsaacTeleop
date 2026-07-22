@@ -112,9 +112,12 @@ class DependencyCoverageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             (root / "Cargo.toml").write_text("[package]\n", encoding="utf-8")
+            (root / "environment.yml").write_text(
+                "dependencies:\n  - python\n", encoding="utf-8"
+            )
             manifests = audit.unsupported_manifests(root)
 
-        self.assertEqual(manifests, ["Cargo.toml"])
+        self.assertEqual(manifests, ["Cargo.toml", "environment.yml"])
 
 
 if __name__ == "__main__":

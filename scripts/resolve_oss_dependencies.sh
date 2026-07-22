@@ -61,9 +61,12 @@ if [[ ! -s "${vcpkg_status}" ]]; then
   echo "Configured max-dependency profile did not produce vcpkg status metadata." >&2
   exit 2
 fi
+vcpkg_status_evidence="${resolution_dir}/vcpkg-status"
+cp "${vcpkg_status}" "${vcpkg_status_evidence}"
 
 trivy fs \
   --no-progress \
+  --skip-dirs "${output_dir}" \
   --format cyclonedx \
   --output "${resolution_dir}/trivy-source.cdx.json" \
   "${repo_root}"
@@ -76,9 +79,13 @@ python3 "${repo_root}/scripts/audit_oss_dependency_coverage.py" \
   --npm-root "${resolution_dir}/inputs/npm" \
   --cmake-trace "${cmake_trace}" \
   --cmake-build-dir "${cmake_build_dir}" \
-  --vcpkg-status "${vcpkg_status}" \
+  --vcpkg-status "${vcpkg_status_evidence}" \
   --base-sbom "${resolution_dir}/trivy-source.cdx.json" \
   --output-sbom "${output_dir}/bom.cdx.json" \
   --output-report "${output_dir}/dependency-coverage.json" \
   --output-summary "${output_dir}/dependency-coverage.md" \
   --fail-on-gaps
+
+# The audit has already captured the expanded trace, exact fetched commits, and
+# vcpkg status. Keep those compact records, not the generated build tree.
+rm -rf "${cmake_build_dir}"
