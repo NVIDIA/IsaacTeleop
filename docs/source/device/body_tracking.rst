@@ -236,7 +236,8 @@ channel base name. ``examples/mcap_record_replay/cpp/record_full_body.cpp``
 demonstrates this — a file recorded there replays unchanged with
 ``replay_full_body.py``. The ``rigs/full_body.yaml`` rig includes a recorder
 pane running this example; each :kbd:`Enter` rerun in that pane writes a fresh
-timestamped take.
+timestamped take into ``examples/mcap_record_replay/recordings/``, where
+``replay_full_body.py`` looks by default.
 
 .. figure:: ../_static/full-body-replay.gif
    :alt: Full body skeleton replayed from an MCAP recording in viser

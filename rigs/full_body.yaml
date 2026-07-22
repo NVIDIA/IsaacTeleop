@@ -13,10 +13,11 @@
 # system' — press Enter to rerun. The printer prints '[body tracking inactive]'
 # once per second when the headset is connected but body tracking is
 # unavailable (calibration / enterprise support). Each recorder run writes a
-# fresh full_body_<timestamp>.mcap into the repo root (optional args:
-# [duration_seconds, default 5 s] [output.mcap]); exiting after ~5 s is
-# SUCCESS — replay headless with
-# examples/mcap_record_replay/python/replay_full_body.py <file>.
+# fresh full_body_<timestamp>.mcap into examples/mcap_record_replay/recordings/
+# (gitignored; created if missing; recorder args: [duration_seconds, default
+# 5 s] [output.mcap | output_dir/]); exiting after ~5 s is SUCCESS — replay
+# headless with examples/mcap_record_replay/python/replay_full_body.py, which
+# picks up the newest recording there by default.
 # See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
 name: full_body
 description: CloudXR runtime + full-body joint printer + MCAP recorder (PICO 4 Ultra Enterprise with Motion Trackers)
@@ -25,4 +26,4 @@ consumers:
   - name: full body printer (requires headset + motion trackers)
     command: "install/examples/schemaio/full_body_printer"
   - name: full body recorder (check printer pane first; Enter = new timestamped take)
-    command: "install/examples/mcap_record_replay/cpp/record_full_body"
+    command: "install/examples/mcap_record_replay/cpp/record_full_body 5 examples/mcap_record_replay/recordings/"
