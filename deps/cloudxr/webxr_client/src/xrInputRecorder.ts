@@ -547,7 +547,16 @@ export class XRInputRecorder {
   }
 
   static importJSON(json: string): Recording {
-    const recording = JSON.parse(json) as Recording;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new Error("File is not valid JSON");
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("Malformed recording: expected a JSON object");
+    }
+    const recording = parsed as Recording;
     if (recording.version !== 1) {
       throw new Error(`Unsupported recording version: ${recording.version}`);
     }
