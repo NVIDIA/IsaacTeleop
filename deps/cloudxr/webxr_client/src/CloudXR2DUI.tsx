@@ -72,7 +72,10 @@ import {
 } from '@nvidia/cloudxr';
 
 /** Full config: CloudXR connection settings + React UI options. */
-type AppConfig = CloudXRConfig & ReactUIConfig;
+type AppConfig = CloudXRConfig & ReactUIConfig & {
+  showTrace: boolean;
+  showRecordingControls: boolean;
+};
 
 /**
  * localStorage key for the teleop-start countdown. Owned by the countdown feature in
@@ -167,6 +170,8 @@ export class CloudXR2DUI {
   private mediaPortInput!: HTMLInputElement;
   /** Dropdown for controller model visibility (show / hide) */
   private controllerModelVisibilitySelect!: HTMLSelectElement;
+  private showTraceInXRSelect!: HTMLSelectElement;
+  private showRecordingControlsSelect!: HTMLSelectElement;
   /** Skip client CloudXR `render` (headless: client blit off; tracking on) */
   private headlessInput!: HTMLInputElement;
   /** When to reload the page after the XR session ends (never / clean / any) */
@@ -464,6 +469,9 @@ export class CloudXR2DUI {
     this.controllerModelVisibilitySelect = this.getElement<HTMLSelectElement>(
       'controllerModelVisibility'
     );
+    this.showTraceInXRSelect = this.getElement<HTMLSelectElement>('showTraceInXR');
+    this.showRecordingControlsSelect =
+      this.getElement<HTMLSelectElement>('showRecordingControls');
     this.headlessInput = this.getElement<HTMLInputElement>('cloudxrHeadless');
     this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>('cloudxrAutoRefreshMode');
     this.teleopModeSubtitle = this.getElement<HTMLElement>('teleopModeSubtitle');
@@ -520,6 +528,8 @@ export class CloudXR2DUI {
       enableTexSubImage2D: false,
       useQuestColorWorkaround: false,
       hideControllerModel: false,
+      showTrace: false,
+      showRecordingControls: false,
       headless: false,
       autoRefreshMode: 'clean',
       teleopPath: DEFAULT_TELEOP_PATH,
@@ -562,6 +572,8 @@ export class CloudXR2DUI {
       { el: this.mediaAddressInput, key: 'mediaAddress' },
       { el: this.mediaPortInput, key: 'mediaPort' },
       { el: this.controllerModelVisibilitySelect, key: 'controllerModelVisibility' },
+      { el: this.showTraceInXRSelect, key: 'showTraceInXR' },
+      { el: this.showRecordingControlsSelect, key: 'showRecordingControls' },
       { el: this.autoRefreshModeSelect, key: 'autoRefreshMode' },
     ];
   }
@@ -801,6 +813,8 @@ export class CloudXR2DUI {
     addListener(this.mediaPortInput, 'input', updateConfig);
     addListener(this.mediaPortInput, 'change', updateConfig);
     addListener(this.controllerModelVisibilitySelect, 'change', updateConfig);
+    addListener(this.showTraceInXRSelect, 'change', updateConfig);
+    addListener(this.showRecordingControlsSelect, 'change', updateConfig);
     addListener(this.headlessInput, 'change', () => {
       savePerProject('headless', this.teleopPath, this.headlessInput.checked ? 'true' : 'false');
       this.applyHeadlessImmersiveDropdown();
@@ -1011,6 +1025,8 @@ export class CloudXR2DUI {
         return !isNaN(v) ? v : undefined;
       })(),
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
+      showTrace: this.showTraceInXRSelect.value === 'true',
+      showRecordingControls: this.showRecordingControlsSelect.value === 'true',
       // See immersiveMode above: when true, callers must start an immersive-vr WebXR session.
       headless: this.headlessInput.checked,
       autoRefreshMode: parseAutoRefreshMode(

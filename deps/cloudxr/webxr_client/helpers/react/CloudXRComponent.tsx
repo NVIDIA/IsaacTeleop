@@ -95,6 +95,12 @@ interface CloudXRComponentProps {
   headless?: boolean;
 
   /**
+   * Optionally adapt the frame used for tracking submission. The original
+   * frame is always retained for client-side rendering and reprojection.
+   */
+  trackingFrameAdapter?: (frame: XRFrame) => XRFrame;
+
+  /**
    * Custom ICE server configuration (STUN/TURN) for WebRTC.
    * In USB-local mode, set this to a TURN server accessible via adb reverse
    * with iceTransportPolicy 'relay' so WebRTC can gather candidates without WiFi.
@@ -116,6 +122,7 @@ export default function CloudXRComponent({
   onStreamingPerformanceMetrics,
   metricsSettings = {},
   headless = false,
+  trackingFrameAdapter,
   iceServers,
 }: CloudXRComponentProps) {
   const threeRenderer: WebGLRenderer = useThree().gl;
@@ -435,7 +442,8 @@ export default function CloudXRComponent({
         try {
           // Send the tracking state (including viewer pose and hand/controller data) to the server;
           // that triggers server-side rendering for the frame.
-          cxrSession.sendTrackingStateToServer(timestamp, xrFrame);
+          const trackingFrame = trackingFrameAdapter?.(xrFrame) ?? xrFrame;
+          cxrSession.sendTrackingStateToServer(timestamp, trackingFrame);
 
           if (!headless) {
             const layer: XRWebGLLayer = webXRManager.getBaseLayer() as XRWebGLLayer;

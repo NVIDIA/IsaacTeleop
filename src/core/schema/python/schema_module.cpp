@@ -14,6 +14,7 @@
 #include "joint_state_bindings.h"
 #include "message_channel_bindings.h"
 #include "oak_bindings.h"
+#include "oglo_tactile_bindings.h"
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
 #include "se3_tracker_bindings.h"
@@ -43,6 +44,9 @@ PYBIND11_MODULE(_schema, m)
     // Bind pedals types (Generic3AxisPedalOutput table).
     core::bind_pedals(m);
 
+    // Bind OGLO tactile glove types (OgloGloveSample table).
+    core::bind_oglo_tactile(m);
+
     // Bind joint-state types (JointState, JointStateOutput tables) for generic joint-space devices.
     core::bind_joint_state(m);
 
@@ -58,6 +62,6 @@ PYBIND11_MODULE(_schema, m)
     // Bind OAK types (StreamType enum, FrameMetadataOak table).
     core::bind_oak(m);
 
-    // Bind full body types (BodyJointPose, BodyJointsPico structs, FullBodyPosePicoT table).
+    // Bind full body types (BodyJointPose, BodyJoints structs, FullBodyPoseT table).
     core::bind_full_body(m);
 }

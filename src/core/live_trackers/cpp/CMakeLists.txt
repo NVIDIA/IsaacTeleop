@@ -12,6 +12,7 @@ add_library(live_trackers STATIC
     live_message_channel_tracker_impl.cpp
     live_full_body_tracker_pico_impl.cpp
     live_generic_3axis_pedal_tracker_impl.cpp
+    live_oglo_tactile_tracker_impl.cpp
     live_tensor_push_tracker_impl.cpp
     live_haptic_command_reader_tracker_impl.cpp
     live_joint_state_tracker_impl.cpp
@@ -26,6 +27,7 @@ add_library(live_trackers STATIC
     live_message_channel_tracker_impl.hpp
     live_full_body_tracker_pico_impl.hpp
     live_generic_3axis_pedal_tracker_impl.hpp
+    live_oglo_tactile_tracker_impl.hpp
     live_tensor_push_tracker_impl.hpp
     live_haptic_command_reader_tracker_impl.hpp
     live_joint_state_tracker_impl.hpp
