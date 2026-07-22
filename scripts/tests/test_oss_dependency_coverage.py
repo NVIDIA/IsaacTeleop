@@ -44,6 +44,24 @@ class DependencyCoverageTests(unittest.TestCase):
         self.assertEqual(entries[0]["version"], ">=2")
         self.assertEqual(entries[0]["source"], "python_version >= '3.11'")
 
+    def test_docker_arg_defaults_make_base_images_concrete(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dockerfile = root / "Dockerfile"
+            dockerfile.write_text(
+                "ARG PYTHON_VERSION=3.11\n"
+                "FROM python:${PYTHON_VERSION}-slim\n"
+                "ARG ROS_DISTRO=humble\n"
+                "FROM ros:$ROS_DISTRO-ros-base\n",
+                encoding="utf-8",
+            )
+            entries = collector._parse_dockerfile(dockerfile, root)
+
+        self.assertEqual(
+            [(entry["name"], entry["version"]) for entry in entries],
+            [("python", "3.11-slim"), ("ros", "humble-ros-base")],
+        )
+
     def test_lock_and_trace_evidence_resolve_direct_declarations(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

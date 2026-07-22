@@ -50,6 +50,7 @@ cmake \
   -DBUILD_EXAMPLES=ON \
   -DBUILD_PLUGINS=ON \
   -DBUILD_PLUGIN_OAK_CAMERA=ON \
+  -DBUILD_PLUGIN_OGLO=ON \
   -DBUILD_TESTING=ON \
   -DBUILD_VIZ=ON \
   -DBUNDLE_ROBOTIC_GROUNDING=OFF \
@@ -71,6 +72,7 @@ trivy fs \
   --output "${resolution_dir}/trivy-source.cdx.json" \
   "${repo_root}"
 
+audit_status=0
 python3 "${repo_root}/scripts/audit_oss_dependency_coverage.py" \
   --repo-root "${repo_root}" \
   --inventory "${output_dir}/dependency-inventory.json" \
@@ -84,8 +86,9 @@ python3 "${repo_root}/scripts/audit_oss_dependency_coverage.py" \
   --output-sbom "${output_dir}/bom.cdx.json" \
   --output-report "${output_dir}/dependency-coverage.json" \
   --output-summary "${output_dir}/dependency-coverage.md" \
-  --fail-on-gaps
+  --fail-on-gaps || audit_status=$?
 
 # The audit has already captured the expanded trace, exact fetched commits, and
 # vcpkg status. Keep those compact records, not the generated build tree.
 rm -rf "${cmake_build_dir}"
+exit "${audit_status}"

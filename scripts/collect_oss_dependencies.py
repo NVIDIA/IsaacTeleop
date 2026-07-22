@@ -43,6 +43,13 @@ REQUIREMENTS_RE = re.compile(
 DOCKER_FROM_RE = re.compile(
     r"^\s*FROM\s+(?:--platform=\S+\s+)?(?P<image>\S+)", re.IGNORECASE
 )
+DOCKER_ARG_RE = re.compile(
+    r"^\s*ARG\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?:=(?P<value>\S+))?\s*$",
+    re.IGNORECASE,
+)
+DOCKER_ARG_REFERENCE_RE = re.compile(
+    r"\$\{(?P<braced>[A-Za-z_][A-Za-z0-9_]*)\}|\$(?P<plain>[A-Za-z_][A-Za-z0-9_]*)"
+)
 GITHUB_ACTION_RE = re.compile(
     r"uses:\s*(?P<action>[A-Za-z0-9_.-]+/[A-Za-z0-9_.\-/]+)@(?P<ref>[A-Za-z0-9_.\-/]+)"
 )
@@ -216,13 +223,23 @@ def _parse_vcpkg_manifest(path: Path, repo_root: Path) -> list[dict[str, Any]]:
 
 def _parse_dockerfile(path: Path, repo_root: Path) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
+    arguments: dict[str, str] = {}
     for line_number, raw_line in enumerate(
         path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1
     ):
+        argument_match = DOCKER_ARG_RE.match(raw_line)
+        if argument_match and argument_match.group("value"):
+            arguments[argument_match.group("name")] = argument_match.group("value")
+            continue
         match = DOCKER_FROM_RE.match(raw_line)
         if not match:
             continue
-        image = match.group("image").split("@", maxsplit=1)[0]
+        image = DOCKER_ARG_REFERENCE_RE.sub(
+            lambda variable: arguments.get(
+                variable.group("braced") or variable.group("plain"), variable.group(0)
+            ),
+            match.group("image"),
+        ).split("@", maxsplit=1)[0]
         last_colon = image.rfind(":")
         last_slash = image.rfind("/")
         if last_colon > last_slash:
