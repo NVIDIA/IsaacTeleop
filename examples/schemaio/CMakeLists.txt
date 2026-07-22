@@ -57,7 +57,6 @@ target_link_libraries(full_body_printer PRIVATE
     deviceio::deviceio_trackers
     oxr::oxr_core
     isaacteleop_schema
-    ${CMAKE_DL_LIBS}
     Threads::Threads
 )
 
