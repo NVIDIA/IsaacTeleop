@@ -480,7 +480,19 @@ class TestLaunchArgumentHelpers:
 
         args = argparse.Namespace(launch_cloudxr_runtime=None)
 
-        assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is False
+        with patch.object(CloudXRLauncher, "_is_local_tcp_port_open", return_value=True):
+            assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is False
+
+    def test_resolve_launch_cloudxr_runtime_restarts_stale_sourced_env(
+        self, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("XR_RUNTIME_JSON", "/tmp/cloudxr/openxr.json")
+        monkeypatch.setenv("NV_CXR_RUNTIME_DIR", "/tmp/cloudxr/run")
+
+        args = argparse.Namespace(launch_cloudxr_runtime=None)
+
+        with patch.object(CloudXRLauncher, "_is_local_tcp_port_open", return_value=False):
+            assert CloudXRLauncher._resolve_launch_cloudxr_runtime(args) is True
 
     def test_resolve_launch_cloudxr_runtime_explicit_overrides_env(
         self, monkeypatch
@@ -502,8 +514,9 @@ class TestLaunchArgumentHelpers:
 
         args = argparse.Namespace(launch_cloudxr_runtime=None)
 
-        with CloudXRLauncher.launch_context(args) as launcher:
-            assert launcher is None
+        with patch.object(CloudXRLauncher, "_is_local_tcp_port_open", return_value=True):
+            with CloudXRLauncher.launch_context(args) as launcher:
+                assert launcher is None
 
     @_windows_skip
     def test_launch_context_starts_when_enabled(self, tmp_path) -> None:

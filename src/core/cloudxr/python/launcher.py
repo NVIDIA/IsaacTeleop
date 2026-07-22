@@ -17,6 +17,7 @@ import contextlib
 import logging
 import os
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -389,11 +390,32 @@ class CloudXRLauncher:
         return bool(getattr(args, "launch_wss_proxy", True))
 
     @staticmethod
+    def _is_local_tcp_port_open(port: int) -> bool:
+        """Return true when a local TCP listener accepts connections on *port*."""
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+                return True
+        except OSError:
+            return False
+
+    @staticmethod
     def _has_sourced_cloudxr_runtime_env() -> bool:
-        """Return true when the current shell looks sourced from ``cloudxr.env``."""
-        return bool(
+        """Return true when sourced runtime markers point to live local services."""
+        if not (
             os.environ.get("XR_RUNTIME_JSON") and os.environ.get("NV_CXR_RUNTIME_DIR")
+        ):
+            return False
+
+        from .oob_teleop_env import (  # noqa: PLC0415
+            cloudxr_server_port,
+            wss_proxy_port,
         )
+
+        try:
+            ports = (cloudxr_server_port(), wss_proxy_port())
+        except ValueError:
+            return False
+        return all(CloudXRLauncher._is_local_tcp_port_open(port) for port in ports)
 
     @staticmethod
     def _resolve_launch_cloudxr_runtime(args: argparse.Namespace) -> bool:

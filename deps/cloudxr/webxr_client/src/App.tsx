@@ -187,6 +187,7 @@ function AppContent() {
   /** Avoid repeating immersive session dumps on every XR store tick. */
   const immersiveSessionDumpLoggedRef = useRef(false);
   const autoConnectTriggeredRef = useRef(false);
+  const autoConnectUiRef = useRef<CloudXR2DUI | null>(null);
   const [countdownDuration, setCountdownDuration] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(COUNTDOWN_STORAGE_KEY);
@@ -303,37 +304,67 @@ function AppContent() {
       setCapabilitiesValid(true);
       cloudXR2DUI.setStartButtonState(false, 'CONNECT');
       cloudXR2DUI.updateConnectButtonState();
-
-      const searchParams = new URLSearchParams(window.location.search);
-      if (
-        isOobEnabled(searchParams) &&
-        isOobAutoConnectEnabled(searchParams) &&
-        cloudXR2DUI.getConfiguration().headless &&
-        !autoConnectTriggeredRef.current
-      ) {
-        autoConnectTriggeredRef.current = true;
-        const requestConnect = (attemptsRemaining: number) => {
-          window.setTimeout(async () => {
-            try {
-              setErrorMessage('');
-              await cloudXR2DUI.requestConnect();
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
-              if (attemptsRemaining > 0 && message.includes('not connected to three.js')) {
-                requestConnect(attemptsRemaining - 1);
-                return;
-              }
-              autoConnectTriggeredRef.current = false;
-              setErrorMessage(`Failed to auto-start XR session: ${error}`);
-            }
-          }, 500);
-        };
-        requestConnect(20);
-      }
     };
 
     checkCapabilitiesOnce();
   }, [cloudXR2DUI, iwerLoaded]);
+
+  // Store recreation after IWER loads also recreates CloudXR2DUI. Keep auto-connect
+  // tied to the current UI instance so retries cannot target an object cleaned up by
+  // the previous store's effect teardown.
+  useEffect(() => {
+    if (autoConnectUiRef.current !== cloudXR2DUI) {
+      autoConnectUiRef.current = cloudXR2DUI;
+      autoConnectTriggeredRef.current = false;
+    }
+
+    if (!cloudXR2DUI || !iwerLoaded || !capabilitiesValid) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    if (
+      !isOobEnabled(searchParams) ||
+      !isOobAutoConnectEnabled(searchParams) ||
+      !cloudXR2DUI.getConfiguration().headless ||
+      autoConnectTriggeredRef.current
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    autoConnectTriggeredRef.current = true;
+    const requestConnect = (attemptsRemaining: number) => {
+      window.setTimeout(async () => {
+        if (cancelled) {
+          return;
+        }
+        try {
+          setErrorMessage('');
+          await cloudXR2DUI.requestConnect();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const retryable =
+            message.includes('not connected to three.js') ||
+            message.includes('Connect handler is not ready');
+          if (attemptsRemaining > 0 && retryable) {
+            requestConnect(attemptsRemaining - 1);
+            return;
+          }
+          autoConnectTriggeredRef.current = false;
+          setErrorMessage(`Failed to auto-start XR session: ${error}`);
+        }
+      }, 500);
+    };
+    requestConnect(20);
+
+    return () => {
+      cancelled = true;
+      if (autoConnectUiRef.current === cloudXR2DUI) {
+        autoConnectTriggeredRef.current = false;
+      }
+    };
+  }, [cloudXR2DUI, iwerLoaded, capabilitiesValid]);
 
   // Track config changes to trigger re-renders when form values change
   const [configVersion, setConfigVersion] = useState(0);

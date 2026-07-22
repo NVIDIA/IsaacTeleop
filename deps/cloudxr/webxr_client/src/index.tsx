@@ -20,6 +20,7 @@ import ReactDOM from 'react-dom/client';
 
 import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 import { mountBuildInfoOverlayIfRequested } from './BuildInfoOverlay';
+import { readUrlParam } from './config/resolve';
 
 function isEnabled(value: string | null): boolean {
   return value === '1' || value?.toLowerCase() === 'true';
@@ -28,9 +29,9 @@ function isEnabled(value: string | null): boolean {
 function shouldPreloadIWERForHeadlessOob(): boolean {
   const params = new URLSearchParams(window.location.search);
   return (
-    isEnabled(params.get('oobEnable')) &&
-    isEnabled(params.get('autoConnect')) &&
-    isEnabled(params.get('headless'))
+    isEnabled(readUrlParam(params, 'oobEnable')) &&
+    isEnabled(readUrlParam(params, 'autoConnect')) &&
+    isEnabled(readUrlParam(params, 'headless'))
   );
 }
 
