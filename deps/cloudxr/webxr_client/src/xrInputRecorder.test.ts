@@ -115,6 +115,10 @@ function recording(...frames: RecordedFrame[]): Recording {
   return { version: 1, frames };
 }
 
+function timedFrame(timeMs: number, x: number): RecordedFrame {
+  return { ...frameData(x), timeMs };
+}
+
 function recordFrames(count: number): Recording {
   const recorder = new XRInputRecorder();
   recorder.startRecording();
@@ -169,18 +173,85 @@ describe("lifecycle and frame advancement", () => {
 
   test("loops replay by frame and can clamp at the final frame", () => {
     const looped = new XRInputRecorder();
-    looped.startReplay(recording(frameData(1), frameData(2)));
+    looped.startReplay(recording(frameData(1), frameData(2)), true, "frame");
     looped.beginFrame(makeFrame(), sceneSpace);
     looped.beginFrame(makeFrame(), sceneSpace);
     expect(looped.replayFrameIndex).toBe(0);
 
     const clamped = new XRInputRecorder();
-    clamped.startReplay(recording(frameData(1), frameData(2)), false);
+    clamped.startReplay(recording(frameData(1), frameData(2)), false, "frame");
     clamped.beginFrame(makeFrame(), sceneSpace);
     clamped.beginFrame(makeFrame(), sceneSpace);
     clamped.beginFrame(makeFrame(), sceneSpace);
     expect(clamped.currentFrame).toEqual(frameData(2));
     expect(clamped.replayFrameIndex).toBe(1);
+  });
+
+  test("time-paces replay by default and interpolates timestamped samples", () => {
+    const first = timedFrame(0, 0);
+    first.gamepads.left!.buttons[0].pressed = false;
+    const second = timedFrame(100, 10);
+    second.poses.leftGrip = {
+      ...second.poses.leftGrip!,
+      oz: 1,
+      ow: 0,
+    };
+
+    const recorder = new XRInputRecorder();
+    recorder.startReplay(recording(first, second), false);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1000), sceneSpace);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1050), sceneSpace);
+
+    expect(recorder.currentFrame?.timeMs).toBe(50);
+    expect(recorder.currentFrame?.poses.leftGrip?.px).toBe(5);
+    expect(recorder.currentFrame?.poses.leftGrip?.oz).toBeCloseTo(Math.sqrt(0.5));
+    expect(recorder.currentFrame?.poses.leftGrip?.ow).toBeCloseTo(Math.sqrt(0.5));
+    expect(recorder.currentFrame?.gamepads.left?.axes).toEqual([5]);
+    expect(recorder.currentFrame?.gamepads.left?.buttons[0].pressed).toBe(false);
+    expect(recorder.currentFrame?.handJoints.left.wrist?.px).toBe(7);
+  });
+
+  test("holds the earlier gamepad sample when controller layouts differ", () => {
+    const first = timedFrame(0, 0);
+    const second = timedFrame(100, 10);
+    second.gamepads.left!.axes.push(20);
+    second.gamepads.left!.buttons.push({ value: 20, pressed: true, touched: true });
+
+    const recorder = new XRInputRecorder();
+    recorder.startReplay(recording(first, second), false);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1000), sceneSpace);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1050), sceneSpace);
+
+    expect(recorder.currentFrame?.gamepads.left).toEqual(first.gamepads.left);
+  });
+
+  test("holds the final timed sample before looping", () => {
+    const recorder = new XRInputRecorder();
+    recorder.startReplay(recording(timedFrame(0, 0), timedFrame(100, 10)), true, "time");
+
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1000), sceneSpace);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1100), sceneSpace);
+    expect(recorder.currentFrame).toEqual(timedFrame(100, 10));
+
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1150), sceneSpace);
+    expect(recorder.currentFrame).toEqual(timedFrame(100, 10));
+
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1200), sceneSpace);
+    expect(recorder.currentFrame).toEqual(timedFrame(0, 0));
+  });
+
+  test("pauses time-paced replay while advancement is gated off", () => {
+    const recorder = new XRInputRecorder();
+    recorder.startReplay(recording(timedFrame(0, 0), timedFrame(100, 10)), false, "time");
+
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1000), sceneSpace);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1040), sceneSpace);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1100), sceneSpace, false);
+    recorder.beginFrame(makeFrame([], undefined, undefined, 2000), sceneSpace);
+    expect(recorder.currentFrame?.poses.leftGrip?.px).toBe(4);
+
+    recorder.beginFrame(makeFrame([], undefined, undefined, 2020), sceneSpace);
+    expect(recorder.currentFrame?.poses.leftGrip?.px).toBe(6);
   });
 
   test("captures live input while idle only when requested", () => {

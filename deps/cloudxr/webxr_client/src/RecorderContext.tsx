@@ -32,17 +32,23 @@ import React, {
   useState,
 } from "react";
 
-import { XRInputRecorder, type Recording } from "./xrInputRecorder";
+import {
+  XRInputRecorder,
+  type Recording,
+  type ReplayPacing,
+} from "./xrInputRecorder";
 
 export interface RecorderContextValue {
   recorder: XRInputRecorder;
   mode: "idle" | "recording" | "replaying";
   savedRecording: Recording | null;
   recordedFrameCount: number;
+  replayPacing: ReplayPacing;
   startRecord: () => void;
   stopRecord: () => void;
   startReplay: () => void;
   stopReplay: () => void;
+  setReplayPacing: (pacing: ReplayPacing) => void;
   onSaveRecording: () => void;
   onLoadRecording: () => void;
   onFrameRecord: (count: number) => void;
@@ -57,6 +63,7 @@ export function RecorderProvider({ children }: { children: React.ReactNode }) {
     null,
   );
   const [recordedFrameCount, setRecordedFrameCount] = useState(0);
+  const [replayPacing, setReplayPacingState] = useState<ReplayPacing>("time");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const startRecord = useCallback(() => {
@@ -77,15 +84,19 @@ export function RecorderProvider({ children }: { children: React.ReactNode }) {
 
   const startReplay = useCallback(() => {
     if (recorder.mode !== "idle" || !savedRecording) return;
-    recorder.startReplay(savedRecording, true);
+    recorder.startReplay(savedRecording, true, replayPacing);
     setMode("replaying");
-  }, [recorder, savedRecording]);
+  }, [recorder, replayPacing, savedRecording]);
 
   const stopReplay = useCallback(() => {
     if (recorder.mode !== "replaying") return;
     recorder.stopReplay();
     setMode("idle");
   }, [recorder]);
+
+  const setReplayPacing = useCallback((pacing: ReplayPacing) => {
+    setReplayPacingState(pacing);
+  }, []);
 
   const onSaveRecording = useCallback(() => {
     if (!savedRecording) return;
@@ -130,10 +141,12 @@ export function RecorderProvider({ children }: { children: React.ReactNode }) {
     mode,
     savedRecording,
     recordedFrameCount,
+    replayPacing,
     startRecord,
     stopRecord,
     startReplay,
     stopReplay,
+    setReplayPacing,
     onSaveRecording,
     onLoadRecording,
     onFrameRecord,

@@ -79,6 +79,7 @@ export const URL_PARAMS: UrlParam[] = [
   { key: 'controllerModelVisibility', elementId: 'controllerModelVisibility', isValid: oneOf('show', 'hide'), description: 'Show or hide controller model meshes in XR.' },
   { key: 'showTraceInXR', elementId: 'showTraceInXR', isValid: isBool, description: 'Show rolling hand/controller traces in XR (true/false).' },
   { key: 'showRecordingControls', elementId: 'showRecordingControls', isValid: isBool, description: 'Show recording controls in XR (true/false).' },
+  { key: 'replayPacing', elementId: 'replayPacing', isValid: oneOf('frame', 'time'), description: 'Input replay pacing: time (default) or frame.' },
   { key: 'panelHiddenAtStart', elementId: 'panelHiddenAtStart', isValid: isBool, description: 'Start with the in-XR control panel hidden (true/false).' },
   { key: 'headless', elementId: 'cloudxrHeadless', kind: 'checked', isValid: isBool, description: 'Headless: skip all client render code, keep tracking (true/false).' },
   { key: 'autoRefreshMode', elementId: 'cloudxrAutoRefreshMode', isValid: oneOf('never', 'clean', 'any'), description: 'Reload page after session ends: never, clean, or any.' },
