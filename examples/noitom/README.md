@@ -14,7 +14,9 @@ MocapApi, converts each avatar update to the existing IsaacTeleop
 `FullBodyPosePico` layout, and publishes it on tensor identifier `full_body`
 inside the `noitom_mocap` OpenXR tensor collection. The Python task consumes
 that stream with `FullBodyTrackerPico("noitom_mocap")`. Plugin launch defaults,
-including the HDS endpoint, live in `src/plugins/noitom_mocap/plugin.yaml`.
+including the HDS endpoint, live in
+[`plugin.yaml`](../../src/plugins/noitom_mocap/plugin.yaml). Before installing,
+set its `--host` and `--port` arguments to the Hybrid Data Server TCP endpoint.
 
 ## Build
 
@@ -27,6 +29,9 @@ cmake --build build --target python_package noitom_mocap_plugin --parallel
 cmake --install build
 uv pip install --find-links=install/wheels "isaacteleop[cloudxr]"
 ```
+
+Run `cmake --install build` again whenever `plugin.yaml` changes so the updated
+configuration is copied to `install/plugins/noitom_mocap/plugin.yaml`.
 
 By default CMake fetches MocapApi from `https://github.com/pnmocap/MocapApi`.
 For offline builds, pass `-DNOITOM_MOCAP_API_ROOT=/path/to/MocapApi`.

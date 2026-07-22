@@ -39,8 +39,10 @@ cmake -B build \
 ## Run
 
 Start CloudXR/OpenXR first, keep Axis Studio or the Noitom Data Server running,
-then let IsaacTeleop's plugin manager launch the plugin. The plugin-manager
-defaults are in `plugin.yaml`.
+then let IsaacTeleop's plugin manager launch the plugin. Before installing,
+edit [`plugin.yaml`](plugin.yaml) and set `--host` and `--port` to the Hybrid
+Data Server TCP endpoint. Run `cmake --install build` again after changing the
+file so the installed plugin configuration is updated.
 
 ```bash
 ./install/plugins/noitom_mocap/noitom_mocap_plugin

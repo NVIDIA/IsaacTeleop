@@ -17,7 +17,13 @@ set(NOITOM_MOCAP_API_TAG "a62cb6dfc33fc74631c5732bd90f7a91bebe622a"
 set(NOITOM_MOCAP_API_ROOT "" CACHE PATH "Optional local MocapApi checkout; if empty, FetchContent downloads it")
 
 if(NOITOM_MOCAP_API_ROOT)
-    set(_NOITOM_MOCAP_API_SOURCE_DIR "${NOITOM_MOCAP_API_ROOT}")
+    if(NOT IS_DIRECTORY "${NOITOM_MOCAP_API_ROOT}")
+        message(FATAL_ERROR
+            "NOITOM_MOCAP_API_ROOT does not exist: ${NOITOM_MOCAP_API_ROOT}\n"
+            "Clear NOITOM_MOCAP_API_ROOT to let CMake download MocapApi, or set it to a persistent MocapApi checkout."
+        )
+    endif()
+    get_filename_component(_NOITOM_MOCAP_API_SOURCE_DIR "${NOITOM_MOCAP_API_ROOT}" ABSOLUTE)
 else()
     FetchContent_Declare(noitom_mocap_api
         GIT_REPOSITORY "${NOITOM_MOCAP_API_REPOSITORY}"
@@ -32,32 +38,54 @@ else()
 endif()
 
 set(_NOITOM_MOCAP_PYTHON_SDK_DIR "${_NOITOM_MOCAP_API_SOURCE_DIR}/demo/demo-py/MocapApi/mocap_api")
-# The upstream Python wrapper ships matching Linux headers and shared libraries.
-# Prefer that package when present; the root prebuilt Linux library is not always
-# link-clean across distro toolchains.
-if(EXISTS "${_NOITOM_MOCAP_PYTHON_SDK_DIR}/include/MocapApi/MocapApi.h")
-    set(_NOITOM_MOCAP_INCLUDE_DIR "${_NOITOM_MOCAP_PYTHON_SDK_DIR}/include/MocapApi")
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
-        set(_NOITOM_MOCAP_LIB_DIR "${_NOITOM_MOCAP_PYTHON_SDK_DIR}/lib/arm64")
-    else()
-        set(_NOITOM_MOCAP_LIB_DIR "${_NOITOM_MOCAP_PYTHON_SDK_DIR}/lib/x86_64")
-    endif()
-else()
-    set(_NOITOM_MOCAP_INCLUDE_DIR "${_NOITOM_MOCAP_API_SOURCE_DIR}/include")
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
-        set(_NOITOM_MOCAP_LIB_DIR "${_NOITOM_MOCAP_API_SOURCE_DIR}/bin/linux/aarch64")
-    else()
-        set(_NOITOM_MOCAP_LIB_DIR "${_NOITOM_MOCAP_API_SOURCE_DIR}/bin/linux/x64")
-    endif()
-endif()
-set(_NOITOM_MOCAP_LIB "${_NOITOM_MOCAP_LIB_DIR}/libMocapApi.so")
+set(_NOITOM_MOCAP_INCLUDE_CANDIDATES
+    "${_NOITOM_MOCAP_PYTHON_SDK_DIR}/include/MocapApi"
+    "${_NOITOM_MOCAP_API_SOURCE_DIR}/include"
+)
 
-if(NOT EXISTS "${_NOITOM_MOCAP_LIB}")
-    message(FATAL_ERROR "Noitom Mocap SDK library not found: ${_NOITOM_MOCAP_LIB}")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    set(_NOITOM_MOCAP_LIB_CANDIDATES
+        "${_NOITOM_MOCAP_PYTHON_SDK_DIR}/lib/arm64"
+        "${_NOITOM_MOCAP_API_SOURCE_DIR}/bin/linux/aarch64"
+    )
+else()
+    set(_NOITOM_MOCAP_LIB_CANDIDATES
+        "${_NOITOM_MOCAP_PYTHON_SDK_DIR}/lib/x86_64"
+        "${_NOITOM_MOCAP_API_SOURCE_DIR}/bin/linux/x64"
+    )
 endif()
-if(NOT EXISTS "${_NOITOM_MOCAP_INCLUDE_DIR}/MocapApi.h")
-    message(FATAL_ERROR "Noitom Mocap SDK headers not found under: ${_NOITOM_MOCAP_INCLUDE_DIR}")
+
+set(_NOITOM_MOCAP_INCLUDE_DIR "")
+foreach(_NOITOM_MOCAP_INCLUDE_CANDIDATE IN LISTS _NOITOM_MOCAP_INCLUDE_CANDIDATES)
+    if(EXISTS "${_NOITOM_MOCAP_INCLUDE_CANDIDATE}/MocapApi.h")
+        set(_NOITOM_MOCAP_INCLUDE_DIR "${_NOITOM_MOCAP_INCLUDE_CANDIDATE}")
+        break()
+    endif()
+endforeach()
+
+set(_NOITOM_MOCAP_LIB "")
+foreach(_NOITOM_MOCAP_LIB_CANDIDATE IN LISTS _NOITOM_MOCAP_LIB_CANDIDATES)
+    if(EXISTS "${_NOITOM_MOCAP_LIB_CANDIDATE}/libMocapApi.so")
+        set(_NOITOM_MOCAP_LIB "${_NOITOM_MOCAP_LIB_CANDIDATE}/libMocapApi.so")
+        break()
+    endif()
+endforeach()
+
+if(NOT _NOITOM_MOCAP_LIB)
+    message(FATAL_ERROR
+        "Noitom Mocap SDK library not found under ${_NOITOM_MOCAP_API_SOURCE_DIR}. "
+        "Checked: ${_NOITOM_MOCAP_LIB_CANDIDATES}"
+    )
 endif()
+if(NOT _NOITOM_MOCAP_INCLUDE_DIR)
+    message(FATAL_ERROR
+        "Noitom Mocap SDK headers not found under ${_NOITOM_MOCAP_API_SOURCE_DIR}. "
+        "Checked: ${_NOITOM_MOCAP_INCLUDE_CANDIDATES}"
+    )
+endif()
+
+message(STATUS "Noitom Mocap SDK include dir: ${_NOITOM_MOCAP_INCLUDE_DIR}")
+message(STATUS "Noitom Mocap SDK library: ${_NOITOM_MOCAP_LIB}")
 
 add_library(NoitomMocapApi::MocapApi SHARED IMPORTED)
 set_target_properties(NoitomMocapApi::MocapApi PROPERTIES
