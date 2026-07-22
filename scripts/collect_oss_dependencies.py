@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Collect a lightweight OSS dependency inventory from repository manifests."""
+"""Collect OSS declarations and prepare deterministic resolver inputs."""
 
 from __future__ import annotations
 
@@ -36,7 +36,9 @@ EXCLUDED_DIRS = {
 }
 
 REQUIREMENTS_RE = re.compile(
-    r"^\s*(?P<name>[A-Za-z0-9_.-]+)\s*(?P<specifier>(?:===|==|~=|!=|<=|>=|<|>).*)?$"
+    r"^\s*(?P<name>[A-Za-z0-9_.-]+)"
+    r"(?P<extras>\[[A-Za-z0-9_,. -]+\])?\s*"
+    r"(?P<specifier>(?:===|==|~=|!=|<=|>=|<|>).*)?$"
 )
 DOCKER_FROM_RE = re.compile(
     r"^\s*FROM\s+(?:--platform=\S+\s+)?(?P<image>\S+)", re.IGNORECASE
@@ -141,14 +143,16 @@ def _parse_pyproject(path: Path, repo_root: Path) -> list[dict[str, Any]]:
 def _python_dependency_entry(
     dependency: str, path: Path, repo_root: Path, scope: str
 ) -> dict[str, Any]:
-    match = REQUIREMENTS_RE.match(dependency)
+    requirement, _, marker = dependency.partition(";")
+    match = REQUIREMENTS_RE.match(requirement.strip())
     if match:
         return _entry(
             ecosystem="python",
             manifest_type="pyproject",
             name=match.group("name"),
-            version=match.group("specifier"),
+            version=(match.group("specifier") or "").strip(),
             scope=scope,
+            source=marker.strip(),
             path=path,
             repo_root=repo_root,
         )
@@ -359,6 +363,93 @@ def collect(repo_root: Path) -> dict[str, Any]:
     }
 
 
+def write_resolution_inputs(
+    report: dict[str, Any], repo_root: Path, output_dir: Path
+) -> None:
+    """Write package-manager inputs used by the fail-closed resolution job."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    python_requirements: set[str] = set()
+    npm_manifests: list[dict[str, Any]] = []
+    generated_exclusions: list[dict[str, str]] = []
+    for entry in report["dependencies"]:
+        if entry["manifest_type"] == "parse-error":
+            continue
+        if entry["ecosystem"] == "python":
+            name = entry["name"]
+            if name.lower() == "isaacteleop":
+                generated_exclusions.append(
+                    {
+                        "ecosystem": "python",
+                        "name": name,
+                        "path": entry["path"],
+                        "reason": "First-party self dependency, not an OSS component.",
+                    }
+                )
+                continue
+            requirement = f"{name}{entry['version']}"
+            if entry["source"]:
+                requirement = f"{requirement}; {entry['source']}"
+            python_requirements.add(requirement)
+
+    (output_dir / "python-requirements.in").write_text(
+        "\n".join(sorted(python_requirements, key=str.lower)) + "\n",
+        encoding="utf-8",
+    )
+
+    npm_root = output_dir / "npm"
+    for manifest_path in sorted(repo_root.rglob("package.json")):
+        if any(part in EXCLUDED_DIRS for part in manifest_path.parts):
+            continue
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        relative = _repo_path(repo_root, manifest_path)
+        staged = dict(data)
+        for scope in (
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+        ):
+            dependencies = dict(staged.get(scope, {}) or {})
+            for name, version in list(dependencies.items()):
+                if str(version).startswith(("file:", "link:", "workspace:")):
+                    generated_exclusions.append(
+                        {
+                            "ecosystem": "npm",
+                            "name": name,
+                            "path": relative,
+                            "reason": (
+                                "Local or first-party package input is unavailable in "
+                                "public resolver CI."
+                            ),
+                        }
+                    )
+                    del dependencies[name]
+            staged[scope] = dependencies
+        staged_dir = npm_root / re.sub(r"[^A-Za-z0-9_.-]+", "__", relative)
+        staged_dir.mkdir(parents=True, exist_ok=True)
+        (staged_dir / "package.json").write_text(
+            json.dumps(staged, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        npm_manifests.append(
+            {"source": relative, "staged": _repo_path(output_dir, staged_dir)}
+        )
+
+    (output_dir / "resolution-inputs.json").write_text(
+        json.dumps(
+            {
+                "python": "python-requirements.in",
+                "npm": npm_manifests,
+                "generated_exclusions": generated_exclusions,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def write_summary(report: dict[str, Any], summary_path: Path, limit: int = 200) -> None:
     counts = Counter(
         entry["ecosystem"]
@@ -418,6 +509,11 @@ def main() -> int:
     parser.add_argument(
         "--summary", type=Path, default=Path("oss-report/dependency-inventory.md")
     )
+    parser.add_argument(
+        "--resolution-input-dir",
+        type=Path,
+        help="Write normalized inputs for npm, Python, CMake, and vcpkg resolvers.",
+    )
     args = parser.parse_args()
 
     repo_root = args.repo_root.resolve()
@@ -428,6 +524,8 @@ def main() -> int:
     )
     args.summary.parent.mkdir(parents=True, exist_ok=True)
     write_summary(report, args.summary)
+    if args.resolution_input_dir:
+        write_resolution_inputs(report, repo_root, args.resolution_input_dir.resolve())
     return 0
 
 
