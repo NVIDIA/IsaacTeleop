@@ -6,7 +6,7 @@ Body Tracking
 
 Isaac Teleop supports streaming full-body tracking data from an XR headset
 through the CloudXR WebXR client to the teleop server. The server exposes the
-body skeleton to applications through the ``FullBodyTrackerPico`` tracker and
+body skeleton to applications through the ``FullBodyTracker`` tracker and
 the OpenXR ``XR_BD_body_tracking`` extension.
 
 Body tracking support currently targets the **PICO 4 Ultra Enterprise** with
@@ -183,15 +183,23 @@ Server-side access
 ~~~~~~~~~~~~~~~~~~
 
 On the server, body tracking data is consumed through the
-``FullBodyTrackerPico`` tracker (see :doc:`trackers` for the full tracker
+``FullBodyTracker`` tracker (see :doc:`trackers` for the full tracker
 reference). The tracker exposes a ``get_body_pose()`` method that returns the
 24-joint skeleton each frame (or null when body tracking is not available).
-Joint data follows the ``FullBodyPosePico`` FlatBuffers schema defined in
+Joint data follows the ``FullBodyPose`` FlatBuffers schema defined in
 ``src/core/schema/fbs/full_body.fbs``.
 
 The ``all_joint_poses_tracked`` quality flag indicates whether every joint was
 successfully tracked in the current frame. When it is false, consult individual
 joint ``is_valid`` flags to determine which joints have valid poses.
+
+For a minimal C++ reader see ``examples/schemaio/full_body_printer.cpp``, which
+creates the tracker, queries the required OpenXR extensions, and prints the
+joint data each frame through ``DeviceIOSession``. The Python equivalent is
+``examples/oxr/python/test_full_body_tracker.py``. Running
+``python -m isaacteleop.rig rigs/full_body.yaml`` starts the CloudXR runtime,
+this printer, and the C++ MCAP recorder together in one tmux session (see
+:ref:`rig-launcher`).
 
 Troubleshooting
 ~~~~~~~~~~~~~~~
@@ -204,6 +212,11 @@ Troubleshooting
   enterprise features (see above). Verify all PICO motion trackers are
   paired, powered on, and calibrated. Confirm the PICO browser is up to
   date.
+- **The printer prints** ``[body tracking inactive]``. The headset is
+  connected but body tracking is unavailable: check that the Motion Trackers
+  are paired and calibrated and that the headset has enterprise body-tracking
+  support. A printer that never reaches ``[Step 4] Reading samples...`` is
+  still waiting for the runtime / headset instead.
 - **Some joints report** ``is_valid: false``. The PICO runtime may
   temporarily lose tracking for individual joints during fast movement or
   partial occlusion. These joints will recover automatically once tracking is
@@ -216,6 +229,15 @@ Full body sessions can be captured to MCAP and replayed offline through the
 same retargeting pipeline — no headset required during replay. See
 :doc:`../references/mcap_record_replay` for the recording / replay API and
 the ``record_full_body.py`` / ``replay_full_body.py`` example.
+
+Recording is also available directly from C++: pass a ``McapRecordingConfig``
+to ``DeviceIOSession::run()`` with the tracker mapped to the ``full_body``
+channel base name. ``examples/mcap_record_replay/cpp/record_full_body.cpp``
+demonstrates this — a file recorded there replays unchanged with
+``replay_full_body.py``. The ``rigs/full_body.yaml`` rig includes a recorder
+pane running this example; each :kbd:`Enter` rerun in that pane writes a fresh
+timestamped take into ``examples/mcap_record_replay/recordings/``, where
+``replay_full_body.py`` looks by default.
 
 .. figure:: ../_static/full-body-replay.gif
    :alt: Full body skeleton replayed from an MCAP recording in viser
