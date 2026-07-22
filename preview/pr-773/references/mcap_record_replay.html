@@ -536,6 +536,15 @@ additional source nodes (<code class="docutils literal notranslate"><span class=
 <code class="docutils literal notranslate"><span class="pre">common.py</span></code>.</p>
 <p>For a live browser view of <strong>all</strong> human DeviceIO trackers at once (hands, head,
 controllers, and full body), see <code class="docutils literal notranslate"><span class="pre">examples/deviceio_live_view/python/</span></code>.</p>
+<p>A C++ recorder lives at <code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/cpp/</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.cpp</span></code> — records the <code class="docutils literal notranslate"><span class="pre">full_body</span></code> channel by passing a
+<code class="docutils literal notranslate"><span class="pre">core::McapRecordingConfig</span></code> to <code class="docutils literal notranslate"><span class="pre">DeviceIOSession::run()</span></code>. It uses the
+same channel base name as <code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code>, so the resulting file replays
+with <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code>. <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">rigs/full_body.yaml</span></code>
+runs it together with the CloudXR runtime and the full-body printer (see
+<a class="reference internal" href="rig.html#rig-launcher"><span class="std std-ref">Rig Launcher</span></a>).</p></li>
+</ul>
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
 <p>From the installed example directory:</p>

@@ -133,6 +133,15 @@ additional source nodes (``HeadSource``, ``ControllersSource``, …) in
 For a live browser view of **all** human DeviceIO trackers at once (hands, head,
 controllers, and full body), see ``examples/deviceio_live_view/python/``.
 
+A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
+
+- ``record_full_body.cpp`` — records the ``full_body`` channel by passing a
+  ``core::McapRecordingConfig`` to ``DeviceIOSession::run()``. It uses the
+  same channel base name as ``FullBodySource``, so the resulting file replays
+  with ``replay_full_body.py``. ``python -m isaacteleop.rig rigs/full_body.yaml``
+  runs it together with the CloudXR runtime and the full-body printer (see
+  :ref:`rig-launcher`).
+
 Recording
 ^^^^^^^^^
 

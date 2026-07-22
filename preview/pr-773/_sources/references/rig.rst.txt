@@ -119,6 +119,10 @@ own:
      - name: se3 printer (requires headset)
        command: "install/examples/schemaio/se3_printer {collection_id}"
 
+``rigs/full_body.yaml`` shows the other supported shape — no ``producers``
+key, because its consumers read the tracking data directly from the runtime,
+so there is no ``collection_id`` to rendezvous on.
+
 Top-level keys:
 
 .. list-table::
@@ -163,10 +167,10 @@ errors — a typo fails loudly at load time instead of misbehaving in a pane.
 
 .. important::
 
-   Producers and consumers rendezvous on a shared ``collection_id``, and a
-   mismatch is **silent no-data** by design. Define it once under ``params``
-   and reference it as ``{collection_id}`` in every command — then one edit
-   in one place changes both sides together.
+   In a rig with both producers and consumers, the two sides rendezvous on a
+   shared ``collection_id``, and a mismatch is **silent no-data** by design.
+   Define it once under ``params`` and reference it as ``{collection_id}`` in
+   every command — then one edit in one place changes both sides together.
 
 .. warning::
 

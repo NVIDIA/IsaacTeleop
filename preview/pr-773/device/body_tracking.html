@@ -650,6 +650,13 @@ Joint data follows the <code class="docutils literal notranslate"><span class="p
 <p>The <code class="docutils literal notranslate"><span class="pre">all_joint_poses_tracked</span></code> quality flag indicates whether every joint was
 successfully tracked in the current frame. When it is false, consult individual
 joint <code class="docutils literal notranslate"><span class="pre">is_valid</span></code> flags to determine which joints have valid poses.</p>
+<p>For a minimal C++ reader see <code class="docutils literal notranslate"><span class="pre">examples/schemaio/full_body_printer.cpp</span></code>, which
+creates the tracker, queries the required OpenXR extensions, and prints the
+joint data each frame through <code class="docutils literal notranslate"><span class="pre">DeviceIOSession</span></code>. The Python equivalent is
+<code class="docutils literal notranslate"><span class="pre">examples/oxr/python/test_full_body_tracker.py</span></code>. Running
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">rigs/full_body.yaml</span></code> starts the CloudXR runtime,
+this printer, and the C++ MCAP recorder together in one tmux session (see
+<a class="reference internal" href="../references/rig.html#rig-launcher"><span class="std std-ref">Rig Launcher</span></a>).</p>
 </section>
 <section id="troubleshooting">
 <h3><a class="toc-backref" href="#id8" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h3>
@@ -662,6 +669,11 @@ default. Contact PICO about enterprise activation, then use the
 enterprise features (see above). Verify all PICO motion trackers are
 paired, powered on, and calibrated. Confirm the PICO browser is up to
 date.</p></li>
+<li><p><strong>The printer prints</strong> <code class="docutils literal notranslate"><span class="pre">[body</span> <span class="pre">tracking</span> <span class="pre">inactive]</span></code>. The headset is
+connected but body tracking is unavailable: check that the Motion Trackers
+are paired and calibrated and that the headset has enterprise body-tracking
+support. A printer that never reaches <code class="docutils literal notranslate"><span class="pre">[Step</span> <span class="pre">4]</span> <span class="pre">Reading</span> <span class="pre">samples...</span></code> is
+still waiting for the runtime / headset instead.</p></li>
 <li><p><strong>Some joints report</strong> <code class="docutils literal notranslate"><span class="pre">is_valid:</span> <span class="pre">false</span></code>. The PICO runtime may
 temporarily lose tracking for individual joints during fast movement or
 partial occlusion. These joints will recover automatically once tracking is
@@ -675,6 +687,14 @@ re-acquired.</p></li>
 same retargeting pipeline — no headset required during replay. See
 <a class="reference internal" href="../references/mcap_record_replay.html"><span class="doc">MCAP Recording &amp; Replay</span></a> for the recording / replay API and
 the <code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> example.</p>
+<p>Recording is also available directly from C++: pass a <code class="docutils literal notranslate"><span class="pre">McapRecordingConfig</span></code>
+to <code class="docutils literal notranslate"><span class="pre">DeviceIOSession::run()</span></code> with the tracker mapped to the <code class="docutils literal notranslate"><span class="pre">full_body</span></code>
+channel base name. <code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/cpp/record_full_body.cpp</span></code>
+demonstrates this — a file recorded there replays unchanged with
+<code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code>. The <code class="docutils literal notranslate"><span class="pre">rigs/full_body.yaml</span></code> rig includes a recorder
+pane running this example; each <kbd class="kbd docutils literal notranslate">Enter</kbd> rerun in that pane writes a fresh
+timestamped take into <code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/recordings/</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> looks by default.</p>
 <figure class="align-default" id="id1">
 <img alt="Full body skeleton replayed from an MCAP recording in viser" class="no-image-zoom" src="../_images/full-body-replay.gif" />
 <figcaption>
