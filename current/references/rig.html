@@ -530,6 +530,9 @@ own:</p>
 <span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;install/examples/schemaio/se3_printer</span><span class="nv"> </span><span class="s">{collection_id}&quot;</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">rigs/full_body.yaml</span></code> shows the other supported shape — no <code class="docutils literal notranslate"><span class="pre">producers</span></code>
+key, because its consumers read the tracking data directly from the runtime,
+so there is no <code class="docutils literal notranslate"><span class="pre">collection_id</span></code> to rendezvous on.</p>
 <p>Top-level keys:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
@@ -586,10 +589,10 @@ Unknown top-level keys, unknown entry keys, and unknown placeholders are hard
 errors — a typo fails loudly at load time instead of misbehaving in a pane.</p>
 <div class="admonition important">
 <p class="admonition-title">Important</p>
-<p>Producers and consumers rendezvous on a shared <code class="docutils literal notranslate"><span class="pre">collection_id</span></code>, and a
-mismatch is <strong>silent no-data</strong> by design. Define it once under <code class="docutils literal notranslate"><span class="pre">params</span></code>
-and reference it as <code class="docutils literal notranslate"><span class="pre">{collection_id}</span></code> in every command — then one edit
-in one place changes both sides together.</p>
+<p>In a rig with both producers and consumers, the two sides rendezvous on a
+shared <code class="docutils literal notranslate"><span class="pre">collection_id</span></code>, and a mismatch is <strong>silent no-data</strong> by design.
+Define it once under <code class="docutils literal notranslate"><span class="pre">params</span></code> and reference it as <code class="docutils literal notranslate"><span class="pre">{collection_id}</span></code> in
+every command — then one edit in one place changes both sides together.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
@@ -791,7 +794,7 @@ already pre-typed at the prompt.</p></td>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 21, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 22, 2026.
       <br/>
     
   </p>
