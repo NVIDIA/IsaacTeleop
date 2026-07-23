@@ -69,14 +69,21 @@ jobs:
 
             if [[ "$CURRENT_BRANCH" == "$DEFAULT_BRANCH" ]]; then
               # Direct push to the default branch: check only the commits
-              # that were just pushed (before..after).  Handle force-push
-              # (before SHA unreachable) by checking only the tip commit.
+              # that were just pushed (before..after).  Fail closed when the
+              # range is ambiguous — force-push or initial push — rather than
+              # silently checking only the tip commit.
               ZEROS="0000000000000000000000000000000000000000"
-              if [[ "$PUSH_BEFORE" != "$ZEROS" ]] && git cat-file -e "$PUSH_BEFORE" 2>/dev/null; then
-                BASE="$PUSH_BEFORE"
-              else
-                BASE="${HEAD}^"
+              if [[ "$PUSH_BEFORE" == "$ZEROS" ]]; then
+                echo "::error::Cannot determine commit range: initial or force-push to $DEFAULT_BRANCH with no resolvable base."
+                echo "  Open a pull request so commits are verified against a known base."
+                exit 1
               fi
+              if ! git cat-file -e "$PUSH_BEFORE" 2>/dev/null; then
+                echo "::error::Cannot determine commit range: PUSH_BEFORE ($PUSH_BEFORE) is not reachable (force-push?)."
+                echo "  Open a pull request so commits are verified against a known base."
+                exit 1
+              fi
+              BASE="$PUSH_BEFORE"
             else
               # Push to a feature/fix branch: check every commit that is on
               # this branch but not yet on the default branch.  This is the
@@ -107,9 +114,9 @@ jobs:
             #    email address in "Name <user@host.tld>" form.
             while IFS= read -r sob; do
               identity="${sob#*Signed-off-by:}"
-              identity="${identity#"${identity%%[! ]*}"}"  # ltrim
+              identity="${identity#"${identity%%[^[:space:]]*}"}"  # ltrim all whitespace
 
-              if ! echo "$identity" | grep -qP "^[^<@>]+<[^@\s]+@[^@\s]+\.[^@\s]+>"; then
+              if ! echo "$identity" | grep -qP "^\S[^<@>]*<[^@\s]+@[^@\s]+\.[^@\s]+>\s*$"; then
                 echo "::error::Commit $sha has a malformed Signed-off-by: '$sob'"
                 echo "  Expected:  Signed-off-by: Full Name <email@example.com>"
                 fail=1
