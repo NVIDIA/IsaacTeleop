@@ -153,6 +153,7 @@ class CloudXRLauncher:
         self._wss_stop_future: asyncio.Future | None = None
         self._wss_log_path: Path | None = None
         self._atexit_registered = False
+        self._stopping = False
         self._prev_signal_handlers: dict[int, object] = {}
 
         env_cfg = EnvConfig.from_args(
@@ -457,21 +458,30 @@ class CloudXRLauncher:
                 The process handle is retained so callers can retry or
                 inspect the still-running process.
         """
-        self._restore_signal_handlers()
-        self._stop_wss_proxy()
+        # Keep our SIGTERM/SIGINT handlers installed until teardown finishes so a
+        # second signal does not hit SIG_DFL mid-cleanup. Guard re-entry so a
+        # nested handler call (or atexit + signal) does not restart teardown.
+        if self._stopping:
+            return
+        self._stopping = True
+        try:
+            self._stop_wss_proxy()
 
-        if self._runtime_proc is not None:
-            try:
-                self._terminate_runtime()
-            except RuntimeError:
-                logger.warning(
-                    "Failed to cleanly terminate CloudXR runtime process (pid=%s); "
-                    "handle retained for later cleanup",
-                    self._runtime_proc.pid,
-                )
-                raise
-            self._runtime_proc = None
-            logger.info("CloudXR runtime process stopped")
+            if self._runtime_proc is not None:
+                try:
+                    self._terminate_runtime()
+                except RuntimeError:
+                    logger.warning(
+                        "Failed to cleanly terminate CloudXR runtime process "
+                        "(pid=%s); handle retained for later cleanup",
+                        self._runtime_proc.pid,
+                    )
+                    raise
+                self._runtime_proc = None
+                logger.info("CloudXR runtime process stopped")
+        finally:
+            self._restore_signal_handlers()
+            self._stopping = False
 
     def health_check(self) -> None:
         """Verify that the runtime process and WSS proxy are healthy.
