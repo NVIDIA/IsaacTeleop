@@ -1,10 +1,8 @@
 .. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-.. Keep this underline from matching the merge-conflict marker checked by pre-commit.
-
 Televiz
--------
+=======
 
 Televiz (``isaacteleop.viz``) is a lightweight compositor for Isaac Teleop. It composites camera and
 sensor feeds, plus 3D rendered content (gsplat, nvblox, neural reconstruction), into an XR headset, a

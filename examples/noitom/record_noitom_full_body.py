@@ -14,23 +14,13 @@ from pathlib import Path
 import numpy as np
 
 from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.deviceio import McapRecordingConfig
+from isaacteleop.deviceio import McapRecordingConfig, TrackerVendor
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
-    DeviceIOFullBodyPoseTracked,
-    IDeviceIOSource,
+    FullBodySource,
 )
-from isaacteleop.retargeting_engine.interface import (
-    OutputCombiner,
-    RetargeterIO,
-    RetargeterIOType,
-    TensorGroup,
-)
-from isaacteleop.retargeting_engine.interface.tensor_group_type import OptionalType
-from isaacteleop.retargeting_engine.tensor_types import (
-    FullBodyInput,
-    FullBodyInputIndex,
-)
+from isaacteleop.retargeting_engine.interface import OutputCombiner
+from isaacteleop.retargeting_engine.tensor_types import FullBodyInputIndex
 from isaacteleop.schema import BodyJoint
 from isaacteleop.teleop_session_manager import (
     PluginConfig,
@@ -46,77 +36,6 @@ PLUGIN_ROOT_ID = "noitom_mocap"
 NOITOM_VENDOR_ID = "body.noitom"
 
 
-class NoitomFullBodySource(IDeviceIOSource):
-    """Noitom-specific compatibility source for standard full-body MCAP output."""
-
-    FULL_BODY = "full_body"
-
-    def __init__(self, name: str, collection_id: str, max_flatbuffer_size: int) -> None:
-        import isaacteleop.deviceio as deviceio
-
-        self._body_tracker = deviceio.FullBodyTracker()
-        vendor = deviceio.TrackerVendor(
-            NOITOM_VENDOR_ID,
-            {
-                "collection_id": collection_id,
-                "max_flatbuffer_size": str(max_flatbuffer_size),
-            },
-        )
-        super().__init__(name, vendor=vendor)
-
-    def get_tracker(self):
-        return self._body_tracker
-
-    def poll_tracker(self, deviceio_session: object) -> RetargeterIO:
-        body_pose = self._body_tracker.get_body_pose(deviceio_session)
-        group = TensorGroup(self.input_spec()["deviceio_full_body"])
-        group[0] = body_pose
-        return {"deviceio_full_body": group}
-
-    def input_spec(self) -> RetargeterIOType:
-        return {"deviceio_full_body": DeviceIOFullBodyPoseTracked()}
-
-    def output_spec(self) -> RetargeterIOType:
-        return {self.FULL_BODY: OptionalType(FullBodyInput())}
-
-    def _compute_fn(
-        self,
-        inputs: RetargeterIO,
-        outputs: RetargeterIO,
-        context: object,
-    ) -> None:
-        tracked = inputs["deviceio_full_body"][0]
-        body_pose = tracked.data
-        if body_pose is None:
-            outputs[self.FULL_BODY].set_none()
-            return
-
-        positions = np.zeros((int(BodyJoint.NUM_JOINTS), 3), dtype=np.float32)
-        orientations = np.zeros((int(BodyJoint.NUM_JOINTS), 4), dtype=np.float32)
-        valid = np.zeros(int(BodyJoint.NUM_JOINTS), dtype=np.uint8)
-
-        if body_pose.joints is not None:
-            for index in range(int(BodyJoint.NUM_JOINTS)):
-                joint = body_pose.joints.joints(index)
-                positions[index] = [
-                    joint.pose.position.x,
-                    joint.pose.position.y,
-                    joint.pose.position.z,
-                ]
-                orientations[index] = [
-                    joint.pose.orientation.x,
-                    joint.pose.orientation.y,
-                    joint.pose.orientation.z,
-                    joint.pose.orientation.w,
-                ]
-                valid[index] = 1 if joint.is_valid else 0
-
-        group = outputs[self.FULL_BODY]
-        group[FullBodyInputIndex.JOINT_POSITIONS] = positions
-        group[FullBodyInputIndex.JOINT_ORIENTATIONS] = orientations
-        group[FullBodyInputIndex.JOINT_VALID] = valid
-
-
 def _plugin_search_paths() -> list[Path]:
     base = Path(__file__).resolve().parents[2]
     candidates = [
@@ -128,16 +47,21 @@ def _plugin_search_paths() -> list[Path]:
 
 def _build_pipeline(collection_id: str, max_flatbuffer_size: int) -> OutputCombiner:
     controllers = ControllersSource(name="controllers")
-    full_body = NoitomFullBodySource(
+    full_body = FullBodySource(
         name="full_body",
-        collection_id=collection_id,
-        max_flatbuffer_size=max_flatbuffer_size,
+        vendor=TrackerVendor(
+            NOITOM_VENDOR_ID,
+            {
+                "collection_id": collection_id,
+                "max_flatbuffer_size": str(max_flatbuffer_size),
+            },
+        ),
     )
     return OutputCombiner(
         {
             "controller_left": controllers.output(ControllersSource.LEFT),
             "controller_right": controllers.output(ControllersSource.RIGHT),
-            "full_body": full_body.output(NoitomFullBodySource.FULL_BODY),
+            "full_body": full_body.output(FullBodySource.FULL_BODY),
         }
     )
 
