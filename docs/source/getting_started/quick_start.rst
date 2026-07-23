@@ -142,6 +142,12 @@ To inspect the resolved settings after startup:
      - File-based logging (disable to print to console)
      - ``true``, ``false``
 
+On Jetson Orin the launcher selects the experimental CloudXR runtime and
+main-thread join automatically. You normally do not need to set
+``ISAAC_TELEOP_CLOUDXR_EXP`` or ``ISAAC_TELEOP_CLOUDXR_JOIN_MAIN``; those are
+overrides for debugging or forcing the stable path. See
+:doc:`/references/cloudxr`.
+
 .. _whitelist-firewall-ports:
 
 4. Whitelist ports for Firewall

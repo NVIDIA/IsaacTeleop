@@ -142,12 +142,31 @@ one:
   environment variables.
 - ``--cloudxr-install-dir <PATH>`` — CloudXR install directory
   (default: ``~/.cloudxr``).
-- ``ISAAC_TELEOP_CLOUDXR_EXP=1`` — use the experimental CloudXR runtime
-  (``isaacteleop.cloudxr_exp``). That package is for Jetson Orin support (for
-  example :doc:`/getting_started/televiz`) until the default runtime covers those
-  platforms. On Tegra T234 it is selected automatically; if the package is
-  missing the launcher fails. Set ``ISAAC_TELEOP_CLOUDXR_EXP=0`` to force the
-  stable runtime.
+
+On Jetson Orin the launcher already selects the experimental runtime package
+and main-thread join. The following are Isaac Teleop launcher overrides only
+(not CloudXR native settings). Export them in the process environment, or add
+them to ``--cloudxr-env-config`` if you need them:
+
+.. list-table:: Launcher overrides
+   :header-rows: 1
+   :widths: 30 20 50
+
+   * - Variable
+     - Default
+     - Description
+   * - ``ISAAC_TELEOP_CLOUDXR_EXP``
+     - unset (auto on Orin)
+     - Select the experimental package (``isaacteleop.cloudxr_exp``).
+       ``ISAAC_TELEOP_CLOUDXR_EXP=0`` forces the stable runtime on Orin;
+       ``ISAAC_TELEOP_CLOUDXR_EXP=1`` forces the experimental package elsewhere
+       (launcher fails if it is missing).
+   * - ``ISAAC_TELEOP_CLOUDXR_JOIN_MAIN``
+     - unset (auto on Orin)
+     - Join the CloudXR service on the main thread (avoids a
+       ``Couldn't create autoTSSkey mapping`` abort on some platforms).
+       ``ISAAC_TELEOP_CLOUDXR_JOIN_MAIN=0`` forces worker-thread join on Orin;
+       ``ISAAC_TELEOP_CLOUDXR_JOIN_MAIN=1`` forces main-thread join elsewhere.
 
 To inspect the active settings after startup:
 
