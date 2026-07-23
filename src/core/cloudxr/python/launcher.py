@@ -154,7 +154,8 @@ class CloudXRLauncher:
         self._wss_log_path: Path | None = None
         self._atexit_registered = False
         self._stopping = False
-        self._prev_signal_handlers: dict[int, object] = {}
+        # sig -> (previous handler, launcher-installed wrapper)
+        self._prev_signal_handlers: dict[int, tuple[object, object]] = {}
 
         env_cfg = EnvConfig.from_args(
             self._install_dir,
@@ -458,9 +459,7 @@ class CloudXRLauncher:
                 The process handle is retained so callers can retry or
                 inspect the still-running process.
         """
-        # Keep our SIGTERM/SIGINT handlers installed until teardown finishes so a
-        # second signal does not hit SIG_DFL mid-cleanup. Guard re-entry so a
-        # nested handler call (or atexit + signal) does not restart teardown.
+        # Restore handlers only after teardown; _stopping blocks re-entrant stop().
         if self._stopping:
             return
         self._stopping = True
@@ -545,19 +544,28 @@ class CloudXRLauncher:
         for sig in (signal.SIGTERM, signal.SIGINT):
             try:
                 prev = signal.getsignal(sig)
-                signal.signal(sig, _make_handler(prev))
+                handler = _make_handler(prev)
+                signal.signal(sig, handler)
             except (ValueError, OSError):
                 continue
-            self._prev_signal_handlers[sig] = prev
+            self._prev_signal_handlers[sig] = (prev, handler)
 
     def _restore_signal_handlers(self) -> None:
-        """Restore signal handlers saved by :meth:`_install_signal_handlers`."""
-        while self._prev_signal_handlers:
-            sig, prev = self._prev_signal_handlers.popitem()
+        """Restore handlers from :meth:`_install_signal_handlers` if still ours.
+
+        Skip overwrite when a host replaced the wrapper. Keep the entry if
+        restore fails (e.g. non-main thread) for a later attempt.
+        """
+        for sig in list(self._prev_signal_handlers):
+            prev, ours = self._prev_signal_handlers[sig]
             try:
+                if signal.getsignal(sig) is not ours:
+                    del self._prev_signal_handlers[sig]
+                    continue
                 signal.signal(sig, prev)
             except (ValueError, OSError):
-                pass
+                continue
+            del self._prev_signal_handlers[sig]
 
     @staticmethod
     def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:
