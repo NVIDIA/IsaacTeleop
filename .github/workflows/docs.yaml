@@ -168,6 +168,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       # Allowlist no → public only. Allowlist yes + NGC_API_KEY → private only.
       - name: Build CloudXR web client
