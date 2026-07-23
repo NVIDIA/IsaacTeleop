@@ -133,7 +133,7 @@ uses the running runtime instead of starting another one:
 Configuration
 -------------
 
-The standalone launcher accepts the same configuration flags as the embedded
+The standalone launcher accepts the same configuration options as the embedded
 one:
 
 - ``--cloudxr-env-config <PATH>`` — a ``KEY=value`` env file of CloudXR
@@ -142,6 +142,12 @@ one:
   environment variables.
 - ``--cloudxr-install-dir <PATH>`` — CloudXR install directory
   (default: ``~/.cloudxr``).
+- ``ISAAC_TELEOP_CLOUDXR_EXP=1`` — use the experimental CloudXR runtime
+  (``isaacteleop.cloudxr_exp``). That package is for Jetson Orin support (for
+  example :doc:`/getting_started/televiz`) until the default runtime covers those
+  platforms. On Tegra T234 it is selected automatically; if the package is
+  missing the launcher fails. Set ``ISAAC_TELEOP_CLOUDXR_EXP=0`` to force the
+  stable runtime.
 
 To inspect the active settings after startup:
 

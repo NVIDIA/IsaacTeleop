@@ -549,7 +549,7 @@ python<span class="w"> </span>examples/teleop/python/gripper_retargeting_example
 </section>
 <section id="configuration">
 <h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading">#</a></h2>
-<p>The standalone launcher accepts the same configuration flags as the embedded
+<p>The standalone launcher accepts the same configuration options as the embedded
 one:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span> <span class="pre">&lt;PATH&gt;</span></code> — a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> env file of CloudXR
@@ -558,6 +558,12 @@ runtime overrides, e.g. <code class="docutils literal notranslate"><span class="
 environment variables.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span> <span class="pre">&lt;PATH&gt;</span></code> — CloudXR install directory
 (default: <code class="docutils literal notranslate"><span class="pre">~/.cloudxr</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_CLOUDXR_EXP=1</span></code> — use the experimental CloudXR runtime
+(<code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr_exp</span></code>). That package is for Jetson Orin support (for
+example <a class="reference internal" href="../getting_started/televiz.html"><span class="doc">Televiz</span></a>) until the default runtime covers those
+platforms. On Tegra T234 it is selected automatically; if the package is
+missing the launcher fails. Set <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_CLOUDXR_EXP=0</span></code> to force the
+stable runtime.</p></li>
 </ul>
 <p>To inspect the active settings after startup:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.cloudxr/run/cloudxr.env
@@ -702,7 +708,7 @@ environment variables.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 22, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 23, 2026.
       <br/>
     
   </p>

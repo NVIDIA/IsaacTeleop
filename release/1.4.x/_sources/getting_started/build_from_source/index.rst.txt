@@ -82,10 +82,13 @@ Pre-download CloudXR SDK (Optional)
    :code-file:`download_cloudxr_runtime_sdk.sh <scripts/download_cloudxr_runtime_sdk.sh>`
    script.
 
-Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get one of
-the two tarballs:
+Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get
+tarballs such as:
 
 - ``CloudXR-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (CloudXR Runtime SDK)
+- ``CloudXR-exp-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (optional experimental
+  runtime). Needed for Jetson Orin support (for example :doc:`/getting_started/televiz`)
+  until the default runtime covers those platforms.
 - ``nvidia-cloudxr-<version-for-web-sdk>.tgz`` (CloudXR Web SDK)
 
 You can place them in the :code-file:`deps/cloudxr/` directory and update the ``deps/cloudxr/.env``
@@ -96,6 +99,10 @@ like this:
 
    CXR_RUNTIME_SDK_VERSION=<version-for-runtime-sdk>
    CXR_WEB_SDK_VERSION=<version-for-web-sdk>
+
+To package the experimental runtime into the wheel as ``isaacteleop.cloudxr_exp``, configure with
+``-DENABLE_CLOUDXR_EXP_BUNDLE=ON``. Select it at runtime with ``ISAAC_TELEOP_CLOUDXR_EXP``.
+See :ref:`dedicated-cloudxr-runtime`.
 
 2. CMake: Configure and build
 -----------------------------

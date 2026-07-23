@@ -503,10 +503,13 @@ will automatically download the CloudXR SDK by calling the
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/scripts/download_cloudxr_runtime_sdk.sh" rel="noopener noreferrer" target="_blank">download_cloudxr_runtime_sdk.sh</a>
 script.</p>
 </div>
-<p>Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get one of
-the two tarballs:</p>
+<p>Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get
+tarballs such as:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">CloudXR-&lt;version-for-runtime-sdk&gt;-Linux-&lt;arch&gt;-sdk.tar.gz</span></code> (CloudXR Runtime SDK)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CloudXR-exp-&lt;version-for-runtime-sdk&gt;-Linux-&lt;arch&gt;-sdk.tar.gz</span></code> (optional experimental
+runtime). Needed for Jetson Orin support (for example <a class="reference internal" href="../televiz.html"><span class="doc">Televiz</span></a>)
+until the default runtime covers those platforms.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">nvidia-cloudxr-&lt;version-for-web-sdk&gt;.tgz</span></code> (CloudXR Web SDK)</p></li>
 </ul>
 <p>You can place them in the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/deps/cloudxr/" rel="noopener noreferrer" target="_blank">deps/cloudxr/</a> directory and update the <code class="docutils literal notranslate"><span class="pre">deps/cloudxr/.env</span></code>
@@ -516,6 +519,9 @@ like this:</p>
 <span class="nv">CXR_WEB_SDK_VERSION</span><span class="o">=</span>&lt;version-for-web-sdk&gt;
 </pre></div>
 </div>
+<p>To package the experimental runtime into the wheel as <code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr_exp</span></code>, configure with
+<code class="docutils literal notranslate"><span class="pre">-DENABLE_CLOUDXR_EXP_BUNDLE=ON</span></code>. Select it at runtime with <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_CLOUDXR_EXP</span></code>.
+See <a class="reference internal" href="../../references/cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">Dedicated CloudXR Runtime</span></a>.</p>
 </section>
 </section>
 <section id="cmake-configure-and-build">
@@ -866,7 +872,7 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 22, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on July 23, 2026.
       <br/>
     
   </p>
