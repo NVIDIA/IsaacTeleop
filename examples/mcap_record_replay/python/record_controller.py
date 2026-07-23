@@ -23,12 +23,15 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.retargeting_engine.tensor_types.indices import ControllerInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import build_controller_pipeline
+from common import (
+    add_cloudxr_arguments,
+    build_controller_pipeline,
+    cloudxr_launch_context,
+)
 
 
 def main(argv: list[str]) -> int:
@@ -37,7 +40,7 @@ def main(argv: list[str]) -> int:
         "duration", nargs="?", type=float, default=5.0, help="Recording duration (s)"
     )
     parser.add_argument("output", nargs="?", help="Output .mcap path")
-    CloudXRLauncher.add_launcher_arguments(parser)
+    add_cloudxr_arguments(parser)
     args = parser.parse_args(argv[1:])
 
     duration_s: float = args.duration
@@ -58,7 +61,7 @@ def main(argv: list[str]) -> int:
         mcap_config=McapRecordingConfig(str(mcap_path)),
     )
 
-    with CloudXRLauncher.launch_context(args) as launcher:
+    with cloudxr_launch_context(args) as launcher:
         if launcher is not None:
             print(
                 f"[record] CloudXR runtime started (WSS log: {launcher.wss_log_path})"
