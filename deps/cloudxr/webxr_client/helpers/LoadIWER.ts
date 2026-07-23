@@ -23,19 +23,134 @@ declare global {
   }
 }
 
-const IWER_version = '2.2.1';
-const IWER_DEVUI_version = '2.2.0';
-
 export interface IWERLoadResult {
   supportsImmersive: boolean;
   iwerLoaded: boolean;
 }
 
-export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
+async function installBundledIWER(): Promise<boolean> {
+  try {
+    const IWERModule = await import('iwer');
+    const IWERGlobal = (IWERModule as any).default ?? IWERModule;
+    if (window.xrDevice) {
+      ensureRuntimeInstalled(window.xrDevice, IWERGlobal);
+      installNavigatorXRShim(window.xrDevice, IWERGlobal);
+      installMakeXRCompatibleShim();
+      return true;
+    }
+
+    const XRDeviceCtor = IWERGlobal.XRDevice;
+    const deviceProfile = IWERGlobal.metaQuest3;
+    if (!XRDeviceCtor || !deviceProfile) {
+      console.warn('Bundled IWER module is missing XRDevice or metaQuest3.');
+      return false;
+    }
+
+    const device: XRDevice = new XRDeviceCtor(deviceProfile);
+    ensureRuntimeInstalled(device, IWERGlobal);
+    installNavigatorXRShim(device, IWERGlobal);
+    installMakeXRCompatibleShim();
+    window.xrDevice = device;
+    const supportsVr = await (navigator.xr as XRSystem | undefined)
+      ?.isSessionSupported?.('immersive-vr')
+      .catch(() => false);
+    console.info('Bundled IWER runtime installed.', {
+      navigatorXR: navigator.xr?.constructor?.name ?? '',
+      requestSession: String((navigator.xr as XRSystem | undefined)?.requestSession).slice(
+        0,
+        80
+      ),
+      supportsImmersiveVr: Boolean(supportsVr),
+      supportedSessionModes: readSupportedSessionModes(device, IWERGlobal),
+    });
+    return true;
+  } catch (e) {
+    console.warn('IWER runtime install failed:', e);
+    return false;
+  }
+}
+
+function ensureRuntimeInstalled(device: XRDevice, IWERGlobal: any): void {
+  const privateDevice = readPrivateDevice(device, IWERGlobal);
+  if (privateDevice?.xrSystem && navigator.xr === privateDevice.xrSystem) {
+    return;
+  }
+
+  (device as any).installRuntime?.({ forceInstall: true });
+}
+
+function readPrivateDevice(device: XRDevice, IWERGlobal: any): any {
+  try {
+    return IWERGlobal.P_DEVICE ? (device as any)[IWERGlobal.P_DEVICE] : undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
+function readSupportedSessionModes(device: XRDevice, IWERGlobal: any): string[] {
+  try {
+    const privateDevice = readPrivateDevice(device, IWERGlobal);
+    const modes = (device as any).supportedSessionModes ?? privateDevice?.supportedSessionModes;
+    return Array.isArray(modes) ? modes : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function installNavigatorXRShim(device: XRDevice, IWERGlobal: any): void {
+  const xrSystem = (() => {
+    try {
+      const privateDevice = readPrivateDevice(device, IWERGlobal);
+      return privateDevice?.xrSystem ?? (navigator.xr as XRSystem | undefined);
+    } catch (_) {
+      return navigator.xr as XRSystem | undefined;
+    }
+  })();
+  if (!xrSystem) {
+    return;
+  }
+
+  const defineXR = (target: object | undefined) => {
+    if (!target) {
+      return;
+    }
+    try {
+      Object.defineProperty(target, 'xr', {
+        value: xrSystem,
+        configurable: true,
+      });
+    } catch (_) {}
+  };
+
+  defineXR(window.navigator);
+  defineXR(Object.getPrototypeOf(window.navigator));
+}
+
+function installMakeXRCompatibleShim(): void {
+  const install = (ctor: unknown) => {
+    const prototype = (ctor as { prototype?: Record<string, unknown> } | undefined)?.prototype;
+    if (!prototype) {
+      return;
+    }
+    Object.defineProperty(prototype, 'makeXRCompatible', {
+      value: () => Promise.resolve(),
+      configurable: true,
+    });
+  };
+
+  install((window as any).WebGLRenderingContext);
+  install((window as any).WebGL2RenderingContext);
+}
+
+export async function loadIWERIfNeeded(forceIWER = false): Promise<IWERLoadResult> {
+  if (forceIWER && window.xrDevice) {
+    return { supportsImmersive: true, iwerLoaded: true };
+  }
+
   let supportsImmersive = false;
   let iwerLoaded = false;
 
-  if ('xr' in navigator) {
+  if (!forceIWER && 'xr' in navigator) {
     try {
       const vr = await (navigator.xr as XRSystem).isSessionSupported?.('immersive-vr');
       const ar = await (navigator.xr as XRSystem).isSessionSupported?.('immersive-ar');
@@ -43,75 +158,14 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
     } catch (_) {}
   }
 
-  if (!supportsImmersive) {
-    console.info('Immersive mode not supported, loading IWER as fallback.');
-
-    // Load IWER first
-    const script = document.createElement('script');
-    script.src = `https://unpkg.com/iwer@${IWER_version}/build/iwer.min.js`;
-    script.async = true;
-    script.integrity = 'sha384-3G2UIBh0RX9Imd3PFwcHyXbqRYAeQo9FDMgQTOLcflo9H6LDHaxADB24vKC3b+OY';
-    script.crossOrigin = 'anonymous';
-
-    await new Promise<void>(resolve => {
-      script.onload = async () => {
-        console.info('IWER loaded as fallback.');
-        const IWERGlobal = (window as any).IWER || (globalThis as any).IWER;
-        if (!IWERGlobal) {
-          console.warn('IWER global not found after script load.');
-          supportsImmersive = false;
-          resolve();
-          return;
-        }
-
-        // Load iwer-devui after IWER
-        const devUIScript = document.createElement('script');
-        devUIScript.src = `https://unpkg.com/@iwer/devui@${IWER_DEVUI_version}/build/iwer-devui.min.js`;
-        devUIScript.async = true;
-        devUIScript.integrity =
-          'sha384-gPhqycVT+bNyiNIH8kMEWFjaysw6xH9NGYwuduRzK71Ro0Tp3hXByxqAI9sWrc9T';
-        devUIScript.crossOrigin = 'anonymous';
-
-        await new Promise<void>(devUIResolve => {
-          devUIScript.onload = () => {
-            console.info('IWER DevUI loaded.');
-            devUIResolve();
-          };
-          devUIScript.onerror = error => {
-            console.warn('Failed to load IWER DevUI:', error);
-            devUIResolve();
-          };
-          document.head.appendChild(devUIScript);
-        });
-
-        try {
-          const device: XRDevice = new IWERGlobal.XRDevice(IWERGlobal.metaQuest3);
-
-          const IWER_DevUI = (window as any).IWER_DevUI || (globalThis as any).IWER_DevUI;
-          if (IWER_DevUI?.DevUI) {
-            device.installDevUI(IWER_DevUI.DevUI);
-            console.info('IWER DevUI initialized with XR device.');
-          } else {
-            console.warn('IWER DevUI not found after script load, continuing without DevUI.');
-          }
-
-          await device.installRuntime();
-          window.xrDevice = device;
-          supportsImmersive = true;
-          iwerLoaded = true;
-        } catch (e) {
-          console.warn('IWER runtime install failed:', e);
-          supportsImmersive = false;
-        }
-        resolve();
-      };
-      script.onerror = () => {
-        console.warn('Failed to load IWER.');
-        supportsImmersive = false;
-        resolve();
-      };
-      document.head.appendChild(script);
-    });
+  if (forceIWER || !supportsImmersive) {
+    console.info(
+      forceIWER
+        ? 'Installing bundled IWER for automated headless validation.'
+        : 'Immersive mode not supported, installing bundled IWER fallback.'
+    );
+    iwerLoaded = await installBundledIWER();
+    supportsImmersive = iwerLoaded;
   }
 
   return { supportsImmersive, iwerLoaded };

@@ -18,14 +18,45 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import App from './App';
+import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 import { mountBuildInfoOverlayIfRequested } from './BuildInfoOverlay';
+import { readUrlParam } from './config/resolve';
+
+function isEnabled(value: string | null): boolean {
+  return value === '1' || value?.toLowerCase() === 'true';
+}
+
+function shouldPreloadIWERForHeadlessOob(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return (
+    isEnabled(readUrlParam(params, 'oobEnable')) &&
+    isEnabled(readUrlParam(params, 'autoConnect')) &&
+    isEnabled(readUrlParam(params, 'headless'))
+  );
+}
+
+async function preloadIWERForHeadlessOob() {
+  if (!shouldPreloadIWERForHeadlessOob()) {
+    return;
+  }
+
+  const { supportsImmersive, iwerLoaded } = await loadIWERIfNeeded(true);
+  if (supportsImmersive && iwerLoaded) {
+    sessionStorage.setItem('iwerWasLoaded', 'true');
+    sessionStorage.setItem('iwerPreloaded', 'true');
+    return;
+  }
+
+  sessionStorage.removeItem('iwerPreloaded');
+}
 
 // Start the React app immediately in the 3d-ui container
-function startApp() {
+async function startApp() {
   const reactContainer = document.getElementById('3d-ui');
 
   if (reactContainer) {
+    await preloadIWERForHeadlessOob();
+    const { default: App } = await import('./App');
     const root = ReactDOM.createRoot(reactContainer);
     root.render(
       <React.StrictMode>
@@ -43,5 +74,5 @@ function startApp() {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', startApp);
 } else {
-  startApp();
+  void startApp();
 }

@@ -97,5 +97,6 @@ export const URL_PARAMS: UrlParam[] = [
   { key: 'turnCredential' },
   { key: 'iceRelayOnly' },
   { key: 'oobEnable' },
+  { key: 'autoConnect' },
   { key: 'controlToken' },
 ];

@@ -17,6 +17,7 @@ import contextlib
 import logging
 import os
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -80,6 +81,7 @@ class CloudXRLauncher:
         env_config: str | Path | None = None,
         device_profile: str = DEFAULT_DEVICE_PROFILE,
         accept_eula: bool = False,
+        enable_oob_hub: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
@@ -102,6 +104,9 @@ class CloudXRLauncher:
             accept_eula: Accept the NVIDIA CloudXR EULA
                 non-interactively.  When ``False`` and the EULA marker
                 does not exist, the user is prompted on stdin.
+            enable_oob_hub: Enable the OOB teleop control hub without
+                USB adb automation. Useful for desktop-browser validation
+                that reads hub state via the WSS proxy.
             setup_oob: Enable the OOB teleop control hub and USB
                 adb automation in the WSS proxy.
             usb_local: Route teleop traffic over USB headset loopback via
@@ -123,23 +128,29 @@ class CloudXRLauncher:
             RuntimeError: If the EULA is not accepted or the runtime
                 fails to start within the timeout.
             ValueError: If *start_wss_proxy* is ``False`` while any WSS-only
-                option (*setup_oob*, *usb_local*, or *host_client*) is set.
+                option (*enable_oob_hub*, *setup_oob*, *usb_local*, or
+                *host_client*) is set.
         """
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
         self._device_profile = device_profile
         self._accept_eula = accept_eula
+        self._enable_oob_hub = enable_oob_hub
         self._setup_oob = setup_oob
         self._usb_local = usb_local
         self._host_client = host_client
         self._start_wss_proxy = start_wss_proxy
 
         if not self._start_wss_proxy and (
-            self._setup_oob or self._usb_local or self._host_client
+            self._enable_oob_hub
+            or self._setup_oob
+            or self._usb_local
+            or self._host_client
         ):
             raise ValueError(
-                "start_wss_proxy=False is incompatible with setup_oob, "
-                "usb_local, and host_client (those features require the WSS proxy)"
+                "start_wss_proxy=False is incompatible with enable_oob_hub, "
+                "setup_oob, usb_local, and host_client "
+                "(each requires the WSS proxy)"
             )
 
         if self._usb_local or self._host_client:
@@ -169,12 +180,8 @@ class CloudXRLauncher:
 
         self._cleanup_stale_runtime(env_cfg)
 
-        # The worker imports asyncio (via isaacteleop.cloudxr.runtime), which imports
-        # Python's ssl and loads the SYSTEM OpenSSL before the native stack dlopens the
-        # bundled one. Two OpenSSL builds in one process crash (SIGSEGV) inside
-        # SSL_CTX_use_certificate when the DTLS transport comes up on client connect.
-        # LD_PRELOAD the bundled libraries so every OpenSSL symbol in the worker
-        # resolves to the version libNvStreamServer.so was built against.
+        # Keep the runtime worker on the bundled OpenSSL libraries that the
+        # native CloudXR stack was built against.
         worker_env = os.environ.copy()
         runtime_mod = resolve_cloudxr_runtime_module()
         sdk_dir = get_sdk_path()
@@ -248,11 +255,11 @@ class CloudXRLauncher:
         parser.add_argument(
             "--launch-cloudxr-runtime",
             action=argparse.BooleanOptionalAction,
-            default=True,
+            default=None,
             help=(
                 "Launch the CloudXR runtime and WSS proxy in-process before running "
-                "(default: true). Pass --no-launch-cloudxr-runtime when the runtime is "
-                "already running (e.g. after sourcing ~/.cloudxr/run/cloudxr.env)."
+                "By default, reuse a sourced CloudXR runtime environment when present "
+                "and launch otherwise."
             ),
         )
 
@@ -391,6 +398,42 @@ class CloudXRLauncher:
         return bool(getattr(args, "launch_wss_proxy", True))
 
     @staticmethod
+    def _is_local_tcp_port_open(port: int) -> bool:
+        """Return true when a local TCP listener accepts connections on *port*."""
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.25):
+                return True
+        except OSError:
+            return False
+
+    @staticmethod
+    def _has_sourced_cloudxr_runtime_env() -> bool:
+        """Return true when sourced runtime markers point to live local services."""
+        if not (
+            os.environ.get("XR_RUNTIME_JSON") and os.environ.get("NV_CXR_RUNTIME_DIR")
+        ):
+            return False
+
+        from .oob_teleop_env import (  # noqa: PLC0415
+            cloudxr_server_port,
+            wss_proxy_port,
+        )
+
+        try:
+            ports = (cloudxr_server_port(), wss_proxy_port())
+        except ValueError:
+            return False
+        return all(CloudXRLauncher._is_local_tcp_port_open(port) for port in ports)
+
+    @staticmethod
+    def _resolve_launch_cloudxr_runtime(args: argparse.Namespace) -> bool:
+        """Resolve auto-launch behavior for documented two-terminal workflows."""
+        launch_cloudxr_runtime = getattr(args, "launch_cloudxr_runtime", None)
+        if launch_cloudxr_runtime is not None:
+            return bool(launch_cloudxr_runtime)
+        return not CloudXRLauncher._has_sourced_cloudxr_runtime_env()
+
+    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -398,15 +441,16 @@ class CloudXRLauncher:
         env_config: str | Path | None = None,
         device_profile: str | None = None,
         accept_eula: bool | None = None,
+        enable_oob_hub: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
-        """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
+        """Start :class:`CloudXRLauncher` when runtime launch resolves true.
 
         Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
-        false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
+        false or when a sourced runtime should be reused.
 
         ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``, and
         ``start_wss_proxy`` default to the values registered by
@@ -415,7 +459,7 @@ class CloudXRLauncher:
         ``accept_eula``, pass ``False`` to force-disable even when the CLI flag
         is set.
         """
-        if not args.launch_cloudxr_runtime:
+        if not CloudXRLauncher._resolve_launch_cloudxr_runtime(args):
             return contextlib.nullcontext(None)
         return CloudXRLauncher(
             install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
@@ -424,6 +468,7 @@ class CloudXRLauncher:
                 args, device_profile
             ),
             accept_eula=CloudXRLauncher._resolve_accept_eula(args, accept_eula),
+            enable_oob_hub=enable_oob_hub,
             setup_oob=setup_oob,
             usb_local=usb_local,
             host_client=host_client,
@@ -470,7 +515,7 @@ class CloudXRLauncher:
             logger.info("CloudXR runtime process stopped")
 
     def health_check(self) -> None:
-        """Verify that the runtime process and WSS proxy are healthy.
+        """Verify that the runtime process and optional WSS proxy are healthy.
 
         Returns immediately when the runtime is running and, when the WSS
         proxy was started, its background thread is alive.  Raises
@@ -671,6 +716,7 @@ class CloudXRLauncher:
         self._wss_stop_future = stop_future
 
         setup_oob = self._setup_oob
+        enable_oob_hub = self._enable_oob_hub
         usb_local = self._usb_local
         host_client = self._host_client
 
@@ -681,6 +727,7 @@ class CloudXRLauncher:
                     wss_run(
                         log_file_path=log_path,
                         stop_future=stop_future,
+                        enable_oob_hub=enable_oob_hub,
                         setup_oob=setup_oob,
                         usb_local=usb_local,
                         host_client=host_client,

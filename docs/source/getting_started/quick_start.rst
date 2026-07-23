@@ -121,6 +121,42 @@ To inspect the resolved settings after startup:
    like ``--host-client`` and ``--setup-oob`` — see
    :doc:`/references/cloudxr`.
 
+.. dropdown:: Optional CloudXR launch modes
+
+   The launcher supports optional flags that can be combined to control how a
+   browser client connects and how the web client is delivered.
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 45 55
+
+      * - Command
+        - What it does
+      * - ``python -m isaacteleop.cloudxr``
+        - Plain: headset navigates to GitHub Pages URL over WiFi.
+      * - ``python -m isaacteleop.cloudxr --host-client``
+        - Serves the web client at ``https://<ip>:48322/client/`` via the WSS
+          proxy. No separate port, no USB or TURN relay required. Useful when
+          GitHub Pages is unreachable.
+      * - ``python -m isaacteleop.cloudxr --host-client --enable-oob-hub``
+        - Headset-free validation mode: serves the desktop/IWER browser client
+          locally and exposes OOB state at
+          ``https://<ip>:48322/api/oob/v1/state``. Automated validation pairs
+          this with a desktop Chromium probe on the remote runner, so no
+          headset, ``adb``, or human click is required.
+      * - ``python -m isaacteleop.cloudxr --setup-oob``
+        - OOB hub + CDP automation: opens the browser on the headset and
+          auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.
+      * - ``python -m isaacteleop.cloudxr --setup-oob --host-client``
+        - OOB hub + CDP with client at ``/client/`` on the WSS proxy
+          (air-gapped / proxy use).
+      * - ``python -m isaacteleop.cloudxr --setup-oob --usb-local``
+        - All traffic over USB: adb-reverse + coturn TURN relay + loopback
+          HTTPS. Requires ``coturn`` and a WiFi-associated headset.
+
+   ``--usb-local`` requires ``--setup-oob``. See
+   :doc:`/references/oob_teleop_control` for full OOB documentation.
+
 .. list-table:: Environment variables
    :header-rows: 1
    :widths: 25 15 35 25
