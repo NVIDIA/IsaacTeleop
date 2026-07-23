@@ -672,6 +672,34 @@ limitations under the License.
             font-weight: bold;
         }
 
+        /* Load Recording status feedback */
+        .load-recording-status {
+            display: none;
+            margin-top: 8px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+            font-size: 0.85rem;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        .load-recording-status.show {
+            display: block;
+        }
+
+        .load-recording-status.success {
+            background: #e8f5e9;
+            border-color: var(--primary-green);
+            color: #2e7d32;
+        }
+
+        .load-recording-status.error {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+
         /* Certificate Acceptance Link */
         .cert-acceptance-link {
             background: #e3f2fd;
@@ -1090,6 +1118,7 @@ limitations under the License.
                             </select>
                             <div class="config-text">Show Record / Replay / Save controls in XR.</div>
                             <button id="loadRecordingBtn" class="reset-button">Load Recording…</button>
+                            <div id="loadRecordingStatus" class="load-recording-status" role="status" aria-live="polite"></div>
                         </div>
                         <div class="config-section">
                             <label for="replayPacing" class="input-label">Replay Pacing</label>

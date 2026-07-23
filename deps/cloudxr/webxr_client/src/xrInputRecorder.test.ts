@@ -410,13 +410,38 @@ describe("serialization", () => {
     expect(recorder.getRecording().frames.map((frame) => frame.timeMs)).toEqual([0, 16.5]);
   });
 
+  test("records finite monotonic timeMs when predictedDisplayTime is missing", () => {
+    // PICO leaves predictedDisplayTime undefined; without a fallback timeMs was
+    // NaN -> serialized to null -> rejected on import.
+    const noTime = undefined as unknown as number;
+    const recorder = new XRInputRecorder();
+    recorder.startRecording();
+    recorder.beginFrame(makeFrame([], undefined, undefined, noTime), sceneSpace);
+    recorder.beginFrame(makeFrame([], undefined, undefined, noTime), sceneSpace);
+    recorder.stopRecording();
+
+    const times = recorder.getRecording().frames.map((frame) => frame.timeMs);
+    expect(times.every((t) => Number.isFinite(t) && t >= 0)).toBe(true);
+    expect(times[1]).toBeGreaterThanOrEqual(times[0]);
+    expect(() => XRInputRecorder.importJSON(recorder.exportJSON())).not.toThrow();
+  });
+
   test.each([
     { version: 2, frames: [] },
     { version: 1, frames: null },
     { version: 1, frames: [{ ...frameData(), timeMs: undefined }] },
     { version: 1, frames: [frameData(2), frameData(1)] },
+    null,
+    42,
+    [],
   ])("rejects incompatible or malformed recordings", (value) => {
     expect(() => XRInputRecorder.importJSON(JSON.stringify(value))).toThrow();
+  });
+
+  test("rejects non-JSON input with a clear message", () => {
+    expect(() => XRInputRecorder.importJSON("not json {")).toThrow(
+      "File is not valid JSON",
+    );
   });
 
   test("returns a recording snapshot", () => {

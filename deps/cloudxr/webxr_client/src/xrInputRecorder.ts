@@ -376,6 +376,18 @@ function transformFromScene<T extends PoseData>(
   };
 }
 
+/**
+ * Monotonic frame clock in ms. Some runtimes (e.g. PICO) leave
+ * XRFrame.predictedDisplayTime undefined; without a fallback that yields NaN,
+ * which serializes to null and makes recordings fail import validation, and
+ * breaks time-paced replay. Fall back to performance.now() so both stay finite.
+ */
+function frameTimestampMs(frame: XRFrame): number {
+  return Number.isFinite(frame.predictedDisplayTime)
+    ? frame.predictedDisplayTime
+    : performance.now();
+}
+
 export class XRInputRecorder {
   private _mode: "idle" | "recording" | "replaying" = "idle";
   private _frames: RecordedFrame[] = [];
@@ -471,11 +483,9 @@ export class XRInputRecorder {
 
     if (this._mode === "recording") {
       if (!sceneReferenceSpace) return;
-      this._recordingStartTime ??= frame.predictedDisplayTime;
-      const timeMs = Math.max(
-        0,
-        frame.predictedDisplayTime - this._recordingStartTime,
-      );
+      const now = frameTimestampMs(frame);
+      this._recordingStartTime ??= now;
+      const timeMs = Math.max(0, now - this._recordingStartTime);
       this._currentFrame = captureFrame(frame, sceneReferenceSpace, timeMs);
       this._frames.push(this._currentFrame);
       return;
@@ -487,7 +497,7 @@ export class XRInputRecorder {
     }
 
     if (this._replayPacing === "time") {
-      this._advanceTimedReplay(frame.predictedDisplayTime);
+      this._advanceTimedReplay(frameTimestampMs(frame));
       return;
     }
 
@@ -547,7 +557,16 @@ export class XRInputRecorder {
   }
 
   static importJSON(json: string): Recording {
-    const recording = JSON.parse(json) as Recording;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new Error("File is not valid JSON");
+    }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("Malformed recording: expected a JSON object");
+    }
+    const recording = parsed as Recording;
     if (recording.version !== 1) {
       throw new Error(`Unsupported recording version: ${recording.version}`);
     }

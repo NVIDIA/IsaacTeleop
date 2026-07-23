@@ -56,6 +56,18 @@ export interface RecorderContextValue {
 
 const RecorderContext = createContext<RecorderContextValue | null>(null);
 
+/**
+ * Surface load feedback on the static #loadRecordingStatus element that sits
+ * beside the "Load Recording…" button in the settings panel (both live in
+ * index.html, not the React tree). No-op if the element is absent.
+ */
+function setLoadStatus(message: string, type: "success" | "error"): void {
+  const el = document.getElementById("loadRecordingStatus");
+  if (!el) return;
+  el.textContent = message;
+  el.className = `load-recording-status show ${type}`;
+}
+
 export function RecorderProvider({ children }: { children: React.ReactNode }) {
   const recorder = useMemo(() => new XRInputRecorder(), []);
   const [mode, setMode] = useState<"idle" | "recording" | "replaying">("idle");
@@ -120,9 +132,16 @@ export function RecorderProvider({ children }: { children: React.ReactNode }) {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      acceptRecording(XRInputRecorder.importJSON(await file.text()));
+      const recording = XRInputRecorder.importJSON(await file.text());
+      acceptRecording(recording);
+      setLoadStatus(
+        `Loaded ${recording.frames.length} frame${recording.frames.length === 1 ? "" : "s"} from "${file.name}".`,
+        "success",
+      );
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
       console.error("[Recorder] Failed to load recording:", error);
+      setLoadStatus(`Could not load "${file.name}": ${detail}`, "error");
     } finally {
       event.target.value = "";
     }
