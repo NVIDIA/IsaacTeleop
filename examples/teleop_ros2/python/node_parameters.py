@@ -182,7 +182,7 @@ def _load_config_asset_root(node: Node) -> Path:
             type=ParameterType.PARAMETER_STRING,
             description=(
                 "Directory containing teleop_ros2 configs/ and assets/. "
-                "Leave empty to use the installed or source example root."
+                "Leave empty to use the installed or source tree root."
             ),
         ),
     )

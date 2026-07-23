@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "teleop-ros2-example"
+name = "teleop-ros2-ref"
 version = "0.1.0"
-description = "Isaac Teleop ROS2 Example"
+description = "Isaac Teleop ROS 2 reference publisher"
 requires-python = ">=3.10,<3.14"
 dependencies = [
     "isaacteleop[cloudxr,grounding,retargeters]",

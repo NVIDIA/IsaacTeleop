@@ -2,4 +2,4 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Integration tests for the Teleop ROS 2 example."""
+"""Integration tests for the Teleop ROS 2 reference publisher."""

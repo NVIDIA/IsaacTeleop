@@ -36,7 +36,7 @@ parameter:
   and
   `examples/teleop_ros2/assets/urdf/sharpa_standalone/right_sharpa_wave.urdf`.
   Set `config_asset_root` to use a different directory containing `configs/`
-  and `assets/`; the empty default uses the installed or source example root.
+  and `assets/`; the empty default uses the installed or source tree root.
 - `hand_retargeter:=pink_ik`: uses `SharpaHandRetargeter`. It requires the
   `isaacteleop[grounding]` runtime dependencies and the bundled
   `robotic_grounding` package data that provides the Sharpa MJCF assets.

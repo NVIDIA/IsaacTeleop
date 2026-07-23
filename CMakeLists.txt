@@ -61,7 +61,7 @@ option(BUILD_PLUGINS "Build plugins" ON)
 option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
 option(BUILD_PLUGIN_OGLO "Build OGLO tactile glove plugin (BLE, Linux only; fetches SimpleBLE + nlohmann/json)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
-option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
+option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 ROS 2 reference integration (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
 # Televiz (src/viz) needs Vulkan, the CUDA Toolkit, and glslangValidator.
 # Default BUILD_VIZ ON when all three are present (so it builds out of the box)
