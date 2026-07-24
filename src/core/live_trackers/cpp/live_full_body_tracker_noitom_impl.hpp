@@ -4,9 +4,10 @@
 #pragma once
 
 #include "inc/live_trackers/schema_tracker.hpp"
-#include "live_full_body_tracker_pico_impl.hpp"
 
+#include <deviceio_base/full_body_tracker_base.hpp>
 #include <deviceio_base/tracker_vendor.hpp>
+#include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <schema/full_body_generated.h>
 
@@ -19,6 +20,7 @@
 namespace core
 {
 
+using FullBodyMcapChannels = McapTrackerChannels<FullBodyPoseRecord, FullBodyPose>;
 using FullBodyNoitomSchemaTracker = SchemaTracker<FullBodyPoseRecord, FullBodyPose>;
 
 class LiveFullBodyTrackerNoitomImpl : public IFullBodyTrackerImpl

@@ -260,7 +260,7 @@ void NoitomMocapPlugin::initialize_mocap()
     check_mocap(
         render_settings_api_->SetUnit(MocapApi::Unit_Centimeter, render_settings_handle_), "SetUnit(Unit_Centimeter)");
 
-    MocapApi::EMCPUnit unit = MocapApi::Uint_Meter;
+    MocapApi::EMCPUnit unit = MocapApi::Unit_Centimeter;
     check_mocap(render_settings_api_->GetUnit(&unit, render_settings_handle_), "GetUnit");
     if (unit != MocapApi::Unit_Centimeter)
     {
@@ -513,9 +513,13 @@ bool NoitomMocapPlugin::handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle)
     visit_joint(root_joint, make_identity_xr_pose());
 
     frame_.all_joint_poses_tracked = std::all_of(seen.begin(), seen.end(), [](bool value) { return value; });
-    std::cout << "NoitomMocapPlugin: converted avatar=" << avatar_index << " posture=" << posture_index
-              << " valid_full_body_joints=" << std::count(seen.begin(), seen.end(), true) << "/"
-              << static_cast<int>(core::BodyJoint_NUM_JOINTS) << std::endl;
+    if (!logged_first_avatar_frame_)
+    {
+        std::cout << "NoitomMocapPlugin: first avatar frame=" << avatar_index << " posture=" << posture_index
+                  << " valid_full_body_joints=" << std::count(seen.begin(), seen.end(), true) << "/"
+                  << static_cast<int>(core::BodyJoint_NUM_JOINTS) << std::endl;
+        logged_first_avatar_frame_ = true;
+    }
     return true;
 }
 

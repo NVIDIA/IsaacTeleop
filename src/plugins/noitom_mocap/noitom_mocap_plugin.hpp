@@ -79,6 +79,7 @@ private:
     MocapApi::MCPApplicationHandle_t application_handle_ = 0;
     bool application_open_ = false;
     bool warned_no_avatars_ = false;
+    bool logged_first_avatar_frame_ = false;
 
     core::FullBodyPoseT frame_;
     int64_t latest_sample_time_raw_device_clock_ns_ = 0;
