@@ -119,6 +119,23 @@ public:
         // false or outside kXr. mm-scale chosen because typical real-
         // world IPDs and camera baselines are 50–80 mm.
         float stereo_baseline_mm = 0.0f;
+
+        // Submit this quad as a native OpenXR quad layer
+        // (XrCompositionLayerQuad) instead of compositing it into the
+        // shared render target. kXr only: the runtime places + samples the
+        // quad directly, which enables its quad fast path (and, for
+        // quad-only frames, client-reconstructed streaming — the shared
+        // projection layer is dropped when every visible layer is native).
+        // Ignored outside kXr (window/offscreen fall back to the compositor
+        // draw path). Stereo emits one quad per eye via eyeVisibility.
+        //
+        // Trade-off vs the compositor path: a native quad carries NO depth
+        // (OpenXR quad layers have none), so it can't z-compose with 3D
+        // ProjectionLayer content — it's a flat billboard ordered by
+        // submission. ``generate_mipmaps`` is unused in native mode (the
+        // runtime samples the quad). Requires ``placement`` at record time,
+        // same as any kXr quad. Off by default.
+        bool use_openxr_quad_layer = false;
     };
 
     // Hard cap on the mip chain when generate_mipmaps is enabled.
@@ -189,6 +206,15 @@ public:
     // Timeline wait on the in-use slot's cuda_done_writing.
     std::vector<LayerBase::WaitSemaphore> get_wait_semaphores() const override;
 
+    // Native OpenXR quad path. is_native_quad() is true only when the flag
+    // is set AND this layer is in a kXr session (so window/offscreen keep
+    // using record()). acquire_native_quad() promotes the mailbox slot (like
+    // record()'s consumer side) and returns the per-eye source images +
+    // placement for the backend to blit into its quad swapchain. See
+    // Config::use_openxr_quad_layer.
+    bool is_native_quad() const noexcept override;
+    std::optional<NativeQuadView> acquire_native_quad(uint32_t in_flight_slot) override;
+
     // Drives aspect-fit letterbox in window mode; ignored in kXr.
     std::optional<float> aspect_ratio() const noexcept override;
 
@@ -225,6 +251,18 @@ private:
     // and atomically takes ownership; record() atomically promotes
     // a freshly-published slot to `in_use_`.
     static constexpr uint8_t kSlotNone = 0xFF;
+
+    // Promote latest_ -> in_use_[in_flight_slot] and update
+    // last_in_use_slot_ (shared by the render-pass consumer and the
+    // native-quad consumer). Returns the promoted slot, or kSlotNone if
+    // nothing has been published yet. Throws if in_flight_slot is out of
+    // range. Renderer thread only.
+    uint8_t promote_slot(uint32_t in_flight_slot);
+
+    // True when this layer should composite as a native OpenXR quad:
+    // the flag is set AND the attached session is kXr. Non-XR sessions
+    // (and a detached layer) fall back to the record() draw path.
+    bool native_active() const noexcept;
 
     // Picks a slot that is neither latest_ nor in any in_use_ entry.
     // Returns kSlotNone if every slot is forbidden (producer outran the

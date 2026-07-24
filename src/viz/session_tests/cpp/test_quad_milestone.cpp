@@ -486,3 +486,67 @@ TEST_CASE("QuadLayer fast producer: render samples only the latest publish", "[g
     CHECK(sample.b == expected.b);
     CHECK(sample.a == expected.a);
 }
+
+TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside kXr", "[gpu][quad_layer][native]")
+{
+    // The native OpenXR quad path only engages in a kXr session (needs a
+    // live runtime, validated manually against CloudXR). In offscreen the
+    // flag must be a no-op: is_native_quad() stays false and the layer still
+    // composites through record() exactly as a plain QuadLayer would.
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    constexpr uint32_t kSide = 64;
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context();
+    cfg.window_width = kSide;
+    cfg.window_height = kSide;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    QuadLayer::Config layer_cfg;
+    layer_cfg.name = "native_fallback";
+    layer_cfg.resolution = { kSide, kSide };
+    layer_cfg.use_openxr_quad_layer = true; // ignored outside kXr
+    // Placement is provided (a kXr native quad requires it); offscreen
+    // ignores it and draws fullscreen.
+    QuadLayer::Config::Placement pl;
+    pl.size_meters = glm::vec2(1.0f, 1.0f);
+    layer_cfg.placement = pl;
+    auto* layer = session->add_layer<QuadLayer>(*ctx, session->get_render_pass(), layer_cfg);
+    REQUIRE(layer != nullptr);
+
+    // Offscreen backend doesn't support native quads → the layer stays on
+    // the draw path, so the compositor renders it into the shared RT.
+    CHECK_FALSE(layer->is_native_quad());
+
+    const auto host_pattern = build_host_pattern(kSide);
+    void* device_ptr = nullptr;
+    REQUIRE(cudaMalloc(&device_ptr, host_pattern.size() * sizeof(Rgba)) == cudaSuccess);
+    CudaFreeGuard guard{ device_ptr };
+    REQUIRE(cudaMemcpy(device_ptr, host_pattern.data(), host_pattern.size() * sizeof(Rgba), cudaMemcpyHostToDevice) ==
+            cudaSuccess);
+    REQUIRE(cudaDeviceSynchronize() == cudaSuccess);
+
+    viz::VizBuffer src{};
+    src.data = device_ptr;
+    src.width = kSide;
+    src.height = kSide;
+    src.format = PixelFormat::kRGBA8;
+    src.pitch = static_cast<size_t>(kSide) * 4;
+    src.space = viz::MemorySpace::kDevice;
+    layer->submit(src);
+
+    session->render();
+
+    const auto image = session->readback_to_host();
+    REQUIRE(image.resolution().width == kSide);
+    REQUIRE(image.resolution().height == kSide);
+    check_quadrant_pattern(image, kSide);
+}

@@ -47,6 +47,38 @@ struct DirectPresentView
     Resolution extent{}; // must equal the swapchain per-view size
 };
 
+// Per-frame descriptor for a layer that composites as a native OpenXR
+// quad (XrCompositionLayerQuad) instead of drawing into the shared render
+// target. The XR backend owns a color swapchain per quad, copies
+// ``color_left`` (and ``color_right`` for stereo) straight in, and submits
+// one XrCompositionLayerQuad per eye — no shared RT, no projection draw.
+// Only meaningful in kXr; non-XR backends never ask for one.
+//
+// A native quad carries no depth: XrCompositionLayerQuad has no depth
+// field, so the runtime composites it in submission order (flat billboard),
+// not z-tested against projection-layer 3D content. This is inherent to
+// OpenXR quad layers and is also what lets the runtime's quad fast path /
+// client-reconstructed streaming treat it cheaply.
+struct NativeQuadView
+{
+    // Source images (resting layout SHADER_READ_ONLY_OPTIMAL). Backend
+    // copies these into its own quad swapchain(s).
+    VkImage color_left = VK_NULL_HANDLE;
+    VkImage color_right = VK_NULL_HANDLE; // VK_NULL_HANDLE => mono (eyeVisibility BOTH)
+    Resolution extent{}; // per-eye source size; the quad swapchain matches it
+
+    // Placement in the session's reference space + physical size (meters).
+    Pose3D pose{};
+    glm::vec2 size_meters{ 0.0f, 0.0f };
+    // Per-eye horizontal disparity along the placement's local +x axis
+    // (millimeters); left eye shifts −half, right eye +half. Ignored mono.
+    float stereo_baseline_mm = 0.0f;
+
+    // Stable identity the backend keys its persistent quad swapchain(s) on
+    // across frames (the layer's ``this``). Never dereferenced by the backend.
+    const void* source_id = nullptr;
+};
+
 // Abstract layer drawn into the compositor's render pass (RGBA8_SRGB
 // color + D32_SFLOAT depth, single-sample). record() issues draw calls;
 // it must NOT end the render pass or submit. Resource lifetime is the
@@ -144,6 +176,28 @@ public:
     virtual std::vector<DirectPresentView> acquire_direct_views(uint32_t /*in_flight_slot*/)
     {
         return {};
+    }
+
+    // Native OpenXR quad support (see NativeQuadView). When true, the
+    // compositor — on a backend that supports_native_quad() — routes this
+    // layer through acquire_native_quad()/record_native_quads() instead of
+    // record(), and DROPS the shared projection layer for frames where every
+    // visible layer is a native quad (unlocking the runtime's quad fast
+    // path). Must return false unless the layer is in a kXr session, so the
+    // window/offscreen fallback still uses record(). Default: not native.
+    virtual bool is_native_quad() const noexcept
+    {
+        return false;
+    }
+
+    // Promote this frame's content into ``in_flight_slot`` (same slot the
+    // compositor passes to get_wait_semaphores()) and return the native
+    // quad descriptor. nullopt = nothing fresh to composite this frame (no
+    // publish yet) — the backend submits no quad for this layer. Called
+    // instead of record_pre_render_pass()/record() on the native-quad path.
+    virtual std::optional<NativeQuadView> acquire_native_quad(uint32_t /*in_flight_slot*/)
+    {
+        return std::nullopt;
     }
 
     // Let a layer reject a backend it can't run on. Called once by add_layer
