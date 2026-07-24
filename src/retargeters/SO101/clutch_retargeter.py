@@ -44,7 +44,8 @@ Clutch behavior:
   done upstream by ``target_frame_prim_path``, and the EE state going forward is the running home
   (what the clutch itself commanded).
 - Each frame the emitted position is ``output_pos = home + s * (p_ctrl - p0)`` with scale
-  ``s = _CLUTCH_POSITION_SCALE`` (see :func:`_rebased_position`). On the latching frame
+  ``s = position_scale`` (the constructor parameter, defaulting to
+  :data:`_CLUTCH_POSITION_SCALE`; see :func:`_rebased_position`). On the latching frame
   ``p_ctrl == p0`` so ``output_pos == home`` exactly (no teleport on engage).
 - A plain Stop **freezes** the running home, so the next Play resumes from the last commanded
   pose. An explicit **reset** re-seeds the home from the configured reset-origin for a fresh
@@ -84,7 +85,8 @@ from isaacteleop.retargeting_engine.tensor_types import (
 # placement. Must never be the base origin (that would command the EE into the robot base /
 # floor). TODO(verify-in-sim)
 _CLUTCH_HOME_EE_POS: tuple[float, float, float] = (0.22, 0.0, 0.12)
-# Controller-to-EE translation gain (1.0 = 1:1 motion). TODO(verify-in-sim)
+# Default controller-to-EE translation gain (1.0 = 1:1 motion) for the ``position_scale``
+# constructor parameter. TODO(verify-in-sim)
 _CLUTCH_POSITION_SCALE = 1.0
 # Identity orientation quaternion [x, y, z, w], emitted before any valid frame / on reset.
 _IDENTITY_QUAT = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
@@ -183,6 +185,7 @@ class SO101ClutchRetargeter(BaseRetargeter):
         name: str,
         input_device: str = ControllersSource.RIGHT,
         home_base_T_ee: np.ndarray | None = None,
+        position_scale: float = _CLUTCH_POSITION_SCALE,
         orientation_offset: np.ndarray | None = None,
         debug_log_engage: bool = False,
     ) -> None:
@@ -198,6 +201,16 @@ class SO101ClutchRetargeter(BaseRetargeter):
                 orientation is the live controller grip orientation composed with
                 :paramref:`orientation_offset`, not read from this transform). When ``None``, falls
                 back to :data:`_CLUTCH_HOME_EE_POS`.
+            position_scale: Dimensionless controller-to-EE translation gain applied to the clutch
+                delta: ``output_pos = home + position_scale * (p_ctrl - p0)``. ``1.0`` is 1:1
+                motion. A value ``< 1`` shrinks robot travel relative to hand travel: the SO-101's
+                ~0.35 m reach is roughly half a comfortable ~0.7 m arm sweep, so 1:1 motion plus
+                clutch re-engage cycles can ratchet the commanded target out of reach -- e.g.
+                ``0.5`` keeps a full operator sweep inside reach in a single engaged segment.
+                Applies to **translation only**; the orientation is always 1:1. A value ``> 1``
+                amplifies the commanded EE velocity and jitter toward the joint-rate limits (no
+                upper clamp is enforced). Must be positive and finite. Defaults to
+                :data:`_CLUTCH_POSITION_SCALE` (1:1 motion).
             orientation_offset: Optional fixed calibration quaternion ``[x, y, z, w]``
                 right-multiplied (body frame) onto the controller grip orientation
                 (``q_cmd = q_grip (x) offset``) so a neutrally-held controller maps to a neutral
@@ -219,6 +232,15 @@ class SO101ClutchRetargeter(BaseRetargeter):
                 orientation_offset, dtype=np.float64
             ).copy()
         self._debug_log_engage = bool(debug_log_engage)
+        # Controller-to-EE translation gain applied to the clutch delta. Strictly positive and
+        # finite: scale == 0 freezes the EE, scale < 0 inverts the hand->EE mapping, and the finite
+        # check closes the ``inf * 0 = nan`` path before it can reach the SE3 IK.
+        position_scale = float(position_scale)
+        if not np.isfinite(position_scale) or position_scale <= 0.0:
+            raise ValueError(
+                f"position_scale must be positive and finite, got: {position_scale!r}"
+            )
+        self._position_scale = position_scale
         # Reset-origin home [m] in the base frame: the translation of the ``base_T_ee`` transform,
         # or the constant. Seeds the home on reset / first engage.
         if home_base_T_ee is None:
@@ -340,7 +362,7 @@ class SO101ClutchRetargeter(BaseRetargeter):
                 )
 
         pos = _rebased_position(
-            grip_pos, self._origin, self._home, _CLUTCH_POSITION_SCALE
+            grip_pos, self._origin, self._home, self._position_scale
         )
         self._last_pose = np.concatenate([pos, cmd_ori]).astype(np.float32)
         ee_pose[0] = self._last_pose
