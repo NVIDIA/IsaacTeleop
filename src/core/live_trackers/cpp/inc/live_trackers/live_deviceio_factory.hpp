@@ -89,6 +89,7 @@ public:
     std::unique_ptr<IControllerTrackerImpl> create_controller_tracker_impl(const ControllerTracker* tracker);
     std::unique_ptr<IMessageChannelTrackerImpl> create_message_channel_tracker_impl(const MessageChannelTracker* tracker);
     std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_pico_impl(const FullBodyTracker* tracker);
+    std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_noitom_impl(const FullBodyTracker* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
     std::unique_ptr<IOgloTactileTrackerImpl> create_oglo_tactile_tracker_impl(const OgloTactileTracker* tracker);
@@ -122,7 +123,7 @@ private:
  * @brief Validate per-tracker vendor selections against the live vendor dispatch table.
  *
  * Rejects selections on tracker types that do not support vendors, unknown vendor ids, vendor
- * ids that belong to a different tracker type, non-empty vendor params, and duplicate entries.
+ * ids that belong to a different tracker type, unsupported vendor params, and duplicate entries.
  * Throws std::invalid_argument on the first violation. List-independent: the caller checks that
  * each selection references a tracker it owns.
  *

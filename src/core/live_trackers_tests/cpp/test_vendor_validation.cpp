@@ -15,7 +15,7 @@
 //                   no-selection, path) resolves and returns extensions.
 //   2. rejected   - a vendor selection on a non-vendored tracker type.
 //   3. rejected   - an unknown vendor id.
-//   4. rejected   - non-empty vendor params (no consumer reads them yet).
+//   4. accepted or rejected - vendor params according to the selected vendor's contract.
 //   5. rejected   - a duplicate selection for the same tracker.
 //   6. rejected   - a selection referencing a tracker absent from the list.
 // Plus a direct unit test of the list-independent primitive
@@ -87,6 +87,22 @@ TEST_CASE("vendor validation: accepted configurations resolve extensions", "[liv
                             core::DeviceIOSession::get_required_extensions(trackers, core::VendorConfig{ vendors }));
         REQUIRE(contains(extensions, "XR_BD_body_tracking"));
     }
+
+    SECTION("Noitom vendor selects tensor data extensions")
+    {
+        VendorList vendors{ { body.get(), core::TrackerVendor{ "body.noitom" } } };
+        const auto extensions = core::DeviceIOSession::get_required_extensions(trackers, core::VendorConfig{ vendors });
+        REQUIRE(contains(extensions, "XR_NVX1_tensor_data"));
+        REQUIRE_FALSE(contains(extensions, "XR_BD_body_tracking"));
+    }
+
+    SECTION("Noitom vendor accepts collection and sample-size parameters")
+    {
+        VendorList vendors{ { body.get(), core::TrackerVendor{ "body.noitom",
+                                                               { { "collection_id", "custom_noitom" },
+                                                                 { "max_flatbuffer_size", "32768" } } } } };
+        REQUIRE_NOTHROW(core::DeviceIOSession::get_required_extensions(trackers, core::VendorConfig{ vendors }));
+    }
 }
 
 TEST_CASE("vendor validation: invalid configurations are rejected", "[live_trackers][vendor]")
@@ -122,6 +138,22 @@ TEST_CASE("vendor validation: invalid configurations are rejected", "[live_track
         VendorList vendors{ { body.get(),
                               core::TrackerVendor{ "body.pico-xr", { { "max_flatbuffer_size", "16384" } } } } };
         REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("params are not supported"));
+    }
+
+    SECTION("an unsupported Noitom vendor parameter is rejected")
+    {
+        VendorList vendors{
+            { body.get(), core::TrackerVendor{ "body.noitom", { { "unsupported", "value" } } } },
+        };
+        REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("does not support parameter"));
+    }
+
+    SECTION("an invalid Noitom max flatbuffer size is rejected")
+    {
+        VendorList vendors{
+            { body.get(), core::TrackerVendor{ "body.noitom", { { "max_flatbuffer_size", "0" } } } },
+        };
+        REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("must be a positive integer"));
     }
 
     SECTION("a duplicate selection for the same tracker is rejected")
