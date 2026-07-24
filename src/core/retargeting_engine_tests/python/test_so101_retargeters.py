@@ -519,3 +519,71 @@ class TestSO101ClutchRetargeter:
         r.compute(inputs2, outputs2, _make_context())
         np.testing.assert_allclose(_read_pose(outputs2)[:3], home, atol=1e-6)
         assert r._origin is not None
+
+    def test_position_scale_scales_delta(self):
+        """A non-unity ``position_scale`` scales the clutch delta without teleporting on engage."""
+        scale = 0.5
+        r = SO101ClutchRetargeter(name="ee_pose", position_scale=scale)
+        home = np.array(_CLUTCH_HOME_EE_POS)
+        p0 = np.array([0.5, -0.3, 0.7])
+
+        # Engage frame: p_ctrl == origin, so the EE sits exactly at home even at non-unity scale.
+        inputs, outputs = _build_io(r)
+        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
+        r.compute(inputs, outputs, _make_context())
+        np.testing.assert_allclose(_read_pose(outputs)[:3], home, atol=1e-6)
+
+        # A controller delta after engage advances the EE by scale * delta from home.
+        delta = np.array([0.05, -0.02, 0.10])
+        inputs2, outputs2 = _build_io(r)
+        inputs2[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + delta)
+        r.compute(inputs2, outputs2, _make_context())
+        np.testing.assert_allclose(
+            _read_pose(outputs2)[:3], home + scale * delta, atol=1e-5
+        )
+
+    @pytest.mark.parametrize("bad_scale", [0.0, -1.0, float("nan"), float("inf")])
+    def test_invalid_position_scale_rejected(self, bad_scale):
+        """A non-positive or non-finite ``position_scale`` is rejected at construction."""
+        with pytest.raises(ValueError):
+            SO101ClutchRetargeter(name="ee_pose", position_scale=bad_scale)
+
+    def test_reengage_ratchets_scaled_delta_per_cycle(self):
+        """N re-clutch cycles accumulate ``scale * delta`` each, ratcheting by ``N * scale * delta``.
+
+        This is the issue's motivating regression: at 1:1 motion (``scale == 1``) each re-engage
+        ratchets a full delta onto the running home, driving the target out of reach; a sub-unity
+        scale attenuates each cycle's advance so the same operator motion stays in the workspace.
+        """
+        home = np.array(_CLUTCH_HOME_EE_POS)
+        delta = np.array([0.05, -0.02, 0.10])
+        n_cycles = 3
+
+        def _run_cycles(scale):
+            r = SO101ClutchRetargeter(name="ee_pose", position_scale=scale)
+            outputs = None
+            for i in range(n_cycles):
+                p0 = np.array(
+                    [float(i), float(i), float(i)]
+                )  # fresh origin each engage
+                # Engage: latch the origin at p0 and resume from the running home.
+                inputs, outputs = _build_io(r)
+                inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
+                r.compute(inputs, outputs, _make_context())
+                # Move +delta: the running home advances by scale * delta.
+                inputs, outputs = _build_io(r)
+                inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + delta)
+                r.compute(inputs, outputs, _make_context())
+                # Disengage (STOPPED): freeze the running home, re-arm the origin.
+                inputs, outputs = _build_io(r)
+                inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
+                r.compute(inputs, outputs, _make_context(state=ExecutionState.STOPPED))
+            return _read_pose(outputs)[:3]
+
+        # Sub-unity scale ratchets N * scale * delta over the N cycles.
+        scale = 0.5
+        np.testing.assert_allclose(
+            _run_cycles(scale), home + n_cycles * scale * delta, atol=1e-5
+        )
+        # Unit-scale contrast: each cycle ratchets a full delta -> N * delta.
+        np.testing.assert_allclose(_run_cycles(1.0), home + n_cycles * delta, atol=1e-5)
