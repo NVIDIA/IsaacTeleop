@@ -148,6 +148,28 @@ public:
         return current_extent();
     }
 
+    // True when the backend can composite native OpenXR quad layers
+    // (XrCompositionLayerQuad). Only the kXr backend does. The compositor
+    // pairs this with a layer's is_native_quad() to route it natively.
+    virtual bool supports_native_quad() const noexcept
+    {
+        return false;
+    }
+
+    // Native-quad path: for each NativeQuadView, copy the source image(s)
+    // into a backend-owned per-quad swapchain and remember it for
+    // submission at end_frame (as one XrCompositionLayerQuad per eye).
+    // Recorded into the compositor's command buffer (so the layer's
+    // CUDA-done wait semaphores, threaded at TRANSFER stage, gate the copy)
+    // OUTSIDE any render pass. Empty ``views`` → nothing to composite.
+    // end_frame submits the shared projection layer only if the render pass
+    // or direct path also ran this frame. Default: unsupported (no-op).
+    virtual void record_native_quads(VkCommandBuffer /*cmd*/,
+                                     const Frame& /*frame*/,
+                                     const std::vector<NativeQuadView>& /*views*/)
+    {
+    }
+
     // Called after a successful submit. The host has NOT waited on the
     // in-flight fence (multi-frame-in-flight: that wait happens at the
     // top of render() for this slot's NEXT use), so the GPU may still

@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cuda_runtime.h>
 #include <limits>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 
@@ -60,6 +61,78 @@ TEST_CASE("QuadLayer ctor rejects null render pass", "[unit][quad_layer]")
     QuadLayer::Config cfg;
     cfg.resolution = { 64, 64 };
     CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
+}
+
+TEST_CASE("QuadLayer::Config use_openxr_quad_layer defaults off and is settable", "[unit][quad_layer][native]")
+{
+    QuadLayer::Config cfg;
+    CHECK_FALSE(cfg.use_openxr_quad_layer);
+    cfg.use_openxr_quad_layer = true;
+    CHECK(cfg.use_openxr_quad_layer);
+}
+
+// A native-quad layer only goes native inside a kXr session; a detached
+// layer (and any window/offscreen session) keeps the record() draw path.
+// The full XR submission path needs a live OpenXR runtime, so it's covered
+// manually against CloudXR — here we pin the fallback gate + acquire
+// preconditions that are exercisable without a headset.
+TEST_CASE("QuadLayer native-quad gate + acquire preconditions", "[gpu][quad_layer][native]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto& ctx = shared_vk_context();
+    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
+
+    QuadLayer::Config cfg;
+    cfg.resolution = { 64, 64 };
+    cfg.use_openxr_quad_layer = true;
+    QuadLayer::Config::Placement pl;
+    pl.pose = viz::Pose3D{};
+    pl.size_meters = glm::vec2(1.0f, 1.0f);
+    cfg.placement = pl;
+    QuadLayer layer(ctx, target->render_pass(), cfg);
+
+    // No session attached → not native (so the compositor uses record()).
+    CHECK_FALSE(layer.is_native_quad());
+
+    // Nothing published yet → nullopt (no quad this frame), even before any
+    // placement matters.
+    CHECK_FALSE(layer.acquire_native_quad(0).has_value());
+
+    // Out-of-range in_flight_slot is rejected (same guard as record()).
+    CHECK_THROWS_AS(layer.acquire_native_quad(QuadLayer::kMaxFramesInFlight), std::logic_error);
+
+    // A native-quad layer with no placement is lenient before the first
+    // publish (returns nullopt) — this keeps a native session from throwing
+    // on startup frames where the placement strategy hasn't run yet — but
+    // once a frame is published without a placement, it's a misconfiguration.
+    QuadLayer::Config no_placement;
+    no_placement.resolution = { 64, 64 };
+    no_placement.use_openxr_quad_layer = true;
+    QuadLayer layer_np(ctx, target->render_pass(), no_placement);
+    CHECK_FALSE(layer_np.acquire_native_quad(0).has_value()); // lenient pre-publish
+
+    void* dev_ptr = nullptr;
+    REQUIRE(cudaMalloc(&dev_ptr, static_cast<size_t>(64) * 64 * 4) == cudaSuccess);
+    struct CudaFree
+    {
+        void* p;
+        ~CudaFree()
+        {
+            cudaFree(p);
+        }
+    } cuda_free{ dev_ptr };
+    viz::VizBuffer src{};
+    src.data = dev_ptr;
+    src.width = 64;
+    src.height = 64;
+    src.format = PixelFormat::kRGBA8;
+    src.pitch = static_cast<size_t>(64) * 4;
+    src.space = viz::MemorySpace::kDevice;
+    layer_np.submit(src);
+    CHECK_THROWS_AS(layer_np.acquire_native_quad(0), std::logic_error); // content, no placement
 }
 
 TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles for every mailbox slot", "[gpu][quad_layer]")
