@@ -1,0 +1,124 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# scikit-build-core backend for `pip install .` / `pip install -e .` / sdist from
+# source. Drives the same top-level CMakeLists.txt as the classic `cmake -B build`
+# flow (both coexist). See docs: getting_started/build_from_source.
+[build-system]
+requires = ["scikit-build-core>=1.0", "numpy>=2.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "isaacteleop"
+dynamic = ["version"]
+description = "Isaac Teleop"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+    { name = "NVIDIA" },
+]
+
+# Mirror of src/core/python/requirements*.txt (keep in sync); see those files for
+# the rationale behind the retargeters/grounding version pins.
+dependencies = [
+    "numpy>=1.23.0",
+    "pyyaml>=6.0.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pybind11-stubgen>=2.5",
+    "types-PyYAML",
+    "scipy-stubs",
+]
+ui = [
+    "imgui[glfw]>=2.0.0",
+]
+retargeters = [
+    "dex-retargeting>=0.4.6,<0.6.0",
+    "scipy>=1.15.0",
+    "pyyaml>=6.0.3",
+    "torch>=2.7.0",
+    "nlopt>=2.6.2",
+    "pin>=2.7.0",
+    "cmeel-urdfdom<5",
+    "cmeel-tinyxml2<11",
+]
+retargeters-lite = [
+    "scipy>=1.15.0",
+]
+grounding = [
+    "pin>=2.7.0",
+    "pin-pink>=4.0.0",
+    "loop-rate-limiters>=1.0.0",
+    "daqp>=0.5.0",
+    "cmeel-urdfdom<5",
+    "cmeel-tinyxml2<11",
+]
+cloudxr = [
+    "websockets>=14.0",
+]
+
+# Derive the version from the VERSION file (MAJOR.MINOR.x) as MAJOR.MINOR+local,
+# matching what the classic flow (cmake/IsaacTeleopVersion.cmake) emits for a
+# non-CI/local build. The pip path is a from-source/dev build, so it is always
+# tagged `+local`; release versioning (tags, a1/rc1/.devN) stays with the classic
+# flow. scikit-build-core finalizes metadata before CMake runs, so it cannot reuse
+# the CMake-computed version directly.
+[[tool.dynamic-metadata]]
+provider = "scikit_build_core.metadata.regex"
+field = "version"
+input = "VERSION"
+regex = '^(?P<major>\d+)\.(?P<minor>\d+)'
+result = "{major}.{minor}+local"
+
+# uv-only: don't let `uv run` / `uv sync` implicitly build + install this project
+# into their managed environment. Without this, every `uv run` executed from the
+# repo (e.g. CI steps that just want a downloaded wheel) triggers a full
+# scikit-build-core source build. Explicit builds -- pip install ., pip install -e .,
+# python -m build, uv build, uv pip install -- are unaffected (they use
+# [build-system], not [tool.uv]).
+[tool.uv]
+package = false
+
+[tool.scikit-build]
+# Floor matches CMakeLists' cmake_minimum_required; the <4 cap keeps the build on
+# a 3.x CMake like Ubuntu 22.04 (3.22) / 24.04 (3.28) ship, so pip/isolated builds
+# (and CI) don't silently pull the latest 4.x line from PyPI and drift from the OS.
+cmake.version = ">=3.20,<4"
+cmake.build-type = "Release"
+
+# Keep the CMake build tree under build/wheel-<cache-tag>/ (e.g.
+# build/wheel-cpython-312/) rather than a temp dir: re-installs are incremental,
+# and different Python versions never share one configured CMake cache (which
+# would silently reuse the wrong interpreter). {cache_tag} (sys.implementation.
+# cache_tag) is used so the tag matches the classic CMake path's
+# build/cmake-<cache-tag>/ trees (see CMakePresets.json) — the wheel/ABI tag can't
+# be expressed as a CMake preset, so cache_tag is the common per-version tag.
+# build/ is gitignored.
+build-dir = "build/wheel-{cache_tag}"
+
+# No cmake.define overrides: BUILD_EXAMPLES, BUILD_TESTING, BUILD_PLUGINS and the
+# Linux clang-format gate all stay at their CMake defaults. So a `pip install`
+# builds the full default (ALL) target -- every extension, the staged
+# python_package, examples, tests, and plugins (plugins without their SDK skip
+# gracefully). It also ENFORCES clang-format: the build fails if clang-format-14
+# is missing or any C++ file is unformatted. The classic python_wheel ALL target
+# is gated to non-SKBUILD (src/core/python/CMakeLists.txt) so ALL doesn't trigger a
+# nested `uv build`; python_stubs isn't part of ALL, so the pip wheel omits .pyi.
+
+# Install the staged Python tree (isaacteleop_wheel component) plus every built
+# executable -- examples, C++ test binaries, plugin tools -- on the venv PATH
+# (isaacteleop_binaries -> the venv's bin/ via SKBUILD_SCRIPTS_DIR; see the
+# executable-install loop in the root CMakeLists.txt). Plugin/extension .so are not
+# executables and are not placed in bin/. Restricting to these two components keeps
+# the project's C++ library/header install() rules out of the wheel.
+install.components = ["isaacteleop_wheel", "isaacteleop_binaries"]
+
+# Editable installs don't recompile on import; editing pure-Python src/ is not live.
+[tool.scikit-build.editable]
+mode = "redirect"
+rebuild = false

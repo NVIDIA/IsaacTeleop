@@ -201,3 +201,41 @@ endif()
 
 # Formatting enforcement (runs on Linux by default)
 include(cmake/ClangFormat.cmake)
+
+# ==============================================================================
+# scikit-build-core: install every built executable into the venv's bin/
+# ==============================================================================
+# Under pip (SKBUILD), put all executables built from this repo -- examples, C++
+# test binaries, plugin tools, etc. -- on the venv PATH via the wheel's scripts
+# scheme. We walk the directory tree from the project root but skip deps/ (and any
+# FetchContent _deps/ subtree) so third-party executables (e.g. flatc) are never
+# swept in. Shared libraries (Python extension modules, plugin .so) are not
+# executables and are handled elsewhere / not installed here; a plugin that skips a
+# missing SDK becomes a UTILITY target and is naturally excluded. Tagged with the
+# isaacteleop_binaries component, selected via install.components in pyproject.toml.
+if(SKBUILD)
+    function(isaac_teleop_install_executables _dir)
+        # Skip third-party dependency trees (deps/ and FetchContent's _deps/).
+        if(_dir STREQUAL "${CMAKE_SOURCE_DIR}/deps" OR _dir MATCHES "/_deps/")
+            return()
+        endif()
+        get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
+        foreach(_subdir IN LISTS _subdirs)
+            isaac_teleop_install_executables("${_subdir}")
+        endforeach()
+        get_property(_targets DIRECTORY "${_dir}" PROPERTY BUILDSYSTEM_TARGETS)
+        foreach(_target IN LISTS _targets)
+            get_target_property(_type "${_target}" TYPE)
+            get_target_property(_imported "${_target}" IMPORTED)
+            if(_type STREQUAL "EXECUTABLE" AND NOT _imported)
+                install(TARGETS "${_target}"
+                    RUNTIME DESTINATION "${SKBUILD_SCRIPTS_DIR}"
+                    COMPONENT isaacteleop_binaries)
+            endif()
+        endforeach()
+    endfunction()
+
+    # Walk from the project root (deps/ skipped) so every executable built from
+    # this repo -- across src/ and examples/ -- is installed.
+    isaac_teleop_install_executables("${CMAKE_SOURCE_DIR}")
+endif()

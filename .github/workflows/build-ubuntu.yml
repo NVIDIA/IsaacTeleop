@@ -292,6 +292,95 @@ jobs:
         if-no-files-found: error
         retention-days: 7
 
+  pip-editable-install:
+    # Validates the scikit-build-core (PEP 517/660) from-source install path added
+    # for issue #735: an sdist build and `pip install -e .` over the root
+    # pyproject.toml, which drives the same top-level CMake build as build-ubuntu.
+    # This guards the standards-based path so it does not rot. Single config
+    # (x64 / Python 3.11 / Release) is sufficient -- the backend just wraps CMake,
+    # already matrix-tested above. No CUDA/Vulkan here, so BUILD_VIZ stays auto-OFF.
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        persist-credentials: false
+
+    - name: Install uv
+      uses: ./.github/actions/setup-uv
+
+    - name: Install Apt dependencies
+      run: |
+        sudo apt-get update
+        # clang-format-14: the pip build enforces the clang-format gate (no
+        # cmake.define override), so the tool must be present or the build FATALs.
+        sudo apt-get install -y $CORE_APT_DEPS ccache patchelf clang-format-14
+
+    - name: Build sdist (validates backend config + metadata)
+      run: |
+        set -euo pipefail
+        uv build --sdist --python 3.11 --out-dir dist
+        ls -la dist
+
+    - name: Editable install
+      run: |
+        set -euo pipefail
+        uv venv --python 3.11 .venv-skbuild
+        # Editable install through scikit-build-core. It drives the same CMake
+        # build, scoped by pyproject.toml (no examples/tests/plugins/clang-format),
+        # and fetches C++ deps via FetchContent.
+        uv pip install --python .venv-skbuild -e .
+
+    - name: Import smoke test
+      run: |
+        set -euo pipefail
+        cat > "${RUNNER_TEMP}/skbuild_smoke.py" <<'PY'
+        import importlib.util
+
+        # (1) ABI check: actually import the compiled pybind11 extensions and the
+        # eager pure-Python packages. `import isaacteleop` also exercises the eager
+        # submodule chain (cloudxr, teleop_session_manager) that the base install
+        # must satisfy with only numpy+pyyaml.
+        import isaacteleop
+        for mod in (
+            "oxr",
+            "deviceio",
+            "deviceio_trackers",
+            "deviceio_session",
+            "schema",
+            "plugin_manager",
+        ):
+            importlib.import_module(f"isaacteleop.{mod}")
+
+        # (2) Completeness check: every top-level subpackage that the classic wheel
+        # ships (minus GPU-only `viz`, which is auto-OFF here) must be PACKAGED.
+        # find_spec locates the package without importing its optional third-party
+        # deps, so a subpackage silently dropped from the build fails loudly here
+        # even though the smoke env installs no extras.
+        expected = [
+            "isaacteleop.mcap",
+            "isaacteleop.rig",
+            "isaacteleop.cloudxr",
+            "isaacteleop.teleop_session_manager",
+            "isaacteleop.retargeters",
+            "isaacteleop.retargeting_engine",
+            "isaacteleop.retargeting_engine_ui",
+            "isaacteleop.haptic_devices",
+        ]
+        missing = [m for m in expected if importlib.util.find_spec(m) is None]
+        assert not missing, f"subpackages missing from the wheel: {missing}"
+
+        print("isaacteleop", isaacteleop.__version__, "imported OK;",
+              "all expected subpackages present")
+        PY
+        # Run the editable install directly with the venv's interpreter -- NOT via
+        # `uv run`, which (with [tool.uv] package = false) would use the project's
+        # own .venv without isaacteleop, rather than .venv-skbuild.
+        .venv-skbuild/bin/python "${RUNNER_TEMP}/skbuild_smoke.py"
+
   test-viz-gpu:
     # Runs [gpu]-tagged Catch2 tests for the Televiz module on a self-hosted
     # GPU runner. The build-ubuntu job runs on a GPU-less GitHub-hosted runner

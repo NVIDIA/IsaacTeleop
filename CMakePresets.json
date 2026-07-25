@@ -1,0 +1,36 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "py3.10",
+      "displayName": "Python 3.10 (build/cmake-cpython-310)",
+      "binaryDir": "${sourceDir}/build/cmake-cpython-310",
+      "cacheVariables": { "ISAAC_TELEOP_PYTHON_VERSION": "3.10" }
+    },
+    {
+      "name": "py3.11",
+      "displayName": "Python 3.11 (build/cmake-cpython-311)",
+      "binaryDir": "${sourceDir}/build/cmake-cpython-311",
+      "cacheVariables": { "ISAAC_TELEOP_PYTHON_VERSION": "3.11" }
+    },
+    {
+      "name": "py3.12",
+      "displayName": "Python 3.12 (build/cmake-cpython-312)",
+      "binaryDir": "${sourceDir}/build/cmake-cpython-312",
+      "cacheVariables": { "ISAAC_TELEOP_PYTHON_VERSION": "3.12" }
+    },
+    {
+      "name": "py3.13",
+      "displayName": "Python 3.13 (build/cmake-cpython-313)",
+      "binaryDir": "${sourceDir}/build/cmake-cpython-313",
+      "cacheVariables": { "ISAAC_TELEOP_PYTHON_VERSION": "3.13" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "py3.10", "configurePreset": "py3.10" },
+    { "name": "py3.11", "configurePreset": "py3.11" },
+    { "name": "py3.12", "configurePreset": "py3.12" },
+    { "name": "py3.13", "configurePreset": "py3.13" }
+  ]
+}
