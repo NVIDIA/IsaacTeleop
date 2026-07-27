@@ -82,10 +82,13 @@ Pre-download CloudXR SDK (Optional)
    :code-file:`download_cloudxr_runtime_sdk.sh <scripts/download_cloudxr_runtime_sdk.sh>`
    script.
 
-Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get one of
-the two tarballs:
+Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get
+tarballs such as:
 
 - ``CloudXR-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (CloudXR Runtime SDK)
+- ``CloudXR-exp-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (optional experimental
+  runtime). Needed for Jetson Orin support (for example :doc:`/getting_started/televiz`)
+  until the default runtime covers those platforms.
 - ``nvidia-cloudxr-<version-for-web-sdk>.tgz`` (CloudXR Web SDK)
 
 You can place them in the :code-file:`deps/cloudxr/` directory and update the ``deps/cloudxr/.env``
@@ -96,6 +99,10 @@ like this:
 
    CXR_RUNTIME_SDK_VERSION=<version-for-runtime-sdk>
    CXR_WEB_SDK_VERSION=<version-for-web-sdk>
+
+To package the experimental runtime into the wheel as ``isaacteleop.cloudxr_exp``, configure with
+``-DENABLE_CLOUDXR_EXP_BUNDLE=ON``. Select it at runtime with ``ISAAC_TELEOP_CLOUDXR_EXP``.
+See :ref:`dedicated-cloudxr-runtime`.
 
 2. CMake: Configure and build
 -----------------------------
@@ -142,7 +149,7 @@ Useful targets:
 Other Build options
 ~~~~~~~~~~~~~~~~~~~
 
-The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmake/SetupPython.cmake`, and :code-file:`cmake/SetupHunter.cmake`):
+The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`cmake/SetupPython.cmake`):
 
 .. list-table:: Common CMake Options
    :widths: 20 36 44
@@ -274,48 +281,6 @@ The CI uses ``ctest`` (see :code-file:`build-ubuntu.yml <.github/workflows/build
 The wheels are built in the ``./install/wheels/`` directory. Install the package from the wheels.
 Using ``pip``, you need to pass the ``--no-index`` option to automatically find the right wheel
 based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly different options.
-
-.. _aarch64-nlopt-wheel:
-
-.. note::
-   **ARM64 / aarch64 systems only** (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
-   ``nlopt`` wheels for ARM64, so pip cannot satisfy the ``retargeters`` extra automatically.
-   Build an ``nlopt`` wheel from source before running the install commands below
-   (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_):
-
-   .. code-block:: bash
-
-      # Install build tools
-      sudo apt-get install -y build-essential cmake git pkg-config swig
-
-      # Clone nlopt-python and build a wheel
-      git clone --depth 1 --branch 2.10.0 https://github.com/DanielBok/nlopt-python.git /tmp/nlopt-python
-      cd /tmp/nlopt-python
-      git submodule update --init --recursive
-
-      # The Python version must match your isaacteleop install exactly (3.10, 3.11, 3.12, or 3.13).
-      # nlopt builds a CPython ABI-specific extension (.cpython-311-*.so), so a wheel built
-      # with Python 3.11 will not load under Python 3.12 or vice versa.
-      uv venv --python=3.11 /tmp/nlopt-wheel-venv
-      VIRTUAL_ENV=/tmp/nlopt-wheel-venv uv pip install numpy setuptools wheel
-      /tmp/nlopt-wheel-venv/bin/python setup.py bdist_wheel -d /tmp/nlopt-wheels/
-
-   Then pass ``--find-links=/tmp/nlopt-wheels/`` when installing so the locally-built wheel is
-   used instead of attempting a PyPI download:
-
-   .. code-block:: bash
-
-      # pip
-      pip install "isaacteleop[retargeters,cloudxr,ui]" \
-          --find-links=./install/wheels/ \
-          --find-links=/tmp/nlopt-wheels/ \
-          --no-index --force-reinstall
-
-      # uv pip
-      uv pip install "isaacteleop[retargeters,cloudxr,ui]" \
-          --find-links=./install/wheels/ \
-          --find-links=/tmp/nlopt-wheels/ \
-          --reinstall
 
 .. code-block:: bash
 

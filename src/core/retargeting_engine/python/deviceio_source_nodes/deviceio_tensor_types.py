@@ -9,6 +9,7 @@ Each TrackedT always exists (never None) and contains a `.data` property that ho
 the raw flatbuffer object (or None when the tracker is inactive).
 """
 
+import warnings
 from enum import IntEnum
 from typing import Any
 from ..interface.tensor_type import TensorType
@@ -19,7 +20,7 @@ from isaacteleop.schema import (
     ControllerSnapshotTrackedT,
     Generic3AxisPedalOutputTrackedT,
     JointStateOutputTrackedT,
-    FullBodyPosePicoTrackedT,
+    FullBodyPoseTrackedT,
     MessageChannelMessagesTrackedT,
 )
 
@@ -120,23 +121,27 @@ class JointStateOutputTrackedType(TensorType):
             )
 
 
-class FullBodyPosePicoTrackedType(TensorType):
-    """FullBodyPosePicoTrackedT wrapper type from DeviceIO FullBodyTrackerPico."""
+class FullBodyPoseTrackedType(TensorType):
+    """FullBodyPoseTrackedT wrapper type from DeviceIO FullBodyTracker.
+
+    Vendor-agnostic: the full-body tracker produces the same FullBodyPoseTrackedT
+    payload regardless of the live vendor (native XR, pushed tensor, ...).
+    """
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
 
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        if not isinstance(other, FullBodyPosePicoTrackedType):
+        if not isinstance(other, FullBodyPoseTrackedType):
             raise TypeError(
-                f"Expected FullBodyPosePicoTrackedType, got {type(other).__name__}"
+                f"Expected FullBodyPoseTrackedType, got {type(other).__name__}"
             )
         return True
 
     def validate_value(self, value: Any) -> None:
-        if not isinstance(value, FullBodyPosePicoTrackedT):
+        if not isinstance(value, FullBodyPoseTrackedT):
             raise TypeError(
-                f"Expected FullBodyPosePicoTrackedT for '{self.name}', got {type(value).__name__}"
+                f"Expected FullBodyPoseTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
@@ -244,15 +249,15 @@ def DeviceIOJointStateOutputTracked() -> TensorGroupType:
     )
 
 
-def DeviceIOFullBodyPosePicoTracked() -> TensorGroupType:
-    """Tracked full body pose data from DeviceIO FullBodyTrackerPico.
+def DeviceIOFullBodyPoseTracked() -> TensorGroupType:
+    """Tracked full body pose data from DeviceIO FullBodyTracker.
 
     Contains:
-        full_body_tracked: FullBodyPosePicoTrackedT wrapper (always set; .data is None when inactive)
+        full_body_tracked: FullBodyPoseTrackedT wrapper (always set; .data is None when inactive)
     """
     return TensorGroupType(
-        "deviceio_full_body_pose_pico",
-        [FullBodyPosePicoTrackedType("full_body_tracked")],
+        "deviceio_full_body_pose",
+        [FullBodyPoseTrackedType("full_body_tracked")],
     )
 
 
@@ -278,3 +283,23 @@ def MessageChannelStatusGroup() -> TensorGroupType:
         "message_channel_status",
         [MessageChannelStatusType("status")],
     )
+
+
+# Deprecated aliases resolved lazily via __getattr__ so accessing them emits a
+# DeprecationWarning.
+_DEPRECATED_ALIASES = {
+    "FullBodyPosePicoTrackedType": "FullBodyPoseTrackedType",
+    "DeviceIOFullBodyPosePicoTracked": "DeviceIOFullBodyPoseTracked",
+}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

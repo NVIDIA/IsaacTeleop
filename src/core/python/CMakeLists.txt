@@ -24,6 +24,17 @@ else()
     set(VIZ_PACKAGE_DATA_BLOCK "")
 endif()
 
+# isaacteleop.cloudxr_exp when ENABLE_CLOUDXR_EXP_BUNDLE=ON.
+if(ENABLE_CLOUDXR_EXP_BUNDLE)
+    set(CLOUDXR_EXP_PACKAGES_BLOCK
+        "    \"isaacteleop.cloudxr_exp\",\n")
+    set(CLOUDXR_EXP_PACKAGE_DATA_BLOCK
+        "\"isaacteleop.cloudxr_exp\" = [\"native/*.so\", \"native/*.so.*\", \"native/openxr_cloudxr.json\"]\n")
+else()
+    set(CLOUDXR_EXP_PACKAGES_BLOCK "")
+    set(CLOUDXR_EXP_PACKAGE_DATA_BLOCK "")
+endif()
+
 set(ROBOTIC_GROUNDING_SRC "${CMAKE_SOURCE_DIR}/deps/v2d/src/robotic_grounding")
 if(BUNDLE_ROBOTIC_GROUNDING)
     if(NOT EXISTS "${ROBOTIC_GROUNDING_SRC}/__init__.py")
@@ -59,6 +70,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/schema"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/teleop_session_manager"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/cloudxr"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/rig"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_trackers"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_session"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/viz"
@@ -83,7 +95,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-wuji.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python haptic_devices_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
+    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python haptic_devices_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python rig_python
     COMMENT "Preparing Python package structure"
 )
 

@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: oglo_tactile
+description: "OGLO tactile glove (80 taxels + 6-axis IMU per hand) over BLE"
+command: "./oglo_tactile_plugin"
+version: "1.0.0"
+devices:
+  - path: "/glove/oglo_left"
+    type: "oglo_tactile"
+    description: "Left OGLO tactile glove (OGLO LEFT)"
+  - path: "/glove/oglo_right"
+    type: "oglo_tactile"
+    description: "Right OGLO tactile glove (OGLO RIGHT)"

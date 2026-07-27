@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: rebot_devarm_leader
+description: "Seeed reBot DevArm (6-DOF + gripper) leader arm joint angles as JointStateOutput"
+command: "./rebot_devarm_leader_plugin"
+version: "1.0.0"
+devices:
+  - path: "/arm/rebot_devarm_leader"
+    type: "joint_state"
+    description: "reBot DevArm leader arm (7 Damiao DM-series motors over a USB-to-CAN serial adapter, or 7 RobStride RS-series motors over SocketCAN; synthetic fallback when no device path)"

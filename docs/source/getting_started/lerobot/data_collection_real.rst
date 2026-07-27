@@ -23,8 +23,8 @@ Follow the necessary one-time steps to set up your environment and hardware:
 #. The example dependencies installed from a LeRobot source checkout. The LeRobot extras cover the
    SO-101 motor bus (``feetech``), the IK solver for the XR path (``kinematics``), and dataset
    recording (``dataset``). For Isaac Teleop, ``cloudxr`` brings the CloudXR runtime bindings and
-   ``retargeters-lite`` is the default retargeter path (it resolves on both x86_64 and aarch64; the
-   full ``retargeters`` extra is optional and x86_64-only):
+   ``retargeters-lite`` is the default retargeter path on both x86_64 and aarch64; the full
+   ``retargeters`` extra is optional:
 
    .. code-block:: bash
 

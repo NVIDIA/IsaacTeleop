@@ -8,8 +8,9 @@ add_library(replay_trackers STATIC
     replay_hand_tracker_impl.cpp
     replay_head_tracker_impl.cpp
     replay_controller_tracker_impl.cpp
-    replay_full_body_tracker_pico_impl.cpp
+    replay_full_body_tracker_impl.cpp
     replay_generic_3axis_pedal_tracker_impl.cpp
+    replay_oglo_tactile_tracker_impl.cpp
     replay_joint_state_tracker_impl.cpp
     replay_se3_tracker_impl.cpp
     replay_message_channel_tracker_impl.cpp
@@ -19,8 +20,9 @@ add_library(replay_trackers STATIC
     replay_hand_tracker_impl.hpp
     replay_head_tracker_impl.hpp
     replay_controller_tracker_impl.hpp
-    replay_full_body_tracker_pico_impl.hpp
+    replay_full_body_tracker_impl.hpp
     replay_generic_3axis_pedal_tracker_impl.hpp
+    replay_oglo_tactile_tracker_impl.hpp
     replay_joint_state_tracker_impl.hpp
     replay_se3_tracker_impl.hpp
     replay_message_channel_tracker_impl.hpp

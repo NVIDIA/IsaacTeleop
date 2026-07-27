@@ -15,4 +15,9 @@ const HapticCommandTrackedT& ReplayHapticCommandReaderTrackerImpl::get_data() co
     return tracked_;
 }
 
+const HapticCommandTrackedT& ReplayHapticCommandReaderTrackerImpl::get_data(std::string_view /*endpoint*/) const
+{
+    return tracked_;
+}
+
 } // namespace core

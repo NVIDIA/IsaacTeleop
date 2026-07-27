@@ -1,0 +1,136 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Developer Certificate of Origin (DCO) check.
+#
+# Every commit pushed to the repository or included in a pull request must
+# carry a "Signed-off-by:" trailer certifying the contributor's agreement
+# with DCO v1.1 (https://developercertificate.org/).  This mirrors the
+# check used by the Linux kernel and many other open-source projects.
+#
+# The check validates per commit:
+#   1. A "Signed-off-by:" line is present in the commit message.
+#   2. The line carries a non-empty name and a syntactically valid e-mail
+#      address in "Name <email>" form.
+#
+# To sign off: git commit -s  (or --signoff)
+# To fix a past commit: git commit --amend -s
+
+name: DCO
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Read-only token is sufficient — we only inspect commit metadata.
+permissions:
+  contents: read
+
+concurrency:
+  group: dco-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  dco:
+    name: DCO sign-off
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Signed-off-by on every commit
+        env:
+          # pull_request: compare PR base → head.
+          # push: compare before → after (before=zeros on new branches).
+          EVENT:    ${{ github.event_name }}
+          PR_BASE:  ${{ github.event.pull_request.base.sha }}
+          PR_HEAD:  ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER:  ${{ github.event.after }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+
+          # ── Determine the commit range ──────────────────────────────────────
+          if [[ "$EVENT" == "pull_request" ]]; then
+            # GitHub provides the exact base and head SHAs for the PR.
+            BASE="$PR_BASE"
+            HEAD="$PR_HEAD"
+          else
+            # push event — HEAD is always the new tip.
+            HEAD="$PUSH_AFTER"
+            CURRENT_BRANCH="${GITHUB_REF_NAME:-}"
+
+            if [[ "$CURRENT_BRANCH" == "$DEFAULT_BRANCH" ]]; then
+              # Direct push to the default branch: check only the commits
+              # that were just pushed (before..after).  Fail closed when the
+              # range is ambiguous — force-push or initial push — rather than
+              # silently checking only the tip commit.
+              ZEROS="0000000000000000000000000000000000000000"
+              if [[ "$PUSH_BEFORE" == "$ZEROS" ]]; then
+                echo "::error::Cannot determine commit range: initial or force-push to $DEFAULT_BRANCH with no resolvable base."
+                echo "  Open a pull request so commits are verified against a known base."
+                exit 1
+              fi
+              if ! git cat-file -e "$PUSH_BEFORE" 2>/dev/null; then
+                echo "::error::Cannot determine commit range: PUSH_BEFORE ($PUSH_BEFORE) is not reachable (force-push?)."
+                echo "  Open a pull request so commits are verified against a known base."
+                exit 1
+              fi
+              BASE="$PUSH_BEFORE"
+            else
+              # Push to a feature/fix branch: check every commit that is on
+              # this branch but not yet on the default branch.  This is the
+              # correct range regardless of force-pushes or rebases — it
+              # naturally excludes existing main commits (which predate this
+              # requirement) and only checks the contributor's new work.
+              git fetch --quiet origin "$DEFAULT_BRANCH" 2>/dev/null || true
+              BASE="origin/$DEFAULT_BRANCH"
+            fi
+          fi
+
+          # ── Check each commit ───────────────────────────────────────────────
+          fail=0
+
+          while IFS= read -r sha; do
+            msg=$(git log -1 --format="%B" "$sha")
+            author=$(git log -1 --format="%an <%ae>" "$sha")
+
+            # 1. Must have at least one Signed-off-by line.
+            if ! echo "$msg" | grep -qP "^Signed-off-by:\s+\S"; then
+              echo "::error::Commit $sha by $author is missing a Signed-off-by trailer."
+              echo "  Fix with:  git commit --amend -s  (then force-push)"
+              fail=1
+              continue
+            fi
+
+            # 2. Each Signed-off-by must have a non-empty name and a valid
+            #    email address in "Name <user@host.tld>" form.
+            while IFS= read -r sob; do
+              identity="${sob#*Signed-off-by:}"
+              identity="${identity#"${identity%%[^[:space:]]*}"}"  # ltrim all whitespace
+
+              if ! echo "$identity" | grep -qP "^\S[^<@>]*<[^@\s]+@[^@\s]+\.[^@\s]+>\s*$"; then
+                echo "::error::Commit $sha has a malformed Signed-off-by: '$sob'"
+                echo "  Expected:  Signed-off-by: Full Name <email@example.com>"
+                fail=1
+              fi
+            done < <(echo "$msg" | grep -P "^Signed-off-by:")
+
+          done < <(git rev-list --no-merges "$BASE..$HEAD")
+
+          if [[ "$fail" -ne 0 ]]; then
+            echo ""
+            echo "One or more commits are missing a valid DCO sign-off."
+            echo "See https://developercertificate.org/ and CONTRIBUTING.md."
+            exit 1
+          fi
+
+          count=$(git rev-list --count --no-merges "$BASE..$HEAD")
+          echo "All $count commit(s) carry a valid Signed-off-by. ✓"

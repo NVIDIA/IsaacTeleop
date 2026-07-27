@@ -12,6 +12,9 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from isaacteleop.cloudxr.runtime import (
+    _should_use_exp,
+    get_sdk_path,
+    resolve_cloudxr_runtime_module,
     terminate_or_kill_runtime,
     wait_for_runtime_ready_sync,
 )
@@ -30,6 +33,131 @@ class _FakeEnvConfig:
 
     def openxr_run_dir(self) -> str:
         return self._run_dir
+
+
+# ============================================================================
+# TestShouldUseExp / resolve / get_sdk_path
+# ============================================================================
+
+
+class TestShouldUseExp:
+    """Tests for ISAAC_TELEOP_CLOUDXR_EXP selection."""
+
+    def test_default_is_false_off_tegra(self, monkeypatch):
+        monkeypatch.delenv("ISAAC_TELEOP_CLOUDXR_EXP", raising=False)
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: False)
+        assert _should_use_exp() is False
+
+    def test_auto_true_on_t234(self, monkeypatch):
+        monkeypatch.delenv("ISAAC_TELEOP_CLOUDXR_EXP", raising=False)
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: True)
+        assert _should_use_exp() is True
+
+    def test_accepts_truthy(self, monkeypatch):
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_EXP", "1")
+        assert _should_use_exp() is True
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_EXP", "true")
+        assert _should_use_exp() is True
+
+    def test_rejects_falsy_even_on_t234(self, monkeypatch):
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: True)
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_EXP", "0")
+        assert _should_use_exp() is False
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_EXP", "false")
+        assert _should_use_exp() is False
+
+
+class TestResolveCloudxrRuntimeModule:
+    """Tests for stable vs cloudxr_exp module selection."""
+
+    def test_stable_when_exp_not_wanted(self, monkeypatch):
+        monkeypatch.delenv("ISAAC_TELEOP_CLOUDXR_EXP", raising=False)
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: False)
+        assert resolve_cloudxr_runtime_module() == "isaacteleop.cloudxr"
+
+    def test_exp_when_available(self, monkeypatch):
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_EXP", "1")
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime._is_exp_available", lambda: True
+        )
+        assert resolve_cloudxr_runtime_module() == "isaacteleop.cloudxr_exp"
+
+    def test_explicit_exp_missing_raises(self, monkeypatch):
+        monkeypatch.setenv("ISAAC_TELEOP_CLOUDXR_EXP", "1")
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime._is_exp_available", lambda: False
+        )
+        with pytest.raises(RuntimeError, match="cloudxr_exp|ENABLE_CLOUDXR_EXP"):
+            resolve_cloudxr_runtime_module()
+
+    def test_is_exp_available_handles_missing_parent(self, monkeypatch):
+        def _boom(_name: str):
+            raise ModuleNotFoundError("isaacteleop.cloudxr_exp")
+
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime.importlib.util.find_spec", _boom
+        )
+        from isaacteleop.cloudxr.runtime import _is_exp_available
+
+        assert _is_exp_available() is False
+
+    def test_auto_t234_missing_raises(self, monkeypatch):
+        monkeypatch.delenv("ISAAC_TELEOP_CLOUDXR_EXP", raising=False)
+        monkeypatch.setattr("isaacteleop.cloudxr.runtime._is_tegra_t234", lambda: True)
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime._is_exp_available", lambda: False
+        )
+        with pytest.raises(RuntimeError, match="cloudxr_exp|ENABLE_CLOUDXR_EXP"):
+            resolve_cloudxr_runtime_module()
+
+
+class TestGetSdkPath:
+    """Tests for selected-package native/ resolution."""
+
+    def test_uses_resolved_package_native(self, tmp_path, monkeypatch):
+        native = tmp_path / "native"
+        native.mkdir()
+        (native / "libcloudxr.so").write_bytes(b"")
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime.resolve_cloudxr_runtime_module",
+            lambda: "isaacteleop.cloudxr",
+        )
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.__file__", str(tmp_path / "__init__.py")
+        )
+        assert get_sdk_path() == str(native)
+
+    def test_missing_raises(self, tmp_path, monkeypatch):
+        (tmp_path / "native").mkdir()
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime.resolve_cloudxr_runtime_module",
+            lambda: "isaacteleop.cloudxr",
+        )
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.__file__", str(tmp_path / "__init__.py")
+        )
+        with pytest.raises(RuntimeError, match="libcloudxr.so"):
+            get_sdk_path()
+
+    def test_follows_exp_selection(self, monkeypatch):
+        fake_pkg = MagicMock()
+        fake_pkg.__file__ = "/fake/cloudxr_exp/__init__.py"
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime.resolve_cloudxr_runtime_module",
+            lambda: "isaacteleop.cloudxr_exp",
+        )
+
+        def _import_module(name: str):
+            if name == "isaacteleop.cloudxr_exp":
+                return fake_pkg
+            raise AssertionError(f"unexpected import: {name}")
+
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime.importlib.import_module",
+            _import_module,
+        )
+        monkeypatch.setattr(os.path, "isfile", lambda p: p.endswith("libcloudxr.so"))
+        assert get_sdk_path() == "/fake/cloudxr_exp/native"
 
 
 # ============================================================================

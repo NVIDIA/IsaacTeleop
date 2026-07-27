@@ -59,6 +59,7 @@ endif()
 # Options
 option(BUILD_PLUGINS "Build plugins" ON)
 option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
+option(BUILD_PLUGIN_OGLO "Build OGLO tactile glove plugin (BLE, Linux only; fetches SimpleBLE + nlohmann/json)" OFF)
 option(BUILD_PLUGIN_WUJI_GLOVE "Build Wuji glove plugin (requires the wuji_sdk C SDK)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
@@ -87,6 +88,9 @@ option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build supp
 # When enabled, build will fail if the CloudXR runtime SDK is not available.
 # TODO: Make this default to ON for Linux builds when the CloudXR runtime SDK is publicly available.
 option(ENABLE_CLOUDXR_BUNDLE_CHECK "Enable CloudXR bundle check" OFF)
+
+# When ON, also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp.
+option(ENABLE_CLOUDXR_EXP_BUNDLE "Also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp" OFF)
 
 ## Enforce clang-format on Linux builds by default
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -185,10 +189,14 @@ if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
     add_subdirectory(src/plugins/so101_leader)
+    add_subdirectory(src/plugins/rebot_devarm_leader)
     add_subdirectory(src/plugins/manus)
     add_subdirectory(src/plugins/haptikos)
     if(BUILD_PLUGIN_OAK_CAMERA)
         add_subdirectory(src/plugins/oak)
+    endif()
+    if(BUILD_PLUGIN_OGLO)
+        add_subdirectory(src/plugins/oglo_tactile)
     endif()
     # Gated: requires the wuji_sdk C library (set WUJI_SDK_INCLUDE_DIR + lib path).
     if(BUILD_PLUGIN_WUJI_GLOVE)

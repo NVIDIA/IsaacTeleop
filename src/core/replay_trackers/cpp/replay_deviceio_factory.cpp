@@ -4,24 +4,26 @@
 #include "inc/replay_trackers/replay_deviceio_factory.hpp"
 
 #include "replay_controller_tracker_impl.hpp"
-#include "replay_full_body_tracker_pico_impl.hpp"
+#include "replay_full_body_tracker_impl.hpp"
 #include "replay_generic_3axis_pedal_tracker_impl.hpp"
 #include "replay_hand_tracker_impl.hpp"
 #include "replay_haptic_command_reader_tracker_impl.hpp"
 #include "replay_head_tracker_impl.hpp"
 #include "replay_joint_state_tracker_impl.hpp"
 #include "replay_message_channel_tracker_impl.hpp"
+#include "replay_oglo_tactile_tracker_impl.hpp"
 #include "replay_se3_tracker_impl.hpp"
 #include "replay_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <deviceio_trackers/full_body_tracker_pico.hpp>
+#include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/oglo_tactile_tracker.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <mcap/reader.hpp>
@@ -67,16 +69,22 @@ std::unique_ptr<ITrackerImpl> try_create_controller_impl(ReplayDeviceIOFactory& 
     return typed ? factory.create_controller_tracker_impl(typed) : nullptr;
 }
 
-std::unique_ptr<ITrackerImpl> try_create_full_body_pico_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+std::unique_ptr<ITrackerImpl> try_create_full_body_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
 {
-    auto* typed = dynamic_cast<const FullBodyTrackerPico*>(&tracker);
-    return typed ? factory.create_full_body_tracker_pico_impl(typed) : nullptr;
+    auto* typed = dynamic_cast<const FullBodyTracker*>(&tracker);
+    return typed ? factory.create_full_body_tracker_impl(typed) : nullptr;
 }
 
 std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const Generic3AxisPedalTracker*>(&tracker);
     return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_oglo_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OgloTactileTracker*>(&tracker);
+    return typed ? factory.create_oglo_tactile_tracker_impl(typed) : nullptr;
 }
 
 std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
@@ -116,8 +124,9 @@ inline const TryCreateFn k_tracker_dispatch[] = {
     &try_create_head_impl,
     &try_create_hand_impl,
     &try_create_controller_impl,
-    &try_create_full_body_pico_impl,
+    &try_create_full_body_impl,
     &try_create_generic_pedal_impl,
+    &try_create_oglo_impl,
     &try_create_tensor_push_impl,
     &try_create_haptic_command_reader_impl,
     &try_create_joint_state_impl,
@@ -177,16 +186,21 @@ std::unique_ptr<IControllerTrackerImpl> ReplayDeviceIOFactory::create_controller
     return std::make_unique<ReplayControllerTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
-std::unique_ptr<IFullBodyTrackerPicoImpl> ReplayDeviceIOFactory::create_full_body_tracker_pico_impl(
-    const FullBodyTrackerPico* tracker)
+std::unique_ptr<IFullBodyTrackerImpl> ReplayDeviceIOFactory::create_full_body_tracker_impl(const FullBodyTracker* tracker)
 {
-    return std::make_unique<ReplayFullBodyTrackerPicoImpl>(open_reader(filename_), get_name(tracker));
+    return std::make_unique<ReplayFullBodyTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IGeneric3AxisPedalTrackerImpl> ReplayDeviceIOFactory::create_generic_3axis_pedal_tracker_impl(
     const Generic3AxisPedalTracker* tracker)
 {
     return std::make_unique<ReplayGeneric3AxisPedalTrackerImpl>(open_reader(filename_), get_name(tracker));
+}
+
+std::unique_ptr<IOgloTactileTrackerImpl> ReplayDeviceIOFactory::create_oglo_tactile_tracker_impl(
+    const OgloTactileTracker* tracker)
+{
+    return std::make_unique<ReplayOgloTactileTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<ITensorPushTrackerImpl> ReplayDeviceIOFactory::create_tensor_push_tracker_impl(
