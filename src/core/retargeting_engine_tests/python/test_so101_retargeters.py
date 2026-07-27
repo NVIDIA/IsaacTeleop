@@ -6,8 +6,9 @@
 Covers the SO-101 retargeters that drive the full-pose SE3 IK stacking pipeline:
 
 * :class:`~isaacteleop.retargeters.SO101GripperRetargeter` -- analog trigger -> jaw closedness.
-* :class:`~isaacteleop.retargeters.SO101ClutchRetargeter` -- clutch-rebased absolute EE pose
-  (position + calibration-composed grip orientation) for the 5-joint pose IK.
+* :class:`~isaacteleop.retargeters.SO101ClutchRetargeter` -- the engage-relative full-pose clutch,
+  re-latching both home position and orientation on every engage with a base-frame left-composed
+  orientation delta.
 
 Each retargeter is exercised both at the pure-math level (the module-private helper functions)
 and at the ``BaseRetargeter.compute`` level (build inputs/outputs, drive a frame, read the
@@ -25,24 +26,29 @@ from isaacteleop.retargeting_engine.interface import (
     ExecutionEvents,
     ExecutionState,
     OptionalTensorGroup,
+    OutputCombiner,
     TensorGroup,
+    ValueInput,
 )
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
 from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+    OptionalType,
     OptionalTensorGroupType,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInput,
     ControllerInputIndex,
+    TransformMatrix,
 )
 from isaacteleop.retargeters import (
     SO101ClutchRetargeter,
     SO101GripperRetargeter,
 )
 from isaacteleop.retargeters.SO101.clutch_retargeter import (
-    _CLUTCH_HOME_EE_POS,
+    _mat_to_quat_xyzw,
+    _normalize_quat,
+    _quat_inv,
     _quat_mul,
-    _rebased_position,
 )
 from isaacteleop.retargeters.SO101.gripper_retargeter import (
     GRIPPER_COMMAND_KEY,
@@ -92,6 +98,7 @@ def _make_controller(
     grip_ori=_ID_QUAT,
     aim_ori=_ID_QUAT,
     trigger: float = 0.0,
+    squeeze: float = 0.0,
     grip_is_valid: bool = True,
 ) -> TensorGroup:
     """Build a present ControllerInput TensorGroup with the given grip/aim pose / trigger.
@@ -99,20 +106,41 @@ def _make_controller(
     The grip pose drives roll; the aim pose (pointer ray) drives pitch. ``grip_is_valid`` sets the
     grip pose validity flag (OpenXR location-flag derived); pass ``False`` to model a present
     controller whose grip pose is not yet localizable.
+
+    ``squeeze`` is the grip/squeeze trigger that drives
+    :class:`SO101ClutchRetargeter`'s engage signal.
+
+    ALL 14 elements are written, matching what the real ``ControllersSource._update_group`` does.
+    Two distinct things require it: reading an unset element raises ``ValueError``
+    (``interface/tensor.py:83-84``), and passing this group through a ``ValueInput`` in a graph
+    deep-copies every slot -- so a partially-populated group fails on a slot nothing even reads.
     """
     tg = TensorGroup(ControllerInput())
     tg[ControllerInputIndex.GRIP_POSITION] = np.asarray(grip_pos, dtype=np.float32)
     tg[ControllerInputIndex.GRIP_ORIENTATION] = np.asarray(grip_ori, dtype=np.float32)
     tg[ControllerInputIndex.GRIP_IS_VALID] = grip_is_valid
+    tg[ControllerInputIndex.AIM_POSITION] = np.zeros(3, dtype=np.float32)
     tg[ControllerInputIndex.AIM_ORIENTATION] = np.asarray(aim_ori, dtype=np.float32)
     tg[ControllerInputIndex.AIM_IS_VALID] = True
+    tg[ControllerInputIndex.PRIMARY_CLICK] = 0.0
+    tg[ControllerInputIndex.SECONDARY_CLICK] = 0.0
+    tg[ControllerInputIndex.THUMBSTICK_X] = 0.0
+    tg[ControllerInputIndex.THUMBSTICK_Y] = 0.0
+    tg[ControllerInputIndex.THUMBSTICK_CLICK] = 0.0
+    tg[ControllerInputIndex.MENU_CLICK] = 0.0
     tg[ControllerInputIndex.TRIGGER_VALUE] = float(trigger)
+    tg[ControllerInputIndex.SQUEEZE_VALUE] = float(squeeze)
     return tg
 
 
-def _make_home_transform(translation) -> np.ndarray:
-    """Build a (4, 4) ``base_T_ee`` home transform with identity rotation and the given origin."""
+def _make_home_transform(translation, rotation_3x3=None) -> np.ndarray:
+    """Build a (4, 4) ``base_T_ee`` home transform from a translation and optional rotation.
+
+    The rotation defaults to identity. :class:`SO101ClutchRetargeter` reads both blocks.
+    """
     m = np.eye(4, dtype=np.float64)
+    if rotation_3x3 is not None:
+        m[:3, :3] = np.asarray(rotation_3x3, dtype=np.float64)
     m[:3, 3] = np.asarray(translation, dtype=np.float64)
     return m
 
@@ -217,373 +245,809 @@ class TestSO101GripperRetargeter:
 # ===========================================================================
 # SO101ClutchRetargeter
 # ===========================================================================
+#
+# The clutch re-latches BOTH home position and orientation on every engage, and composes the
+# orientation delta on the LEFT (base frame). A right-composed delta, or a fixed appended
+# orientation offset, is a different convention that breaks the no-teleport invariant.
+#
+# ``engage()``/``rebase()`` do not exist here -- engagement is a squeeze rising edge observed
+# across ``compute()`` frames -- so the invariants below are expressed as frame sequences. A
+# rising-edge frame both latches AND emits, so a test whose engage and rebase poses are identical
+# needs one frame while a test that moves the controller needs two.
 
 
-class TestRebasedPositionMath:
-    """The pure clutch rebasing math (origin + scale). Controller poses arrive already in the
-    robot base frame (the Lab device rebases them via ``target_frame_prim_path``), so no
-    world->base rotation is applied here."""
-
-    HOME = np.array(_CLUTCH_HOME_EE_POS, dtype=np.float64)
-    ORIGIN = np.array([0.31, -0.12, 0.44], dtype=np.float64)
-
-    def test_first_frame_is_home(self):
-        """With ``p_ctrl == origin`` (the latching frame), the rebased position is exactly home."""
-        out = _rebased_position(self.ORIGIN.copy(), self.ORIGIN, self.HOME, 1.0)
-        np.testing.assert_allclose(out, self.HOME, atol=1e-9)
-
-    def test_applies_delta(self):
-        """A +delta controller move shifts the EE by +delta from home (scale 1)."""
-        delta = np.array([0.05, -0.02, 0.10], dtype=np.float64)
-        out = _rebased_position(self.ORIGIN + delta, self.ORIGIN, self.HOME, 1.0)
-        np.testing.assert_allclose(out, self.HOME + delta, atol=1e-9)
-
-    def test_honors_scale(self):
-        """The translation scale multiplies the controller delta before adding it to home."""
-        delta = np.array([0.05, -0.02, 0.10], dtype=np.float64)
-        out = _rebased_position(self.ORIGIN + delta, self.ORIGIN, self.HOME, 2.0)
-        np.testing.assert_allclose(out, self.HOME + 2.0 * delta, atol=1e-9)
+def _quat_to_matrix(q) -> np.ndarray:
+    """Convert an [x, y, z, w] quaternion to a 3x3 rotation matrix."""
+    x, y, z, w = _normalize_quat(np.asarray(q, dtype=np.float64))
+    return np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+        ],
+        dtype=np.float64,
+    )
 
 
-class TestSO101ClutchRetargeter:
-    """End-to-end ``compute`` behavior of the clutch EE-pose retargeter."""
+def _rot_dist(a, b) -> float:
+    """Frobenius distance between two rotations given as [x, y, z, w] quaternions.
 
-    def test_output_spec_is_7d_pose(self):
-        """Outputs a single 7D ee_pose (position + quaternion)."""
-        r = SO101ClutchRetargeter(name="ee_pose")
-        pose_type = r.output_spec()["ee_pose"].types[0]
-        assert pose_type.shape == (7,)
+    Deliberately NOT a geodesic ``arccos`` angle: ``arccos((tr - 1) / 2)`` has a ``sqrt(eps)``
+    conditioning floor near identity and reports ~5.2e-08 rad for a pair this metric resolves at
+    ~4.9e-15, which makes tight tolerances unachievable and reads as a code fault. Frobenius is
+    also sign-agnostic by construction (``q`` and ``-q`` are the same rotation).
+    """
+    return float(np.linalg.norm(_quat_to_matrix(a) - _quat_to_matrix(b)))
 
-    def test_input_spec_is_controller_only(self):
-        """The clutch consumes only the controller; no live EE or base transform inputs.
 
-        The world->base rebase happens upstream (the device's ``target_frame_prim_path``) and the
-        reset-origin home is the static ``home_base_T_ee`` config, so the clutch needs neither a
-        per-frame ``robot_ee_pos`` nor a ``robot_base_pos`` input.
-        """
-        r = SO101ClutchRetargeter(name="ee_pose")
-        assert list(r.input_spec()) == [ControllersSource.RIGHT]
-        assert not hasattr(SO101ClutchRetargeter, "ROBOT_EE_POS_INPUT")
-        assert not hasattr(SO101ClutchRetargeter, "ROBOT_BASE_POS_INPUT")
+def _make_measured(translation) -> TensorGroup:
+    """Build a ``base_T_ee`` TransformMatrix group for the measured-EE-pose input."""
+    tg = TensorGroup(TransformMatrix())
+    tg[0] = _make_home_transform(translation).astype(np.float32)
+    return tg
 
-    def test_not_running_holds_home_without_latching(self):
-        """While not RUNNING the clutch holds the configured home and does not latch an origin."""
-        r = SO101ClutchRetargeter(name="ee_pose")
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=(0.5, 0.5, 0.5))
-        r.compute(inputs, outputs, _make_context(state=ExecutionState.STOPPED))
-        pose = _read_pose(outputs)
-        np.testing.assert_allclose(pose[:3], np.array(_CLUTCH_HOME_EE_POS), atol=1e-6)
-        assert r._origin is None  # not latched while stopped
 
-    def test_engage_latches_origin_at_home(self):
-        """The first RUNNING frame latches the origin so the EE sits exactly at the configured home.
+class _Driver:
+    """Drives a :class:`SO101ClutchRetargeter` one frame at a time.
 
-        On the latching frame ``p_ctrl == origin`` so the emitted position equals home (no
-        teleport on engage). An identity offset is used here so the grip orientation passes
-        through unchanged (the default ``Rz(pi)`` offset is covered by
-        :meth:`test_calibration_offset_composed_into_orientation`).
-        """
-        r = SO101ClutchRetargeter(
-            name="ee_pose", orientation_offset=np.array([0.0, 0.0, 0.0, 1.0])
+    Named for what it does rather than for the class under test: this file also exercises the
+    SO-101 gripper retargeter, so a bare ``_Clutch`` would read as the only subject here.
+    """
+
+    def __init__(self, home_base_T_ee=None, **kwargs):  # noqa: N803
+        if home_base_T_ee is None:
+            home_base_T_ee = _make_home_transform((0.0, 0.0, 0.0))
+        self.r = SO101ClutchRetargeter("clutch", home_base_T_ee, **kwargs)
+        self.inputs, self.outputs = _build_io(self.r)
+
+    def frame(
+        self,
+        grip_pos=(0.0, 0.0, 0.0),
+        grip_ori=_ID_QUAT,
+        *,
+        squeeze: float = 1.0,
+        grip_is_valid: bool = True,
+        present: bool = True,
+        measured=None,
+        state: ExecutionState = ExecutionState.RUNNING,
+        reset: bool = False,
+    ) -> np.ndarray:
+        """Drive one frame and return the emitted 7D pose."""
+        key = ControllersSource.RIGHT
+        if present:
+            self.inputs[key] = _make_controller(
+                grip_pos=grip_pos,
+                grip_ori=grip_ori,
+                squeeze=squeeze,
+                grip_is_valid=grip_is_valid,
+            )
+        else:
+            self.inputs[key] = OptionalTensorGroup(ControllerInput())
+        self.inputs[SO101ClutchRetargeter.MEASURED_BASE_T_EE_INPUT] = (
+            _make_measured(measured)
+            if measured is not None
+            else OptionalTensorGroup(TransformMatrix())
         )
-        inputs, outputs = _build_io(r)
-        grip_ori = _quat_xyzw([0, 0, 1], 0.3).astype(np.float32)
-        inputs[ControllersSource.RIGHT] = _make_controller(
-            grip_pos=(0.5, -0.3, 0.7), grip_ori=grip_ori
+        self.r.compute(
+            self.inputs, self.outputs, _make_context(reset=reset, state=state)
         )
-        r.compute(inputs, outputs, _make_context())
-        pose = _read_pose(outputs)
-        np.testing.assert_allclose(pose[:3], np.array(_CLUTCH_HOME_EE_POS), atol=1e-6)
-        np.testing.assert_allclose(pose[3:], grip_ori, atol=1e-6)
+        return _read_pose(self.outputs)
 
-    def test_motion_after_engage_applies_delta(self):
-        """A controller delta after engage shifts the EE by that delta from home (base frame)."""
-        r = SO101ClutchRetargeter(name="ee_pose")
-        p0 = np.array([0.5, -0.3, 0.7])
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-        r.compute(inputs, outputs, _make_context())  # engage frame: latch origin == p0
+    def engage(self, grip_pos=(0.0, 0.0, 0.0), grip_ori=_ID_QUAT, **kw) -> np.ndarray:
+        """Release then re-squeeze, so the next frame is a rising edge that latches."""
+        self.frame(grip_pos, grip_ori, squeeze=0.0)
+        return self.frame(grip_pos, grip_ori, squeeze=1.0, **kw)
 
-        delta = np.array([0.05, -0.02, 0.10])
-        inputs2, outputs2 = _build_io(r)
-        inputs2[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + delta)
-        r.compute(inputs2, outputs2, _make_context())
-        pose = _read_pose(outputs2)
-        expected = np.array(_CLUTCH_HOME_EE_POS) + delta
-        np.testing.assert_allclose(pose[:3], expected, atol=1e-5)
 
-    def test_configured_home_overrides_default(self):
-        """A ``home_base_T_ee`` transform sets the engage home from its translation block."""
-        home_xyz = (0.30, 0.10, 0.25)
-        r = SO101ClutchRetargeter(
-            name="ee_pose", home_base_T_ee=_make_home_transform(home_xyz)
+class TestEngageRelativeClutchQuaternionHelpers:
+    """The inlined quaternion helpers, pinned against independent references.
+
+    The branch-on-trace matrix->quaternion conversion is the one piece of this retargeter that is
+    not eyeball-verifiable, so it is checked over random SO(3) with all four Shepperd branches
+    covered rather than on a handful of axis rotations.
+    """
+
+    def test_mat_to_quat_round_trips_over_random_so3(self):
+        """matrix -> quat -> matrix reproduces the input over uniformly random rotations."""
+        rng = np.random.default_rng(20260727)
+        branches = {"trace": 0, "xx": 0, "yy": 0, "zz": 0}
+        worst = 0.0
+        for _ in range(2000):
+            # QR of a Gaussian matrix is uniform on O(3) only after the sign fix below; without
+            # it the sample is badly skewed and two Shepperd branches go almost unvisited.
+            q, upper = np.linalg.qr(rng.standard_normal((3, 3)))
+            q = q @ np.diag(np.sign(np.diag(upper)))
+            if np.linalg.det(q) < 0:
+                q[:, 0] *= -1
+            if np.trace(q) > 0:
+                branches["trace"] += 1
+            elif q[0, 0] > q[1, 1] and q[0, 0] > q[2, 2]:
+                branches["xx"] += 1
+            elif q[1, 1] > q[2, 2]:
+                branches["yy"] += 1
+            else:
+                branches["zz"] += 1
+            worst = max(
+                worst, float(np.linalg.norm(_quat_to_matrix(_mat_to_quat_xyzw(q)) - q))
+            )
+        assert worst < 1e-12
+        # All four branches must actually be exercised, or this proves much less than it looks.
+        assert all(count > 100 for count in branches.values()), branches
+
+    def test_mat_to_quat_handles_180_degree_rotations(self):
+        """The trace <= 0 branches: 180 degrees about each principal axis."""
+        for axis in np.eye(3):
+            expected = _quat_to_matrix(_quat_xyzw(axis, math.pi))
+            assert (
+                _rot_dist(_mat_to_quat_xyzw(expected), _quat_xyzw(axis, math.pi))
+                < 1e-12
+            )
+
+    def test_mat_to_quat_output_is_normalized(self):
+        """Unlike the engine-private original, this copy normalizes -- downstream assumes unit."""
+        m = _quat_to_matrix(_quat_xyzw([1.0, 2.0, 3.0], 1.1))
+        assert abs(float(np.linalg.norm(_mat_to_quat_xyzw(m))) - 1.0) < 1e-12
+
+    def test_quat_inv_inverts_even_a_non_unit_quaternion(self):
+        """``_quat_inv`` normalizes before conjugating, so non-unit input still inverts."""
+        q = np.array([0.3, -0.4, 0.5, 0.7]) * 7.0
+        assert _rot_dist(_quat_mul(q, _quat_inv(q)), _ID_QUAT) < 1e-12
+
+    def test_quat_mul_matches_matrix_composition(self):
+        """``_quat_mul(a, b)`` composes as ``R(a) @ R(b)`` -- operand order is load-bearing."""
+        a = _quat_xyzw([0.0, 0.0, 1.0], math.pi / 2)
+        b = _quat_xyzw([1.0, 0.0, 0.0], math.pi / 2)
+        expected = _quat_to_matrix(a) @ _quat_to_matrix(b)
+        assert (
+            float(np.linalg.norm(_quat_to_matrix(_quat_mul(a, b)) - expected)) < 1e-12
         )
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=(0.5, -0.3, 0.7))
-        r.compute(inputs, outputs, _make_context())
+
+
+class TestEngageRelativeClutchSeeding:
+    """The constructor latches home from the supplied startup EE pose -- both blocks."""
+
+    def test_engage_frame_returns_seeded_home_position(self):
+        """Engaging at any controller pose returns exactly the seeded home -- no teleport."""
+        c = _Driver(_make_home_transform((0.1, 0.2, 0.3)))
         np.testing.assert_allclose(
-            _read_pose(outputs)[:3], np.array(home_xyz), atol=1e-6
+            c.engage((5.0, -3.0, 2.0))[:3], [0.1, 0.2, 0.3], atol=1e-6
         )
 
-    def test_reengage_resumes_from_last_commanded_pose(self):
-        """A mid-task re-clutch resumes from the last commanded pose (no snap), then accumulates.
-
-        The clutch keeps its own running home internally. After a plain Stop, the next Play
-        latches the origin to the new controller pose but keeps the home at the last commanded
-        pose, so the arm stays put and tracks fresh delta from there.
-        """
-        r = SO101ClutchRetargeter(name="ee_pose")
-        home = np.array(_CLUTCH_HOME_EE_POS)
-        p0 = np.array([0.5, -0.3, 0.7])
-
-        # Engage (seeds home from config) and move +d1 -> last commanded is home + d1.
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-        r.compute(inputs, outputs, _make_context())
-        d1 = np.array([0.05, -0.02, 0.10])
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + d1)
-        r.compute(inputs, outputs, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs)[:3], home + d1, atol=1e-5)
-
-        # Disengage (STOPPED) -> hold last commanded pose, re-arm the origin.
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=(9.0, 9.0, 9.0))
-        r.compute(inputs, outputs, _make_context(state=ExecutionState.STOPPED))
-        np.testing.assert_allclose(_read_pose(outputs)[:3], home + d1, atol=1e-5)
-        assert r._origin is None
-
-        # Re-engage at a new controller pose -> resume from the running home (home + d1): no jump.
-        p1 = np.array([1.0, 1.0, 1.0])
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p1)
-        r.compute(inputs, outputs, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs)[:3], home + d1, atol=1e-5)
-
-        # Fresh delta from the re-engage origin accumulates on top of the resumed pose.
-        d2 = np.array([0.0, 0.10, -0.03])
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p1 + d2)
-        r.compute(inputs, outputs, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs)[:3], home + d1 + d2, atol=1e-5)
-
-    def test_reset_returns_home_to_config(self):
-        """An explicit reset returns the running home to the configured home.
-
-        Unlike a plain Stop (which freezes the running home so re-engage resumes), a reset
-        re-zeros the clutch to the configured home for a fresh episode.
-        """
-        r = SO101ClutchRetargeter(name="ee_pose")
-        home = np.array(_CLUTCH_HOME_EE_POS)
-        p0 = np.array([0.5, -0.3, 0.7])
-
-        # Engage and move so the running home is no longer the configured home.
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-        r.compute(inputs, outputs, _make_context())
-        d1 = np.array([0.05, -0.02, 0.10])
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + d1)
-        r.compute(inputs, outputs, _make_context())
-
-        # Reset (controller steady at p0) -> re-zeros the home to config and re-latches the
-        # origin at p0, so the emitted pose is the configured home, not the pre-reset pose.
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-        r.compute(inputs, outputs, _make_context(reset=True))
-        np.testing.assert_allclose(_read_pose(outputs)[:3], home, atol=1e-6)
-
-        # Subsequent motion is measured from the config home (not the pre-reset commanded pose).
-        d2 = np.array([0.0, 0.10, -0.03])
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + d2)
-        r.compute(inputs, outputs, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs)[:3], home + d2, atol=1e-6)
-
-    def test_dropped_frame_holds_last_pose(self):
-        """An absent controller frame holds the last commanded pose."""
-        r = SO101ClutchRetargeter(name="ee_pose")
-        p0 = np.array([0.5, -0.3, 0.7])
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-        r.compute(inputs, outputs, _make_context())
-        first = _read_pose(outputs)
-
-        inputs2, outputs2 = _build_io(r)  # controller absent
-        r.compute(inputs2, outputs2, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs2), first, atol=1e-9)
-
-    def test_calibration_offset_composed_into_orientation(self):
-        """The fixed orientation offset right-multiplies (body frame) the grip orientation.
-
-        The default offset is ``Rz(pi)`` (a roll about the shared approach axis), composed as a
-        body-frame right multiply (``grip (x) offset``) and renormalized to unit. An explicit
-        identity offset passes the grip orientation through unchanged.
-        """
-        grip = _quat_xyzw([0.0, 1.0, 0.0], 0.4).astype(np.float32)
-
-        # Explicit identity offset: passthrough.
-        r = SO101ClutchRetargeter(
-            name="ee_pose", orientation_offset=np.array([0.0, 0.0, 0.0, 1.0])
+    def test_engage_frame_returns_seeded_home_orientation(self):
+        """Same no-teleport guarantee for orientation, whatever the controller orientation."""
+        home_rot = _quat_to_matrix(_quat_xyzw([0.0, 1.0, 0.0], math.pi / 3))
+        c = _Driver(_make_home_transform((0.0, 0.0, 0.0), home_rot))
+        grip = _quat_xyzw([1.0, 0.0, 0.0], math.pi / 5)
+        assert (
+            _rot_dist(c.engage((0.0, 0.0, 0.0), grip)[3:7], _mat_to_quat_xyzw(home_rot))
+            < 1e-6
         )
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(
-            grip_pos=(0.5, -0.3, 0.7), grip_ori=grip
-        )
-        r.compute(inputs, outputs, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs)[3:], grip, atol=1e-6)
 
-        # Default offset: emitted == grip (x) Rz(pi) (body-frame right multiply), unit.
-        r_def = SO101ClutchRetargeter(name="ee_pose")
-        inputs_def, outputs_def = _build_io(r_def)
-        inputs_def[ControllersSource.RIGHT] = _make_controller(
-            grip_pos=(0.5, -0.3, 0.7), grip_ori=grip
-        )
-        r_def.compute(inputs_def, outputs_def, _make_context())
-        rz_pi = np.array([0.0, 0.0, 1.0, 0.0])  # Rz(pi), xyzw
-        expected_def = _quat_mul(grip.astype(np.float64), rz_pi)
-        expected_def = expected_def / np.linalg.norm(expected_def)
-        np.testing.assert_allclose(_read_pose(outputs_def)[3:], expected_def, atol=1e-6)
+    def test_home_transform_rotation_block_is_used(self):
+        """The rotation block is NOT discarded: it seeds the home orientation."""
+        home_rot = _quat_to_matrix(_quat_xyzw([0.0, 0.0, 1.0], math.pi / 2))
+        c = _Driver(_make_home_transform((0.0, 0.0, 0.0), home_rot))
+        assert _rot_dist(c.frame(squeeze=0.0)[3:7], _mat_to_quat_xyzw(home_rot)) < 1e-6
 
-        # Non-identity offset: emitted == grip (x) offset (right multiply), renormalized to unit.
-        offset = _quat_xyzw([0.0, 0.0, 1.0], 0.9)
-        r2 = SO101ClutchRetargeter(name="ee_pose", orientation_offset=offset)
-        inputs2, outputs2 = _build_io(r2)
-        inputs2[ControllersSource.RIGHT] = _make_controller(
-            grip_pos=(0.5, -0.3, 0.7), grip_ori=grip
+
+class TestEngageRelativeClutchPosition:
+    """Controller -> EE translation is measured from the engage origin, scaled."""
+
+    def test_position_delta_is_one_to_one(self):
+        c = _Driver(_make_home_transform((1.0, 1.0, 1.0)))
+        c.engage((0.0, 0.0, 0.0))
+        pose = c.frame((0.3, -0.2, 0.0))
+        np.testing.assert_allclose(pose[:3], [1.3, 0.8, 1.0], atol=1e-6)
+
+    def test_position_is_relative_to_origin_not_absolute(self):
+        """A nonzero engage origin does not leak into the output -- only the change from it."""
+        c = _Driver()
+        c.engage((10.0, 10.0, 10.0))
+        np.testing.assert_allclose(
+            c.frame((10.5, 10.0, 10.0))[:3], [0.5, 0.0, 0.0], atol=1e-6
         )
-        r2.compute(inputs2, outputs2, _make_context())
-        emitted = _read_pose(outputs2)[3:]
-        expected = _quat_mul(grip.astype(np.float64), offset)
-        expected = expected / np.linalg.norm(expected)
-        np.testing.assert_allclose(emitted, expected, atol=1e-6)
-        assert np.linalg.norm(emitted) == pytest.approx(1.0, abs=1e-6)
+
+
+class TestEngageRelativeClutchOrientation:
+    """Base-frame (left-composed) orientation delta."""
+
+    def test_orientation_delta_is_base_frame_left_composed(self):
+        """R_out = Rz(90) @ Rx(90), NOT the body-frame Rx(90) @ Rz(90) a right-composition gives."""
+        home_rot = _quat_to_matrix(_quat_xyzw([1.0, 0.0, 0.0], math.pi / 2))
+        c = _Driver(_make_home_transform((0.0, 0.0, 0.0), home_rot))
+        c.engage()
+        ctrl = _quat_xyzw([0.0, 0.0, 1.0], math.pi / 2)
+        out = c.frame((0.0, 0.0, 0.0), ctrl)[3:7]
+        expected = _quat_to_matrix(ctrl) @ home_rot
+        assert float(np.linalg.norm(_quat_to_matrix(out) - expected)) < 1e-6
+        # And it is NOT the right-composed alternative, which differs by O(1).
+        assert (
+            float(
+                np.linalg.norm(_quat_to_matrix(out) - home_rot @ _quat_to_matrix(ctrl))
+            )
+            > 1.0
+        )
+
+    def test_orientation_is_relative_to_origin_orientation(self):
+        """A nonzero controller origin orientation cancels on the engage frame."""
+        c = _Driver()
+        origin = _quat_xyzw([0.0, 0.0, 1.0], math.pi / 4)
+        assert _rot_dist(c.engage((0.0, 0.0, 0.0), origin)[3:7], _ID_QUAT) < 1e-6
+
+    def test_orientation_delta_is_always_one_to_one_regardless_of_scale(self):
+        """``position_scale`` applies to translation only."""
+        c = _Driver(position_scale=0.25)
+        c.engage()
+        ctrl = _quat_xyzw([0.0, 1.0, 0.0], math.pi / 3)
+        assert _rot_dist(c.frame((0.0, 0.0, 0.0), ctrl)[3:7], ctrl) < 1e-6
+
+
+class TestEngageRelativeClutchReclutch:
+    """A fresh engage resumes from the LAST COMMANDED pose."""
+
+    def test_reclutch_resumes_from_last_commanded_position(self):
+        c = _Driver()
+        c.engage((0.0, 0.0, 0.0))
+        c.frame((1.0, 0.0, 0.0))
+        # Re-engage with the controller somewhere else entirely: no jump to its absolute position.
+        np.testing.assert_allclose(
+            c.engage((5.0, 5.0, 5.0))[:3], [1.0, 0.0, 0.0], atol=1e-6
+        )
+        np.testing.assert_allclose(
+            c.frame((6.0, 5.0, 5.0))[:3], [2.0, 0.0, 0.0], atol=1e-6
+        )
+
+    def test_reclutch_resumes_from_last_commanded_orientation(self):
+        c = _Driver()
+        c.engage()
+        ctrl = _quat_xyzw([0.0, 0.0, 1.0], math.pi / 2)
+        c.frame((0.0, 0.0, 0.0), ctrl)
+        reengage = _quat_xyzw([1.0, 0.0, 0.0], math.pi / 3)
+        out = c.engage((0.0, 0.0, 0.0), reengage)[3:7]
+        assert _rot_dist(out, ctrl) < 1e-6
+
+    def test_disengaged_gap_does_not_change_commanded_pose(self):
+        """Only engaged frames advance the commanded pose; disengaged frames hold it."""
+        c = _Driver()
+        c.engage()
+        pose_a = c.frame((0.4, 0.1, -0.2)).copy()
+        for _ in range(5):
+            c.frame((7.0, 7.0, 7.0), squeeze=0.0)
+        pose_b = c.engage((9.0, 9.0, 9.0))
+        np.testing.assert_allclose(pose_a[:3], pose_b[:3], atol=1e-6)
+        assert _rot_dist(pose_a[3:7], pose_b[3:7]) < 1e-6
+
+
+class TestEngageRelativeClutchEngageSignal:
+    """``engaged == RUNNING and squeeze > squeeze_threshold``, latched on the rising edge."""
+
+    def test_squeeze_below_threshold_does_not_engage(self):
+        c = _Driver(squeeze_threshold=0.5)
+        c.frame((1.0, 0.0, 0.0), squeeze=0.5)  # strictly greater, so 0.5 is NOT engaged
+        assert not c.r.is_engaged
+        np.testing.assert_allclose(
+            c.frame((1.0, 0.0, 0.0), squeeze=0.51)[:3], [0.0, 0.0, 0.0], atol=1e-6
+        )
+        assert c.r.is_engaged
 
     @pytest.mark.parametrize(
-        "bad_grip_ori",
-        [
-            # valid-flagged but zero-norm composed quaternion
-            np.zeros(4, dtype=np.float32),
-            # valid-flagged but non-finite grip quaternion
-            np.full(4, np.nan, dtype=np.float32),
-        ],
+        "state",
+        [ExecutionState.STOPPED, ExecutionState.PAUSED, ExecutionState.UNKNOWN],
     )
-    def test_degenerate_grip_orientation_emits_finite_pose(self, bad_grip_ori):
-        """Defense-in-depth: a valid-flagged but degenerate grip quaternion must not emit NaN.
-
-        Even when the grip pose is flagged valid (so the ``GRIP_IS_VALID`` gate passes), a source
-        that emits a zero or non-finite grip quaternion would, after composing the calibration
-        offset, normalize to NaN and poison the downstream SE3 IK (``svdvals`` -> ``LinAlgError``
-        -> PhysX non-finite bounds). The clutch must instead emit a finite, unit-norm orientation,
-        holding the last good one (the seeded identity on the first frame).
-        """
-        r = SO101ClutchRetargeter(name="ee_pose")
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(
-            grip_pos=(0.5, -0.3, 0.7), grip_ori=bad_grip_ori
-        )
-        r.compute(inputs, outputs, _make_context())
-        pose = _read_pose(outputs)
-        assert np.all(np.isfinite(pose)), f"non-finite pose emitted: {pose}"
-        np.testing.assert_allclose(pose[3:], _ID_QUAT, atol=1e-6)
-        assert np.linalg.norm(pose[3:]) == pytest.approx(1.0, abs=1e-6)
-
-    def test_invalid_grip_pose_holds_last_without_latching(self):
-        """An invalid grip pose (OpenXR validity bits clear) is treated like a dropped frame.
-
-        When the controller is present but its grip pose is not localizable, the source flags
-        ``GRIP_IS_VALID`` False and passes through an untrusted (often all-zero) pose. The clutch
-        must hold the last commanded pose and must NOT latch its origin off that garbage pose, so
-        the first *valid* RUNNING frame still latches cleanly at the configured home.
-        """
-        r = SO101ClutchRetargeter(name="ee_pose")
-        home = np.array(_CLUTCH_HOME_EE_POS)
-
-        # Invalid grip pose on the first RUNNING frame: hold home + identity, do not latch.
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(
-            grip_pos=(9.0, 9.0, 9.0),
-            grip_ori=np.zeros(4, dtype=np.float32),
-            grip_is_valid=False,
-        )
-        r.compute(inputs, outputs, _make_context())
-        pose = _read_pose(outputs)
-        np.testing.assert_allclose(pose[:3], home, atol=1e-6)
-        np.testing.assert_allclose(pose[3:], _ID_QUAT, atol=1e-6)
-        assert r._origin is None  # not latched off the invalid pose
-
-        # A subsequent valid frame latches cleanly at home (no jump from the garbage pose).
-        inputs2, outputs2 = _build_io(r)
-        inputs2[ControllersSource.RIGHT] = _make_controller(grip_pos=(0.5, -0.3, 0.7))
-        r.compute(inputs2, outputs2, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs2)[:3], home, atol=1e-6)
-        assert r._origin is not None
-
-    def test_position_scale_scales_delta(self):
-        """A non-unity ``position_scale`` scales the clutch delta without teleporting on engage."""
-        scale = 0.5
-        r = SO101ClutchRetargeter(name="ee_pose", position_scale=scale)
-        home = np.array(_CLUTCH_HOME_EE_POS)
-        p0 = np.array([0.5, -0.3, 0.7])
-
-        # Engage frame: p_ctrl == origin, so the EE sits exactly at home even at non-unity scale.
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-        r.compute(inputs, outputs, _make_context())
-        np.testing.assert_allclose(_read_pose(outputs)[:3], home, atol=1e-6)
-
-        # A controller delta after engage advances the EE by scale * delta from home.
-        delta = np.array([0.05, -0.02, 0.10])
-        inputs2, outputs2 = _build_io(r)
-        inputs2[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + delta)
-        r.compute(inputs2, outputs2, _make_context())
+    def test_non_running_state_blocks_engagement(self, state):
+        """The RUNNING conjunct is a real readiness interlock, not a vacuous term."""
+        c = _Driver()
+        c.frame((1.0, 0.0, 0.0), squeeze=1.0, state=state)
+        assert not c.r.is_engaged
         np.testing.assert_allclose(
-            _read_pose(outputs2)[:3], home + scale * delta, atol=1e-5
+            _read_pose(c.outputs)[:3], [0.0, 0.0, 0.0], atol=1e-6
         )
 
-    @pytest.mark.parametrize("bad_scale", [0.0, -1.0, float("nan"), float("inf")])
-    def test_invalid_position_scale_rejected(self, bad_scale):
-        """A non-positive or non-finite ``position_scale`` is rejected at construction."""
+    def test_is_engaged_rising_edge_is_the_latch_frame(self):
+        """The loop derives the engage edge from ``is_engaged``; it must equal the latch."""
+        c = _Driver()
+        assert not c.r.is_engaged  # False before the first compute
+        c.frame((1.0, 0.0, 0.0), squeeze=1.0)
+        assert c.r.is_engaged
+        c.frame((2.0, 0.0, 0.0), squeeze=0.0)
+        assert not c.r.is_engaged
+
+    def test_squeeze_held_across_a_stop_relatches_on_resume(self):
+        """Leaving RUNNING disarms, so returning with squeeze held is a fresh rising edge."""
+        c = _Driver()
+        c.frame((0.0, 0.0, 0.0), squeeze=1.0)
+        c.frame((1.0, 0.0, 0.0), squeeze=1.0)
+        c.frame((5.0, 0.0, 0.0), squeeze=1.0, state=ExecutionState.STOPPED)
+        assert not c.r.is_engaged
+        # Re-latches here rather than rebasing against the pre-stop origin.
+        np.testing.assert_allclose(
+            c.frame((5.0, 0.0, 0.0), squeeze=1.0)[:3], [1.0, 0.0, 0.0], atol=1e-6
+        )
+
+
+class TestEngageRelativeClutchDisarm:
+    """Dropped / invalid / degenerate frames hold the pose AND re-arm the pending latch.
+
+    The happy-path tests never exercise these branches, so without this class the disarm logic --
+    the half of the latch structure that a plain rising-edge boolean gets wrong -- would ship
+    unverified behind a green suite.
+    """
+
+    def test_dropped_frame_holds_last_pose(self):
+        c = _Driver()
+        c.engage()
+        held = c.frame((0.5, 0.0, 0.0)).copy()
+        np.testing.assert_allclose(c.frame(present=False)[:3], held[:3], atol=1e-9)
+        assert not c.r.is_engaged
+
+    def test_invalid_grip_frame_holds_last_pose(self):
+        c = _Driver()
+        c.engage()
+        held = c.frame((0.5, 0.0, 0.0)).copy()
+        np.testing.assert_allclose(
+            c.frame((9.0, 9.0, 9.0), grip_is_valid=False)[:3], held[:3], atol=1e-9
+        )
+        assert not c.r.is_engaged
+
+    def test_degenerate_quaternion_frame_holds_last_pose(self):
+        """A source that flags the pose valid yet emits a zero quaternion must not reach the IK."""
+        c = _Driver()
+        c.engage()
+        held = c.frame((0.5, 0.0, 0.0)).copy()
+        pose = c.frame((9.0, 9.0, 9.0), np.zeros(4))
+        np.testing.assert_allclose(pose[:3], held[:3], atol=1e-9)
+        assert np.all(np.isfinite(pose))
+        assert not c.r.is_engaged
+
+    def test_non_finite_grip_position_frame_holds_last_pose(self):
+        """A NaN position on a valid-flagged frame must never reach the commanded pose.
+
+        Once NaN enters the held pose it is unrecoverable: the hold path re-emits it, and the
+        last-commanded home fallback re-latches it on the next engage. NaN comparisons are all
+        False, so no downstream bounds check rejects it either.
+        """
+        c = _Driver()
+        c.engage()
+        held = c.frame((0.5, 0.0, 0.0)).copy()
+        for bad in ((np.nan, 0.0, 0.0), (0.0, np.inf, 0.0), (0.0, 0.0, -np.inf)):
+            pose = c.frame(bad)
+            assert np.all(np.isfinite(pose)), f"non-finite output for grip_pos={bad}"
+            np.testing.assert_allclose(pose[:3], held[:3], atol=1e-9)
+            assert not c.r.is_engaged
+        # ...and the clutch still works afterwards, from the pose it held.
+        np.testing.assert_allclose(c.engage((5.0, 0.0, 0.0))[:3], held[:3], atol=1e-6)
+        assert np.all(np.isfinite(c.r._last_commanded_pos))
+
+    def test_invalid_frame_on_the_rising_edge_still_latches_next_frame(self):
+        """An unusable frame defers the latch rather than consuming it."""
+        c = _Driver()
+        c.frame((0.0, 0.0, 0.0), squeeze=1.0)
+        c.frame((1.0, 0.0, 0.0), squeeze=1.0)
+        c.frame((1.0, 0.0, 0.0), squeeze=0.0)
+        # The re-engage frame is invalid, so the latch stays owed...
+        c.frame((9.0, 0.0, 0.0), squeeze=1.0, grip_is_valid=False)
+        assert not c.r.is_engaged
+        # ...and fires on the next good frame, holding rather than jumping to the controller.
+        np.testing.assert_allclose(
+            c.frame((9.0, 0.0, 0.0), squeeze=1.0)[:3], [1.0, 0.0, 0.0], atol=1e-6
+        )
+
+    def test_release_and_resqueeze_across_a_dropout_does_not_jump(self):
+        """The case a plain rising-edge boolean gets wrong.
+
+        The squeeze is unobservable during a dropout, so if the operator releases and re-squeezes
+        inside the gap, no falling edge is ever *seen*. Keeping the old origin would rebase against
+        the pre-dropout engagement and jump the arm by the whole accumulated hand motion. Disarming
+        on the dropped frames keeps the latch owed, so the first good frame re-latches in place.
+        """
+        c = _Driver()
+        c.frame((0.0, 0.0, 0.0), squeeze=1.0)
+        c.frame((1.0, 0.0, 0.0), squeeze=1.0)
+        for pos in ((3.0, 0.0, 0.0), (6.0, 0.0, 0.0), (9.0, 0.0, 0.0)):
+            c.frame(pos, present=False)
+        np.testing.assert_allclose(
+            c.frame((9.0, 0.0, 0.0), squeeze=1.0)[:3], [1.0, 0.0, 0.0], atol=1e-6
+        )
+
+
+class TestEngageRelativeClutchMeasuredHome:
+    """The asymmetric home latch: position from the measurement, orientation never."""
+
+    def test_measured_pose_supplies_the_home_position(self):
+        """An arm that sagged while disengaged is not snapped back to the stale command."""
+        c = _Driver()
+        c.engage()
+        c.frame((1.0, 0.0, 0.0))
+        pose = c.engage((5.0, 5.0, 5.0), measured=(0.30, 0.05, 0.09))
+        np.testing.assert_allclose(pose[:3], [0.30, 0.05, 0.09], atol=1e-6)
+
+    def test_measured_pose_does_not_supply_the_home_orientation(self):
+        """Orientation always comes from the last commanded rotation -- never the measurement.
+
+        The 5-DOF wrist tracks orientation softly, so latching the measured orientation would
+        inject that tracking offset into the command on every re-clutch.
+        """
+        c = _Driver()
+        c.engage()
+        ctrl = _quat_xyzw([0.0, 0.0, 1.0], math.pi / 2)
+        c.frame((0.0, 0.0, 0.0), ctrl)
+        measured_rot = _quat_to_matrix(_quat_xyzw([1.0, 0.0, 0.0], math.pi / 3))
+        tg = TensorGroup(TransformMatrix())
+        tg[0] = _make_home_transform((0.4, 0.0, 0.0), measured_rot).astype(np.float32)
+        c.frame((0.0, 0.0, 0.0), ctrl, squeeze=0.0)
+        c.inputs[SO101ClutchRetargeter.MEASURED_BASE_T_EE_INPUT] = tg
+        c.inputs[ControllersSource.RIGHT] = _make_controller(grip_ori=ctrl, squeeze=1.0)
+        c.r.compute(c.inputs, c.outputs, _make_context())
+        pose = _read_pose(c.outputs)
+        np.testing.assert_allclose(
+            pose[:3], [0.4, 0.0, 0.0], atol=1e-6
+        )  # position: measured
+        assert _rot_dist(pose[3:7], ctrl) < 1e-6  # orientation: last commanded
+
+    def test_absent_measured_input_falls_back_to_the_last_commanded_position(self):
+        """An unwired measured input lands on the last-commanded home, silently and repeatedly.
+
+        This is a *designed* path, not degraded mode: a consumer whose owning task slews the arm
+        to a known configured home on reset (Isaac Lab) legitimately leaves
+        ``MEASURED_BASE_T_EE_INPUT`` unconnected, so the retargeter must not editorialize about
+        it. The fallback is exercised across several re-clutches to pin that it stays stable
+        rather than drifting or firing only once.
+        """
+        c = _Driver()
+        c.engage()
+        c.frame((1.0, 0.0, 0.0))
+        np.testing.assert_allclose(
+            c.engage((5.0, 5.0, 5.0))[:3], [1.0, 0.0, 0.0], atol=1e-6
+        )
+        c.frame((6.0, 5.0, 5.0))
+        np.testing.assert_allclose(
+            c.engage((7.0, 5.0, 5.0))[:3], [2.0, 0.0, 0.0], atol=1e-6
+        )
+
+
+class TestEngageRelativeClutchSetHome:
+    """``set_home_base_T_ee`` -- the late-seeding path used when the graph is built before the
+    arm is homed, and the transform a subsequent ``reset`` re-seeds to. Public API, so it is
+    covered directly."""
+
+    def test_set_home_reseeds_the_held_pose(self):
+        c = _Driver(_make_home_transform((0.0, 0.0, 0.0)))
+        home_rot = _quat_to_matrix(_quat_xyzw([0.0, 0.0, 1.0], math.pi / 2))
+        c.r.set_home_base_T_ee(_make_home_transform((0.22, 0.0, 0.12), home_rot))
+        pose = c.frame(squeeze=0.0)
+        np.testing.assert_allclose(pose[:3], [0.22, 0.0, 0.12], atol=1e-6)
+        assert _rot_dist(pose[3:7], _mat_to_quat_xyzw(home_rot)) < 1e-6
+
+    def test_set_home_while_engaged_rearms_instead_of_jumping(self):
+        """Re-seeding mid-engagement must not leave the OLD origin latched against the NEW home.
+
+        Without the re-arm the next frame would command ``new_home + scale*(grip - old_origin)``,
+        i.e. a jump of ``new_home - old_home`` at servo speed.
+        """
+        c = _Driver(_make_home_transform((0.0, 0.0, 0.0)))
+        c.frame((0.0, 0.0, 0.0), squeeze=1.0)
+        c.frame((1.0, 0.0, 0.0), squeeze=1.0)
+        assert c.r.is_engaged
+
+        c.r.set_home_base_T_ee(_make_home_transform((5.0, 0.0, 0.0)))
+        assert not c.r.is_engaged, "set_home_base_T_ee must re-arm the pending latch"
+        # The next engaged frame re-latches in place at the new home -- no accumulated delta.
+        np.testing.assert_allclose(
+            c.frame((1.0, 0.0, 0.0), squeeze=1.0)[:3], [5.0, 0.0, 0.0], atol=1e-6
+        )
+
+
+class TestEngageRelativeClutchPositionScale:
+    """``position_scale`` validation and effect."""
+
+    def test_scale_halves_the_delta_but_the_engage_frame_still_returns_home(self):
+        c = _Driver(_make_home_transform((0.1, 0.2, 0.3)), position_scale=0.5)
+        np.testing.assert_allclose(
+            c.engage((5.0, -3.0, 2.0))[:3], [0.1, 0.2, 0.3], atol=1e-6
+        )
+        np.testing.assert_allclose(
+            c.frame((5.4, -3.0, 2.0))[:3], [0.3, 0.2, 0.3], atol=1e-6
+        )
+
+    @pytest.mark.parametrize("scale", [0.0, -1.0, float("inf"), float("nan")])
+    def test_invalid_scale_raises(self, scale):
+        with pytest.raises(
+            ValueError, match="position_scale must be positive and finite"
+        ):
+            SO101ClutchRetargeter(
+                "c", _make_home_transform((0.0, 0.0, 0.0)), position_scale=scale
+            )
+
+
+class TestEngageRelativeClutchSqueezeThreshold:
+    """``squeeze_threshold`` validation. Every rejected value fails the SAME way -- silently."""
+
+    @pytest.mark.parametrize("threshold", [0.0, 0.5, 0.999])
+    def test_valid_threshold_accepted(self, threshold):
+        """The usable range is ``[0, 1)``; ``0`` engages on any non-zero squeeze."""
+        c = _Driver(squeeze_threshold=threshold)
+        c.frame((0.0, 0.0, 0.0), squeeze=1.0)
+        assert c.r.is_engaged
+
+    @pytest.mark.parametrize(
+        "threshold", [float("nan"), 1.0, 1.5, float("inf"), -0.1, float("-inf")]
+    )
+    def test_invalid_threshold_raises(self, threshold):
+        """A threshold outside ``[0, 1)`` can never be exceeded -- the clutch would never engage.
+
+        ``NaN`` is the nastiest of these: every ``squeeze > NaN`` comparison is False, so the
+        clutch stays disengaged forever with no error, no warning and a perfectly healthy-looking
+        graph. A threshold of ``1.0`` or above is the same defect by a different route, since the
+        squeeze axis is normalized to ``[0, 1]`` and the comparison is strict.
+        """
+        with pytest.raises(
+            ValueError, match=r"squeeze_threshold must be finite and in \[0, 1\)"
+        ):
+            SO101ClutchRetargeter(
+                "c",
+                _make_home_transform((0.0, 0.0, 0.0)),
+                squeeze_threshold=threshold,
+            )
+
+
+class TestEngageRelativeClutchHomeValidation:
+    """``home_base_T_ee`` must be a 4x4 with a *proper* rotation block.
+
+    A scaled or reflected block still converts to a unit quaternion, so it would command a quietly
+    wrong home orientation with nothing downstream to reject it -- the one failure mode this class
+    exists to make loud.
+    """
+
+    def test_scaled_rotation_block_rejected(self):
+        home = _make_home_transform((0.1, 0.2, 0.3), 2.0 * np.eye(3))
+        with pytest.raises(ValueError, match="orthonormal"):
+            SO101ClutchRetargeter("c", home)
+
+    def test_reflected_rotation_block_rejected(self):
+        """Orthonormal but ``det == -1``: a reflection, not a rotation."""
+        home = _make_home_transform((0.1, 0.2, 0.3), np.diag([1.0, 1.0, -1.0]))
+        with pytest.raises(ValueError, match="proper rotation"):
+            SO101ClutchRetargeter("c", home)
+
+    def test_shear_rotation_block_rejected(self):
+        home = _make_home_transform(
+            (0.1, 0.2, 0.3),
+            np.array([[1.0, 0.2, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]),
+        )
+        with pytest.raises(ValueError, match="orthonormal"):
+            SO101ClutchRetargeter("c", home)
+
+    def test_wrong_shape_rejected(self):
+        with pytest.raises(ValueError, match="4x4"):
+            SO101ClutchRetargeter("c", np.eye(3))
+
+    def test_non_finite_rejected(self):
+        home = _make_home_transform((np.nan, 0.2, 0.3))
+        with pytest.raises(ValueError, match="finite"):
+            SO101ClutchRetargeter("c", home)
+
+    def test_legacy_positional_call_fails_loudly(self):
+        """The retired signature put ``input_device`` second; that call must not silently work."""
         with pytest.raises(ValueError):
-            SO101ClutchRetargeter(name="ee_pose", position_scale=bad_scale)
+            SO101ClutchRetargeter("ee_pose", ControllersSource.RIGHT)
 
-    def test_reengage_ratchets_scaled_delta_per_cycle(self):
-        """N re-clutch cycles accumulate ``scale * delta`` each, ratcheting by ``N * scale * delta``.
+    def test_float32_rotation_block_accepted(self):
+        """Callers routinely build the transform in float32; the tolerance must not reject it.
 
-        This is the issue's motivating regression: at 1:1 motion (``scale == 1``) each re-engage
-        ratchets a full delta onto the running home, driving the target out of reach; a sub-unity
-        scale attenuates each cycle's advance so the same operator motion stays in the workspace.
+        Swept rather than sampled once: a single lucky draw would not show that the tolerance
+        clears the *worst* float32 residual, and the check refusing a legitimate measured home is
+        the failure this class would otherwise cause.
         """
-        home = np.array(_CLUTCH_HOME_EE_POS)
-        delta = np.array([0.05, -0.02, 0.10])
-        n_cycles = 3
+        rng = np.random.default_rng(20260727)
+        for _ in range(200):
+            q = rng.standard_normal(4)
+            rot = _quat_to_matrix(q / np.linalg.norm(q))
+            home = _make_home_transform((0.1, 0.2, 0.3), rot).astype(np.float32)
+            c = _Driver(home)
+            np.testing.assert_allclose(
+                c.frame(squeeze=0.0)[:3], [0.1, 0.2, 0.3], atol=1e-6
+            )
 
-        def _run_cycles(scale):
-            r = SO101ClutchRetargeter(name="ee_pose", position_scale=scale)
-            outputs = None
-            for i in range(n_cycles):
-                p0 = np.array(
-                    [float(i), float(i), float(i)]
-                )  # fresh origin each engage
-                # Engage: latch the origin at p0 and resume from the running home.
-                inputs, outputs = _build_io(r)
-                inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-                r.compute(inputs, outputs, _make_context())
-                # Move +delta: the running home advances by scale * delta.
-                inputs, outputs = _build_io(r)
-                inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0 + delta)
-                r.compute(inputs, outputs, _make_context())
-                # Disengage (STOPPED): freeze the running home, re-arm the origin.
-                inputs, outputs = _build_io(r)
-                inputs[ControllersSource.RIGHT] = _make_controller(grip_pos=p0)
-                r.compute(inputs, outputs, _make_context(state=ExecutionState.STOPPED))
-            return _read_pose(outputs)[:3]
+    def test_hand_typed_rotation_block_accepted(self):
+        """A matrix hand-typed at 5 decimal places must not be rejected as "not orthonormal".
 
-        # Sub-unity scale ratchets N * scale * delta over the N cycles.
-        scale = 0.5
-        np.testing.assert_allclose(
-            _run_cycles(scale), home + n_cycles * scale * delta, atol=1e-5
+        Hand-typed 4x4s are a supported caller input -- a home transform read off a sensor once and
+        pasted into a config file is the ordinary way a task pins its seated pose -- so a tolerance
+        that policed precision rather than structure would reject a legitimate home. 5 decimals is
+        the documented floor (see ``_ROTATION_ATOL``); 4 is NOT covered and is rejected ~16% of the
+        time.
+
+        Swept rather than sampled once, for the same reason as
+        :meth:`test_float32_rotation_block_accepted`: a single lucky draw says nothing about the
+        worst rounding residual, which is the number the tolerance is actually sized against.
+        """
+        rng = np.random.default_rng(20260727)
+        for _ in range(200):
+            q = rng.standard_normal(4)
+            rot = np.round(_quat_to_matrix(q / np.linalg.norm(q)), 5)
+            c = _Driver(_make_home_transform((0.1, 0.2, 0.3), rot))
+            np.testing.assert_allclose(
+                c.frame(squeeze=0.0)[:3], [0.1, 0.2, 0.3], atol=1e-6
+            )
+
+    def test_transposed_transform_rejected(self):
+        """``base_T_ee.T`` passes every other check, so the bottom row is the only guard.
+
+        Its rotation block is ``R.T`` -- orthonormal, ``det == +1`` -- and the translation moves to
+        the bottom row, leaving column 3 zeroed. Without this check the clutch would home at the
+        base origin with the inverse orientation and report nothing.
+        """
+        rot = _quat_to_matrix(_quat_xyzw([1.0, 2.0, 3.0], 0.9))
+        home = _make_home_transform((0.1, 0.2, 0.3), rot)
+        with pytest.raises(ValueError, match="bottom row"):
+            SO101ClutchRetargeter("c", home.T)
+
+    def test_set_home_validates_too(self):
+        """The late-seeding path is the one a live loop calls -- it gets the same guard."""
+        c = _Driver()
+        with pytest.raises(ValueError, match="orthonormal"):
+            c.r.set_home_base_T_ee(
+                _make_home_transform((0.0, 0.0, 0.0), np.zeros((3, 3)))
+            )
+
+
+class TestEngageRelativeClutchStatePrecision:
+    """The float64 internal state, asserted white-box on purpose.
+
+    The ``ee_pose`` output is float32 by contract, and that contract structurally HIDES this
+    defect: an implementation that reads its running home back out of the emitted float32 pose --
+    the obvious shortcut, since the pose is right there -- is pinned at ~1 float32 ULP in that
+    same output under either state layout, so no black-box assertion can discriminate. Reaching
+    into the
+    float64 state attribute is the only instrument that can, and the error it catches grows with
+    re-clutch count whenever no measured pose re-seeds the home.
+    """
+
+    def test_repeated_reclutch_does_not_quantize_the_commanded_pose(self):
+        """50 re-clutches of an exactly-cancelling excursion must leave the state where it began.
+
+        Both channels are exercised with values that MOVE: each cycle latches a different engage
+        orientation and swings out through a non-identity rotation and an off-float32-grid
+        translation before returning to the engage pose, so the commanded pose is analytically
+        unchanged only after passing through states float32 cannot represent.
+
+        Scope: the measured-EE input is deliberately absent throughout. ``TransformMatrix`` is
+        float32 *by tensor type*, so feeding it would re-seed the home at float32 resolution and
+        this assertion would measure that quantization rather than the state layout. The
+        orientation channel has no measured re-seed path at all -- it always comes from the last
+        commanded rotation -- which is exactly why float64 state is load-bearing there.
+
+        This test's whole job is to catch the float32-state defect, so it is written to be capable
+        of failing: driving the same sequence through a state that round-trips via the float32
+        output scores ~1e-07 m and ~1e-06 in these metrics, orders above both thresholds.
+        """
+        start = np.array([0.1234567890123, -0.9876543210987, 0.5555555555555])
+        # The seeded home rotation must NOT be float32-representable, or the orientation half of
+        # this test is vacuous: identity survives a float32 round-trip exactly, so a quantizing
+        # state layout would score zero against it.
+        start_rot = _quat_to_matrix(
+            _quat_xyzw([0.31234567, -0.7654321, 0.5555511], 0.9876543)
         )
-        # Unit-scale contrast: each cycle ratchets a full delta -> N * delta.
-        np.testing.assert_allclose(_run_cycles(1.0), home + n_cycles * delta, atol=1e-5)
+        c = _Driver(_make_home_transform(start, start_rot))
+        home_rot0 = c.r._last_commanded_rot.copy()
+        assert not np.array_equal(
+            home_rot0, home_rot0.astype(np.float32).astype(np.float64)
+        ), "seed rotation must not be exactly float32-representable"
+        delta = np.array([math.pi, math.e, math.sqrt(2)]) * 1e-3
+
+        for k in range(50):
+            # A different engage orientation every cycle, so _home_rot re-latches onto a moving
+            # target instead of sitting on identity (which would assert nothing).
+            engage_q = _quat_xyzw([1.0, 2.0, 3.0], 0.017 * (k + 1))
+            swing_q = _quat_xyzw([-2.0, 1.0, 0.5], 0.023 * (k + 1))
+            c.frame((0.0, 0.0, 0.0), engage_q, squeeze=0.0)
+            c.frame((0.0, 0.0, 0.0), engage_q, squeeze=1.0)
+            c.frame(tuple(delta), swing_q)  # out, through an unrepresentable pose
+            c.frame((0.0, 0.0, 0.0), engage_q)  # and exactly back
+
+        assert float(np.max(np.abs(c.r._last_commanded_pos - start))) == 0.0
+        # Each cycle ends on q_engage (x) q_engage^-1 (x) R_home == R_home, and R_home is
+        # re-latched from that same value next cycle -- so the rotation returns to the seed.
+        assert _rot_dist(c.r._last_commanded_rot, home_rot0) < 1e-12
+
+
+class TestEngageRelativeClutchPipelineShape:
+    """The in-pipeline wiring contract the LeRobot example depends on.
+
+    That example cannot be exercised by this suite (different repo, and its pinned ``isaacteleop``
+    predates this retargeter), so the graph shape it builds is covered here instead.
+    """
+
+    def _build_graph(self, retargeter):
+        controllers = ValueInput("controllers", OptionalType(ControllerInput()))
+        measured = ValueInput("measured_ee", OptionalType(TransformMatrix()))
+        sub = retargeter.connect(
+            {
+                ControllersSource.RIGHT: controllers.output("value"),
+                SO101ClutchRetargeter.MEASURED_BASE_T_EE_INPUT: measured.output(
+                    "value"
+                ),
+            }
+        )
+        # The raw controller stays on the combiner: the device derives is_tracking and the analog
+        # trigger from it, and both would be lost if only ee_pose were published.
+        return OutputCombiner(
+            {
+                "ee_pose": sub.output("ee_pose"),
+                "controller": controllers.output("value"),
+            }
+        )
+
+    def test_graph_executes_and_publishes_both_outputs(self):
+        r = SO101ClutchRetargeter(
+            "clutch", _make_home_transform((0.0, 0.0, 0.0)), position_scale=0.5
+        )
+        graph = self._build_graph(r)
+        result = graph.execute_pipeline(
+            {
+                "controllers": {"value": _make_controller(squeeze=1.0)},
+                "measured_ee": {"value": _make_measured((0.30, 0.05, 0.09))},
+            },
+            context=_make_context(),
+        )
+        np.testing.assert_allclose(
+            np.from_dlpack(result["ee_pose"][0])[:3], [0.30, 0.05, 0.09], atol=1e-6
+        )
+        assert r.is_engaged
+        # is_tracking regression: the device re-derives it from this group's is_none. If that
+        # derivation is lost, the example's connect-wait loop never returns.
+        assert result["controller"].is_none is False
+        assert float(result["controller"][ControllerInputIndex.TRIGGER_VALUE]) == 0.0
+
+    def test_untracked_controller_holds_pose_and_reports_is_none(self):
+        r = SO101ClutchRetargeter("clutch", _make_home_transform((0.2, 0.0, 0.1)))
+        graph = self._build_graph(r)
+        result = graph.execute_pipeline(
+            {"controllers": {"value": OptionalTensorGroup(ControllerInput())}},
+            context=_make_context(),
+        )
+        np.testing.assert_allclose(
+            np.from_dlpack(result["ee_pose"][0])[:3], [0.2, 0.0, 0.1], atol=1e-6
+        )
+        assert result["controller"].is_none is True
+        assert not r.is_engaged
+
+    def test_measured_value_input_must_be_declared_optional(self):
+        """A plain ``ValueInput`` leaf is REQUIRED and raises inside the retargeting worker.
+
+        ``ValueInput.input_spec`` returns a plain ``TensorGroupType``, so a leaf that is not fed
+        every step fails the graph rather than degrading. Declaring it ``OptionalType`` is what
+        makes a skipped feed land on the documented last-commanded fallback instead of a
+        ``RuntimeError`` at frame rate with the arm live.
+        """
+        r = SO101ClutchRetargeter("clutch", _make_home_transform((0.0, 0.0, 0.0)))
+        controllers = ValueInput("controllers", OptionalType(ControllerInput()))
+        strict = ValueInput("measured_ee", TransformMatrix())  # NOT OptionalType
+        graph = OutputCombiner(
+            {
+                "ee_pose": r.connect(
+                    {
+                        ControllersSource.RIGHT: controllers.output("value"),
+                        SO101ClutchRetargeter.MEASURED_BASE_T_EE_INPUT: strict.output(
+                            "value"
+                        ),
+                    }
+                ).output("ee_pose")
+            }
+        )
+        with pytest.raises(ValueError, match="not found in cache"):
+            graph.execute_pipeline(
+                {"controllers": {"value": _make_controller(squeeze=1.0)}},
+                context=_make_context(),
+            )
+        # The optional form, by contrast, runs clean when unfed.
+        optional_graph = self._build_graph(
+            SO101ClutchRetargeter("clutch2", _make_home_transform((0.2, 0.0, 0.1)))
+        )
+        result = optional_graph.execute_pipeline(
+            {"controllers": {"value": _make_controller(squeeze=1.0)}},
+            context=_make_context(),
+        )
+        np.testing.assert_allclose(
+            np.from_dlpack(result["ee_pose"][0])[:3], [0.2, 0.0, 0.1], atol=1e-6
+        )

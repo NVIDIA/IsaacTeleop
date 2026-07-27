@@ -49,9 +49,12 @@ Available Retargeters
 .. dropdown:: SO101ClutchRetargeter / SO101GripperRetargeter
 
    Retargeters for the SO-101 5-DOF arm under full-pose SE3 IK. ``SO101ClutchRetargeter``
-   outputs a 7-D ``ee_pose`` like ``Se3AbsRetargeter`` but clutch-rebases controller position
-   around an origin captured on engage (no teleport) and composes a fixed orientation
-   calibration offset onto the grip orientation so the gripper pose follows the controller pose.
+   outputs a 7-D ``ee_pose`` like ``Se3AbsRetargeter`` but clutch-rebases the **full pose** around
+   an origin captured on engage (no teleport): it re-latches both the home position and the home
+   orientation on every engage and composes the orientation delta on the **left** (base frame),
+   with no fixed calibration offset. It engages on ``RUNNING`` **and**
+   ``squeeze > squeeze_threshold``, re-seeds its held pose from the configured home on ``reset``,
+   and can latch its home position from the arm's measured EE pose.
    ``SO101GripperRetargeter`` maps the trigger to a proportional jaw closedness in ``[0, 1]``.
    See :doc:`so101` for the full setup.
 
