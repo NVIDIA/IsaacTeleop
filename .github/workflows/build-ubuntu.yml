@@ -241,7 +241,7 @@ jobs:
         name: viz-tests-${{ matrix.arch }}
         path: viz-tests.tar.gz
         if-no-files-found: error
-        retention-days: 1
+        retention-days: 7
 
     - name: Install (Release only)
       if: matrix.build_type == 'Release'
@@ -282,7 +282,7 @@ jobs:
       with:
         name: isaacteleop-install-release-${{ matrix.arch }}-py${{ matrix.python_version }}
         path: isaacteleop-install.tar
-        retention-days: 1
+        retention-days: 7
     - name: Upload wheel artifacts
       if: matrix.build_type == 'Release'
       uses: actions/upload-artifact@v6
@@ -290,7 +290,7 @@ jobs:
         name: isaacteleop-wheels-${{ matrix.arch }}-py${{ matrix.python_version }}
         path: install/wheels/*.whl
         if-no-files-found: error
-        retention-days: 1
+        retention-days: 7
 
   test-viz-gpu:
     # Runs [gpu]-tagged Catch2 tests for the Televiz module on a self-hosted
