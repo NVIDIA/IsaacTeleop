@@ -110,6 +110,8 @@ install_from_public_ngc() {
 
     echo -e "${YELLOW}Downloading CloudXR Web SDK from NGC...${NC}"
     if ! curl --fail --location \
+        --connect-timeout 10 --max-time 120 \
+        --retry 3 --retry-delay 5 \
         --output "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
         "$NGC_URL"; then
         echo -e "${RED}Error: Failed to download CloudXR Web SDK from NGC${NC}"
@@ -151,6 +153,8 @@ install_from_private_ngc() {
 
     echo -e "${YELLOW}Downloading CloudXR Web SDK from private NGC...${NC}"
     if ! curl --fail --location \
+        --connect-timeout 10 --max-time 120 \
+        --retry 3 --retry-delay 5 \
         -H "Authorization: Bearer $NGC_API_KEY" \
         -H "Content-Type: application/json" \
         --output "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \

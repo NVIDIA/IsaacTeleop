@@ -91,7 +91,9 @@ download_ngc_file() {
     [[ -s "$out_path" ]] && return 0
 
     echo -e "${YELLOW}Downloading ${label}...${NC}"
-    local -a curl_args=(--fail --location --output "$out_path")
+    local -a curl_args=(--fail --location --output "$out_path"
+        --connect-timeout 10 --max-time 120
+        --retry 3 --retry-delay 5)
     if [[ -n "$auth_bearer" ]]; then
         curl_args+=(-H "Authorization: Bearer ${auth_bearer}" -H "Content-Type: application/json")
     fi
