@@ -33,10 +33,9 @@ from isaacteleop.retargeting_engine.tensor_types import (
     NUM_HAND_JOINTS,
 )
 
-# Gate on the wuji extra with collected-then-skipped semantics (sharpa
-# pattern) rather than a module-level importorskip: skipping at collection
-# leaves pytest with zero collected tests and exit code 5, which CTest
-# treats as a failure.
+# Gate on the wuji extra with collected-then-skipped semantics rather than a
+# module-level importorskip: skipping at collection leaves pytest with zero
+# collected tests and exit code 5, which CTest treats as a failure.
 _HAS_WUJI_SDK = True
 try:
     from isaacteleop.retargeters import (
@@ -54,7 +53,7 @@ _requires_wuji_sdk = pytest.mark.skipif(
 NUM_WUJI_JOINTS = 20
 
 # ---------------------------------------------------------------------------
-# Helpers (mirror test_sharpa_hand_retargeter.py patterns)
+# Helpers
 # ---------------------------------------------------------------------------
 
 ID_QUAT = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)

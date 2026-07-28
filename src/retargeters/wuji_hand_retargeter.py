@@ -42,15 +42,12 @@ logger = logging.getLogger(__name__)
 # OpenXR (26 joints) -> MediaPipe (21 joints) index mapping.
 # Skips OpenXR palm(0) and the non-thumb metacarpal joints. The MediaPipe
 # 21-landmark order (wrist, thumb 1-4, index 1-4, middle 1-4, ring 1-4,
-# pinky 1-4) is identical to the MANO 21-joint order, so this is the same
-# table the Sharpa retargeter uses.
+# pinky 1-4) is identical to the MANO 21-joint order.
 #
 # KEEP IN SYNC with the C++ table `kMpToXr` in
 # src/plugins/wuji_glove/wuji_glove_plugin.cpp — same 21 entries, applied in
-# the opposite direction (that one scatters MediaPipe -> OpenXR). See also
-# sharpa_hand_retargeter's _OPENXR_TO_MANO_INDICES, the third copy of this
-# mapping. A silent divergence is a joint-permutation bug nothing catches at
-# runtime.
+# the opposite direction (that one scatters MediaPipe -> OpenXR). A silent
+# divergence is a joint-permutation bug nothing catches at runtime.
 OPENXR_TO_MEDIAPIPE_INDICES: list[int] = [
     HandJointIndex.WRIST,
     HandJointIndex.THUMB_METACARPAL,
