@@ -302,14 +302,14 @@ bool QuadLayer::native_active() const noexcept
     return config_.use_openxr_quad_layer && session() != nullptr && session()->is_xr_mode();
 }
 
-bool QuadLayer::is_native_quad() const noexcept
+bool QuadLayer::is_native_layer() const noexcept
 {
     return native_active();
 }
 
-std::optional<NativeQuadView> QuadLayer::acquire_native_quad(uint32_t in_flight_slot)
+std::optional<NativeLayerView> QuadLayer::acquire_native_layer(uint32_t in_flight_slot)
 {
-    require_alive("acquire_native_quad");
+    require_alive("acquire_native_layer");
 
     // Promote first, matching record()'s consumer ordering: before the first
     // publish there is nothing to composite, so return early WITHOUT requiring
@@ -336,7 +336,8 @@ std::optional<NativeQuadView> QuadLayer::acquire_native_quad(uint32_t in_flight_
         throw std::logic_error("QuadLayer: native OpenXR quad requires Config::placement to be set");
     }
 
-    NativeQuadView v{};
+    NativeLayerView v{};
+    v.shape = NativeLayerShape::kQuad;
     v.color_left = slots_[cur]->vk_image();
     v.color_right = config_.stereo ? slots_right_[cur]->vk_image() : VK_NULL_HANDLE;
     v.extent = config_.resolution;

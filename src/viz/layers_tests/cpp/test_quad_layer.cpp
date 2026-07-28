@@ -95,14 +95,14 @@ TEST_CASE("QuadLayer native-quad gate + acquire preconditions", "[gpu][quad_laye
     QuadLayer layer(ctx, target->render_pass(), cfg);
 
     // No session attached → not native (so the compositor uses record()).
-    CHECK_FALSE(layer.is_native_quad());
+    CHECK_FALSE(layer.is_native_layer());
 
     // Nothing published yet → nullopt (no quad this frame), even before any
     // placement matters.
-    CHECK_FALSE(layer.acquire_native_quad(0).has_value());
+    CHECK_FALSE(layer.acquire_native_layer(0).has_value());
 
     // Out-of-range in_flight_slot is rejected (same guard as record()).
-    CHECK_THROWS_AS(layer.acquire_native_quad(QuadLayer::kMaxFramesInFlight), std::logic_error);
+    CHECK_THROWS_AS(layer.acquire_native_layer(QuadLayer::kMaxFramesInFlight), std::logic_error);
 
     // A native-quad layer with no placement is lenient before the first
     // publish (returns nullopt) — this keeps a native session from throwing
@@ -112,7 +112,7 @@ TEST_CASE("QuadLayer native-quad gate + acquire preconditions", "[gpu][quad_laye
     no_placement.resolution = { 64, 64 };
     no_placement.use_openxr_quad_layer = true;
     QuadLayer layer_np(ctx, target->render_pass(), no_placement);
-    CHECK_FALSE(layer_np.acquire_native_quad(0).has_value()); // lenient pre-publish
+    CHECK_FALSE(layer_np.acquire_native_layer(0).has_value()); // lenient pre-publish
 
     void* dev_ptr = nullptr;
     REQUIRE(cudaMalloc(&dev_ptr, static_cast<size_t>(64) * 64 * 4) == cudaSuccess);
@@ -132,7 +132,7 @@ TEST_CASE("QuadLayer native-quad gate + acquire preconditions", "[gpu][quad_laye
     src.pitch = static_cast<size_t>(64) * 4;
     src.space = viz::MemorySpace::kDevice;
     layer_np.submit(src);
-    CHECK_THROWS_AS(layer_np.acquire_native_quad(0), std::logic_error); // content, no placement
+    CHECK_THROWS_AS(layer_np.acquire_native_layer(0), std::logic_error); // content, no placement
 }
 
 TEST_CASE("QuadLayer creates valid Vulkan + CUDA handles for every mailbox slot", "[gpu][quad_layer]")

@@ -491,7 +491,7 @@ TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside 
 {
     // The native OpenXR quad path only engages in a kXr session (needs a
     // live runtime, validated manually against CloudXR). In offscreen the
-    // flag must be a no-op: is_native_quad() stays false and the layer still
+    // flag must be a no-op: is_native_layer() stays false and the layer still
     // composites through record() exactly as a plain QuadLayer would.
     if (!is_gpu_available())
     {
@@ -524,7 +524,7 @@ TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside 
 
     // Offscreen backend doesn't support native quads → the layer stays on
     // the draw path, so the compositor renders it into the shared RT.
-    CHECK_FALSE(layer->is_native_quad());
+    CHECK_FALSE(layer->is_native_layer());
 
     const auto host_pattern = build_host_pattern(kSide);
     void* device_ptr = nullptr;

@@ -133,14 +133,14 @@ public:
                 const RenderTarget& target,
                 uint32_t in_flight_slot) override;
 
-    // Native OpenXR quad path. is_native_quad() is true only when the flag
+    // Native OpenXR quad path. is_native_layer() is true only when the flag
     // is set AND this layer is in a kXr session (so window/offscreen keep
-    // using record()). acquire_native_quad() promotes the mailbox slot (like
+    // using record()). acquire_native_layer() promotes the mailbox slot (like
     // record()'s consumer side) and returns the per-eye source images +
     // placement for the backend to blit into its quad swapchain. See
     // Config::use_openxr_quad_layer.
-    bool is_native_quad() const noexcept override;
-    std::optional<NativeQuadView> acquire_native_quad(uint32_t in_flight_slot) override;
+    bool is_native_layer() const noexcept override;
+    std::optional<NativeLayerView> acquire_native_layer(uint32_t in_flight_slot) override;
 
     // Drives aspect-fit letterbox in window mode; ignored in kXr.
     std::optional<float> aspect_ratio() const noexcept override;
