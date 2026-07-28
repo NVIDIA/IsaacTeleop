@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -7,7 +7,6 @@ Hands Source Node - DeviceIO to Retargeting Engine converter.
 Converts raw HandPoseT flatbuffer data to standard HandInput tensor format.
 """
 
-import numpy as np
 from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import (
@@ -17,7 +16,7 @@ from ..interface.retargeter_core_types import (
 )
 from ..interface.retargeter_subgraph import RetargeterSubgraph
 from ..interface.tensor_group import OptionalTensorGroup, TensorGroup
-from ..tensor_types import HandInput, HandInputIndex, NUM_HAND_JOINTS
+from ..tensor_types import HandInput, HandInputIndex
 from ..interface.tensor_group_type import OptionalType
 from .deviceio_tensor_types import DeviceIOHandPoseTracked
 
@@ -134,31 +133,12 @@ class HandsSource(IDeviceIOSource):
             group.set_none()
             return
 
-        positions = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
-        orientations = np.zeros((NUM_HAND_JOINTS, 4), dtype=np.float32)
-        radii = np.zeros(NUM_HAND_JOINTS, dtype=np.float32)
-        valid = np.zeros(NUM_HAND_JOINTS, dtype=np.uint8)
-
-        for i in range(NUM_HAND_JOINTS):
-            joint = hand_data.joints.poses(i)
-            positions[i] = [
-                joint.pose.position.x,
-                joint.pose.position.y,
-                joint.pose.position.z,
-            ]
-            orientations[i] = [
-                joint.pose.orientation.x,
-                joint.pose.orientation.y,
-                joint.pose.orientation.z,
-                joint.pose.orientation.w,
-            ]
-            radii[i] = joint.radius
-            valid[i] = 1 if joint.is_valid else 0
-
-        group[HandInputIndex.JOINT_POSITIONS] = positions
-        group[HandInputIndex.JOINT_ORIENTATIONS] = orientations
-        group[HandInputIndex.JOINT_RADII] = radii
-        group[HandInputIndex.JOINT_VALID] = valid
+        # Strided views over the joint array, in the layout HandInput declares.
+        joints = hand_data.joints
+        group[HandInputIndex.JOINT_POSITIONS] = joints.positions
+        group[HandInputIndex.JOINT_ORIENTATIONS] = joints.orientations
+        group[HandInputIndex.JOINT_RADII] = joints.radii
+        group[HandInputIndex.JOINT_VALID] = joints.is_valid
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """

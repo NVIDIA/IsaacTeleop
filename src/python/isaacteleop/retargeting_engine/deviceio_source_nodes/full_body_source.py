@@ -121,25 +121,16 @@ class FullBodySource(IDeviceIOSource):
 
         group = outputs["full_body"]
 
-        positions = np.zeros((NUM_BODY_JOINTS, 3), dtype=np.float32)
-        orientations = np.zeros((NUM_BODY_JOINTS, 4), dtype=np.float32)
-        valid = np.zeros(NUM_BODY_JOINTS, dtype=np.uint8)
-
-        if body_pose.joints is not None:
-            for i in range(NUM_BODY_JOINTS):
-                joint = body_pose.joints.joints(i)
-                positions[i] = [
-                    joint.pose.position.x,
-                    joint.pose.position.y,
-                    joint.pose.position.z,
-                ]
-                orientations[i] = [
-                    joint.pose.orientation.x,
-                    joint.pose.orientation.y,
-                    joint.pose.orientation.z,
-                    joint.pose.orientation.w,
-                ]
-                valid[i] = 1 if joint.is_valid else 0
+        joints = body_pose.joints
+        if joints is not None:
+            # Strided views over the joint array, in the layout FullBodyInput declares.
+            positions = joints.positions
+            orientations = joints.orientations
+            valid = joints.is_valid
+        else:
+            positions = np.zeros((NUM_BODY_JOINTS, 3), dtype=np.float32)
+            orientations = np.zeros((NUM_BODY_JOINTS, 4), dtype=np.float32)
+            valid = np.zeros(NUM_BODY_JOINTS, dtype=np.uint8)
 
         group[FullBodyInputIndex.JOINT_POSITIONS] = positions
         group[FullBodyInputIndex.JOINT_ORIENTATIONS] = orientations

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Unit tests for FullBodyPoseT and related types in isaacteleop.schema.
@@ -21,6 +21,9 @@ Joint indices follow XrBodyJointBD enum:
   18-19: Left/Right Elbow, 20-21: Left/Right Wrist, 22-23: Left/Right Hand
 """
 
+import gc
+
+import numpy as np
 import pytest
 
 from isaacteleop.schema import (
@@ -115,6 +118,110 @@ class TestBodyJointsStruct:
 
         with pytest.raises(IndexError):
             _ = body_joints.joints(24)
+
+
+class TestBodyJointsFieldViews:
+    """Tests for the bulk per-field BodyJoints array accessors."""
+
+    def test_shapes_and_dtypes(self):
+        """The field views carry the layout FullBodyInput declares."""
+        joints = BodyJoints()
+        positions, orientations, is_valid = (
+            joints.positions,
+            joints.orientations,
+            joints.is_valid,
+        )
+
+        assert positions.shape == (BodyJoint.NUM_JOINTS, 3)
+        assert orientations.shape == (BodyJoint.NUM_JOINTS, 4)
+        assert is_valid.shape == (BodyJoint.NUM_JOINTS,)
+        assert positions.dtype == np.float32
+        assert orientations.dtype == np.float32
+        assert is_valid.dtype == np.uint8
+
+    def test_matches_per_joint_accessor(self):
+        """Every row agrees with the corresponding joints(i) read.
+
+        Each field gets its own value range so a view pointed at the wrong
+        offset, or rows read at the wrong stride, cannot still compare equal.
+        """
+        num_joints = int(BodyJoint.NUM_JOINTS)
+        body_joints = BodyJoints()
+        positions, orientations = body_joints.positions, body_joints.orientations
+        is_valid = body_joints.is_valid
+
+        positions[:] = np.arange(num_joints * 3, dtype=np.float32).reshape(-1, 3)
+        orientations[:] = np.arange(
+            1000, 1000 + num_joints * 4, dtype=np.float32
+        ).reshape(-1, 4)
+        is_valid[:] = np.arange(num_joints, dtype=np.uint8) % 2
+
+        for i in range(num_joints):
+            joint = body_joints.joints(i)
+            assert positions[i].tolist() == [
+                joint.pose.position.x,
+                joint.pose.position.y,
+                joint.pose.position.z,
+            ]
+            assert positions[i].tolist() == [3 * i, 3 * i + 1, 3 * i + 2]
+            assert orientations[i].tolist() == [
+                joint.pose.orientation.x,
+                joint.pose.orientation.y,
+                joint.pose.orientation.z,
+                joint.pose.orientation.w,
+            ]
+            assert orientations[i].tolist() == [
+                1000 + 4 * i,
+                1000 + 4 * i + 1,
+                1000 + 4 * i + 2,
+                1000 + 4 * i + 3,
+            ]
+            assert is_valid[i] == (1 if joint.is_valid else 0) == i % 2
+
+    def test_returns_strided_views(self):
+        """Arrays alias the interleaved joint storage instead of copying it."""
+        body_joints = BodyJoints()
+        positions, orientations = body_joints.positions, body_joints.orientations
+        is_valid = body_joints.is_valid
+
+        stride = positions.strides[0]
+        for array in (positions, orientations, is_valid):
+            assert not array.flags.owndata
+            # Row stride is one whole BodyJointPose, not the packed field width.
+            assert array.strides[0] == stride
+            assert not array.flags.c_contiguous
+
+    def test_views_write_through_to_schema(self):
+        """Views are writable and alias schema state; callers must copy to detach."""
+        body_joints = BodyJoints()
+        positions = body_joints.positions
+
+        positions[0, 0] = 42.0
+
+        assert body_joints.joints(0).pose.position.x == 42.0
+
+    def test_views_keep_owner_alive(self):
+        """A view outlives the last direct reference to the table it came from."""
+        pose = FullBodyPoseT()
+        positions = pose.joints.positions
+        expected = np.arange(int(BodyJoint.NUM_JOINTS) * 3, dtype=np.float32).reshape(
+            -1, 3
+        )
+        positions[:] = expected
+
+        del pose
+        gc.collect()
+
+        # Would read freed memory if the base object chain were not held.
+        assert positions.shape == (BodyJoint.NUM_JOINTS, 3)
+        assert np.array_equal(np.asarray(positions), expected)
+
+    def test_copy_yields_packed_writable_array(self):
+        """The documented escape hatch produces contiguous, writable data."""
+        packed = BodyJoints().positions.copy()
+
+        assert packed.flags.c_contiguous
+        assert packed.flags.writeable
 
 
 class TestBodyJointsRepr:

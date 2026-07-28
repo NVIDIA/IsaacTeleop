@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the FullBodyPose FlatBuffer schema.
@@ -6,12 +6,16 @@
 
 #pragma once
 
+#include "schema_array_views.h"
+
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/full_body_generated.h>
 #include <schema/timestamp_generated.h>
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -20,6 +24,21 @@ namespace py = pybind11;
 
 namespace core
 {
+
+// First joint of a BodyJoints, i.e. the origin of the strided views below.
+inline const BodyJointPose& first_body_joint(const py::object& self)
+{
+    return *(*self.cast<const BodyJoints&>().joints())[0];
+}
+
+// Row stride of the joint array; see the matching HandJoints constants.
+constexpr py::ssize_t BODY_JOINT_STRIDE = static_cast<py::ssize_t>(sizeof(BodyJointPose));
+constexpr py::ssize_t BODY_JOINT_COUNT = static_cast<py::ssize_t>(BodyJoint_NUM_JOINTS);
+
+// The views span BODY_JOINT_COUNT rows of raw storage, so the enum count and the fixed array
+// length declared in full_body.fbs must agree; otherwise the views would run off the struct.
+static_assert(sizeof(BodyJoints) == sizeof(BodyJointPose) * static_cast<size_t>(BodyJoint_NUM_JOINTS),
+              "BodyJoints.joints length must equal BodyJoint::NUM_JOINTS");
 
 inline void bind_full_body(py::module& m)
 {
@@ -85,6 +104,36 @@ inline void bind_full_body(py::module& m)
             },
             py::arg("index"), py::return_value_policy::reference_internal,
             "Get the BodyJointPose at the specified index (0 to NUM_JOINTS-1).")
+        // Zero-copy bulk accessors, one per joint field; see the matching note on HandJoints.
+        // One fewer than the hand, since BodyJointPose has no radius.
+        .def_property_readonly(
+            "positions",
+            [](py::object self)
+            {
+                const auto* first = reinterpret_cast<const float*>(&first_body_joint(self).pose().position());
+                return strided_field_view<float>(self, first, BODY_JOINT_STRIDE, BODY_JOINT_COUNT, 3);
+            },
+            "Joint positions as a (NUM_JOINTS, 3) float32 view in BodyJoint order. Strided (not contiguous) "
+            "and aliasing this object's storage: writing to it modifies the schema object; call .copy() for "
+            "packed data you own.")
+        .def_property_readonly(
+            "orientations",
+            [](py::object self)
+            {
+                const auto* first = reinterpret_cast<const float*>(&first_body_joint(self).pose().orientation());
+                return strided_field_view<float>(self, first, BODY_JOINT_STRIDE, BODY_JOINT_COUNT, 4);
+            },
+            "Joint orientation quaternions (XYZW) as a (NUM_JOINTS, 4) float32 view. See positions for the "
+            "aliasing and stride caveats.")
+        .def_property_readonly(
+            "is_valid",
+            [offset = FBS_FIELD_OFFSET(BodyJointPose, is_valid)](py::object self)
+            {
+                const auto* first = fbs_field_address<uint8_t>(first_body_joint(self), offset);
+                return strided_field_view<uint8_t>(self, first, BODY_JOINT_STRIDE, BODY_JOINT_COUNT, 0);
+            },
+            "Per-joint validity as a (NUM_JOINTS,) uint8 view. See positions for the aliasing and stride "
+            "caveats.")
         .def("__repr__", [](const BodyJoints&) { return "BodyJoints(joints=[...24 BodyJointPose entries...])"; });
 
     // Bind FullBodyPoseT class (FlatBuffers object API for tables).
