@@ -3,8 +3,13 @@
 
 #include "wuji_glove_plugin.hpp"
 
+#include <oxr_utils/math.hpp>
+
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <iterator>
@@ -46,18 +51,66 @@ constexpr XrHandJointEXT kMpToXr[21] = {
     XR_HAND_JOINT_LITTLE_TIP_EXT,
 };
 
-constexpr XrSpaceLocationFlags kValidFlags =
-    XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_POSITION_TRACKED_BIT |
-    XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+constexpr XrSpaceLocationFlags kPoseValidFlags =
+    XR_SPACE_LOCATION_POSITION_VALID_BIT | XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+constexpr XrSpaceLocationFlags kPoseTrackedFlags =
+    XR_SPACE_LOCATION_POSITION_TRACKED_BIT | XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+
+constexpr XrPosef kLeftAimToWrist = { { 0.26388208f, 0.17382305f, -0.06730102f, 0.94637327f },
+                                      { -0.01391519f, -0.10860867f, 0.08197439f } };
+constexpr XrPosef kRightAimToWrist = { { 0.26388208f, -0.17382305f, 0.06730102f, 0.94637327f },
+                                       { 0.01391519f, -0.10860867f, 0.08197439f } };
 
 constexpr float kDefaultJointRadius = 0.01f; // meters; SDK does not provide radius.
 constexpr auto kShutdownPollInterval = std::chrono::milliseconds(100);
 
-// Convert a 21-joint Wuji skeleton into a 26-joint XrHandJointLocationEXT set.
-// Returns false if the skeleton does not carry the expected 21 joints.
+// Re-express a wrist-relative joint pose from the Wuji skeleton basis in the
+// OpenXR hand-joint basis.
 //
-// Glove positions are wrist-relative; this conversion preserves that frame.
-bool convert_skeleton(const WujiHandSkeleton* frame, std::array<XrHandJointLocationEXT, XR_HAND_JOINT_COUNT_EXT>& out)
+// The SDK skeleton poses are FK link frames of wuji-sdk's default hand URDFs:
+// the bone runs along -Z (matching XR_EXT_hand_tracking's "+Z points away from
+// the fingertip"), and the palmar side is +Y on the right hand / -Y on the
+// left (the left URDF is Y-mirrored). OpenXR puts the dorsal side at +Y for
+// both hands, so the left hand already matches and the right hand differs by
+// a 180° rotation about Z — whose conjugation simply negates the x and y
+// components of both the position and the quaternion.
+constexpr XrPosef remap_to_openxr_basis(const XrPosef& pose, bool is_left)
+{
+    if (is_left)
+    {
+        return pose;
+    }
+    XrPosef out = pose;
+    out.position.x = -pose.position.x;
+    out.position.y = -pose.position.y;
+    out.orientation.x = -pose.orientation.x;
+    out.orientation.y = -pose.orientation.y;
+    return out;
+}
+
+constexpr bool remap_to_openxr_basis_is_correct()
+{
+    constexpr XrPosef input{ { 1.0f, 2.0f, 3.0f, 4.0f }, { 5.0f, 6.0f, 7.0f } };
+    constexpr XrPosef left = remap_to_openxr_basis(input, true);
+    constexpr XrPosef right = remap_to_openxr_basis(input, false);
+    return left.orientation.x == 1.0f && left.orientation.y == 2.0f && left.orientation.z == 3.0f &&
+           left.orientation.w == 4.0f && left.position.x == 5.0f && left.position.y == 6.0f &&
+           left.position.z == 7.0f && right.orientation.x == -1.0f && right.orientation.y == -2.0f &&
+           right.orientation.z == 3.0f && right.orientation.w == 4.0f && right.position.x == -5.0f &&
+           right.position.y == -6.0f && right.position.z == 7.0f;
+}
+
+static_assert(remap_to_openxr_basis_is_correct());
+
+// Convert a 21-joint Wuji skeleton into a 26-joint XrHandJointLocationEXT set,
+// re-based into the OpenXR hand-joint basis. Returns false if the skeleton
+// does not carry the expected 21 joints.
+//
+// Output poses stay wrist-relative with VALID-only flags; pump_hand() composes
+// the fused wrist pose on top and decides the TRACKED bits.
+bool convert_skeleton(const WujiHandSkeleton* frame,
+                      bool is_left,
+                      std::array<XrHandJointLocationEXT, XR_HAND_JOINT_COUNT_EXT>& out)
 {
     if (frame == nullptr || frame->joints == nullptr || frame->joints_len < 21)
     {
@@ -77,13 +130,77 @@ bool convert_skeleton(const WujiHandSkeleton* frame, std::array<XrHandJointLocat
     {
         const WujiSkeletonJoint& src = frame->joints[mp];
         XrHandJointLocationEXT& dst = out[kMpToXr[mp]];
-        dst.pose.position = XrVector3f{ src.pose.position[0], src.pose.position[1], src.pose.position[2] };
-        dst.pose.orientation = XrQuaternionf{ src.pose.orientation.x, src.pose.orientation.y, src.pose.orientation.z,
-                                              src.pose.orientation.w };
+        const XrPosef sdk_pose{ XrQuaternionf{ src.pose.orientation.x, src.pose.orientation.y, src.pose.orientation.z,
+                                               src.pose.orientation.w },
+                                XrVector3f{ src.pose.position[0], src.pose.position[1], src.pose.position[2] } };
+        dst.pose = remap_to_openxr_basis(sdk_pose, is_left);
         dst.radius = kDefaultJointRadius;
-        dst.locationFlags = kValidFlags;
+        dst.locationFlags = kPoseValidFlags;
     }
     return true;
+}
+
+// Optional aim-to-wrist offset override.
+// WUJI_GLOVE_AIM_TO_WRIST_{LEFT,RIGHT}="px,py,pz,qx,qy,qz,qw" (meters + quat).
+XrPosef pose_from_env(const char* name, const XrPosef& fallback)
+{
+    const char* value = std::getenv(name);
+    if (value == nullptr || *value == '\0')
+    {
+        return fallback;
+    }
+    XrPosef pose{};
+    if (std::sscanf(value, "%f,%f,%f,%f,%f,%f,%f", &pose.position.x, &pose.position.y, &pose.position.z,
+                    &pose.orientation.x, &pose.orientation.y, &pose.orientation.z, &pose.orientation.w) != 7)
+    {
+        std::cerr << "WujiGlovePlugin: could not parse " << name << " ('" << value
+                  << "', want px,py,pz,qx,qy,qz,qw); using the built-in offset" << std::endl;
+        return fallback;
+    }
+    // sscanf("%f") happily accepts "nan" and "inf"; a non-finite offset would
+    // poison every injected joint pose, and NaN also slips past the norm check
+    // below (every comparison against NaN is false).
+    if (!std::isfinite(pose.position.x) || !std::isfinite(pose.position.y) || !std::isfinite(pose.position.z) ||
+        !std::isfinite(pose.orientation.x) || !std::isfinite(pose.orientation.y) ||
+        !std::isfinite(pose.orientation.z) || !std::isfinite(pose.orientation.w))
+    {
+        std::cerr << "WujiGlovePlugin: " << name << " ('" << value
+                  << "') has non-finite values; using the built-in offset" << std::endl;
+        return fallback;
+    }
+    const float norm = std::sqrt(pose.orientation.x * pose.orientation.x + pose.orientation.y * pose.orientation.y +
+                                 pose.orientation.z * pose.orientation.z + pose.orientation.w * pose.orientation.w);
+    if (norm < 1e-6f)
+    {
+        std::cerr << "WujiGlovePlugin: " << name << " has a zero quaternion; using the built-in offset" << std::endl;
+        return fallback;
+    }
+    pose.orientation.x /= norm;
+    pose.orientation.y /= norm;
+    pose.orientation.z /= norm;
+    pose.orientation.w /= norm;
+    return pose;
+}
+
+// Wrist-source selection: WUJI_GLOVE_WRIST_SOURCE = auto (default) |
+// hand_tracking | controller.
+plugin_utils::WristSourceMode wrist_source_mode_from_env()
+{
+    const char* value = std::getenv("WUJI_GLOVE_WRIST_SOURCE");
+    if (value == nullptr || *value == '\0' || std::strcmp(value, "auto") == 0)
+    {
+        return plugin_utils::WristSourceMode::Auto;
+    }
+    if (std::strcmp(value, "hand_tracking") == 0)
+    {
+        return plugin_utils::WristSourceMode::HandTracking;
+    }
+    if (std::strcmp(value, "controller") == 0)
+    {
+        return plugin_utils::WristSourceMode::Controller;
+    }
+    std::cerr << "WujiGlovePlugin: unknown WUJI_GLOVE_WRIST_SOURCE '" << value << "', using 'auto'" << std::endl;
+    return plugin_utils::WristSourceMode::Auto;
 }
 
 // Resolve the glove's hand side explicitly via the device's "hand_side" GET
@@ -119,21 +236,29 @@ WujiGlovePlugin::WujiGlovePlugin(const std::string& plugin_root_id) noexcept(fal
 {
     std::cout << "Initializing WujiGlovePlugin with root: " << m_root_id << std::endl;
 
-    // The glove is not an OpenXR upstream tracker — it is read out-of-band via
-    // wuji_sdk. We still need an OpenXR session for the push-device (injection)
-    // extension. No upstream trackers are required.
-    std::vector<std::shared_ptr<core::ITracker>> trackers; // empty
+    // The glove itself is not an OpenXR upstream tracker — it is read
+    // out-of-band via wuji_sdk. The tracker list carries only what the wrist
+    // source needs (the controller tracker for the aim-pose fallback); the
+    // OpenXR session exists for the push-device (injection) extension, the
+    // wrist-source queries, and the XrTime base.
+    plugin_utils::WristSourceConfig wrist_config;
+    wrist_config.mode = wrist_source_mode_from_env();
+    wrist_config.left_aim_to_wrist = pose_from_env("WUJI_GLOVE_AIM_TO_WRIST_LEFT", kLeftAimToWrist);
+    wrist_config.right_aim_to_wrist = pose_from_env("WUJI_GLOVE_AIM_TO_WRIST_RIGHT", kRightAimToWrist);
+    auto wrist_requirements = plugin_utils::WristPoseSource::collect_requirements(wrist_config.mode);
+
+    std::vector<std::shared_ptr<core::ITracker>> trackers = wrist_requirements.trackers;
     auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
     extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
+    extensions.insert(extensions.end(), wrist_requirements.extensions.begin(), wrist_requirements.extensions.end());
 
     m_session = std::make_shared<core::OpenXRSession>("WujiGlove", extensions);
     const auto handles = m_session->get_handles();
 
-    // No upstream OpenXR trackers to run, so the DeviceIOSession takes an empty
-    // tracker list. It exists only to pump the OpenXR frame loop, keeping the
-    // session and time domain live so injection has a valid XrTime base.
     m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
     m_time_converter.emplace(handles);
+    m_wrist_source = std::make_unique<plugin_utils::WristPoseSource>(
+        wrist_config, handles, m_deviceio_session.get(), wrist_requirements.controller_tracker);
 
     WujiInitOptions init_opts{};
     init_opts.log_level = 2; // warn only; the plugin reports connection and errors itself
@@ -349,7 +474,7 @@ void WujiGlovePlugin::skeleton_callback(WujiFrameKind kind, const WujiHandSkelet
 void WujiGlovePlugin::on_skeleton(const WujiHandSkeleton* frame, bool is_left)
 {
     std::array<XrHandJointLocationEXT, XR_HAND_JOINT_COUNT_EXT> joints{};
-    if (!convert_skeleton(frame, joints))
+    if (!convert_skeleton(frame, is_left, joints))
     {
         return;
     }
@@ -387,7 +512,35 @@ void WujiGlovePlugin::pump_hand(std::unique_ptr<plugin_utils::HandInjector>& inj
         const auto handles = m_session->get_handles();
         injector = std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, hand, handles.space);
     }
-    injector->push(frame.joints.data(), time);
+
+    // Fuse the device wrist pose: place the wrist-relative skeleton at the
+    // fused wrist, and set TRACKED bits only while the wrist source is
+    // actively tracked. With no wrist source available the skeleton stays
+    // wrist-relative at the space origin with VALID-only flags (honest
+    // degradation: consumers see the shape but know the pose is untracked).
+    plugin_utils::WristSample wrist;
+    if (m_wrist_source)
+    {
+        wrist = m_wrist_source->query(hand == XR_HAND_LEFT_EXT, time);
+    }
+
+    std::array<XrHandJointLocationEXT, XR_HAND_JOINT_COUNT_EXT> joints = frame.joints;
+    if (wrist.valid)
+    {
+        for (auto& joint : joints)
+        {
+            if ((joint.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) == 0)
+            {
+                continue;
+            }
+            joint.pose = oxr_utils::multiply_poses(wrist.pose, joint.pose);
+            if (wrist.tracked)
+            {
+                joint.locationFlags |= kPoseTrackedFlags;
+            }
+        }
+    }
+    injector->push(joints.data(), time);
 }
 
 void WujiGlovePlugin::worker_thread()

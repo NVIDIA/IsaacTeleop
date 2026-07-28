@@ -8,6 +8,7 @@
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>
+#include <plugin_utils/wrist_pose_source.hpp>
 
 extern "C"
 {
@@ -51,6 +52,9 @@ public:
 
 private:
     // Latest converted joints for one hand, plus freshness bookkeeping.
+    // Joint poses are wrist-relative in the OpenXR hand-joint basis with
+    // VALID-only flags; pump_hand() composes the fused wrist pose and adds
+    // TRACKED bits when the wrist source is actively tracked.
     struct HandFrame
     {
         std::array<XrHandJointLocationEXT, XR_HAND_JOINT_COUNT_EXT> joints{};
@@ -99,6 +103,9 @@ private:
     std::unique_ptr<plugin_utils::HandInjector> m_left_injector;
     std::unique_ptr<plugin_utils::HandInjector> m_right_injector;
     std::optional<core::XrTimeConverter> m_time_converter;
+    // Declared after m_session/m_deviceio_session: destroyed first, while the
+    // XR handles and the (non-owned) DeviceIOSession it references are alive.
+    std::unique_ptr<plugin_utils::WristPoseSource> m_wrist_source;
 
     // Owned exclusively by m_connection_thread until it is joined.
     std::vector<std::unique_ptr<GloveConnection>> m_connections;
