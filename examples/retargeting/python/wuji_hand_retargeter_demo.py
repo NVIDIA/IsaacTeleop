@@ -140,12 +140,33 @@ def run_synthetic(model: str, hand_side: str) -> int:
     return 0
 
 
+class _ReplayUnpickler(pickle.Unpickler):
+    """Unpickler restricted to what the replay frame format needs.
+
+    Plain ``pickle.load`` executes arbitrary code embedded in the file, and a
+    recording may have been produced elsewhere or shared.
+    """
+
+    _ALLOWED = {
+        ("numpy", "ndarray"),
+        ("numpy", "dtype"),
+        ("numpy.core.multiarray", "_reconstruct"),  # numpy < 2
+        ("numpy._core.multiarray", "_reconstruct"),  # numpy >= 2
+    }
+
+    def find_class(self, module: str, name: str):
+        if (module, name) not in self._ALLOWED:
+            raise pickle.UnpicklingError(
+                f"{module}.{name} is not allowed in a replay recording"
+            )
+        return super().find_class(module, name)
+
+
 def run_replay(model: str, hand_side: str, path: str, loop: bool) -> int:
     print(f"[mode] replay {path} (device-free)\n")
     retargeter = _build_retargeter(model, hand_side)
-    # Only load trusted, self-generated files: pickle can execute code while loading.
     with open(path, "rb") as fh:
-        frames = pickle.load(fh)
+        frames = _ReplayUnpickler(fh).load()
     key = f"{hand_side}_fingers"
     n = 0
     t0 = time.time()
