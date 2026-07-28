@@ -25,6 +25,11 @@ jobs:
 
     env:
       SCCACHE_GHA_ENABLED: "true"
+      # CMakePresets.json preset used to configure/build, and the build directory
+      # it selects. Windows has no Python matrix, so it pins the CMakeLists
+      # default (3.11); keep the two in sync if that changes.
+      CMAKE_PRESET: py3.11
+      BUILD_DIR: build/cmake-cpython-311
 
     strategy:
       matrix:
@@ -48,15 +53,20 @@ jobs:
       uses: ilammy/msvc-dev-cmd@v1
 
     # vcpkg - required when BUILD_PLUGIN_OAK_CAMERA=ON for DepthAI v3.x deps
+    #
+    # vcpkg installs manifest ports into ${CMAKE_BINARY_DIR}/vcpkg_installed, so
+    # this path tracks the preset's build directory. The preset is part of the key
+    # for the same reason: an entry saved from a different build directory would
+    # restore to a path this job never reads.
     - name: Cache vcpkg
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
       with:
         path: |
           C:\vcpkg
-          build\vcpkg_installed
-        key: vcpkg-${{ runner.os }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
+          ${{ env.BUILD_DIR }}/vcpkg_installed
+        key: vcpkg-${{ runner.os }}-${{ env.CMAKE_PRESET }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          vcpkg-${{ runner.os }}-
+          vcpkg-${{ runner.os }}-${{ env.CMAKE_PRESET }}-
 
     - name: Setup vcpkg
       run: |
@@ -94,11 +104,14 @@ jobs:
 
     - name: Configure CMake
       # Note:
+      # The py3.11 preset selects Python 3.11 (the CMakeLists default) and the
+      # build/cmake-cpython-311 build directory; the generator and the flags below
+      # are command-line additions on top of it.
       # sccache does not work with VSBuild, so we use Ninja generator here.
       # -G Ninja would pickup mingw64 by default on Windows, so we explicitly set the compiler to cl.exe
       # Force embedded debug info (Z7) to avoid PDB contention whenever debug info is generated.
       run: >
-        cmake -B build -G Ninja
+        cmake --preset ${{ env.CMAKE_PRESET }} -G Ninja
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DENABLE_EXPERIMENTAL_WINDOWS_BUILD=ON
         -DCMAKE_C_COMPILER_LAUNCHER=sccache
@@ -111,7 +124,7 @@ jobs:
         -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake"
 
     - name: Build
-      run: cmake --build build --parallel
+      run: cmake --build --preset ${{ env.CMAKE_PRESET }} --parallel
 
     - name: Run All Tests
-      run: ctest --test-dir build --output-on-failure --parallel
+      run: ctest --test-dir ${{ env.BUILD_DIR }} --output-on-failure --parallel

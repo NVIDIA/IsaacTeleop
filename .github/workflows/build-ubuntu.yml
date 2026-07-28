@@ -45,6 +45,16 @@ jobs:
       with:
         fetch-depth: 0 # Full history for accurate git describe
 
+    # CMakePresets.json defines one preset per supported Python (py3.10 … py3.13),
+    # each configuring an isolated build/cmake-cpython-3XX directory. Derive the
+    # preset name and its build directory once here; later steps (ctest, coverage,
+    # test packaging, install) need the directory the preset chose.
+    - name: Resolve CMake preset
+      run: |
+        py="${{ matrix.python_version }}"
+        echo "CMAKE_PRESET=py${py}" >> "$GITHUB_ENV"
+        echo "BUILD_DIR=build/cmake-cpython-${py//./}" >> "$GITHUB_ENV"
+
     - name: Install uv
       uses: ./.github/actions/setup-uv
 
@@ -102,10 +112,10 @@ jobs:
       with:
         path: |
           ~/vcpkg
-          build/vcpkg_installed
-        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
+          ${{ env.BUILD_DIR }}/vcpkg_installed
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.CMAKE_PRESET }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-
+          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.CMAKE_PRESET }}-${{ env.VCPKG_COMMIT }}-
 
     - name: Setup vcpkg
       run: |
@@ -142,9 +152,10 @@ jobs:
           )
         fi
 
-        cmake -B build \
+        # The preset supplies ISAAC_TELEOP_PYTHON_VERSION and the per-Python
+        # build directory; everything else is a command-line -D override.
+        cmake --preset "${CMAKE_PRESET}" \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DISAAC_TELEOP_PYTHON_VERSION=${{ matrix.python_version }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DBUILD_PLUGIN_OAK_CAMERA=ON \
@@ -155,13 +166,13 @@ jobs:
           "${coverage_args[@]}"
 
     - name: Build
-      run: cmake --build build --parallel 4
+      run: cmake --build --preset "${CMAKE_PRESET}" --parallel 4
 
     - name: ccache stats
       run: ccache --show-stats
 
     - name: Run All Tests
-      run: ctest --test-dir build --output-on-failure --parallel
+      run: ctest --test-dir "${BUILD_DIR}" --output-on-failure --parallel
 
     - name: Generate coverage report
       if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
@@ -171,10 +182,10 @@ jobs:
 
         gcovr_args=(
           --root "${GITHUB_WORKSPACE}"
-          --object-directory build/src
+          --object-directory "${BUILD_DIR}/src"
           # CMake compiler-id probes are not test targets and produce noisy gcov warnings.
-          --gcov-exclude "build/CMakeFiles/.*/CompilerId.*/.*"
-          --exclude-directories "build/CMakeFiles"
+          --gcov-exclude "${BUILD_DIR}/CMakeFiles/.*/CompilerId.*/.*"
+          --exclude-directories "${BUILD_DIR}/CMakeFiles"
           --filter "src/"
           --exclude "src/.*/.*_tests/.*"
           --exclude "src/.*/tests/.*"
@@ -226,10 +237,10 @@ jobs:
         mkdir -p viz-tests-pkg
         # Glob all viz_*_tests executables (covers viz_core_tests today, and
         # viz_layers_tests / viz_session_tests / viz_xr_tests as they ship).
-        find build/src/viz -name 'viz_*_tests' -type f -executable \
+        find "${BUILD_DIR}/src/viz" -name 'viz_*_tests' -type f -executable \
           -exec cp -v {} viz-tests-pkg/ \;
         if ! ls viz-tests-pkg/viz_*_tests >/dev/null 2>&1; then
-          echo "No viz test binaries found under build/src/viz/"
+          echo "No viz test binaries found under ${BUILD_DIR}/src/viz/"
           exit 1
         fi
         tar -cvzf viz-tests.tar.gz -C viz-tests-pkg .
@@ -245,7 +256,7 @@ jobs:
 
     - name: Install (Release only)
       if: matrix.build_type == 'Release'
-      run: cmake --install build
+      run: cmake --install "${BUILD_DIR}"
 
     - name: Repair wheel tags with auditwheel (Release only)
       if: matrix.build_type == 'Release'
