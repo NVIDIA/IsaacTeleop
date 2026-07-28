@@ -69,10 +69,9 @@ constexpr XrPosef kRightAimToWrist = { { 0.26388208f, -0.17382305f, 0.06730102f,
 constexpr float kDefaultJointRadius = 0.01f; // meters; SDK does not provide radius.
 constexpr size_t kNumMediaPipeJoints = std::size(kMpToXr);
 
-// Timing budget: the glove streams EMF poses at 120 Hz natively, halved to
-// 60 Hz by the rate divider set at connect time. The 16 ms pump (~62.5 Hz)
-// re-injects at most an occasional repeated sample at that rate, and the
-// 200 ms staleness window means ~12 missed frames before a hand is dropped.
+// Timing budget: the glove streams EMF poses at 120 Hz. The 16 ms pump
+// (~62.5 Hz) always finds a fresher sample than the one it injected last, and
+// the 200 ms staleness window is ~24 missed frames before a hand is dropped.
 constexpr auto kFramePeriod = std::chrono::milliseconds(16);
 constexpr auto kStaleThreshold = std::chrono::milliseconds(200);
 constexpr auto kDiscoveryInterval = std::chrono::seconds(1);
@@ -376,14 +375,6 @@ bool WujiGlovePlugin::connect_glove(GloveConnection& connection)
     auto context = std::make_unique<SubContext>();
     context->self = this;
     context->is_left = *is_left;
-    // Request 60 Hz to match the 16 ms injection pump and reduce transport and
-    // processing load. Platforms that can sustain the native 120 Hz may omit
-    // this optional divider. Failure is non-fatal and leaves the native rate.
-    if (wuji_glove_set_emf_poses_rate_divider(device, 2) != WUJI_STATUS_OK)
-    {
-        std::cerr << "WujiGlovePlugin: set_emf_poses_rate_divider(2) failed for " << connection.serial << ": "
-                  << safe_err() << " (continuing at the native rate)" << std::endl;
-    }
 
     WujiSub* subscription = nullptr;
     if (wuji_glove_subscribe_hand_skeleton(device, &WujiGlovePlugin::skeleton_callback, context.get(), &subscription) !=
