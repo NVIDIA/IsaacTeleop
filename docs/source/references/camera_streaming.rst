@@ -31,10 +31,12 @@ Requirements
 
 - A workstation meeting the :doc:`system requirements </references/requirements>` (Ubuntu, NVIDIA
   GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.
-- For the default XR mode, a running CloudXR server with a connected headset — follow the
-  :doc:`quick start </getting_started/quick_start>` steps :ref:`run-cloudxr-server` and
-  :ref:`connect-xr-headset`. No headset handy? ``--mode window`` renders to a desktop window
-  instead and only needs a local display.
+- For the default XR mode, a headset to connect as the CloudXR client — follow the
+  :doc:`quick start </getting_started/quick_start>` step :ref:`connect-xr-headset`. The CloudXR
+  **runtime itself is launched by the viewer**: ``camera_viz.py`` starts the bundled in-process
+  runtime and WSS proxy before creating its XR session (pass ``--no-launch-cloudxr-runtime`` when
+  one is already running, e.g. after sourcing ``~/.cloudxr/run/cloudxr.env``). No headset handy?
+  ``--mode window`` renders to a desktop window instead and only needs a local display.
 
 Setup
 -----
@@ -96,15 +98,17 @@ at it:
    ./camera_viz.sh run configs/replay.yaml                 # XR headset (default)
    ./camera_viz.sh run configs/replay.yaml --mode window   # desktop window instead
 
-**You should see** the terminal report the session and the source coming up::
+In XR mode the viewer first brings up the CloudXR runtime (accept the EULA on first launch, or
+pass ``--accept-eula``), then **you should see** the terminal report the session and the source
+coming up::
 
-   camera_viz: source=local, mode=xr, xr=True, 1 layer(s)
+   camera_viz: source=local, mode=xr, xr=True, shape=quad, 1 layer(s)
    [video] opening...
    [video] connected
    [video] streaming
 
-and the clip looping on a plane in the headset — or in a desktop window (``mode=window,
-xr=False``) with the ``--mode window`` override.
+and the clip looping on a plane in the headset once it connects — or in a desktop window
+(``mode=window, xr=False``) with the ``--mode window`` override, which starts no runtime.
 
 To replay your own video, set a custom ``path:`` in :code-file:`configs/replay.yaml
 <examples/camera_viz/configs/replay.yaml>` — relative paths resolve against the YAML's directory.
@@ -174,6 +178,51 @@ In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` u
 
 Lazy-mode knobs live under ``placements.<name>``: ``look_away_angle_deg``,
 ``reposition_distance``, ``reposition_delay_s``, ``transition_duration_s``.
+
+Surface shapes and native composition layers
+--------------------------------------------
+
+By default each camera renders on a flat plane composited by Televiz. Two CLI flags change how
+the feed reaches the headset (XR mode only; see
+:ref:`Native OpenXR composition layers <native-openxr-composition-layers>` for the underlying
+mechanics and trade-offs):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 74
+
+   * - Flag
+     - Effect
+   * - ``--native-quad``
+     - Keep the flat plane, but submit it as a native ``XrCompositionLayerQuad`` instead of
+       compositing it server-side. When every visible layer is native, CloudXR can stream each
+       layer separately and reproject it on-device. Placement lock modes still apply.
+   * - ``--layer-shape cylinder``
+     - Wrap each feed onto a cylinder arc facing the operator (native
+       ``XrCompositionLayerCylinderKHR``). ``--cylinder-radius METERS`` (default 2.0) and
+       ``--cylinder-angle-deg DEGREES`` (default 90) size the arc; its width/height ratio follows
+       the source resolution. Placement lock modes don't apply — the arc is fixed in the space.
+   * - ``--layer-shape equirect``
+     - Map each feed onto a full 360°×180° sphere (native ``XrCompositionLayerEquirect2KHR``) —
+       for equirectangular panorama / VR-video sources, not regular camera frames.
+
+Both shaped layers are **native-only**: they require XR mode and a runtime advertising the
+matching ``XR_KHR_composition_layer_*`` extension (CloudXR advertises both), and the viewer exits
+with an error otherwise. Stereo sources render per-eye textures on the same surface.
+
+CloudXR runtime flags
+---------------------
+
+In XR mode the viewer owns the runtime lifecycle. All the standard launcher flags are available:
+
+- ``--launch-cloudxr-runtime`` / ``--no-launch-cloudxr-runtime`` — start (default) or reuse an
+  already-running runtime.
+- ``--launch-wss-proxy`` / ``--no-launch-wss-proxy`` — the WSS TLS proxy headset clients connect
+  through (default: on). Disable for headless smoke tests.
+- ``--accept-eula`` — accept the NVIDIA CloudXR EULA non-interactively (first run only).
+- ``--cloudxr-install-dir PATH`` / ``--cloudxr-device-profile PROFILE`` /
+  ``--cloudxr-env-config PATH`` — install dir (default ``~/.cloudxr``), ``NV_DEVICE_PROFILE``
+  (default ``Quest3``), and a KEY=value env-override file.
 
 Split mode — robot → workstation over RTP
 -----------------------------------------
@@ -264,9 +313,10 @@ YAML per source kind.
 Troubleshooting
 ---------------
 
-- **The XR session fails to create** — the default mode needs the CloudXR server running and a
-  headset connected (quick start steps :ref:`run-cloudxr-server` and :ref:`connect-xr-headset`);
-  pass ``--mode window`` to render to a desktop window instead.
+- **The XR session fails to create** — the viewer launches the CloudXR runtime itself; check
+  ``~/.cloudxr/logs/cxr_server.*.log`` and ``runtime_stderr.log`` for the startup failure. If a
+  runtime is already running from another app, pass ``--no-launch-cloudxr-runtime``. Pass
+  ``--mode window`` to render to a desktop window instead (no runtime involved).
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's

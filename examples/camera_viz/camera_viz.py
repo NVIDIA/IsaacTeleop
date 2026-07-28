@@ -18,6 +18,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import math
 import signal
 import sys
 from dataclasses import dataclass
@@ -27,6 +29,7 @@ from typing import List, Optional, Tuple
 import yaml
 
 import isaacteleop.viz as viz
+from isaacteleop.cloudxr import CloudXRLauncher
 
 from pipeline import FrameSource, VizRunner
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
@@ -224,6 +227,49 @@ def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSess
     return viz.VizSession.create(session_cfg)
 
 
+def _add_layer(session: viz.VizSession, entry: SourceEntry, args: argparse.Namespace):
+    """Register one layer for ``entry`` per --layer-shape.
+
+    quad     → QuadLayer (compositor path, or native when --native-quad);
+               the placement strategy positions it per frame.
+    cylinder → native CylinderLayer: the feed wrapped on an arc facing the
+               user (radius / angle from the CLI, aspect from the source).
+    equirect → native EquirectLayer: full 360x180 sphere (the source is
+               expected to be an equirect panorama).
+    """
+    spec = entry.source.spec
+    if args.layer_shape == "cylinder":
+        layer_cfg = viz.CylinderLayerConfig()
+        layer_cfg.name = spec.name
+        layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
+        layer_cfg.stereo = entry.stereo
+        placement = viz.CylinderLayerPlacement()
+        placement.radius = args.cylinder_radius
+        placement.central_angle = math.radians(args.cylinder_angle_deg)
+        # aspect_ratio 0 = derived from the source resolution (square texels).
+        layer_cfg.placement = placement
+        return session.add_cylinder_layer(layer_cfg)
+    if args.layer_shape == "equirect":
+        layer_cfg = viz.EquirectLayerConfig()
+        layer_cfg.name = spec.name
+        layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
+        layer_cfg.stereo = entry.stereo
+        # Default placement = full 360x180 sphere at infinite radius.
+        return session.add_equirect_layer(layer_cfg)
+
+    layer_cfg = viz.QuadLayerConfig()
+    layer_cfg.name = spec.name
+    layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
+    layer_cfg.format = viz.PixelFormat.kRGBA8
+    if entry.stereo:
+        layer_cfg.stereo = True
+        layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
+    # Native OpenXR quad path (kXr only; a no-op fallback in window mode).
+    # Requires a placement, which the placement strategy applies below.
+    layer_cfg.use_openxr_quad_layer = args.native_quad
+    return session.add_quad_layer(layer_cfg)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Televiz camera_viz — display side")
     parser.add_argument("config", type=Path, help="YAML config file")
@@ -243,6 +289,33 @@ def main(argv: Optional[list[str]] = None) -> int:
         "quad the projection layer is dropped, letting the runtime engage "
         "its quad fast path / client-reconstructed streaming.",
     )
+    parser.add_argument(
+        "--layer-shape",
+        choices=("quad", "cylinder", "equirect"),
+        default="quad",
+        help="Surface each camera is mapped onto (default: quad). "
+        "cylinder wraps the feed onto a native XrCompositionLayerCylinderKHR "
+        "arc; equirect maps it onto a native XrCompositionLayerEquirect2KHR "
+        "sphere (for 360/180 panorama sources). Both are native-only and "
+        "require XR mode + a runtime advertising the matching "
+        "XR_KHR_composition_layer_* extension; placement lock modes from the "
+        "config apply to quads only.",
+    )
+    parser.add_argument(
+        "--cylinder-radius",
+        type=float,
+        default=2.0,
+        metavar="METERS",
+        help="Cylinder radius when --layer-shape cylinder (default: 2.0).",
+    )
+    parser.add_argument(
+        "--cylinder-angle-deg",
+        type=float,
+        default=90.0,
+        metavar="DEGREES",
+        help="Cylinder visible arc when --layer-shape cylinder (default: 90).",
+    )
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv)
 
     with open(args.config) as f:
@@ -262,67 +335,76 @@ def main(argv: Optional[list[str]] = None) -> int:
         raise ValueError(f"camera_viz: source must be local|rtp, got {source_mode!r}")
 
     effective_mode = (args.mode or cfg.get("display", {}).get("mode", "xr")).lower()
-    session = _make_session(cfg, mode_override=args.mode)
-    is_xr = session.is_xr_mode()
-
-    if source_mode == "local":
-        entries = _build_local_entries(cfg, is_xr)
-    else:
-        entries = _build_rtp_entries(cfg, is_xr)
-
-    # Build sources, layers, and placement strategies in parallel arrays.
-    sources, layers, strategies = [], [], []
-    for entry in entries:
-        sources.append(entry.source)
-        layer_cfg = viz.QuadLayerConfig()
-        layer_cfg.name = entry.source.spec.name
-        layer_cfg.resolution = viz.Resolution(
-            entry.source.spec.width, entry.source.spec.height
+    if args.layer_shape != "quad" and effective_mode != "xr":
+        raise SystemExit(
+            f"camera_viz: --layer-shape {args.layer_shape} is native-only "
+            "(XrCompositionLayer*KHR) and requires XR mode; use --mode xr "
+            "or drop the flag in window mode."
         )
-        layer_cfg.format = viz.PixelFormat.kRGBA8
-        if entry.stereo:
-            layer_cfg.stereo = True
-            layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
-        # Native OpenXR quad path (kXr only; a no-op fallback in window mode).
-        # Requires a placement, which the placement strategy applies below.
-        layer_cfg.use_openxr_quad_layer = args.native_quad
-        layers.append(session.add_quad_layer(layer_cfg))
-        strategies.append(entry.placement)
 
-    print(
-        f"camera_viz: source={source_mode}, mode={effective_mode}, "
-        f"xr={is_xr}, {len(sources)} layer(s)",
-        flush=True,
+    # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
+    # headset clients) before creating the session — VizSession's OpenXR
+    # instance needs XR_RUNTIME_JSON + a running service, both of which the
+    # launcher provides. --no-launch-cloudxr-runtime skips this when a
+    # runtime is already up (e.g. after sourcing ~/.cloudxr/run/cloudxr.env).
+    # Window mode never launches a runtime.
+    launch_ctx = (
+        CloudXRLauncher.launch_context(args)
+        if effective_mode == "xr"
+        else contextlib.nullcontext(None)
     )
+    with launch_ctx:
+        session = _make_session(cfg, mode_override=args.mode)
+        is_xr = session.is_xr_mode()
 
-    runner = VizRunner(session, sources, layers, strategies)
-
-    def _on_signal(signum, frame):
-        print(f"camera_viz: stopping (signal {signum})...", flush=True)
-        runner.stop()
-
-    signal.signal(signal.SIGINT, _on_signal)
-    signal.signal(signal.SIGTERM, _on_signal)
-
-    runner.start()
-    try:
-        runner.wait()
-    finally:
-        # Skip session.destroy() when a worker thread is still alive —
-        # it may be inside session.render() and destroying under it
-        # would UAF on the Vulkan / CUDA handles. Non-daemon thread
-        # keeps the process alive; OS reaps at exit.
-        clean = runner.stop()
-        if clean:
-            session.destroy()
+        if source_mode == "local":
+            entries = _build_local_entries(cfg, is_xr)
         else:
-            print(
-                "camera_viz: worker thread did not exit; leaving VizSession "
-                "alive to avoid use-after-free. Process will keep running "
-                "until the stuck thread completes.",
-                file=sys.stderr,
-                flush=True,
-            )
+            entries = _build_rtp_entries(cfg, is_xr)
+
+        # Build sources, layers, and placement strategies in parallel arrays.
+        sources, layers, strategies = [], [], []
+        for entry in entries:
+            sources.append(entry.source)
+            layers.append(_add_layer(session, entry, args))
+            # Placement lock-mode strategies drive QuadLayer.set_placement;
+            # cylinder/equirect placements are fixed at add time.
+            strategies.append(entry.placement if args.layer_shape == "quad" else None)
+
+        print(
+            f"camera_viz: source={source_mode}, mode={effective_mode}, "
+            f"xr={is_xr}, shape={args.layer_shape}, {len(sources)} layer(s)",
+            flush=True,
+        )
+
+        runner = VizRunner(session, sources, layers, strategies)
+
+        def _on_signal(signum, frame):
+            print(f"camera_viz: stopping (signal {signum})...", flush=True)
+            runner.stop()
+
+        signal.signal(signal.SIGINT, _on_signal)
+        signal.signal(signal.SIGTERM, _on_signal)
+
+        runner.start()
+        try:
+            runner.wait()
+        finally:
+            # Skip session.destroy() when a worker thread is still alive —
+            # it may be inside session.render() and destroying under it
+            # would UAF on the Vulkan / CUDA handles. Non-daemon thread
+            # keeps the process alive; OS reaps at exit.
+            clean = runner.stop()
+            if clean:
+                session.destroy()
+            else:
+                print(
+                    "camera_viz: worker thread did not exit; leaving VizSession "
+                    "alive to avoid use-after-free. Process will keep running "
+                    "until the stuck thread completes.",
+                    file=sys.stderr,
+                    flush=True,
+                )
     return 0
 
 
