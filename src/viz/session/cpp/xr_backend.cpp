@@ -1024,11 +1024,12 @@ void XrBackend::record_native_layers(VkCommandBuffer cmd, const Frame& /*frame*/
 
         // Per-eye baseline offset along the placement's local +x axis
         // (world space), mirroring QuadLayer::record()'s stereo shift.
-        // Quads only: cylinder / equirect stereo keeps a single shared
-        // pose — the depth cue comes from the per-eye textures, matching
-        // how 180°/360° stereo video is authored.
+        // Shape-agnostic: the whole layer pose translates per eye. For an
+        // infinite-radius equirect sphere the translation is invisible by
+        // construction — the depth cue there comes from the per-eye
+        // textures alone, matching how 360° stereo video is authored.
         glm::vec3 baseline_axis_ws{ 0.0f };
-        const bool apply_baseline = view.shape == NativeLayerShape::kQuad && stereo && view.stereo_baseline_mm != 0.0f;
+        const bool apply_baseline = stereo && view.stereo_baseline_mm != 0.0f;
         if (apply_baseline)
         {
             baseline_axis_ws = glm::mat3_cast(view.pose.orientation) * glm::vec3(1.0f, 0.0f, 0.0f);

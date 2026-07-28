@@ -88,13 +88,16 @@ struct NativeLayerView
     // away from -z). Equirect: center of the sphere.
     Pose3D pose{};
 
+    // Per-eye horizontal disparity along the placement's local +x axis
+    // (millimeters); the left eye's layer pose shifts −half, the right
+    // +half. Ignored mono. Any shape (a translated infinite-radius
+    // equirect sphere is unchanged by construction, so it's a no-op there).
+    float stereo_baseline_mm = 0.0f;
+
     NativeLayerShape shape = NativeLayerShape::kQuad;
 
     // ── kQuad ────────────────────────────────────────────────────────
     glm::vec2 size_meters{ 0.0f, 0.0f }; // physical width × height
-    // Per-eye horizontal disparity along the placement's local +x axis
-    // (millimeters); left eye shifts −half, right eye +half. Ignored mono.
-    float stereo_baseline_mm = 0.0f;
 
     // ── kCylinder ────────────────────────────────────────────────────
     float radius = 0.0f; // meters (kEquirect2 shares it: 0 / +inf = infinite sphere)

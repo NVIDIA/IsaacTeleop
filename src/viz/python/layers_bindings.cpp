@@ -191,7 +191,8 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
         .def_property_readonly("format", &viz::QuadLayer::format)
         .def_property_readonly("aspect_ratio", &viz::QuadLayer::aspect_ratio)
         .def("set_placement", &viz::QuadLayer::set_placement, "placement"_a,
-             "Update placement at runtime. None switches to fullscreen (window mode only).")
+             "Update placement at runtime (validated; raises ValueError on non-positive "
+             "size_meters). None switches to fullscreen (window mode only).")
         .def("placement", &viz::QuadLayer::placement)
         // Bind via concrete-type lambdas: is_visible/set_visible live on
         // LayerBase, which isn't a registered pybind base of QuadLayer, so a
@@ -206,13 +207,26 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
 
     py::class_<viz::CylinderLayer::Config::Placement>(m, "CylinderLayerPlacement",
                                                       "Cylinder placement: pose = center of the cylinder (arc "
-                                                      "centered on the pose's -z, axis = +y), radius in meters, "
-                                                      "central_angle = visible arc in radians (0, 2*pi], "
-                                                      "aspect_ratio = arc-width/height (0 = derive from resolution).")
+                                                      "centered on the pose's -z, axis = +y), radius_m in meters "
+                                                      "(0 or +inf = infinite cylinder), central_angle_rad = visible "
+                                                      "arc in radians (0, 2*pi], aspect_ratio = arc-width/height "
+                                                      "(0 = derive from resolution).")
         .def(py::init<>())
+        .def(py::init(
+                 [](viz::Pose3D pose, float radius_m, float central_angle_rad, float aspect_ratio)
+                 {
+                     viz::CylinderLayer::Config::Placement p;
+                     p.pose = pose;
+                     p.radius_m = radius_m;
+                     p.central_angle_rad = central_angle_rad;
+                     p.aspect_ratio = aspect_ratio;
+                     return p;
+                 }),
+             "pose"_a = viz::Pose3D{}, "radius_m"_a = 1.0f, "central_angle_rad"_a = glm::half_pi<float>(),
+             "aspect_ratio"_a = 0.0f)
         .def_readwrite("pose", &viz::CylinderLayer::Config::Placement::pose)
-        .def_readwrite("radius", &viz::CylinderLayer::Config::Placement::radius)
-        .def_readwrite("central_angle", &viz::CylinderLayer::Config::Placement::central_angle)
+        .def_readwrite("radius_m", &viz::CylinderLayer::Config::Placement::radius_m)
+        .def_readwrite("central_angle_rad", &viz::CylinderLayer::Config::Placement::central_angle_rad)
         .def_readwrite("aspect_ratio", &viz::CylinderLayer::Config::Placement::aspect_ratio);
 
     py::class_<viz::CylinderLayer::Config>(m, "CylinderLayerConfig")
@@ -221,9 +235,13 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
         .def_readwrite("resolution", &viz::CylinderLayer::Config::resolution)
         .def_readwrite("format", &viz::CylinderLayer::Config::format)
         .def_readwrite("stereo", &viz::CylinderLayer::Config::stereo,
-                       "Per-eye stereo: submit MUST be called with both buffers. Both eyes "
-                       "share the same cylinder pose (no baseline shift) — the depth cue "
-                       "comes from the image pair. Memory doubles. Off by default.")
+                       "Per-eye stereo: submit MUST be called with both buffers; one cylinder "
+                       "layer per eye via eyeVisibility. Memory doubles. Off by default.")
+        .def_readwrite("stereo_baseline_mm", &viz::CylinderLayer::Config::stereo_baseline_mm,
+                       "Horizontal disparity between the eyes' cylinders (millimeters), applied "
+                       "along the placement's local +x axis — same convention as QuadLayer. "
+                       "0 (default) → both eyes see the same world cylinder and depth comes "
+                       "from the image pair. Ignored unless stereo.")
         .def_readwrite("placement", &viz::CylinderLayer::Config::placement);
 
     auto cylinder_cls =
@@ -248,16 +266,31 @@ order). Same submit contract as QuadLayer.
 
     py::class_<viz::EquirectLayer::Config::Placement>(m, "EquirectLayerPlacement",
                                                       "Equirect placement: pose = sphere center (texture horizontal "
-                                                      "center maps to the pose's -z), radius in meters (0 or +inf = "
-                                                      "infinite sphere), central_horizontal_angle in radians "
+                                                      "center maps to the pose's -z), radius_m in meters (0 or +inf "
+                                                      "= infinite sphere), central_horizontal_angle_rad in radians "
                                                       "(2*pi = full 360), vertical angles from the horizon in "
                                                       "[-pi/2, pi/2] with upper > lower. Defaults = full sphere.")
         .def(py::init<>())
+        .def(py::init(
+                 [](viz::Pose3D pose, float radius_m, float central_horizontal_angle_rad,
+                    float upper_vertical_angle_rad, float lower_vertical_angle_rad)
+                 {
+                     viz::EquirectLayer::Config::Placement p;
+                     p.pose = pose;
+                     p.radius_m = radius_m;
+                     p.central_horizontal_angle_rad = central_horizontal_angle_rad;
+                     p.upper_vertical_angle_rad = upper_vertical_angle_rad;
+                     p.lower_vertical_angle_rad = lower_vertical_angle_rad;
+                     return p;
+                 }),
+             "pose"_a = viz::Pose3D{}, "radius_m"_a = 0.0f, "central_horizontal_angle_rad"_a = glm::two_pi<float>(),
+             "upper_vertical_angle_rad"_a = glm::half_pi<float>(), "lower_vertical_angle_rad"_a = -glm::half_pi<float>())
         .def_readwrite("pose", &viz::EquirectLayer::Config::Placement::pose)
-        .def_readwrite("radius", &viz::EquirectLayer::Config::Placement::radius)
-        .def_readwrite("central_horizontal_angle", &viz::EquirectLayer::Config::Placement::central_horizontal_angle)
-        .def_readwrite("upper_vertical_angle", &viz::EquirectLayer::Config::Placement::upper_vertical_angle)
-        .def_readwrite("lower_vertical_angle", &viz::EquirectLayer::Config::Placement::lower_vertical_angle);
+        .def_readwrite("radius_m", &viz::EquirectLayer::Config::Placement::radius_m)
+        .def_readwrite(
+            "central_horizontal_angle_rad", &viz::EquirectLayer::Config::Placement::central_horizontal_angle_rad)
+        .def_readwrite("upper_vertical_angle_rad", &viz::EquirectLayer::Config::Placement::upper_vertical_angle_rad)
+        .def_readwrite("lower_vertical_angle_rad", &viz::EquirectLayer::Config::Placement::lower_vertical_angle_rad);
 
     py::class_<viz::EquirectLayer::Config>(m, "EquirectLayerConfig")
         .def(py::init<>())
@@ -266,8 +299,15 @@ order). Same submit contract as QuadLayer.
         .def_readwrite("format", &viz::EquirectLayer::Config::format)
         .def_readwrite("stereo", &viz::EquirectLayer::Config::stereo,
                        "Per-eye stereo (VR180/VR360 convention): submit MUST be called with "
-                       "both buffers; both eyes share the same sphere. Memory doubles. "
-                       "Off by default.")
+                       "both buffers; one equirect layer per eye via eyeVisibility. Memory "
+                       "doubles. Off by default.")
+        .def_readwrite("stereo_baseline_mm", &viz::EquirectLayer::Config::stereo_baseline_mm,
+                       "Horizontal disparity between the eyes' spheres (millimeters), applied "
+                       "along the placement's local +x axis — same convention as QuadLayer. "
+                       "Only visible at FINITE radius: viewing direction to a sphere of radius "
+                       "R changes by ~shift/R, which is zero for the infinite (0/+inf) sphere. "
+                       "0 (default) keeps the VR180/VR360 shared-sphere convention. Ignored "
+                       "unless stereo.")
         .def_readwrite("placement", &viz::EquirectLayer::Config::placement);
 
     auto equirect_cls =

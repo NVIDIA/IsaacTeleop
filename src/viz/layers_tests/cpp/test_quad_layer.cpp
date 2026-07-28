@@ -97,6 +97,13 @@ TEST_CASE("QuadLayer native-quad gate + acquire preconditions", "[gpu][quad_laye
     // No session attached → not native (so the compositor uses record()).
     CHECK_FALSE(layer.is_native_layer());
 
+    // set_placement enforces the same invariants as construction; nullopt
+    // (fullscreen, window mode) stays legal.
+    QuadLayer::Config::Placement zero_size;
+    zero_size.size_meters = glm::vec2(0.0f, 1.0f);
+    CHECK_THROWS_AS(layer.set_placement(zero_size), std::invalid_argument);
+    layer.set_placement(std::nullopt);
+
     // Nothing published yet → nullopt (no quad this frame), even before any
     // placement matters.
     CHECK_FALSE(layer.acquire_native_layer(0).has_value());

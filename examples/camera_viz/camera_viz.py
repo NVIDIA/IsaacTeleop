@@ -243,18 +243,21 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry, args: argparse.Names
         layer_cfg.name = spec.name
         layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
         layer_cfg.stereo = entry.stereo
-        placement = viz.CylinderLayerPlacement()
-        placement.radius = args.cylinder_radius
-        placement.central_angle = math.radians(args.cylinder_angle_deg)
+        layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
         # aspect_ratio 0 = derived from the source resolution (square texels).
-        layer_cfg.placement = placement
+        layer_cfg.placement = viz.CylinderLayerPlacement(
+            radius_m=args.cylinder_radius,
+            central_angle_rad=math.radians(args.cylinder_angle_deg),
+        )
         return session.add_cylinder_layer(layer_cfg)
     if args.layer_shape == "equirect":
         layer_cfg = viz.EquirectLayerConfig()
         layer_cfg.name = spec.name
         layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
         layer_cfg.stereo = entry.stereo
-        # Default placement = full 360x180 sphere at infinite radius.
+        # Baseline only matters at finite sphere radius; harmless at the
+        # default infinite-radius placement (full 360x180 sphere).
+        layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
         return session.add_equirect_layer(layer_cfg)
 
     layer_cfg = viz.QuadLayerConfig()

@@ -80,22 +80,32 @@ TEST_CASE("CylinderLayer ctor rejects invalid placement", "[unit][cylinder_layer
     CylinderLayer::Config cfg;
     cfg.resolution = { 64, 64 };
 
-    cfg.placement.radius = 0.0f;
+    // NaN / negative radii are invalid; 0 and +inf are the spec's
+    // "infinite cylinder" spellings and must pass placement validation
+    // (they then throw on the uninitialized context, proving the radius
+    // check accepted them).
+    cfg.placement.radius_m = -1.0f;
     CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("radius"));
-    cfg.placement.radius = -1.0f;
+    cfg.placement.radius_m = std::numeric_limits<float>::quiet_NaN();
     CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("radius"));
-    cfg.placement.radius = std::numeric_limits<float>::infinity();
-    CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("radius"));
+    cfg.placement.radius_m = 0.0f;
+    CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("VkContext"));
+    cfg.placement.radius_m = std::numeric_limits<float>::infinity();
+    CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("VkContext"));
 
-    cfg.placement.radius = 1.0f;
-    cfg.placement.central_angle = 0.0f;
+    cfg.placement.radius_m = 1.0f;
+    cfg.placement.central_angle_rad = 0.0f;
     CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("central_angle"));
-    cfg.placement.central_angle = glm::two_pi<float>() + 0.1f;
+    cfg.placement.central_angle_rad = glm::two_pi<float>() + 0.1f;
     CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("central_angle"));
 
-    cfg.placement.central_angle = glm::half_pi<float>();
+    cfg.placement.central_angle_rad = glm::half_pi<float>();
     cfg.placement.aspect_ratio = -1.0f;
     CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("aspect_ratio"));
+
+    cfg.placement.aspect_ratio = 0.0f;
+    cfg.stereo_baseline_mm = std::numeric_limits<float>::infinity();
+    CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("stereo_baseline_mm"));
 }
 
 TEST_CASE("EquirectLayer ctor rejects invalid placement", "[unit][equirect_layer][native]")
@@ -104,32 +114,32 @@ TEST_CASE("EquirectLayer ctor rejects invalid placement", "[unit][equirect_layer
     EquirectLayer::Config cfg;
     cfg.resolution = { 64, 64 };
 
-    cfg.placement.radius = -1.0f;
+    cfg.placement.radius_m = -1.0f;
     CHECK_THROWS_WITH(EquirectLayer(ctx, cfg), ContainsSubstring("radius"));
 
-    cfg.placement.radius = 0.0f;
-    cfg.placement.central_horizontal_angle = 0.0f;
+    cfg.placement.radius_m = 0.0f;
+    cfg.placement.central_horizontal_angle_rad = 0.0f;
     CHECK_THROWS_WITH(EquirectLayer(ctx, cfg), ContainsSubstring("central_horizontal_angle"));
-    cfg.placement.central_horizontal_angle = glm::two_pi<float>() + 0.1f;
+    cfg.placement.central_horizontal_angle_rad = glm::two_pi<float>() + 0.1f;
     CHECK_THROWS_WITH(EquirectLayer(ctx, cfg), ContainsSubstring("central_horizontal_angle"));
 
-    cfg.placement.central_horizontal_angle = glm::two_pi<float>();
-    cfg.placement.upper_vertical_angle = glm::pi<float>(); // > pi/2
+    cfg.placement.central_horizontal_angle_rad = glm::two_pi<float>();
+    cfg.placement.upper_vertical_angle_rad = glm::pi<float>(); // > pi/2
     CHECK_THROWS_WITH(EquirectLayer(ctx, cfg), ContainsSubstring("vertical"));
 
     // Inverted span: upper must be strictly above lower.
-    cfg.placement.upper_vertical_angle = -0.5f;
-    cfg.placement.lower_vertical_angle = 0.5f;
+    cfg.placement.upper_vertical_angle_rad = -0.5f;
+    cfg.placement.lower_vertical_angle_rad = 0.5f;
     CHECK_THROWS_WITH(EquirectLayer(ctx, cfg), ContainsSubstring("upper_vertical_angle"));
 }
 
 TEST_CASE("EquirectLayer default placement is a valid full sphere", "[unit][equirect_layer][native]")
 {
     EquirectLayer::Config::Placement p;
-    CHECK(p.radius == 0.0f);
-    CHECK(p.central_horizontal_angle == glm::two_pi<float>());
-    CHECK(p.upper_vertical_angle == glm::half_pi<float>());
-    CHECK(p.lower_vertical_angle == -glm::half_pi<float>());
+    CHECK(p.radius_m == 0.0f);
+    CHECK(p.central_horizontal_angle_rad == glm::two_pi<float>());
+    CHECK(p.upper_vertical_angle_rad == glm::half_pi<float>());
+    CHECK(p.lower_vertical_angle_rad == -glm::half_pi<float>());
 }
 
 TEST_CASE("CylinderLayer acquire promotes the mailbox and carries shape params", "[gpu][cylinder_layer][native]")
@@ -143,8 +153,8 @@ TEST_CASE("CylinderLayer acquire promotes the mailbox and carries shape params",
     CylinderLayer::Config cfg;
     cfg.resolution = { 64, 32 };
     cfg.placement.pose.position = glm::vec3(0.0f, 1.0f, -2.0f);
-    cfg.placement.radius = 1.5f;
-    cfg.placement.central_angle = glm::half_pi<float>();
+    cfg.placement.radius_m = 1.5f;
+    cfg.placement.central_angle_rad = glm::half_pi<float>();
     // aspect_ratio left 0 → derived from resolution (64/32 = 2).
     CylinderLayer layer(ctx, cfg);
 
@@ -187,10 +197,13 @@ TEST_CASE("CylinderLayer acquire promotes the mailbox and carries shape params",
     auto target = viz::RenderTarget::create(ctx, viz::RenderTarget::Config{ Resolution{ 64, 64 } });
     CHECK_THROWS_AS(layer.record(VK_NULL_HANDLE, {}, *target, 0), std::logic_error);
 
-    // set_placement revalidates.
+    // set_placement revalidates; the spec's infinite-cylinder radius is legal.
     CylinderLayer::Config::Placement bad = layer.placement();
-    bad.radius = -1.0f;
+    bad.radius_m = -1.0f;
     CHECK_THROWS_AS(layer.set_placement(bad), std::invalid_argument);
+    CylinderLayer::Config::Placement infinite = layer.placement();
+    infinite.radius_m = 0.0f;
+    layer.set_placement(infinite);
 
     // Idempotent destroy + use-after-destroy is a clean logic_error.
     layer.destroy();
@@ -209,6 +222,7 @@ TEST_CASE("EquirectLayer stereo acquire pairs both eyes on one sphere", "[gpu][e
     EquirectLayer::Config cfg;
     cfg.resolution = { 64, 32 };
     cfg.stereo = true;
+    cfg.stereo_baseline_mm = 63.0f;
     EquirectLayer layer(ctx, cfg);
 
     CHECK(layer.is_native_layer());
@@ -235,6 +249,7 @@ TEST_CASE("EquirectLayer stereo acquire pairs both eyes on one sphere", "[gpu][e
     CHECK(view->central_horizontal_angle == glm::two_pi<float>());
     CHECK(view->upper_vertical_angle == glm::half_pi<float>());
     CHECK(view->lower_vertical_angle == -glm::half_pi<float>());
-    // No quad params leak through.
-    CHECK(view->stereo_baseline_mm == 0.0f);
+    // The per-eye pose shift threads through for shaped layers too (a
+    // no-op at infinite radius, but the plumbing must carry it).
+    CHECK(view->stereo_baseline_mm == 63.0f);
 }

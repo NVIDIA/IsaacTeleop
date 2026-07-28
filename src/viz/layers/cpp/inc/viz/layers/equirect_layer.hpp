@@ -30,9 +30,14 @@ class VkContext;
 // Defaults describe a full 360°×180° sphere of infinite radius — the
 // standard mono panorama / skybox case works with a default Placement.
 //
-// Stereo: per-eye textures on the SAME sphere (one
-// XrCompositionLayerEquirect2KHR per eye via eyeVisibility) — the VR180
-// / VR360 stereo-video convention. No per-eye pose shift.
+// Stereo: per-eye textures (one XrCompositionLayerEquirect2KHR per eye
+// via eyeVisibility), by default on the SAME sphere — the VR180 / VR360
+// stereo-video convention, where all depth comes from the image pair.
+// Config::stereo_baseline_mm optionally shifts each eye's sphere
+// laterally (same convention as QuadLayer); note this only has a
+// visible effect at FINITE radius — viewing direction to a sphere of
+// radius R changes by ~shift/R, which is exactly zero for the
+// infinite-radius (0 / +inf) sphere.
 //
 // Like all native composition layers it carries no depth, so it
 // composites in submission order rather than z-testing against
@@ -51,6 +56,15 @@ public:
         // with both buffers (see ImageLayerBase::submit). Memory doubles.
         bool stereo = false;
 
+        // Horizontal disparity between the left-eye and right-eye layer
+        // (millimeters, along the placement's local +x axis): each eye's
+        // sphere center shifts by ±stereo_baseline_mm/2 (left −, right
+        // +), same convention as QuadLayer. Only visible at FINITE
+        // radius (see the class comment); the default 0 keeps the
+        // VR180/VR360 convention where both eyes share one sphere.
+        // Ignored when stereo is false.
+        float stereo_baseline_mm = 0.0f;
+
         // Placement in the session's reference space. Defaults = full
         // sphere (360° × 180°) at infinite radius, centered on the
         // reference-space origin.
@@ -62,14 +76,14 @@ public:
             // Sphere radius in meters. 0 or +infinity = infinite sphere
             // (per XR_KHR_composition_layer_equirect2); finite values
             // must be > 0.
-            float radius = 0.0f;
+            float radius_m = 0.0f;
             // Visible horizontal span in radians, (0, 2π]. 2π = full 360°.
-            float central_horizontal_angle = glm::two_pi<float>();
+            float central_horizontal_angle_rad = glm::two_pi<float>();
             // Vertical span as angles from the horizon, radians in
             // [−π/2, π/2] with upper > lower. Defaults cover zenith to
             // nadir (full 180°).
-            float upper_vertical_angle = glm::half_pi<float>();
-            float lower_vertical_angle = -glm::half_pi<float>();
+            float upper_vertical_angle_rad = glm::half_pi<float>();
+            float lower_vertical_angle_rad = -glm::half_pi<float>();
         };
         Placement placement{};
     };

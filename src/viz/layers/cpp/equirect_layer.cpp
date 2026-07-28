@@ -19,24 +19,25 @@ void validate_placement(const EquirectLayer::Config::Placement& p)
 {
     // NaN and negatives are invalid; +inf is the documented "infinite
     // sphere" spelling alongside 0.
-    if (std::isnan(p.radius) || p.radius < 0.0f)
+    if (std::isnan(p.radius_m) || p.radius_m < 0.0f)
     {
-        throw std::invalid_argument("EquirectLayer: Placement::radius must be >= 0 (0 or +inf = infinite sphere)");
+        throw std::invalid_argument("EquirectLayer: Placement::radius_m must be >= 0 (0 or +inf = infinite sphere)");
     }
-    if (!std::isfinite(p.central_horizontal_angle) || p.central_horizontal_angle <= 0.0f ||
-        p.central_horizontal_angle > glm::two_pi<float>())
+    if (!std::isfinite(p.central_horizontal_angle_rad) || p.central_horizontal_angle_rad <= 0.0f ||
+        p.central_horizontal_angle_rad > glm::two_pi<float>())
     {
-        throw std::invalid_argument("EquirectLayer: Placement::central_horizontal_angle must be in (0, 2*pi]");
+        throw std::invalid_argument("EquirectLayer: Placement::central_horizontal_angle_rad must be in (0, 2*pi]");
     }
     const float half_pi = glm::half_pi<float>();
-    if (!std::isfinite(p.upper_vertical_angle) || p.upper_vertical_angle < -half_pi || p.upper_vertical_angle > half_pi ||
-        !std::isfinite(p.lower_vertical_angle) || p.lower_vertical_angle < -half_pi || p.lower_vertical_angle > half_pi)
+    if (!std::isfinite(p.upper_vertical_angle_rad) || p.upper_vertical_angle_rad < -half_pi ||
+        p.upper_vertical_angle_rad > half_pi || !std::isfinite(p.lower_vertical_angle_rad) ||
+        p.lower_vertical_angle_rad < -half_pi || p.lower_vertical_angle_rad > half_pi)
     {
         throw std::invalid_argument("EquirectLayer: vertical angles must be in [-pi/2, pi/2]");
     }
-    if (p.upper_vertical_angle <= p.lower_vertical_angle)
+    if (p.upper_vertical_angle_rad <= p.lower_vertical_angle_rad)
     {
-        throw std::invalid_argument("EquirectLayer: upper_vertical_angle must be > lower_vertical_angle");
+        throw std::invalid_argument("EquirectLayer: upper_vertical_angle_rad must be > lower_vertical_angle_rad");
     }
 }
 
@@ -44,6 +45,10 @@ void validate_placement(const EquirectLayer::Config::Placement& p)
 // precedes the base's image allocation.
 const EquirectLayer::Config& validate_config(const EquirectLayer::Config& config)
 {
+    if (!std::isfinite(config.stereo_baseline_mm))
+    {
+        throw std::invalid_argument("EquirectLayer: stereo_baseline_mm must be finite");
+    }
     validate_placement(config.placement);
     return config;
 }
@@ -110,10 +115,11 @@ std::optional<NativeLayerView> EquirectLayer::acquire_native_layer(uint32_t in_f
     v.color_right = config_.stereo ? slots_right_[cur]->vk_image() : VK_NULL_HANDLE;
     v.extent = resolution();
     v.pose = placement.pose;
-    v.radius = placement.radius;
-    v.central_horizontal_angle = placement.central_horizontal_angle;
-    v.upper_vertical_angle = placement.upper_vertical_angle;
-    v.lower_vertical_angle = placement.lower_vertical_angle;
+    v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.radius = placement.radius_m;
+    v.central_horizontal_angle = placement.central_horizontal_angle_rad;
+    v.upper_vertical_angle = placement.upper_vertical_angle_rad;
+    v.lower_vertical_angle = placement.lower_vertical_angle_rad;
     v.source_id = this;
     return v;
 }

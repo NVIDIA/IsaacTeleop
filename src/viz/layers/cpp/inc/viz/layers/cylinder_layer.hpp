@@ -26,11 +26,11 @@ class VkContext;
 // std::invalid_argument otherwise, and record() (unreachable through a
 // validated session) throws std::logic_error.
 //
-// Stereo: per-eye textures on the SAME cylinder (one
-// XrCompositionLayerCylinderKHR per eye via eyeVisibility). The depth
-// cue comes from the image pair, matching how stereo panoramas are
-// authored — there is no per-eye pose shift (unlike QuadLayer's
-// stereo_baseline_mm).
+// Stereo: per-eye textures (one XrCompositionLayerCylinderKHR per eye
+// via eyeVisibility), by default on the SAME cylinder — the depth cue
+// comes from the image pair, matching how stereo panoramas are
+// authored. Config::stereo_baseline_mm optionally shifts each eye's
+// cylinder laterally, same convention as QuadLayer.
 //
 // Like all native composition layers it carries no depth, so it
 // composites in submission order rather than z-testing against
@@ -48,6 +48,15 @@ public:
         // with both buffers (see ImageLayerBase::submit). Memory doubles.
         bool stereo = false;
 
+        // Horizontal disparity between the left-eye and right-eye layer
+        // (millimeters, along the placement's local +x axis): each eye's
+        // cylinder center shifts by ±stereo_baseline_mm/2 (left −, right
+        // +), same convention as QuadLayer. 0 means both eyes see the
+        // same world cylinder — all stereo cues come from the captured
+        // image pair (the VR-video convention). Ignored when stereo is
+        // false.
+        float stereo_baseline_mm = 0.0f;
+
         // Placement in the session's reference space. Defaults describe a
         // 90° arc of a 1 m cylinder directly usable for smoke tests;
         // real apps set pose + shape explicitly (or via set_placement).
@@ -57,10 +66,12 @@ public:
             // pose's -z axis (bows away from the viewer at identity);
             // the cylinder axis is the pose's +y.
             Pose3D pose{};
-            // Cylinder radius in meters. Must be finite and > 0.
-            float radius = 1.0f;
+            // Cylinder radius in meters. 0 or +infinity = infinite
+            // cylinder (per XR_KHR_composition_layer_cylinder); finite
+            // values must be > 0.
+            float radius_m = 1.0f;
             // Visible arc in radians, (0, 2π].
-            float central_angle = glm::half_pi<float>();
+            float central_angle_rad = glm::half_pi<float>();
             // Width/height ratio of the visible arc (width = radius ×
             // central_angle). 0 (default) derives it from ``resolution``
             // so texture pixels stay square.

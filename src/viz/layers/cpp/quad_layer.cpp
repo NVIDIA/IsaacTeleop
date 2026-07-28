@@ -64,6 +64,19 @@ glm::mat4 placement_mvp(const QuadLayer::Config::Placement& p, const ViewInfo& v
     return view.projection_matrix * view.view_matrix * model;
 }
 
+// Placement validation shared by the ctor and set_placement.
+void validate_placement(const std::optional<QuadLayer::Config::Placement>& placement)
+{
+    if (placement.has_value())
+    {
+        const auto& ext = placement->size_meters;
+        if (ext.x <= 0.0f || ext.y <= 0.0f)
+        {
+            throw std::invalid_argument("QuadLayer: Placement::size_meters must be > 0 in both components");
+        }
+    }
+}
+
 // Quad-specific config validation (the base validates format /
 // resolution / context). Returns its argument so it can run inside the
 // base-initializer expression — i.e. BEFORE the base allocates images.
@@ -73,14 +86,7 @@ const QuadLayer::Config& validate_config(const QuadLayer::Config& config, VkRend
     {
         throw std::invalid_argument("QuadLayer: render_pass must be non-null");
     }
-    if (config.placement.has_value())
-    {
-        const auto& ext = config.placement->size_meters;
-        if (ext.x <= 0.0f || ext.y <= 0.0f)
-        {
-            throw std::invalid_argument("QuadLayer: Placement::size_meters must be > 0 in both components");
-        }
-    }
+    validate_placement(config.placement);
     if (!std::isfinite(config.stereo_baseline_mm))
     {
         throw std::invalid_argument("QuadLayer: stereo_baseline_mm must be finite");
@@ -461,8 +467,9 @@ void QuadLayer::record(VkCommandBuffer cmd,
     }
 }
 
-void QuadLayer::set_placement(std::optional<Config::Placement> placement) noexcept
+void QuadLayer::set_placement(std::optional<Config::Placement> placement)
 {
+    validate_placement(placement);
     std::lock_guard<std::mutex> lk(placement_mutex_);
     placement_ = std::move(placement);
 }

@@ -146,8 +146,10 @@ public:
     std::optional<float> aspect_ratio() const noexcept override;
 
     // Atomic placement swap, thread-safe vs record(). nullopt switches
-    // to fullscreen mode (kXr will throw on next record).
-    void set_placement(std::optional<Config::Placement> placement) noexcept;
+    // to fullscreen mode (kXr will throw on next record). Validates the
+    // same invariants as construction (size_meters > 0); throws
+    // std::invalid_argument.
+    void set_placement(std::optional<Config::Placement> placement);
     std::optional<Config::Placement> placement() const noexcept;
 
 protected:

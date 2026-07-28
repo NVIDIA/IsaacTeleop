@@ -16,13 +16,16 @@ namespace
 // bound is 2π (full wrap) per XR_KHR_composition_layer_cylinder.
 void validate_placement(const CylinderLayer::Config::Placement& p)
 {
-    if (!std::isfinite(p.radius) || p.radius <= 0.0f)
+    // NaN and negatives are invalid; 0 and +inf are the documented
+    // "infinite cylinder" spellings (per XR_KHR_composition_layer_cylinder;
+    // Monado/CloudXR implement it).
+    if (std::isnan(p.radius_m) || p.radius_m < 0.0f)
     {
-        throw std::invalid_argument("CylinderLayer: Placement::radius must be finite and > 0");
+        throw std::invalid_argument("CylinderLayer: Placement::radius_m must be >= 0 (0 or +inf = infinite cylinder)");
     }
-    if (!std::isfinite(p.central_angle) || p.central_angle <= 0.0f || p.central_angle > glm::two_pi<float>())
+    if (!std::isfinite(p.central_angle_rad) || p.central_angle_rad <= 0.0f || p.central_angle_rad > glm::two_pi<float>())
     {
-        throw std::invalid_argument("CylinderLayer: Placement::central_angle must be in (0, 2*pi]");
+        throw std::invalid_argument("CylinderLayer: Placement::central_angle_rad must be in (0, 2*pi]");
     }
     if (!std::isfinite(p.aspect_ratio) || p.aspect_ratio < 0.0f)
     {
@@ -34,6 +37,10 @@ void validate_placement(const CylinderLayer::Config::Placement& p)
 // precedes the base's image allocation.
 const CylinderLayer::Config& validate_config(const CylinderLayer::Config& config)
 {
+    if (!std::isfinite(config.stereo_baseline_mm))
+    {
+        throw std::invalid_argument("CylinderLayer: stereo_baseline_mm must be finite");
+    }
     validate_placement(config.placement);
     return config;
 }
@@ -100,8 +107,9 @@ std::optional<NativeLayerView> CylinderLayer::acquire_native_layer(uint32_t in_f
     v.color_right = config_.stereo ? slots_right_[cur]->vk_image() : VK_NULL_HANDLE;
     v.extent = resolution();
     v.pose = placement.pose;
-    v.radius = placement.radius;
-    v.central_angle = placement.central_angle;
+    v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.radius = placement.radius_m;
+    v.central_angle = placement.central_angle_rad;
     // aspect_ratio 0 → square texels: visible arc is width/height of the
     // source image.
     v.aspect_ratio = (placement.aspect_ratio > 0.0f) ?

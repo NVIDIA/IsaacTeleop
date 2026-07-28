@@ -309,10 +309,10 @@ plus a ``CylinderLayerPlacement``:
      - identity
      - Center of the cylinder; the arc is centered on the pose's ``-z`` axis, cylinder axis
        is ``+y``.
-   * - ``radius``
+   * - ``radius_m``
      - ``1.0``
-     - Cylinder radius in meters (finite, > 0).
-   * - ``central_angle``
+     - Cylinder radius in meters; ``0`` or ``+inf`` = infinite cylinder.
+   * - ``central_angle_rad``
      - ``π/2``
      - Visible arc in radians, ``(0, 2π]``.
    * - ``aspect_ratio``
@@ -332,19 +332,22 @@ describe a **full 360°×180° sphere at infinite radius** (a mono panorama work
    * - ``pose``
      - identity
      - Sphere center; the texture's horizontal center maps to the pose's ``-z``.
-   * - ``radius``
+   * - ``radius_m``
      - ``0``
      - Sphere radius in meters; ``0`` or ``+inf`` = infinite sphere.
-   * - ``central_horizontal_angle``
+   * - ``central_horizontal_angle_rad``
      - ``2π``
      - Horizontal span in radians (``2π`` = full 360°; use ``π`` for VR180).
-   * - ``upper_vertical_angle`` / ``lower_vertical_angle``
+   * - ``upper_vertical_angle_rad`` / ``lower_vertical_angle_rad``
      - ``π/2`` / ``−π/2``
      - Vertical span as angles from the horizon, ``[−π/2, π/2]``, upper > lower.
 
-Stereo on all three shapes follows the VR-video convention: per-eye textures on the **same** surface
-(one composition layer per eye via ``eyeVisibility``) — the depth cue comes from the image pair.
-Only ``QuadLayer`` additionally supports a per-eye pose shift (``stereo_baseline_mm``).
+Stereo on all three shapes follows the VR-video convention by default: per-eye textures on the
+**same** surface (one composition layer per eye via ``eyeVisibility``) — the depth cue comes from
+the image pair. All three configs also accept ``stereo_baseline_mm``, which shifts each eye's layer
+by ``±baseline/2`` along the placement's local ``+x`` for additional geometric disparity. Note it
+only has a visible effect where the surface is at *finite* distance: the viewing direction to a
+sphere of radius R changes by ~shift/R, so it is a no-op on an infinite-radius equirect sphere.
 
 .. code-block:: python
 
@@ -357,9 +360,7 @@ Only ``QuadLayer`` additionally supports a per-eye pose shift (``stereo_baseline
    cyl_cfg = televiz.CylinderLayerConfig()
    cyl_cfg.name = "cam"
    cyl_cfg.resolution = televiz.Resolution(1920, 1080)
-   placement = televiz.CylinderLayerPlacement()
-   placement.radius = 2.0                            # 2 m arc in front of the user
-   cyl_cfg.placement = placement
+   cyl_cfg.placement = televiz.CylinderLayerPlacement(radius_m=2.0)   # 2 m arc in front of the user
    cam = session.add_cylinder_layer(cyl_cfg)
 
    while running:
