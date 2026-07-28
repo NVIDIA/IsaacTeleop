@@ -7,8 +7,10 @@ Data Collection in Real
 Record demonstrations on a physical SO-101 into a `LeRobot dataset
 <https://huggingface.co/docs/lerobot/en/index>`_, driving the follower with either teleop device
 (see :doc:`devices`). The example scripts live in ``examples/isaac_teleop_to_so101/`` in the
-`LeRobot <https://github.com/huggingface/lerobot>`_ repository: ``teleoperate.py`` drives the arm
-live, and ``record.py`` does the same while saving a dataset. Both take the same
+`LeRobot <https://github.com/huggingface/lerobot>`_ repository — they ship there only, and are
+part of neither the ``lerobot`` pip package nor the Isaac Teleop repository, so everything on this
+page runs from a LeRobot source checkout. ``teleoperate.py`` drives the arm live, and
+``record.py`` does the same while saving a dataset. Both take the same
 ``--robot.*`` / ``--teleop.*`` flags; ``--teleop.type`` selects the device
 (``xr_controller`` | ``so101_leader``).
 
@@ -17,17 +19,29 @@ Before you start
 
 Follow the necessary one-time steps to set up your environment and hardware:
 
-#. A working **SO-101 follower** — assembled, motors set up, and calibrated. See
-   `SO-101 support in LeRobot`_.
-
-#. The example dependencies installed from a LeRobot source checkout. The LeRobot extras cover the
-   SO-101 motor bus (``feetech``), the IK solver for the XR path (``kinematics``), and dataset
-   recording (``dataset``). For Isaac Teleop, ``cloudxr`` brings the CloudXR runtime bindings and
-   ``retargeters-lite`` is the default retargeter path on both x86_64 and aarch64; the full
-   ``retargeters`` extra is optional:
+#. A **LeRobot source checkout**, since that is where the example scripts live. Clone it and
+   change into its root — the installs below and every later command run from there, except where
+   a step is explicitly scoped to another checkout (the ``so101_leader`` plugin is built from an
+   Isaac Teleop checkout):
 
    .. code-block:: bash
 
+      git clone https://github.com/huggingface/lerobot.git
+      cd lerobot
+
+#. A working **SO-101 follower** — assembled, motors set up, and calibrated. See
+   `SO-101 support in LeRobot`_.
+
+#. The example dependencies, installed into an environment created at that checkout root. The
+   LeRobot extras cover the SO-101 motor bus (``feetech``), the IK solver for the XR path
+   (``kinematics``), and dataset recording (``dataset``). For Isaac Teleop, ``cloudxr`` brings the
+   CloudXR runtime bindings and ``retargeters-lite`` is the default retargeter path on both
+   x86_64 and aarch64; the full ``retargeters`` extra is optional:
+
+   .. code-block:: bash
+
+      uv venv --python 3.12 .venv
+      source .venv/bin/activate
       uv pip install -e ".[feetech,kinematics,dataset]" "huggingface_hub>=1.5"
       uv pip install "isaacteleop[cloudxr,retargeters-lite]~=1.3.131" "scipy>=1.14"
 
@@ -48,8 +62,19 @@ Follow the necessary one-time steps to set up your environment and hardware:
 Teleop and data recording
 -------------------------
 
-Run the scripts as modules from the LeRobot repository root (they use relative imports, so
-``python -m`` is required). Then follow the steps for your teleop device:
+Run the scripts as modules from the **LeRobot repository root**, with the environment from
+`Before you start`_ activated (they use relative imports, so ``python -m`` is required).
+
+.. note::
+
+   The ``examples`` package resolves only from that root. Running these commands from an Isaac
+   Teleop checkout or any other directory fails with::
+
+      ModuleNotFoundError: No module named 'examples.isaac_teleop_to_so101'
+
+   If you hit this, ``cd`` into your LeRobot clone and re-run.
+
+Then follow the steps for your teleop device:
 
 .. tab-set::
 
