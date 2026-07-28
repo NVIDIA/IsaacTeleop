@@ -70,7 +70,7 @@ public:
             // cylinder (per XR_KHR_composition_layer_cylinder); finite
             // values must be > 0.
             float radius_m = 1.0f;
-            // Visible arc in radians, (0, 2π].
+            // Visible arc in radians, (0, 2π) — the spec excludes a full wrap.
             float central_angle_rad = glm::half_pi<float>();
             // Width/height ratio of the visible arc (width = radius ×
             // central_angle). 0 (default) derives it from ``resolution``

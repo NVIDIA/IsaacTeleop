@@ -124,14 +124,15 @@ void bind_layers(py::module_& m)
                        "applied along the placement's local +x axis. 0 → both eyes see the "
                        "same world quad. Ignored unless stereo + kXr. mm-scale chosen because "
                        "typical IPDs / stereo camera baselines are 50–80 mm.")
-        .def_readwrite("use_openxr_quad_layer", &viz::QuadLayer::Config::use_openxr_quad_layer,
-                       "Submit as a native OpenXR quad layer (XrCompositionLayerQuad) instead "
-                       "of compositing into the shared render target. kXr only (ignored in "
-                       "window/offscreen). Lets the runtime place + sample the quad directly, "
-                       "enabling its quad fast path; a frame whose visible layers are all native "
-                       "quads drops the projection layer entirely. Native quads carry no depth "
-                       "(flat billboard, submission-order composited) and require placement. "
-                       "Stereo emits one quad per eye. Off by default.");
+        .def_readwrite("native_composition", &viz::QuadLayer::Config::native_composition,
+                       "In kXr, submit as a native OpenXR quad layer (XrCompositionLayerQuad) — "
+                       "the DEFAULT: the runtime places + samples the quad directly, enabling "
+                       "its quad fast path; a frame whose visible layers are all native drops "
+                       "the projection layer entirely. Set False to composite into the shared "
+                       "render target instead — needed when the quad must z-compose with "
+                       "ProjectionLayer 3D content (native quads carry no depth: flat "
+                       "billboard, submission-order composited). Ignored outside kXr "
+                       "(window/offscreen always composite). Stereo emits one quad per eye.");
 
     // ── QuadLayer (non-owning; session owns the lifetime) ─────────────
 
@@ -209,7 +210,7 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
                                                       "Cylinder placement: pose = center of the cylinder (arc "
                                                       "centered on the pose's -z, axis = +y), radius_m in meters "
                                                       "(0 or +inf = infinite cylinder), central_angle_rad = visible "
-                                                      "arc in radians (0, 2*pi], aspect_ratio = arc-width/height "
+                                                      "arc in radians (0, 2*pi), aspect_ratio = arc-width/height "
                                                       "(0 = derive from resolution).")
         .def(py::init<>())
         .def(py::init(

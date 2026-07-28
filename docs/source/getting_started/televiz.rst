@@ -215,10 +215,11 @@ A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
    * - ``generate_mipmaps``
      - ``True``
      - Allocate + regenerate a capped mip chain each frame; sampler uses trilinear filtering.
-   * - ``use_openxr_quad_layer``
-     - ``False``
-     - Submit as a native ``XrCompositionLayerQuad`` instead of compositing into the shared render
-       target (XR only; ignored in window / offscreen). See
+   * - ``native_composition``
+     - ``True``
+     - In XR, submit as a native ``XrCompositionLayerQuad`` (the default). Set ``False`` to
+       composite into the shared render target instead — needed to z-compose with
+       ``ProjectionLayer`` content. Ignored in window / offscreen (always composited). See
        `Native OpenXR composition layers`_.
 
 Submit and place a frame:
@@ -268,8 +269,8 @@ Three shapes map 1:1 onto OpenXR composition-layer types:
      - Enabled by
    * - ``QuadLayer``
      - ``XrCompositionLayerQuad``
-     - ``QuadLayerConfig.use_openxr_quad_layer = True`` (opt-in; the compositor draw path stays
-       the default and the window / offscreen fallback)
+     - Default (``QuadLayerConfig.native_composition``); set ``False`` to opt back into the
+       compositor draw path — the only path with depth, and always used in window / offscreen
    * - ``CylinderLayer``
      - ``XrCompositionLayerCylinderKHR``
      - Always — the layer is native-only
@@ -314,7 +315,7 @@ plus a ``CylinderLayerPlacement``:
      - Cylinder radius in meters; ``0`` or ``+inf`` = infinite cylinder.
    * - ``central_angle_rad``
      - ``π/2``
-     - Visible arc in radians, ``(0, 2π]``.
+     - Visible arc in radians, ``(0, 2π)`` — the spec excludes a full wrap.
    * - ``aspect_ratio``
      - ``0``
      - Width / height of the visible arc. ``0`` derives it from ``resolution`` (square texels).

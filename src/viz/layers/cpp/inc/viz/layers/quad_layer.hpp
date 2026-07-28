@@ -87,22 +87,25 @@ public:
         // world IPDs and camera baselines are 50–80 mm.
         float stereo_baseline_mm = 0.0f;
 
-        // Submit this quad as a native OpenXR quad layer
-        // (XrCompositionLayerQuad) instead of compositing it into the
-        // shared render target. kXr only: the runtime places + samples the
-        // quad directly, which enables its quad fast path (and, for
-        // quad-only frames, client-reconstructed streaming — the shared
-        // projection layer is dropped when every visible layer is native).
-        // Ignored outside kXr (window/offscreen fall back to the compositor
-        // draw path). Stereo emits one quad per eye via eyeVisibility.
+        // In kXr, submit this quad as a native OpenXR quad layer
+        // (XrCompositionLayerQuad) — the DEFAULT: the runtime places +
+        // samples the quad directly, which enables its quad fast path
+        // (and, for frames where every visible layer is native,
+        // client-reconstructed streaming — the shared projection layer is
+        // dropped). Stereo emits one quad per eye via eyeVisibility.
+        // Ignored outside kXr (window/offscreen always use the compositor
+        // draw path).
         //
-        // Trade-off vs the compositor path: a native quad carries NO depth
-        // (OpenXR quad layers have none), so it can't z-compose with 3D
-        // ProjectionLayer content — it's a flat billboard ordered by
-        // submission. ``generate_mipmaps`` is unused in native mode (the
-        // runtime samples the quad). Requires ``placement`` at record time,
-        // same as any kXr quad. Off by default.
-        bool use_openxr_quad_layer = false;
+        // Set to false to fall back to compositing into the shared render
+        // target instead. The compositor path is the right choice when the
+        // quad must z-compose with 3D ProjectionLayer content — a native
+        // quad carries NO depth (OpenXR quad layers have none), so it's a
+        // flat billboard ordered by submission — or when a runtime
+        // mishandles native quad layers. ``generate_mipmaps`` only applies
+        // on the compositor path (the runtime samples native quads).
+        // Requires ``placement`` at record time either way, same as any
+        // kXr quad.
+        bool native_composition = true;
     };
 
     // Hard cap on the mip chain when generate_mipmaps is enabled.
@@ -133,12 +136,13 @@ public:
                 const RenderTarget& target,
                 uint32_t in_flight_slot) override;
 
-    // Native OpenXR quad path. is_native_layer() is true only when the flag
-    // is set AND this layer is in a kXr session (so window/offscreen keep
-    // using record()). acquire_native_layer() promotes the mailbox slot (like
-    // record()'s consumer side) and returns the per-eye source images +
-    // placement for the backend to blit into its quad swapchain. See
-    // Config::use_openxr_quad_layer.
+    // Native OpenXR quad path. is_native_layer() is true only when
+    // native_composition is on (the default) AND this layer is in a kXr
+    // session (so window/offscreen keep using record()).
+    // acquire_native_layer() promotes the mailbox slot (like record()'s
+    // consumer side) and returns the per-eye source images + placement for
+    // the backend to blit into its quad swapchain. See
+    // Config::native_composition.
     bool is_native_layer() const noexcept override;
     std::optional<NativeLayerView> acquire_native_layer(uint32_t in_flight_slot) override;
 

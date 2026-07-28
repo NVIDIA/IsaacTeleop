@@ -12,8 +12,7 @@ namespace viz
 namespace
 {
 
-// Placement validation shared by the ctor and set_placement. Angle upper
-// bound is 2π (full wrap) per XR_KHR_composition_layer_cylinder.
+// Placement validation shared by the ctor and set_placement.
 void validate_placement(const CylinderLayer::Config::Placement& p)
 {
     // NaN and negatives are invalid; 0 and +inf are the documented
@@ -23,9 +22,11 @@ void validate_placement(const CylinderLayer::Config::Placement& p)
     {
         throw std::invalid_argument("CylinderLayer: Placement::radius_m must be >= 0 (0 or +inf = infinite cylinder)");
     }
-    if (!std::isfinite(p.central_angle_rad) || p.central_angle_rad <= 0.0f || p.central_angle_rad > glm::two_pi<float>())
+    // Unlike equirect2's horizontal angle, the cylinder spec excludes the
+    // full wrap: centralAngle is defined on [0, 2*pi).
+    if (!std::isfinite(p.central_angle_rad) || p.central_angle_rad <= 0.0f || p.central_angle_rad >= glm::two_pi<float>())
     {
-        throw std::invalid_argument("CylinderLayer: Placement::central_angle_rad must be in (0, 2*pi]");
+        throw std::invalid_argument("CylinderLayer: Placement::central_angle_rad must be in (0, 2*pi)");
     }
     if (!std::isfinite(p.aspect_ratio) || p.aspect_ratio < 0.0f)
     {

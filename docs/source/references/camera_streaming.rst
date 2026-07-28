@@ -193,10 +193,11 @@ mechanics and trade-offs):
 
    * - Flag
      - Effect
-   * - ``--native-quad``
-     - Keep the flat plane, but submit it as a native ``XrCompositionLayerQuad`` instead of
-       compositing it server-side. When every visible layer is native, CloudXR can stream each
-       layer separately and reproject it on-device. Placement lock modes still apply.
+   * - ``--native-quad`` / ``--no-native-quad``
+     - Flat planes submit as native ``XrCompositionLayerQuad`` **by default**: when every visible
+       layer is native, CloudXR can stream each layer separately and reproject it on-device.
+       Placement lock modes still apply. ``--no-native-quad`` falls back to server-side
+       compositing (e.g. for runtimes that mishandle native quad layers).
    * - ``--layer-shape cylinder``
      - Wrap each feed onto a cylinder arc facing the operator (native
        ``XrCompositionLayerCylinderKHR``). ``--cylinder-radius METERS`` (default 2.0) and

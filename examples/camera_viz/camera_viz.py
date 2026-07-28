@@ -267,9 +267,10 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry, args: argparse.Names
     if entry.stereo:
         layer_cfg.stereo = True
         layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
-    # Native OpenXR quad path (kXr only; a no-op fallback in window mode).
-    # Requires a placement, which the placement strategy applies below.
-    layer_cfg.use_openxr_quad_layer = args.native_quad
+    # Native OpenXR quad path is the default (kXr only; window mode always
+    # composites). Requires a placement, which the placement strategy
+    # applies below.
+    layer_cfg.native_composition = args.native_quad
     return session.add_quad_layer(layer_cfg)
 
 
@@ -285,12 +286,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--native-quad",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help="Submit each camera as a native OpenXR quad layer "
-        "(XrCompositionLayerQuad) instead of the built-in compositor. "
-        "kXr only; ignored in window mode. When every layer is a native "
-        "quad the projection layer is dropped, letting the runtime engage "
-        "its quad fast path / client-reconstructed streaming.",
+        "(XrCompositionLayerQuad) — the default in XR mode; window mode "
+        "always composites. When every layer is native the projection "
+        "layer is dropped, letting the runtime engage its quad fast path / "
+        "client-reconstructed streaming. Pass --no-native-quad to fall "
+        "back to the built-in compositor (e.g. for runtimes that "
+        "mishandle native quad layers).",
     )
     parser.add_argument(
         "--layer-shape",
@@ -351,12 +355,20 @@ def main(argv: Optional[list[str]] = None) -> int:
     # launcher provides. --no-launch-cloudxr-runtime skips this when a
     # runtime is already up (e.g. after sourcing ~/.cloudxr/run/cloudxr.env).
     # Window mode never launches a runtime.
+    # Entered manually (not ``with``) so the unclean-stop path below can
+    # SKIP the teardown: stopping the runtime while a worker thread is
+    # still inside session.render() would rip the OpenXR service out from
+    # under a live xrWaitFrame — the same hazard the skip-destroy
+    # mitigation exists for. The launcher registers an atexit stop, which
+    # fires once the stuck (non-daemon) thread finally exits.
     launch_ctx = (
         CloudXRLauncher.launch_context(args)
         if effective_mode == "xr"
         else contextlib.nullcontext(None)
     )
-    with launch_ctx:
+    launch_ctx.__enter__()
+    stop_launcher = True
+    try:
         session = _make_session(cfg, mode_override=args.mode)
         is_xr = session.is_xr_mode()
 
@@ -396,18 +408,23 @@ def main(argv: Optional[list[str]] = None) -> int:
             # Skip session.destroy() when a worker thread is still alive —
             # it may be inside session.render() and destroying under it
             # would UAF on the Vulkan / CUDA handles. Non-daemon thread
-            # keeps the process alive; OS reaps at exit.
+            # keeps the process alive; OS reaps at exit. Leave the CloudXR
+            # runtime up too (see launch_ctx comment above).
             clean = runner.stop()
             if clean:
                 session.destroy()
             else:
+                stop_launcher = False
                 print(
                     "camera_viz: worker thread did not exit; leaving VizSession "
-                    "alive to avoid use-after-free. Process will keep running "
-                    "until the stuck thread completes.",
+                    "and the CloudXR runtime alive to avoid use-after-free. "
+                    "Process will keep running until the stuck thread completes.",
                     file=sys.stderr,
                     flush=True,
                 )
+    finally:
+        if stop_launcher:
+            launch_ctx.__exit__(None, None, None)
     return 0
 
 

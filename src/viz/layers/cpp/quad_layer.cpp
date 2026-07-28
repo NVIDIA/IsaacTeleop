@@ -302,10 +302,11 @@ void QuadLayer::record_mip_generation(VkCommandBuffer cmd, DeviceImage& image)
 
 bool QuadLayer::native_active() const noexcept
 {
-    // Flag only takes effect in a kXr session; window/offscreen fall back
-    // to the record() draw path. A detached layer (no session) is not
-    // native either, so standalone construction/tests keep the draw path.
-    return config_.use_openxr_quad_layer && session() != nullptr && session()->is_xr_mode();
+    // Native composition (the default) only takes effect in a kXr session;
+    // window/offscreen always use the record() draw path. A detached layer
+    // (no session) is not native either, so standalone construction/tests
+    // keep the draw path.
+    return config_.native_composition && session() != nullptr && session()->is_xr_mode();
 }
 
 bool QuadLayer::is_native_layer() const noexcept

@@ -96,6 +96,10 @@ TEST_CASE("CylinderLayer ctor rejects invalid placement", "[unit][cylinder_layer
     cfg.placement.radius_m = 1.0f;
     cfg.placement.central_angle_rad = 0.0f;
     CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("central_angle"));
+    // The cylinder spec defines centralAngle on [0, 2*pi) — exactly 2*pi
+    // (a full wrap) is invalid, unlike equirect2's horizontal angle.
+    cfg.placement.central_angle_rad = glm::two_pi<float>();
+    CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("central_angle"));
     cfg.placement.central_angle_rad = glm::two_pi<float>() + 0.1f;
     CHECK_THROWS_WITH(CylinderLayer(ctx, cfg), ContainsSubstring("central_angle"));
 
