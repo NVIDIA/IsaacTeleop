@@ -10,11 +10,11 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
-  - controller_teleop (default): ee_pose (from controller aim poses),
+  - controller_teleop (default): ee_poses (from controller aim poses),
                        root_twist, root_pose, finger_joints
                        (retargeted TriHand angles), controller_data, head_pose,
                        and TF transforms for left/right wrists and head
-  - hand_teleop: ee_pose (from hand tracking wrists), hand (named left and
+  - hand_teleop: ee_poses (from hand tracking wrists), hand (named left and
                  right joint poses),
                  finger_joints (retargeted Sharpa joint angles),
                  root_twist/root_pose (from foot pedal locomotion), head_pose,
@@ -24,7 +24,7 @@ published:
 
 Topic names (remappable via ROS 2 remapping):
   - xr_teleop/hand (NamedPoseArray): named left and right hand joint poses
-  - xr_teleop/ee_pose (NamedPoseArray): named left and right EE poses
+  - xr_teleop/ee_poses (NamedPoseArray): named left and right EE poses
   - xr_teleop/root_twist (TwistStamped): root velocity command
   - xr_teleop/root_pose (PoseStamped): root pose command (height only)
   - xr_teleop/head_pose (PoseStamped): head pose
@@ -91,8 +91,8 @@ class TeleopRos2Node(Node):
 
     def _create_publishers(self) -> None:
         self._pub_hand = self.create_publisher(NamedPoseArray, "xr_teleop/hand", 10)
-        self._pub_ee_pose = self.create_publisher(
-            NamedPoseArray, "xr_teleop/ee_pose", 10
+        self._pub_ee_poses = self.create_publisher(
+            NamedPoseArray, "xr_teleop/ee_poses", 10
         )
         self._pub_root_twist = self.create_publisher(
             TwistStamped, "xr_teleop/root_twist", 10
@@ -111,8 +111,8 @@ class TeleopRos2Node(Node):
         )
         self._pub_head = self.create_publisher(PoseStamped, "xr_teleop/head_pose", 10)
 
-    def _publish_ee_pose_from_controllers(self, result: SessionResult, now) -> None:
-        ee_pose_msg, wrist_tfs = build_ee_output_from_controllers(
+    def _publish_ee_poses_from_controllers(self, result: SessionResult, now) -> None:
+        ee_poses_msg, wrist_tfs = build_ee_output_from_controllers(
             result["controller_left"],
             result["controller_right"],
             now,
@@ -123,7 +123,7 @@ class TeleopRos2Node(Node):
             self._params.transform_translation,
             self._params.controller_uses_hands_source,
         )
-        self._pub_ee_pose.publish(ee_pose_msg)
+        self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
@@ -161,8 +161,8 @@ class TeleopRos2Node(Node):
         )
         self._pub_hand.publish(hand_msg)
 
-    def _publish_ee_pose_from_hands(self, result: SessionResult, now) -> None:
-        ee_pose_msg, wrist_tfs = build_ee_output_from_hands(
+    def _publish_ee_poses_from_hands(self, result: SessionResult, now) -> None:
+        ee_poses_msg, wrist_tfs = build_ee_output_from_hands(
             result["hand_left"],
             result["hand_right"],
             now,
@@ -172,7 +172,7 @@ class TeleopRos2Node(Node):
             self._params.transform_rotation,
             self._params.transform_translation,
         )
-        self._pub_ee_pose.publish(ee_pose_msg)
+        self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
@@ -239,12 +239,12 @@ class TeleopRos2Node(Node):
                             PublishType.EE_FROM_HANDS
                             in self._profile_spec.publish_types
                         ):
-                            self._publish_ee_pose_from_hands(result, now)
+                            self._publish_ee_poses_from_hands(result, now)
                         if (
                             PublishType.EE_FROM_CONTROLLERS
                             in self._profile_spec.publish_types
                         ):
-                            self._publish_ee_pose_from_controllers(result, now)
+                            self._publish_ee_poses_from_controllers(result, now)
                         if PublishType.HAND_POSES in self._profile_spec.publish_types:
                             self._publish_hand_poses(result, now)
                         if PublishType.ROOT_COMMAND in self._profile_spec.publish_types:

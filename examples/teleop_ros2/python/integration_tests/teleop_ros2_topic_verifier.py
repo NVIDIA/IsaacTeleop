@@ -89,7 +89,7 @@ def _assert_nonzero_pose_positions(msg: NamedPoseArray, label: str) -> None:
         raise ValueError(f"{label} positions are all zero")
 
 
-def _assert_ee_pose_array(msg: NamedPoseArray) -> None:
+def _assert_ee_poses_array(msg: NamedPoseArray) -> None:
     _assert_named_pose_array(msg, ["left", "right"])
     if not all(bool(is_valid) for is_valid in msg.is_valid):
         raise ValueError("EE pose array contains an invalid entry")
@@ -263,10 +263,10 @@ class TopicVerifier(Node):
         if mode == "controller_teleop":
             return [
                 (
-                    "ee_pose",
-                    "xr_teleop/ee_pose",
+                    "ee_poses",
+                    "xr_teleop/ee_poses",
                     NamedPoseArray,
-                    _assert_ee_pose_array,
+                    _assert_ee_poses_array,
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
                 ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
@@ -293,10 +293,10 @@ class TopicVerifier(Node):
                     _assert_hand_pose_array,
                 ),
                 (
-                    "ee_pose",
-                    "xr_teleop/ee_pose",
+                    "ee_poses",
+                    "xr_teleop/ee_poses",
                     NamedPoseArray,
-                    _assert_ee_pose_array,
+                    _assert_ee_poses_array,
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
                 ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
