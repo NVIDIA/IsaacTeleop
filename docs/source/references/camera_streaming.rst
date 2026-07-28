@@ -208,7 +208,9 @@ mechanics and trade-offs):
 
 Both shaped layers are **native-only**: they require XR mode and a runtime advertising the
 matching ``XR_KHR_composition_layer_*`` extension (CloudXR advertises both), and the viewer exits
-with an error otherwise. Stereo sources render per-eye textures on the same surface.
+with an error otherwise. Stereo sources render per-eye textures on the same surface;
+``placements.<name>.stereo_baseline_mm`` shifts each eye's surface laterally for extra
+geometric disparity (no effect on the infinite-radius equirect sphere).
 
 CloudXR runtime flags
 ---------------------

@@ -92,7 +92,8 @@ Top-level Televiz session. Owns the Vulkan context, compositor, and
 layer registry.
 
 Construct via ``VizSession.create(config)``. Add layers with
-``add_quad_layer(config)``. Drive the frame loop with ``render()``
+``add_quad_layer(config)`` (or ``add_cylinder_layer`` / ``add_equirect_layer``
+/ ``add_projection_layer``). Drive the frame loop with ``render()``
 (one-shot) or ``begin_frame()`` / ``end_frame()`` (paired).
 )doc")
         .def_static("create", &viz::VizSession::create, "config"_a,
