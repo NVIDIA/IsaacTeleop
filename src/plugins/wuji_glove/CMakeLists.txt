@@ -48,7 +48,7 @@ set_target_properties(wuji_glove_plugin PROPERTIES
     BUILD_WITH_INSTALL_RPATH NO
     SKIP_BUILD_RPATH NO
     BUILD_RPATH "$ORIGIN;${WUJI_SDK_LIBRARY_DIR}"
-    INSTALL_RPATH "$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}"
+    INSTALL_RPATH "$ORIGIN;$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}"
 )
 
 install(TARGETS wuji_glove_plugin
@@ -60,5 +60,13 @@ install(FILES plugin.yaml README.md
 )
 
 install(FILES "${WUJI_SDK_LIB}" "${WUJI_HAND_CPP_LIB}"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    DESTINATION plugins/wuji_glove
+)
+
+# OPTIONAL: a user-provided WUJI_SDK_C_DIR may not ship the LICENSE file.
+get_filename_component(WUJI_SDK_ROOT_DIR "${WUJI_SDK_LIBRARY_DIR}" DIRECTORY)
+install(FILES "${WUJI_SDK_ROOT_DIR}/LICENSE"
+    DESTINATION plugins/wuji_glove
+    RENAME LICENSE.wuji-sdk-c
+    OPTIONAL
 )

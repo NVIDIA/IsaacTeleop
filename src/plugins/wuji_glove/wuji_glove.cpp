@@ -13,7 +13,9 @@
 
 using namespace plugins::wuji_glove;
 
-static_assert(ATOMIC_BOOL_LOCK_FREE, "lock-free atomic bool is required for signal safety");
+// == 2 means "always lock-free"; 1 only means "sometimes", which is not a
+// guarantee the signal handler below can rely on.
+static_assert(ATOMIC_BOOL_LOCK_FREE == 2, "lock-free atomic bool is required for signal safety");
 
 std::atomic<bool> g_stop_requested{ false };
 

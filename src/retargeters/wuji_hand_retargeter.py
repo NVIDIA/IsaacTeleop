@@ -19,7 +19,6 @@ Requires ``isaacteleop[wuji]`` → ``wuji-sdk[retarget]``.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 from wuji_sdk import Handedness, retargeting
@@ -45,6 +44,13 @@ logger = logging.getLogger(__name__)
 # 21-landmark order (wrist, thumb 1-4, index 1-4, middle 1-4, ring 1-4,
 # pinky 1-4) is identical to the MANO 21-joint order, so this is the same
 # table the Sharpa retargeter uses.
+#
+# KEEP IN SYNC with the C++ table `kMpToXr` in
+# src/plugins/wuji_glove/wuji_glove_plugin.cpp — same 21 entries, applied in
+# the opposite direction (that one scatters MediaPipe -> OpenXR). See also
+# sharpa_hand_retargeter's _OPENXR_TO_MANO_INDICES, the third copy of this
+# mapping. A silent divergence is a joint-permutation bug nothing catches at
+# runtime.
 OPENXR_TO_MEDIAPIPE_INDICES: list[int] = [
     HandJointIndex.WRIST,
     HandJointIndex.THUMB_METACARPAL,
@@ -70,9 +76,8 @@ OPENXR_TO_MEDIAPIPE_INDICES: list[int] = [
 ]
 
 # RetargetSession.step() returns 20 values in firmware joint order: finger-major
-# (thumb, index, middle, ring, pinky), 4 joints each. These default names label
-# that order; override via WujiHandRetargeterConfig.hand_joint_names if a
-# downstream consumer expects different names (same order, length 20).
+# (thumb, index, middle, ring, pinky), 4 joints each. These synthetic names
+# label that order in the output spec.
 _FINGERS = ("thumb", "index", "middle", "ring", "pinky")
 
 
@@ -102,13 +107,10 @@ class WujiHandRetargeterConfig:
             ``"wuji_hand"`` or ``"wuji_hand_2"``. Selects the builtin tuning
             config internally.
         hand_side: ``"left"`` or ``"right"`` (the retargeter's handedness basis).
-        hand_joint_names: Optional output joint-name override (length 20, same
-            firmware order). If ``None``, uses ``_default_joint_names()``.
     """
 
     model: str = "wuji_hand_2"
     hand_side: str = "right"
-    hand_joint_names: Optional[list[str]] = None
 
 
 class WujiHandRetargeter(BaseRetargeter):
@@ -119,6 +121,11 @@ class WujiHandRetargeter(BaseRetargeter):
 
     Outputs:
         - ``hand_joints``: Wuji finger joint angles (20 DOFs, firmware order).
+          Zeros while the input is absent/invalid.
+        - ``hand_valid``: 1.0 when ``hand_joints`` came from a valid frame,
+          0.0 otherwise. Consumers deciding whether to forward commands to
+          hardware must check this rather than inspect the joint values (an
+          all-zero pose is also a legitimate result for a flat-open hand).
     """
 
     def __init__(self, config: WujiHandRetargeterConfig, name: str) -> None:
@@ -142,15 +149,7 @@ class WujiHandRetargeter(BaseRetargeter):
             model, side=_HANDEDNESS[self._hand_side]
         )
 
-        if config.hand_joint_names is None:
-            self._hand_joint_names = _default_joint_names()
-        else:
-            if len(config.hand_joint_names) != 20:
-                raise ValueError(
-                    f"hand_joint_names must have length 20, got "
-                    f"{len(config.hand_joint_names)}"
-                )
-            self._hand_joint_names = list(config.hand_joint_names)
+        self._hand_joint_names = _default_joint_names()
         self._num_joints = len(self._hand_joint_names)
 
         super().__init__(name=name)
@@ -160,31 +159,35 @@ class WujiHandRetargeter(BaseRetargeter):
         return {self._input_key: OptionalType(HandInput())}
 
     def output_spec(self) -> RetargeterIOType:
-        """Define output: Wuji finger joint angles (20 DOFs, firmware order)."""
+        """Define outputs: joint angles (20 DOFs, firmware order) + validity."""
         return {
             "hand_joints": TensorGroupType(
                 f"hand_joints_{self._hand_side}",
                 [FloatType(name) for name in self._hand_joint_names],
-            )
+            ),
+            "hand_valid": TensorGroupType(
+                f"hand_valid_{self._hand_side}", [FloatType("valid")]
+            ),
         }
 
-    def _emit_zeros(self, output_group) -> None:
+    def _emit_invalid(self, outputs: RetargeterIO) -> None:
         for i in range(self._num_joints):
-            output_group[i] = 0.0
+            outputs["hand_joints"][i] = 0.0
+        outputs["hand_valid"][0] = 0.0
         # Drop warm-start / smoothing state so we restart cleanly next valid frame.
         self._session.reset()
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
-        output_group = outputs["hand_joints"]
         hand_group = inputs[self._input_key]
 
         # Honor an explicit reset event (e.g. session restart): drop session state.
-        events = getattr(context, "execution_events", None)
-        if events is not None and getattr(events, "reset", False):
+        # ComputeContext always carries execution_events (default-constructed in
+        # retargeter_core_types), so access it directly like sibling retargeters.
+        if context.execution_events.reset:
             self._session.reset()
 
         if hand_group.is_none:
-            self._emit_zeros(output_group)
+            self._emit_invalid(outputs)
             return
 
         joint_positions = np.from_dlpack(
@@ -193,7 +196,7 @@ class WujiHandRetargeter(BaseRetargeter):
         joint_valid = np.from_dlpack(hand_group[HandInputIndex.JOINT_VALID])  # (26,)
 
         if not all(bool(joint_valid[xr_idx]) for xr_idx in OPENXR_TO_MEDIAPIPE_INDICES):
-            self._emit_zeros(output_group)
+            self._emit_invalid(outputs)
             return
 
         # OpenXR (26 joints) -> MediaPipe (21 joints, meters), positions only.
@@ -204,4 +207,5 @@ class WujiHandRetargeter(BaseRetargeter):
         qpos = self._session.step(mediapipe_kp)  # (20,) firmware order
 
         for i in range(self._num_joints):
-            output_group[i] = float(qpos[i])
+            outputs["hand_joints"][i] = float(qpos[i])
+        outputs["hand_valid"][0] = 1.0

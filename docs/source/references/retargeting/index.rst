@@ -46,6 +46,11 @@ Available Retargeters
    ``hand_side`` (``"left"`` or ``"right"``), ``gripper_close_meters``, ``gripper_open_meters``,
    and ``controller_threshold`` for trigger-based closing.
 
+.. dropdown:: WujiHandRetargeter
+
+   Maps OpenXR hand tracking to the 20 joint commands of a Wuji Hand or Wuji Hand 2 through
+   ``wuji_sdk``. See :doc:`wuji` for installation, configuration, and hardware examples.
+
 .. dropdown:: SO101ClutchRetargeter / SO101GripperRetargeter
 
    Retargeters for the SO-101 5-DOF arm under full-pose SE3 IK. ``SO101ClutchRetargeter``
@@ -339,3 +344,4 @@ and :doc:`Contributing Guide <../../getting_started/contributing>` for details.
    sharpa
    so101
    joint_space
+   wuji

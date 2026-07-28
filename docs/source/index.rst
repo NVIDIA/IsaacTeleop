@@ -68,6 +68,7 @@ Table of Contents
    device/manus
    device/oak
    device/oglo
+   device/wuji_glove
    device/haptikos
 
 .. toctree::

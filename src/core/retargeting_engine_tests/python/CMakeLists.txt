@@ -26,6 +26,14 @@ if(BUNDLE_ROBOTIC_GROUNDING)
     set(GROUNDING_EXTRA_ARGS --extra grounding)
 endif()
 
+# wuji_sdk is a public PyPI package, so it installs by default and the test
+# runs. OFF makes the test skip via its _HAS_WUJI_SDK guard.
+option(TEST_WUJI_RETARGETER "Install the Wuji SDK so the Wuji retargeter test runs" ON)
+set(WUJI_EXTRA_ARGS "")
+if(TEST_WUJI_RETARGETER)
+    set(WUJI_EXTRA_ARGS --extra wuji)
+endif()
+
 # Add each test file as a separate CTest test
 foreach(test_file ${TEST_FILES})
     # Get test name from filename (remove .py and path)
@@ -35,6 +43,8 @@ foreach(test_file ${TEST_FILES})
     set(extra_uv_args "")
     if(test_name STREQUAL "test_sharpa_hand_retargeter")
         set(extra_uv_args ${GROUNDING_EXTRA_ARGS})
+    elseif(test_name STREQUAL "test_wuji_hand_retargeter")
+        set(extra_uv_args ${WUJI_EXTRA_ARGS})
     endif()
 
     # Add the test

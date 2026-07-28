@@ -39,6 +39,7 @@ set(_cf_exclude_patterns
   ".*/build/.*"
   ".*/deps/.*"
   ".*/manus/ManusSDK/.*"
+  ".*/wuji_glove/wuji-sdk-c-.*"
   ".*/node_modules/.*"
   ".*/third_party/.*"
   ".*/venv/.*"

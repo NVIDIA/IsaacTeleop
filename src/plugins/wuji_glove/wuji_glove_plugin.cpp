@@ -27,6 +27,11 @@ namespace
 // The 5 OpenXR slots not covered here (PALM + the four non-thumb METACARPALs)
 // are left with POSITION/ORIENTATION_VALID cleared — the Wuji retargeter skips
 // them, and other XR_EXT_hand_tracking consumers treat them as untracked.
+//
+// KEEP IN SYNC with the Python table OPENXR_TO_MEDIAPIPE_INDICES in
+// src/retargeters/wuji_hand_retargeter.py — same 21 entries, applied in the
+// opposite direction (that one gathers OpenXR -> MediaPipe). A silent
+// divergence is a joint-permutation bug nothing catches at runtime.
 constexpr XrHandJointEXT kMpToXr[21] = {
     XR_HAND_JOINT_WRIST_EXT,
     XR_HAND_JOINT_THUMB_METACARPAL_EXT,
@@ -62,6 +67,15 @@ constexpr XrPosef kRightAimToWrist = { { 0.26388208f, -0.17382305f, 0.06730102f,
                                        { 0.01391519f, -0.10860867f, 0.08197439f } };
 
 constexpr float kDefaultJointRadius = 0.01f; // meters; SDK does not provide radius.
+constexpr size_t kNumMediaPipeJoints = std::size(kMpToXr);
+
+// Timing budget: the glove streams EMF poses at 120 Hz natively, halved to
+// 60 Hz by the rate divider set at connect time. The 16 ms pump (~62.5 Hz)
+// re-injects at most an occasional repeated sample at that rate, and the
+// 200 ms staleness window means ~12 missed frames before a hand is dropped.
+constexpr auto kFramePeriod = std::chrono::milliseconds(16);
+constexpr auto kStaleThreshold = std::chrono::milliseconds(200);
+constexpr auto kDiscoveryInterval = std::chrono::seconds(1);
 constexpr auto kShutdownPollInterval = std::chrono::milliseconds(100);
 
 // Re-express a wrist-relative joint pose from the Wuji skeleton basis in the
@@ -112,7 +126,7 @@ bool convert_skeleton(const WujiHandSkeleton* frame,
                       bool is_left,
                       std::array<XrHandJointLocationEXT, XR_HAND_JOINT_COUNT_EXT>& out)
 {
-    if (frame == nullptr || frame->joints == nullptr || frame->joints_len < 21)
+    if (frame == nullptr || frame->joints == nullptr || frame->joints_len < kNumMediaPipeJoints)
     {
         return false;
     }
@@ -126,7 +140,7 @@ bool convert_skeleton(const WujiHandSkeleton* frame,
         j.pose.orientation = XrQuaternionf{ 0.0f, 0.0f, 0.0f, 1.0f };
     }
 
-    for (int mp = 0; mp < 21; ++mp)
+    for (size_t mp = 0; mp < kNumMediaPipeJoints; ++mp)
     {
         const WujiSkeletonJoint& src = frame->joints[mp];
         XrHandJointLocationEXT& dst = out[kMpToXr[mp]];
@@ -270,15 +284,15 @@ WujiGlovePlugin::WujiGlovePlugin(const std::string& plugin_root_id) noexcept(fal
     m_running = true;
     try
     {
-        m_thread = std::thread(&WujiGlovePlugin::worker_thread, this);
+        m_worker_thread = std::thread(&WujiGlovePlugin::worker_thread, this);
         m_connection_thread = std::thread(&WujiGlovePlugin::connection_thread, this);
     }
     catch (...)
     {
         m_running = false;
-        if (m_thread.joinable())
+        if (m_worker_thread.joinable())
         {
-            m_thread.join();
+            m_worker_thread.join();
         }
         if (m_connection_thread.joinable())
         {
@@ -298,9 +312,9 @@ WujiGlovePlugin::~WujiGlovePlugin()
     {
         m_connection_thread.join();
     }
-    if (m_thread.joinable())
+    if (m_worker_thread.joinable())
     {
-        m_thread.join();
+        m_worker_thread.join();
     }
     wuji_shutdown();
 }
@@ -337,10 +351,39 @@ bool WujiGlovePlugin::connect_glove(GloveConnection& connection)
         return false;
     }
 
+    // The plugin assumes a single left/right glove pair: hand slots are keyed
+    // by side only, so a second same-side glove would interleave
+    // last-writer-wins into one injected hand. Drop the newcomer here, before
+    // it subscribes (it must never touch the shared hand slot), and skip it in
+    // future scans until the plugin restarts.
+    const auto same_side = std::find_if(m_connections.begin(), m_connections.end(),
+                                        [&connection, &is_left](const auto& other)
+                                        {
+                                            return other.get() != &connection && other->context &&
+                                                   other->subscription != nullptr && other->context->is_left == *is_left;
+                                        });
+    if (same_side != m_connections.end())
+    {
+        std::cerr << "WujiGlovePlugin: second " << (*is_left ? "left" : "right") << " glove " << connection.serial
+                  << " discovered while " << (*same_side)->serial << " is bound; ignoring " << connection.serial
+                  << std::endl;
+        connection.ignored = true;
+        wuji_dev_disconnect(device);
+        wuji_dev_release(device);
+        return false;
+    }
+
     auto context = std::make_unique<SubContext>();
     context->self = this;
     context->is_left = *is_left;
-    wuji_glove_set_emf_poses_rate_divider(device, 2);
+    // Request 60 Hz to match the 16 ms injection pump and reduce transport and
+    // processing load. Platforms that can sustain the native 120 Hz may omit
+    // this optional divider. Failure is non-fatal and leaves the native rate.
+    if (wuji_glove_set_emf_poses_rate_divider(device, 2) != WUJI_STATUS_OK)
+    {
+        std::cerr << "WujiGlovePlugin: set_emf_poses_rate_divider(2) failed for " << connection.serial << ": "
+                  << safe_err() << " (continuing at the native rate)" << std::endl;
+    }
 
     WujiSub* subscription = nullptr;
     if (wuji_glove_subscribe_hand_skeleton(device, &WujiGlovePlugin::skeleton_callback, context.get(), &subscription) !=
@@ -374,6 +417,13 @@ void WujiGlovePlugin::disconnect_glove(GloveConnection& connection)
         wuji_sub_close(connection.subscription);
         connection.subscription = nullptr;
     }
+    if (connection.context)
+    {
+        // An in-flight callback may have re-validated the slot between the
+        // invalidate above and the close; invalidate again now that the
+        // callback thread is joined.
+        invalidate_hand(connection.context->is_left);
+    }
     connection.context.reset();
     if (connection.device != nullptr)
     {
@@ -390,7 +440,12 @@ void WujiGlovePlugin::discover_gloves()
     if (wuji_scan(&list, &count) != WUJI_STATUS_OK)
     {
         std::cerr << "WujiGlovePlugin: wuji_scan failed: " << safe_err() << std::endl;
-        wuji_discovered_free(list, count);
+        // The SDK does not document list/count contents on failure; free only
+        // what is provably allocated.
+        if (list != nullptr)
+        {
+            wuji_discovered_free(list, count);
+        }
         return;
     }
 
@@ -413,6 +468,10 @@ void WujiGlovePlugin::discover_gloves()
         }
 
         GloveConnection& connection = **found;
+        if (connection.ignored)
+        {
+            continue;
+        }
         if (connection.subscription == nullptr)
         {
             connect_glove(connection);
@@ -436,7 +495,10 @@ void WujiGlovePlugin::connection_thread()
 
         discover_gloves();
 
-        for (int i = 0; i < 10 && m_running; ++i)
+        // Sleep in kShutdownPollInterval slices so shutdown stays responsive
+        // while re-scanning every kDiscoveryInterval.
+        for (auto waited = std::chrono::milliseconds(0); waited < kDiscoveryInterval && m_running;
+             waited += kShutdownPollInterval)
         {
             std::this_thread::sleep_for(kShutdownPollInterval);
         }
@@ -501,7 +563,7 @@ void WujiGlovePlugin::pump_hand(std::unique_ptr<plugin_utils::HandInjector>& inj
     // Treat data older than 200 ms as "hand absent": drop the injector so the
     // runtime reports isActive=false rather than a frozen pose.
     using namespace std::chrono;
-    const bool fresh = frame.valid && (steady_clock::now() - frame.stamp) < milliseconds(200);
+    const bool fresh = frame.valid && (steady_clock::now() - frame.stamp) < kStaleThreshold;
     if (!fresh)
     {
         injector.reset();
@@ -574,7 +636,7 @@ void WujiGlovePlugin::worker_thread()
         pump_hand(m_left_injector, XR_HAND_LEFT_EXT, left_copy, time);
         pump_hand(m_right_injector, XR_HAND_RIGHT_EXT, right_copy, time);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        std::this_thread::sleep_for(kFramePeriod);
     }
 }
 

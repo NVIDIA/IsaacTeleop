@@ -81,6 +81,9 @@ private:
         WujiDevice* device = nullptr;
         WujiSub* subscription = nullptr;
         std::unique_ptr<SubContext> context;
+        // Set when this glove was dropped as a duplicate of an already-bound
+        // same-side glove; discovery skips it until the plugin restarts.
+        bool ignored = false;
     };
 
     // wuji_sdk subscription callback (C ABI). user_data == SubContext*.
@@ -114,7 +117,7 @@ private:
     HandFrame m_left;
     HandFrame m_right;
 
-    std::thread m_thread;
+    std::thread m_worker_thread;
     std::thread m_connection_thread;
     std::atomic<bool> m_running{ false };
     std::atomic<bool> m_failed{ false };

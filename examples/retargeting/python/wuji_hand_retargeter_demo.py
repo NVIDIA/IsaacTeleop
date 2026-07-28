@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 Wuji Technology. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -17,6 +18,15 @@ drives real hardware:
       ``{"left_fingers": (21,3)|None, "right_fingers": (21,3)|None}`` mappings
       -> retarget -> print.
 
+      Recordings come from the wuji-retargeting example tooling
+      (https://github.com/wuji-technology/wuji-retargeting): each of its
+      example input devices (Wuji glove, Apple Vision Pro, Intel RealSense,
+      MP4 video) emits this frame format, its teleop examples record it with
+      their input-data logging option, and ``example/calibrate_offset.py
+      --dump-pkl`` records live glove takes. Keypoints are the 21 MediaPipe
+      hand landmarks (wrist; thumb CMC/MCP/IP/TIP; index, middle, ring,
+      pinky MCP/PIP/DIP/TIP), wrist-relative positions in meters.
+
   --mode drive
       HARDWARE. Runs the full Isaac Teleop pipeline (``HandsSource`` ->
       ``WujiHandRetargeter`` inside a ``TeleopSession``) and drives a real
@@ -33,12 +43,13 @@ Prereqs:
 
 Usage:
     python wuji_hand_retargeter_demo.py
-    python wuji_hand_retargeter_demo.py --mode replay --replay data/avp1.pkl
+    python wuji_hand_retargeter_demo.py --mode replay --replay my_take.pkl
     python wuji_hand_retargeter_demo.py --mode drive
 """
 
 import argparse
 import contextlib
+import math
 import pickle
 import signal
 import sys
@@ -161,11 +172,37 @@ def run_replay(model: str, hand_side: str, path: str, loop: bool) -> int:
 # ---------------------------------------------------------------------------
 
 
+class _CommandLowPass:
+    """Single-pole low-pass over the joint-command stream.
+
+    Wuji Hand 1 gets SDK-side smoothing via ``realtime_controller(LowPass(...))``,
+    but Hand 2's MIT-mode ``joint_command`` stream has no SDK filter, so the demo
+    applies the same 5 Hz cutoff here before publishing.
+    """
+
+    def __init__(self, cutoff_hz: float) -> None:
+        self._cutoff_hz = cutoff_hz
+        self._state = None
+        self._last_update_s = None
+
+    def __call__(self, command: list) -> list:
+        now = time.monotonic()
+        target = np.asarray(command, dtype=np.float64)
+        if self._state is None:
+            self._state = target.copy()
+        else:
+            omega_dt = 2.0 * math.pi * self._cutoff_hz * (now - self._last_update_s)
+            alpha = omega_dt / (1.0 + omega_dt)
+            self._state += alpha * (target - self._state)
+        self._last_update_s = now
+        return self._state.tolist()
+
+
 def run_drive(
-    model: str,
+    model: str | None,
     hand_side: str,
-    plugin_path: "str | None" = None,
-    hand_sn: "str | None" = None,
+    plugin_path: str | None = None,
+    hand_sn: str | None = None,
 ) -> int:
     # Lazy imports: only the drive path needs the session + wuji_sdk hardware API.
     from pathlib import Path
@@ -198,8 +235,37 @@ def run_drive(
     hand = manager.connect(sn=hand_dev.sn, device_name=hand_dev.sn)
     is_hand2 = hand_dev.device_type == DeviceType.WujiHand2
 
-    # The retarget model must match the connected hardware.
-    model = "wuji_hand_2" if is_hand2 else "wuji_hand"
+    # A left glove driving a right hand (or vice versa) mirrors silently, so
+    # flag a side mismatch between --hand and the connected hand up front.
+    # Wuji Hand 2's handedness resource returns 'left'/'right'; anything else
+    # (older firmware, Hand 1's integer encoding) skips the check quietly.
+    try:
+        device_side = str(hand.handedness().get()).strip().lower()
+    except Exception:
+        device_side = ""
+    if device_side in ("left", "right") and device_side != hand_side:
+        print(
+            f"WARNING: --hand {hand_side} but the connected hand reports "
+            f"'{device_side}'; motion will be mirrored."
+        )
+
+    # The retarget model must match the connected hardware, so drive mode
+    # derives it from the detected hand — and rejects a conflicting explicit
+    # --model instead of silently overriding it.
+    detected_model = "wuji_hand_2" if is_hand2 else "wuji_hand"
+    if model is not None and model != detected_model:
+        print(
+            f"--model {model} does not match the connected hand "
+            f"({detected_model}); drop --model or pass {detected_model}."
+        )
+        manager.disconnect_all()
+        return 1
+    model = detected_model
+
+    # Vendor-recommended safe defaults for this demo. effort_limit is the
+    # per-joint current limit in amperes (the SDK's Kt=1.0 placeholder makes
+    # effort in N·m numerically equal to current in A until the real Kt
+    # lands); mit_params is the MIT impedance controller's (kp, kd) pair.
     if is_hand2:
         hand.effort_limit().set(1.5)
         hand.mit_params().set((3.0, 0.05))
@@ -211,7 +277,12 @@ def run_drive(
     source_out = HandsSource.RIGHT if hand_side == "right" else HandsSource.LEFT
     retargeter = _build_retargeter(model, hand_side)
     connected = retargeter.connect({f"hand_{hand_side}": hands.output(source_out)})
-    pipeline = OutputCombiner({"hand_joints": connected.output("hand_joints")})
+    pipeline = OutputCombiner(
+        {
+            "hand_joints": connected.output("hand_joints"),
+            "hand_valid": connected.output("hand_valid"),
+        }
+    )
 
     # With --plugin-path, TeleopSession auto-launches the wuji_glove plugin
     # (reads its plugin.yaml `command`) and tears it down on exit, so the
@@ -234,6 +305,7 @@ def run_drive(
 
     def loop(send):
         stop_requested = False
+        last_command = None
 
         def request_stop(_signum, _frame):
             nonlocal stop_requested
@@ -247,7 +319,16 @@ def run_drive(
                 while not stop_requested:
                     t0 = time.monotonic()
                     result = session.step()
-                    send(list(result["hand_joints"]))  # 20 values, firmware order
+                    command = list(result["hand_joints"])  # 20 values, firmware order
+                    # Forwarding the retargeter's zeros on a tracking dropout
+                    # would snap a mid-grasp hand to zero, so hold the last
+                    # valid command while hand_valid reports the dropout.
+                    if float(result["hand_valid"][0]) > 0.5:
+                        last_command = command
+                    else:
+                        command = last_command
+                    if command is not None:
+                        send(command)
                     dt = time.monotonic() - t0
                     if dt < budget:
                         time.sleep(budget - dt)
@@ -258,7 +339,11 @@ def run_drive(
         hand.enable()
         if is_hand2:
             publisher = hand.joint_command().publish()
-            loop(lambda q: publisher.send([JointCommand(p, 0.0, 0.0) for p in q]))
+            # Same 5 Hz cutoff as the Hand 1 path below; see _CommandLowPass.
+            smooth = _CommandLowPass(cutoff_hz=5.0)
+            loop(
+                lambda q: publisher.send([JointCommand(p, 0.0, 0.0) for p in smooth(q)])
+            )
         else:
             with hand.realtime_controller(LowPass(cutoff_hz=5.0)) as controller:
                 loop(controller.set_target_position)
@@ -280,14 +365,28 @@ def main() -> int:
         help="synthetic/replay are device-free; drive runs hardware (default: synthetic).",
     )
     parser.add_argument(
-        "--model", default="wuji_hand_2", choices=["wuji_hand", "wuji_hand_2"]
+        "--model",
+        default=None,
+        choices=["wuji_hand", "wuji_hand_2"],
+        help="Retarget model. synthetic/replay: defaults to wuji_hand_2. "
+        "drive: auto-detected from the connected hand; a conflicting explicit "
+        "value is an error.",
     )
-    parser.add_argument("--hand", default="right", choices=["left", "right"])
+    parser.add_argument(
+        "--hand",
+        default="right",
+        choices=["left", "right"],
+        help="Hand side to retarget. drive mode warns when this does not "
+        "match the connected hand's reported handedness.",
+    )
     parser.add_argument(
         "--replay",
         metavar="PKL",
         default=None,
-        help="Recorded keypoints (.pkl) for --mode replay.",
+        help="Recorded keypoints (.pkl) for --mode replay: a pickled list of "
+        '{"left_fingers": (21,3), "right_fingers": (21,3)} frames in MediaPipe '
+        "21-landmark order (wrist-relative, meters), as produced by the "
+        "wuji-retargeting example tooling (calibrate_offset.py --dump-pkl).",
     )
     parser.add_argument("--loop", action="store_true", help="Loop the replay.")
     parser.add_argument(
@@ -314,11 +413,13 @@ def main() -> int:
 
     if args.mode == "drive":
         return run_drive(args.model, args.hand, args.plugin_path, args.hand_sn)
+    # Device-free modes have no hardware to detect the model from.
+    model = args.model or "wuji_hand_2"
     if args.mode == "replay":
         if not args.replay:
             parser.error("--mode replay requires --replay FILE.pkl")
-        return run_replay(args.model, args.hand, args.replay, args.loop)
-    return run_synthetic(args.model, args.hand)
+        return run_replay(model, args.hand, args.replay, args.loop)
+    return run_synthetic(model, args.hand)
 
 
 if __name__ == "__main__":
