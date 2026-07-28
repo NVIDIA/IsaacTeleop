@@ -14,6 +14,8 @@
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_buffer.hpp>
 #include <viz/core/vk_context.hpp>
+#include <viz/layers/cylinder_layer.hpp>
+#include <viz/layers/equirect_layer.hpp>
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/viz_session.hpp>
 #include <viz/test_support/test_helpers.hpp>
@@ -549,4 +551,37 @@ TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside 
     REQUIRE(image.resolution().width == kSide);
     REQUIRE(image.resolution().height == kSide);
     check_quadrant_pattern(image, kSide);
+}
+
+TEST_CASE("Native-only shaped layers are rejected outside kXr", "[gpu][native][shaped]")
+{
+    // CylinderLayer / EquirectLayer have no compositor draw path, so
+    // add_layer must reject them on a non-XR backend up front (instead of
+    // the layer throwing on its first frame).
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context();
+    cfg.window_width = 64;
+    cfg.window_height = 64;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    viz::CylinderLayer::Config cyl_cfg;
+    cyl_cfg.resolution = { 64, 64 };
+    CHECK_THROWS_AS(session->add_layer<viz::CylinderLayer>(*ctx, cyl_cfg), std::invalid_argument);
+
+    viz::EquirectLayer::Config eq_cfg;
+    eq_cfg.resolution = { 64, 64 };
+    CHECK_THROWS_AS(session->add_layer<viz::EquirectLayer>(*ctx, eq_cfg), std::invalid_argument);
+
+    // A rejected add leaves no state behind: the session still renders.
+    session->render();
 }

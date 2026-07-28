@@ -13,6 +13,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <viz/core/viz_buffer.hpp>
+#include <viz/layers/cylinder_layer.hpp>
+#include <viz/layers/equirect_layer.hpp>
 #include <viz/layers/projection_layer.hpp>
 #include <viz/layers/quad_layer.hpp>
 
@@ -26,6 +28,55 @@ namespace viz_py
 
 namespace py = pybind11;
 using namespace pybind11::literals;
+
+namespace
+{
+
+// Shared method set for ImageLayerBase-derived layers (submit + the
+// common accessors). Bound per concrete type because LayerBase /
+// ImageLayerBase aren't registered pybind bases.
+template <typename LayerT, typename ClassT>
+void bind_image_layer_common(ClassT& cls, const char* label)
+{
+    cls.def(
+           "submit",
+           [label](LayerT& self, py::object left, py::object right, uintptr_t stream)
+           {
+               auto to_buf = [&self, label](py::object obj) -> viz::VizBuffer
+               {
+                   if (py::isinstance<viz::VizBuffer>(obj))
+                   {
+                       return obj.cast<viz::VizBuffer>();
+                   }
+                   return cuda_array_to_viz_buffer(obj, self.format(), self.resolution(), label);
+               };
+
+               if (right.is_none())
+               {
+                   viz::VizBuffer left_buf = to_buf(left);
+                   py::gil_scoped_release release;
+                   self.submit(left_buf, reinterpret_cast<cudaStream_t>(stream));
+               }
+               else
+               {
+                   viz::VizBuffer left_buf = to_buf(left);
+                   viz::VizBuffer right_buf = to_buf(right);
+                   py::gil_scoped_release release;
+                   self.submit(left_buf, right_buf, reinterpret_cast<cudaStream_t>(stream));
+               }
+           },
+           "left"_a, "right"_a = py::none(), "stream"_a = 0,
+           "Submit a frame. Each arg is a VizBuffer or any __cuda_array_interface__ "
+           "object. Mono layer: pass only ``left``. Stereo layer: pass both.")
+        .def_property_readonly("resolution", &LayerT::resolution)
+        .def_property_readonly("format", &LayerT::format)
+        .def(
+            "set_visible", [](LayerT& self, bool visible) { self.set_visible(visible); }, "visible"_a)
+        .def("is_visible", [](const LayerT& self) { return self.is_visible(); })
+        .def_property_readonly("name", [](const LayerT& l) { return l.name(); });
+}
+
+} // namespace
 
 void bind_layers(py::module_& m)
 {
@@ -150,6 +201,93 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
             "set_visible", [](viz::QuadLayer& self, bool visible) { self.set_visible(visible); }, "visible"_a)
         .def("is_visible", [](const viz::QuadLayer& self) { return self.is_visible(); })
         .def_property_readonly("name", [](const viz::QuadLayer& l) { return l.name(); });
+
+    // ── CylinderLayer (native-only: XrCompositionLayerCylinderKHR) ────
+
+    py::class_<viz::CylinderLayer::Config::Placement>(m, "CylinderLayerPlacement",
+                                                      "Cylinder placement: pose = center of the cylinder (arc "
+                                                      "centered on the pose's -z, axis = +y), radius in meters, "
+                                                      "central_angle = visible arc in radians (0, 2*pi], "
+                                                      "aspect_ratio = arc-width/height (0 = derive from resolution).")
+        .def(py::init<>())
+        .def_readwrite("pose", &viz::CylinderLayer::Config::Placement::pose)
+        .def_readwrite("radius", &viz::CylinderLayer::Config::Placement::radius)
+        .def_readwrite("central_angle", &viz::CylinderLayer::Config::Placement::central_angle)
+        .def_readwrite("aspect_ratio", &viz::CylinderLayer::Config::Placement::aspect_ratio);
+
+    py::class_<viz::CylinderLayer::Config>(m, "CylinderLayerConfig")
+        .def(py::init<>())
+        .def_readwrite("name", &viz::CylinderLayer::Config::name)
+        .def_readwrite("resolution", &viz::CylinderLayer::Config::resolution)
+        .def_readwrite("format", &viz::CylinderLayer::Config::format)
+        .def_readwrite("stereo", &viz::CylinderLayer::Config::stereo,
+                       "Per-eye stereo: submit MUST be called with both buffers. Both eyes "
+                       "share the same cylinder pose (no baseline shift) — the depth cue "
+                       "comes from the image pair. Memory doubles. Off by default.")
+        .def_readwrite("placement", &viz::CylinderLayer::Config::placement);
+
+    auto cylinder_cls =
+        py::class_<viz::CylinderLayer, std::unique_ptr<viz::CylinderLayer, py::nodelete>>(m, "CylinderLayer",
+                                                                                          R"doc(
+CUDA-fed texture curved onto the inside of a cylinder arc, submitted to
+the OpenXR runtime as a native XrCompositionLayerCylinderKHR. Owned by
+VizSession; the Python handle is non-owning.
+
+NATIVE-ONLY: requires DisplayMode.kXr and a runtime advertising
+XR_KHR_composition_layer_cylinder — add_cylinder_layer raises
+ValueError otherwise. Carries no depth (composited in submission
+order). Same submit contract as QuadLayer.
+)doc");
+    cylinder_cls
+        .def("set_placement", &viz::CylinderLayer::set_placement, "placement"_a,
+             "Update placement at runtime (validated; raises ValueError on bad shape params).")
+        .def("placement", &viz::CylinderLayer::placement);
+    bind_image_layer_common<viz::CylinderLayer>(cylinder_cls, "CylinderLayer.submit");
+
+    // ── EquirectLayer (native-only: XrCompositionLayerEquirect2KHR) ───
+
+    py::class_<viz::EquirectLayer::Config::Placement>(m, "EquirectLayerPlacement",
+                                                      "Equirect placement: pose = sphere center (texture horizontal "
+                                                      "center maps to the pose's -z), radius in meters (0 or +inf = "
+                                                      "infinite sphere), central_horizontal_angle in radians "
+                                                      "(2*pi = full 360), vertical angles from the horizon in "
+                                                      "[-pi/2, pi/2] with upper > lower. Defaults = full sphere.")
+        .def(py::init<>())
+        .def_readwrite("pose", &viz::EquirectLayer::Config::Placement::pose)
+        .def_readwrite("radius", &viz::EquirectLayer::Config::Placement::radius)
+        .def_readwrite("central_horizontal_angle", &viz::EquirectLayer::Config::Placement::central_horizontal_angle)
+        .def_readwrite("upper_vertical_angle", &viz::EquirectLayer::Config::Placement::upper_vertical_angle)
+        .def_readwrite("lower_vertical_angle", &viz::EquirectLayer::Config::Placement::lower_vertical_angle);
+
+    py::class_<viz::EquirectLayer::Config>(m, "EquirectLayerConfig")
+        .def(py::init<>())
+        .def_readwrite("name", &viz::EquirectLayer::Config::name)
+        .def_readwrite("resolution", &viz::EquirectLayer::Config::resolution)
+        .def_readwrite("format", &viz::EquirectLayer::Config::format)
+        .def_readwrite("stereo", &viz::EquirectLayer::Config::stereo,
+                       "Per-eye stereo (VR180/VR360 convention): submit MUST be called with "
+                       "both buffers; both eyes share the same sphere. Memory doubles. "
+                       "Off by default.")
+        .def_readwrite("placement", &viz::EquirectLayer::Config::placement);
+
+    auto equirect_cls =
+        py::class_<viz::EquirectLayer, std::unique_ptr<viz::EquirectLayer, py::nodelete>>(m, "EquirectLayer",
+                                                                                          R"doc(
+CUDA-fed equirectangular texture on the inside of a sphere, submitted
+to the OpenXR runtime as a native XrCompositionLayerEquirect2KHR.
+Owned by VizSession; the Python handle is non-owning.
+
+NATIVE-ONLY: requires DisplayMode.kXr and a runtime advertising
+XR_KHR_composition_layer_equirect2 — add_equirect_layer raises
+ValueError otherwise. Defaults to a full 360x180 sphere at infinite
+radius. Carries no depth (composited in submission order) — add it
+FIRST when it acts as a background. Same submit contract as QuadLayer.
+)doc");
+    equirect_cls
+        .def("set_placement", &viz::EquirectLayer::set_placement, "placement"_a,
+             "Update placement at runtime (validated; raises ValueError on bad shape params).")
+        .def("placement", &viz::EquirectLayer::placement);
+    bind_image_layer_common<viz::EquirectLayer>(equirect_cls, "EquirectLayer.submit");
 
     // ── ProjectionLayer ────────────────────────────────────────────────
 
