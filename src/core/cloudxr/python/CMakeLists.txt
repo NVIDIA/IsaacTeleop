@@ -165,22 +165,7 @@ elseif(TARGET cloudxr_exp_bundle)
     add_dependencies(cloudxr_python cloudxr_exp_bundle)
 endif()
 
-# Python modules for isaacteleop.cloudxr_exp (natives staged above when enabled).
-# The sources now live under src/python/isaacteleop/; src/python/CMakeLists.txt
-# deliberately excludes cloudxr_exp/ from its glob so this gated copy stays the
-# sole producer.
-set(ISAAC_TELEOP_PYTHON_SRC_DIR "${CMAKE_SOURCE_DIR}/src/python/isaacteleop")
-if(TARGET cloudxr_exp_dir)
-    add_custom_command(TARGET cloudxr_python POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_EXP_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${ISAAC_TELEOP_PYTHON_SRC_DIR}/cloudxr_exp/__init__.py"
-            "${CLOUDXR_EXP_DIR}/__init__.py"
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${ISAAC_TELEOP_PYTHON_SRC_DIR}/cloudxr/runtime.py"
-            "${ISAAC_TELEOP_PYTHON_SRC_DIR}/cloudxr/env_config.py"
-            "${CLOUDXR_EXP_DIR}/"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_EXP_DIR}/__pycache__"
-        COMMENT "Copying cloudxr_exp Python files to package structure"
-    )
-endif()
+# isaacteleop.cloudxr_exp's pure-Python source (__init__.py and the runtime.py
+# re-export of isaacteleop.cloudxr.runtime) is staged by src/python like every
+# other subpackage. This file owns only the experimental native bundle above,
+# which stays gated on ENABLE_CLOUDXR_EXP_BUNDLE.

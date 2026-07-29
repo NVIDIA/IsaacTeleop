@@ -36,11 +36,6 @@ file(GLOB_RECURSE ISAAC_TELEOP_PYTHON_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop/*.py"
 )
 
-# isaacteleop/cloudxr_exp/ is still staged by src/core/cloudxr/python, gated on
-# ENABLE_CLOUDXR_EXP_BUNDLE. Staging it unconditionally here would add it to
-# every build. Ownership flips to this target when that gate is removed.
-list(FILTER ISAAC_TELEOP_PYTHON_SOURCES EXCLUDE REGEX "^isaacteleop/cloudxr_exp/")
-
 set(ISAAC_TELEOP_PYTHON_STAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
 
 set(ISAAC_TELEOP_PYTHON_STAGED_FILES "")
