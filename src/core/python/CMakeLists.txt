@@ -31,6 +31,15 @@ configure_file(
     @ONLY
 )
 
+# Configure-time tracker codegen: splice manifest tracker names into deviceio_trackers.
+# Staged before python_package (and therefore before central stubgen, which DEPENDS on
+# python_package) so isaacteleop.deviceio_trackers can import the export module.
+add_custom_target(stage_generated_tracker_exports ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_trackers"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GENERATED_TRACKER_DIR}/python/_generated_tracker_exports.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_trackers/_generated_tracker_exports.py"
+    COMMENT "Stage _generated_tracker_exports.py for deviceio_trackers"
+)
+
 # After building modules, create the Python package structure.
 add_custom_target(python_package ALL
     # The isaacteleop/ subtree itself is staged by src/python (pure Python),
@@ -50,7 +59,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-wuji.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py isaacteleop_python cloudxr_python
+    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py isaacteleop_python cloudxr_python stage_generated_tracker_exports
     COMMENT "Preparing Python package structure"
 )
 
@@ -207,6 +216,16 @@ if(SKBUILD)
     # mapping and silently serve the stale staged copy -- editing src/python
     # would appear to do nothing. `wheel.exclude` cannot substitute: scikit-build-
     # core documents that editable installs may not respect it.
+    #
+    # Exception: configure-time codegen emits _generated_tracker_exports.py (not
+    # under src/python/). deviceio_trackers/__init__.py star-imports it; without
+    # this install rule editable `pip install -e .` resolves __init__.py from
+    # source and the export module is missing.
+    install(
+        FILES "${CMAKE_BINARY_DIR}/python_package/${_it_wheel_config}/isaacteleop/deviceio_trackers/_generated_tracker_exports.py"
+        DESTINATION "isaacteleop/deviceio_trackers"
+        COMPONENT isaacteleop_wheel
+    )
     install(
         DIRECTORY "${CMAKE_BINARY_DIR}/python_package/${_it_wheel_config}/isaacteleop"
         DESTINATION "."

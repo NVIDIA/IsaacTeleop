@@ -1,0 +1,38 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+#include <deviceio_trackers/@HEADER@.hpp>
+#include <live_trackers/schema_tracker.hpp>
+#include <oxr_utils/oxr_session_handles.hpp>
+#include <schema/@SCHEMA@_generated.h>
+
+#include <cstdint>
+#include <memory>
+#include <string_view>
+#include <vector>
+namespace core
+{
+using @MCAP_CHANNELS_TYPE@ = McapTrackerChannels<@RECORD_TYPE@, @FB_TABLE@>;
+using @SCHEMA_TRACKER_TYPE@ = SchemaTracker<@RECORD_TYPE@, @FB_TABLE@>;
+class @LIVE_IMPL@ : public @IFACE@
+{
+public:
+    static std::vector<std::string> required_extensions()
+    {
+        return SchemaTrackerBase::get_required_extensions();
+    }
+    static std::unique_ptr<@MCAP_CHANNELS_TYPE@> create_mcap_channels(mcap::McapWriter& writer,
+                                                                      std::string_view base_name);
+    @LIVE_IMPL@(const OpenXRSessionHandles& handles,
+                const @CLASS@* tracker,
+                std::unique_ptr<@MCAP_CHANNELS_TYPE@> mcap_channels);
+    void update(int64_t monotonic_time_ns) override;
+    const @TRACKED_TYPE@& get_data() const override;
+
+private:
+    std::unique_ptr<@MCAP_CHANNELS_TYPE@> mcap_channels_;
+    @SCHEMA_TRACKER_TYPE@ m_schema_reader;
+    @TRACKED_TYPE@ m_tracked;
+};
+} // namespace core

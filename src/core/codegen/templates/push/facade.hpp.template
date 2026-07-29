@@ -1,0 +1,44 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+#include <deviceio_base/@BASE_HEADER@.hpp>
+#include <schema/@SCHEMA@_generated.h>
+
+#include <cstddef>
+#include <string>
+#include <string_view>
+namespace core
+{
+class @CLASS@ : public ITracker
+{
+public:
+    static constexpr std::size_t DEFAULT_MAX_PAYLOAD_SIZE = @MAX_FLATBUFFER_SIZE@;
+    @CLASS@(std::string collection_id,
+            std::string tensor_identifier,
+            std::size_t max_payload_size = DEFAULT_MAX_PAYLOAD_SIZE);
+    std::string_view get_name() const override
+    {
+        return TRACKER_NAME;
+    }
+    void push(const ITrackerSession& session, const @DATA_TYPE@& data) const;
+    const std::string& collection_id() const
+    {
+        return collection_id_;
+    }
+    const std::string& tensor_identifier() const
+    {
+        return tensor_identifier_;
+    }
+    std::size_t max_payload_size() const
+    {
+        return max_payload_size_;
+    }
+
+private:
+    static constexpr const char* TRACKER_NAME = "@CLASS@";
+    std::string collection_id_;
+    std::string tensor_identifier_;
+    std::size_t max_payload_size_;
+};
+} // namespace core

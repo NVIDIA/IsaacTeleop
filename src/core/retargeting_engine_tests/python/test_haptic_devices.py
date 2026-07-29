@@ -168,33 +168,32 @@ class TestControllerHapticDevice:
         )
 
 
-class _RecordingTensorPushTracker:
-    """Test double for ``TensorPushTracker``.
+class _RecordingHapticPushTracker:
+    """Test double for ``HapticCommandPushTracker``.
 
-    Records ``push(session, payload)`` calls; ``fail=True`` makes every push
+    Records ``push(session, command)`` calls; ``fail=True`` makes every push
     raise so we can exercise ``PushTensorHapticDevice``'s once-per-endpoint
-    error gate. The endpoint is encoded inside ``payload`` (a HapticCommand
-    FlatBuffer), so tests assert on the raw bytes.
+    error gate.
     """
 
     def __init__(self, fail: bool = False) -> None:
-        self.pushes: List[Tuple[object, bytes]] = []
+        self.pushes: List[Tuple[object, object]] = []
         self._fail = fail
 
     def get_name(self) -> str:
-        return "TensorPushTracker"
+        return "HapticCommandPushTracker"
 
-    def push(self, session, payload) -> None:
+    def push(self, session, command) -> None:
         if self._fail:
             raise RuntimeError("simulated push failure")
-        self.pushes.append((session, bytes(payload)))
+        self.pushes.append((session, command))
 
 
 class TestPushTensorHapticDevice:
-    """Cross-process device: ``apply`` stores, ``flush`` encodes one
-    ``HapticCommand`` per endpoint and pushes it through a ``TensorPushTracker``.
-    The real tracker is swapped for a recording double so ``flush`` can run
-    without a live DeviceIO session."""
+    """Cross-process device: ``apply`` stores, ``flush`` builds one
+    ``HapticCommand`` per endpoint and pushes it through a
+    ``HapticCommandPushTracker``. The real tracker is swapped for a recording
+    double so ``flush`` can run without a live DeviceIO session."""
 
     def _device(self, **kwargs):
         from isaacteleop.haptic_devices.push_tensor import PushTensorHapticDevice
@@ -218,7 +217,7 @@ class TestPushTensorHapticDevice:
 
     def test_apply_then_flush_pushes_encoded_command_per_endpoint(self) -> None:
         device = self._device()
-        recorder = _RecordingTensorPushTracker()
+        recorder = _RecordingHapticPushTracker()
         device._tracker = recorder  # swap in the double; flush() needs no session
 
         device.apply("left", np.array([0.1, 0.2, 0.3, 0.4, 0.5], dtype=np.float32))
@@ -228,17 +227,14 @@ class TestPushTensorHapticDevice:
         device.flush(sentinel_session)
 
         assert len(recorder.pushes) == 2
-        for session, payload in recorder.pushes:
+        for session, command in recorder.pushes:
             assert session is sentinel_session
-            assert isinstance(payload, bytes) and len(payload) > 0
-        # The endpoint name travels inside the serialized HapticCommand.
-        all_bytes = b"".join(payload for _s, payload in recorder.pushes)
-        assert b"left" in all_bytes
-        assert b"right" in all_bytes
+            assert command.endpoint in ("left", "right")
+            assert len(command.values) == 5
 
     def test_apply_coalesces_to_latest_per_endpoint(self) -> None:
         device = self._device()
-        recorder = _RecordingTensorPushTracker()
+        recorder = _RecordingHapticPushTracker()
         device._tracker = recorder
 
         device.apply("left", np.full(5, 0.1, dtype=np.float32))
@@ -249,7 +245,7 @@ class TestPushTensorHapticDevice:
 
     def test_flush_clears_pending(self) -> None:
         device = self._device()
-        recorder = _RecordingTensorPushTracker()
+        recorder = _RecordingHapticPushTracker()
         device._tracker = recorder
 
         device.apply("left", np.zeros(5, dtype=np.float32))
@@ -260,7 +256,7 @@ class TestPushTensorHapticDevice:
 
     def test_flush_swallows_exceptions_and_logs_once_per_endpoint(self, caplog) -> None:
         device = self._device(endpoints=("left",))
-        device._tracker = _RecordingTensorPushTracker(fail=True)
+        device._tracker = _RecordingHapticPushTracker(fail=True)
 
         for _ in range(3):
             device.apply("left", np.zeros(5, dtype=np.float32))

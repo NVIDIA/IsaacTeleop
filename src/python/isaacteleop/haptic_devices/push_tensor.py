@@ -29,9 +29,9 @@ from typing import TYPE_CHECKING, Any, Iterable
 
 import numpy as np
 
-from isaacteleop.deviceio_trackers import TensorPushTracker
+from isaacteleop.deviceio_trackers import HapticCommandPushTracker
 from isaacteleop.retargeting_engine.interface.tensor_group_type import TensorGroupType
-from isaacteleop.schema import pack_haptic_command
+from isaacteleop.schema import HapticCommand
 
 from .interface import Endpoint, IHapticDevice
 
@@ -47,10 +47,9 @@ class PushTensorHapticDevice(IHapticDevice):
     """:class:`IHapticDevice` that pushes ``HapticCommand`` to a peer process.
 
     Each frame, :meth:`apply` stores the latest values per endpoint, and
-    :meth:`flush` serialises one ``HapticCommand`` per endpoint (via
-    ``pack_haptic_command``) and pushes it through a :class:`TensorPushTracker`.
-    The paired consumer process reads them back with a
-    ``HapticCommandReaderTracker`` on the same ``collection_id`` and
+    :meth:`flush` builds one ``HapticCommand`` per endpoint and pushes it through
+    a :class:`HapticCommandPushTracker`. The paired consumer process reads them
+    back with a ``HapticCommandReaderTracker`` on the same ``collection_id`` and
     ``tensor_identifier`` and drives the real hardware there.
 
     Args:
@@ -77,11 +76,11 @@ class PushTensorHapticDevice(IHapticDevice):
         *,
         tensor_identifier: str = "haptic_command",
         endpoints: Iterable[Endpoint] = ("left", "right"),
-        max_payload_size: int = TensorPushTracker.DEFAULT_MAX_PAYLOAD_SIZE,
+        max_payload_size: int = HapticCommandPushTracker.DEFAULT_MAX_PAYLOAD_SIZE,
     ) -> None:
         self._accepted_type = accepted_type
         self._endpoints: tuple[Endpoint, ...] = tuple(endpoints)
-        self._tracker = TensorPushTracker(
+        self._tracker = HapticCommandPushTracker(
             collection_id, tensor_identifier, max_payload_size
         )
         # Latest-wins per endpoint within a frame; emitted and cleared by flush.
@@ -106,8 +105,9 @@ class PushTensorHapticDevice(IHapticDevice):
         pending, self._pending = self._pending, {}
         for endpoint, values in pending.items():
             try:
-                payload = pack_haptic_command(endpoint, values)
-                self._tracker.push(deviceio_session, payload)
+                self._tracker.push(
+                    deviceio_session, HapticCommand(endpoint=endpoint, values=values)
+                )
             except Exception as exc:
                 if not self._error_logged.get(endpoint, False):
                     logger.warning(

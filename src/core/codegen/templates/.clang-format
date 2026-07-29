@@ -1,0 +1,10 @@
+---
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Templates are associated with the C++ language in editors so they get syntax
+# highlighting, which also makes format-on-save run clang-format on them. The
+# @PLACEHOLDER@ markers are not valid C++ and get mangled ("@NAME@" becomes
+# "@NAME @"), so formatting must be off for this whole subtree.
+DisableFormat: true
+SortIncludes: Never

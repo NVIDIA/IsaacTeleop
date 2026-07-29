@@ -1,0 +1,19 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+#include <deviceio_base/@BASE_HEADER@.hpp>
+#include <schema/@SCHEMA@_generated.h>
+
+#include <cstdint>
+
+namespace core
+{
+class @REPLAY_IMPL@ : public @IFACE@
+{
+public:
+    @REPLAY_IMPL@() = default;
+    void update(int64_t monotonic_time_ns) override;
+    void push(const @DATA_TYPE@&) const override;
+};
+} // namespace core
