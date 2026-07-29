@@ -124,7 +124,7 @@ function sampleValid(key: string): string {
   const numeric = new Set([
     'port', 'deviceFrameRate', 'maxStreamingBitrateMbps', 'perEyeWidth', 'perEyeHeight',
     'reprojectionGridCols', 'reprojectionGridRows', 'posePredictionFactor',
-    'xrOffsetX', 'xrOffsetY', 'xrOffsetZ', 'mediaPort',
+    'xrOffsetX', 'xrOffsetY', 'xrOffsetZ', 'mediaPort', 'streamTestDurationSeconds',
   ]);
   if (numeric.has(key)) return '1';
   const enums: Record<string, string> = {
@@ -143,6 +143,7 @@ function sampleValid(key: string): string {
     useQuestColorWorkaround: 'true',
     panelHiddenAtStart: 'true',
     headless: 'true',
+    streamTestMode: 'warn',
   };
   return enums[key] ?? 'x';
 }

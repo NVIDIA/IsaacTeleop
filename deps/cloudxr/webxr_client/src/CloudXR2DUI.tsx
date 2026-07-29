@@ -42,6 +42,7 @@ import {
   loadPerProject,
   parseAutoRefreshMode,
   parseControlPanelPosition,
+  parseStreamTestMode,
   ReactUIConfig,
   savePerProject,
 } from '@helpers/react/utils';
@@ -169,6 +170,10 @@ export class CloudXR2DUI {
   private mediaAddressInput!: HTMLInputElement;
   /** Input field for media server port */
   private mediaPortInput!: HTMLInputElement;
+  /** Dropdown selecting the pre-stream network test mode (off / warn / block) */
+  private streamTestModeSelect!: HTMLSelectElement;
+  /** Input field for the network test window length in seconds */
+  private streamTestDurationSecondsInput!: HTMLInputElement;
   /** Dropdown for controller model visibility (show / hide) */
   private controllerModelVisibilitySelect!: HTMLSelectElement;
   private showTraceInXRSelect!: HTMLSelectElement;
@@ -466,6 +471,10 @@ export class CloudXR2DUI {
     this.certLink = this.getElement<HTMLAnchorElement>('certLink');
     this.mediaAddressInput = this.getElement<HTMLInputElement>('mediaAddress');
     this.mediaPortInput = this.getElement<HTMLInputElement>('mediaPort');
+    this.streamTestModeSelect = this.getElement<HTMLSelectElement>('streamTestMode');
+    this.streamTestDurationSecondsInput = this.getElement<HTMLInputElement>(
+      'streamTestDurationSeconds'
+    );
     this.controllerModelVisibilitySelect = this.getElement<HTMLSelectElement>(
       'controllerModelVisibility'
     );
@@ -532,6 +541,11 @@ export class CloudXR2DUI {
       showTrace: false,
       showRecordingControls: false,
       replayPacing: 'time',
+      // Off by default: the test holds the session in Connecting for its whole window,
+      // and a teleop operator connecting to a robot should not be gated on it. Opt in
+      // via the settings panel or ?streamTestMode=warn when diagnosing a link.
+      streamTestMode: 'off',
+      streamTestDurationSeconds: 5,
       headless: false,
       autoRefreshMode: 'clean',
       teleopPath: DEFAULT_TELEOP_PATH,
@@ -573,6 +587,8 @@ export class CloudXR2DUI {
       { el: this.xrOffsetZInput, key: 'xrOffsetZ' },
       { el: this.mediaAddressInput, key: 'mediaAddress' },
       { el: this.mediaPortInput, key: 'mediaPort' },
+      { el: this.streamTestModeSelect, key: 'streamTestMode' },
+      { el: this.streamTestDurationSecondsInput, key: 'streamTestDurationSeconds' },
       { el: this.controllerModelVisibilitySelect, key: 'controllerModelVisibility' },
       { el: this.showTraceInXRSelect, key: 'showTraceInXR' },
       { el: this.showRecordingControlsSelect, key: 'showRecordingControls' },
@@ -815,6 +831,9 @@ export class CloudXR2DUI {
     addListener(this.mediaAddressInput, 'change', updateConfig);
     addListener(this.mediaPortInput, 'input', updateConfig);
     addListener(this.mediaPortInput, 'change', updateConfig);
+    addListener(this.streamTestModeSelect, 'change', updateConfig);
+    addListener(this.streamTestDurationSecondsInput, 'input', updateConfig);
+    addListener(this.streamTestDurationSecondsInput, 'change', updateConfig);
     addListener(this.controllerModelVisibilitySelect, 'change', updateConfig);
     addListener(this.showTraceInXRSelect, 'change', updateConfig);
     addListener(this.showRecordingControlsSelect, 'change', updateConfig);
@@ -1027,6 +1046,14 @@ export class CloudXR2DUI {
       mediaPort: (() => {
         const v = parseInt(this.mediaPortInput.value, 10);
         return !isNaN(v) ? v : undefined;
+      })(),
+      streamTestMode: parseStreamTestMode(
+        this.streamTestModeSelect.value,
+        this.getDefaultConfiguration().streamTestMode ?? 'off'
+      ),
+      streamTestDurationSeconds: (() => {
+        const v = parseInt(this.streamTestDurationSecondsInput.value, 10);
+        return !isNaN(v) ? v : this.getDefaultConfiguration().streamTestDurationSeconds;
       })(),
       hideControllerModel: this.controllerModelVisibilitySelect.value === 'hide',
       showTrace: this.showTraceInXRSelect.value === 'true',

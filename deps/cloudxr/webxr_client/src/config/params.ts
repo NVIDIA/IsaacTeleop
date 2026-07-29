@@ -86,6 +86,8 @@ export const URL_PARAMS: UrlParam[] = [
   { key: 'proxyUrl', elementId: 'proxyUrl', description: 'Proxy URL for routing (HTTPS); leave empty for direct WSS.' },
   { key: 'mediaAddress', elementId: 'mediaAddress', description: 'WebRTC media server address for NAT traversal (optional).' },
   { key: 'mediaPort', elementId: 'mediaPort', isValid: isNumber, description: 'WebRTC media server port (0 = auto).' },
+  { key: 'streamTestMode', elementId: 'streamTestMode', isValid: oneOf('off', 'warn', 'block'), description: 'Pre-stream network test: off (default), warn, or block.' },
+  { key: 'streamTestDurationSeconds', elementId: 'streamTestDurationSeconds', isValid: isNumber, description: 'Network test measurement window in seconds (ignored when off).' },
 
   // --- Direct params: read straight from the URL by app logic (no control, never stored) ---
   // TURN/ICE for NAT traversal and OOB hub, typically set in USB-local mode by oob_teleop_env.py.
