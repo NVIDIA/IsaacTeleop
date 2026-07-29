@@ -76,12 +76,15 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "get_left_hand",
             [](const core::HandTracker& self, const core::ITrackerSession& session)
             { return share_tracked(self.get_left_hand(session)); },
-            py::arg("session"), "Get the left hand tracked state (data is None if inactive)" TRACKED_LIFETIME_DOC)
+            // No lifetime note on either hand: like full body, the impls install freshly allocated
+            // joint storage each frame rather than refilling it, so the result is a snapshot of the
+            // frame it was read on. Call again to see newer hand data.
+            py::arg("session"), "Get the left hand tracked state (data is None if inactive)")
         .def(
             "get_right_hand",
             [](const core::HandTracker& self, const core::ITrackerSession& session)
             { return share_tracked(self.get_right_hand(session)); },
-            py::arg("session"), "Get the right hand tracked state (data is None if inactive)" TRACKED_LIFETIME_DOC);
+            py::arg("session"), "Get the right hand tracked state (data is None if inactive)");
 
     py::class_<core::HeadTracker, core::ITracker, std::shared_ptr<core::HeadTracker>>(m, "HeadTracker")
         .def(py::init<>())
