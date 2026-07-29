@@ -301,20 +301,48 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     // window/offscreen letterboxing only.
     const bool xr_mode = backend_->is_xr();
 
+    // Partition visible layers into native OpenXR quads (composited by the
+    // runtime as XrCompositionLayerQuad) and the rest (composited into the
+    // shared render target). is_native_quad() is true only in a kXr session,
+    // so window/offscreen keep every layer on the composite path.
+    std::vector<LayerBase*> composite_layers;
+    std::vector<LayerBase*> native_layers;
+    composite_layers.reserve(visible_layers.size());
+    const bool backend_native = backend_->supports_native_quad();
+    for (LayerBase* layer : visible_layers)
+    {
+        if (backend_native && layer->is_native_quad())
+        {
+            native_layers.push_back(layer);
+        }
+        else
+        {
+            composite_layers.push_back(layer);
+        }
+    }
+
+    // Run the shared render pass (and thus submit the projection layer) when
+    // there is composite content, OR when there are no native quads at all
+    // (preserve the "no visible layers → cleared frame" behavior). A
+    // native-quad-only frame skips the render pass entirely, so the backend
+    // drops the projection layer and the runtime sees a quad-only frame.
+    const bool run_composite = !composite_layers.empty() || native_layers.empty();
+
     // Direct-present: a single ProjectionLayer copied straight to the
-    // swapchain (no shared render pass). VizSession's add_layer guarantees
-    // a direct layer is the session's only layer, so size()==1 suffices.
+    // swapchain (no shared render pass). VizSession's add_layer guarantees a
+    // direct layer is the session's only layer (and it's never a native
+    // quad), so a composite_layers size of 1 suffices.
     const bool direct_mode =
-        visible_layers.size() == 1 && visible_layers[0]->supports_direct_present() && backend_->supports_direct();
+        composite_layers.size() == 1 && composite_layers[0]->supports_direct_present() && backend_->supports_direct();
 
     // Per-layer aspect-fit tiles (window/offscreen composited path only).
     std::vector<TileSlot> tiles;
-    if (!xr_mode && !direct_mode && !visible_layers.empty())
+    if (!xr_mode && !direct_mode && !composite_layers.empty())
     {
         const float fb_aspect = static_cast<float>(rt_extent.width) / static_cast<float>(rt_extent.height);
         std::vector<float> aspects;
-        aspects.reserve(visible_layers.size());
-        for (LayerBase* layer : visible_layers)
+        aspects.reserve(composite_layers.size());
+        for (LayerBase* layer : composite_layers)
         {
             aspects.push_back(layer->aspect_ratio().value_or(fb_aspect));
         }
@@ -334,13 +362,27 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
         vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 0);
     }
 
+    // Native quads: promote each layer's mailbox slot and gather its per-eye
+    // source images. Must precede the wait-semaphore gather below so
+    // get_wait_semaphores() reflects the promoted slot (like acquire_direct_views).
+    // acquire_native_quad returns nullopt when the layer hasn't published yet.
+    std::vector<NativeQuadView> native_views;
+    native_views.reserve(native_layers.size());
+    for (LayerBase* layer : native_layers)
+    {
+        if (auto v = layer->acquire_native_quad(slot))
+        {
+            native_views.push_back(*v);
+        }
+    }
+
     if (direct_mode)
     {
         // Promote the layer's latest published (color, depth) for this slot
         // and copy straight into the swapchain — no render pass, no shared
         // RT. acquire_direct_views must precede the wait-semaphore gather
         // below so get_wait_semaphores reflects the promoted slot.
-        const std::vector<DirectPresentView> direct_views = visible_layers[0]->acquire_direct_views(slot);
+        const std::vector<DirectPresentView> direct_views = composite_layers[0]->acquire_direct_views(slot);
 
         // ts1: nothing rendered into the RT; mark the point for symmetry.
         if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
@@ -358,13 +400,13 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
                 command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 2);
         }
     }
-    else
+    else if (run_composite)
     {
         // Pre-pass hook for transfer/compute work that can't run inside a
         // render pass (e.g. QuadLayer mip-chain blits). Ordering: all
         // layers' pre-pass run BEFORE any record(), so a layer can rely on
         // its own pre-pass results inside record().
-        for (LayerBase* layer : visible_layers)
+        for (LayerBase* layer : composite_layers)
         {
             layer->record_pre_render_pass(command_buffer, slot);
         }
@@ -391,7 +433,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
             const VkRect2D rt_full{ { 0, 0 }, { rt_extent.width, rt_extent.height } };
             vkCmdSetScissor(command_buffer, 0, 1, &rt_full);
         }
-        for (size_t i = 0; i < visible_layers.size(); ++i)
+        for (size_t i = 0; i < composite_layers.size(); ++i)
         {
             std::vector<ViewInfo> layer_views = frame.views;
             if (layer_views.empty())
@@ -405,7 +447,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
                 vkCmdSetScissor(command_buffer, 0, 1, &scissor_rect);
                 layer_views[0].viewport = to_rect2d(viewport_rect);
             }
-            visible_layers[i]->record(command_buffer, layer_views, rt, slot);
+            composite_layers[i]->record(command_buffer, layer_views, rt, slot);
         }
 
         vkCmdEndRenderPass(command_buffer);
@@ -426,6 +468,23 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
                 command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 2);
         }
     }
+    else
+    {
+        // Native-quad-only frame: no shared render pass, no projection layer.
+        // Mark ts1/ts2 for gpu-timing symmetry (no render/post-pass work).
+        if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
+        {
+            vkCmdWriteTimestamp(
+                command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 1);
+            vkCmdWriteTimestamp(
+                command_buffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 2);
+        }
+    }
+
+    // Copy each native quad's source image(s) into the backend's runtime quad
+    // swapchain(s). No-op (and no projection-layer effect) when empty. Outside
+    // any render pass; the layer's CUDA-done waits gate it at TRANSFER stage.
+    backend_->record_native_quads(command_buffer, frame, native_views);
 
     // ts3: cmd-buffer-end (total = ts3-ts0).
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)

@@ -533,24 +533,23 @@ void QuadLayer::record_mip_generation(VkCommandBuffer cmd, DeviceImage& image)
                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 }
 
-void QuadLayer::record_pre_render_pass(VkCommandBuffer cmd, uint32_t in_flight_slot)
+uint8_t QuadLayer::promote_slot(uint32_t in_flight_slot)
 {
-    require_alive(slots_[0], "record_pre_render_pass");
-
     // Backends are contracted to image_count <= kMaxFramesInFlight; if
     // that ever breaks, two in-flight frames would alias on the same
     // in_use_ entry and we'd lose the slot-tracking invariant.
     if (in_flight_slot >= kMaxFramesInFlight)
     {
-        throw std::logic_error("QuadLayer::record_pre_render_pass: in_flight_slot " + std::to_string(in_flight_slot) +
+        throw std::logic_error("QuadLayer: in_flight_slot " + std::to_string(in_flight_slot) +
                                " >= kMaxFramesInFlight (" + std::to_string(kMaxFramesInFlight) +
                                "); bump kMaxFramesInFlight to match the backend's image_count");
     }
 
     // Promote latest_ -> in_use_[in_flight_slot]. The compositor's
     // per-slot fence wait at the top of render() guarantees the GPU
-    // has finished sampling the previous in_use_ value. record() reads
-    // the same entry — pre-pass and pass MUST agree on in_flight_slot.
+    // has finished sampling the previous in_use_ value. record() (or the
+    // native-quad copy) reads the same entry — the promoting call and the
+    // consuming call MUST agree on in_flight_slot.
     const uint8_t latest = latest_.load(std::memory_order_acquire);
     const uint32_t idx = in_flight_slot;
     if (latest != kSlotNone)
@@ -558,14 +557,78 @@ void QuadLayer::record_pre_render_pass(VkCommandBuffer cmd, uint32_t in_flight_s
         in_use_[idx].store(latest, std::memory_order_release);
     }
     const uint8_t cur = in_use_[idx].load(std::memory_order_acquire);
+    if (cur != kSlotNone)
+    {
+        // Record which slot this frame is sampling so get_wait_semaphores
+        // (called by the compositor before submit) reads the matching
+        // cuda_done_writing semaphore.
+        last_in_use_slot_.store(cur, std::memory_order_release);
+    }
+    return cur;
+}
+
+bool QuadLayer::native_active() const noexcept
+{
+    // Flag only takes effect in a kXr session; window/offscreen fall back
+    // to the record() draw path. A detached layer (no session) is not
+    // native either, so standalone construction/tests keep the draw path.
+    return config_.use_openxr_quad_layer && session() != nullptr && session()->is_xr_mode();
+}
+
+bool QuadLayer::is_native_quad() const noexcept
+{
+    return native_active();
+}
+
+std::optional<NativeQuadView> QuadLayer::acquire_native_quad(uint32_t in_flight_slot)
+{
+    require_alive(slots_[0], "acquire_native_quad");
+
+    // Promote first, matching record()'s consumer ordering: before the first
+    // publish there is nothing to composite, so return early WITHOUT requiring
+    // a placement. This keeps a native-quad session from throwing on startup
+    // frames where the placement strategy hasn't run yet (e.g. XR tracking
+    // not locked, head pose still unavailable).
+    const uint8_t cur = promote_slot(in_flight_slot);
+    if (cur == kSlotNone)
+    {
+        return std::nullopt;
+    }
+
+    // Snapshot placement under lock so set_placement() can run concurrently.
+    std::optional<Config::Placement> placement;
+    {
+        std::lock_guard<std::mutex> lk(placement_mutex_);
+        placement = placement_;
+    }
+    // With content to show, a native quad needs a world placement (pose +
+    // size). Same requirement as any kXr quad in record(); missing it here is
+    // a programming error (the app published a frame but never placed it).
+    if (!placement.has_value())
+    {
+        throw std::logic_error("QuadLayer: native OpenXR quad requires Config::placement to be set");
+    }
+
+    NativeQuadView v{};
+    v.color_left = slots_[cur]->vk_image();
+    v.color_right = config_.stereo ? slots_right_[cur]->vk_image() : VK_NULL_HANDLE;
+    v.extent = config_.resolution;
+    v.pose = placement->pose;
+    v.size_meters = placement->size_meters;
+    v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.source_id = this;
+    return v;
+}
+
+void QuadLayer::record_pre_render_pass(VkCommandBuffer cmd, uint32_t in_flight_slot)
+{
+    require_alive(slots_[0], "record_pre_render_pass");
+
+    const uint8_t cur = promote_slot(in_flight_slot);
     if (cur == kSlotNone)
     {
         return;
     }
-    // Record which slot this frame is sampling so get_wait_semaphores
-    // (called by compositor between record and submit) reads the
-    // matching cuda_done_writing semaphore.
-    last_in_use_slot_.store(cur, std::memory_order_release);
 
     // Mip generation (if configured). Reads level 0 written by CUDA,
     // writes levels 1..N-1, ends with the whole image back in
@@ -705,8 +768,12 @@ std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
     {
         return {};
     }
+    // Native quad: first GPU read is the backend's copy into the quad
+    // swapchain (TRANSFER). Composited-with-mips: the mip-gen blit chain
+    // reads level 0 at TRANSFER first. Plain composited: the fragment
+    // sampler is the first read.
     const VkPipelineStageFlags wait_stage =
-        (mip_levels_ > 1) ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        (native_active() || mip_levels_ > 1) ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
     return {
         WaitSemaphore{
             image.cuda_done_writing(),

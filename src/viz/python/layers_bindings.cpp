@@ -72,7 +72,15 @@ void bind_layers(py::module_& m)
                        "Horizontal disparity between left and right planes (millimeters), "
                        "applied along the placement's local +x axis. 0 → both eyes see the "
                        "same world quad. Ignored unless stereo + kXr. mm-scale chosen because "
-                       "typical IPDs / stereo camera baselines are 50–80 mm.");
+                       "typical IPDs / stereo camera baselines are 50–80 mm.")
+        .def_readwrite("use_openxr_quad_layer", &viz::QuadLayer::Config::use_openxr_quad_layer,
+                       "Submit as a native OpenXR quad layer (XrCompositionLayerQuad) instead "
+                       "of compositing into the shared render target. kXr only (ignored in "
+                       "window/offscreen). Lets the runtime place + sample the quad directly, "
+                       "enabling its quad fast path; a frame whose visible layers are all native "
+                       "quads drops the projection layer entirely. Native quads carry no depth "
+                       "(flat billboard, submission-order composited) and require placement. "
+                       "Stereo emits one quad per eye. Off by default.");
 
     // ── QuadLayer (non-owning; session owns the lifetime) ─────────────
 

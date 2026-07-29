@@ -234,6 +234,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Override display.mode from the config "
         "(default: the config's value, or xr when the config omits it).",
     )
+    parser.add_argument(
+        "--native-quad",
+        action="store_true",
+        help="Submit each camera as a native OpenXR quad layer "
+        "(XrCompositionLayerQuad) instead of the built-in compositor. "
+        "kXr only; ignored in window mode. When every layer is a native "
+        "quad the projection layer is dropped, letting the runtime engage "
+        "its quad fast path / client-reconstructed streaming.",
+    )
     args = parser.parse_args(argv)
 
     with open(args.config) as f:
@@ -274,6 +283,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         if entry.stereo:
             layer_cfg.stereo = True
             layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
+        # Native OpenXR quad path (kXr only; a no-op fallback in window mode).
+        # Requires a placement, which the placement strategy applies below.
+        layer_cfg.use_openxr_quad_layer = args.native_quad
         layers.append(session.add_quad_layer(layer_cfg))
         strategies.append(entry.placement)
 
