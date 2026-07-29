@@ -203,7 +203,7 @@ Each camera renders on a flat plane by default. Per-camera keys under
        don't apply.
    * - ``native: false``
      - Quads only: composite server-side through Televiz instead of submitting a native
-       OpenXR layer (needed to z-compose with a ``ProjectionLayer``).
+       OpenXR layer.
 
 ``cylinder`` and ``equirect`` require XR mode — the viewer exits with an error in window mode.
 Stereo sources render per-eye textures on the same surface; ``stereo_baseline_mm`` adds a

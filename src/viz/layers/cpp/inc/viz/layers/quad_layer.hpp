@@ -97,14 +97,13 @@ public:
         // draw path).
         //
         // Set to false to fall back to compositing into the shared render
-        // target instead. The compositor path is the right choice when the
-        // quad must z-compose with 3D ProjectionLayer content — a native
-        // quad carries NO depth (OpenXR quad layers have none), so it's a
-        // flat billboard ordered by submission — or when a runtime
-        // mishandles native quad layers. ``generate_mipmaps`` only applies
-        // on the compositor path (the runtime samples native quads).
-        // Requires ``placement`` at record time either way, same as any
-        // kXr quad.
+        // target instead, where 3D-placed quads depth-test against each
+        // other — a native quad carries NO depth (OpenXR quad layers have
+        // none), so it's a flat billboard ordered by submission. Also the
+        // escape hatch for runtimes that mishandle native quad layers.
+        // ``generate_mipmaps`` only applies on the compositor path (the
+        // runtime samples native quads). Requires ``placement`` at record
+        // time either way, same as any kXr quad.
         bool native_composition = true;
 
         // Composite honoring the texture's alpha channel. Native path:

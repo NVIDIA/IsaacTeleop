@@ -129,9 +129,9 @@ void bind_layers(py::module_& m)
                        "the DEFAULT: the runtime places + samples the quad directly, enabling "
                        "its quad fast path; a frame whose visible layers are all native drops "
                        "the projection layer entirely. Set False to composite into the shared "
-                       "render target instead — needed when the quad must z-compose with "
-                       "ProjectionLayer 3D content (native quads carry no depth: flat "
-                       "billboard, submission-order composited). Ignored outside kXr "
+                       "render target instead, where 3D-placed quads depth-test against each "
+                       "other (native quads carry no depth: flat billboard, submission-order "
+                       "composited). Ignored outside kXr "
                        "(window/offscreen always composite). Stereo emits one quad per eye.")
         .def_readwrite(
             "alpha_blend", &viz::QuadLayer::Config::alpha_blend,

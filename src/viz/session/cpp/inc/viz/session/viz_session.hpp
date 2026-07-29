@@ -110,10 +110,12 @@ public:
     //
     // Layer-mode invariant (for now): a session holds EITHER one
     // ProjectionLayer OR any number of texture layers (QuadLayer /
-    // CylinderLayer / EquirectLayer), never both. The
-    // ProjectionLayer is direct-present (copied straight to the swapchain),
-    // while QuadLayers composite into the shared render target — the two
-    // paths don't coexist yet. Violations throw std::invalid_argument.
+    // CylinderLayer / EquirectLayer), never both. The ProjectionLayer is
+    // direct-present (copied straight to the swapchain), while texture
+    // layers submit as native XR composition layers by default (kXr,
+    // native_composition = true) or draw into the shared render target
+    // (fallback / window / offscreen) — neither coexists with the direct
+    // path yet. Violations throw std::invalid_argument.
     template <typename L, typename... Args>
     L* add_layer(Args&&... args)
     {

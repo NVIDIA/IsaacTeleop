@@ -65,8 +65,9 @@ Four layer types are available:
   ``(color, depth)`` buffers. Use it to present a rendered 3D scene from the current head pose.
 
 A session holds **either** one ``ProjectionLayer`` **or** any number of texture layers
-(``QuadLayer`` / ``CylinderLayer`` / ``EquirectLayer``), not both: quads composite into a shared
-render target, while a projection layer is presented directly (see `ProjectionLayer`_).
+(``QuadLayer`` / ``CylinderLayer`` / ``EquirectLayer``), not both. Texture layers are composited
+natively by the XR runtime (or by Televiz's own compositor as the fallback and in window /
+offscreen modes), while a projection layer is presented directly (see `ProjectionLayer`_).
 
 All symbols are imported from the top-level module::
 
@@ -218,8 +219,8 @@ A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
    * - ``native_composition``
      - ``True``
      - In XR, submit as a native ``XrCompositionLayerQuad``. ``False`` composites through
-       Televiz — needed to z-compose with a ``ProjectionLayer``. See
-       `Native OpenXR composition layers`_.
+       Televiz's shared render target, where 3D-placed quads depth-test against each other.
+       See `Native OpenXR composition layers`_.
    * - ``alpha_blend``
      - ``False``
      - Honor the texture's alpha channel (translucent content). See
@@ -268,8 +269,8 @@ composition from the layer geometry — lower bandwidth, sharper reprojection.
      - Native
    * - ``QuadLayer``
      - ``XrCompositionLayerQuad``
-     - Default. ``native_composition = False`` composites through Televiz instead — needed to
-       z-compose with a ``ProjectionLayer``. Window / offscreen always composite.
+     - Default. ``native_composition = False`` composites through Televiz instead (quads then
+       depth-test against each other). Window / offscreen always composite.
    * - ``CylinderLayer``
      - ``XrCompositionLayerCylinderKHR``
      - Always (native-only).
