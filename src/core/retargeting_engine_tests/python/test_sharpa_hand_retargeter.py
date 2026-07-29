@@ -43,7 +43,7 @@ _requires_pinocchio = pytest.mark.skipif(
     not _HAS_PINOCCHIO,
     reason=(
         "requires robotic_grounding (pip install 'isaacteleop[grounding]' + "
-        "scripts/setup_v2d_src.sh, see src/python/README.md)"
+        "scripts/setup_v2d_src.sh, see references/retargeting/sharpa.rst)"
     ),
 )
 

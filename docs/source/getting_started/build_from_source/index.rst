@@ -369,15 +369,13 @@ What this path does and how it differs from the classic flow:
 
 .. admonition:: Editable installs and iterating on pure-Python subpackages
 
-   An editable install (``pip install -e .``) does **not** recompile on import, so
-   it is fast and works offline. The pure-Python subpackages (e.g.
-   ``isaacteleop.retargeters``) resolve straight to the authored sources under
-   ``src/python/isaacteleop/``, so editing them **takes effect live** — a fresh
-   interpreter picks the change up with no re-stage and no re-install.
+   An editable install (``pip install -e .``) never recompiles on import. Pure-Python
+   subpackages resolve straight to ``src/python/isaacteleop/``, so edits **take effect
+   live** — a fresh interpreter is enough.
 
-   The compiled extensions are the exception: ``.so``/``.pyd`` files still come
-   from the CMake build tree, so changing C++ needs a ``cmake --build`` (or a
-   re-run of ``pip install -e .``) before the new binary is imported.
+   Compiled extensions are the exception: ``.so``/``.pyd`` still come from the CMake
+   build tree, so C++ changes need a ``cmake --build`` (or a re-run of
+   ``pip install -e .``) first.
 
 See :doc:`/references/build` for the full build-system reference.
 

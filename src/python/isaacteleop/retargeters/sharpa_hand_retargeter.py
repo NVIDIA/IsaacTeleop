@@ -15,7 +15,8 @@ corrections, and Pinocchio/Pink configuration all live in
 `robotic_grounding`; this module deliberately contains no IK math.
 
 Requires `isaacteleop[grounding]` and a separately-installed
-`robotic_grounding` wheel. See src/retargeters/README.md.
+`robotic_grounding` wheel. For the install steps see the Sharpa retargeter
+guide in the docs: references/retargeting/sharpa.rst.
 """
 
 import logging

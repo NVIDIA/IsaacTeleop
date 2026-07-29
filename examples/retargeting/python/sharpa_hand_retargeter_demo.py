@@ -40,7 +40,7 @@ def _default_mjcf(name: str) -> str:
     """Resolve a Sharpa MJCF shipped inside the robotic_grounding wheel.
 
     The `[grounding]` extra requires `robotic_grounding` to be installed
-    (see src/python/README.md). If the user invokes this demo without
+    (see references/retargeting/sharpa.rst). If the user invokes this demo without
     it, the import of SharpaHandRetargeter above already raised a clear
     error long before this function is called.
     """
