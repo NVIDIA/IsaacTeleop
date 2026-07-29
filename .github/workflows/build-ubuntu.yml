@@ -633,7 +633,7 @@ jobs:
     strategy:
       fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
-        python_version: ['3.10', '3.12']
+        python_version: ['3.12']
         arch: ['x64', 'arm64']
 
     steps:
@@ -665,13 +665,17 @@ jobs:
       with:
         github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
 
+    # Each ROS distro is tied to its own system Python, so the distro follows
+    # from the matrix entry: Jazzy is 3.12. Humble would be 3.10, which is below
+    # the supported floor.
     - name: Set ROS Distro
       id: ros-distro
       run: |
-        if [ "${{ matrix.python_version }}" = "3.10" ]; then
-          echo "ROS_DISTRO=humble" >> $GITHUB_ENV
-        elif [ "${{ matrix.python_version }}" = "3.12" ]; then
+        if [ "${{ matrix.python_version }}" = "3.12" ]; then
           echo "ROS_DISTRO=jazzy" >> $GITHUB_ENV
+        else
+          echo "::error::No ROS distro mapped to Python ${{ matrix.python_version }}"
+          exit 1
         fi
 
     - name: Setup CloudXR SDK

@@ -4,20 +4,12 @@
 
 """Constants and enum values shared by the Teleop ROS 2 node."""
 
-from enum import Enum
+from enum import StrEnum
 
 from isaacteleop.retargeting_engine.tensor_types.indices import (
     BodyJointIndex,
     HandJointIndex,
 )
-
-try:
-    from enum import StrEnum
-except ImportError:  # pragma: no cover - Python 3.10 compatibility for ROS Humble.
-
-    class StrEnum(str, Enum):
-        def __str__(self) -> str:
-            return self.value
 
 
 class HandRetargeter(StrEnum):

@@ -2,9 +2,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# Build for Jazzy: --build-arg ROS_DISTRO=jazzy --build-arg PYTHON_VERSION=3.12
-ARG ROS_DISTRO=humble
-ARG PYTHON_VERSION=3.10
+# Defaults target ROS 2 Jazzy, whose system Python matches the wheel's floor.
+# ROS_DISTRO and PYTHON_VERSION must be overridden together: rclpy is built
+# against the distro's own interpreter.
+ARG ROS_DISTRO=jazzy
+ARG PYTHON_VERSION=3.12
 
 # -----------------------------------------------------------------------------
 # Base: common runtime deps + uv + Python (shared by builder and runtime)

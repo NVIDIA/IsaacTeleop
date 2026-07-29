@@ -80,17 +80,20 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 
 From the repo root.
 
-**Humble (default):**
+**Jazzy (default):**
 ```bash
 docker build -f examples/teleop_ros2/Dockerfile -t teleop_ros2_ref .
 ```
 
-**Jazzy:**
+ROS 2 Humble is no longer supported: it ships Python 3.10, which is below the
+`isaacteleop` wheel's minimum of 3.11. Another distro needs `ROS_DISTRO` and
+`PYTHON_VERSION` overridden together, and its interpreter must be 3.11 or newer:
+
 ```bash
-docker build -f examples/teleop_ros2/Dockerfile --build-arg ROS_DISTRO=jazzy --build-arg PYTHON_VERSION=3.12 -t teleop_ros2_ref:jazzy .
+docker build -f examples/teleop_ros2/Dockerfile --build-arg ROS_DISTRO=<distro> --build-arg PYTHON_VERSION=<py> -t teleop_ros2_ref:<distro> .
 ```
 
-You can tag by distro (e.g. `teleop_ros2_ref:humble`, `teleop_ros2_ref:jazzy`) to build and run both side by side.
+You can tag by distro (e.g. `teleop_ros2_ref:jazzy`) to build and run several side by side.
 
 Incremental rebuilds use Docker BuildKit cache. Ensure BuildKit is enabled (default in Docker 23+), or run with `DOCKER_BUILDKIT=1 docker build ...`.
 
