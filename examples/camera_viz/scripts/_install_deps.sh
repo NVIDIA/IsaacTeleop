@@ -11,7 +11,7 @@
 #   --sender-only  sender path only. No isaacteleop, no vulkan deps.
 #
 # Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --no-rtp,
-#        --with-zed, --zed-sdk.
+#        --with-argus, --with-zed, --zed-sdk.
 
 set -euo pipefail
 
@@ -33,6 +33,7 @@ WHEEL=
 WITH_V4L2=true
 WITH_OAKD=true
 WITH_RTP=true
+WITH_ARGUS=false
 WITH_ZED=false
 ZED_SDK_DIR=/usr/local/zed
 # Jetson-specific provisioning: apt-install cuda-nvrtc and create the
@@ -51,6 +52,7 @@ while (( $# )); do
         --no-v4l2)      WITH_V4L2=false; shift;;
         --no-oakd)      WITH_OAKD=false; shift;;
         --no-rtp)       WITH_RTP=false; shift;;
+        --with-argus)   WITH_ARGUS=true; shift;;
         --with-zed)     WITH_ZED=true; shift;;
         --zed-sdk)      ZED_SDK_DIR=$2; shift 2;;
         *) echo "_install_deps.sh: unknown arg: $1" >&2; exit 1;;
@@ -428,6 +430,19 @@ if $WITH_RTP; then
         fi
         deactivate
     fi
+fi
+
+# Native Argus camera source. Jetson-only and opt-in; failures are non-fatal
+# because some Jetson images may still lack matching libargus/CUDA headers.
+ARGUS_DIR="$CAMERA_VIZ_DIR/argus"
+if $WITH_ARGUS && [[ -d "$ARGUS_DIR" && -d /usr/src/jetson_multimedia_api/argus ]]; then
+    echo "==> building native Argus source"
+    # shellcheck disable=SC1091
+    source "$VENV_DIR/bin/activate"
+    if ! "$ARGUS_DIR/build.sh"; then
+        echo "_install_deps.sh: Argus source build failed - type: argus will be unavailable" >&2
+    fi
+    deactivate
 fi
 
 # Smoke imports. ``gi`` is in the list under RTP to confirm PyGObject
