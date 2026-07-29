@@ -87,24 +87,26 @@ public:
         // world IPDs and camera baselines are 50–80 mm.
         float stereo_baseline_mm = 0.0f;
 
-        // In kXr, submit this quad as a native OpenXR quad layer
-        // (XrCompositionLayerQuad) — the DEFAULT: the runtime places +
-        // samples the quad directly, which enables its quad fast path
-        // (and, for frames where every visible layer is native,
-        // client-reconstructed streaming — the shared projection layer is
-        // dropped). Stereo emits one quad per eye via eyeVisibility.
-        // Ignored outside kXr (window/offscreen always use the compositor
-        // draw path).
+        // WHO composites this quad in kXr. true (the DEFAULT): the OpenXR
+        // runtime — the quad is submitted as an XrCompositionLayerQuad and
+        // the runtime places + samples it directly, enabling its layer
+        // fast path (and, for frames where every visible layer is
+        // runtime-composited, client-reconstructed streaming — the shared
+        // projection layer is dropped). Stereo emits one quad per eye via
+        // eyeVisibility. Ignored outside kXr (window/offscreen are always
+        // composited by Televiz).
         //
-        // Set to false to fall back to compositing into the shared render
-        // target instead, where 3D-placed quads depth-test against each
-        // other — a native quad carries NO depth (OpenXR quad layers have
-        // none), so it's a flat billboard ordered by submission. Also the
-        // escape hatch for runtimes that mishandle native quad layers.
+        // false: Televiz's built-in compositor draws the quad into the
+        // shared render target, where 3D-placed quads depth-test against
+        // each other — a runtime-composited quad carries NO depth (OpenXR
+        // quad layers have none), so it's a flat billboard ordered by
+        // submission. Also the escape hatch for runtimes that mishandle
+        // quad layers. QuadLayer is the only shape with this choice:
+        // CylinderLayer / EquirectLayer are runtime-composited always.
         // ``generate_mipmaps`` only applies on the compositor path (the
         // runtime samples native quads). Requires ``placement`` at record
         // time either way, same as any kXr quad.
-        bool native_composition = true;
+        bool openxr_composition = true;
 
         // Composite honoring the texture's alpha channel. Native path:
         // sets XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT on the
@@ -146,12 +148,12 @@ public:
                 uint32_t in_flight_slot) override;
 
     // Native OpenXR quad path. is_native_layer() is true only when
-    // native_composition is on (the default) AND this layer is in a kXr
+    // openxr_composition is on (the default) AND this layer is in a kXr
     // session (so window/offscreen keep using record()).
     // acquire_native_layer() promotes the mailbox slot (like record()'s
     // consumer side) and returns the per-eye source images + placement for
     // the backend to blit into its quad swapchain. See
-    // Config::native_composition.
+    // Config::openxr_composition.
     bool is_native_layer() const noexcept override;
     std::optional<NativeLayerView> acquire_native_layer(uint32_t in_flight_slot) override;
 

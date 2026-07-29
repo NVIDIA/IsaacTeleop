@@ -489,7 +489,7 @@ TEST_CASE("QuadLayer fast producer: render samples only the latest publish", "[g
     CHECK(sample.a == expected.a);
 }
 
-TEST_CASE("QuadLayer native_composition falls back to the compositor outside kXr", "[gpu][quad_layer][native]")
+TEST_CASE("QuadLayer openxr_composition falls back to the compositor outside kXr", "[gpu][quad_layer][native]")
 {
     // The native OpenXR quad path only engages in a kXr session (needs a
     // live runtime, validated manually against CloudXR). In offscreen the
@@ -515,7 +515,7 @@ TEST_CASE("QuadLayer native_composition falls back to the compositor outside kXr
     QuadLayer::Config layer_cfg;
     layer_cfg.name = "native_fallback";
     layer_cfg.resolution = { kSide, kSide };
-    layer_cfg.native_composition = true; // ignored outside kXr
+    layer_cfg.openxr_composition = true; // ignored outside kXr
     // Placement is provided (a kXr native quad requires it); offscreen
     // ignores it and draws fullscreen.
     QuadLayer::Config::Placement pl;

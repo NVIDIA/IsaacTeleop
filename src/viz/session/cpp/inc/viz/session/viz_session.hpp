@@ -113,7 +113,7 @@ public:
     // CylinderLayer / EquirectLayer), never both. The ProjectionLayer is
     // direct-present (copied straight to the swapchain), while texture
     // layers submit as native XR composition layers by default (kXr,
-    // native_composition = true) or draw into the shared render target
+    // openxr_composition = true) or draw into the shared render target
     // (fallback / window / offscreen) — neither coexists with the direct
     // path yet. Violations throw std::invalid_argument.
     template <typename L, typename... Args>

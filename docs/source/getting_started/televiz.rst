@@ -216,11 +216,12 @@ A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
    * - ``generate_mipmaps``
      - ``True``
      - Allocate + regenerate a capped mip chain each frame; sampler uses trilinear filtering.
-   * - ``native_composition``
+   * - ``openxr_composition``
      - ``True``
-     - In XR, submit as a native ``XrCompositionLayerQuad``. ``False`` composites through
-       Televiz's shared render target, where 3D-placed quads depth-test against each other.
-       See `Native OpenXR composition layers`_.
+     - Who composites the quad in XR: ``True`` = the OpenXR runtime (submitted as an
+       ``XrCompositionLayerQuad``), ``False`` = Televiz's built-in compositor (shared render
+       target, where 3D-placed quads depth-test against each other). See
+       `Native OpenXR composition layers`_.
    * - ``alpha_blend``
      - ``False``
      - Honor the texture's alpha channel (translucent content). Native path only; ignored on
@@ -269,8 +270,9 @@ composition from the layer geometry — lower bandwidth, sharper reprojection.
      - Native
    * - ``QuadLayer``
      - ``XrCompositionLayerQuad``
-     - Default. ``native_composition = False`` composites through Televiz instead (quads then
-       depth-test against each other). Window / offscreen always composite.
+     - Default. ``openxr_composition = False`` hands the quad to Televiz's compositor instead
+       (quads then depth-test against each other). Window / offscreen are always
+       Televiz-composited.
    * - ``CylinderLayer``
      - ``XrCompositionLayerCylinderKHR``
      - Always (native-only).

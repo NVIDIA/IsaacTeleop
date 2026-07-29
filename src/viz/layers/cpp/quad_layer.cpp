@@ -306,7 +306,7 @@ bool QuadLayer::native_active() const noexcept
     // window/offscreen always use the record() draw path. A detached layer
     // (no session) is not native either, so standalone construction/tests
     // keep the draw path.
-    return config_.native_composition && session() != nullptr && session()->is_xr_mode();
+    return config_.openxr_composition && session() != nullptr && session()->is_xr_mode();
 }
 
 bool QuadLayer::is_native_layer() const noexcept

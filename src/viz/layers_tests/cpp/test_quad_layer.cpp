@@ -63,12 +63,12 @@ TEST_CASE("QuadLayer ctor rejects null render pass", "[unit][quad_layer]")
     CHECK_THROWS_AS(QuadLayer(ctx, VK_NULL_HANDLE, cfg), std::invalid_argument);
 }
 
-TEST_CASE("QuadLayer::Config native_composition defaults ON with a compositor opt-out", "[unit][quad_layer][native]")
+TEST_CASE("QuadLayer::Config openxr_composition defaults ON with a compositor opt-out", "[unit][quad_layer][native]")
 {
     QuadLayer::Config cfg;
-    CHECK(cfg.native_composition);
-    cfg.native_composition = false;
-    CHECK_FALSE(cfg.native_composition);
+    CHECK(cfg.openxr_composition);
+    cfg.openxr_composition = false;
+    CHECK_FALSE(cfg.openxr_composition);
 }
 
 // A native-quad layer only goes native inside a kXr session; a detached
@@ -87,7 +87,7 @@ TEST_CASE("QuadLayer native-quad gate + acquire preconditions", "[gpu][quad_laye
 
     QuadLayer::Config cfg;
     cfg.resolution = { 64, 64 };
-    cfg.native_composition = true;
+    cfg.openxr_composition = true;
     QuadLayer::Config::Placement pl;
     pl.pose = viz::Pose3D{};
     pl.size_meters = glm::vec2(1.0f, 1.0f);
@@ -117,7 +117,7 @@ TEST_CASE("QuadLayer native-quad gate + acquire preconditions", "[gpu][quad_laye
     // once a frame is published without a placement, it's a misconfiguration.
     QuadLayer::Config no_placement;
     no_placement.resolution = { 64, 64 };
-    no_placement.native_composition = true;
+    no_placement.openxr_composition = true;
     QuadLayer layer_np(ctx, target->render_pass(), no_placement);
     CHECK_FALSE(layer_np.acquire_native_layer(0).has_value()); // lenient pre-publish
 

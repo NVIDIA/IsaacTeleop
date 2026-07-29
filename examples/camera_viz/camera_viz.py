@@ -41,6 +41,17 @@ from sources import (
     set_verbose,
 )
 
+# camera_viz tracks the in-repo isaacteleop; a PyPI wheel that predates
+# this example lacks the CloudXR launcher helpers and the shaped-layer /
+# compositor-choice APIs. Detect once and either degrade (launcher) or
+# fail with the remedy (layer APIs) instead of stack-tracing.
+_HAS_LAUNCHER_HELPERS = hasattr(CloudXRLauncher, "add_launcher_arguments")
+_UPGRADE_HINT = (
+    "your installed isaacteleop is too old for this camera_viz — install the "
+    "matching wheel (./camera_viz.sh setup --wheel <path-to-built-wheel>) or "
+    "point PYTHONPATH at an IsaacTeleop build's python_package/."
+)
+
 
 @dataclass
 class SourceEntry:
@@ -52,15 +63,17 @@ class SourceEntry:
     stereo_baseline_mm: float = 0.0
     # display.placements.<name>.shape: quad | cylinder | equirect.
     shape: str = "quad"
-    # Quads only: native XrCompositionLayerQuad (default) vs the built-in
-    # compositor (display.placements.<name>.native: false).
-    native: bool = True
+    # Who composites the layer (display.placements.<name>.compositor):
+    # "openxr" (default — the OpenXR runtime) or "televiz" (built-in
+    # compositor; quads only).
+    compositor: str = "openxr"
     # Cylinder shape parameters (display.placements.<name>).
     cylinder_radius_m: float = 2.0
     cylinder_angle_deg: float = 90.0
 
 
 _VALID_SHAPES = ("quad", "cylinder", "equirect")
+_VALID_COMPOSITORS = ("openxr", "televiz")
 
 # Every key the placements.<name> block understands (lock-mode strategy
 # knobs + surface-shape keys). Unknown keys warn instead of silently
@@ -79,7 +92,7 @@ _KNOWN_PLACEMENT_KEYS = frozenset(
         "size",
         "stereo_baseline_mm",
         "shape",
-        "native",
+        "compositor",
         "cylinder_radius_m",
         "cylinder_angle_deg",
     }
@@ -104,9 +117,9 @@ def _warn_unknown_placement_keys(cam_name: str, pspec: dict) -> None:
 
 def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, float]:
     """Per-camera surface config from ``display.placements.<name>``:
-    ``shape`` (quad | cylinder | equirect, default quad), ``native``
-    (quads only, default true), ``cylinder_radius_m`` / ``cylinder_angle_deg``
-    (cylinder only)."""
+    ``shape`` (quad | cylinder | equirect, default quad), ``compositor``
+    (openxr — the default — or televiz; quads only), ``cylinder_radius_m``
+    / ``cylinder_angle_deg`` (cylinder only)."""
     pspec = placements_cfg.get(cam_name) or {}
     _warn_unknown_placement_keys(cam_name, pspec)
     shape = str(pspec.get("shape", "quad")).lower()
@@ -115,10 +128,21 @@ def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, f
             f"camera_viz: placements.{cam_name}.shape must be one of "
             f"{'|'.join(_VALID_SHAPES)}, got {shape!r}"
         )
-    native = bool(pspec.get("native", True))
+    compositor = str(pspec.get("compositor", "openxr")).lower()
+    if compositor not in _VALID_COMPOSITORS:
+        raise ValueError(
+            f"camera_viz: placements.{cam_name}.compositor must be "
+            f"{'|'.join(_VALID_COMPOSITORS)}, got {compositor!r}"
+        )
+    if compositor == "televiz" and shape != "quad":
+        raise ValueError(
+            f"camera_viz: placements.{cam_name}: compositor: televiz only "
+            f"applies to shape: quad — {shape} layers are composited by the "
+            "OpenXR runtime always."
+        )
     radius_m = float(pspec.get("cylinder_radius_m", 2.0))
     angle_deg = float(pspec.get("cylinder_angle_deg", 90.0))
-    return shape, native, radius_m, angle_deg
+    return shape, compositor, radius_m, angle_deg
 
 
 def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:
@@ -187,7 +211,7 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
             placements_cfg.get(cam["name"]), first.width, first.height, is_xr
         )
         stereo, baseline_mm = _stereo_for(cam, placements_cfg)
-        shape, native, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
+        shape, compositor, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
         for source in cam_sources:
             entries.append(
                 SourceEntry(
@@ -196,7 +220,7 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                     stereo=stereo,
                     stereo_baseline_mm=baseline_mm,
                     shape=shape,
-                    native=native,
+                    compositor=compositor,
                     cylinder_radius_m=radius_m,
                     cylinder_angle_deg=angle_deg,
                 )
@@ -265,7 +289,7 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 gpu_id=int(rtp.get("gpu_id", 0)),
             )
 
-        shape, native, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
+        shape, compositor, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
         entries.append(
             SourceEntry(
                 source=source,
@@ -273,7 +297,7 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 stereo=stereo,
                 stereo_baseline_mm=baseline_mm,
                 shape=shape,
-                native=native,
+                compositor=compositor,
                 cylinder_radius_m=radius_m,
                 cylinder_angle_deg=angle_deg,
             )
@@ -310,14 +334,14 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry):
     """Register one layer for ``entry`` per its ``shape`` (from
     ``display.placements.<name>`` in the YAML).
 
-    quad     → QuadLayer (native XrCompositionLayerQuad by default;
-               ``native: false`` opts back into the compositor); the
-               placement strategy positions it per frame.
-    cylinder → native CylinderLayer: the feed wrapped on an arc facing the
-               user (``cylinder_radius_m`` / ``cylinder_angle_deg``, aspect
-               from the source).
-    equirect → native EquirectLayer: full 360x180 sphere (the source is
-               expected to be an equirect panorama).
+    quad     → QuadLayer, composited by the OpenXR runtime by default
+               (``compositor: televiz`` opts into the built-in compositor);
+               the placement strategy positions it per frame.
+    cylinder → CylinderLayer: the feed wrapped on an arc facing the user
+               (``cylinder_radius_m`` / ``cylinder_angle_deg``, aspect from
+               the source). Runtime-composited always.
+    equirect → EquirectLayer: full 360x180 sphere (the source is expected
+               to be an equirect panorama). Runtime-composited always.
     """
     spec = entry.source.spec
     if entry.shape == "cylinder":
@@ -349,10 +373,20 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry):
     if entry.stereo:
         layer_cfg.stereo = True
         layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
-    # Native OpenXR quad path is the default (kXr only; window mode always
-    # composites). Requires a placement, which the placement strategy
-    # applies below.
-    layer_cfg.native_composition = entry.native
+    # OpenXR-runtime composition is the default (kXr only; window mode is
+    # always composited by Televiz). Requires a placement, which the
+    # placement strategy applies below.
+    want_openxr = entry.compositor == "openxr"
+    if hasattr(layer_cfg, "openxr_composition"):
+        layer_cfg.openxr_composition = want_openxr
+    elif want_openxr:
+        # Old isaacteleop wheel: quads are Televiz-composited only.
+        print(
+            f"camera_viz: warning: {_UPGRADE_HINT} Falling back to "
+            "compositor: televiz for quads.",
+            file=sys.stderr,
+            flush=True,
+        )
     return session.add_quad_layer(layer_cfg)
 
 
@@ -366,7 +400,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Override display.mode from the config "
         "(default: the config's value, or xr when the config omits it).",
     )
-    CloudXRLauncher.add_launcher_arguments(parser)
+    if _HAS_LAUNCHER_HELPERS:
+        CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv)
 
     with open(args.config) as f:
@@ -386,16 +421,24 @@ def main(argv: Optional[list[str]] = None) -> int:
         raise ValueError(f"camera_viz: source must be local|rtp, got {source_mode!r}")
 
     effective_mode = (args.mode or cfg.get("display", {}).get("mode", "xr")).lower()
-    # Shaped layers (display.placements.<name>.shape) are native-only —
-    # fail fast, before launching the runtime, when the mode can't host them.
+    # Shaped layers (display.placements.<name>.shape) are composited by
+    # the OpenXR runtime, so they need XR mode and a current isaacteleop —
+    # fail fast, before launching the runtime, when either is missing.
     placements_cfg = cfg.get("display", {}).get("placements", {})
     for cam in _enabled_cameras(cfg):
         shape, _, _, _ = _shape_for(cam["name"], placements_cfg)
-        if shape != "quad" and effective_mode != "xr":
+        if shape == "quad":
+            continue
+        if effective_mode != "xr":
             raise SystemExit(
                 f"camera_viz: placements.{cam['name']}.shape: {shape} is "
-                "native-only (XrCompositionLayer*KHR) and requires XR mode; "
+                "composited by the OpenXR runtime and requires XR mode; "
                 "use --mode xr or shape: quad in window mode."
+            )
+        if not hasattr(viz, "CylinderLayerConfig"):
+            raise SystemExit(
+                f"camera_viz: placements.{cam['name']}.shape: {shape} needs "
+                f"cylinder/equirect layer support — {_UPGRADE_HINT}"
             )
 
     # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
@@ -410,9 +453,17 @@ def main(argv: Optional[list[str]] = None) -> int:
     # under a live xrWaitFrame — the same hazard the skip-destroy
     # mitigation exists for. The launcher registers an atexit stop, which
     # fires once the stuck (non-daemon) thread finally exits.
+    if effective_mode == "xr" and not _HAS_LAUNCHER_HELPERS:
+        print(
+            f"camera_viz: warning: {_UPGRADE_HINT} Continuing WITHOUT "
+            "launching the CloudXR runtime — start it yourself if one "
+            "isn't already running.",
+            file=sys.stderr,
+            flush=True,
+        )
     launch_ctx = (
         CloudXRLauncher.launch_context(args)
-        if effective_mode == "xr"
+        if effective_mode == "xr" and _HAS_LAUNCHER_HELPERS
         else contextlib.nullcontext(None)
     )
     launch_ctx.__enter__()

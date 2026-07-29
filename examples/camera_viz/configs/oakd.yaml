@@ -48,7 +48,8 @@ display:
       lock_mode: lazy
       distance: 1.0
       # shape: cylinder           # quad (default) | cylinder | equirect
-      # native: true          # quads only: native XrCompositionLayerQuad
-      #                       # (default) vs the built-in compositor
+      # compositor: openxr    # openxr (default: the OpenXR runtime
+      #                       # composites the layer) | televiz (built-in
+      #                       # compositor; quad shape only)
       # cylinder_radius_m: 1.0    # cylinder only
       # cylinder_angle_deg: 45    # cylinder only

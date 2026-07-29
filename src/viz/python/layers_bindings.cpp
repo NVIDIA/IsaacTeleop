@@ -124,7 +124,7 @@ void bind_layers(py::module_& m)
                        "applied along the placement's local +x axis. 0 → both eyes see the "
                        "same world quad. Ignored unless stereo + kXr. mm-scale chosen because "
                        "typical IPDs / stereo camera baselines are 50–80 mm.")
-        .def_readwrite("native_composition", &viz::QuadLayer::Config::native_composition,
+        .def_readwrite("openxr_composition", &viz::QuadLayer::Config::openxr_composition,
                        "In kXr, submit as a native OpenXR quad layer (XrCompositionLayerQuad) — "
                        "the DEFAULT: the runtime places + samples the quad directly, enabling "
                        "its quad fast path; a frame whose visible layers are all native drops "

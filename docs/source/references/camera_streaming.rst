@@ -201,9 +201,10 @@ Each camera renders on a flat plane by default. Per-camera keys under
    * - ``shape: equirect``
      - Full 360°×180° sphere, for equirectangular panorama / VR-video sources. Lock modes
        don't apply.
-   * - ``native: false``
-     - Quads only: composite server-side through Televiz instead of submitting a native
-       OpenXR layer.
+   * - ``compositor: televiz``
+     - Quads only: Televiz's built-in compositor draws the quad server-side instead of
+       handing it to the OpenXR runtime (the ``openxr`` default). Cylinder / equirect are
+       runtime-composited always.
 
 ``cylinder`` and ``equirect`` require XR mode — the viewer exits with an error in window mode.
 Stereo sources render per-eye textures on the same surface; ``stereo_baseline_mm`` adds a
@@ -303,7 +304,7 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
          # size: [w_m, h_m]
          # stereo_baseline_mm: 0
          # shape: quad           # quad | cylinder | equirect (cylinder/equirect are XR-only)
-         # native: true          # quads: native OpenXR layer (default) vs compositor
+         # compositor: openxr    # openxr (default) | televiz — quads only
          # cylinder_radius_m: 2.0
          # cylinder_angle_deg: 90
 
