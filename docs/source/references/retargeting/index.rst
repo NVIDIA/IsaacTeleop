@@ -152,7 +152,7 @@ Available Retargeters
    ``DexHandRetargeterConfig`` for left and right hands, then instantiate with
    ``left_config``, ``right_config``, and ``target_joint_names`` (combined left + right joint
    names). See the `retargeters README
-   <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md>`_
+   <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/README.md>`_
    for a full code example.
 
    **Coordinate frame:** The ``handtracking_to_baselink_frame_transform`` parameter is a 3x3
@@ -218,7 +218,7 @@ Available Retargeters
       ``TriHandMotionControllerRetargeter``, connect and compute), see
       ``g1_trihand_retargeting_example.py`` and ``dex_bimanual_example.py`` in the
       ``examples/teleop/python`` directory, or the `retargeters README
-      <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md>`_.
+      <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/README.md>`_.
 
 .. dropdown:: LocomotionRootCmdRetargeter
 
@@ -337,7 +337,7 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
    ``IDeviceIOSource`` subclass for custom input devices.
 
-See the `retargeters README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md>`_
+See the `retargeters README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/README.md>`_
 and :doc:`Contributing Guide <../../getting_started/contributing>` for details.
 
 .. toctree::

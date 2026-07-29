@@ -18,7 +18,7 @@ import sys
 import types
 from pathlib import Path
 
-_RIG_PY = Path(__file__).resolve().parents[2] / "rig" / "python"
+_RIG_PY = Path(__file__).resolve().parents[3] / "python" / "isaacteleop" / "rig"
 
 RIG_TEST_PKG = "rig_py_test_ns"
 

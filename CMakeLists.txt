@@ -145,17 +145,8 @@ add_subdirectory(deps/cloudxr/openxr_extensions)
 # Build core modules (OXR and DEVICEIO)
 add_subdirectory(src/core)
 
-# Build retargeters (pure Python, sibling of src/core)
-add_subdirectory(src/retargeters)
-
-# Build haptic device adapters (pure Python, sibling of src/core).
-# Vendor-specific pybind extensions (e.g. src/plugins/manus/python) write
-# their .so files into the wheel-staging tree at
-# python_package/<cfg>/isaacteleop/haptic_devices/ alongside the Python adapter
-# modules so adapters can lazy-import them via `from . import _<vendor>_haptic`.
-# (cmake-install of those extensions goes to ${CMAKE_INSTALL_LIBDIR} per the
-# vendor plugin's own install rules; verify wheel layout matches.)
-add_subdirectory(src/haptic_devices)
+# Stage the isaacteleop Python tree. Must follow src/core (defines BUILD_PYTHON_BINDINGS).
+add_subdirectory(src/python)
 
 # Build Televiz visualization module (sibling of src/core).
 # src/viz/CMakeLists.txt orchestrates its own sub-modules and tests.

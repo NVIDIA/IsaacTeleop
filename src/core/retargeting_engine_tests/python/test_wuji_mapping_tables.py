@@ -24,7 +24,9 @@ from isaacteleop.retargeting_engine.tensor_types import HandJointIndex
 
 _SRC = Path(__file__).resolve().parents[3]
 _PLUGIN_CPP = _SRC / "plugins" / "wuji_glove" / "wuji_glove_plugin.cpp"
-_RETARGETER_PY = _SRC / "retargeters" / "wuji_hand_retargeter.py"
+_RETARGETER_PY = (
+    _SRC / "python" / "isaacteleop" / "retargeters" / "wuji_hand_retargeter.py"
+)
 
 
 def _parse_cpp_table() -> list:

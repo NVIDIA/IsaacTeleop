@@ -141,9 +141,9 @@ Targeted Robotics Embodiments
 -----------------------------
 
 - Retarget the standardized device outputs to different embodiments.
-- `Reference retargeter implementations <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/retargeters/>`_,
+- `Reference retargeter implementations <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/python/isaacteleop/retargeters/>`_,
   including popular embodiments such as Unitree G1.
-- `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python>`_ to facilitate
+- `Retargeter tuning UI <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/python/isaacteleop/retargeting_engine_ui>`_ to facilitate
   live retargeter tuning.
 - GR00T-WholeBodyControl SONIC whole-body control on Unitree G1 (Thor backpack); see
   `GR00T-WholeBodyControl: Isaac Teleop Publisher Setup`_ to get started.

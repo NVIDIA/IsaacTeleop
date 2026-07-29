@@ -51,6 +51,13 @@ python_functions = ["test_*"]
 norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]
 
 [tool.mypy]
+# This check's declared scope is src/python/isaacteleop/retargeting_engine (see
+# ../CMakeLists.txt). Now that the engine sits inside the isaacteleop package
+# tree, its `isaacteleop.*` imports resolve to real sibling source rather than
+# to a separately-named copy, so mypy would otherwise report errors in
+# cloudxr/ and teleop_session_manager/ too. Follow those imports for their
+# types, but keep their (pre-existing) errors out of this test.
+follow_imports = "silent"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -69,3 +76,16 @@ pretty = true
 exclude = [
     "test_.*",
 ]
+
+# `IHapticDevice.accepted_type()` is annotated `-> TensorGroupType`, so the
+# `cast()` at haptic_sink.py:67 is dead code. It only became visible once the
+# source move unified module identities: previously the engine was checked as
+# `python.*` while `isaacteleop.haptic_devices` resolved to the staged copy, so
+# the two `TensorGroupType` symbols were distinct types and the cast looked
+# meaningful. Deleting the cast is the real fix, but haptic_sink.py is staged
+# into the Python package, and the commit that moved these files is required to
+# leave the staged tree byte-for-byte identical. Drop this override together
+# with the cast in a follow-up.
+[[tool.mypy.overrides]]
+module = "isaacteleop.retargeting_engine.deviceio_source_nodes.haptic_sink"
+disable_error_code = ["redundant-cast"]
