@@ -4,39 +4,55 @@
 # ==============================================================================
 # isaacteleop pure-Python source
 # ==============================================================================
-#
-# Every authored .py file of the `isaacteleop` distribution lives under
-# src/python/isaacteleop/. This directory is the single producer that stages
-# them into python_package/<config>/isaacteleop/ -- the canonical package
-# layout, consumed by ctest via PYTHONPATH and assembled into both wheels.
-#
-# Build-produced files land in the same tree from their own targets and are
-# NOT owned here: the pybind11 extensions (.so/.pyd, via each module's
-# LIBRARY_OUTPUT_DIRECTORY), the generated .pyi stubs and py.typed marker
-# (src/core/python), and the vendored CloudXR runtime under cloudxr/native/
-# (src/core/cloudxr/python).
-#
-# No vendor plugin currently stages an extension into this tree: the comment at
-# the root CMakeLists.txt describing src/plugins/manus/python doing so is stale
-# (that directory does not exist, and src/plugins/manus/core sets
-# LIBRARY_OUTPUT_DIRECTORY from ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}, which is
-# never set() anywhere and expands empty). If a vendor extension is ever added
-# here, it is build-produced and likewise not owned by this file.
+# Single producer of the authored .py in python_package/<config>/isaacteleop/ --
+# the canonical layout ctest reads via PYTHONPATH and both wheels build from.
+# Build products share that tree but are NOT owned here: pybind11 extensions
+# (each module's LIBRARY_OUTPUT_DIRECTORY), .pyi/py.typed (src/core/python), and
+# cloudxr/native/ (src/core/cloudxr/python).
 
 if(NOT BUILD_PYTHON_BINDINGS)
     return()
 endif()
 
-# CONFIGURE_DEPENDS so adding or removing a .py re-runs CMake. Globbing *.py
-# rather than copying the directory also keeps __pycache__/*.pyc out of the
-# staged tree by construction.
+# CONFIGURE_DEPENDS: adding or removing a .py re-runs configure. Globbing *.py
+# rather than copying the directory keeps __pycache__ out by construction.
 file(GLOB_RECURSE ISAAC_TELEOP_PYTHON_SOURCES
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop/*.py"
 )
 
+# viz/__init__.py does a top-level `from ._viz import ...`, so without _viz it is
+# unimportable -- and packages.find would enumerate it into a BUILD_VIZ=OFF wheel.
+if(NOT BUILD_VIZ)
+    list(FILTER ISAAC_TELEOP_PYTHON_SOURCES EXCLUDE REGEX "^isaacteleop/viz/")
+endif()
+
 set(ISAAC_TELEOP_PYTHON_STAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
+
+# Staging never removes, so a deleted .py would linger and packages.find would ship
+# it in the RELEASED wheel. Prune the authored *.py set only, never a directory:
+# these dirs also hold the .so/.pyi/native runtime, all written before this target
+# runs, so a directory prune would delete live artifacts without a relink.
+# $<CONFIG> cannot be globbed at configure time, so walk the concrete per-config dirs.
+file(GLOB _isaac_teleop_stage_config_dirs LIST_DIRECTORIES true
+    "${CMAKE_BINARY_DIR}/python_package/*")
+foreach(_stage_config_dir IN LISTS _isaac_teleop_stage_config_dirs)
+    if(NOT IS_DIRECTORY "${_stage_config_dir}/isaacteleop")
+        continue()
+    endif()
+    file(GLOB_RECURSE _staged_python_files
+        RELATIVE "${_stage_config_dir}"
+        "${_stage_config_dir}/isaacteleop/*.py"
+    )
+    foreach(_staged_rel_path IN LISTS _staged_python_files)
+        if(NOT _staged_rel_path IN_LIST ISAAC_TELEOP_PYTHON_SOURCES)
+            message(STATUS
+                "[isaacteleop_python] pruning stale staged file: ${_staged_rel_path}")
+            file(REMOVE "${_stage_config_dir}/${_staged_rel_path}")
+        endif()
+    endforeach()
+endforeach()
 
 set(ISAAC_TELEOP_PYTHON_STAGED_FILES "")
 foreach(_rel_path IN LISTS ISAAC_TELEOP_PYTHON_SOURCES)
