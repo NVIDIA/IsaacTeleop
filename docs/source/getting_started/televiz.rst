@@ -248,7 +248,7 @@ Submit and place a frame:
 ``submit(left, right=None, stream=0)`` accepts a ``VizBuffer`` or any
 ``__cuda_array_interface__`` object; the binding converts it and releases the GIL across the copy.
 For a stereo layer both buffers are copied on the same stream and signaled together, so the renderer
-never sees a half-matched pair. Lock-mode placement strategies (``world`` / ``head`` / ``lazy``) are
+never sees a half-matched pair. Lock-mode placement strategies (``world`` / ``head`` / ``lazy`` / ``gimbal``) are
 **application policy** and ship in the sample, not in the module.
 
 .. _native-openxr-composition-layers:

@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""World / head / lazy locked placement strategies."""
+"""World / head / lazy / gimbal locked placement strategies."""
 
 from __future__ import annotations
 
@@ -162,6 +162,41 @@ class HeadLocked(PlacementStrategy):
         )
 
 
+class GimbalLocked(PlacementStrategy):
+    """Translation head-locked, rotation world-locked: the surface follows
+    your position every frame but keeps the yaw captured at first sight —
+    walk and it comes with you, turn your head and you look around it.
+    The "virtual gimbal" mode for wide cylinder feeds."""
+
+    def __init__(self, config: PlacementConfig) -> None:
+        self._config = config
+        self._forward_xz: Optional[Vec3] = None
+        self._yaw = 0.0
+
+    def update(self, head_pos: Vec3, head_orientation: Quat) -> Placement:
+        if self._forward_xz is None:
+            # Capture the world-locked heading once: face where the user
+            # is looking at first update.
+            self._forward_xz = project_forward_xz(head_orientation)
+            probe = _target_position(head_pos, self._forward_xz, self._config)
+            self._yaw = _yaw_to_face(head_pos, probe)
+        position = _target_position(head_pos, self._forward_xz, self._config)
+        orientation = yaw_quat(self._yaw)
+        # Anchor = the head itself (plus offsets, already baked into
+        # ``position``): pull back along the fixed heading.
+        anchor = tuple(
+            position[i] - self._forward_xz[i] * self._config.distance for i in range(3)
+        )
+        return Placement(
+            position,
+            orientation,
+            self._config.size_meters,
+            self._config.distance,
+            anchor,
+            orientation,
+        )
+
+
 class LazyLocked(PlacementStrategy):
     """World-locked, but smoothly re-snaps in front of the user when they
     look away (or drift) past a threshold for ``reposition_delay_s``.
@@ -266,11 +301,14 @@ class LazyLocked(PlacementStrategy):
 def build(lock_mode: str, config: PlacementConfig) -> PlacementStrategy:
     """Factory used by the YAML loader.
 
-    ``"world"`` → WorldLocked, ``"head"`` → HeadLocked, anything else
-    (including ``"lazy"``) → LazyLocked.
+    ``"world"`` → WorldLocked, ``"head"`` → HeadLocked, ``"gimbal"`` →
+    GimbalLocked (translation follows the head, rotation stays
+    world-locked), anything else (including ``"lazy"``) → LazyLocked.
     """
     if lock_mode == "world":
         return WorldLocked(config)
     if lock_mode == "head":
         return HeadLocked(config)
+    if lock_mode == "gimbal":
+        return GimbalLocked(config)
     return LazyLocked(config)

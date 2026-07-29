@@ -134,7 +134,19 @@ def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, f
     return shape, compositor, radius_m, angle_deg
 
 
+_VALID_LOCK_MODES = ("world", "head", "lazy", "gimbal")
+
+
 def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:
+    if spec is not None:
+        # Validate in every display mode — a typo'd lock_mode shouldn't
+        # silently become lazy (XR) or pass unnoticed (window).
+        lock_mode = str(spec.get("lock_mode", "lazy")).lower()
+        if lock_mode not in _VALID_LOCK_MODES:
+            raise ValueError(
+                f"camera_viz: lock_mode must be {'|'.join(_VALID_LOCK_MODES)}, "
+                f"got {lock_mode!r}"
+            )
     if not is_xr or spec is None:
         return None
     cfg_kwargs = {}

@@ -173,6 +173,10 @@ In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` u
      - Follows your head every frame. Head-locked content updates its pose at application
        rate, so it trails fast head motion by roughly a frame — expected for any head-locked
        OpenXR layer; prefer ``lazy`` unless you need a true HUD.
+   * - ``gimbal``
+     - Follows your position but not your rotation: the surface stays pointed where you first
+       looked, walks with you, and turning your head looks around it. The natural mode for
+       wide cylinder feeds (a "virtual gimbal").
    * - ``lazy``
      - World-locked, but re-snaps in front of you when you look away (default).
 
@@ -299,7 +303,7 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
      clear_color: [r, g, b, a]
      placements:
        cam:
-         lock_mode: lazy         # world | head | lazy
+         lock_mode: lazy         # world | head | lazy | gimbal
          distance: 1.5
          # size: [w_m, h_m]
          # stereo_baseline_mm: 0
@@ -344,7 +348,7 @@ Televiz as the compositor at the end of the chain:
    ├── camera_viz.py        — receiver / viewer (drives a Televiz VizSession)
    ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
    ├── pipeline/            — source ABC + threaded runner
-   ├── placements/          — XR lock-mode strategies (world / head / lazy)
+   ├── placements/          — XR lock-mode strategies (world / head / lazy / gimbal)
    ├── sources/             — V4L2 / OAK-D / ZED / video replay / synthetic / rtp_h264
    ├── transports/          — RTP sender + receiver (native + GStreamer)
    ├── codec/               — native NVENC / NVDEC pybind module

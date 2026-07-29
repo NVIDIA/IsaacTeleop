@@ -49,7 +49,7 @@ display:
       stereo_baseline_mm: 50.0
       # Surface the feed is mapped onto (all shapes are per-camera):
       # shape: cylinder           # quad (default) | cylinder | equirect
-      compositor: televiz   # openxr (default: the OpenXR runtime
+      # compositor: openxr    # openxr (default: the OpenXR runtime
       #                       # composites the layer) | televiz (built-in
       #                       # compositor; quad shape only)
       # cylinder_radius_m: 2.0    # cylinder only
