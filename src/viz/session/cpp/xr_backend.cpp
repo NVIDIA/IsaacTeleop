@@ -500,7 +500,7 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     frame_began_ = true;
     frame_renderable_ = false;
     // Reset per-frame composition state. projection_active_ is raised by
-    // record_post_render_pass / record_direct; native quads accumulate in
+    // record_post_render_pass / record_direct; native layers accumulate in
     // record_native_layers. end_frame consumes both.
     projection_active_ = false;
     active_native_layers_.clear();
@@ -1158,9 +1158,10 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage(depth)");
         sw.acquired = false;
     }
-    // Release native-quad swapchains acquired in record_native_layers. Their
-    // XrCompositionLayerQuad references the handle (not the image), so
-    // releasing before xrEndFrame is correct — matching the projection path.
+    // Release native-layer swapchains acquired in record_native_layers.
+    // The built XrCompositionLayer* references the handle (not the image),
+    // so releasing before xrEndFrame is correct — matching the projection
+    // path.
     for (auto& [key, qs] : native_layer_swapchains_)
     {
         (void)key;
@@ -1214,8 +1215,9 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     std::vector<const XrCompositionLayerBaseHeader*> layers;
 
     // Projection layer — only when the shared RT / direct path produced
-    // content this frame. Dropped for quad-only frames so the runtime sees a
-    // quad-only submission (enabling client-reconstructed streaming).
+    // content this frame. Dropped for native-only frames so the runtime
+    // sees a native-only submission (enabling client-reconstructed
+    // streaming).
     std::vector<XrCompositionLayerProjectionView> proj_views;
     XrCompositionLayerProjection projection_layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
     if (projection_active_)

@@ -353,10 +353,10 @@ void VizSession::validate_layer_against_backend_(LayerBase* layer) const
         }
         if (!backend_->supports_native_layer_shape(*shape))
         {
-            throw std::invalid_argument("VizSession: layer '" + layer->name() +
-                                        "' requires an OpenXR composition-layer extension "
-                                        "(XR_KHR_composition_layer_cylinder / _equirect2) the runtime "
-                                        "does not advertise");
+            const char* ext = (*shape == NativeLayerShape::kCylinder) ? "XR_KHR_composition_layer_cylinder" :
+                                                                        "XR_KHR_composition_layer_equirect2";
+            throw std::invalid_argument("VizSession: layer '" + layer->name() + "' requires the " + ext +
+                                        " extension, which the OpenXR runtime does not advertise");
         }
     }
     const uint32_t backend_view_count = backend_->is_xr() ? 2u : 1u;

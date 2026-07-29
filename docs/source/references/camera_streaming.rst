@@ -100,7 +100,7 @@ In XR mode the viewer first brings up the CloudXR runtime (accept the EULA on fi
 pass ``--accept-eula``), then **you should see** the terminal report the session and the source
 coming up::
 
-   camera_viz: source=local, mode=xr, xr=True, shape=quad, 1 layer(s)
+   camera_viz: source=local, mode=xr, xr=True, shapes=quad, 1 layer(s)
    [video] opening...
    [video] connected
    [video] streaming
@@ -302,7 +302,7 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
          distance: 1.5
          # size: [w_m, h_m]
          # stereo_baseline_mm: 0
-         # shape: quad           # quad | cylinder | equirect (native-only shapes)
+         # shape: quad           # quad | cylinder | equirect (cylinder/equirect are XR-only)
          # native: true          # quads: native OpenXR layer (default) vs compositor
          # cylinder_radius_m: 2.0
          # cylinder_angle_deg: 90

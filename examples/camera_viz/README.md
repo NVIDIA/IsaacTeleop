@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
-Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
+Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
 
 ---
 
@@ -121,6 +121,11 @@ display:                      # camera_viz only
       # size: [w_m, h_m]
       # stereo_baseline_mm: 0  # stereo cams: 0 = both eyes share the world quad
                                # (parallax from the frames); ~65 = virtual IPD push
+      # shape: quad            # quad (default) | cylinder | equirect — XR only for
+                               # the curved shapes
+      # native: true           # quads: native OpenXR layer (default) vs compositor
+      # cylinder_radius_m: 2.0 # cylinder: viewing distance to the arc
+      # cylinder_angle_deg: 90 # cylinder: visible arc width
 ```
 
 Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` (plus `port_right` if stereo) and renders as its own plane.

@@ -231,9 +231,9 @@ private:
     bool frame_renderable_ = false; // false on shouldRender=0 / locate failure
     // Set when the shared render pass (record_post_render_pass) or the
     // direct path (record_direct) produced content for the projection
-    // layer this frame. When false at end_frame (every visible layer was a
-    // native quad), the projection layer is dropped so the runtime sees a
-    // quad-only frame and can engage its client-reconstructed path.
+    // layer this frame. When false at end_frame (every visible layer was
+    // native), the projection layer is dropped so the runtime sees a
+    // native-only frame and can engage its client-reconstructed path.
     bool projection_active_ = false;
     // Monotonic counter that drives Frame::backend_token; the contract
     // (display_backend.hpp) requires 0..image_count()-1, which the

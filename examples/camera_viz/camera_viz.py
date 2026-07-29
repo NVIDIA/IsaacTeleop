@@ -62,6 +62,45 @@ class SourceEntry:
 
 _VALID_SHAPES = ("quad", "cylinder", "equirect")
 
+# Every key the placements.<name> block understands (lock-mode strategy
+# knobs + surface-shape keys). Unknown keys warn instead of silently
+# falling back to defaults — a typo'd `cylinder_radius` should not run
+# with a 2 m default and no hint.
+_KNOWN_PLACEMENT_KEYS = frozenset(
+    {
+        "lock_mode",
+        "distance",
+        "offset_x",
+        "offset_y",
+        "look_away_angle_deg",
+        "reposition_distance",
+        "reposition_delay_s",
+        "transition_duration_s",
+        "size",
+        "stereo_baseline_mm",
+        "shape",
+        "native",
+        "cylinder_radius_m",
+        "cylinder_angle_deg",
+    }
+)
+
+
+def _warn_unknown_placement_keys(cam_name: str, pspec: dict) -> None:
+    import difflib
+
+    for key in pspec:
+        if key in _KNOWN_PLACEMENT_KEYS:
+            continue
+        hint = difflib.get_close_matches(key, _KNOWN_PLACEMENT_KEYS, n=1)
+        suggestion = f" (did you mean {hint[0]!r}?)" if hint else ""
+        print(
+            f"camera_viz: warning: placements.{cam_name}: unknown key "
+            f"{key!r}{suggestion} — ignored",
+            file=sys.stderr,
+            flush=True,
+        )
+
 
 def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, float]:
     """Per-camera surface config from ``display.placements.<name>``:
@@ -69,6 +108,7 @@ def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, f
     (quads only, default true), ``cylinder_radius_m`` / ``cylinder_angle_deg``
     (cylinder only)."""
     pspec = placements_cfg.get(cam_name) or {}
+    _warn_unknown_placement_keys(cam_name, pspec)
     shape = str(pspec.get("shape", "quad")).lower()
     if shape not in _VALID_SHAPES:
         raise ValueError(

@@ -470,7 +470,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     }
     else
     {
-        // Native-quad-only frame: no shared render pass, no projection layer.
+        // Native-only frame: no shared render pass, no projection layer.
         // Mark ts1/ts2 for gpu-timing symmetry (no render/post-pass work).
         if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
         {

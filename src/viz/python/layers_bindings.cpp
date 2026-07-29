@@ -135,7 +135,7 @@ void bind_layers(py::module_& m)
                        "(window/offscreen always composite). Stereo emits one quad per eye.")
         .def_readwrite(
             "alpha_blend", &viz::QuadLayer::Config::alpha_blend,
-            "Composite honoring the texture's alpha channel (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by default: opaque content composites fully within the layer bounds (passthrough still shows outside them) and alpha-free layers keep the frame eligible for CloudXR's client-reconstructed streaming, which excludes source-alpha layers. Turn on for translucent content (HUDs, overlays).");
+            "Composite honoring the texture's alpha channel (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by default: opaque content composites fully within the layer bounds (passthrough still shows outside them) and alpha-free layers keep the frame eligible for CloudXR's client-reconstructed streaming, which excludes source-alpha layers. Turn on for translucent content (HUDs, overlays). Native path only; ignored on the compositor path.");
 
     // ── QuadLayer (non-owning; session owns the lifetime) ─────────────
 

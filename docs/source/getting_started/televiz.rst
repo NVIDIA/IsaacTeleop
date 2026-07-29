@@ -223,8 +223,8 @@ A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
        See `Native OpenXR composition layers`_.
    * - ``alpha_blend``
      - ``False``
-     - Honor the texture's alpha channel (translucent content). See
-       `Native OpenXR composition layers`_.
+     - Honor the texture's alpha channel (translucent content). Native path only; ignored on
+       the compositor path. See `Native OpenXR composition layers`_.
 
 Submit and place a frame:
 
@@ -291,7 +291,8 @@ Rules of thumb:
   ``stereo_baseline_mm`` adds a per-eye pose shift on top; it has no effect on an
   infinite-radius equirect sphere.
 
-``CylinderLayerConfig`` — ``name`` / ``resolution`` / ``stereo`` as ``QuadLayerConfig``, plus a
+``CylinderLayerConfig`` — ``name`` / ``resolution`` / ``stereo`` / ``stereo_baseline_mm`` /
+``alpha_blend`` as ``QuadLayerConfig``, plus a
 ``CylinderLayerPlacement``:
 
 .. list-table::
