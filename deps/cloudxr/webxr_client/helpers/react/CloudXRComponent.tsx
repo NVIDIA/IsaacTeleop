@@ -34,6 +34,11 @@
  */
 
 import { MetricsTracker } from '@helpers/Metrics';
+import type {
+  FrameMetricsUpdate,
+  NetworkMetricsUpdate,
+  RenderMetricsUpdate,
+} from '@helpers/metricsUpdates';
 import { getConnectionConfig, ConnectionConfiguration, CloudXRConfig } from '@helpers/utils';
 import { bindGL } from '@helpers/WebGLStateBinding';
 import { clearPendingGLErrors } from '@helpers/WebGlUtils';
@@ -72,11 +77,42 @@ interface CloudXRComponentProps {
   /** Callback fired with the resolved server address after proxy configuration is applied. */
   onServerAddress?: (address: string) => void;
 
-  /** Callback fired with render performance metrics. Receives rolling average of render FPS. */
-  onRenderPerformanceMetrics?: (renderFps: number) => void;
+  /**
+   * Callback fired with render performance metrics ({@link CloudXR.MetricsCadence.PerRender}).
+   * Payloads are partial - only the fields sampled on this tick are present.
+   */
+  onRenderPerformanceMetrics?: (metrics: RenderMetricsUpdate) => void;
 
-  /** Callback fired with streaming performance metrics. Receives rolling averages of streaming FPS and pose-to-render latency (ms). */
-  onStreamingPerformanceMetrics?: (streamingFps: number, poseToRenderMs: number) => void;
+  /**
+   * Callback fired with streaming performance metrics ({@link CloudXR.MetricsCadence.PerFrame}).
+   * Payloads are partial - the render and decode paths each report their own subset.
+   */
+  onStreamingPerformanceMetrics?: (metrics: FrameMetricsUpdate) => void;
+
+  /**
+   * Callback fired with network performance metrics ({@link CloudXR.MetricsCadence.PerNetwork}),
+   * including session quality. Payloads are partial.
+   */
+  onNetworkPerformanceMetrics?: (metrics: NetworkMetricsUpdate) => void;
+
+  /**
+   * Callback fired with batched SDK log entries, in addition to the browser console.
+   * Entries are already mirrored to the console; use this only to route them elsewhere.
+   */
+  onLog?: (entries: CloudXR.LogEntry[]) => void;
+
+  /**
+   * Pre-stream network test. When set, the SDK measures link quality before streaming
+   * starts. Leave undefined to skip the test entirely (the IsaacTeleop default): a teleop
+   * operator connecting to a robot should not be held behind a measurement window.
+   */
+  streamTest?: { durationSeconds: number; mode: 'off' | 'warn' | 'block' };
+
+  /** Callback fired once when the network test's measurement window begins. */
+  onStreamTestStarted?: () => void;
+
+  /** Callback fired when the network test finishes, with its result. */
+  onStreamTestStopped?: (result: CloudXR.StreamTestResult) => void;
 
   /**
    * Settings for the performance metrics reported via onRenderPerformanceMetrics and onStreamingPerformanceMetrics callbacks.
@@ -120,6 +156,11 @@ export default function CloudXRComponent({
   onServerAddress,
   onRenderPerformanceMetrics,
   onStreamingPerformanceMetrics,
+  onNetworkPerformanceMetrics,
+  onLog,
+  streamTest,
+  onStreamTestStarted,
+  onStreamTestStopped,
   metricsSettings = {},
   headless = false,
   trackingFrameAdapter,
@@ -135,6 +176,11 @@ export default function CloudXRComponent({
   // Metrics trackers for averaging performance metrics
   // Use prop values if provided, otherwise use defaults
   const renderFpsTrackerRef = useRef<MetricsTracker>(
+    new MetricsTracker(metricsSettings.renderFpsWindow ?? 100)
+  );
+  // Pose send rate is sampled on the same PerRender cadence as render FPS, so it uses
+  // the same window to keep the two HUD cards directly comparable.
+  const poseSendFpsTrackerRef = useRef<MetricsTracker>(
     new MetricsTracker(metricsSettings.renderFpsWindow ?? 100)
   );
   const streamingFpsTrackerRef = useRef<MetricsTracker>(
@@ -266,10 +312,13 @@ export default function CloudXRComponent({
             mediaPort: config.mediaPort,
             iceServers: iceServers,
             glBinding: glBinding,
+            // Undefined when the network test is off, which is the IsaacTeleop default.
+            streamTest,
+            logLevel: CloudXR.LogLevel.Info, // Deliver Info-and-above SDK logs to onLog
             telemetry: {
               enabled: true,
               appInfo: {
-                version: '6.2.0',
+                version: '6.3.0',
                 product: applicationName,
               },
             },
@@ -277,6 +326,29 @@ export default function CloudXRComponent({
 
           // Store the render target and key GL bindings to restore after CloudXR rendering
           const cloudXRDelegates: CloudXR.SessionDelegates = {
+            onLog: (entries: CloudXR.LogEntry[]) => {
+              for (const { level, message } of entries) {
+                // Pick the console method matching this severity so DevTools filtering works.
+                const printFn =
+                  level === CloudXR.LogLevel.Error
+                    ? console.error
+                    : level === CloudXR.LogLevel.Warning
+                      ? console.warn
+                      : level === CloudXR.LogLevel.Debug
+                        ? console.debug
+                        : console.info;
+                printFn(`[CloudXR] ${message}`);
+              }
+              onLog?.(entries);
+            },
+            onStreamTestStarted: () => {
+              onStatusChange?.(false, 'Testing network');
+              onStreamTestStarted?.();
+            },
+            onStreamTestStopped: (result: CloudXR.StreamTestResult) => {
+              console.debug('Network test complete:', result);
+              onStreamTestStopped?.(result);
+            },
             onWebGLStateChangeBegin: () => {
               // Save the current render target before CloudXR changes state
               trackedGL.save();
@@ -314,23 +386,88 @@ export default function CloudXRComponent({
               onSessionReady?.(null);
             },
             onMetrics: (metrics: CloudXR.Metrics, cadence: CloudXR.MetricsCadence) => {
-              // Handle render performance metrics (PerRender cadence)
+              // Every cadence delivers a *partial* record: only the metrics sampled on this
+              // tick are present. Forward just those keys and let the consumer merge, so an
+              // absent metric is never reported downstream as a zero.
               if (onRenderPerformanceMetrics && cadence === CloudXR.MetricsCadence.PerRender) {
-                // Return the averaged metrics to the parent component
-                const renderFps = metrics[CloudXR.MetricsName.RenderFramerate] ?? 0;
-                onRenderPerformanceMetrics(renderFpsTrackerRef.current.add(renderFps));
+                const update: RenderMetricsUpdate = {};
+                const renderFps = metrics[CloudXR.MetricsName.RenderFramerate];
+                if (renderFps !== undefined) {
+                  update.framerate = renderFpsTrackerRef.current.add(renderFps);
+                }
+                const poseSendFps = metrics[CloudXR.MetricsName.PoseSendFramerate];
+                if (poseSendFps !== undefined) {
+                  update.sendFramerate = poseSendFpsTrackerRef.current.add(poseSendFps);
+                }
+                const xrPoseAgeMs = metrics[CloudXR.MetricsName.LatencyXrPoseAgeMs];
+                if (xrPoseAgeMs !== undefined) {
+                  update.xrPoseAgeMs = xrPoseAgeMs;
+                }
+                // The send-begin and render-begin paths each emit their own PerRender tick,
+                // so skip ticks that carried none of the keys we track.
+                if (Object.keys(update).length > 0) {
+                  onRenderPerformanceMetrics(update);
+                }
+              }
+
+              if (onNetworkPerformanceMetrics && cadence === CloudXR.MetricsCadence.PerNetwork) {
+                const update: NetworkMetricsUpdate = {};
+                const networkFields: Array<[keyof NetworkMetricsUpdate, string]> = [
+                  ['streamingRateMbps', CloudXR.MetricsName.NetworkStreamingRateMbps],
+                  ['availableBandwidthMbps', CloudXR.MetricsName.NetworkAvailableBandwidthMbps],
+                  ['rttMs', CloudXR.MetricsName.NetworkRttMs],
+                  ['packetLoss', CloudXR.MetricsName.NetworkPacketLoss],
+                  ['avgDecodeTimeMs', CloudXR.MetricsName.NetworkAvgDecodeTimeMs],
+                  ['qualityScore', CloudXR.MetricsName.NetworkQualityScore],
+                  ['bandwidthScore', CloudXR.MetricsName.NetworkBandwidthScore],
+                  ['lossScore', CloudXR.MetricsName.NetworkLossScore],
+                  ['latencyScore', CloudXR.MetricsName.NetworkLatencyScore],
+                  ['sessionQuality', CloudXR.MetricsName.SessionQuality],
+                ];
+                for (const [field, name] of networkFields) {
+                  const value = metrics[name as CloudXR.MetricsName];
+                  if (value !== undefined) {
+                    update[field] = value;
+                  }
+                }
+                if (Object.keys(update).length > 0) {
+                  onNetworkPerformanceMetrics(update);
+                }
               }
 
               // Handle streaming performance metrics (PerFrame cadence)
               if (onStreamingPerformanceMetrics && cadence === CloudXR.MetricsCadence.PerFrame) {
-                const streamingFps = metrics[CloudXR.MetricsName.StreamingFramerate] ?? 0;
-                const poseToRenderMs = metrics[CloudXR.MetricsName.PoseToRenderTime] ?? 0;
-
-                // Return the averaged metrics to the parent component
-                onStreamingPerformanceMetrics(
-                  streamingFpsTrackerRef.current.add(streamingFps),
-                  poseToRenderTrackerRef.current.add(poseToRenderMs)
-                );
+                const update: FrameMetricsUpdate = {};
+                const streamingFps = metrics[CloudXR.MetricsName.StreamingFramerate];
+                if (streamingFps !== undefined) {
+                  update.framerate = streamingFpsTrackerRef.current.add(streamingFps);
+                }
+                const poseToRenderMs = metrics[CloudXR.MetricsName.PoseToRenderTime];
+                if (poseToRenderMs !== undefined) {
+                  update.poseToRenderTimeMs = poseToRenderTrackerRef.current.add(poseToRenderMs);
+                }
+                // Reported raw: these are diagnostic counters for the hub, not HUD values,
+                // so averaging them would only obscure spikes.
+                const frameFields: Array<[keyof FrameMetricsUpdate, string]> = [
+                  ['frameCount', CloudXR.MetricsName.StreamingFrameCount],
+                  ['poseUploadMs', CloudXR.MetricsName.LatencyPoseUploadMs],
+                  ['poseToFrameReceivedMs', CloudXR.MetricsName.LatencyPoseToFrameReceivedMs],
+                  [
+                    'compositorSkippedPercent',
+                    CloudXR.MetricsName.FramePipelineCompositorSkippedPercent,
+                  ],
+                  ['outOfOrderPercent', CloudXR.MetricsName.FramePipelineOutOfOrderPercent],
+                  ['mismatchedPercent', CloudXR.MetricsName.FramePipelineMismatchedPercent],
+                ];
+                for (const [field, name] of frameFields) {
+                  const value = metrics[name as CloudXR.MetricsName];
+                  if (value !== undefined) {
+                    update[field] = value;
+                  }
+                }
+                if (Object.keys(update).length > 0) {
+                  onStreamingPerformanceMetrics(update);
+                }
               }
             },
           };
@@ -425,6 +562,24 @@ export default function CloudXRComponent({
 
         // Get session from reference.
         const cxrSession: CloudXR.Session = cxrSessionRef.current;
+
+        // Pump tracking during Connecting so the SDK can read XRSession.enabledFeatures from
+        // these early frames and negotiate optional capabilities - notably body tracking -
+        // before the stream starts. Without this the SDK never sees a frame pre-Connected and
+        // full-body teleop silently degrades to upper body. Returns false while Connecting,
+        // but may throw deferred exceptions from callbacks.
+        //
+        // Deliberately the raw xrFrame, not trackingFrameAdapter's: during replay the adapter
+        // returns a Proxy with a substituted session, and capability detection must reflect
+        // the real XRSession. The adapter still applies on the Connected path below.
+        if (cxrSession.state === CloudXR.SessionState.Connecting) {
+          try {
+            cxrSession.sendTrackingStateToServer(state.clock.elapsedTime * 1000, xrFrame);
+          } catch (error) {
+            console.error('CloudXR render loop error:', error);
+            return;
+          }
+        }
 
         // If the CloudXR session is not connected, skip the frame.
         if (cxrSession.state !== CloudXR.SessionState.Connected) {

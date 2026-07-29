@@ -1010,6 +1010,21 @@ limitations under the License.
                                 Configure WebRTC media server address and port for NAT traversal. Only needed when the streaming server is behind NAT. Leave empty to use server-provided ICE information.
                             </div>
                         </div>
+
+                        <div class="config-section">
+                            <label class="input-label">Pre-Stream Network Test</label>
+                            <label for="streamTestMode" class="input-label">Network Test</label>
+                            <select id="streamTestMode" class="ui-input config-input">
+                                <option value="off" selected>Off (default)</option>
+                                <option value="warn">Warn — measure and report</option>
+                                <option value="block">Block — refuse to stream on failure</option>
+                            </select>
+                            <label for="streamTestDurationSeconds" class="input-label">Test Duration (seconds, 5-30)</label>
+                            <input id="streamTestDurationSeconds" class="ui-input config-input" type="number" placeholder="5" spellcheck="false" min="5" max="30" value="5">
+                            <div class="config-text">
+                                Measures latency, jitter, bandwidth and device performance before streaming starts, reporting the result on the in-XR panel. The session waits in "Connecting" for the whole window, so this is off by default; use Warn when diagnosing a link. Block additionally refuses to stream when the link fails the gate.
+                            </div>
+                        </div>
                     </div>
                 </details>
 

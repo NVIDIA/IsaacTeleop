@@ -241,6 +241,89 @@ Headset → hub: ``clientMetrics``
      }
    }
 
+One message is sent per cadence per tick, carrying the last known value of every metric
+reported so far in that cadence. Metric names are the CloudXR.js ``MetricsName`` values,
+so they match the SDK documentation. The hub stores them as an arbitrary
+``{name: value}`` map per cadence, so metrics added by a future SDK need no hub change.
+
+.. list-table:: Metrics reported per cadence (CloudXR.js 6.3.0)
+   :header-rows: 1
+   :widths: 12 40 48
+
+   * - Cadence
+     - Metric
+     - Meaning
+   * - ``render``
+     - ``render.framerate``
+     - Client render rate (FPS), rolling average.
+   * - ``render``
+     - ``pose.send_framerate``
+     - Rate at which poses are sent upstream (FPS), rolling average. For teleop this is
+       the rate operator intent reaches the robot.
+   * - ``render``
+     - ``latency.xr_pose_age_ms``
+     - Age of the XR pose at send time.
+   * - ``frame``
+     - ``streaming.framerate``
+     - Streamed video rate (FPS), rolling average.
+   * - ``frame``
+     - ``streaming.frame_count``
+     - Monotonic count of streamed frames.
+   * - ``frame``
+     - ``render.pose_to_render_time``
+     - Pose-to-render latency (ms), rolling average.
+   * - ``frame``
+     - ``latency.pose_upload_ms``
+     - Time spent uploading the pose.
+   * - ``frame``
+     - ``latency.pose_to_frame_received_ms``
+     - Time from pose send to frame received.
+   * - ``frame``
+     - ``frame_pipeline.compositor_skipped_percent``
+     - Share of frames the compositor skipped.
+   * - ``frame``
+     - ``frame_pipeline.out_of_order_percent``
+     - Share of frames that arrived out of order.
+   * - ``frame``
+     - ``frame_pipeline.mismatched_percent``
+     - Share of frames whose pose did not match the rendered pixels.
+   * - ``network``
+     - ``network.streaming_rate_mbps``
+     - Current streaming rate.
+   * - ``network``
+     - ``network.available_bandwidth_mbps``
+     - Estimated available bandwidth.
+   * - ``network``
+     - ``network.rtt_ms``
+     - Round-trip time.
+   * - ``network``
+     - ``network.packet_loss``
+     - Packet loss ratio.
+   * - ``network``
+     - ``network.avg_decode_time_ms``
+     - Average video decode time.
+   * - ``network``
+     - ``network.quality_score``
+     - Composite network quality, 0-4.
+   * - ``network``
+     - ``network.bandwidth_score``
+     - Bandwidth component of the quality score, 0-4.
+   * - ``network``
+     - ``network.network_loss_score``
+     - Loss component of the quality score, 0-4.
+   * - ``network``
+     - ``network.latency_score``
+     - Latency component of the quality score, 0-4.
+   * - ``network``
+     - ``session.quality``
+     - Overall session quality, 0-4. Also drives the in-XR quality bars.
+
+Score metrics use the SDK's ``QualityScore`` scale: 0 NoData, 1 Unsustainable,
+2 Degraded, 3 Good, 4 Excellent.
+
+Metrics are cleared when the stream stops, so a new session never reports the previous
+session's last known values.
+
 HTTP API
 --------
 

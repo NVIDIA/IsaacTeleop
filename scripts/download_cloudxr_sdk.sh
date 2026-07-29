@@ -9,7 +9,7 @@
 # Three ways to obtain the SDK (tried in order):
 # 1) Local tarball: place cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}.tar.gz in deps/cloudxr/.
 #    The tarball must extract to the same layout as the NGC release: root must contain
-#    isaac/ and nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz (optionally inside a single top-level directory).
+#    nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz (optionally inside a single top-level directory).
 # 2) Public NGC: downloads via curl from the public NGC resource API.
 # 3) Private NGC: downloads via curl from the private NGC resource API; requires NGC_API_KEY.
 
@@ -55,10 +55,15 @@ is_valid_sdk_bundle() {
     [[ -f "$dir/$SDK_FILE" ]]
 }
 
-# Returns 0 if the given directory has valid SDK layout (isaac/ and nvidia-cloudxr-*.tgz)
+# Returns 0 if the given directory has valid SDK layout (nvidia-cloudxr-*.tgz)
+#
+# Only the .tgz is consumed by Dockerfile.web-app; IsaacTeleop builds its web client from
+# webxr_client/ in this repo. Earlier bundles also shipped an isaac/ directory, which is no
+# longer part of the release, so requiring it here would reject otherwise valid tarballs.
+# Kept in sync with is_valid_sdk_bundle(), which the NGC paths use.
 is_valid_sdk_layout() {
     local dir="$1"
-    [[ -d "$dir/isaac" ]] && [[ -f "$dir/$SDK_FILE" ]]
+    [[ -f "$dir/$SDK_FILE" ]]
 }
 
 # -----------------------------------------------------------------------------
@@ -81,7 +86,7 @@ install_from_local_tarball() {
     tar -xzf "$SDK_TARBALL" -C "$SDK_RELEASE_DIR"
 
     if ! is_valid_sdk_layout "$SDK_RELEASE_DIR"; then
-        echo -e "${RED}Error: Tarball layout invalid. Root must contain isaac/ and $SDK_FILE${NC}"
+        echo -e "${RED}Error: Tarball layout invalid. Root must contain $SDK_FILE${NC}"
         exit 1
     fi
     echo -e "${GREEN}✓ CloudXR Web SDK installed from local tarball${NC}"

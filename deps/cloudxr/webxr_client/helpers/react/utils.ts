@@ -90,6 +90,26 @@ export function parseAutoRefreshMode(
   return fallback;
 }
 
+/** Pre-stream network test mode: skip it, measure and report, or measure and gate on it. */
+export type StreamTestMode = 'off' | 'warn' | 'block';
+
+const STREAM_TEST_MODES: readonly StreamTestMode[] = ['off', 'warn', 'block'];
+
+/**
+ * Parses a string into a valid network test mode.
+ * @param unvalidatedValue - String to validate (e.g. from URL, config, or form). May be invalid or empty.
+ * @param fallback - Value to return when unvalidatedValue is not valid.
+ */
+export function parseStreamTestMode(
+  unvalidatedValue: string,
+  fallback: StreamTestMode
+): StreamTestMode {
+  if (STREAM_TEST_MODES.includes(unvalidatedValue as StreamTestMode)) {
+    return unvalidatedValue as StreamTestMode;
+  }
+  return fallback;
+}
+
 const CONTROL_PANEL_POSITIONS: readonly ControlPanelPosition[] = ['left', 'center', 'right'];
 
 /**

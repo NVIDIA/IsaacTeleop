@@ -62,22 +62,41 @@ import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
 import { readUrlParam } from './config/resolve';
 import CloudXR3DUI from './CloudXRUI';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
+import { MetricsAccumulator } from '@helpers/metricsAccumulator';
+import type {
+  FrameMetricsUpdate,
+  NetworkMetricsUpdate,
+  RenderMetricsUpdate,
+} from '@helpers/metricsUpdates';
 import { RecorderProvider, useRecorder } from './RecorderContext';
 import { RecorderComponent } from './RecorderComponent';
 import { TraceVisualization } from './TraceVisualization';
 
-// Performance metrics signals - raw numeric data, one per callback cadence.
+// Performance metrics signals - raw numeric data backing the in-XR HUD.
 // Signals update their value without triggering React re-renders.
 // See: https://pmndrs.github.io/uikit/docs/advanced/performance
-const renderMetrics = signal<{ fps: number } | null>(null);
+//
+// Only the metrics the HUD draws live here. The full set the SDK reports goes to the
+// OOB teleop hub via metricsAccumulator, which is a superset of these.
+const renderFps = signal<number | null>(null);
+const poseSendFps = signal<number | null>(null);
 const streamingMetrics = signal<{ fps: number; latencyMs: number } | null>(null);
 
+// Live session quality 0-4; see CloudXR.QualityScore. 0 is NoData, which is also the
+// resting state between sessions.
+const sessionQuality = signal<number>(0);
+
+// Network test status: text plus a traffic-light color for the in-XR panel. Module-scoped
+// to match the metric signals above; persists last known value across sessions.
+const streamTest = signal<{ text: string; color: string } | null>(null);
+
 // Computed signals derive formatted text from raw data.
-// When renderMetrics.value changes, computed() automatically recalculates the text.
+// When a source signal changes, computed() automatically recalculates the text.
 // The @react-three/uikit Text component subscribes to these computed signals
 // and updates the displayed text directly in Three.js - bypassing React entirely.
-const renderFpsText = computed(() =>
-  renderMetrics.value ? renderMetrics.value.fps.toFixed(1) : '-'
+const renderFpsText = computed(() => (renderFps.value !== null ? renderFps.value.toFixed(1) : '-'));
+const poseSendFpsText = computed(() =>
+  poseSendFps.value !== null ? poseSendFps.value.toFixed(1) : '-'
 );
 const streamingFpsText = computed(() =>
   streamingMetrics.value ? streamingMetrics.value.fps.toFixed(1) : '-'
@@ -85,6 +104,26 @@ const streamingFpsText = computed(() =>
 const poseToRenderText = computed(() =>
   streamingMetrics.value ? `${streamingMetrics.value.latencyMs.toFixed(1)}ms` : '-'
 );
+const streamTestText = computed(() => streamTest.value?.text ?? '');
+const streamTestColor = computed(() => streamTest.value?.color ?? 'white');
+
+/** Accumulates every metric the SDK reports, for periodic upload to the OOB teleop hub. */
+const metricsAccumulator = new MetricsAccumulator();
+
+/**
+ * Fallback network-test window when the config omits a duration, and the bounds the SDK
+ * clamps `SessionOptions.streamTest.durationSeconds` to. Clamping here too keeps the
+ * on-panel countdown honest when a config or URL param asks for something out of range.
+ */
+const DEFAULT_STREAM_TEST_SECONDS = 5;
+const MIN_STREAM_TEST_SECONDS = 5;
+const MAX_STREAM_TEST_SECONDS = 30;
+
+/** Clamps a configured network-test duration into the range the SDK accepts. */
+function resolveStreamTestSeconds(configured: number | undefined): number {
+  const seconds = configured ?? DEFAULT_STREAM_TEST_SECONDS;
+  return Math.min(MAX_STREAM_TEST_SECONDS, Math.max(MIN_STREAM_TEST_SECONDS, seconds));
+}
 
 const CONTROL_PANEL_LAYOUT = {
   distance: 1.8,
@@ -164,6 +203,18 @@ function AppContent() {
   const [countdownRemaining, setCountdownRemaining] = useState(0);
   const [isTeleopRunning, setIsTeleopRunning] = useState(false);
   const countdownTimerRef = useRef<number | null>(null);
+  /** App-owned countdown for the pre-stream network test window. */
+  const streamTestCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Clear the countdown if the component unmounts mid-test (e.g. the user exits XR).
+  useEffect(
+    () => () => {
+      if (streamTestCountdownRef.current) {
+        clearInterval(streamTestCountdownRef.current);
+        streamTestCountdownRef.current = null;
+      }
+    },
+    []
+  );
   /** Avoid repeating immersive session dumps on every XR store tick. */
   const immersiveSessionDumpLoggedRef = useRef(false);
   const [countdownDuration, setCountdownDuration] = useState<number>(() => {
@@ -490,6 +541,24 @@ function AppContent() {
     setSessionStatus(status);
     controlChannelRef.current?.sendStreamStatus(connected && status === 'Connected');
 
+    // Drop the previous session's quality reading rather than leaving a stale green
+    // indicator on a dead stream. Safe on every non-Connected status, including the
+    // 'Testing network' transition, since quality is only sampled while streaming.
+    if (!connected || status !== 'Connected') {
+      sessionQuality.value = 0;
+    }
+    // Reset metrics only on an actual session end. Deliberately not on 'Testing network':
+    // that status is emitted by onStreamTestStarted, i.e. on the way *into* a session, and
+    // clearing there would discard any samples taken during the measurement window.
+    if (status === 'Disconnected' || status === 'Error') {
+      metricsAccumulator.reset();
+      // Clear the HUD cards too, so a dead session cannot leave its last FPS and latency
+      // readings on the panel looking live. The computed texts fall back to '-' on null.
+      renderFps.value = null;
+      poseSendFps.value = null;
+      streamingMetrics.value = null;
+    }
+
     // Reload on session end per mode; read live off the stable 2D UI to avoid a stale closure.
     const autoRefreshMode = cloudXR2DUI?.getConfiguration().autoRefreshMode;
     if (
@@ -500,14 +569,95 @@ function AppContent() {
     }
   };
 
-  // Render performance metrics callback handler - updates raw data signal
-  const handleRenderPerformanceMetrics = (fps: number) => {
-    renderMetrics.value = { fps };
+  // Metrics callbacks. Each payload is partial, so HUD signals are only overwritten for
+  // fields actually present, and everything is merged into the accumulator for the hub.
+  const handleRenderPerformanceMetrics = (metrics: RenderMetricsUpdate) => {
+    if (metrics.framerate !== undefined) renderFps.value = metrics.framerate;
+    if (metrics.sendFramerate !== undefined) poseSendFps.value = metrics.sendFramerate;
+    metricsAccumulator.recordRender(metrics);
   };
 
-  // Streaming performance metrics callback handler - updates raw data signal
-  const handleStreamingPerformanceMetrics = (fps: number, latencyMs: number) => {
-    streamingMetrics.value = { fps, latencyMs };
+  const handleStreamingPerformanceMetrics = (metrics: FrameMetricsUpdate) => {
+    if (metrics.framerate !== undefined || metrics.poseToRenderTimeMs !== undefined) {
+      // Carry forward the fields this tick did not carry so the HUD does not flicker.
+      const prev = streamingMetrics.value ?? { fps: 0, latencyMs: 0 };
+      streamingMetrics.value = {
+        fps: metrics.framerate ?? prev.fps,
+        latencyMs: metrics.poseToRenderTimeMs ?? prev.latencyMs,
+      };
+    }
+    metricsAccumulator.recordFrame(metrics);
+  };
+
+  const handleNetworkPerformanceMetrics = (metrics: NetworkMetricsUpdate) => {
+    if (metrics.sessionQuality !== undefined) {
+      sessionQuality.value = metrics.sessionQuality;
+    }
+    metricsAccumulator.recordNetwork(metrics);
+  };
+
+  const stopStreamTestCountdown = () => {
+    if (streamTestCountdownRef.current) {
+      clearInterval(streamTestCountdownRef.current);
+      streamTestCountdownRef.current = null;
+    }
+  };
+
+  // The SDK only signals the start and end of the measurement window, so the countdown
+  // is driven here from the configured duration.
+  const handleStreamTestStarted = () => {
+    stopStreamTestCountdown();
+    let remaining = resolveStreamTestSeconds(config?.streamTestDurationSeconds);
+    const tick = () => {
+      // Hold at 0 until the result arrives rather than counting into negatives.
+      if (remaining <= 0) {
+        streamTest.value = { text: 'Testing network… 0s', color: '#ffd24d' };
+        stopStreamTestCountdown();
+        return;
+      }
+      streamTest.value = { text: `Testing network… ${remaining}s`, color: '#ffd24d' };
+      remaining -= 1;
+    };
+    tick();
+    streamTestCountdownRef.current = setInterval(tick, 1000);
+  };
+
+  const handleStreamTestStopped = (result: CloudXR.StreamTestResult) => {
+    stopStreamTestCountdown();
+    // Red matches the gate exactly: red iff the test failed. On a pass, green only when
+    // every measured dimension is Good or better, otherwise yellow as a caution.
+    const measured = [
+      result.latencyScore,
+      result.jitterScore,
+      result.bandwidthScore,
+      result.devicePerformanceScore,
+    ].filter(score => score !== CloudXR.QualityScore.NoData);
+    let color: string;
+    let label: string;
+    if (!result.passed) {
+      color = '#ff5d5d';
+      label = 'failed';
+    } else {
+      const worst = measured.length ? Math.min(...measured) : CloudXR.QualityScore.NoData;
+      color = worst >= CloudXR.QualityScore.Good ? '#5dd35d' : '#ffd24d';
+      label = 'passed';
+    }
+    // QualityScore is a numeric enum; reverse-map to the name so the panel reads as a
+    // rating ("Good") rather than an ambiguous number.
+    const scoreName = (score: CloudXR.QualityScore) => CloudXR.QualityScore[score];
+    streamTest.value = {
+      text: `Network test ${label} — latency: ${scoreName(result.latencyScore)}, jitter: ${scoreName(result.jitterScore)}, ${result.serverFps ?? '-'} fps`,
+      color,
+    };
+  };
+
+  // Clear the network-test indicator on both a new session and a teardown.
+  // onStreamTestStopped does not fire when the user disconnects mid-test (an abort is not
+  // a result), so this is what stops a countdown that would otherwise keep ticking.
+  const handleSessionReady = (session: CloudXR.Session | null) => {
+    stopStreamTestCountdown();
+    streamTest.value = null;
+    setCloudXRSession(session);
   };
 
   /**
@@ -701,27 +851,10 @@ function AppContent() {
       onConfig: () => {
         // Config push handling deferred to phase 2.
       },
-      getMetricsSnapshot: () => {
-        const snapshots: Array<{ cadence: string; metrics: Record<string, number> }> = [];
-        const rm = renderMetrics.value;
-        if (rm) {
-          snapshots.push({
-            cadence: 'render',
-            metrics: { [CloudXR.MetricsName.RenderFramerate]: rm.fps },
-          });
-        }
-        const sm = streamingMetrics.value;
-        if (sm) {
-          snapshots.push({
-            cadence: 'frame',
-            metrics: {
-              [CloudXR.MetricsName.StreamingFramerate]: sm.fps,
-              [CloudXR.MetricsName.PoseToRenderTime]: sm.latencyMs,
-            },
-          });
-        }
-        return snapshots;
-      },
+      // Reports every metric the SDK emits, keyed by CloudXR.MetricsName, across the
+      // render / frame / network cadences. The hub stores metrics as an arbitrary
+      // {name: value} map per cadence, so new SDK metrics need no hub-side change.
+      getMetricsSnapshot: () => metricsAccumulator.takeSnapshot(),
     });
     channel.connect();
     controlChannelRef.current = channel;
@@ -796,7 +929,11 @@ function AppContent() {
   // Set up message receiving from MessageChannel (new API) or legacy callback
   // Poll for channel availability since channels can be announced at any time
   useEffect(() => {
-    if (!cloudXRSession) {
+    // Wait for Connected, not just a non-null session: opening a channel sends a control
+    // message that requires a connected session. With the pre-stream network test enabled
+    // the session sits in Connecting for the whole test window, and opening the teleop
+    // channel there would fail.
+    if (!cloudXRSession || !isConnected) {
       return;
     }
 
@@ -871,7 +1008,7 @@ function AppContent() {
       active = false;
       clearInterval(pollInterval);
     };
-  }, [cloudXRSession]);
+  }, [cloudXRSession, isConnected]);
 
   return (
     <>
@@ -926,10 +1063,23 @@ function AppContent() {
                   }
                 }}
                 onExitImmersiveXR={handleDisconnect}
-                onSessionReady={setCloudXRSession}
+                onSessionReady={handleSessionReady}
                 onServerAddress={setServerAddress}
                 onRenderPerformanceMetrics={handleRenderPerformanceMetrics}
                 onStreamingPerformanceMetrics={handleStreamingPerformanceMetrics}
+                onNetworkPerformanceMetrics={handleNetworkPerformanceMetrics}
+                streamTest={
+                  config.streamTestMode && config.streamTestMode !== 'off'
+                    ? {
+                        durationSeconds: resolveStreamTestSeconds(
+                          config.streamTestDurationSeconds
+                        ),
+                        mode: config.streamTestMode,
+                      }
+                    : undefined
+                }
+                onStreamTestStarted={handleStreamTestStarted}
+                onStreamTestStopped={handleStreamTestStopped}
                 headless={!!config.headless}
               />
               {!config.headless && (
@@ -956,8 +1106,12 @@ function AppContent() {
                   position={controlPanelPositionVector}
                   rotation={[0, 0, 0]}
                   renderFpsText={renderFpsText}
+                  poseSendFpsText={poseSendFpsText}
                   streamingFpsText={streamingFpsText}
                   poseToRenderText={poseToRenderText}
+                  sessionQuality={sessionQuality}
+                  streamTestText={streamTestText}
+                  streamTestColor={streamTestColor}
                   showRecordingControls={config.showRecordingControls}
                 />
               )}
