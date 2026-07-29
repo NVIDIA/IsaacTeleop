@@ -48,7 +48,7 @@ run the sample's one-time setup:
    source examples/camera_viz/.venv/bin/activate
 
 There is no need to install the ``isaacteleop`` pip package yourself — ``setup`` creates the
-sample's own environment: it installs ``isaacteleop`` (which bundles Televiz) and every other
+sample's own environment: it installs ``isaacteleop>=1.4`` (which bundles Televiz) and every other
 Python dependency from PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC codec, and
 probes system packages (GStreamer plugins, cairo / girepository headers, JetPack ``cuda-nvrtc`` +
 ``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line and prompts

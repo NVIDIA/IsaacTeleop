@@ -33,7 +33,7 @@ examples/camera_viz/camera_viz.sh setup
 source examples/camera_viz/.venv/bin/activate
 ```
 
-`setup` installs `isaacteleop` (which bundles Televiz) and every other Python dep from PyPI into `.venv/` via `uv` (no `--system-site-packages`), builds the native NVENC/NVDEC codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
+`setup` installs `isaacteleop>=1.4` (which bundles Televiz) and every other Python dep from PyPI into `.venv/` via `uv` (no `--system-site-packages`), builds the native NVENC/NVDEC codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
 
 Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
 

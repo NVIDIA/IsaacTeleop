@@ -41,17 +41,6 @@ from sources import (
     set_verbose,
 )
 
-# camera_viz tracks the in-repo isaacteleop; a PyPI wheel that predates
-# this example lacks the CloudXR launcher helpers and the shaped-layer /
-# compositor-choice APIs. Detect once and either degrade (launcher) or
-# fail with the remedy (layer APIs) instead of stack-tracing.
-_HAS_LAUNCHER_HELPERS = hasattr(CloudXRLauncher, "add_launcher_arguments")
-_UPGRADE_HINT = (
-    "your installed isaacteleop is too old for this camera_viz — install the "
-    "matching wheel (./camera_viz.sh setup --wheel <path-to-built-wheel>) or "
-    "point PYTHONPATH at an IsaacTeleop build's python_package/."
-)
-
 
 @dataclass
 class SourceEntry:
@@ -376,17 +365,7 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry):
     # OpenXR-runtime composition is the default (kXr only; window mode is
     # always composited by Televiz). Requires a placement, which the
     # placement strategy applies below.
-    want_openxr = entry.compositor == "openxr"
-    if hasattr(layer_cfg, "openxr_composition"):
-        layer_cfg.openxr_composition = want_openxr
-    elif want_openxr:
-        # Old isaacteleop wheel: quads are Televiz-composited only.
-        print(
-            f"camera_viz: warning: {_UPGRADE_HINT} Falling back to "
-            "compositor: televiz for quads.",
-            file=sys.stderr,
-            flush=True,
-        )
+    layer_cfg.openxr_composition = entry.compositor == "openxr"
     return session.add_quad_layer(layer_cfg)
 
 
@@ -400,8 +379,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Override display.mode from the config "
         "(default: the config's value, or xr when the config omits it).",
     )
-    if _HAS_LAUNCHER_HELPERS:
-        CloudXRLauncher.add_launcher_arguments(parser)
+    CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv)
 
     with open(args.config) as f:
@@ -435,11 +413,6 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "composited by the OpenXR runtime and requires XR mode; "
                 "use --mode xr or shape: quad in window mode."
             )
-        if not hasattr(viz, "CylinderLayerConfig"):
-            raise SystemExit(
-                f"camera_viz: placements.{cam['name']}.shape: {shape} needs "
-                f"cylinder/equirect layer support — {_UPGRADE_HINT}"
-            )
 
     # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
     # headset clients) before creating the session — VizSession's OpenXR
@@ -453,17 +426,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     # under a live xrWaitFrame — the same hazard the skip-destroy
     # mitigation exists for. The launcher registers an atexit stop, which
     # fires once the stuck (non-daemon) thread finally exits.
-    if effective_mode == "xr" and not _HAS_LAUNCHER_HELPERS:
-        print(
-            f"camera_viz: warning: {_UPGRADE_HINT} Continuing WITHOUT "
-            "launching the CloudXR runtime — start it yourself if one "
-            "isn't already running.",
-            file=sys.stderr,
-            flush=True,
-        )
     launch_ctx = (
         CloudXRLauncher.launch_context(args)
-        if effective_mode == "xr" and _HAS_LAUNCHER_HELPERS
+        if effective_mode == "xr"
         else contextlib.nullcontext(None)
     )
     launch_ctx.__enter__()
