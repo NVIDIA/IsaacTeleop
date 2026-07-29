@@ -11,7 +11,7 @@
 # pulls only the open-source deps below; `import robotic_grounding...` is
 # satisfied by the bundled source. Wheels built without V2D access don't
 # include robotic_grounding/, and Sharpa retargeter imports skip cleanly
-# via the lazy-import wrapper in src/retargeters/__init__.py.
+# via the lazy-import wrapper in src/python/isaacteleop/retargeters/__init__.py.
 
 # Sharpa hand retargeter (Pinocchio + Pink IK)
 pin>=2.7.0

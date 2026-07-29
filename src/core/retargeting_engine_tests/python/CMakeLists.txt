@@ -65,7 +65,7 @@ add_test(
     NAME "retargeting_mypy_type_check"
     COMMAND uv run --python ${ISAAC_TELEOP_PYTHON_VERSION} --extra dev
         mypy --config-file pyproject.toml
-        "${CMAKE_SOURCE_DIR}/src/core/retargeting_engine/python"
+        "${CMAKE_SOURCE_DIR}/src/python/isaacteleop/retargeting_engine"
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
