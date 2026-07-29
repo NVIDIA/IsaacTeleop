@@ -48,8 +48,8 @@ display:
       distance: 1.0
       stereo_baseline_mm: 50.0
       # Surface the feed is mapped onto (all shapes are per-camera):
-      shape: cylinder           # quad (default) | cylinder | equirect
-      native: true          # quads only: native XrCompositionLayerQuad
-                            # (default) vs the built-in compositor
-      cylinder_radius_m: 2.0    # cylinder only
-      cylinder_angle_deg: 45    # cylinder only
+      # shape: cylinder           # quad (default) | cylinder | equirect
+      # native: true          # quads only: native XrCompositionLayerQuad
+      #                       # (default) vs the built-in compositor
+      # cylinder_radius_m: 2.0    # cylinder only
+      # cylinder_angle_deg: 45    # cylinder only
