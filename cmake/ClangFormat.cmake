@@ -36,6 +36,7 @@ set(_cf_patterns
 )
 
 set(_cf_exclude_patterns
+  ".*\\.template$"
   ".*/build/.*"
   ".*/deps/.*"
   ".*/manus/ManusSDK/.*"
