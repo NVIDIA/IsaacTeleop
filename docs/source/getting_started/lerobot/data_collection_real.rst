@@ -36,14 +36,17 @@ Follow the necessary one-time steps to set up your environment and hardware:
    LeRobot extras cover the SO-101 motor bus (``feetech``), the IK solver for the XR path
    (``kinematics``), and dataset recording (``dataset``). For Isaac Teleop, ``cloudxr`` brings the
    CloudXR runtime bindings and ``retargeters-lite`` is the default retargeter path on both
-   x86_64 and aarch64; the full ``retargeters`` extra is optional:
+   x86_64 and aarch64; the full ``retargeters`` extra is optional. The ``isaacteleop`` pin follows
+   the release series this page documents — see :ref:`install-isaacteleop-pip-package` for the
+   other install options:
 
-   .. code-block:: bash
+   .. parsed-literal::
 
       uv venv --python 3.12 .venv
       source .venv/bin/activate
       uv pip install -e ".[feetech,kinematics,dataset]" "huggingface_hub>=1.5"
-      uv pip install "isaacteleop[cloudxr,retargeters-lite]~=1.3.131" "scipy>=1.14"
+      uv pip install "isaacteleop[cloudxr,retargeters-lite]\ |pip_version_pin|\ " "scipy>=1.14" \\
+            --extra-index-url https://pypi.nvidia.com --prerelease=allow
 
 #. Log in to the Hugging Face Hub — recorded datasets are pushed to the Hub by default (pass
    ``--dataset.push_to_hub=false`` to keep them local):

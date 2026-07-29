@@ -16,13 +16,19 @@ copyright += f", last updated on {build_time.strftime('%B %d, %Y')}"
 author = "NVIDIA"
 
 _version_file = os.path.join(os.path.dirname(__file__), "..", "..", "VERSION")
+# ``VERSION`` is ``MAJOR.MINOR.x`` on main and on every release branch and tag, so its
+# first two components name the release series a given build of the docs describes.
+# ``_pip_version_pin`` turns that into a specifier (``1.5.x`` -> ``~=1.5.0``, i.e.
+# >=1.5.0 <1.6.0) so each versioned docs build shows how to install its own series.
 if os.path.exists(_version_file):
     with open(_version_file) as f:
         full_version = f.read().strip()
     version = full_version
     release = full_version
+    _pip_version_pin = "~={}.0".format(".".join(full_version.split(".")[:2]))
 else:
     version = release = "0.0.0"
+    _pip_version_pin = "~=1.0"
 
 # -- General configuration -----------------------------------------------------
 
@@ -34,6 +40,12 @@ extensions = [
 ]
 
 exclude_patterns = ["build", "_templates", "Thumbs.db", ".DS_Store"]
+
+# sphinx-copybutton only targets highlighted blocks (``div.highlight pre``) by default,
+# which skips ``parsed-literal`` (rendered as a bare ``pre.literal-block``).  Commands
+# that interpolate a substitution have to use ``parsed-literal``, so widen the selector
+# to keep the copy button on them.
+copybutton_selector = "div.highlight pre, pre.literal-block"
 
 templates_path = ["_templates"]
 
@@ -85,12 +97,14 @@ _icons = _VERSION_ICON_MAP.get(_smv_name, _DEFAULT_ICONS)
 _client_slug = (_smv_name or "main").replace("/", "-")
 _web_client_url = f"https://nvidia.github.io/IsaacTeleop/client/{_client_slug}/"
 
-# Shared substitution + link targets injected into every page, so the
-# branch-specific web client URL lives in one place.  ``|web_client_url|``
-# expands the bare URL (usable in prose and ``parsed-literal`` blocks); the
+# Shared substitutions + link targets injected into every page, so the
+# branch-specific web client URL and version pin live in one place.
+# ``|web_client_url|`` expands the bare URL and ``|pip_version_pin|`` the
+# version specifier (both usable in prose and ``parsed-literal`` blocks); the
 # named targets back ```...`_`` references in the prose.
 rst_epilog = f"""
 .. |web_client_url| replace:: {_web_client_url}
+.. |pip_version_pin| replace:: {_pip_version_pin}
 .. _`nvidia.github.io/IsaacTeleop/client`: {_web_client_url}
 .. _`Isaac Teleop Web Client`: {_web_client_url}
 """
