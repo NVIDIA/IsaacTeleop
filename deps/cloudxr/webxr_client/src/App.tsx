@@ -552,6 +552,11 @@ function AppContent() {
     // clearing there would discard any samples taken during the measurement window.
     if (status === 'Disconnected' || status === 'Error') {
       metricsAccumulator.reset();
+      // Clear the HUD cards too, so a dead session cannot leave its last FPS and latency
+      // readings on the panel looking live. The computed texts fall back to '-' on null.
+      renderFps.value = null;
+      poseSendFps.value = null;
+      streamingMetrics.value = null;
     }
 
     // Reload on session end per mode; read live off the stable 2D UI to avoid a stale closure.
