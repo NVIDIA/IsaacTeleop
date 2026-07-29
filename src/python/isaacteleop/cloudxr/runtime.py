@@ -3,7 +3,6 @@
 import asyncio
 import ctypes
 import glob
-import importlib
 import importlib.util
 import multiprocessing
 import os
@@ -35,6 +34,8 @@ _CLOUDXR_EXP_ENV = "ISAAC_TELEOP_CLOUDXR_EXP"
 _CLOUDXR_JOIN_MAIN_ENV = "ISAAC_TELEOP_CLOUDXR_JOIN_MAIN"
 _CLOUDXR_MODULE = "isaacteleop.cloudxr"
 _CLOUDXR_EXP_MODULE = "isaacteleop.cloudxr_exp"
+_CLOUDXR_NATIVE_SUBDIR = "native"
+_CLOUDXR_RUNTIME_LIB = "libcloudxr.so"
 
 
 def _is_tegra_t234() -> bool:
@@ -82,21 +83,54 @@ def _should_join_main() -> bool:
     return raw in ("1", "true", "yes", "on")
 
 
-def _is_exp_available() -> bool:
+def _package_search_roots(package: str) -> list[str]:
+    """Return every filesystem root of ``package``'s ``__path__``, or [] if unlocatable."""
+    # Bare package name only: find_spec imports the parent of a dotted name, so
+    # probing "<pkg>.runtime" would execute the package as a side effect.
     try:
-        return importlib.util.find_spec(f"{_CLOUDXR_EXP_MODULE}.runtime") is not None
-    except ModuleNotFoundError:
-        return False
+        spec = importlib.util.find_spec(package)
+    except ImportError:
+        return []
+    except ValueError:  # a parent sits in sys.modules with __spec__ = None
+        return []
+    if spec is None:
+        return []
+    return list(spec.submodule_search_locations or ())
+
+
+def _find_native_runtime_dir(package: str) -> str | None:
+    """Return the ``native/`` dir holding the CloudXR runtime, or None."""
+    # Scan every root, never [0]: scikit-build-core builds them from a set, so
+    # order is unstable, and under a split install only one carries the runtime.
+    # Test the file, not the dir: a missing SDK tarball leaves native/ empty.
+    for root in _package_search_roots(package):
+        native_dir = os.path.join(root, _CLOUDXR_NATIVE_SUBDIR)
+        if os.path.isfile(os.path.join(native_dir, _CLOUDXR_RUNTIME_LIB)):
+            return native_dir
+    return None
+
+
+def _is_exp_available() -> bool:
+    """Return True when the experimental package ships the CloudXR runtime."""
+    # Probe the artifact, not the module: cloudxr_exp is authored Python that
+    # ships in every wheel, so importability says nothing about the bundle.
+    return _find_native_runtime_dir(_CLOUDXR_EXP_MODULE) is not None
+
+
+def _format_roots(roots: list[str]) -> str:
+    return ", ".join(roots) if roots else "<package not importable>"
 
 
 def resolve_cloudxr_runtime_module() -> str:
     """Return the module prefix whose ``runtime.run`` should be spawned."""
     if _should_use_exp():
         if not _is_exp_available():
+            roots = _format_roots(_package_search_roots(_CLOUDXR_EXP_MODULE))
             raise RuntimeError(
-                f"Experimental CloudXR runtime package {_CLOUDXR_EXP_MODULE} is not installed. "
-                f"Rebuild with -DENABLE_CLOUDXR_EXP_BUNDLE=ON to include it, "
-                f"or set {_CLOUDXR_EXP_ENV}=0 to force the stable runtime."
+                f"Experimental CloudXR runtime package {_CLOUDXR_EXP_MODULE} does not "
+                f"bundle {_CLOUDXR_NATIVE_SUBDIR}/{_CLOUDXR_RUNTIME_LIB}; searched "
+                f"{roots}. Rebuild with -DENABLE_CLOUDXR_EXP_BUNDLE=ON to bundle it, "
+                f"or set {_CLOUDXR_EXP_ENV}=0 to use the stable runtime."
             )
         return _CLOUDXR_EXP_MODULE
     return _CLOUDXR_MODULE
@@ -105,10 +139,13 @@ def resolve_cloudxr_runtime_module() -> str:
 def get_sdk_path() -> str:
     """Return ``native/`` for the resolved stable or experimental runtime package."""
     mod = resolve_cloudxr_runtime_module()
-    pkg = importlib.import_module(mod)
-    sdk_dir = os.path.join(os.path.dirname(os.path.abspath(pkg.__file__)), "native")
-    if not os.path.isfile(os.path.join(sdk_dir, "libcloudxr.so")):
-        raise RuntimeError(f"CloudXR SDK missing libcloudxr.so at {sdk_dir}.")
+    sdk_dir = _find_native_runtime_dir(mod)
+    if sdk_dir is None:
+        roots = _format_roots(_package_search_roots(mod))
+        raise RuntimeError(
+            f"CloudXR SDK missing {_CLOUDXR_NATIVE_SUBDIR}/{_CLOUDXR_RUNTIME_LIB} "
+            f"under every {mod} root; searched {roots}."
+        )
     return sdk_dir
 
 
@@ -220,7 +257,7 @@ def wait_for_runtime_ready_sync(
 def _load_libcloudxr(sdk_path: str) -> ctypes.CDLL:
     """Load libcloudxr.so with RTLD_DEEPBIND so the native stack resolves symbols from its own packaged libraries."""
     deepbind = getattr(os, "RTLD_DEEPBIND", 0)
-    return ctypes.CDLL(os.path.join(sdk_path, "libcloudxr.so"), mode=deepbind)
+    return ctypes.CDLL(os.path.join(sdk_path, _CLOUDXR_RUNTIME_LIB), mode=deepbind)
 
 
 def runtime_version() -> str:
