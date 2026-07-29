@@ -32,11 +32,9 @@ Requirements
 - A workstation meeting the :doc:`system requirements </references/requirements>` (Ubuntu, NVIDIA
   GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.
 - For the default XR mode, a headset to connect as the CloudXR client — follow the
-  :doc:`quick start </getting_started/quick_start>` step :ref:`connect-xr-headset`. The CloudXR
-  **runtime itself is launched by the viewer**: ``camera_viz.py`` starts the bundled in-process
-  runtime and WSS proxy before creating its XR session (pass ``--no-launch-cloudxr-runtime`` when
-  one is already running, e.g. after sourcing ``~/.cloudxr/run/cloudxr.env``). No headset handy?
-  ``--mode window`` renders to a desktop window instead and only needs a local display.
+  :doc:`quick start </getting_started/quick_start>` step :ref:`connect-xr-headset`. The viewer
+  launches the CloudXR runtime itself; nothing to start separately. No headset handy?
+  ``--mode window`` renders to a desktop window instead.
 
 Setup
 -----
@@ -184,10 +182,9 @@ Lazy-mode knobs live under ``placements.<name>``: ``look_away_angle_deg``,
 Surface shapes and native composition layers
 --------------------------------------------
 
-By default each camera renders on a flat plane submitted as a native ``XrCompositionLayerQuad``.
-Per-camera keys under ``display.placements.<name>`` change how the feed reaches the headset
-(XR mode only; see :ref:`Native OpenXR composition layers <native-openxr-composition-layers>`
-for the underlying mechanics and trade-offs):
+Each camera renders on a flat plane by default. Per-camera keys under
+``display.placements.<name>`` pick the surface (XR mode only; details in
+:ref:`Native OpenXR composition layers <native-openxr-composition-layers>`):
 
 .. list-table::
    :header-rows: 1
@@ -196,43 +193,32 @@ for the underlying mechanics and trade-offs):
    * - Key
      - Effect
    * - ``shape: quad`` (default)
-     - Flat plane, native ``XrCompositionLayerQuad``: when every visible layer is native, CloudXR
-       can stream each layer separately and reproject it on-device. Placement lock modes apply.
-   * - ``native: false``
-     - Quads only: fall back to server-side compositing through Televiz's shared render target
-       (e.g. for runtimes that mishandle native quad layers, or to z-compose with a
-       ``ProjectionLayer``).
+     - Flat plane. All lock modes apply.
    * - ``shape: cylinder``
-     - Wrap the feed onto a cylinder arc facing the operator (native
-       ``XrCompositionLayerCylinderKHR``). ``cylinder_radius_m`` (default 2.0) and
-       ``cylinder_angle_deg`` (default 90) size the arc; its width/height ratio follows the
-       source resolution. All three lock modes apply, repositioning the cylinder around the
-       operator just like a quad (the surface distance stays ``cylinder_radius_m``); ``head``
-       turns it into a gaze-tracking curved visor.
+     - Curved arc facing the operator; ``cylinder_radius_m`` (default 2.0) sets the viewing
+       distance, ``cylinder_angle_deg`` (default 90) the arc width. All lock modes apply
+       (``head`` = gaze-tracking curved visor).
    * - ``shape: equirect``
-     - Map the feed onto a full 360°×180° sphere (native ``XrCompositionLayerEquirect2KHR``) —
-       for equirectangular panorama / VR-video sources, not regular camera frames. Lock modes
-       don't apply (a full sphere has nothing to re-snap).
+     - Full 360°×180° sphere, for equirectangular panorama / VR-video sources. Lock modes
+       don't apply.
+   * - ``native: false``
+     - Quads only: composite server-side through Televiz instead of submitting a native
+       OpenXR layer (needed to z-compose with a ``ProjectionLayer``).
 
-Both shaped layers are **native-only**: they require XR mode and a runtime advertising the
-matching ``XR_KHR_composition_layer_*`` extension (CloudXR advertises both), and the viewer exits
-with an error otherwise. Stereo sources render per-eye textures on the same surface;
-``placements.<name>.stereo_baseline_mm`` shifts each eye's surface laterally for extra
-geometric disparity (no effect on the infinite-radius equirect sphere).
+``cylinder`` and ``equirect`` require XR mode — the viewer exits with an error in window mode.
+Stereo sources render per-eye textures on the same surface; ``stereo_baseline_mm`` adds a
+per-eye pose shift (no effect on the equirect sphere at its default infinite radius).
 
 CloudXR runtime flags
 ---------------------
 
-In XR mode the viewer owns the runtime lifecycle. All the standard launcher flags are available:
+In XR mode the viewer launches the CloudXR runtime and WSS proxy itself. Useful flags:
 
-- ``--launch-cloudxr-runtime`` / ``--no-launch-cloudxr-runtime`` — start (default) or reuse an
-  already-running runtime.
-- ``--launch-wss-proxy`` / ``--no-launch-wss-proxy`` — the WSS TLS proxy headset clients connect
-  through (default: on). Disable for headless smoke tests.
-- ``--accept-eula`` — accept the NVIDIA CloudXR EULA non-interactively (first run only).
-- ``--cloudxr-install-dir PATH`` / ``--cloudxr-device-profile PROFILE`` /
-  ``--cloudxr-env-config PATH`` — install dir (default ``~/.cloudxr``), ``NV_DEVICE_PROFILE``
-  (default ``Quest3``), and a KEY=value env-override file.
+- ``--no-launch-cloudxr-runtime`` — reuse an already-running runtime.
+- ``--accept-eula`` — accept the CloudXR EULA non-interactively (first run only).
+- ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
+
+Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
 
 Split mode — robot → workstation over RTP
 -----------------------------------------

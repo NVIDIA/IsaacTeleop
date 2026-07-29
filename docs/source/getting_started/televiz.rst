@@ -217,9 +217,12 @@ A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
      - Allocate + regenerate a capped mip chain each frame; sampler uses trilinear filtering.
    * - ``native_composition``
      - ``True``
-     - In XR, submit as a native ``XrCompositionLayerQuad`` (the default). Set ``False`` to
-       composite into the shared render target instead — needed to z-compose with
-       ``ProjectionLayer`` content. Ignored in window / offscreen (always composited). See
+     - In XR, submit as a native ``XrCompositionLayerQuad``. ``False`` composites through
+       Televiz — needed to z-compose with a ``ProjectionLayer``. See
+       `Native OpenXR composition layers`_.
+   * - ``alpha_blend``
+     - ``False``
+     - Honor the texture's alpha channel (translucent content). See
        `Native OpenXR composition layers`_.
 
 Submit and place a frame:
@@ -251,55 +254,44 @@ never sees a half-matched pair. Lock-mode placement strategies (``world`` / ``he
 Native OpenXR composition layers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-In XR mode a texture layer can bypass Televiz's compositor entirely and be handed to the OpenXR
-runtime as a **native composition layer** — the runtime places and samples the texture itself. This
-unlocks the runtime's layer fast path: with CloudXR, frames whose visible layers are *all* native
-drop the projection layer from the submission, letting the runtime's client-reconstructed streaming
-engage (each layer is streamed and reprojected on-device instead of being flattened into the eye
-buffers on the server).
-
-Three shapes map 1:1 onto OpenXR composition-layer types:
+In XR mode, texture layers are handed straight to the OpenXR runtime as **native composition
+layers**: the runtime places, samples, and reprojects them itself. When every visible layer is
+native (and opaque), CloudXR streams color-only video and the headset reconstructs the
+composition from the layer geometry — lower bandwidth, sharper reprojection.
 
 .. list-table::
    :header-rows: 1
-   :widths: 22 34 44
+   :widths: 22 36 42
 
    * - Layer
      - OpenXR type
-     - Enabled by
+     - Native
    * - ``QuadLayer``
      - ``XrCompositionLayerQuad``
-     - Default (``QuadLayerConfig.native_composition``); set ``False`` to opt back into the
-       compositor draw path — the only path with depth, and always used in window / offscreen
+     - Default. ``native_composition = False`` composites through Televiz instead — needed to
+       z-compose with a ``ProjectionLayer``. Window / offscreen always composite.
    * - ``CylinderLayer``
      - ``XrCompositionLayerCylinderKHR``
-     - Always — the layer is native-only
+     - Always (native-only).
    * - ``EquirectLayer``
      - ``XrCompositionLayerEquirect2KHR``
-     - Always — the layer is native-only
+     - Always (native-only).
 
-``CylinderLayer`` and ``EquirectLayer`` have **no compositor fallback**: they require
-``DisplayMode.kXr`` *and* a runtime that advertises the matching
-``XR_KHR_composition_layer_cylinder`` / ``XR_KHR_composition_layer_equirect2`` extension
-(CloudXR advertises both). ``add_cylinder_layer`` / ``add_equirect_layer`` raise ``ValueError``
-up front otherwise.
+Rules of thumb:
 
-Trade-offs shared by all native layers:
+* ``CylinderLayer`` / ``EquirectLayer`` need ``DisplayMode.kXr`` and a runtime with the matching
+  ``XR_KHR_composition_layer_*`` extension (CloudXR has both); ``add_cylinder_layer`` /
+  ``add_equirect_layer`` raise ``ValueError`` otherwise.
+* Native layers carry no depth: they composite in insertion order. Add backgrounds first.
+* ``alpha_blend`` (default off) makes the runtime honor the texture's alpha channel — use for
+  translucent HUDs. Leave it off for opaque feeds: alpha-blended layers disable CloudXR's
+  per-layer streaming for the frame.
+* Stereo = per-eye textures on the same surface (the VR-video convention).
+  ``stereo_baseline_mm`` adds a per-eye pose shift on top; it has no effect on an
+  infinite-radius equirect sphere.
 
-* **No depth** — OpenXR composition layers carry no depth buffer, so they composite in submission
-  order (insertion order of the layers) rather than z-testing against 3D content. Add background
-  layers (an equirect sky) first.
-* **No per-frame placement strategies** — the runtime owns placement between submissions, so
-  head-lock / lazy-follow strategies that rewrite the pose every frame defeat the purpose (each
-  ``set_placement`` still takes effect on the next frame).
-* **Alpha is per-layer opt-in** (``alpha_blend``, default off). Opaque layers composite fully
-  within their bounds — passthrough still shows around them — and keep the frame eligible for
-  CloudXR's client-reconstructed streaming. Setting ``alpha_blend`` on a layer makes the runtime
-  honor its texture's alpha channel (translucent HUDs), at the cost of excluding the frame from
-  that optimization.
-
-``CylinderLayerConfig`` — ``name`` / ``resolution`` / ``format`` / ``stereo`` as ``QuadLayerConfig``,
-plus a ``CylinderLayerPlacement``:
+``CylinderLayerConfig`` — ``name`` / ``resolution`` / ``stereo`` as ``QuadLayerConfig``, plus a
+``CylinderLayerPlacement``:
 
 .. list-table::
    :header-rows: 1
@@ -310,20 +302,19 @@ plus a ``CylinderLayerPlacement``:
      - Description
    * - ``pose``
      - identity
-     - Center of the cylinder; the arc is centered on the pose's ``-z`` axis, cylinder axis
-       is ``+y``.
+     - Cylinder center; the arc bows out along the pose's ``-z``, cylinder axis is ``+y``.
    * - ``radius_m``
      - ``1.0``
-     - Cylinder radius in meters; ``0`` or ``+inf`` = infinite cylinder.
+     - Radius in meters — the viewing distance to the surface. ``0`` / ``+inf`` = infinite.
    * - ``central_angle_rad``
      - ``π/2``
-     - Visible arc in radians, ``(0, 2π)`` — the spec excludes a full wrap.
+     - Visible arc in radians, ``(0, 2π)``.
    * - ``aspect_ratio``
      - ``0``
-     - Width / height of the visible arc. ``0`` derives it from ``resolution`` (square texels).
+     - Arc width / height. ``0`` derives it from ``resolution`` (square texels).
 
-``EquirectLayerConfig`` — same common fields, plus an ``EquirectLayerPlacement`` whose defaults
-describe a **full 360°×180° sphere at infinite radius** (a mono panorama works out of the box):
+``EquirectLayerConfig`` — same common fields, plus an ``EquirectLayerPlacement``. The defaults are
+a full 360°×180° sphere at infinite radius, so a panorama needs no placement at all:
 
 .. list-table::
    :header-rows: 1
@@ -337,20 +328,13 @@ describe a **full 360°×180° sphere at infinite radius** (a mono panorama work
      - Sphere center; the texture's horizontal center maps to the pose's ``-z``.
    * - ``radius_m``
      - ``0``
-     - Sphere radius in meters; ``0`` or ``+inf`` = infinite sphere.
+     - Radius in meters; ``0`` / ``+inf`` = infinite sphere.
    * - ``central_horizontal_angle_rad``
      - ``2π``
-     - Horizontal span in radians (``2π`` = full 360°; use ``π`` for VR180).
+     - Horizontal span (``π`` for VR180).
    * - ``upper_vertical_angle_rad`` / ``lower_vertical_angle_rad``
      - ``π/2`` / ``−π/2``
-     - Vertical span as angles from the horizon, ``[−π/2, π/2]``, upper > lower.
-
-Stereo on all three shapes follows the VR-video convention by default: per-eye textures on the
-**same** surface (one composition layer per eye via ``eyeVisibility``) — the depth cue comes from
-the image pair. All three configs also accept ``stereo_baseline_mm``, which shifts each eye's layer
-by ``±baseline/2`` along the placement's local ``+x`` for additional geometric disparity. Note it
-only has a visible effect where the surface is at *finite* distance: the viewing direction to a
-sphere of radius R changes by ~shift/R, so it is a no-op on an infinite-radius equirect sphere.
+     - Vertical span from the horizon, upper > lower.
 
 .. code-block:: python
 
