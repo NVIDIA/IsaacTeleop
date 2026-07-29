@@ -269,7 +269,7 @@ export default function CloudXRComponent({
             telemetry: {
               enabled: true,
               appInfo: {
-                version: '6.2.0',
+                version: '6.3.0-rc1',
                 product: applicationName,
               },
             },
