@@ -151,9 +151,35 @@ Available Retargeters
    **DexBiManualRetargeter:** Bimanual wrapper around two ``DexHandRetargeter`` instances. Create
    ``DexHandRetargeterConfig`` for left and right hands, then instantiate with
    ``left_config``, ``right_config``, and ``target_joint_names`` (combined left + right joint
-   names). See the `retargeters README
-   <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/README.md>`_
-   for a full code example.
+   names):
+
+   .. code-block:: python
+
+      from isaacteleop.retargeters import (
+          DexBiManualRetargeter,
+          DexHandRetargeterConfig,
+      )
+
+      left_config = DexHandRetargeterConfig(
+          hand_joint_names=left_hand_joints,
+          hand_retargeting_config="/path/to/left_hand_config.yml",
+          hand_urdf="/path/to/left_hand.urdf",
+          hand_side="left",
+      )
+
+      right_config = DexHandRetargeterConfig(
+          hand_joint_names=right_hand_joints,
+          hand_retargeting_config="/path/to/right_hand_config.yml",
+          hand_urdf="/path/to/right_hand.urdf",
+          hand_side="right",
+      )
+
+      bimanual_retargeter = DexBiManualRetargeter(
+          left_config=left_config,
+          right_config=right_config,
+          target_joint_names=left_hand_joints + right_hand_joints,
+          name="dex_bimanual",
+      )
 
    **Coordinate frame:** The ``handtracking_to_baselink_frame_transform`` parameter is a 3x3
    rotation matrix flattened to 9 elements. Applied as
@@ -217,8 +243,7 @@ Available Retargeters
       For a complete hand retargeting example (e.g. ``HandsSource`` + ``DexHandRetargeter`` or
       ``TriHandMotionControllerRetargeter``, connect and compute), see
       ``g1_trihand_retargeting_example.py`` and ``dex_bimanual_example.py`` in the
-      ``examples/teleop/python`` directory, or the `retargeters README
-      <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/README.md>`_.
+      :code-dir:`examples/teleop/python` directory.
 
 .. dropdown:: LocomotionRootCmdRetargeter
 
@@ -337,8 +362,7 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
    ``IDeviceIOSource`` subclass for custom input devices.
 
-See the `retargeters README <https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/README.md>`_
-and :doc:`Contributing Guide <../../getting_started/contributing>` for details.
+See the :doc:`Contributing Guide <../../getting_started/contributing>` for details.
 
 .. toctree::
    :maxdepth: 1
