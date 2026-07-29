@@ -41,6 +41,11 @@ namespace
 template <typename TrackedT>
 std::shared_ptr<TrackedT> share_tracked(const TrackedT& tracked)
 {
+    // Only `data` is carried over, so a Tracked wrapper that grows a second field (the parallel
+    // Record wrappers already carry a timestamp) would be silently dropped here with nothing to
+    // flag it. NativeTable is empty, so a one-field wrapper is exactly as wide as its member.
+    static_assert(sizeof(TrackedT) == sizeof(decltype(TrackedT::data)),
+                  "Tracked wrapper has fields beyond .data; share_tracked() would drop them");
     auto shared = std::make_shared<TrackedT>();
     shared->data = tracked.data;
     return shared;
@@ -144,7 +149,9 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "get_messages",
             [](const core::MessageChannelTracker& self, const core::ITrackerSession& session)
             { return share_tracked(self.get_messages(session)); },
-            py::arg("session"), "Get all messages drained during the last update (possibly empty)" TRACKED_LIFETIME_DOC)
+            // No lifetime note here: this payload is a vector, so share_tracked() copies the list
+            // itself, and every drained message is freshly allocated. The result is a snapshot.
+            py::arg("session"), "Get all messages drained during the last update (possibly empty)")
         .def(
             "get_status",
             [](const core::MessageChannelTracker& self, const core::ITrackerSession& session) -> core::MessageChannelStatus
