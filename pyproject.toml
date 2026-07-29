@@ -118,7 +118,24 @@ build-dir = "build/wheel-{cache_tag}"
 # the project's C++ library/header install() rules out of the wheel.
 install.components = ["isaacteleop_wheel", "isaacteleop_binaries"]
 
-# Editable installs don't recompile on import; editing pure-Python src/ is not live.
+# Resolve the authored pure-Python tree straight from src/python/isaacteleop rather
+# than from the CMake-staged copy, so an editable install imports the working tree
+# and `mode = "redirect"` below makes source edits live without a re-stage.
+#
+# This is the wheel half of the ownership rule that keeps the two producers
+# disjoint: `wheel.packages` owns every authored .py, while the
+# `isaacteleop_wheel` install component owns only build-produced files (.so/.pyi/
+# py.typed and the vendored CloudXR runtime). Their union is the staged tree; their
+# intersection must stay empty -- the component's install(DIRECTORY) in
+# src/core/python/CMakeLists.txt excludes *.py for exactly this reason. The
+# exclusion is load-bearing, not tidiness: the generated editable finder consults
+# `known_wheel_files` BEFORE `known_source_files`, so any .py left in the component
+# silently shadows the mapping below and the redirect becomes a no-op.
+[tool.scikit-build.wheel]
+packages = { isaacteleop = "src/python/isaacteleop" }
+
+# Editable installs don't recompile on import, so extension changes still need a
+# re-install; authored .py edits are live via wheel.packages above.
 [tool.scikit-build.editable]
 mode = "redirect"
 rebuild = false
