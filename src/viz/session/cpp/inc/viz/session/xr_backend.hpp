@@ -202,6 +202,7 @@ private:
         uint32_t height = 0;
         XrPosef pose{};
         XrEyeVisibility eye_visibility = XR_EYE_VISIBILITY_BOTH;
+        bool alpha_blend = false; // honor the texture's alpha when compositing
         NativeLayerShape shape = NativeLayerShape::kQuad;
         XrExtent2Df size{}; // kQuad
         float radius = 0.0f; // kCylinder + kEquirect2

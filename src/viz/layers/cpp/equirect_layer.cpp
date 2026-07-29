@@ -116,6 +116,7 @@ std::optional<NativeLayerView> EquirectLayer::acquire_native_layer(uint32_t in_f
     v.extent = resolution();
     v.pose = placement.pose;
     v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.alpha_blend = config_.alpha_blend;
     v.radius = placement.radius_m;
     v.central_horizontal_angle = placement.central_horizontal_angle_rad;
     v.upper_vertical_angle = placement.upper_vertical_angle_rad;

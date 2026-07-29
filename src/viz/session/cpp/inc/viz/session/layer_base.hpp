@@ -94,6 +94,13 @@ struct NativeLayerView
     // equirect sphere is unchanged by construction, so it's a no-op there).
     float stereo_baseline_mm = 0.0f;
 
+    // Composite this layer honoring its texture's alpha channel
+    // (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). False =
+    // opaque within the layer's bounds — the right setting for camera
+    // feeds, and the one that keeps the layer eligible for the runtime's
+    // client-reconstructed streaming (which excludes source-alpha layers).
+    bool alpha_blend = false;
+
     NativeLayerShape shape = NativeLayerShape::kQuad;
 
     // ── kQuad ────────────────────────────────────────────────────────

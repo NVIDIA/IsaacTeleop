@@ -106,6 +106,16 @@ public:
         // Requires ``placement`` at record time either way, same as any
         // kXr quad.
         bool native_composition = true;
+
+        // Composite honoring the texture's alpha channel. Native path:
+        // sets XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT on the
+        // submitted XrCompositionLayerQuad. Off by default: camera feeds
+        // are opaque, and alpha-free layers keep the frame eligible for
+        // the runtime's client-reconstructed streaming (which excludes
+        // source-alpha layers). Turn on for translucent content (HUDs).
+        // Compositor path: currently ignored (the draw pipeline blends
+        // per the shared render target setup).
+        bool alpha_blend = false;
     };
 
     // Hard cap on the mip chain when generate_mipmaps is enabled.

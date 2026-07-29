@@ -132,7 +132,10 @@ void bind_layers(py::module_& m)
                        "render target instead — needed when the quad must z-compose with "
                        "ProjectionLayer 3D content (native quads carry no depth: flat "
                        "billboard, submission-order composited). Ignored outside kXr "
-                       "(window/offscreen always composite). Stereo emits one quad per eye.");
+                       "(window/offscreen always composite). Stereo emits one quad per eye.")
+        .def_readwrite(
+            "alpha_blend", &viz::QuadLayer::Config::alpha_blend,
+            "Composite honoring the texture's alpha channel (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by default: opaque content composites fully within the layer bounds (passthrough still shows outside them) and alpha-free layers keep the frame eligible for CloudXR's client-reconstructed streaming, which excludes source-alpha layers. Turn on for translucent content (HUDs, overlays).");
 
     // ── QuadLayer (non-owning; session owns the lifetime) ─────────────
 
@@ -243,6 +246,9 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
                        "along the placement's local +x axis — same convention as QuadLayer. "
                        "0 (default) → both eyes see the same world cylinder and depth comes "
                        "from the image pair. Ignored unless stereo.")
+        .def_readwrite(
+            "alpha_blend", &viz::CylinderLayer::Config::alpha_blend,
+            "Composite honoring the texture's alpha channel (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by default: opaque content composites fully within the layer bounds (passthrough still shows outside them) and alpha-free layers keep the frame eligible for CloudXR's client-reconstructed streaming, which excludes source-alpha layers. Turn on for translucent content (HUDs, overlays).")
         .def_readwrite("placement", &viz::CylinderLayer::Config::placement);
 
     auto cylinder_cls =
@@ -309,6 +315,9 @@ order). Same submit contract as QuadLayer.
                        "R changes by ~shift/R, which is zero for the infinite (0/+inf) sphere. "
                        "0 (default) keeps the VR180/VR360 shared-sphere convention. Ignored "
                        "unless stereo.")
+        .def_readwrite(
+            "alpha_blend", &viz::EquirectLayer::Config::alpha_blend,
+            "Composite honoring the texture's alpha channel (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by default: opaque content composites fully within the layer bounds (passthrough still shows outside them) and alpha-free layers keep the frame eligible for CloudXR's client-reconstructed streaming, which excludes source-alpha layers. Turn on for translucent content (HUDs, overlays).")
         .def_readwrite("placement", &viz::EquirectLayer::Config::placement);
 
     auto equirect_cls =

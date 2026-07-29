@@ -156,6 +156,7 @@ TEST_CASE("CylinderLayer acquire promotes the mailbox and carries shape params",
 
     CylinderLayer::Config cfg;
     cfg.resolution = { 64, 32 };
+    cfg.alpha_blend = true;
     cfg.placement.pose.position = glm::vec3(0.0f, 1.0f, -2.0f);
     cfg.placement.radius_m = 1.5f;
     cfg.placement.central_angle_rad = glm::half_pi<float>();
@@ -188,6 +189,7 @@ TEST_CASE("CylinderLayer acquire promotes the mailbox and carries shape params",
     CHECK(view->radius == 1.5f);
     CHECK(view->central_angle == glm::half_pi<float>());
     CHECK(view->aspect_ratio == 2.0f); // derived: 64 / 32
+    CHECK(view->alpha_blend); // per-layer alpha choice reaches the backend
     CHECK(view->source_id == &layer);
 
     // The promoted slot must feed the queue-submit wait at TRANSFER (the
@@ -256,4 +258,7 @@ TEST_CASE("EquirectLayer stereo acquire pairs both eyes on one sphere", "[gpu][e
     // The per-eye pose shift threads through for shaped layers too (a
     // no-op at infinite radius, but the plumbing must carry it).
     CHECK(view->stereo_baseline_mm == 63.0f);
+    // Default = opaque: no source-alpha flag, so the frame stays eligible
+    // for the runtime's client-reconstructed streaming.
+    CHECK_FALSE(view->alpha_blend);
 }

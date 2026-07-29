@@ -1095,6 +1095,7 @@ void XrBackend::record_native_layers(VkCommandBuffer cmd, const Frame& /*frame*/
             submit.pose = pose3d_to_xr_pose(eye_pose);
             submit.eye_visibility =
                 stereo ? (e == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT) : XR_EYE_VISIBILITY_BOTH;
+            submit.alpha_blend = view.alpha_blend;
             submit.shape = view.shape;
             submit.size = XrExtent2Df{ view.size_meters.x, view.size_meters.y };
             submit.radius = view.radius;
@@ -1198,11 +1199,13 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     }
 
     // Non-opaque env modes need the alpha-blend layer flag for the runtime
-    // to honor our alpha channel. Straight alpha (not premultiplied). Shared
-    // by the projection layer and native quads. Note: with this flag set,
-    // the runtime's client-reconstructed optimization stays off (it excludes
-    // source-alpha layers) — so passthrough quads composite correctly but
-    // don't get the color-only fast path; opaque VR quads do.
+    // to honor our alpha channel. Straight alpha (not premultiplied).
+    // PROJECTION layer only: its unrendered pixels carry alpha 0 so the
+    // camera passthrough shows through. Native layers instead use their
+    // per-layer alpha_blend flag (below) — an opaque camera quad needs no
+    // source alpha even in a passthrough session, and staying alpha-free
+    // keeps the frame eligible for the runtime's client-reconstructed
+    // streaming (which excludes source-alpha layers).
     const bool is_passthrough = session_->environment_blend_mode() != XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
     const XrCompositionLayerFlags blend_flags = is_passthrough ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
 
@@ -1265,7 +1268,7 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         case NativeLayerShape::kQuad:
         {
             XrCompositionLayerQuad ql{ XR_TYPE_COMPOSITION_LAYER_QUAD };
-            ql.layerFlags = blend_flags;
+            ql.layerFlags = q.alpha_blend ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
             ql.space = session_->reference_space();
             ql.eyeVisibility = q.eye_visibility;
             ql.subImage = sub_image;
@@ -1278,7 +1281,7 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         case NativeLayerShape::kCylinder:
         {
             XrCompositionLayerCylinderKHR cl{ XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR };
-            cl.layerFlags = blend_flags;
+            cl.layerFlags = q.alpha_blend ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
             cl.space = session_->reference_space();
             cl.eyeVisibility = q.eye_visibility;
             cl.subImage = sub_image;
@@ -1293,7 +1296,7 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         case NativeLayerShape::kEquirect2:
         {
             XrCompositionLayerEquirect2KHR eq{ XR_TYPE_COMPOSITION_LAYER_EQUIRECT2_KHR };
-            eq.layerFlags = blend_flags;
+            eq.layerFlags = q.alpha_blend ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
             eq.space = session_->reference_space();
             eq.eyeVisibility = q.eye_visibility;
             eq.subImage = sub_image;

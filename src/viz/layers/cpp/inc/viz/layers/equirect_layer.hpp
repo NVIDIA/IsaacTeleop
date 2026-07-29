@@ -65,6 +65,13 @@ public:
         // Ignored when stereo is false.
         float stereo_baseline_mm = 0.0f;
 
+        // Composite honoring the texture's alpha channel
+        // (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by
+        // default: opaque panoramas keep the frame eligible for the
+        // runtime's client-reconstructed streaming (which excludes
+        // source-alpha layers).
+        bool alpha_blend = false;
+
         // Placement in the session's reference space. Defaults = full
         // sphere (360° × 180°) at infinite radius, centered on the
         // reference-space origin.

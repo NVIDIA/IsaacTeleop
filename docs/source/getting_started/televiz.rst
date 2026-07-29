@@ -292,9 +292,11 @@ Trade-offs shared by all native layers:
 * **No per-frame placement strategies** — the runtime owns placement between submissions, so
   head-lock / lazy-follow strategies that rewrite the pose every frame defeat the purpose (each
   ``set_placement`` still takes effect on the next frame).
-* In **passthrough** blend modes the source-alpha flag keeps layers compositing correctly but
-  excludes them from CloudXR's client-reconstructed optimization; opaque VR sessions get the fast
-  path.
+* **Alpha is per-layer opt-in** (``alpha_blend``, default off). Opaque layers composite fully
+  within their bounds — passthrough still shows around them — and keep the frame eligible for
+  CloudXR's client-reconstructed streaming. Setting ``alpha_blend`` on a layer makes the runtime
+  honor its texture's alpha channel (translucent HUDs), at the cost of excluding the frame from
+  that optimization.
 
 ``CylinderLayerConfig`` — ``name`` / ``resolution`` / ``format`` / ``stereo`` as ``QuadLayerConfig``,
 plus a ``CylinderLayerPlacement``:

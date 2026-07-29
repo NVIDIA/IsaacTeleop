@@ -351,6 +351,7 @@ std::optional<NativeLayerView> QuadLayer::acquire_native_layer(uint32_t in_fligh
     v.pose = placement->pose;
     v.size_meters = placement->size_meters;
     v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.alpha_blend = config_.alpha_blend;
     v.source_id = this;
     return v;
 }
