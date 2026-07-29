@@ -256,7 +256,10 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "get_body_pose",
             [](const core::FullBodyTracker& self, const core::ITrackerSession& session)
             { return share_tracked(self.get_body_pose(session)); },
-            py::arg("session"), "Get full body pose tracked state (data is None if inactive)" TRACKED_LIFETIME_DOC);
+            // No lifetime note here: the full-body impls install freshly allocated joint storage
+            // each frame rather than refilling it, so the result is a snapshot of the frame it was
+            // read on. Call again to see newer body data.
+            py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
 
     m.attr("NUM_JOINTS") = static_cast<int>(core::HandJoint_NUM_JOINTS);
     m.attr("JOINT_PALM") = static_cast<int>(core::HandJoint_PALM);
