@@ -94,6 +94,26 @@ headset connects and how the web client is delivered.
 ``--usb-local`` requires ``--setup-oob``. See
 :doc:`/references/oob_teleop_control` for full OOB documentation.
 
+Re-open the client on the headset
+---------------------------------
+
+If the headset browser is closed or navigated away, re-open the client from a
+second terminal without restarting the runtime:
+
+.. code-block:: bash
+
+   python -m isaacteleop.cloudxr.webclient
+
+This opens the versioned client over USB ``adb`` with this host's ``serverIP``
+and ``port`` pre-filled. Pass a URL to override the target — one already
+containing ``oobEnable=`` is opened verbatim, which is how to restore an OOB or
+USB-local session from the URL the launcher printed. ``--print-only`` resolves
+the URL without touching ``adb``. Run with ``--help`` for the full argument
+handling.
+
+It only *opens* the page; accepting the certificate and clicking CONNECT remain
+``--setup-oob``'s CDP automation.
+
 .. _load-cloudxr-environment-variables:
 
 Load CloudXR environment variables

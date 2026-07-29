@@ -42,6 +42,7 @@ def _ensure_cloudxr_package() -> None:
     load("oob_teleop_hub")
     load("oob_teleop_env")
     load("oob_teleop_adb")
+    load("webclient")
 
 
 _ensure_cloudxr_package()

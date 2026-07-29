@@ -53,7 +53,7 @@ def test_oob_adb_automation_message() -> None:
     assert "exit code 1" in msg
     assert "device offline" in msg
     assert "Device offline hint." in msg
-    assert "omit --setup-oob" in msg
+    assert "open the teleop URL on the headset" in msg
 
 
 def test_oob_adb_automation_message_empty_detail() -> None:

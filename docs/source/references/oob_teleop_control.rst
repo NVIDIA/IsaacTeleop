@@ -166,7 +166,9 @@ Prerequisites:
 
 If any step fails, the hub still starts.  Fall back to
 ``chrome://inspect/#devices`` from the PC or tap CONNECT on the headset
-directly.
+directly.  To re-open the page later without restarting the launcher, pass the
+bookmark URL above to ``python -m isaacteleop.cloudxr.webclient`` (see
+:doc:`/references/cloudxr`).
 
 Architecture
 ------------

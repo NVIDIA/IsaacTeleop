@@ -156,6 +156,7 @@ add_custom_target(cloudxr_python ALL
         "${CMAKE_CURRENT_SOURCE_DIR}/launcher.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/wss.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/webclient.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_adb.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_env.py"
         "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_hub.py"
