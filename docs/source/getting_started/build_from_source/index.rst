@@ -21,7 +21,7 @@ Prerequisites
 
 - **CMake** 3.20 or higher
 - **C++20** compatible compiler
-- **Python** 3.10, 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
+- **Python** 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
 
@@ -108,7 +108,7 @@ See :ref:`dedicated-cloudxr-runtime`.
 -----------------------------
 
 From the project root, configure with a **preset** — there is one per supported
-Python version (``py3.10`` … ``py3.13``; see :code-file:`CMakePresets.json`). A
+Python version (``py3.11`` … ``py3.13``; see :code-file:`CMakePresets.json`). A
 preset selects the Python version and an isolated per-version build directory, so
 different versions never share (and clobber) one configured CMake cache:
 
@@ -197,7 +197,7 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
      - ``ON``
    * - **Python version**
      - ``ISAAC_TELEOP_PYTHON_VERSION``
-     - ``3.11`` (3.10, 3.11, 3.12, or 3.13)
+     - ``3.11`` (3.11, 3.12, or 3.13)
    * - **Testing**
      - ``BUILD_TESTING``
      - ``ON``; enables CTest and Catch2
@@ -228,13 +228,13 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
 Examples
 ~~~~~~~~
 
-Build for a different Python version — use the matching preset (``py3.10``,
-``py3.11``, ``py3.12``, ``py3.13``):
+Build for a different Python version — use the matching preset (``py3.11``,
+``py3.12``, ``py3.13``):
 
 .. code-block:: bash
 
-   cmake --preset py3.10
-   cmake --build --preset py3.10 --parallel
+   cmake --preset py3.12
+   cmake --build --preset py3.12 --parallel
 
 Debug build:
 

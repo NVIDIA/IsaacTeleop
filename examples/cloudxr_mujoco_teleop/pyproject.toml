@@ -5,7 +5,7 @@
 name = "cloudxr-mujoco-teleop-example"
 version = "0.1.0"
 description = "Visualize OpenXR / CloudXR headset + controller poses in MuJoCo."
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "isaacteleop",
     "mujoco>=3.0",

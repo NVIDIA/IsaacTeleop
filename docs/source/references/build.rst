@@ -98,7 +98,7 @@ e.g. ``cpython-312``) so the per-version tag is consistent between them:
   ``build/wheel-cpython-312/``), set by ``build-dir`` in
   :code-file:`pyproject.toml` and chosen automatically per interpreter.
 - **classic CMake** → ``build/cmake-<cache-tag>/``, via the presets in
-  :code-file:`CMakePresets.json` (``py3.10`` … ``py3.13``). Each preset sets
+  :code-file:`CMakePresets.json` (``py3.11`` … ``py3.13``). Each preset sets
   ``ISAAC_TELEOP_PYTHON_VERSION`` and its own ``binaryDir``:
 
   .. code-block:: bash
@@ -162,8 +162,8 @@ uv or Python version
 ~~~~~~~~~~~~~~~~~~~~
 
 ``cmake/SetupPython.cmake`` requires **uv** and uses ``ISAAC_TELEOP_PYTHON_VERSION``. Install uv as
-in :ref:`One time setup <one-time-setup>` and pass ``-DISAAC_TELEOP_PYTHON_VERSION=3.10`` (or 3.11,
-3.12, 3.13) if you need a specific version.
+in :ref:`One time setup <one-time-setup>` and pass ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or 3.11,
+3.13) if you need a specific version.
 
 Reference
 ---------
