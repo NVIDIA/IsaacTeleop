@@ -43,11 +43,24 @@ class PlacementConfig:
 
 @dataclass
 class Placement:
-    """Output of a strategy: feeds straight into ``viz.QuadLayerPlacement``."""
+    """Output of a strategy.
+
+    ``position`` / ``orientation`` / ``size_meters`` feed straight into
+    ``viz.QuadLayerPlacement``. ``anchor_position`` / ``anchor_orientation``
+    are the head-anchored pose ``distance`` behind the plane, oriented so
+    local −z points at the plane — the pose a curved surface centered on
+    the viewer (``viz.CylinderLayerPlacement``) should use. Each strategy
+    computes the anchor itself because the facing conventions differ
+    (world/lazy build yaw-only quats whose +z faces the head; head-locked
+    uses the full head orientation flipped 180°).
+    """
 
     position: Vec3
     orientation: Quat  # (w, x, y, z)
     size_meters: Tuple[float, float]
+    distance: float = 1.5
+    anchor_position: Vec3 = (0.0, 0.0, 0.0)
+    anchor_orientation: Quat = (1.0, 0.0, 0.0, 0.0)
 
 
 class PlacementStrategy(ABC):
@@ -89,7 +102,21 @@ class WorldLocked(PlacementStrategy):
             forward_xz = project_forward_xz(head_orientation)
             position = _target_position(head_pos, forward_xz, self._config)
             yaw = _yaw_to_face(head_pos, position)
-            self._cached = Placement(position, yaw_quat(yaw), self._config.size_meters)
+            orientation = yaw_quat(yaw)
+            # Anchor = the head point the plane was placed around: push the
+            # plane back along its local +z (which faces the head).
+            back = rotate_vec(orientation, (0.0, 0.0, 1.0))
+            anchor = tuple(
+                position[i] + back[i] * self._config.distance for i in range(3)
+            )
+            self._cached = Placement(
+                position,
+                orientation,
+                self._config.size_meters,
+                self._config.distance,
+                anchor,
+                orientation,
+            )
         return self._cached
 
 
@@ -116,7 +143,23 @@ class HeadLocked(PlacementStrategy):
             head_pos[2] + forward[2] * d + right[2] * ox + up[2] * oy,
         )
         orientation = quat_mul(head_orientation, _ROT_Y_180)
-        return Placement(position, orientation, self._config.size_meters)
+        # Anchor = the head itself (plus the configured offsets, already
+        # baked into ``position``): pull the plane back by ``distance``.
+        # Orientation is the UNflipped head pose so the anchor's local −z
+        # (where a cylinder arc bows out) tracks the gaze direction.
+        anchor = (
+            position[0] - forward[0] * d,
+            position[1] - forward[1] * d,
+            position[2] - forward[2] * d,
+        )
+        return Placement(
+            position,
+            orientation,
+            self._config.size_meters,
+            self._config.distance,
+            anchor,
+            head_orientation,
+        )
 
 
 class LazyLocked(PlacementStrategy):
@@ -150,9 +193,7 @@ class LazyLocked(PlacementStrategy):
             self._yaw = _yaw_to_face(head_pos, self._position)
             self._target_yaw = self._yaw
             self._initialized = True
-            return Placement(
-                self._position, yaw_quat(self._yaw), self._config.size_meters
-            )
+            return self._placement()
 
         # Look-away check: angle between head forward and head→plane vector.
         head_to_plane = (
@@ -201,7 +242,25 @@ class LazyLocked(PlacementStrategy):
                 self._is_transitioning = False
                 self._is_looking_away = False
 
-        return Placement(self._position, yaw_quat(self._yaw), self._config.size_meters)
+        return self._placement()
+
+    def _placement(self) -> Placement:
+        """Current (possibly mid-transition) pose as a Placement. The anchor
+        glides with the smoothed plane pose so a cylinder re-snaps along the
+        same eased path a quad does."""
+        orientation = yaw_quat(self._yaw)
+        back = rotate_vec(orientation, (0.0, 0.0, 1.0))
+        anchor = tuple(
+            self._position[i] + back[i] * self._config.distance for i in range(3)
+        )
+        return Placement(
+            self._position,
+            orientation,
+            self._config.size_meters,
+            self._config.distance,
+            anchor,
+            orientation,
+        )
 
 
 def build(lock_mode: str, config: PlacementConfig) -> PlacementStrategy:

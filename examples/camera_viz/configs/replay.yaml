@@ -46,8 +46,14 @@ display:
   xr:
     near_z: 0.05
     far_z: 100.0
-  clear_color: [0.05, 0.05, 0.08, 1.0]
+  clear_color: [0.0, 0.0, 0.0, 0.0]
   placements:
     replay:                     # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
       distance: 1.5
+      # Surface the feed is mapped onto (all shapes are per-camera):
+      #   shape: quad           # quad (default) | cylinder | equirect
+      #   native: true          # quads only: native XrCompositionLayerQuad
+      #                         # (default) vs the built-in compositor
+      #   cylinder_radius_m: 2.0    # cylinder only
+      #   cylinder_angle_deg: 90    # cylinder only

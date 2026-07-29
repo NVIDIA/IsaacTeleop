@@ -25,6 +25,7 @@ from .interface import FrameSource
 
 logger = logging.getLogger(__name__)
 
+
 # Submit thread poll interval when no source has new data.
 SUBMIT_POLL_S = 0.001
 
@@ -288,9 +289,19 @@ class VizRunner:
             if strategy is None:
                 continue
             placement = strategy.update(head.position, head.orientation)
-            layer.set_placement(
-                viz.QuadLayerPlacement(
-                    viz.Pose3D(placement.position, placement.orientation),
-                    placement.size_meters,
+            if isinstance(layer, viz.CylinderLayer):
+                # The cylinder's pose is the strategy's head anchor (its arc
+                # bows out along the anchor's -z at radius); radius / angle /
+                # aspect stay as configured.
+                cyl = layer.placement()
+                cyl.pose = viz.Pose3D(
+                    placement.anchor_position, placement.anchor_orientation
                 )
-            )
+                layer.set_placement(cyl)
+            else:
+                layer.set_placement(
+                    viz.QuadLayerPlacement(
+                        viz.Pose3D(placement.position, placement.orientation),
+                        placement.size_meters,
+                    )
+                )

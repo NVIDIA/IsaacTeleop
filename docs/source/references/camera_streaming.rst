@@ -172,7 +172,9 @@ In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` u
    * - ``world``
      - Placed once in front of you and stays put.
    * - ``head``
-     - Follows your head every frame.
+     - Follows your head every frame. Head-locked content updates its pose at application
+       rate, so it trails fast head motion by roughly a frame — expected for any head-locked
+       OpenXR layer; prefer ``lazy`` unless you need a true HUD.
    * - ``lazy``
      - World-locked, but re-snaps in front of you when you look away (default).
 
@@ -182,30 +184,35 @@ Lazy-mode knobs live under ``placements.<name>``: ``look_away_angle_deg``,
 Surface shapes and native composition layers
 --------------------------------------------
 
-By default each camera renders on a flat plane composited by Televiz. Two CLI flags change how
-the feed reaches the headset (XR mode only; see
-:ref:`Native OpenXR composition layers <native-openxr-composition-layers>` for the underlying
-mechanics and trade-offs):
+By default each camera renders on a flat plane submitted as a native ``XrCompositionLayerQuad``.
+Per-camera keys under ``display.placements.<name>`` change how the feed reaches the headset
+(XR mode only; see :ref:`Native OpenXR composition layers <native-openxr-composition-layers>`
+for the underlying mechanics and trade-offs):
 
 .. list-table::
    :header-rows: 1
-   :widths: 26 74
+   :widths: 30 70
 
-   * - Flag
+   * - Key
      - Effect
-   * - ``--native-quad`` / ``--no-native-quad``
-     - Flat planes submit as native ``XrCompositionLayerQuad`` **by default**: when every visible
-       layer is native, CloudXR can stream each layer separately and reproject it on-device.
-       Placement lock modes still apply. ``--no-native-quad`` falls back to server-side
-       compositing (e.g. for runtimes that mishandle native quad layers).
-   * - ``--layer-shape cylinder``
-     - Wrap each feed onto a cylinder arc facing the operator (native
-       ``XrCompositionLayerCylinderKHR``). ``--cylinder-radius METERS`` (default 2.0) and
-       ``--cylinder-angle-deg DEGREES`` (default 90) size the arc; its width/height ratio follows
-       the source resolution. Placement lock modes don't apply — the arc is fixed in the space.
-   * - ``--layer-shape equirect``
-     - Map each feed onto a full 360°×180° sphere (native ``XrCompositionLayerEquirect2KHR``) —
-       for equirectangular panorama / VR-video sources, not regular camera frames.
+   * - ``shape: quad`` (default)
+     - Flat plane, native ``XrCompositionLayerQuad``: when every visible layer is native, CloudXR
+       can stream each layer separately and reproject it on-device. Placement lock modes apply.
+   * - ``native: false``
+     - Quads only: fall back to server-side compositing through Televiz's shared render target
+       (e.g. for runtimes that mishandle native quad layers, or to z-compose with a
+       ``ProjectionLayer``).
+   * - ``shape: cylinder``
+     - Wrap the feed onto a cylinder arc facing the operator (native
+       ``XrCompositionLayerCylinderKHR``). ``cylinder_radius_m`` (default 2.0) and
+       ``cylinder_angle_deg`` (default 90) size the arc; its width/height ratio follows the
+       source resolution. All three lock modes apply, repositioning the cylinder around the
+       operator just like a quad (the surface distance stays ``cylinder_radius_m``); ``head``
+       turns it into a gaze-tracking curved visor.
+   * - ``shape: equirect``
+     - Map the feed onto a full 360°×180° sphere (native ``XrCompositionLayerEquirect2KHR``) —
+       for equirectangular panorama / VR-video sources, not regular camera frames. Lock modes
+       don't apply (a full sphere has nothing to re-snap).
 
 Both shaped layers are **native-only**: they require XR mode and a runtime advertising the
 matching ``XR_KHR_composition_layer_*`` extension (CloudXR advertises both), and the viewer exits
@@ -309,6 +316,10 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
          distance: 1.5
          # size: [w_m, h_m]
          # stereo_baseline_mm: 0
+         # shape: quad           # quad | cylinder | equirect (native-only shapes)
+         # native: true          # quads: native OpenXR layer (default) vs compositor
+         # cylinder_radius_m: 2.0
+         # cylinder_angle_deg: 90
 
 See the :code-dir:`configs/ <examples/camera_viz/configs>` directory for a complete, commented
 YAML per source kind.

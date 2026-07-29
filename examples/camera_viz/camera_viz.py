@@ -44,12 +44,41 @@ from sources import (
 
 @dataclass
 class SourceEntry:
-    """source + placement + stereo cfg; drives QuadLayer construction."""
+    """source + placement + stereo + shape cfg; drives layer construction."""
 
     source: FrameSource
     placement: Optional[PlacementStrategy]
     stereo: bool = False
     stereo_baseline_mm: float = 0.0
+    # display.placements.<name>.shape: quad | cylinder | equirect.
+    shape: str = "quad"
+    # Quads only: native XrCompositionLayerQuad (default) vs the built-in
+    # compositor (display.placements.<name>.native: false).
+    native: bool = True
+    # Cylinder shape parameters (display.placements.<name>).
+    cylinder_radius_m: float = 2.0
+    cylinder_angle_deg: float = 90.0
+
+
+_VALID_SHAPES = ("quad", "cylinder", "equirect")
+
+
+def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, float]:
+    """Per-camera surface config from ``display.placements.<name>``:
+    ``shape`` (quad | cylinder | equirect, default quad), ``native``
+    (quads only, default true), ``cylinder_radius_m`` / ``cylinder_angle_deg``
+    (cylinder only)."""
+    pspec = placements_cfg.get(cam_name) or {}
+    shape = str(pspec.get("shape", "quad")).lower()
+    if shape not in _VALID_SHAPES:
+        raise ValueError(
+            f"camera_viz: placements.{cam_name}.shape must be one of "
+            f"{'|'.join(_VALID_SHAPES)}, got {shape!r}"
+        )
+    native = bool(pspec.get("native", True))
+    radius_m = float(pspec.get("cylinder_radius_m", 2.0))
+    angle_deg = float(pspec.get("cylinder_angle_deg", 90.0))
+    return shape, native, radius_m, angle_deg
 
 
 def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:
@@ -118,6 +147,7 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
             placements_cfg.get(cam["name"]), first.width, first.height, is_xr
         )
         stereo, baseline_mm = _stereo_for(cam, placements_cfg)
+        shape, native, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
         for source in cam_sources:
             entries.append(
                 SourceEntry(
@@ -125,6 +155,10 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                     placement=placement,
                     stereo=stereo,
                     stereo_baseline_mm=baseline_mm,
+                    shape=shape,
+                    native=native,
+                    cylinder_radius_m=radius_m,
+                    cylinder_angle_deg=angle_deg,
                 )
             )
     return entries
@@ -191,12 +225,17 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 gpu_id=int(rtp.get("gpu_id", 0)),
             )
 
+        shape, native, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
         entries.append(
             SourceEntry(
                 source=source,
                 placement=placement,
                 stereo=stereo,
                 stereo_baseline_mm=baseline_mm,
+                shape=shape,
+                native=native,
+                cylinder_radius_m=radius_m,
+                cylinder_angle_deg=angle_deg,
             )
         )
     return entries
@@ -227,18 +266,21 @@ def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSess
     return viz.VizSession.create(session_cfg)
 
 
-def _add_layer(session: viz.VizSession, entry: SourceEntry, args: argparse.Namespace):
-    """Register one layer for ``entry`` per --layer-shape.
+def _add_layer(session: viz.VizSession, entry: SourceEntry):
+    """Register one layer for ``entry`` per its ``shape`` (from
+    ``display.placements.<name>`` in the YAML).
 
-    quad     → QuadLayer (compositor path, or native when --native-quad);
-               the placement strategy positions it per frame.
+    quad     → QuadLayer (native XrCompositionLayerQuad by default;
+               ``native: false`` opts back into the compositor); the
+               placement strategy positions it per frame.
     cylinder → native CylinderLayer: the feed wrapped on an arc facing the
-               user (radius / angle from the CLI, aspect from the source).
+               user (``cylinder_radius_m`` / ``cylinder_angle_deg``, aspect
+               from the source).
     equirect → native EquirectLayer: full 360x180 sphere (the source is
                expected to be an equirect panorama).
     """
     spec = entry.source.spec
-    if args.layer_shape == "cylinder":
+    if entry.shape == "cylinder":
         layer_cfg = viz.CylinderLayerConfig()
         layer_cfg.name = spec.name
         layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
@@ -246,11 +288,11 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry, args: argparse.Names
         layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
         # aspect_ratio 0 = derived from the source resolution (square texels).
         layer_cfg.placement = viz.CylinderLayerPlacement(
-            radius_m=args.cylinder_radius,
-            central_angle_rad=math.radians(args.cylinder_angle_deg),
+            radius_m=entry.cylinder_radius_m,
+            central_angle_rad=math.radians(entry.cylinder_angle_deg),
         )
         return session.add_cylinder_layer(layer_cfg)
-    if args.layer_shape == "equirect":
+    if entry.shape == "equirect":
         layer_cfg = viz.EquirectLayerConfig()
         layer_cfg.name = spec.name
         layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
@@ -270,7 +312,7 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry, args: argparse.Names
     # Native OpenXR quad path is the default (kXr only; window mode always
     # composites). Requires a placement, which the placement strategy
     # applies below.
-    layer_cfg.native_composition = args.native_quad
+    layer_cfg.native_composition = entry.native
     return session.add_quad_layer(layer_cfg)
 
 
@@ -283,44 +325,6 @@ def main(argv: Optional[list[str]] = None) -> int:
         default=None,
         help="Override display.mode from the config "
         "(default: the config's value, or xr when the config omits it).",
-    )
-    parser.add_argument(
-        "--native-quad",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Submit each camera as a native OpenXR quad layer "
-        "(XrCompositionLayerQuad) — the default in XR mode; window mode "
-        "always composites. When every layer is native the projection "
-        "layer is dropped, letting the runtime engage its quad fast path / "
-        "client-reconstructed streaming. Pass --no-native-quad to fall "
-        "back to the built-in compositor (e.g. for runtimes that "
-        "mishandle native quad layers).",
-    )
-    parser.add_argument(
-        "--layer-shape",
-        choices=("quad", "cylinder", "equirect"),
-        default="quad",
-        help="Surface each camera is mapped onto (default: quad). "
-        "cylinder wraps the feed onto a native XrCompositionLayerCylinderKHR "
-        "arc; equirect maps it onto a native XrCompositionLayerEquirect2KHR "
-        "sphere (for 360/180 panorama sources). Both are native-only and "
-        "require XR mode + a runtime advertising the matching "
-        "XR_KHR_composition_layer_* extension; placement lock modes from the "
-        "config apply to quads only.",
-    )
-    parser.add_argument(
-        "--cylinder-radius",
-        type=float,
-        default=2.0,
-        metavar="METERS",
-        help="Cylinder radius when --layer-shape cylinder (default: 2.0).",
-    )
-    parser.add_argument(
-        "--cylinder-angle-deg",
-        type=float,
-        default=90.0,
-        metavar="DEGREES",
-        help="Cylinder visible arc when --layer-shape cylinder (default: 90).",
     )
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv)
@@ -342,12 +346,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         raise ValueError(f"camera_viz: source must be local|rtp, got {source_mode!r}")
 
     effective_mode = (args.mode or cfg.get("display", {}).get("mode", "xr")).lower()
-    if args.layer_shape != "quad" and effective_mode != "xr":
-        raise SystemExit(
-            f"camera_viz: --layer-shape {args.layer_shape} is native-only "
-            "(XrCompositionLayer*KHR) and requires XR mode; use --mode xr "
-            "or drop the flag in window mode."
-        )
+    # Shaped layers (display.placements.<name>.shape) are native-only —
+    # fail fast, before launching the runtime, when the mode can't host them.
+    placements_cfg = cfg.get("display", {}).get("placements", {})
+    for cam in _enabled_cameras(cfg):
+        shape, _, _, _ = _shape_for(cam["name"], placements_cfg)
+        if shape != "quad" and effective_mode != "xr":
+            raise SystemExit(
+                f"camera_viz: placements.{cam['name']}.shape: {shape} is "
+                "native-only (XrCompositionLayer*KHR) and requires XR mode; "
+                "use --mode xr or shape: quad in window mode."
+            )
 
     # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
     # headset clients) before creating the session — VizSession's OpenXR
@@ -381,14 +390,18 @@ def main(argv: Optional[list[str]] = None) -> int:
         sources, layers, strategies = [], [], []
         for entry in entries:
             sources.append(entry.source)
-            layers.append(_add_layer(session, entry, args))
-            # Placement lock-mode strategies drive QuadLayer.set_placement;
-            # cylinder/equirect placements are fixed at add time.
-            strategies.append(entry.placement if args.layer_shape == "quad" else None)
+            layers.append(_add_layer(session, entry))
+            # Placement lock-mode strategies reposition quads AND cylinders
+            # (the runner adapts the pose to the cylinder's head-anchored
+            # center); an equirect sphere has nothing to re-snap.
+            strategies.append(
+                entry.placement if entry.shape in ("quad", "cylinder") else None
+            )
 
+        shapes = ",".join(sorted({e.shape for e in entries})) or "quad"
         print(
             f"camera_viz: source={source_mode}, mode={effective_mode}, "
-            f"xr={is_xr}, shape={args.layer_shape}, {len(sources)} layer(s)",
+            f"xr={is_xr}, shapes={shapes}, {len(sources)} layer(s)",
             flush=True,
         )
 
