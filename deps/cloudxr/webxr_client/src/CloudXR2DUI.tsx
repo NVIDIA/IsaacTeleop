@@ -1271,6 +1271,23 @@ export class CloudXR2DUI {
   }
 
   /**
+   * Hides the status box only if it still shows `message`.
+   *
+   * The box is a single shared slot: capability results, CloudXR errors, and
+   * host workstation notices all write to it, and each overwrites the last. A
+   * caller retracting its own message must not blank whatever replaced it --
+   * for example a CloudXR error raised moments earlier, which is reported
+   * imperatively and has no React state to re-render it afterwards.
+   *
+   * @param message - The exact text the caller previously displayed
+   */
+  public hideStatusIfShowing(message: string): void {
+    if (this.errorMessageText?.textContent === message) {
+      this.hideError();
+    }
+  }
+
+  /**
    * Cleans up event listeners and resources
    * Should be called when the component unmounts
    */
