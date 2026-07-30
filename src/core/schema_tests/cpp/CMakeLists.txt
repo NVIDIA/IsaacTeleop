@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20)
@@ -11,6 +11,7 @@ add_executable(schema_tests
   test_full_body.cpp
   test_controller.cpp
   test_pedals.cpp
+  test_se3_tracker.cpp
 )
 target_link_libraries(schema_tests PRIVATE
   isaacteleop_schema

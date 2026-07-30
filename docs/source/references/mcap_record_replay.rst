@@ -130,6 +130,18 @@ contains exactly the matching channels.  To capture more data, add
 additional source nodes (``HeadSource``, ``ControllersSource``, …) in
 ``common.py``.
 
+For a live browser view of **all** human DeviceIO trackers at once (hands, head,
+controllers, and full body), see ``examples/deviceio_live_view/python/``.
+
+A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
+
+- ``record_full_body.cpp`` — records the ``full_body`` channel by passing a
+  ``core::McapRecordingConfig`` to ``DeviceIOSession::run()``. It uses the
+  same channel base name as ``FullBodySource``, so the resulting file replays
+  with ``replay_full_body.py``. ``python -m isaacteleop.rig rigs/full_body.yaml``
+  runs it together with the CloudXR runtime and the full-body printer (see
+  :ref:`rig-launcher`).
+
 Recording
 ^^^^^^^^^
 
@@ -158,7 +170,7 @@ Replay runs headless — no headset required:
    uv run python replay_hand.py --loop                # repeat until Ctrl+C
    uv run python replay_hand.py --port 8090           # change viser port
 
-Open the printed URL (default http://localhost:8080) in a browser to see the
+Open the printed URL (default ``http://localhost:8080``) in a browser to see the
 left (green) and right (blue) hand skeletons update each frame.
 
 The ``record_controller.py`` / ``replay_controller.py`` and

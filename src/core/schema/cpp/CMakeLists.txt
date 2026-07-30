@@ -26,6 +26,8 @@ add_dependencies(isaacteleop_schema schema_header_generation)
 
 target_include_directories(isaacteleop_schema INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+  # Hand-written companion headers (e.g. deprecated back-compat aliases), reached as <schema/...>.
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
 target_link_libraries(isaacteleop_schema INTERFACE

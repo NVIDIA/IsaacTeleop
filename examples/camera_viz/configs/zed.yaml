@@ -34,7 +34,7 @@ cameras:
       # gop:                    # default: fps*5 (ULL tuning)
 
 display:
-  mode: xr                  # window | xr
+  mode: xr                      # xr | window (xr is the default)
   window:
     width: 1280
     height: 720

@@ -359,7 +359,15 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
             return Response(
                 200,
                 "OK",
-                Headers({"Content-Type": _MIME[tail], **CORS_HEADERS}),
+                # Preserve the existing route and cache semantics; only frame
+                # the static response body explicitly for headset browsers.
+                Headers(
+                    {
+                        "Content-Type": _MIME[tail],
+                        "Content-Length": str(len(body)),
+                        **CORS_HEADERS,
+                    }
+                ),
                 body,
             )
 
@@ -757,7 +765,7 @@ async def run(
                         f"verified: adb reverse TURN {_usb_turn_port_resolved}",
                     )
 
-                if setup_oob:
+                if setup_oob and not os.getenv("TELEOP_OOB_HUB_ONLY"):
                     from .oob_teleop_adb import (  # noqa: PLC0415
                         build_teleop_url,
                         monitor_headset_wifi,

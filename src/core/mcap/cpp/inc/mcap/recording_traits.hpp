@@ -38,12 +38,18 @@ struct ControllerRecordingTraits
     static constexpr std::array replay_channels = { "left_controller", "right_controller" };
 };
 
-struct FullBodyPicoRecordingTraits
+struct FullBodyRecordingTraits
 {
-    static constexpr std::string_view schema_name = "core.FullBodyPosePicoRecord";
+    static constexpr std::string_view schema_name = "core.FullBodyPoseRecord";
     static constexpr std::array recording_channels = { "full_body" };
     static constexpr std::array replay_channels = { "full_body" };
 };
+
+// Deprecated alias for the renamed FullBodyRecordingTraits (was
+// FullBodyPicoRecordingTraits before the vendor-agnostic rename). Retained so source
+// referencing the old type name keeps compiling (with a deprecation warning); prefer
+// FullBodyRecordingTraits.
+using FullBodyPicoRecordingTraits [[deprecated("renamed to core::FullBodyRecordingTraits")]] = FullBodyRecordingTraits;
 
 struct PedalRecordingTraits
 {
@@ -52,11 +58,25 @@ struct PedalRecordingTraits
     static constexpr std::array replay_channels = { "pedals_tracked" };
 };
 
+struct OgloRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.OgloGloveSampleRecord";
+    static constexpr std::array recording_channels = { "oglo", "oglo_tracked" };
+    static constexpr std::array replay_channels = { "oglo_tracked" };
+};
+
 struct JointStateRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.JointStateOutputRecord";
     static constexpr std::array recording_channels = { "joint_state", "joint_state_tracked" };
     static constexpr std::array replay_channels = { "joint_state_tracked" };
+};
+
+struct Se3TrackerRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.Se3TrackerPoseRecord";
+    static constexpr std::array recording_channels = { "se3_tracker", "se3_tracker_tracked" };
+    static constexpr std::array replay_channels = { "se3_tracker_tracked" };
 };
 
 struct OakRecordingTraits

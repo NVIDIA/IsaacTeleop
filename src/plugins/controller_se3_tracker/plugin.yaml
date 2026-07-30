@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: controller_se3_tracker
+description: "Logical SE3 tracker republishing an XR controller grip pose"
+command: "./controller_se3_tracker_plugin"
+version: "1.0.0"
+devices:
+  - path: "/se3_tracker/controller"
+    type: "se3_tracker"
+    description: "SE3 (6-DoF) pose from an XR controller grip"

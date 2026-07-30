@@ -8,6 +8,8 @@ from ._deviceio_session import (
     McapRecordingConfig,
     McapReplayConfig,
     ReplaySession,
+    TrackerVendor,
+    VendorConfig,
 )
 
 __all__ = [
@@ -15,4 +17,6 @@ __all__ = [
     "McapRecordingConfig",
     "McapReplayConfig",
     "ReplaySession",
+    "TrackerVendor",
+    "VendorConfig",
 ]

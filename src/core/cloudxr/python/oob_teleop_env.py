@@ -473,11 +473,20 @@ def build_headset_bookmark_url(
     web_client_base: str,
     stream_config: dict | None = None,
     control_token: str | None = None,
+    oob_enable: bool = True,
 ) -> str:
-    """Full WebXR page URL with OOB query params (``oobEnable=1``, stream fields, optional token).
+    """Full WebXR page URL with stream query params, and OOB params when enabled.
 
     The client derives ``wss://{serverIP}:{port}/oob/v1/ws`` from ``serverIP`` + ``port`` in the query
     when ``oobEnable=1``.
+
+    Set *oob_enable* to ``False`` to omit ``oobEnable`` (and the control token,
+    which only authenticates hub operations).  The remaining params —
+    ``serverIP``, ``port``, ``codec``, ``panelHiddenAtStart`` — are plain form
+    overrides the client honours either way, so the headset still lands with
+    the right streaming target pre-filled.  Callers must not disable OOB while
+    the control hub is down: without a hub, ``/oob/v1/ws`` is proxied to the
+    CloudXR streaming backend rather than refused.
 
     A HashRouter fragment is appended at the end when ``TELEOP_CLIENT_ROUTE``
     is set (e.g. ``#/real/gear/dexmate``); by default no fragment is added
@@ -488,9 +497,11 @@ def build_headset_bookmark_url(
         raise ValueError(
             "build_headset_bookmark_url requires stream_config with serverIP and port"
         )
-    params: dict[str, str] = {"oobEnable": "1"}
-    if control_token:
-        params["controlToken"] = control_token
+    params: dict[str, str] = {}
+    if oob_enable:
+        params["oobEnable"] = "1"
+        if control_token:
+            params["controlToken"] = control_token
     params["serverIP"] = str(cfg["serverIP"])
     params["port"] = str(int(cfg["port"]))
     v = cfg.get("codec")
@@ -518,6 +529,16 @@ def build_headset_bookmark_url(
     if route:
         url = f"{url}#{route}"
     return url
+
+
+def redact_control_token(text: str) -> str:
+    """Mask ``controlToken`` values in *text* for display or logging.
+
+    Shared by every path that surfaces a bookmark URL — the startup banner,
+    the ``am start`` log line, and the standalone opener — so a token can
+    never reach a terminal or log file through one of them.
+    """
+    return re.sub(r"(controlToken=)[^&\s'\"]+", r"\1<REDACTED>", text)
 
 
 def resolve_lan_host_for_oob() -> str:
@@ -605,7 +626,9 @@ def print_oob_hub_startup_banner(
         control_token=None,
     )
     if token:
-        bookmark_display += "&controlToken=<REDACTED>"
+        bookmark_display = redact_control_token(
+            f"{bookmark_display}&controlToken={token}"
+        )
     wss_primary = f"wss://{primary_host}:{port}{OOB_WS_PATH}"
 
     bar = "=" * 72

@@ -11,7 +11,7 @@
 #
 # Options:
 #   --build           Force rebuild of test container (no cache)
-#   --python-version  Python version for test container (e.g. 3.10)
+#   --python-version  Python version for test container (e.g. 3.11)
 #   --help            Show this help message
 
 set -euo pipefail
@@ -86,7 +86,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "Options:"
             echo "  --build           Force rebuild of test container (no cache)"
-            echo "  --python-version  Python version for test container (e.g. 3.10)"
+            echo "  --python-version  Python version for test container (e.g. 3.11)"
             echo "  --help            Show this help message"
             echo ""
             echo "Tests to run (edit CXR_PYTHON_GPU_TESTS/CXR_NATIVE_GPU_TESTS in this script):"

@@ -24,6 +24,17 @@ else()
     set(VIZ_PACKAGE_DATA_BLOCK "")
 endif()
 
+# isaacteleop.cloudxr_exp when ENABLE_CLOUDXR_EXP_BUNDLE=ON.
+if(ENABLE_CLOUDXR_EXP_BUNDLE)
+    set(CLOUDXR_EXP_PACKAGES_BLOCK
+        "    \"isaacteleop.cloudxr_exp\",\n")
+    set(CLOUDXR_EXP_PACKAGE_DATA_BLOCK
+        "\"isaacteleop.cloudxr_exp\" = [\"native/*.so\", \"native/*.so.*\", \"native/openxr_cloudxr.json\"]\n")
+else()
+    set(CLOUDXR_EXP_PACKAGES_BLOCK "")
+    set(CLOUDXR_EXP_PACKAGE_DATA_BLOCK "")
+endif()
+
 set(ROBOTIC_GROUNDING_SRC "${CMAKE_SOURCE_DIR}/deps/v2d/src/robotic_grounding")
 if(BUNDLE_ROBOTIC_GROUNDING)
     if(NOT EXISTS "${ROBOTIC_GROUNDING_SRC}/__init__.py")
@@ -59,6 +70,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/schema"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/teleop_session_manager"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/cloudxr"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/rig"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_trackers"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_session"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/viz"
@@ -82,7 +94,8 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python haptic_devices_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python
+    COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-wuji.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
+    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py retargeting_engine_python retargeters_python haptic_devices_python retargeting_engine_ui_python teleop_session_manager_python cloudxr_python rig_python
     COMMENT "Preparing Python package structure"
 )
 
@@ -157,23 +170,62 @@ add_custom_target(python_stubs
     SOURCES "${STUBGEN_SCRIPT}" "${STUBGEN_PYPROJECT}"
 )
 
-# Custom target to build the wheel using uv
-# Depends on python_stubs to ensure py.typed marker and .pyi files are present
-# This is required for mypy type checking of code that imports from isaacteleop
-add_custom_target(python_wheel ALL
-    COMMAND ${CMAKE_COMMAND} -E echo "Building Python wheel with uv..."
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/wheels"
-    COMMAND uv build --wheel --python ${ISAAC_TELEOP_PYTHON_VERSION}
-            --out-dir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>" ||
-            "${Python3_EXECUTABLE}" -m build --wheel
-            --outdir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
-    DEPENDS python_stubs
-    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-    COMMENT "Building Python wheel with uv (fallback to python -m build)"
-)
+# Custom target to build the wheel using uv (classic `cmake -B build` flow only).
+# Depends on python_stubs to ensure py.typed marker and .pyi files are present.
+# Gated to non-SKBUILD: under scikit-build-core, pip already owns wheel assembly,
+# so this ALL target must NOT run -- otherwise building the default target would
+# trigger a nested `uv build` inside the pip build.
+if(NOT SKBUILD)
+    add_custom_target(python_wheel ALL
+        COMMAND ${CMAKE_COMMAND} -E echo "Building Python wheel with uv..."
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/wheels"
+        COMMAND uv build --wheel --python ${ISAAC_TELEOP_PYTHON_VERSION}
+                --out-dir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>" ||
+                "${Python3_EXECUTABLE}" -m build --wheel
+                --outdir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
+        DEPENDS python_stubs
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        COMMENT "Building Python wheel with uv (fallback to python -m build)"
+    )
+endif()
 
-# Install the wheel
-install(DIRECTORY "${CMAKE_BINARY_DIR}/wheels/"
-    DESTINATION wheels
-    FILES_MATCHING PATTERN "*.whl"
-)
+# Install the wheel built by the classic `cmake -B build` flow. Under
+# scikit-build-core (SKBUILD) the wheel is assembled by pip from the staged tree
+# instead -- see the block below -- so this rule is skipped there.
+if(NOT SKBUILD)
+    install(DIRECTORY "${CMAKE_BINARY_DIR}/wheels/"
+        DESTINATION wheels
+        FILES_MATCHING PATTERN "*.whl"
+    )
+endif()
+
+# ==============================================================================
+# scikit-build-core (PEP 517/660) wheel packaging
+# ==============================================================================
+# When pip / `uv build` / `python -m build` drives the build through
+# scikit-build-core, it builds the `python_package` target (see
+# build.targets in the root pyproject.toml), which -- with its module
+# dependencies -- produces the fully-staged package tree at
+# python_package/<config>/isaacteleop/ (compiled .so via each module's
+# LIBRARY_OUTPUT_DIRECTORY, pure-Python subpackages copied in, __init__.py files).
+# This single install rule copies that tree into the wheel's platlib. It is
+# tagged with the `isaacteleop_wheel` component, selected via install.components
+# in pyproject.toml, so the project's C++ library/header/example install() rules
+# do NOT leak into the wheel.
+if(SKBUILD)
+    # scikit-build-core uses a single-config generator (Ninja) with
+    # cmake.build-type set, so CMAKE_BUILD_TYPE resolves the staging dir's
+    # $<CONFIG>. install(DIRECTORY) does not evaluate generator expressions in its
+    # source path, so use the concrete config; fall back to Release defensively.
+    set(_it_wheel_config "${CMAKE_BUILD_TYPE}")
+    if(NOT _it_wheel_config)
+        set(_it_wheel_config "Release")
+    endif()
+
+    install(
+        DIRECTORY "${CMAKE_BINARY_DIR}/python_package/${_it_wheel_config}/isaacteleop"
+        DESTINATION "."
+        COMPONENT isaacteleop_wheel
+        USE_SOURCE_PERMISSIONS
+    )
+endif()

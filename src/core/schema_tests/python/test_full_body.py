@@ -1,18 +1,18 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for FullBodyPosePicoT and related types in isaacteleop.schema.
+"""Unit tests for FullBodyPoseT and related types in isaacteleop.schema.
 
-FullBodyPosePicoT is a FlatBuffers table that represents full body pose data:
-- joints: BodyJointsPico struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
+FullBodyPoseT is a FlatBuffers table that represents full body pose data:
+- joints: BodyJoints struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
 
-BodyJointsPico is a struct with a fixed-size array of 24 BodyJointPose entries.
+BodyJoints is a struct with a fixed-size array of 24 BodyJointPose entries.
 
 BodyJointPose is a struct containing:
 - pose: The Pose (position and orientation)
 - is_valid: Whether this joint data is valid
 
-Timestamps are carried by FullBodyPosePicoRecord, not FullBodyPosePicoT.
+Timestamps are carried by FullBodyPoseRecord, not FullBodyPoseT.
 
 Joint indices follow XrBodyJointBD enum:
   0: Pelvis, 1-2: Left/Right Hip, 3: Spine1, 4-5: Left/Right Knee,
@@ -24,11 +24,11 @@ Joint indices follow XrBodyJointBD enum:
 import pytest
 
 from isaacteleop.schema import (
-    FullBodyPosePicoT,
-    FullBodyPosePicoRecord,
-    BodyJointsPico,
+    FullBodyPoseT,
+    FullBodyPoseRecord,
+    BodyJoints,
     BodyJointPose,
-    BodyJointPico,
+    BodyJoint,
     Pose,
     Point,
     Quaternion,
@@ -98,12 +98,12 @@ class TestBodyJointPoseRepr:
         assert "Pose" in repr_str
 
 
-class TestBodyJointsPicoStruct:
-    """Tests for BodyJointsPico struct."""
+class TestBodyJointsStruct:
+    """Tests for BodyJoints struct."""
 
     def test_joints_access(self):
         """Test accessing all 24 joints via joints() method."""
-        body_joints = BodyJointsPico()
+        body_joints = BodyJoints()
 
         for i in range(24):
             joint = body_joints.joints(i)
@@ -111,138 +111,138 @@ class TestBodyJointsPicoStruct:
 
     def test_joints_out_of_range(self):
         """Test that accessing out of range index raises IndexError."""
-        body_joints = BodyJointsPico()
+        body_joints = BodyJoints()
 
         with pytest.raises(IndexError):
             _ = body_joints.joints(24)
 
 
-class TestBodyJointsPicoRepr:
-    """Tests for BodyJointsPico __repr__ method."""
+class TestBodyJointsRepr:
+    """Tests for BodyJoints __repr__ method."""
 
     def test_repr(self):
         """Test __repr__ returns a meaningful string."""
-        body_joints = BodyJointsPico()
+        body_joints = BodyJoints()
 
         repr_str = repr(body_joints)
-        assert "BodyJointsPico" in repr_str
+        assert "BodyJoints" in repr_str
 
 
-class TestFullBodyPosePicoTConstruction:
-    """Tests for FullBodyPosePicoT construction and basic properties."""
+class TestFullBodyPoseTConstruction:
+    """Tests for FullBodyPoseT construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates FullBodyPosePicoT with pre-populated joints."""
-        body_pose = FullBodyPosePicoT()
+        """Test default construction creates FullBodyPoseT with pre-populated joints."""
+        body_pose = FullBodyPoseT()
 
         assert body_pose is not None
         assert body_pose.joints is not None
 
     def test_parameterized_construction(self):
         """Test construction with joints."""
-        joints = BodyJointsPico()
-        body_pose = FullBodyPosePicoT(joints)
+        joints = BodyJoints()
+        body_pose = FullBodyPoseT(joints)
 
         assert body_pose.joints is not None
 
 
-class TestFullBodyPosePicoTRepr:
-    """Tests for FullBodyPosePicoT __repr__ method."""
+class TestFullBodyPoseTRepr:
+    """Tests for FullBodyPoseT __repr__ method."""
 
     def test_repr_default(self):
         """Test __repr__ with default construction."""
-        body_pose = FullBodyPosePicoT()
+        body_pose = FullBodyPoseT()
 
         repr_str = repr(body_pose)
-        assert "FullBodyPosePicoT" in repr_str
+        assert "FullBodyPoseT" in repr_str
 
 
-class TestBodyJointPicoEnum:
-    """Tests for BodyJointPico enum (joint index mapping for XR_BD_body_tracking)."""
+class TestBodyJointEnum:
+    """Tests for BodyJoint enum (joint index mapping for XR_BD_body_tracking)."""
 
     def test_all_joint_values_exist(self):
-        """Test that all expected BodyJointPico enum values exist."""
-        assert BodyJointPico.PELVIS is not None
-        assert BodyJointPico.LEFT_HIP is not None
-        assert BodyJointPico.RIGHT_HIP is not None
-        assert BodyJointPico.SPINE1 is not None
-        assert BodyJointPico.LEFT_KNEE is not None
-        assert BodyJointPico.RIGHT_KNEE is not None
-        assert BodyJointPico.SPINE2 is not None
-        assert BodyJointPico.LEFT_ANKLE is not None
-        assert BodyJointPico.RIGHT_ANKLE is not None
-        assert BodyJointPico.SPINE3 is not None
-        assert BodyJointPico.LEFT_FOOT is not None
-        assert BodyJointPico.RIGHT_FOOT is not None
-        assert BodyJointPico.NECK is not None
-        assert BodyJointPico.LEFT_COLLAR is not None
-        assert BodyJointPico.RIGHT_COLLAR is not None
-        assert BodyJointPico.HEAD is not None
-        assert BodyJointPico.LEFT_SHOULDER is not None
-        assert BodyJointPico.RIGHT_SHOULDER is not None
-        assert BodyJointPico.LEFT_ELBOW is not None
-        assert BodyJointPico.RIGHT_ELBOW is not None
-        assert BodyJointPico.LEFT_WRIST is not None
-        assert BodyJointPico.RIGHT_WRIST is not None
-        assert BodyJointPico.LEFT_HAND is not None
-        assert BodyJointPico.RIGHT_HAND is not None
+        """Test that all expected BodyJoint enum values exist."""
+        assert BodyJoint.PELVIS is not None
+        assert BodyJoint.LEFT_HIP is not None
+        assert BodyJoint.RIGHT_HIP is not None
+        assert BodyJoint.SPINE1 is not None
+        assert BodyJoint.LEFT_KNEE is not None
+        assert BodyJoint.RIGHT_KNEE is not None
+        assert BodyJoint.SPINE2 is not None
+        assert BodyJoint.LEFT_ANKLE is not None
+        assert BodyJoint.RIGHT_ANKLE is not None
+        assert BodyJoint.SPINE3 is not None
+        assert BodyJoint.LEFT_FOOT is not None
+        assert BodyJoint.RIGHT_FOOT is not None
+        assert BodyJoint.NECK is not None
+        assert BodyJoint.LEFT_COLLAR is not None
+        assert BodyJoint.RIGHT_COLLAR is not None
+        assert BodyJoint.HEAD is not None
+        assert BodyJoint.LEFT_SHOULDER is not None
+        assert BodyJoint.RIGHT_SHOULDER is not None
+        assert BodyJoint.LEFT_ELBOW is not None
+        assert BodyJoint.RIGHT_ELBOW is not None
+        assert BodyJoint.LEFT_WRIST is not None
+        assert BodyJoint.RIGHT_WRIST is not None
+        assert BodyJoint.LEFT_HAND is not None
+        assert BodyJoint.RIGHT_HAND is not None
 
     def test_joint_values(self):
-        """Test that BodyJointPico values match expected indices."""
-        assert int(BodyJointPico.PELVIS) == 0
-        assert int(BodyJointPico.LEFT_HIP) == 1
-        assert int(BodyJointPico.RIGHT_HIP) == 2
-        assert int(BodyJointPico.SPINE1) == 3
-        assert int(BodyJointPico.LEFT_KNEE) == 4
-        assert int(BodyJointPico.RIGHT_KNEE) == 5
-        assert int(BodyJointPico.SPINE2) == 6
-        assert int(BodyJointPico.LEFT_ANKLE) == 7
-        assert int(BodyJointPico.RIGHT_ANKLE) == 8
-        assert int(BodyJointPico.SPINE3) == 9
-        assert int(BodyJointPico.LEFT_FOOT) == 10
-        assert int(BodyJointPico.RIGHT_FOOT) == 11
-        assert int(BodyJointPico.NECK) == 12
-        assert int(BodyJointPico.LEFT_COLLAR) == 13
-        assert int(BodyJointPico.RIGHT_COLLAR) == 14
-        assert int(BodyJointPico.HEAD) == 15
-        assert int(BodyJointPico.LEFT_SHOULDER) == 16
-        assert int(BodyJointPico.RIGHT_SHOULDER) == 17
-        assert int(BodyJointPico.LEFT_ELBOW) == 18
-        assert int(BodyJointPico.RIGHT_ELBOW) == 19
-        assert int(BodyJointPico.LEFT_WRIST) == 20
-        assert int(BodyJointPico.RIGHT_WRIST) == 21
-        assert int(BodyJointPico.LEFT_HAND) == 22
-        assert int(BodyJointPico.RIGHT_HAND) == 23
+        """Test that BodyJoint values match expected indices."""
+        assert int(BodyJoint.PELVIS) == 0
+        assert int(BodyJoint.LEFT_HIP) == 1
+        assert int(BodyJoint.RIGHT_HIP) == 2
+        assert int(BodyJoint.SPINE1) == 3
+        assert int(BodyJoint.LEFT_KNEE) == 4
+        assert int(BodyJoint.RIGHT_KNEE) == 5
+        assert int(BodyJoint.SPINE2) == 6
+        assert int(BodyJoint.LEFT_ANKLE) == 7
+        assert int(BodyJoint.RIGHT_ANKLE) == 8
+        assert int(BodyJoint.SPINE3) == 9
+        assert int(BodyJoint.LEFT_FOOT) == 10
+        assert int(BodyJoint.RIGHT_FOOT) == 11
+        assert int(BodyJoint.NECK) == 12
+        assert int(BodyJoint.LEFT_COLLAR) == 13
+        assert int(BodyJoint.RIGHT_COLLAR) == 14
+        assert int(BodyJoint.HEAD) == 15
+        assert int(BodyJoint.LEFT_SHOULDER) == 16
+        assert int(BodyJoint.RIGHT_SHOULDER) == 17
+        assert int(BodyJoint.LEFT_ELBOW) == 18
+        assert int(BodyJoint.RIGHT_ELBOW) == 19
+        assert int(BodyJoint.LEFT_WRIST) == 20
+        assert int(BodyJoint.RIGHT_WRIST) == 21
+        assert int(BodyJoint.LEFT_HAND) == 22
+        assert int(BodyJoint.RIGHT_HAND) == 23
 
     def test_all_joint_indices_accessible(self):
-        """Test that all BodyJointPico values can be used to index BodyJointsPico."""
-        body_joints = BodyJointsPico()
+        """Test that all BodyJoint values can be used to index BodyJoints."""
+        body_joints = BodyJoints()
 
         all_joints = [
-            BodyJointPico.PELVIS,
-            BodyJointPico.LEFT_HIP,
-            BodyJointPico.RIGHT_HIP,
-            BodyJointPico.SPINE1,
-            BodyJointPico.LEFT_KNEE,
-            BodyJointPico.RIGHT_KNEE,
-            BodyJointPico.SPINE2,
-            BodyJointPico.LEFT_ANKLE,
-            BodyJointPico.RIGHT_ANKLE,
-            BodyJointPico.SPINE3,
-            BodyJointPico.LEFT_FOOT,
-            BodyJointPico.RIGHT_FOOT,
-            BodyJointPico.NECK,
-            BodyJointPico.LEFT_COLLAR,
-            BodyJointPico.RIGHT_COLLAR,
-            BodyJointPico.HEAD,
-            BodyJointPico.LEFT_SHOULDER,
-            BodyJointPico.RIGHT_SHOULDER,
-            BodyJointPico.LEFT_ELBOW,
-            BodyJointPico.RIGHT_ELBOW,
-            BodyJointPico.LEFT_WRIST,
-            BodyJointPico.RIGHT_WRIST,
-            BodyJointPico.LEFT_HAND,
-            BodyJointPico.RIGHT_HAND,
+            BodyJoint.PELVIS,
+            BodyJoint.LEFT_HIP,
+            BodyJoint.RIGHT_HIP,
+            BodyJoint.SPINE1,
+            BodyJoint.LEFT_KNEE,
+            BodyJoint.RIGHT_KNEE,
+            BodyJoint.SPINE2,
+            BodyJoint.LEFT_ANKLE,
+            BodyJoint.RIGHT_ANKLE,
+            BodyJoint.SPINE3,
+            BodyJoint.LEFT_FOOT,
+            BodyJoint.RIGHT_FOOT,
+            BodyJoint.NECK,
+            BodyJoint.LEFT_COLLAR,
+            BodyJoint.RIGHT_COLLAR,
+            BodyJoint.HEAD,
+            BodyJoint.LEFT_SHOULDER,
+            BodyJoint.RIGHT_SHOULDER,
+            BodyJoint.LEFT_ELBOW,
+            BodyJoint.RIGHT_ELBOW,
+            BodyJoint.LEFT_WRIST,
+            BodyJoint.RIGHT_WRIST,
+            BodyJoint.LEFT_HAND,
+            BodyJoint.RIGHT_HAND,
         ]
         assert len(all_joints) == 24
 
@@ -251,20 +251,20 @@ class TestBodyJointPicoEnum:
             assert joint_pose is not None
 
     def test_enum_int_conversion(self):
-        """Test that BodyJointPico values can be converted to integers."""
-        assert int(BodyJointPico.PELVIS) == 0
-        assert int(BodyJointPico.HEAD) == 15
-        assert int(BodyJointPico.RIGHT_HAND) == 23
+        """Test that BodyJoint values can be converted to integers."""
+        assert int(BodyJoint.PELVIS) == 0
+        assert int(BodyJoint.HEAD) == 15
+        assert int(BodyJoint.RIGHT_HAND) == 23
 
 
-class TestFullBodyPosePicoRecordTimestamp:
-    """Tests for FullBodyPosePicoRecord with DeviceDataTimestamp."""
+class TestFullBodyPoseRecordTimestamp:
+    """Tests for FullBodyPoseRecord with DeviceDataTimestamp."""
 
     def test_construction_with_timestamp(self):
-        """Test FullBodyPosePicoRecord carries DeviceDataTimestamp."""
-        data = FullBodyPosePicoT()
+        """Test FullBodyPoseRecord carries DeviceDataTimestamp."""
+        data = FullBodyPoseT()
         ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
-        record = FullBodyPosePicoRecord(data, ts)
+        record = FullBodyPoseRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 1000000000
         assert record.timestamp.sample_time_local_common_clock == 2000000000
@@ -272,16 +272,41 @@ class TestFullBodyPosePicoRecordTimestamp:
         assert record.data is not None
 
     def test_default_construction(self):
-        """Test default FullBodyPosePicoRecord has no data."""
-        record = FullBodyPosePicoRecord()
+        """Test default FullBodyPoseRecord has no data."""
+        record = FullBodyPoseRecord()
         assert record.data is None
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""
-        data = FullBodyPosePicoT()
+        data = FullBodyPoseT()
         ts = DeviceDataTimestamp(111, 222, 333)
-        record = FullBodyPosePicoRecord(data, ts)
+        record = FullBodyPoseRecord(data, ts)
 
         assert record.timestamp.available_time_local_common_clock == 111
         assert record.timestamp.sample_time_local_common_clock == 222
         assert record.timestamp.sample_time_raw_device_clock == 333
+
+
+class TestDeprecatedPicoAliases:
+    """Deprecated ``...Pico`` names still resolve to the renamed generic types and
+    now emit a DeprecationWarning on access."""
+
+    def test_aliases_resolve_and_warn(self):
+        """Each legacy schema name warns and resolves to its renamed generic type."""
+        from isaacteleop import schema
+
+        cases = [
+            ("FullBodyPosePicoT", "FullBodyPoseT"),
+            ("FullBodyPosePicoTrackedT", "FullBodyPoseTrackedT"),
+            ("FullBodyPosePicoRecord", "FullBodyPoseRecord"),
+            ("BodyJointsPico", "BodyJoints"),
+            ("BodyJointPico", "BodyJoint"),
+        ]
+        for old, new in cases:
+            with pytest.warns(DeprecationWarning, match=old):
+                deprecated = getattr(schema, old)
+            assert deprecated is getattr(schema, new)
+
+        # The aliased enum still exposes the same joint members/values.
+        with pytest.warns(DeprecationWarning, match="BodyJointPico"):
+            assert int(schema.BodyJointPico.RIGHT_HAND) == 23

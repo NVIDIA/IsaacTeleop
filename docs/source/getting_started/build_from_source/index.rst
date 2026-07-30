@@ -21,7 +21,7 @@ Prerequisites
 
 - **CMake** 3.20 or higher
 - **C++20** compatible compiler
-- **Python** 3.10, 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
+- **Python** 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
 
@@ -82,10 +82,13 @@ Pre-download CloudXR SDK (Optional)
    :code-file:`download_cloudxr_runtime_sdk.sh <scripts/download_cloudxr_runtime_sdk.sh>`
    script.
 
-Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get one of
-the two tarballs:
+Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, you may get
+tarballs such as:
 
 - ``CloudXR-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (CloudXR Runtime SDK)
+- ``CloudXR-exp-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (optional experimental
+  runtime). Needed for Jetson Orin support (for example :doc:`/getting_started/televiz`)
+  until the default runtime covers those platforms.
 - ``nvidia-cloudxr-<version-for-web-sdk>.tgz`` (CloudXR Web SDK)
 
 You can place them in the :code-file:`deps/cloudxr/` directory and update the ``deps/cloudxr/.env``
@@ -97,16 +100,37 @@ like this:
    CXR_RUNTIME_SDK_VERSION=<version-for-runtime-sdk>
    CXR_WEB_SDK_VERSION=<version-for-web-sdk>
 
+To package the experimental runtime into the wheel as ``isaacteleop.cloudxr_exp``, configure with
+``-DENABLE_CLOUDXR_EXP_BUNDLE=ON``. Select it at runtime with ``ISAAC_TELEOP_CLOUDXR_EXP``.
+See :ref:`dedicated-cloudxr-runtime`.
+
 2. CMake: Configure and build
 -----------------------------
 
-From the project root:
+From the project root, configure with a **preset** — there is one per supported
+Python version (``py3.11`` … ``py3.13``; see :code-file:`CMakePresets.json`). A
+preset selects the Python version and an isolated per-version build directory, so
+different versions never share (and clobber) one configured CMake cache:
 
 .. code-block:: bash
 
-   cmake -B build
-   cmake --build build --parallel
-   cmake --install build
+   cmake --preset py3.12                       # configure
+   cmake --build --preset py3.12 --parallel    # build
+   cmake --install build/cmake-cpython-312     # install
+
+``cmake --preset py3.12`` is shorthand for the explicit configure it expands to —
+an isolated build directory plus the Python version:
+
+.. code-block:: bash
+
+   cmake -B build/cmake-cpython-312 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+
+Add any other options as ``-D`` flags on the same line; a command-line ``-D``
+overrides the preset (e.g. ``cmake --preset py3.12 -DCMAKE_BUILD_TYPE=Debug``).
+Pick the preset that matches your interpreter rather than overriding
+``ISAAC_TELEOP_PYTHON_VERSION`` by hand. (A bare ``cmake -B build`` still works
+for a quick default build — Python 3.11 into ``./build`` — but the presets are
+the recommended path.)
 
 This will:
 
@@ -127,7 +151,7 @@ To disable enforcement, set ``ENABLE_CLANG_FORMAT_CHECK`` to ``OFF``:
 
 .. code-block:: bash
 
-   cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
+   cmake --preset py3.12 -DENABLE_CLANG_FORMAT_CHECK=OFF
 
 Useful targets:
 
@@ -136,13 +160,13 @@ Useful targets:
 
 .. code-block:: bash
 
-   cmake --build build --target clang_format_check
-   cmake --build build --target clang_format_fix
+   cmake --build --preset py3.12 --target clang_format_check
+   cmake --build --preset py3.12 --target clang_format_fix
 
 Other Build options
 ~~~~~~~~~~~~~~~~~~~
 
-The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmake/SetupPython.cmake`, and :code-file:`cmake/SetupHunter.cmake`):
+The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`cmake/SetupPython.cmake`):
 
 .. list-table:: Common CMake Options
    :widths: 20 36 44
@@ -173,7 +197,7 @@ The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmak
      - ``ON``
    * - **Python version**
      - ``ISAAC_TELEOP_PYTHON_VERSION``
-     - ``3.11`` (3.10, 3.11, 3.12, or 3.13)
+     - ``3.11`` (3.11, 3.12, or 3.13)
    * - **Testing**
      - ``BUILD_TESTING``
      - ``ON``; enables CTest and Catch2
@@ -204,55 +228,55 @@ The CMake options (defined in root :code-file:`CMakeLists.txt`, :code-file:`cmak
 Examples
 ~~~~~~~~
 
-Build with a different Python version (must match a version supported by ``SetupPython.cmake``):
+Build for a different Python version — use the matching preset (``py3.11``,
+``py3.12``, ``py3.13``):
 
 .. code-block:: bash
 
-   cmake -B build -DISAAC_TELEOP_PYTHON_VERSION=3.12
-   cmake --build build
+   cmake --preset py3.12
+   cmake --build --preset py3.12 --parallel
 
 Debug build:
 
 .. code-block:: bash
 
-   cmake -B build -DCMAKE_BUILD_TYPE=Debug
-   cmake --build build
+   cmake --preset py3.12 -DCMAKE_BUILD_TYPE=Debug
+   cmake --build --preset py3.12
 
 Build without examples:
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_EXAMPLES=OFF
-   cmake --build build
+   cmake --preset py3.12 -DBUILD_EXAMPLES=OFF
+   cmake --build --preset py3.12
 
 Build without Python bindings:
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_PYTHON_BINDINGS=OFF
-   cmake --build build
+   cmake --preset py3.12 -DBUILD_PYTHON_BINDINGS=OFF
+   cmake --build --preset py3.12
 
 Build with OAK camera plugin (pulls Hunter/DepthAI):
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
-   cmake --build build
+   cmake --preset py3.12 -DBUILD_PLUGIN_OAK_CAMERA=ON
+   cmake --build --preset py3.12
 
 Build only the teleop_ros2 example (e.g. for Docker, as in :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` teleop-ros2-docker job):
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_EXAMPLES=OFF -DBUILD_EXAMPLE_TELEOP_ROS2=ON
-   cmake --build build
+   cmake --preset py3.12 -DBUILD_EXAMPLES=OFF -DBUILD_EXAMPLE_TELEOP_ROS2=ON
+   cmake --build --preset py3.12
 
-Clean rebuild:
+Clean rebuild (``--fresh`` wipes the preset's CMake cache and reconfigures):
 
 .. code-block:: bash
 
-   rm -rf build
-   cmake -B build
-   cmake --build build
+   cmake --preset py3.12 --fresh
+   cmake --build --preset py3.12
 
 3. Running tests
 ----------------
@@ -261,10 +285,10 @@ When ``BUILD_TESTING`` is ``ON``, CTest is enabled at the top level. Run all tes
 
 .. code-block:: bash
 
-   cmake --build build --target test
+   cmake --build --preset py3.12 --target test
 
    # Or with ctest (e.g. parallel, output on failure)
-   ctest --test-dir build --output-on-failure --parallel
+   ctest --test-dir build/cmake-cpython-312 --output-on-failure --parallel
 
 The CI uses ``ctest`` (see :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>`).
 
@@ -274,48 +298,6 @@ The CI uses ``ctest`` (see :code-file:`build-ubuntu.yml <.github/workflows/build
 The wheels are built in the ``./install/wheels/`` directory. Install the package from the wheels.
 Using ``pip``, you need to pass the ``--no-index`` option to automatically find the right wheel
 based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly different options.
-
-.. _aarch64-nlopt-wheel:
-
-.. note::
-   **ARM64 / aarch64 systems only** (e.g. NVIDIA DGX Spark): PyPI does not publish pre-built
-   ``nlopt`` wheels for ARM64, so pip cannot satisfy the ``retargeters`` extra automatically.
-   Build an ``nlopt`` wheel from source before running the install commands below
-   (see `issue #452 <https://github.com/NVIDIA/IsaacTeleop/issues/452>`_):
-
-   .. code-block:: bash
-
-      # Install build tools
-      sudo apt-get install -y build-essential cmake git pkg-config swig
-
-      # Clone nlopt-python and build a wheel
-      git clone --depth 1 --branch 2.10.0 https://github.com/DanielBok/nlopt-python.git /tmp/nlopt-python
-      cd /tmp/nlopt-python
-      git submodule update --init --recursive
-
-      # The Python version must match your isaacteleop install exactly (3.10, 3.11, 3.12, or 3.13).
-      # nlopt builds a CPython ABI-specific extension (.cpython-311-*.so), so a wheel built
-      # with Python 3.11 will not load under Python 3.12 or vice versa.
-      uv venv --python=3.11 /tmp/nlopt-wheel-venv
-      VIRTUAL_ENV=/tmp/nlopt-wheel-venv uv pip install numpy setuptools wheel
-      /tmp/nlopt-wheel-venv/bin/python setup.py bdist_wheel -d /tmp/nlopt-wheels/
-
-   Then pass ``--find-links=/tmp/nlopt-wheels/`` when installing so the locally-built wheel is
-   used instead of attempting a PyPI download:
-
-   .. code-block:: bash
-
-      # pip
-      pip install "isaacteleop[retargeters,cloudxr,ui]" \
-          --find-links=./install/wheels/ \
-          --find-links=/tmp/nlopt-wheels/ \
-          --no-index --force-reinstall
-
-      # uv pip
-      uv pip install "isaacteleop[retargeters,cloudxr,ui]" \
-          --find-links=./install/wheels/ \
-          --find-links=/tmp/nlopt-wheels/ \
-          --reinstall
 
 .. code-block:: bash
 
@@ -327,6 +309,85 @@ based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly diff
 
    # Pass --reinstall to replace an existing install.
    uv pip install "isaacteleop[retargeters,cloudxr,ui]" --find-links=./install/wheels/ --reinstall
+
+Alternative: install directly from source with pip
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The repository also ships a root :code-file:`pyproject.toml` using the
+`scikit-build-core <https://scikit-build-core.readthedocs.io/>`_ backend, which
+drives the same top-level ``CMakeLists.txt``. This lets you build and install
+with standard Python tooling, without running the ``cmake -B build`` steps
+yourself; the classic flow above (which CI uses to produce ``install/wheels/`` and
+the released wheels) is unchanged, so the two coexist.
+
+.. code-block:: bash
+
+   pip install .            # build + install the compiled wheel from source
+   pip install -e .         # editable / developer install
+
+.. note::
+
+   The CMake build tree is kept under ``build/wheel-<cache-tag>/`` (e.g.
+   ``build/wheel-cpython-311/``) — one per Python version, so different
+   interpreters never share a configured CMake cache — instead of a temporary
+   directory. Re-installs are therefore incremental. The classic CMake path uses
+   sibling ``build/cmake-<cache-tag>/`` trees (via the presets below) with the same
+   per-version tag, so the two never collide; ``build/`` is gitignored.
+
+What this path does and how it differs from the classic flow:
+
+- **Full build, no overrides.** The backend passes no ``cmake.define`` overrides,
+  so ``BUILD_EXAMPLES``, ``BUILD_TESTING``, and ``BUILD_PLUGINS`` stay at their
+  CMake defaults: a ``pip install`` builds the full default target — extensions,
+  examples, C++ tests, and plugins (a plugin without its SDK skips gracefully). It
+  installs only the ``isaacteleop_wheel`` and ``isaacteleop_binaries`` components,
+  so C++ library/header install rules do not leak into the wheel.
+- **clang-format is enforced.** Because the gate is left on, the build **fails** if
+  ``clang-format-14`` is not installed or any C++ file is unformatted — a
+  ``pip install`` therefore requires ``clang-format-14`` on Linux.
+- **All executables on PATH.** Every executable built from ``src/`` and
+  ``examples/`` — example programs, C++ test binaries, plugin tools
+  (``oxr_simple_api_demo``, ``se3_printer``, ``schema_tests``, …) — is installed
+  into the venv's ``bin/`` (the wheel's scripts scheme; see the executable-install
+  loop in the root ``CMakeLists.txt``), so they are on ``PATH`` once the venv is
+  active. They statically link the teleop core libraries, so they are
+  self-contained. Shared libraries (Python extension modules, plugin ``.so``) are
+  not executables and are **not** placed in ``bin/``.
+- **ABI.** Extensions are compiled against the interpreter that runs the build
+  (so the wheel's ABI tag matches) and against NumPy 2.x, so a single wheel works
+  with both NumPy 1.x and 2.x at runtime.
+- **No type stubs.** The pip-built wheel omits the ``.pyi`` stubs that the classic
+  and released wheels ship (stub generation shells out to ``uv``, which is not
+  guaranteed inside pip's build isolation). Imports and runtime behavior are
+  unaffected.
+- **Version.** The pip-facing version is derived from the ``VERSION`` file as
+  ``MAJOR.MINOR+local`` — the same value the classic flow produces for a
+  non-CI/local build. The pip path is a from-source/dev build, so it is always
+  tagged ``+local``; the git-aware release versioning (tags, ``a1`` / ``rc1`` /
+  ``.devN`` labels) stays with the classic flow via
+  :code-file:`cmake/IsaacTeleopVersion.cmake`.
+
+.. admonition:: Editable installs and iterating on pure-Python subpackages
+
+   An editable install (``pip install -e .``) does **not** recompile on import, so
+   it is fast and works offline. However, the pure-Python subpackages (e.g.
+   ``isaacteleop.retargeters``) are *copied* from ``src/`` into the package tree by
+   CMake, so editing ``src/retargeters/`` does not take effect live — re-run
+   ``pip install -e .`` (or ``cmake --build``) to re-stage. Making source-tree
+   edits live for the pure-Python packages is a planned follow-up (see `issue #735
+   <https://github.com/NVIDIA/IsaacTeleop/issues/735>`_).
+
+See :doc:`/references/build` for the full build-system reference.
+
+.. admonition:: ``retargeters`` extra on aarch64 (Jetson / DGX)
+
+   The full ``retargeters`` extra does **not** resolve on ``aarch64`` (some of its
+   pinned dependencies have no aarch64 wheels). On Jetson/DGX-class robotics
+   targets, install the ``retargeters-lite`` extra instead:
+
+   .. code-block:: bash
+
+      pip install "isaacteleop[retargeters-lite]"
 
 .. toctree::
    :hidden:

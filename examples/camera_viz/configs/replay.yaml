@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Video-file replay — plays a recording through the same source →
+# QuadLayer → Televiz path as a live camera. Preview / Televiz testing
+# when no camera is attached; also works as camera_streamer's capture
+# side (mono only) to exercise the full RTP path camera-free.
+#
+# Point ``path`` at any file OpenCV's FFmpeg backend reads (mp4 / mkv /
+# webm, H.264 / HEVC / AV1 / ...). Relative paths resolve against this
+# YAML's directory. The default is the 10 s test clip shipped at
+# ../test_data/recording.mp4 (Git LFS — run ``git lfs pull`` if it opens
+# as a tiny text pointer).
+
+source: local                   # local | rtp — see real-camera configs for rtp
+streaming:
+  host: 127.0.0.1               # only used by camera_streamer (rtp mode)
+encoder: auto                   # auto | native | gstreamer
+
+cameras:
+  - name: replay
+    enabled: true
+    type: video
+    path: ../test_data/recording.mp4   # relative to this YAML's dir
+    loop: true                  # rewind at end of file (false = hold last frame)
+    fps: 0                      # 0 = the file's native rate. With source: rtp,
+                                # set this explicitly — the sender's encode loop
+                                # paces at fps (default 30) regardless of the file.
+    # width/height default to the file's native size (per eye when stereo);
+    # set both to resize each frame on the CPU before upload.
+    # width: 1280
+    # height: 720
+    stereo: false               # true = replay a side-by-side recording as
+                                # stereo, splitting each frame into left/right
+                                # eyes. Supported in direct mode only; the RTP
+                                # sender needs per-eye streams and rejects it.
+    rtp:                        # only used when source: rtp + camera_streamer
+      port: 5000
+      bitrate_mbps: 15
+
+display:
+  mode: xr                      # xr | window (xr is the default)
+  window:
+    width: 1280
+    height: 720
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.05, 0.05, 0.08, 1.0]
+  placements:
+    replay:                     # size defaults to 1.0 m wide × aspect-derived height
+      lock_mode: lazy
+      distance: 1.5

@@ -31,7 +31,7 @@ Televiz ships inside the ``isaacteleop`` wheel — install it from PyPI:
 
    pip install isaacteleop
 
-The published wheels (Linux x86_64 / aarch64, CPython 3.10–3.13) bundle the compiled
+The published wheels (Linux x86_64 / aarch64, CPython 3.11–3.13) bundle the compiled
 ``isaacteleop.viz`` module, so **no source build is required**. Verify with:
 
 .. code-block:: python

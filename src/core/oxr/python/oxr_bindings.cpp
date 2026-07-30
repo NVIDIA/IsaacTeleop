@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <openxr/openxr.h>
@@ -6,7 +6,66 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
 namespace py = pybind11;
+
+namespace core
+{
+
+/**
+ * @brief Python-facing session wrapper: destroys the underlying OpenXRSession in __exit__.
+ *
+ * Binding OpenXRSession directly with a no-op __exit__ leaves destruction to the pybind
+ * holder, which can run at garbage collection -- after the CloudXR runtime/IPC socket has
+ * been torn down -- producing "Broken pipe"/invalid-handle errors. Holding the session in a
+ * unique_ptr and resetting it in close()/exit() tears it down deterministically at
+ * context-manager exit, while the runtime is still alive. Mirrors PyDeviceIOSession.
+ */
+class PyOpenXRSession
+{
+public:
+    PyOpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions)
+        : impl_(std::make_unique<OpenXRSession>(app_name, extensions))
+    {
+    }
+
+    OpenXRSessionHandles get_handles() const
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("OpenXRSession has been closed/destroyed");
+        }
+        return impl_->get_handles();
+    }
+
+    void close()
+    {
+        impl_.reset();
+    }
+
+    PyOpenXRSession& enter()
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("OpenXRSession has been closed/destroyed");
+        }
+        return *this;
+    }
+
+    void exit(py::object, py::object, py::object)
+    {
+        close();
+    }
+
+private:
+    std::unique_ptr<OpenXRSession> impl_;
+};
+
+} // namespace core
 
 PYBIND11_MODULE(_oxr, m)
 {
@@ -40,15 +99,13 @@ PYBIND11_MODULE(_oxr, m)
             [](const core::OpenXRSessionHandles& self) { return reinterpret_cast<size_t>(self.xrGetInstanceProcAddr); },
             "Get xrGetInstanceProcAddr function pointer as integer");
 
-    // OpenXRSession class (for creating sessions)
-    py::class_<core::OpenXRSession, std::shared_ptr<core::OpenXRSession>>(m, "OpenXRSession")
+    // OpenXRSession (Python-facing wrapper; see core::PyOpenXRSession for the lifetime contract)
+    py::class_<core::PyOpenXRSession, std::unique_ptr<core::PyOpenXRSession>>(m, "OpenXRSession")
         .def(py::init<const std::string&, const std::vector<std::string>&>(), py::arg("app_name"),
              py::arg("extensions") = std::vector<std::string>())
-        .def("get_handles", &core::OpenXRSession::get_handles, "Get session handles for sharing")
-        .def("__enter__", [](core::OpenXRSession& self) -> core::OpenXRSession& { return self; })
-        .def("__exit__",
-             [](core::OpenXRSession& self, py::object, py::object, py::object)
-             {
-                 // RAII cleanup handled automatically when object is destroyed
-             });
+        .def("get_handles", &core::PyOpenXRSession::get_handles, "Get session handles for sharing")
+        .def("close", &core::PyOpenXRSession::close,
+             "Release the native session immediately (usually automatic via context manager)")
+        .def("__enter__", &core::PyOpenXRSession::enter)
+        .def("__exit__", &core::PyOpenXRSession::exit);
 }

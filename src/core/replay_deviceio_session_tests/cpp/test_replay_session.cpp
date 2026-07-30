@@ -10,11 +10,13 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <deviceio_trackers/se3_tracker.hpp>
 #include <mcap/recording_traits.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/hand_generated.h>
 #include <schema/head_generated.h>
 #include <schema/message_channel_generated.h>
+#include <schema/se3_tracker_generated.h>
 
 #include <array>
 #include <atomic>
@@ -86,6 +88,7 @@ using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadP
 using HandChannels = core::McapTrackerChannels<core::HandPoseRecord, core::HandPose>;
 using MessageChannelChannels =
     core::McapTrackerChannels<core::MessageChannelMessagesRecord, core::MessageChannelMessages>;
+using Se3TrackerChannels = core::McapTrackerChannels<core::Se3TrackerPoseRecord, core::Se3TrackerPose>;
 
 // ============================================================================
 // Write helpers
@@ -102,6 +105,18 @@ void write_head_frame(HeadChannels& ch, int64_t time_ns, float x, float y, float
 void write_hand_frame(HandChannels& ch, int64_t time_ns, size_t channel_index, std::shared_ptr<core::HandPoseT> data)
 {
     ch.write(channel_index, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
+}
+
+// Mirror LiveSe3TrackerImpl's channel usage: per-sample writes go to index 0
+// ("se3_tracker"), the per-tick snapshot to index 1 ("se3_tracker_tracked").
+// Replay reads only the tracked channel.
+void write_se3_tracker_frame(Se3TrackerChannels& ch, int64_t time_ns, float x, float y, float z)
+{
+    auto data = std::make_shared<core::Se3TrackerPoseT>();
+    data->is_valid = true;
+    data->pose = std::make_shared<core::Pose>(make_pose(x, y, z));
+    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
+    ch.write(1, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
 }
 
 void write_message_record(MessageChannelChannels& ch, int64_t time_ns, const std::string& payload)
@@ -180,6 +195,64 @@ TEST_CASE("ReplaySession: head tracker round-trip with multiple frames", "[repla
 
     session->update();
     CHECK_FALSE(head_tracker.get_head(*session).data);
+}
+
+// =============================================================================
+// Single tracker — Se3Tracker (pusher-fed; replay reads the *_tracked channel)
+// =============================================================================
+
+TEST_CASE("ReplaySession: se3 tracker round-trip and null at EOF", "[replay][session][se3_tracker]")
+{
+    // Frozen wire strings — these must never change once an MCAP has been recorded.
+    CHECK(core::Se3TrackerRecordingTraits::schema_name == "core.Se3TrackerPoseRecord");
+    REQUIRE(core::Se3TrackerRecordingTraits::recording_channels.size() == 2);
+    CHECK(std::string_view(core::Se3TrackerRecordingTraits::recording_channels[0]) == "se3_tracker");
+    CHECK(std::string_view(core::Se3TrackerRecordingTraits::recording_channels[1]) == "se3_tracker_tracked");
+    REQUIRE(core::Se3TrackerRecordingTraits::replay_channels.size() == 1);
+    CHECK(std::string_view(core::Se3TrackerRecordingTraits::replay_channels[0]) == "se3_tracker_tracked");
+
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+    const std::string base_name = "se3";
+
+    constexpr int num_frames = 3;
+    {
+        auto writer = open_writer(path);
+        Se3TrackerChannels ch(*writer, base_name, core::Se3TrackerRecordingTraits::schema_name,
+                              to_string_vec(core::Se3TrackerRecordingTraits::recording_channels));
+        for (int i = 0; i < num_frames; ++i)
+        {
+            float v = static_cast<float>(i + 1);
+            write_se3_tracker_frame(ch, (i + 1) * 1000000, v, v * 10.0f, v * 100.0f);
+        }
+        writer->close();
+    }
+
+    core::Se3Tracker tracker("se3_tracker");
+    core::McapReplayConfig config;
+    config.filename = path;
+    config.tracker_names = { { &tracker, base_name } };
+
+    auto session = core::ReplaySession::run(config);
+    REQUIRE(session != nullptr);
+
+    for (int i = 0; i < num_frames; ++i)
+    {
+        session->update();
+        const auto& tracked = tracker.get_data(*session);
+        REQUIRE(tracked.data);
+        CHECK(tracked.data->is_valid);
+        float v = static_cast<float>(i + 1);
+        CHECK(tracked.data->pose->position().x() == v);
+        CHECK(tracked.data->pose->position().y() == v * 10.0f);
+        CHECK(tracked.data->pose->position().z() == v * 100.0f);
+    }
+
+    // Replay nulls data at gap/EOF — intentionally different from the live impl's
+    // stale-sample retention on sample-less ticks. See the "Record/replay fidelity"
+    // paragraph in docs/se3-tracker-design.md before "fixing" this toward sample-and-hold.
+    session->update();
+    CHECK_FALSE(tracker.get_data(*session).data);
 }
 
 // =============================================================================

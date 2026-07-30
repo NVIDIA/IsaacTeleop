@@ -34,7 +34,7 @@ From the project root:
    source deps/cloudxr/webxr_client/scripts/setup_cloudxr_env.sh
    deps/cloudxr/webxr_client/scripts/download_cloudxr_sdk.sh
 
-This will automatically download the CloudXR.js SDK and place it in ``deps/cloudxr/nvidia-cloudxr-6.1.0.tgz``.  The
+This will automatically download the CloudXR.js SDK and place it in ``deps/cloudxr/nvidia-cloudxr-6.3.0-rc2.tgz``.  The
 `package.json` is configured to install the SDK from this local file.
 
 2. Install dependencies
@@ -44,7 +44,7 @@ From the ``deps/cloudxr/webxr_client/`` directory:
 
 .. code-block:: bash
 
-   npm install ../nvidia-cloudxr-6.1.0.tgz
+   npm install ../nvidia-cloudxr-6.3.0-rc2.tgz
 
 3. Build & Run
 --------------

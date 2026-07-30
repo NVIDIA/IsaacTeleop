@@ -39,6 +39,7 @@ from .oob_teleop_env import (
     build_headset_bookmark_url,
     client_ui_fields_from_env,
     oob_progress,
+    redact_control_token,
     resolve_lan_host_for_oob,
     web_client_base_override_from_env,
 )
@@ -88,13 +89,14 @@ def oob_adb_automation_message(rc: int, detail: str, hint: str) -> str:
     ]
     if hint.strip():
         lines.extend(["", hint])
-    lines.extend(
-        [
-            "",
-            "To run the WSS proxy and OOB hub without adb, omit --setup-oob and open the teleop URL on the headset yourself.",
-        ]
-    )
+    lines.extend(["", MANUAL_FALLBACK_HINT])
     return "\n".join(lines)
+
+
+# Remediation appended to adb failures. Deliberately names no CLI flag: both
+# the launcher (--setup-oob) and the standalone opener raise these, and manual
+# navigation is the correct fallback for either.
+MANUAL_FALLBACK_HINT = "Or open the teleop URL on the headset yourself."
 
 
 def require_adb_on_path() -> None:
@@ -102,9 +104,9 @@ def require_adb_on_path() -> None:
     if shutil.which("adb"):
         return
     raise OobAdbError(
-        "Cannot use --setup-oob: `adb` was not found on PATH.\n\n"
-        "Install Android Platform Tools and ensure `adb` is available, or omit --setup-oob and open "
-        "the teleop bookmark URL on the headset yourself."
+        "`adb` was not found on PATH.\n\n"
+        "Install Android Platform Tools and ensure `adb` is available. "
+        f"{MANUAL_FALLBACK_HINT}"
     )
 
 
@@ -391,13 +393,14 @@ def assert_exactly_one_adb_device() -> None:
         )
     except FileNotFoundError as e:
         raise OobAdbError(
-            "Cannot use --setup-oob: `adb` was not found on PATH.\n\n"
-            "Install Android Platform Tools and ensure `adb` is available, or omit --setup-oob."
+            "`adb` was not found on PATH.\n\n"
+            "Install Android Platform Tools and ensure `adb` is available. "
+            f"{MANUAL_FALLBACK_HINT}"
         ) from e
     except subprocess.TimeoutExpired as e:
         raise OobAdbError(
             "adb command timed out; ensure Android Platform Tools are installed and adb is callable.\n\n"
-            "Try `adb kill-server` and reconnect the USB cable, or omit --setup-oob."
+            f"Try `adb kill-server` and reconnect the USB cable. {MANUAL_FALLBACK_HINT}"
         ) from e
     if proc.returncode != 0:
         diag = _adb_output_text(proc)
@@ -417,9 +420,9 @@ def assert_exactly_one_adb_device() -> None:
             ready.append(parts[0])
     if len(ready) == 0:
         raise OobAdbError(
-            "No adb device found for --setup-oob.\n\n"
+            "No adb device found.\n\n"
             "Plug in the USB cable, enable USB debugging on the headset, and check `adb devices`. "
-            "Or omit --setup-oob and open the teleop URL on the headset yourself."
+            f"{MANUAL_FALLBACK_HINT}"
         )
 
     # If the operator pinned a specific device, validate it is ready and stop.
@@ -441,18 +444,32 @@ def assert_exactly_one_adb_device() -> None:
     if len(ready) > 1:
         listed = ", ".join(ready)
         raise OobAdbError(
-            "Too many adb devices for --setup-oob.\n\n"
+            "Too many adb devices.\n\n"
             f"Currently connected: {listed}\n\n"
             "Unplug extras so only one headset is connected, OR set "
             "ANDROID_SERIAL=<serial> to pin the one you want, then retry. "
-            "(Or omit --setup-oob and open the teleop URL manually.)"
+            f"({MANUAL_FALLBACK_HINT})"
         )
 
 
 def build_teleop_url(
-    *, resolved_port: int, usb_local: bool = False, host_client: bool = False
+    *,
+    resolved_port: int,
+    usb_local: bool = False,
+    host_client: bool = False,
+    web_client_base: str | None = None,
+    oob_enable: bool = True,
 ) -> str:
-    """Build the headset teleop bookmark URL for ``am start`` and CDP automation."""
+    """Build the headset teleop bookmark URL for ``am start`` and CDP automation.
+
+    *web_client_base* overrides the WebXR client origin and takes precedence
+    over :envvar:`TELEOP_WEB_CLIENT_BASE` (an explicit argument outranks the
+    environment); the streaming query params are computed the same way either
+    way.
+
+    *oob_enable* forwards to :func:`~.oob_teleop_env.build_headset_bookmark_url`;
+    pass ``False`` only when the OOB control hub is not running.
+    """
     env_port = os.environ.get("TELEOP_STREAM_PORT", "").strip()
     signaling_port = (
         parse_env_port("TELEOP_STREAM_PORT", env_port) if env_port else resolved_port
@@ -479,7 +496,7 @@ def build_teleop_url(
             "iceRelayOnly": True,
             **client_ui_fields_from_env(),
         }
-        ovr = web_client_base_override_from_env()
+        ovr = web_client_base or web_client_base_override_from_env()
         web_base = ovr if ovr else f"https://localhost:{usb_ui_port()}"
     else:
         stream_cfg = {
@@ -487,7 +504,7 @@ def build_teleop_url(
             "port": signaling_port,
             **client_ui_fields_from_env(),
         }
-        ovr = web_client_base_override_from_env()
+        ovr = web_client_base or web_client_base_override_from_env()
         if host_client:
             from .oob_teleop_env import guess_lan_ipv4, wss_proxy_port  # noqa: PLC0415
 
@@ -502,6 +519,7 @@ def build_teleop_url(
         web_client_base=web_base,
         stream_config=stream_cfg,
         control_token=token,
+        oob_enable=oob_enable,
     )
 
 
@@ -585,15 +603,17 @@ def headset_browser_package() -> str | None:
     return None
 
 
-def run_adb_headset_bookmark(
-    *, resolved_port: int, usb_local: bool = False, host_client: bool = False
-) -> tuple[int, str]:
-    """Launch the browser on the headset via ``am start`` (used when browser is not yet running).
+def open_url_on_headset(url: str) -> tuple[int, str]:
+    """Open *url* on the connected headset via ``am start``.
 
     When a known vendor browser is detected (Meta / PICO), launches into it
     explicitly via ``-p <package>`` so the URL opens in the full Chromium
     (with working WebXR controller input), not Android WebLayer.  Falls
     back to the generic VIEW intent on unknown vendors.
+
+    Takes the URL as an argument rather than deriving it, so callers that
+    already have one (``python -m isaacteleop.cloudxr.webclient``) share the
+    vendor-browser selection and token redaction with the OOB launcher path.
 
     Returns ``(exit_code, diagnostic)``.
     """
@@ -602,9 +622,6 @@ def run_adb_headset_bookmark(
     except OobAdbError as exc:
         return 99, str(exc)
 
-    url = build_teleop_url(
-        resolved_port=resolved_port, usb_local=usb_local, host_client=host_client
-    )
     package = headset_browser_package()
     if package:
         log.info("ADB automation: launching into %s (bypass WebLayer)", package)
@@ -615,9 +632,10 @@ def run_adb_headset_bookmark(
     else:
         shell_cmd = "am start -a android.intent.action.VIEW -d " + shlex.quote(url)
     full = ["adb", "shell", shell_cmd]
-    redacted = " ".join(shlex.quote(c) for c in full)
-    redacted = re.sub(r"(controlToken=)[^&\s'\"]+", r"\1<REDACTED>", redacted)
-    log.info("ADB automation: %s", redacted)
+    log.info(
+        "ADB automation: %s",
+        redact_control_token(" ".join(shlex.quote(c) for c in full)),
+    )
     try:
         proc = subprocess.run(full, capture_output=True, text=True, timeout=30)
     except subprocess.TimeoutExpired as e:
@@ -635,6 +653,23 @@ def run_adb_headset_bookmark(
         return proc.returncode, diag
     log.info("ADB automation: am start completed")
     return 0, ""
+
+
+def run_adb_headset_bookmark(
+    *, resolved_port: int, usb_local: bool = False, host_client: bool = False
+) -> tuple[int, str]:
+    """Open the computed teleop bookmark URL on the headset (browser not yet running).
+
+    Thin wrapper: :func:`build_teleop_url` for the URL,
+    :func:`open_url_on_headset` for the ``am start``.
+
+    Returns ``(exit_code, diagnostic)``.
+    """
+    return open_url_on_headset(
+        build_teleop_url(
+            resolved_port=resolved_port, usb_local=usb_local, host_client=host_client
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

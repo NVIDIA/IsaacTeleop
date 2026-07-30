@@ -55,3 +55,7 @@ repos:
         language: system
         types: [file]
         pass_filenames: true
+        # pre-commit stage only: in the commit-msg stage pre-commit passes the
+        # COMMIT_EDITMSG path (outside the work tree), which makes the script's
+        # `git check-attr` fail with "outside repository" (exit 128).
+        stages: [pre-commit]

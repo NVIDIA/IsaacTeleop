@@ -1,0 +1,50 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "pose.fbs";
+include "timestamp.fbs";
+
+namespace core;
+
+// Pose sample from a generic SE3 (6-DoF) tracker device: a rigid-body pose source
+// such as a tracker puck, a mocap rigid body, or a logical tracker derived from
+// another device (e.g. an XR controller grip republished by a plugin).
+//
+// Normative conventions:
+// - Position is in meters; orientation is a unit Hamilton quaternion (x, y, z, w);
+//   frames are right-handed.
+// - The reference frame is defined by the data producer and MUST be documented by it.
+//   XR-sourced producers MUST express the pose in the OpenXR session base reference
+//   space (the XrSpace in OpenXRSessionHandles::space — the same space the head and
+//   controller channels are located in).
+// - Two-level validity: the parent Tracked wrapper's data is null when no sample has
+//   arrived yet or the source collection is unavailable; is_valid is false when the
+//   producer is streaming but tracking is lost. When is_valid is false the pose
+//   contents are UNSPECIFIED (producers may send an identity filler) — consumers must
+//   gate on is_valid and freeze, never act on the pose value.
+//
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+table Se3TrackerPose {
+    // The concrete pose data
+    pose: Pose (id: 0);
+
+    // Whether the pose data is valid (false = producer streaming, tracking lost)
+    is_valid: bool (id: 1);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no sample is available).
+table Se3TrackerPoseTracked {
+    data: Se3TrackerPose (id: 0);
+}
+
+// MCAP recording wrapper for Se3TrackerPose.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table Se3TrackerPoseRecord {
+    data: Se3TrackerPose (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type Se3TrackerPoseRecord;

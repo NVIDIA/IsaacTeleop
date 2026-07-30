@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
-#include <deviceio_base/full_body_tracker_pico_base.hpp>
+#include <deviceio_base/full_body_tracker_base.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
@@ -19,11 +19,14 @@
 namespace core
 {
 
-using FullBodyMcapChannels = McapTrackerChannels<FullBodyPosePicoRecord, FullBodyPosePico>;
+using FullBodyMcapChannels = McapTrackerChannels<FullBodyPoseRecord, FullBodyPose>;
 
+// Live full-body impl for the "body.pico-xr" vendor: sources joints directly from
+// the native PICO XR_BD_body_tracking extension.
+//
 // Supports limp-mode: if body tracking hardware is unavailable, the constructor
 // succeeds but body_tracker_ remains XR_NULL_HANDLE and update() returns empty data.
-class LiveFullBodyTrackerPicoImpl : public IFullBodyTrackerPicoImpl
+class LiveFullBodyTrackerPicoImpl : public IFullBodyTrackerImpl
 {
 public:
     static std::vector<std::string> required_extensions()
@@ -42,13 +45,13 @@ public:
     LiveFullBodyTrackerPicoImpl& operator=(LiveFullBodyTrackerPicoImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const FullBodyPosePicoTrackedT& get_body_pose() const override;
+    const FullBodyPoseTrackedT& get_body_pose() const override;
 
 private:
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
-    FullBodyPosePicoTrackedT tracked_;
+    FullBodyPoseTrackedT tracked_;
     int64_t last_update_time_ = 0;
 
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;

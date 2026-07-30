@@ -250,7 +250,9 @@ class DVRKPSMCartesianClutchStateMachine:
         ):
             raise ValueError("clutch_threshold must be finite and in [0, 1]")
 
-        self._last_pose = np.concatenate(
+        # Keep this explicit: NumPy's chained concatenate/astype stubs otherwise
+        # leave the attribute as Any under the repository's mypy configuration.
+        self._last_pose: np.ndarray = np.concatenate(
             [self._configured_home, self._configured_home_orientation]
         ).astype(np.float32)
         self._engaged = False

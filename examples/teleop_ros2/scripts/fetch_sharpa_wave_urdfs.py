@@ -42,16 +42,16 @@ _URDF_SOURCES = {
 }
 
 
-def _example_root() -> Path:
+def _tree_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
 def _default_output_dir() -> Path:
-    return _example_root() / "assets" / "urdf" / "sharpa_standalone"
+    return _tree_root() / "assets" / "urdf" / "sharpa_standalone"
 
 
 def _default_config_dir() -> Path:
-    return _example_root() / "configs"
+    return _tree_root() / "configs"
 
 
 def _parse_retargeting_config(path: Path) -> tuple[set[str], set[str]]:

@@ -41,6 +41,7 @@ from constants import (
     RIGHT_SHARPA_WAVE_JOINT_NAMES,
     SHARPA_FINGER_JOINT_COUNT,
     SHARPA_HAND_RETARGETERS,
+    TeleopMode,
 )
 from node_parameters import NodeParameters
 from tensor_group_helpers import joint_names_from_group_type
@@ -142,7 +143,7 @@ def build_controller_teleop_config(params: NodeParameters) -> TeleopSessionConfi
         )
         hands = HandsSource(name="hands")
         left_finger_joints, right_finger_joints = build_sharpa_finger_joint_outputs(
-            hands, params, "controller_teleop"
+            hands, params, TeleopMode.CONTROLLER_TELEOP.value
         )
         pipeline_outputs.update(
             {
@@ -211,7 +212,7 @@ def build_hand_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
     )
     locomotion_connected = locomotion.connect({"pedals": pedals.output("pedals")})
     left_finger_joints, right_finger_joints = build_sharpa_finger_joint_outputs(
-        hands, params, "hand_teleop"
+        hands, params, TeleopMode.HAND_TELEOP.value
     )
 
     pipeline = OutputCombiner(
@@ -234,13 +235,13 @@ def build_hand_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
 
 
 def build_session_config(params: NodeParameters) -> TeleopSessionConfig:
-    if params.mode == "controller_teleop":
+    if params.mode == TeleopMode.CONTROLLER_TELEOP:
         return build_controller_teleop_config(params)
-    if params.mode == "hand_teleop":
+    if params.mode == TeleopMode.HAND_TELEOP:
         return build_hand_teleop_config(params)
-    if params.mode == "controller_raw":
+    if params.mode == TeleopMode.CONTROLLER_RAW:
         return build_controller_raw_config(params)
-    if params.mode == "full_body":
+    if params.mode == TeleopMode.FULL_BODY:
         return build_full_body_config(params)
     raise ValueError(f"Unsupported mode {params.mode!r}")
 

@@ -42,7 +42,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # All Python-related configurations should reference this variable.
 # To change the Python version, only modify this line:
 set(ISAAC_TELEOP_PYTHON_VERSION "3.11" CACHE STRING "Python version for Isaac Teleop")
-set(ISAAC_TELEOP_PYTHON_VERSION_MIN "3.10")
+set(ISAAC_TELEOP_PYTHON_VERSION_MIN "3.11")
 set(ISAAC_TELEOP_PYTHON_VERSION_MAX_EXCLUSIVE "3.14")
 message(STATUS "Configuring for Python ${ISAAC_TELEOP_PYTHON_VERSION}")
 # ==============================================================================
@@ -59,8 +59,10 @@ endif()
 # Options
 option(BUILD_PLUGINS "Build plugins" ON)
 option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
+option(BUILD_PLUGIN_OGLO "Build OGLO tactile glove plugin (BLE, Linux only; fetches SimpleBLE + nlohmann/json)" OFF)
+option(BUILD_PLUGIN_WUJI_GLOVE "Build Wuji glove plugin (requires the wuji_sdk C SDK)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
-option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 example (e.g. for Docker)" OFF)
+option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 ROS 2 reference integration (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
 # Televiz (src/viz) needs Vulkan, the CUDA Toolkit, and glslangValidator.
 # Default BUILD_VIZ ON when all three are present (so it builds out of the box)
@@ -86,6 +88,9 @@ option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build supp
 # When enabled, build will fail if the CloudXR runtime SDK is not available.
 # TODO: Make this default to ON for Linux builds when the CloudXR runtime SDK is publicly available.
 option(ENABLE_CLOUDXR_BUNDLE_CHECK "Enable CloudXR bundle check" OFF)
+
+# When ON, also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp.
+option(ENABLE_CLOUDXR_EXP_BUNDLE "Also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp" OFF)
 
 ## Enforce clang-format on Linux builds by default
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -166,6 +171,7 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/schemaio)
     add_subdirectory(examples/native_openxr)
     add_subdirectory(examples/mcap_record_replay)
+    add_subdirectory(examples/deviceio_live_view)
     add_subdirectory(examples/haptic_feedback)
     if(BUILD_VIZ)
         add_subdirectory(examples/camera_viz/tests)
@@ -179,15 +185,62 @@ if(BUILD_PLUGINS)
     # Build plugin utilities
     add_subdirectory(src/plugins/plugin_utils)
 
+    add_subdirectory(src/plugins/controller_se3_tracker)
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
     add_subdirectory(src/plugins/so101_leader)
+    add_subdirectory(src/plugins/rebot_devarm_leader)
     add_subdirectory(src/plugins/manus)
     add_subdirectory(src/plugins/haptikos)
     if(BUILD_PLUGIN_OAK_CAMERA)
         add_subdirectory(src/plugins/oak)
     endif()
+    if(BUILD_PLUGIN_OGLO)
+        add_subdirectory(src/plugins/oglo_tactile)
+    endif()
+    # Gated: requires the wuji_sdk C library (set WUJI_SDK_INCLUDE_DIR + lib path).
+    if(BUILD_PLUGIN_WUJI_GLOVE)
+        add_subdirectory(src/plugins/wuji_glove)
+    endif()
 endif()
 
 # Formatting enforcement (runs on Linux by default)
 include(cmake/ClangFormat.cmake)
+
+# ==============================================================================
+# scikit-build-core: install every built executable into the venv's bin/
+# ==============================================================================
+# Under pip (SKBUILD), put all executables built from this repo -- examples, C++
+# test binaries, plugin tools, etc. -- on the venv PATH via the wheel's scripts
+# scheme. We walk the directory tree from the project root but skip deps/ (and any
+# FetchContent _deps/ subtree) so third-party executables (e.g. flatc) are never
+# swept in. Shared libraries (Python extension modules, plugin .so) are not
+# executables and are handled elsewhere / not installed here; a plugin that skips a
+# missing SDK becomes a UTILITY target and is naturally excluded. Tagged with the
+# isaacteleop_binaries component, selected via install.components in pyproject.toml.
+if(SKBUILD)
+    function(isaac_teleop_install_executables _dir)
+        # Skip third-party dependency trees (deps/ and FetchContent's _deps/).
+        if(_dir STREQUAL "${CMAKE_SOURCE_DIR}/deps" OR _dir MATCHES "/_deps/")
+            return()
+        endif()
+        get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
+        foreach(_subdir IN LISTS _subdirs)
+            isaac_teleop_install_executables("${_subdir}")
+        endforeach()
+        get_property(_targets DIRECTORY "${_dir}" PROPERTY BUILDSYSTEM_TARGETS)
+        foreach(_target IN LISTS _targets)
+            get_target_property(_type "${_target}" TYPE)
+            get_target_property(_imported "${_target}" IMPORTED)
+            if(_type STREQUAL "EXECUTABLE" AND NOT _imported)
+                install(TARGETS "${_target}"
+                    RUNTIME DESTINATION "${SKBUILD_SCRIPTS_DIR}"
+                    COMPONENT isaacteleop_binaries)
+            endif()
+        endforeach()
+    endfunction()
+
+    # Walk from the project root (deps/ skipped) so every executable built from
+    # this repo -- across src/ and examples/ -- is installed.
+    isaac_teleop_install_executables("${CMAKE_SOURCE_DIR}")
+endif()

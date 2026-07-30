@@ -187,6 +187,18 @@ export interface CloudXRConfig {
 
   /** Media server port for WebRTC streaming (use 0 for server-provided port) */
   mediaPort?: number;
+
+  /**
+   * Pre-stream network test: 'off' skips it, 'warn' measures and reports, 'block' also
+   * refuses to stream when the link fails the gate.
+   *
+   * Defaults to 'off' for IsaacTeleop. The test holds the session in Connecting for its
+   * whole window, and an operator connecting to a robot should not be gated on it.
+   */
+  streamTestMode?: 'off' | 'warn' | 'block';
+
+  /** Length of the network test measurement window in seconds. Ignored when the test is off. */
+  streamTestDurationSeconds?: number;
 }
 
 /**
