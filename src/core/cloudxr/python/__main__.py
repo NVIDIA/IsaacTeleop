@@ -62,6 +62,16 @@ def _parse_args() -> argparse.Namespace:
         help="Accept the NVIDIA CloudXR EULA non-interactively (e.g. for CI or containers).",
     )
     parser.add_argument(
+        "--enable-oob-hub",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable the OOB teleop control hub without USB adb automation. "
+            "Use with --host-client for desktop-browser validation that reads "
+            "client connection state from the WSS proxy API."
+        ),
+    )
+    parser.add_argument(
         "--setup-oob",
         action="store_true",
         default=False,
@@ -135,6 +145,8 @@ def main() -> None:
     #
     #   (none)                        Plain: headset navigates to GitHub Pages URL over WiFi.
     #   --host-client                 Client served at https://<lan>:<wss_port>/client/; no adb/TURN.
+    #   --enable-oob-hub --host-client
+    #                                  OOB hub + local client; no adb/TURN.
     #   --setup-oob                   OOB hub + CDP automation; GitHub Pages URL.
     #   --setup-oob --host-client     OOB hub + CDP; client served at /client/ on the WSS proxy.
     #   --setup-oob --usb-local       OOB hub + CDP; adb-reverse + coturn + loopback HTTPS.
@@ -199,6 +211,7 @@ def main() -> None:
         install_dir=args.cloudxr_install_dir,
         env_config=args.cloudxr_env_config,
         accept_eula=args.accept_eula,
+        enable_oob_hub=args.enable_oob_hub,
         setup_oob=args.setup_oob,
         usb_local=args.usb_local,
         host_client=args.host_client,
@@ -241,6 +254,19 @@ def main() -> None:
                 print_oob_hub_startup_banner(
                     lan_host=_oob_lan_host,
                     web_client_base=_hosted_client_url,
+                )
+        elif args.enable_oob_hub:
+            _port = wss_proxy_port()
+            print(
+                "        oob:       \033[32menabled\033[0m  (hub only; no adb automation)"
+            )
+            print(
+                f"        state:     \033[36mhttps://localhost:{_port}/api/oob/v1/state\033[0m"
+            )
+            if _hosted_client_url is not None:
+                print(
+                    f"        client:    \033[36m{_hosted_client_url}\033[0m  "
+                    "\033[90m(open locally; add oobEnable=1, serverIP, and port query params)\033[0m"
                 )
         else:
             if _hosted_client_url is not None:

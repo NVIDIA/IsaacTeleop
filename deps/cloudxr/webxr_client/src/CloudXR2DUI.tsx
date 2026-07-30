@@ -40,6 +40,7 @@ import {
   validatePerEyeResolution,
 } from '@nvidia/cloudxr';
 
+import type { StreamConfig } from '@helpers/controlChannel';
 import {
   detectDeviceProfileId,
   type DeviceProfileId,
@@ -205,6 +206,8 @@ export class CloudXR2DUI {
   private onConfigurationChange: ((config: AppConfig) => void) | null = null;
   /** Connect button click handler for cleanup */
   private handleConnectClick: ((event: Event) => void) | null = null;
+  /** Shared connect action used by button clicks and automated OOB validation. */
+  private connectAction: (() => Promise<void>) | null = null;
   /** Array to store all event listeners for proper cleanup */
   private eventListeners: Array<{
     element: HTMLElement;
@@ -1181,6 +1184,47 @@ export class CloudXR2DUI {
   }
 
   /**
+   * Applies stream settings received from the OOB hub without persisting them.
+   */
+  public applyOobStreamConfig(config: StreamConfig): void {
+    let changed = false;
+
+    if (typeof config.serverIP === 'string' && config.serverIP.trim()) {
+      const value = config.serverIP.trim();
+      if (this.serverIpInput.value !== value) {
+        this.serverIpInput.value = value;
+        changed = true;
+      }
+    }
+
+    if (typeof config.port === 'number' && Number.isFinite(config.port)) {
+      const value = String(config.port);
+      if (this.portInput.value !== value) {
+        this.portInput.value = value;
+        changed = true;
+      }
+    }
+
+    if (typeof config.codec === 'string') {
+      const before = this.codecSelect.value;
+      setSelectValueIfAvailable(this.codecSelect, config.codec);
+      changed = changed || this.codecSelect.value !== before;
+    }
+
+    if (typeof config.panelHiddenAtStart === 'boolean') {
+      const value = config.panelHiddenAtStart ? 'true' : 'false';
+      if (this.panelHiddenAtStartSelect.value !== value) {
+        this.panelHiddenAtStartSelect.value = value;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.updateConfiguration();
+    }
+  }
+
+  /**
    * Sets the start button state
    * @param disabled - Whether the button should be disabled
    * @param text - Text to display on the button
@@ -1207,8 +1251,8 @@ export class CloudXR2DUI {
         this.startButton.removeEventListener('click', this.handleConnectClick);
       }
 
-      // Create new handler
-      this.handleConnectClick = async () => {
+      // Create new action
+      this.connectAction = async () => {
         this.updateConnectButtonState();
         if (this.startButton?.disabled) {
           this.updateConnectButtonState();
@@ -1232,12 +1276,23 @@ export class CloudXR2DUI {
           this.setStartButtonState(false, 'CONNECT');
           this.updateConnectButtonState();
           onError(error as Error);
+          throw error;
         }
+      };
+      this.handleConnectClick = () => {
+        void this.connectAction?.().catch(() => undefined);
       };
 
       // Add the new listener
       this.startButton.addEventListener('click', this.handleConnectClick);
     }
+  }
+
+  public requestConnect(): Promise<void> {
+    if (!this.connectAction) {
+      throw new Error('Connect handler is not ready');
+    }
+    return this.connectAction();
   }
 
   /**
@@ -1285,6 +1340,7 @@ export class CloudXR2DUI {
     if (this.startButton && this.handleConnectClick) {
       this.startButton.removeEventListener('click', this.handleConnectClick);
       this.handleConnectClick = null;
+      this.connectAction = null;
     }
 
     // Clean up certificate acceptance link listeners

@@ -41,7 +41,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { v5 } from 'uuid';
 
 import { checkCapabilities } from '@helpers/BrowserCapabilities';
-import { HeadsetControlChannel } from '@helpers/controlChannel';
+import { HeadsetControlChannel, type StreamConfig } from '@helpers/controlChannel';
 import { getDeviceProfile, resolveDeviceProfileId } from '@helpers/DeviceProfiles';
 import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 import { MetricsAccumulator } from '@helpers/metricsAccumulator';
@@ -163,6 +163,20 @@ function isOobEnabled(searchParams: URLSearchParams): boolean {
   return v === '1' || v?.toLowerCase() === 'true';
 }
 
+function isOobAutoConnectEnabled(searchParams: URLSearchParams): boolean {
+  const v = readUrlParam(searchParams, 'autoConnect');
+  return v === '1' || v?.toLowerCase() === 'true';
+}
+
+function isOobHeadlessAutoConnect(searchParams: URLSearchParams): boolean {
+  const headless = readUrlParam(searchParams, 'headless');
+  return (
+    isOobEnabled(searchParams) &&
+    isOobAutoConnectEnabled(searchParams) &&
+    (headless === '1' || headless?.toLowerCase() === 'true')
+  );
+}
+
 function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null {
   if (!isOobEnabled(searchParams)) return null;
   const serverIP = readUrlParam(searchParams, 'serverIP')?.trim();
@@ -179,7 +193,13 @@ function AppContent() {
   // 2D UI management
   const [cloudXR2DUI, setCloudXR2DUI] = useState<CloudXR2DUI | null>(null);
   // IWER loading state
-  const [iwerLoaded, setIwerLoaded] = useState(false);
+  const [iwerLoaded, setIwerLoaded] = useState(
+    () => sessionStorage.getItem('iwerPreloaded') === 'true'
+  );
+  const oobHeadlessAutoConnect = useMemo(
+    () => isOobHeadlessAutoConnect(new URLSearchParams(window.location.search)),
+    []
+  );
   // Capability state management
   const [capabilitiesValid, setCapabilitiesValid] = useState(false);
   const capabilitiesCheckedRef = useRef(false);
@@ -214,6 +234,8 @@ function AppContent() {
   );
   /** Avoid repeating immersive session dumps on every XR store tick. */
   const immersiveSessionDumpLoggedRef = useRef(false);
+  const autoConnectTriggeredRef = useRef(false);
+  const autoConnectUiRef = useRef<CloudXR2DUI | null>(null);
   const [countdownDuration, setCountdownDuration] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(COUNTDOWN_STORAGE_KEY);
@@ -238,7 +260,13 @@ function AppContent() {
   // Note: React Three Fiber's emulation is disabled (emulate: false) to avoid conflicts
   useEffect(() => {
     const loadIWER = async () => {
-      const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
+      if (oobHeadlessAutoConnect && sessionStorage.getItem('iwerPreloaded') === 'true') {
+        setIwerLoaded(true);
+        return;
+      }
+
+      const { supportsImmersive, iwerLoaded: wasIwerLoaded } =
+        await loadIWERIfNeeded(oobHeadlessAutoConnect);
       if (!supportsImmersive) {
         setErrorMessage('Immersive mode not supported');
         setIwerLoaded(false);
@@ -255,7 +283,7 @@ function AppContent() {
     };
 
     loadIWER();
-  }, []);
+  }, [oobHeadlessAutoConnect]);
 
   // Update button state when IWER fails and UI becomes ready
   useEffect(() => {
@@ -329,6 +357,63 @@ function AppContent() {
     checkCapabilitiesOnce();
   }, [cloudXR2DUI, iwerLoaded]);
 
+  // Store recreation after IWER loads also recreates CloudXR2DUI. Keep auto-connect
+  // tied to the current UI instance so retries cannot target an object cleaned up by
+  // the previous store's effect teardown.
+  useEffect(() => {
+    if (autoConnectUiRef.current !== cloudXR2DUI) {
+      autoConnectUiRef.current = cloudXR2DUI;
+      autoConnectTriggeredRef.current = false;
+    }
+
+    if (!cloudXR2DUI || !iwerLoaded || !capabilitiesValid) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    if (
+      !isOobEnabled(searchParams) ||
+      !isOobAutoConnectEnabled(searchParams) ||
+      !cloudXR2DUI.getConfiguration().headless ||
+      autoConnectTriggeredRef.current
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    autoConnectTriggeredRef.current = true;
+    const requestConnect = (attemptsRemaining: number) => {
+      window.setTimeout(async () => {
+        if (cancelled) {
+          return;
+        }
+        try {
+          setErrorMessage('');
+          await cloudXR2DUI.requestConnect();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const retryable =
+            message.includes('not connected to three.js') ||
+            message.includes('Connect handler is not ready');
+          if (attemptsRemaining > 0 && retryable) {
+            requestConnect(attemptsRemaining - 1);
+            return;
+          }
+          autoConnectTriggeredRef.current = false;
+          setErrorMessage(`Failed to auto-start XR session: ${error}`);
+        }
+      }, 500);
+    };
+    requestConnect(20);
+
+    return () => {
+      cancelled = true;
+      if (autoConnectUiRef.current === cloudXR2DUI) {
+        autoConnectTriggeredRef.current = false;
+      }
+    };
+  }, [cloudXR2DUI, iwerLoaded, capabilitiesValid]);
+
   // Track config changes to trigger re-renders when form values change
   const [configVersion, setConfigVersion] = useState(0);
 
@@ -346,7 +431,9 @@ function AppContent() {
   const hideControllerModel = cloudXR2DUI?.getConfiguration().hideControllerModel ?? false;
 
   // XR store must be created after we know which device profile is active.
-  // useMemo prevents re-creating the store for unrelated UI changes.
+  // In hosted headless validation, IWER is installed asynchronously after the
+  // first render. Recreate the store once XR readiness is established so it
+  // binds to the emulated runtime rather than Chrome's native navigator.xr.
   const store = useMemo(
     () =>
       createXRStore({
@@ -366,9 +453,13 @@ function AppContent() {
         controller: {
           model: !hideControllerModel, // Allow UI to hide controller models while keeping input active
         },
-        // Request optional WebXR features - use property names, not optionalFeatures array!
-        handTracking: true,
-        bodyTracking: true,
+        // Headless OOB validation runs through desktop/IWER emulation. Keep that request minimal
+        // so unsupported headset-only features cannot prevent the automated session from starting.
+        handTracking: !oobHeadlessAutoConnect,
+        bodyTracking: !oobHeadlessAutoConnect,
+        customSessionInit: oobHeadlessAutoConnect
+          ? { requiredFeatures: ['local-floor'], optionalFeatures: [] }
+          : undefined,
         // Explicitly disable environment/scene feature requests to avoid extra headset prompts.
         anchors: false,
         layers: false,
@@ -381,7 +472,7 @@ function AppContent() {
         offerSession: true,
       }),
     // hideControllerModel omitted: changing it must not recreate the store or the session would be lost
-    [xrFoveation, xrFrameBufferScaling]
+    [xrFoveation, xrFrameBufferScaling, oobHeadlessAutoConnect, iwerLoaded]
   );
 
   // Apply controller model visibility when the option changes. store.setController() updates
@@ -841,8 +932,8 @@ function AppContent() {
     const channel = new HeadsetControlChannel({
       url: hubWsUrl,
       token: readUrlParam(p, 'controlToken') ?? undefined,
-      onConfig: () => {
-        // Config push handling deferred to phase 2.
+      onConfig: (streamConfig: StreamConfig) => {
+        cloudXR2DUI.applyOobStreamConfig(streamConfig);
       },
       // Reports every metric the SDK emits, keyed by CloudXR.MetricsName, across the
       // render / frame / network cadences. The hub stores metrics as an arbitrary
