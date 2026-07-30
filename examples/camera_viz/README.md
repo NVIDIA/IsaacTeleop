@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
-Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one plane per camera, aspect-fit. Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy`.
+In XR mode the viewer **launches the CloudXR runtime + WSS proxy itself** — nothing to start separately (`--no-launch-cloudxr-runtime` reuses an external one; `--accept-eula` for the first run; `camera_viz.py --help` for the rest). Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy` / `gimbal`.
 
 ---
 
@@ -33,7 +33,7 @@ examples/camera_viz/camera_viz.sh setup
 source examples/camera_viz/.venv/bin/activate
 ```
 
-`setup` installs `isaacteleop` (which bundles Televiz) and every other Python dep from PyPI into `.venv/` via `uv` (no `--system-site-packages`), builds the native NVENC/NVDEC codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
+`setup` installs `isaacteleop>=1.4` (which bundles Televiz) and every other Python dep from PyPI into `.venv/` via `uv` (no `--system-site-packages`), builds the native NVENC/NVDEC codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
 
 Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
 
@@ -114,13 +114,18 @@ display:                      # camera_viz only
   clear_color: [r, g, b, a]
   placements:
     cam:
-      lock_mode: lazy         # world | head | lazy
+      lock_mode: lazy         # world | head | lazy | gimbal
       distance: 1.5
       offset_x: 0.0
       offset_y: 0.0
       # size: [w_m, h_m]
       # stereo_baseline_mm: 0  # stereo cams: 0 = both eyes share the world quad
                                # (parallax from the frames); ~65 = virtual IPD push
+      # shape: quad            # quad (default) | cylinder | equirect — XR only for
+                               # the curved shapes
+      # compositor: openxr     # openxr (default) | televiz — quads only
+      # cylinder_radius_m: 2.0 # cylinder: viewing distance to the arc
+      # cylinder_angle_deg: 90 # cylinder: visible arc width
 ```
 
 Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` (plus `port_right` if stereo) and renders as its own plane.

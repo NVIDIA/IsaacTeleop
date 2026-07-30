@@ -76,6 +76,8 @@ void OpenXrSession::create_instance(const std::string& app_name, const std::vect
     }
     const bool runtime_has_depth_layer = available_exts.count(XR_KHR_COMPOSITION_LAYER_DEPTH_EXTENSION_NAME) > 0;
     const bool runtime_has_time_conversion = available_exts.count(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME) > 0;
+    const bool runtime_has_cylinder_layer = available_exts.count(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME) > 0;
+    const bool runtime_has_equirect2_layer = available_exts.count(XR_KHR_COMPOSITION_LAYER_EQUIRECT2_EXTENSION_NAME) > 0;
 
     // Build the request list deduped: required → opt-in → caller extras.
     // Caller extras are validated; passing an unsupported one is fatal.
@@ -96,6 +98,17 @@ void OpenXrSession::create_instance(const std::string& app_name, const std::vect
     if (runtime_has_time_conversion)
     {
         add_unique(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME);
+    }
+    // Shaped composition layers (CylinderLayer / EquirectLayer). Opt-in
+    // when advertised; layers requiring them are rejected at add_layer
+    // when the runtime lacks the extension.
+    if (runtime_has_cylinder_layer)
+    {
+        add_unique(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME);
+    }
+    if (runtime_has_equirect2_layer)
+    {
+        add_unique(XR_KHR_COMPOSITION_LAYER_EQUIRECT2_EXTENSION_NAME);
     }
     for (const auto& e : extra_extensions)
     {
@@ -118,6 +131,8 @@ void OpenXrSession::create_instance(const std::string& app_name, const std::vect
     check_xr(xrCreateInstance(&info, &raw_instance), "xrCreateInstance");
     instance_ = InstanceHandle(raw_instance, &xrDestroyInstance);
     has_depth_composition_layer_ = runtime_has_depth_layer;
+    has_cylinder_composition_layer_ = runtime_has_cylinder_layer;
+    has_equirect2_composition_layer_ = runtime_has_equirect2_layer;
 
     // Resolve PFNs only if both succeed — leave the feature off rather
     // than half-working.

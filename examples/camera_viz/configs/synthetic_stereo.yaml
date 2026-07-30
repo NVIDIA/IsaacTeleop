@@ -39,7 +39,7 @@ display:
   placements:
     synth:
       lock_mode: lazy
-      distance: 1.5
+      distance: 1.0
       stereo_baseline_mm: 0.0     # 0 → both eyes see the same world quad
                                   # (parallax purely from the captured frames).
                                   # Try 65.0 (typical IPD) to virtually push the

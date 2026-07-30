@@ -147,7 +147,7 @@ void XrBackend::destroy()
     // images, so xrDestroySwapchain is enough (no vkDestroyImage).
     render_target_.reset();
     destroy_depth_staging();
-    destroy_native_quad_swapchains();
+    destroy_native_layer_swapchains();
     destroy_swapchains();
     session_.reset();
     ctx_ = nullptr;
@@ -173,7 +173,7 @@ void XrBackend::release_acquired_swapchains() noexcept
     {
         release_one(sw);
     }
-    for (auto& [key, qs] : native_quad_swapchains_)
+    for (auto& [key, qs] : native_layer_swapchains_)
     {
         (void)key;
         for (auto& sw : qs.eyes)
@@ -196,7 +196,7 @@ void XrBackend::abort_in_flight_frame() noexcept
     frame_began_ = false;
     frame_renderable_ = false;
     projection_active_ = false;
-    active_native_quads_.clear();
+    active_native_layers_.clear();
     try
     {
         session_->end_frame(last_frame_state_.predictedDisplayTime, {});
@@ -230,9 +230,9 @@ void XrBackend::destroy_swapchains()
     depth_swapchains_.clear();
 }
 
-void XrBackend::destroy_native_quad_swapchains()
+void XrBackend::destroy_native_layer_swapchains()
 {
-    for (auto& [key, qs] : native_quad_swapchains_)
+    for (auto& [key, qs] : native_layer_swapchains_)
     {
         (void)key;
         for (auto& sw : qs.eyes)
@@ -245,7 +245,7 @@ void XrBackend::destroy_native_quad_swapchains()
             sw.images.clear();
         }
     }
-    native_quad_swapchains_.clear();
+    native_layer_swapchains_.clear();
 }
 
 int64_t XrBackend::pick_swapchain_format() const
@@ -500,10 +500,10 @@ std::optional<DisplayBackend::Frame> XrBackend::begin_frame(int64_t /*ignored*/)
     frame_began_ = true;
     frame_renderable_ = false;
     // Reset per-frame composition state. projection_active_ is raised by
-    // record_post_render_pass / record_direct; native quads accumulate in
-    // record_native_quads. end_frame consumes both.
+    // record_post_render_pass / record_direct; native layers accumulate in
+    // record_native_layers. end_frame consumes both.
     projection_active_ = false;
-    active_native_quads_.clear();
+    active_native_layers_.clear();
 
     // From here on, an exception MUST balance xrBeginFrame with an
     // empty xrEndFrame and release any swapchains we acquired. The
@@ -894,18 +894,18 @@ void XrBackend::record_direct(VkCommandBuffer cmd, const Frame& /*frame*/, const
     }
 }
 
-XrBackend::NativeQuadSwapchain& XrBackend::ensure_native_quad_swapchain(const void* key,
-                                                                        Resolution extent,
-                                                                        uint32_t eye_count)
+XrBackend::NativeLayerSwapchain& XrBackend::ensure_native_layer_swapchain(const void* key,
+                                                                          Resolution extent,
+                                                                          uint32_t eye_count)
 {
-    // Called from record_native_quads, i.e. between xrBeginFrame/xrEndFrame.
+    // Called from record_native_layers, i.e. between xrBeginFrame/xrEndFrame.
     // xrCreateSwapchain is not part of the frame loop and is legal to call at
     // any time after session creation (Monado/CloudXR allow it), so creating
     // on a quad's first appearance is fine; every later frame hits the cache
     // below. If some runtime ever rejects mid-frame creation, pre-create here
     // from a layer-add hook instead.
-    auto it = native_quad_swapchains_.find(key);
-    if (it != native_quad_swapchains_.end() && it->second.eyes.size() == eye_count && !it->second.eyes.empty() &&
+    auto it = native_layer_swapchains_.find(key);
+    if (it != native_layer_swapchains_.end() && it->second.eyes.size() == eye_count && !it->second.eyes.empty() &&
         it->second.eyes[0].width == extent.width && it->second.eyes[0].height == extent.height)
     {
         return it->second;
@@ -913,7 +913,7 @@ XrBackend::NativeQuadSwapchain& XrBackend::ensure_native_quad_swapchain(const vo
     // Fresh (or shape changed): (re)create. A shape change on an existing
     // key is not expected — a QuadLayer's resolution/stereo are fixed at
     // construction — but destroy the stale one defensively if it happens.
-    if (it != native_quad_swapchains_.end())
+    if (it != native_layer_swapchains_.end())
     {
         for (auto& sw : it->second.eyes)
         {
@@ -922,16 +922,16 @@ XrBackend::NativeQuadSwapchain& XrBackend::ensure_native_quad_swapchain(const vo
                 (void)xrDestroySwapchain(sw.handle);
             }
         }
-        native_quad_swapchains_.erase(it);
+        native_layer_swapchains_.erase(it);
     }
 
     // Destroy any already-created eye swapchains if creation of a later eye
     // throws below (e.g. eye 1 of a stereo pair) — otherwise the eye-0 handle
     // in this local would leak until session destroy.
-    NativeQuadSwapchain qs;
+    NativeLayerSwapchain qs;
     struct PartialGuard
     {
-        NativeQuadSwapchain& qs;
+        NativeLayerSwapchain& qs;
         bool dismissed = false;
         ~PartialGuard()
         {
@@ -965,18 +965,18 @@ XrBackend::NativeQuadSwapchain& XrBackend::ensure_native_quad_swapchain(const vo
         info.faceCount = 1;
         info.arraySize = 1;
         info.mipCount = 1;
-        check_xr(xrCreateSwapchain(session_->session(), &info, &qs.eyes[e].handle), "xrCreateSwapchain(native quad)");
+        check_xr(xrCreateSwapchain(session_->session(), &info, &qs.eyes[e].handle), "xrCreateSwapchain(native layer)");
         qs.eyes[e].width = info.width;
         qs.eyes[e].height = info.height;
 
         uint32_t img_count = 0;
         check_xr(xrEnumerateSwapchainImages(qs.eyes[e].handle, 0, &img_count, nullptr),
-                 "xrEnumerateSwapchainImages(native quad count)");
+                 "xrEnumerateSwapchainImages(native layer count)");
         std::vector<XrSwapchainImageVulkan2KHR> vk_images(
             img_count, XrSwapchainImageVulkan2KHR{ XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR });
         check_xr(xrEnumerateSwapchainImages(qs.eyes[e].handle, img_count, &img_count,
                                             reinterpret_cast<XrSwapchainImageBaseHeader*>(vk_images.data())),
-                 "xrEnumerateSwapchainImages(native quad data)");
+                 "xrEnumerateSwapchainImages(native layer data)");
         qs.eyes[e].images.reserve(img_count);
         for (const auto& vi : vk_images)
         {
@@ -985,13 +985,31 @@ XrBackend::NativeQuadSwapchain& XrBackend::ensure_native_quad_swapchain(const vo
     }
     // Once emplace succeeds the map owns the handles (qs is moved-from, its
     // eyes vector empty, so the guard's sweep is a no-op either way).
-    auto [ins, ok] = native_quad_swapchains_.emplace(key, std::move(qs));
+    auto [ins, ok] = native_layer_swapchains_.emplace(key, std::move(qs));
     partial_guard.dismissed = true;
     (void)ok;
     return ins->second;
 }
 
-void XrBackend::record_native_quads(VkCommandBuffer cmd, const Frame& /*frame*/, const std::vector<NativeQuadView>& views)
+bool XrBackend::supports_native_layer_shape(NativeLayerShape shape) const noexcept
+{
+    if (session_ == nullptr)
+    {
+        return false;
+    }
+    switch (shape)
+    {
+    case NativeLayerShape::kQuad:
+        return true; // XrCompositionLayerQuad is core OpenXR
+    case NativeLayerShape::kCylinder:
+        return session_->has_cylinder_composition_layer();
+    case NativeLayerShape::kEquirect2:
+        return session_->has_equirect2_composition_layer();
+    }
+    return false;
+}
+
+void XrBackend::record_native_layers(VkCommandBuffer cmd, const Frame& /*frame*/, const std::vector<NativeLayerView>& views)
 {
     if (!frame_renderable_ || views.empty())
     {
@@ -1002,10 +1020,14 @@ void XrBackend::record_native_quads(VkCommandBuffer cmd, const Frame& /*frame*/,
     {
         const bool stereo = view.color_right != VK_NULL_HANDLE;
         const uint32_t eye_count = stereo ? 2u : 1u;
-        NativeQuadSwapchain& qs = ensure_native_quad_swapchain(view.source_id, view.extent, eye_count);
+        NativeLayerSwapchain& qs = ensure_native_layer_swapchain(view.source_id, view.extent, eye_count);
 
         // Per-eye baseline offset along the placement's local +x axis
         // (world space), mirroring QuadLayer::record()'s stereo shift.
+        // Shape-agnostic: the whole layer pose translates per eye. For an
+        // infinite-radius equirect sphere the translation is invisible by
+        // construction — the depth cue there comes from the per-eye
+        // textures alone, matching how 360° stereo video is authored.
         glm::vec3 baseline_axis_ws{ 0.0f };
         const bool apply_baseline = stereo && view.stereo_baseline_mm != 0.0f;
         if (apply_baseline)
@@ -1020,11 +1042,11 @@ void XrBackend::record_native_quads(VkCommandBuffer cmd, const Frame& /*frame*/,
             // Acquire + wait this quad swapchain image (released in end_frame).
             XrSwapchainImageAcquireInfo acquire_info{ XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO };
             check_xr(xrAcquireSwapchainImage(sw.handle, &acquire_info, &sw.current_image_index),
-                     "xrAcquireSwapchainImage(native quad)");
+                     "xrAcquireSwapchainImage(native layer)");
             sw.acquired = true;
             XrSwapchainImageWaitInfo wait_info{ XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO };
             wait_info.timeout = XR_INFINITE_DURATION;
-            check_xr(xrWaitSwapchainImage(sw.handle, &wait_info), "xrWaitSwapchainImage(native quad)");
+            check_xr(xrWaitSwapchainImage(sw.handle, &wait_info), "xrWaitSwapchainImage(native layer)");
 
             const VkImage dst = sw.images[sw.current_image_index];
             const VkImage src = (e == 0) ? view.color_left : view.color_right;
@@ -1066,15 +1088,23 @@ void XrBackend::record_native_quads(VkCommandBuffer cmd, const Frame& /*frame*/,
                 eye_pose.position += sign * (view.stereo_baseline_mm * 0.0005f) * baseline_axis_ws;
             }
 
-            NativeQuadSubmit submit{};
+            NativeLayerSubmit submit{};
             submit.swapchain = sw.handle;
             submit.width = sw.width;
             submit.height = sw.height;
             submit.pose = pose3d_to_xr_pose(eye_pose);
-            submit.size = XrExtent2Df{ view.size_meters.x, view.size_meters.y };
             submit.eye_visibility =
                 stereo ? (e == 0 ? XR_EYE_VISIBILITY_LEFT : XR_EYE_VISIBILITY_RIGHT) : XR_EYE_VISIBILITY_BOTH;
-            active_native_quads_.push_back(submit);
+            submit.alpha_blend = view.alpha_blend;
+            submit.shape = view.shape;
+            submit.size = XrExtent2Df{ view.size_meters.x, view.size_meters.y };
+            submit.radius = view.radius;
+            submit.central_angle = view.central_angle;
+            submit.aspect_ratio = view.aspect_ratio;
+            submit.central_horizontal_angle = view.central_horizontal_angle;
+            submit.upper_vertical_angle = view.upper_vertical_angle;
+            submit.lower_vertical_angle = view.lower_vertical_angle;
+            active_native_layers_.push_back(submit);
         }
     }
 }
@@ -1128,10 +1158,11 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage(depth)");
         sw.acquired = false;
     }
-    // Release native-quad swapchains acquired in record_native_quads. Their
-    // XrCompositionLayerQuad references the handle (not the image), so
-    // releasing before xrEndFrame is correct — matching the projection path.
-    for (auto& [key, qs] : native_quad_swapchains_)
+    // Release native-layer swapchains acquired in record_native_layers.
+    // The built XrCompositionLayer* references the handle (not the image),
+    // so releasing before xrEndFrame is correct — matching the projection
+    // path.
+    for (auto& [key, qs] : native_layer_swapchains_)
     {
         (void)key;
         for (auto& sw : qs.eyes)
@@ -1141,7 +1172,7 @@ void XrBackend::end_frame(const Frame& /*frame*/)
                 continue;
             }
             XrSwapchainImageReleaseInfo release_info{ XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO };
-            check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage(native quad)");
+            check_xr(xrReleaseSwapchainImage(sw.handle, &release_info), "xrReleaseSwapchainImage(native layer)");
             sw.acquired = false;
         }
     }
@@ -1169,11 +1200,13 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     }
 
     // Non-opaque env modes need the alpha-blend layer flag for the runtime
-    // to honor our alpha channel. Straight alpha (not premultiplied). Shared
-    // by the projection layer and native quads. Note: with this flag set,
-    // the runtime's client-reconstructed optimization stays off (it excludes
-    // source-alpha layers) — so passthrough quads composite correctly but
-    // don't get the color-only fast path; opaque VR quads do.
+    // to honor our alpha channel. Straight alpha (not premultiplied).
+    // PROJECTION layer only: its unrendered pixels carry alpha 0 so the
+    // camera passthrough shows through. Native layers instead use their
+    // per-layer alpha_blend flag (below) — an opaque camera quad needs no
+    // source alpha even in a passthrough session, and staying alpha-free
+    // keeps the frame eligible for the runtime's client-reconstructed
+    // streaming (which excludes source-alpha layers).
     const bool is_passthrough = session_->environment_blend_mode() != XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
     const XrCompositionLayerFlags blend_flags = is_passthrough ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
 
@@ -1182,8 +1215,9 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     std::vector<const XrCompositionLayerBaseHeader*> layers;
 
     // Projection layer — only when the shared RT / direct path produced
-    // content this frame. Dropped for quad-only frames so the runtime sees a
-    // quad-only submission (enabling client-reconstructed streaming).
+    // content this frame. Dropped for native-only frames so the runtime
+    // sees a native-only submission (enabling client-reconstructed
+    // streaming).
     std::vector<XrCompositionLayerProjectionView> proj_views;
     XrCompositionLayerProjection projection_layer{ XR_TYPE_COMPOSITION_LAYER_PROJECTION };
     if (projection_active_)
@@ -1211,26 +1245,73 @@ void XrBackend::end_frame(const Frame& /*frame*/)
         layers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&projection_layer));
     }
 
-    // Native quad layers gathered in record_native_quads (one per eye).
+    // Native composition layers gathered in record_native_layers (one per
+    // eye), each built as its shape's XrCompositionLayer* struct. The three
+    // per-shape vectors are reserved to the full entry count up front so
+    // the pointers pushed into ``layers`` stay stable (no reallocation) —
+    // which also lets one pass preserve the original submission order
+    // across shapes.
     std::vector<XrCompositionLayerQuad> quad_layers;
-    quad_layers.reserve(active_native_quads_.size());
-    for (const auto& q : active_native_quads_)
+    std::vector<XrCompositionLayerCylinderKHR> cylinder_layers;
+    std::vector<XrCompositionLayerEquirect2KHR> equirect_layers;
+    quad_layers.reserve(active_native_layers_.size());
+    cylinder_layers.reserve(active_native_layers_.size());
+    equirect_layers.reserve(active_native_layers_.size());
+    for (const auto& q : active_native_layers_)
     {
-        XrCompositionLayerQuad ql{ XR_TYPE_COMPOSITION_LAYER_QUAD };
-        ql.layerFlags = blend_flags;
-        ql.space = session_->reference_space();
-        ql.eyeVisibility = q.eye_visibility;
-        ql.subImage.swapchain = q.swapchain;
-        ql.subImage.imageRect.offset = { 0, 0 };
-        ql.subImage.imageRect.extent = { static_cast<int32_t>(q.width), static_cast<int32_t>(q.height) };
-        ql.subImage.imageArrayIndex = 0;
-        ql.pose = q.pose;
-        ql.size = q.size;
-        quad_layers.push_back(ql);
-    }
-    for (const auto& ql : quad_layers)
-    {
-        layers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&ql));
+        XrSwapchainSubImage sub_image{};
+        sub_image.swapchain = q.swapchain;
+        sub_image.imageRect.offset = { 0, 0 };
+        sub_image.imageRect.extent = { static_cast<int32_t>(q.width), static_cast<int32_t>(q.height) };
+        sub_image.imageArrayIndex = 0;
+
+        switch (q.shape)
+        {
+        case NativeLayerShape::kQuad:
+        {
+            XrCompositionLayerQuad ql{ XR_TYPE_COMPOSITION_LAYER_QUAD };
+            ql.layerFlags = q.alpha_blend ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
+            ql.space = session_->reference_space();
+            ql.eyeVisibility = q.eye_visibility;
+            ql.subImage = sub_image;
+            ql.pose = q.pose;
+            ql.size = q.size;
+            quad_layers.push_back(ql);
+            layers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&quad_layers.back()));
+            break;
+        }
+        case NativeLayerShape::kCylinder:
+        {
+            XrCompositionLayerCylinderKHR cl{ XR_TYPE_COMPOSITION_LAYER_CYLINDER_KHR };
+            cl.layerFlags = q.alpha_blend ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
+            cl.space = session_->reference_space();
+            cl.eyeVisibility = q.eye_visibility;
+            cl.subImage = sub_image;
+            cl.pose = q.pose;
+            cl.radius = q.radius;
+            cl.centralAngle = q.central_angle;
+            cl.aspectRatio = q.aspect_ratio;
+            cylinder_layers.push_back(cl);
+            layers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&cylinder_layers.back()));
+            break;
+        }
+        case NativeLayerShape::kEquirect2:
+        {
+            XrCompositionLayerEquirect2KHR eq{ XR_TYPE_COMPOSITION_LAYER_EQUIRECT2_KHR };
+            eq.layerFlags = q.alpha_blend ? XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT : 0;
+            eq.space = session_->reference_space();
+            eq.eyeVisibility = q.eye_visibility;
+            eq.subImage = sub_image;
+            eq.pose = q.pose;
+            eq.radius = q.radius;
+            eq.centralHorizontalAngle = q.central_horizontal_angle;
+            eq.upperVerticalAngle = q.upper_vertical_angle;
+            eq.lowerVerticalAngle = q.lower_vertical_angle;
+            equirect_layers.push_back(eq);
+            layers.push_back(reinterpret_cast<const XrCompositionLayerBaseHeader*>(&equirect_layers.back()));
+            break;
+        }
+        }
     }
 
     // Clear flags BEFORE end_frame so a throw doesn't trigger a second
@@ -1238,7 +1319,7 @@ void XrBackend::end_frame(const Frame& /*frame*/)
     frame_began_ = false;
     frame_renderable_ = false;
     projection_active_ = false;
-    active_native_quads_.clear();
+    active_native_layers_.clear();
     session_->end_frame(last_frame_state_.predictedDisplayTime, layers);
 }
 

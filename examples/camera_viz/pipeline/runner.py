@@ -16,7 +16,9 @@ VizRunner owns two threads:
 from __future__ import annotations
 
 import logging
+import sys
 import threading
+import time
 from typing import Optional, Sequence
 
 import isaacteleop.viz as viz
@@ -25,8 +27,17 @@ from .interface import FrameSource
 
 logger = logging.getLogger(__name__)
 
+
 # Submit thread poll interval when no source has new data.
 SUBMIT_POLL_S = 0.001
+
+# Pipeline-stats print interval. One line per period on stderr showing
+# per-source submit rate and the session's render rate — the first thing
+# to look at when "the fps is low": a submit rate below the camera's
+# capture rate points at the source/pairing/submit path, a render rate
+# below the display rate points at the XR runtime pacing (missed
+# deadlines / GPU time).
+STATS_PERIOD_S = 5.0
 
 # Window-mode stop-check granularity. stop() calls cond.notify_all()
 # so this is normally a safety net, not a hot path — value isn't a
@@ -86,6 +97,10 @@ class VizRunner:
         # falling through to ``return 0``.
         self._error: Optional[BaseException] = None
         self._error_lock = threading.Lock()
+        # Per-source submit counters (submit thread writes, stats print
+        # reads — plain ints under the GIL, approximate reads are fine).
+        self._submit_counts = [0] * len(self._layers)
+        self._stats_t0 = 0.0
 
     def start(self) -> None:
         if self._submit_thread is not None or self._render_thread is not None:
@@ -201,9 +216,10 @@ class VizRunner:
     def _submit_loop_inner(self) -> None:
         # Pin to the source's GPU on the first frame.
         device_pinned = False
+        self._stats_t0 = time.monotonic()
         while not self._stop.is_set():
             published_any = False
-            for layer, source in zip(self._layers, self._sources):
+            for i, (layer, source) in enumerate(zip(self._layers, self._sources)):
                 frame = source.latest()
                 if frame is None:
                     continue
@@ -214,6 +230,7 @@ class VizRunner:
                     layer.submit(frame.image, frame.image_right, stream=frame.stream)
                 else:
                     layer.submit(frame.image, stream=frame.stream)
+                self._submit_counts[i] += 1
                 published_any = True
             if published_any:
                 with self._data_cond:
@@ -221,6 +238,35 @@ class VizRunner:
                     self._data_cond.notify()
             else:
                 self._stop.wait(timeout=SUBMIT_POLL_S)
+            now = time.monotonic()
+            if now - self._stats_t0 >= STATS_PERIOD_S:
+                self._print_stats(now - self._stats_t0)
+                self._stats_t0 = now
+
+    def _print_stats(self, elapsed: float) -> None:
+        """One stderr line per STATS_PERIOD_S: per-source submit rate +
+        the session's render-side numbers."""
+        parts = []
+        for i, source in enumerate(self._sources):
+            rate = self._submit_counts[i] / elapsed if elapsed > 0 else 0.0
+            self._submit_counts[i] = 0
+            parts.append(f"{source.spec.name} {rate:.1f} submit/s")
+        try:
+            t = self._session.get_frame_timing_stats()
+            render = (
+                f"render {t.render_fps:.1f} fps"
+                + (f" (target {t.target_fps:.0f})" if t.target_fps else "")
+                + f", missed {t.missed_frames}"
+                + (f", gpu {t.gpu_time_ms:.1f} ms" if t.gpu_time_ms else "")
+                + (f", stale {t.stale_layers}" if t.stale_layers else "")
+            )
+        except Exception:
+            render = "render n/a"
+        print(
+            "camera_viz: stats: " + render + " | " + " | ".join(parts),
+            file=sys.stderr,
+            flush=True,
+        )
 
     def _pin_to_device(self, frame) -> None:
         try:
@@ -288,9 +334,19 @@ class VizRunner:
             if strategy is None:
                 continue
             placement = strategy.update(head.position, head.orientation)
-            layer.set_placement(
-                viz.QuadLayerPlacement(
-                    viz.Pose3D(placement.position, placement.orientation),
-                    placement.size_meters,
+            if isinstance(layer, viz.CylinderLayer):
+                # The cylinder's pose is the strategy's head anchor (its arc
+                # bows out along the anchor's -z at radius); radius / angle /
+                # aspect stay as configured.
+                cyl = layer.placement()
+                cyl.pose = viz.Pose3D(
+                    placement.anchor_position, placement.anchor_orientation
                 )
-            )
+                layer.set_placement(cyl)
+            else:
+                layer.set_placement(
+                    viz.QuadLayerPlacement(
+                        viz.Pose3D(placement.position, placement.orientation),
+                        placement.size_meters,
+                    )
+                )

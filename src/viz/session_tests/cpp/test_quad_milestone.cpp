@@ -14,6 +14,8 @@
 #include <viz/core/host_image.hpp>
 #include <viz/core/viz_buffer.hpp>
 #include <viz/core/vk_context.hpp>
+#include <viz/layers/cylinder_layer.hpp>
+#include <viz/layers/equirect_layer.hpp>
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/viz_session.hpp>
 #include <viz/test_support/test_helpers.hpp>
@@ -487,11 +489,11 @@ TEST_CASE("QuadLayer fast producer: render samples only the latest publish", "[g
     CHECK(sample.a == expected.a);
 }
 
-TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside kXr", "[gpu][quad_layer][native]")
+TEST_CASE("QuadLayer openxr_composition falls back to the compositor outside kXr", "[gpu][quad_layer][native]")
 {
     // The native OpenXR quad path only engages in a kXr session (needs a
     // live runtime, validated manually against CloudXR). In offscreen the
-    // flag must be a no-op: is_native_quad() stays false and the layer still
+    // flag must be a no-op: is_native_layer() stays false and the layer still
     // composites through record() exactly as a plain QuadLayer would.
     if (!is_gpu_available())
     {
@@ -513,7 +515,7 @@ TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside 
     QuadLayer::Config layer_cfg;
     layer_cfg.name = "native_fallback";
     layer_cfg.resolution = { kSide, kSide };
-    layer_cfg.use_openxr_quad_layer = true; // ignored outside kXr
+    layer_cfg.openxr_composition = true; // ignored outside kXr
     // Placement is provided (a kXr native quad requires it); offscreen
     // ignores it and draws fullscreen.
     QuadLayer::Config::Placement pl;
@@ -524,7 +526,7 @@ TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside 
 
     // Offscreen backend doesn't support native quads → the layer stays on
     // the draw path, so the compositor renders it into the shared RT.
-    CHECK_FALSE(layer->is_native_quad());
+    CHECK_FALSE(layer->is_native_layer());
 
     const auto host_pattern = build_host_pattern(kSide);
     void* device_ptr = nullptr;
@@ -549,4 +551,37 @@ TEST_CASE("QuadLayer use_openxr_quad_layer falls back to the compositor outside 
     REQUIRE(image.resolution().width == kSide);
     REQUIRE(image.resolution().height == kSide);
     check_quadrant_pattern(image, kSide);
+}
+
+TEST_CASE("Native-only shaped layers are rejected outside kXr", "[gpu][native][shaped]")
+{
+    // CylinderLayer / EquirectLayer have no compositor draw path, so
+    // add_layer must reject them on a non-XR backend up front (instead of
+    // the layer throwing on its first frame).
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context();
+    cfg.window_width = 64;
+    cfg.window_height = 64;
+
+    auto session = VizSession::create(cfg);
+    REQUIRE(session != nullptr);
+    const auto* ctx = session->get_vk_context();
+    REQUIRE(ctx != nullptr);
+
+    viz::CylinderLayer::Config cyl_cfg;
+    cyl_cfg.resolution = { 64, 64 };
+    CHECK_THROWS_AS(session->add_layer<viz::CylinderLayer>(*ctx, cyl_cfg), std::invalid_argument);
+
+    viz::EquirectLayer::Config eq_cfg;
+    eq_cfg.resolution = { 64, 64 };
+    CHECK_THROWS_AS(session->add_layer<viz::EquirectLayer>(*ctx, eq_cfg), std::invalid_argument);
+
+    // A rejected add leaves no state behind: the session still renders.
+    session->render();
 }

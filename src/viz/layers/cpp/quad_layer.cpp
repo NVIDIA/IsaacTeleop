@@ -15,7 +15,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <cuda_runtime.h>
 #include <stdexcept>
 #include <string>
 
@@ -33,14 +32,6 @@ void check_vk(VkResult result, const char* what)
     }
 }
 
-void check_cuda(cudaError_t result, const char* what)
-{
-    if (result != cudaSuccess)
-    {
-        throw std::runtime_error(std::string("QuadLayer: ") + what + " failed: " + cudaGetErrorString(result));
-    }
-}
-
 VkShaderModule create_shader_module(VkDevice device, const unsigned char* spv, size_t size)
 {
     VkShaderModuleCreateInfo info{};
@@ -50,18 +41,6 @@ VkShaderModule create_shader_module(VkDevice device, const unsigned char* spv, s
     VkShaderModule mod = VK_NULL_HANDLE;
     check_vk(vkCreateShaderModule(device, &info, nullptr, &mod), "vkCreateShaderModule");
     return mod;
-}
-
-// Once destroy() has run, slots_[0] is the canonical "alive" signal
-// (it's the first thing init() builds and the last thing destroy()
-// resets). Throwing logic_error converts use-after-destroy from a
-// silent null-deref into a clean failure callers can catch in tests.
-void require_alive(const std::unique_ptr<DeviceImage>& slot0, const char* what)
-{
-    if (!slot0)
-    {
-        throw std::logic_error(std::string("QuadLayer::") + what + " called after destroy()");
-    }
 }
 
 // Mirrors textured_quad.vert's push_constant block.
@@ -85,61 +64,69 @@ glm::mat4 placement_mvp(const QuadLayer::Config::Placement& p, const ViewInfo& v
     return view.projection_matrix * view.view_matrix * model;
 }
 
-} // namespace
-
-QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config config)
-    : LayerBase(config.name), ctx_(&ctx), render_pass_(render_pass), config_(std::move(config))
+// Placement validation shared by the ctor and set_placement.
+void validate_placement(const std::optional<QuadLayer::Config::Placement>& placement)
 {
-    // textured_quad's frag samples a color image; depth views aren't
-    // color-samplable.
-    if (config_.format != PixelFormat::kRGBA8)
+    if (placement.has_value())
     {
-        throw std::invalid_argument("QuadLayer: only PixelFormat::kRGBA8 is supported");
-    }
-    if (config_.resolution.width == 0 || config_.resolution.height == 0)
-    {
-        throw std::invalid_argument("QuadLayer: resolution must be non-zero");
-    }
-    if (render_pass == VK_NULL_HANDLE)
-    {
-        throw std::invalid_argument("QuadLayer: render_pass must be non-null");
-    }
-    if (!ctx.is_initialized())
-    {
-        throw std::invalid_argument("QuadLayer: VkContext is not initialized");
-    }
-    if (config_.placement.has_value())
-    {
-        const auto& ext = config_.placement->size_meters;
+        const auto& ext = placement->size_meters;
         if (ext.x <= 0.0f || ext.y <= 0.0f)
         {
             throw std::invalid_argument("QuadLayer: Placement::size_meters must be > 0 in both components");
         }
     }
-    if (!std::isfinite(config_.stereo_baseline_mm))
+}
+
+// Quad-specific config validation (the base validates format /
+// resolution / context). Returns its argument so it can run inside the
+// base-initializer expression — i.e. BEFORE the base allocates images.
+const QuadLayer::Config& validate_config(const QuadLayer::Config& config, VkRenderPass render_pass)
+{
+    if (render_pass == VK_NULL_HANDLE)
+    {
+        throw std::invalid_argument("QuadLayer: render_pass must be non-null");
+    }
+    validate_placement(config.placement);
+    if (!std::isfinite(config.stereo_baseline_mm))
     {
         throw std::invalid_argument("QuadLayer: stereo_baseline_mm must be finite");
     }
+    return config;
+}
 
-    // Resolve mip count: capped chain when enabled, single level
-    // otherwise. The cap (kMaxMipLevels) keeps the per-frame blit
-    // cost and the extra image storage in check; full log2 chain
-    // adds levels that the sampler rarely picks anyway.
-    if (config_.generate_mipmaps)
+// Resolve mip count: capped chain when enabled, single level
+// otherwise. The cap (kMaxMipLevels) keeps the per-frame blit
+// cost and the extra image storage in check; full log2 chain
+// adds levels that the sampler rarely picks anyway.
+uint32_t resolve_mip_levels(const QuadLayer::Config& config)
+{
+    if (!config.generate_mipmaps)
     {
-        const uint32_t max_dim = std::max(config_.resolution.width, config_.resolution.height);
-        uint32_t full_chain = 1;
-        for (uint32_t d = max_dim; d > 1; d >>= 1)
-        {
-            ++full_chain;
-        }
-        mip_levels_ = std::min(full_chain, kMaxMipLevels);
+        return 1;
     }
-    else
+    const uint32_t max_dim = std::max(config.resolution.width, config.resolution.height);
+    uint32_t full_chain = 1;
+    for (uint32_t d = max_dim; d > 1; d >>= 1)
     {
-        mip_levels_ = 1;
+        ++full_chain;
     }
+    return std::min(full_chain, QuadLayer::kMaxMipLevels);
+}
 
+} // namespace
+
+QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config config)
+    : ImageLayerBase(ctx,
+                     "QuadLayer",
+                     validate_config(config, render_pass).name,
+                     config.resolution,
+                     config.format,
+                     config.stereo,
+                     resolve_mip_levels(config)),
+      render_pass_(render_pass),
+      config_(std::move(config)),
+      mip_levels_(resolve_mip_levels(config_))
+{
     placement_ = config_.placement;
     init();
 }
@@ -153,25 +140,6 @@ void QuadLayer::init()
 {
     try
     {
-        // Atomic<uint8_t>'s default state is unspecified per the
-        // standard; explicitly seed every entry to kSlotNone so submit
-        // / record / get_wait_semaphores see a defined initial state.
-        for (auto& e : in_use_)
-        {
-            e.store(kSlotNone, std::memory_order_relaxed);
-        }
-        last_in_use_slot_.store(kSlotNone, std::memory_order_relaxed);
-        for (auto& slot : slots_)
-        {
-            slot = DeviceImage::create(*ctx_, config_.resolution, config_.format, mip_levels_);
-        }
-        if (config_.stereo)
-        {
-            for (auto& slot : slots_right_)
-            {
-                slot = DeviceImage::create(*ctx_, config_.resolution, config_.format, mip_levels_);
-            }
-        }
         create_sampler();
         create_descriptor_set_layout();
         create_pipeline_layout();
@@ -189,76 +157,40 @@ void QuadLayer::init()
 
 void QuadLayer::destroy()
 {
-    if (ctx_ == nullptr)
+    const VkDevice device = (ctx_ != nullptr) ? ctx_->device() : VK_NULL_HANDLE;
+    if (device != VK_NULL_HANDLE)
     {
-        return;
-    }
-    const VkDevice device = ctx_->device();
-    if (device == VK_NULL_HANDLE)
-    {
-        for (auto& slot : slots_)
+        if (descriptor_pool_ != VK_NULL_HANDLE)
         {
-            slot.reset();
+            // descriptor_sets_ + descriptor_sets_right_ are freed implicitly
+            // with the pool.
+            vkDestroyDescriptorPool(device, descriptor_pool_, nullptr);
+            descriptor_pool_ = VK_NULL_HANDLE;
+            descriptor_sets_.fill(VK_NULL_HANDLE);
+            descriptor_sets_right_.fill(VK_NULL_HANDLE);
         }
-        for (auto& slot : slots_right_)
+        if (pipeline_ != VK_NULL_HANDLE)
         {
-            slot.reset();
+            vkDestroyPipeline(device, pipeline_, nullptr);
+            pipeline_ = VK_NULL_HANDLE;
         }
-        return;
+        if (pipeline_layout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyPipelineLayout(device, pipeline_layout_, nullptr);
+            pipeline_layout_ = VK_NULL_HANDLE;
+        }
+        if (descriptor_set_layout_ != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorSetLayout(device, descriptor_set_layout_, nullptr);
+            descriptor_set_layout_ = VK_NULL_HANDLE;
+        }
+        if (sampler_ != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(device, sampler_, nullptr);
+            sampler_ = VK_NULL_HANDLE;
+        }
     }
-    if (descriptor_pool_ != VK_NULL_HANDLE)
-    {
-        // descriptor_sets_ + descriptor_sets_right_ are freed implicitly
-        // with the pool.
-        vkDestroyDescriptorPool(device, descriptor_pool_, nullptr);
-        descriptor_pool_ = VK_NULL_HANDLE;
-        descriptor_sets_.fill(VK_NULL_HANDLE);
-        descriptor_sets_right_.fill(VK_NULL_HANDLE);
-    }
-    if (pipeline_ != VK_NULL_HANDLE)
-    {
-        vkDestroyPipeline(device, pipeline_, nullptr);
-        pipeline_ = VK_NULL_HANDLE;
-    }
-    if (pipeline_layout_ != VK_NULL_HANDLE)
-    {
-        vkDestroyPipelineLayout(device, pipeline_layout_, nullptr);
-        pipeline_layout_ = VK_NULL_HANDLE;
-    }
-    if (descriptor_set_layout_ != VK_NULL_HANDLE)
-    {
-        vkDestroyDescriptorSetLayout(device, descriptor_set_layout_, nullptr);
-        descriptor_set_layout_ = VK_NULL_HANDLE;
-    }
-    if (sampler_ != VK_NULL_HANDLE)
-    {
-        vkDestroySampler(device, sampler_, nullptr);
-        sampler_ = VK_NULL_HANDLE;
-    }
-    for (auto& slot : slots_)
-    {
-        slot.reset();
-    }
-    for (auto& slot : slots_right_)
-    {
-        slot.reset();
-    }
-    latest_.store(kSlotNone, std::memory_order_release);
-    for (auto& e : in_use_)
-    {
-        e.store(kSlotNone, std::memory_order_release);
-    }
-    last_in_use_slot_.store(kSlotNone, std::memory_order_release);
-}
-
-Resolution QuadLayer::resolution() const noexcept
-{
-    return config_.resolution;
-}
-
-PixelFormat QuadLayer::format() const noexcept
-{
-    return config_.format;
+    destroy_images();
 }
 
 std::optional<float> QuadLayer::aspect_ratio() const noexcept
@@ -270,171 +202,6 @@ std::optional<float> QuadLayer::aspect_ratio() const noexcept
     return static_cast<float>(config_.resolution.width) / static_cast<float>(config_.resolution.height);
 }
 
-const DeviceImage* QuadLayer::device_image(uint32_t slot) const noexcept
-{
-    if (slot >= kSlotCount)
-    {
-        return nullptr;
-    }
-    return slots_[slot].get();
-}
-
-const DeviceImage* QuadLayer::device_image_right(uint32_t slot) const noexcept
-{
-    if (slot >= kSlotCount)
-    {
-        return nullptr;
-    }
-    return slots_right_[slot].get();
-}
-
-uint8_t QuadLayer::pick_free_slot(uint8_t latest,
-                                  const std::array<std::atomic<uint8_t>, kMaxFramesInFlight>& in_use) const noexcept
-{
-    // Forbidden = {latest} ∪ in_use_. kSlotCount = kMaxFramesInFlight + 2
-    // guarantees one free slot under the invariant; we still return
-    // kSlotNone defensively if the invariant ever breaks, so submit()
-    // drops the publish rather than overwriting a slot the GPU is sampling.
-    static_assert(kSlotCount > kMaxFramesInFlight + 1,
-                  "kSlotCount must exceed kMaxFramesInFlight + 1 so at least one slot is free");
-    for (uint8_t i = 0; i < kSlotCount; ++i)
-    {
-        if (i == latest)
-            continue;
-        bool conflicts = false;
-        for (uint32_t k = 0; k < kMaxFramesInFlight; ++k)
-        {
-            if (i == in_use[k].load(std::memory_order_acquire))
-            {
-                conflicts = true;
-                break;
-            }
-        }
-        if (!conflicts)
-        {
-            return i;
-        }
-    }
-    return kSlotNone;
-}
-
-namespace
-{
-// Shared per-buffer validation for the submit overloads. ``label`` is
-// the caller's tag (e.g. "src", "left", "right") so the error message
-// names which buffer failed in the stereo case.
-void validate_submit_buffer(const VizBuffer& buf, const QuadLayer::Config& cfg, const char* label)
-{
-    if (buf.space != MemorySpace::kDevice)
-    {
-        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label + " must be MemorySpace::kDevice");
-    }
-    if (buf.width != cfg.resolution.width || buf.height != cfg.resolution.height)
-    {
-        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label +
-                                    " dimensions do not match layer resolution");
-    }
-    if (buf.format != cfg.format)
-    {
-        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label + " format does not match layer format");
-    }
-    if (buf.data == nullptr)
-    {
-        throw std::invalid_argument(std::string("QuadLayer::submit: ") + label + ".data is null");
-    }
-}
-
-// Queue an async D2D copy of ``buf`` → ``image.cuda_array()`` on
-// ``stream``. Shared between the mono and stereo submit paths.
-void enqueue_copy(const VizBuffer& buf, DeviceImage& image, cudaStream_t stream)
-{
-    const size_t row_bytes = static_cast<size_t>(buf.width) * bytes_per_pixel(buf.format);
-    const size_t src_pitch = (buf.pitch == 0) ? row_bytes : buf.pitch;
-    const cudaError_t err = cudaMemcpy2DToArrayAsync(
-        image.cuda_array(), 0, 0, buf.data, src_pitch, row_bytes, buf.height, cudaMemcpyDeviceToDevice, stream);
-    if (err != cudaSuccess)
-    {
-        throw std::runtime_error(std::string("QuadLayer::submit: cudaMemcpy2DToArrayAsync failed: ") +
-                                 cudaGetErrorString(err));
-    }
-}
-} // namespace
-
-void QuadLayer::submit(const VizBuffer& src, cudaStream_t stream)
-{
-    require_alive(slots_[0], "submit");
-    if (config_.stereo)
-    {
-        throw std::logic_error("QuadLayer::submit: this layer is stereo — use the two-arg submit(left, right) overload");
-    }
-    validate_submit_buffer(src, config_, "src");
-
-    const uint8_t latest = latest_.load(std::memory_order_acquire);
-    const uint8_t slot = pick_free_slot(latest, in_use_);
-    if (slot == kSlotNone)
-    {
-        // Mailbox drop: producer outran the renderer beyond the sizing
-        // invariant. Keep latest_ where it is; consumer keeps using it.
-        return;
-    }
-    DeviceImage& image = *slots_[slot];
-
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    enqueue_copy(src, image, stream);
-    image.cuda_signal_write_done(stream);
-
-    // Wait for the D2D copy to complete before returning. Sources publish
-    // buffers by reference and treat ``latest()`` returning them as proof
-    // of consumption; without a sync here a fast producer could wrap the
-    // mailbox and overwrite src.data while our async memcpy is still
-    // reading from it. Cost is ~0.5 ms per 1080p submit on the caller's
-    // thread; the render path is unaffected.
-    check_cuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize(submit)");
-
-    // memory_order_release pairs with the renderer's acquire load.
-    latest_.store(slot, std::memory_order_release);
-}
-
-void QuadLayer::submit(const VizBuffer& left, const VizBuffer& right, cudaStream_t stream)
-{
-    require_alive(slots_[0], "submit");
-    if (!config_.stereo)
-    {
-        throw std::logic_error("QuadLayer::submit: this layer is mono — call submit(src) with a single buffer");
-    }
-    validate_submit_buffer(left, config_, "left");
-    validate_submit_buffer(right, config_, "right");
-
-    const uint8_t latest = latest_.load(std::memory_order_acquire);
-    const uint8_t slot = pick_free_slot(latest, in_use_);
-    if (slot == kSlotNone)
-    {
-        return;
-    }
-    DeviceImage& image_l = *slots_[slot];
-    DeviceImage& image_r = *slots_right_[slot];
-
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
-    // Both copies on the same stream + a single signal on the left's
-    // semaphore. Stream ordering guarantees the right copy completes
-    // before the signal fires, so the renderer waiting on the left's
-    // semaphore implies the right is ready too. No second semaphore
-    // needed — by construction the renderer cannot see a half-pair.
-    //
-    // Stream precondition (see header): ``left.data`` and ``right.data``
-    // must both be reachable from ``stream`` by the time control reaches
-    // here. If a producer wrote either buffer on a different stream, the
-    // caller is responsible for syncing it before submit; otherwise the
-    // memcpy below may read pre-write state on that eye.
-    enqueue_copy(left, image_l, stream);
-    enqueue_copy(right, image_r, stream);
-    image_l.cuda_signal_write_done(stream);
-
-    check_cuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize(submit-stereo)");
-
-    latest_.store(slot, std::memory_order_release);
-}
-
 void QuadLayer::record_mip_generation(VkCommandBuffer cmd, DeviceImage& image)
 {
     // Mip-chain regeneration via vkCmdBlitImage. The image lives in
@@ -443,7 +210,7 @@ void QuadLayer::record_mip_generation(VkCommandBuffer cmd, DeviceImage& image)
     // the post-pass sample sees the same invariant. CUDA wrote level 0
     // out-of-band; the queue submit's TRANSFER-stage wait on
     // cuda_done_writing gates this against the producer (see
-    // get_wait_semaphores).
+    // first_read_stage).
     const VkImage vk_image = image.vk_image();
     const uint32_t levels = image.mip_levels();
     const int32_t base_w = static_cast<int32_t>(image.resolution().width);
@@ -533,56 +300,23 @@ void QuadLayer::record_mip_generation(VkCommandBuffer cmd, DeviceImage& image)
                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 }
 
-uint8_t QuadLayer::promote_slot(uint32_t in_flight_slot)
-{
-    // Backends are contracted to image_count <= kMaxFramesInFlight; if
-    // that ever breaks, two in-flight frames would alias on the same
-    // in_use_ entry and we'd lose the slot-tracking invariant.
-    if (in_flight_slot >= kMaxFramesInFlight)
-    {
-        throw std::logic_error("QuadLayer: in_flight_slot " + std::to_string(in_flight_slot) +
-                               " >= kMaxFramesInFlight (" + std::to_string(kMaxFramesInFlight) +
-                               "); bump kMaxFramesInFlight to match the backend's image_count");
-    }
-
-    // Promote latest_ -> in_use_[in_flight_slot]. The compositor's
-    // per-slot fence wait at the top of render() guarantees the GPU
-    // has finished sampling the previous in_use_ value. record() (or the
-    // native-quad copy) reads the same entry — the promoting call and the
-    // consuming call MUST agree on in_flight_slot.
-    const uint8_t latest = latest_.load(std::memory_order_acquire);
-    const uint32_t idx = in_flight_slot;
-    if (latest != kSlotNone)
-    {
-        in_use_[idx].store(latest, std::memory_order_release);
-    }
-    const uint8_t cur = in_use_[idx].load(std::memory_order_acquire);
-    if (cur != kSlotNone)
-    {
-        // Record which slot this frame is sampling so get_wait_semaphores
-        // (called by the compositor before submit) reads the matching
-        // cuda_done_writing semaphore.
-        last_in_use_slot_.store(cur, std::memory_order_release);
-    }
-    return cur;
-}
-
 bool QuadLayer::native_active() const noexcept
 {
-    // Flag only takes effect in a kXr session; window/offscreen fall back
-    // to the record() draw path. A detached layer (no session) is not
-    // native either, so standalone construction/tests keep the draw path.
-    return config_.use_openxr_quad_layer && session() != nullptr && session()->is_xr_mode();
+    // Native composition (the default) only takes effect in a kXr session;
+    // window/offscreen always use the record() draw path. A detached layer
+    // (no session) is not native either, so standalone construction/tests
+    // keep the draw path.
+    return config_.openxr_composition && session() != nullptr && session()->is_xr_mode();
 }
 
-bool QuadLayer::is_native_quad() const noexcept
+bool QuadLayer::is_native_layer() const noexcept
 {
     return native_active();
 }
 
-std::optional<NativeQuadView> QuadLayer::acquire_native_quad(uint32_t in_flight_slot)
+std::optional<NativeLayerView> QuadLayer::acquire_native_layer(uint32_t in_flight_slot)
 {
-    require_alive(slots_[0], "acquire_native_quad");
+    require_alive("acquire_native_layer");
 
     // Promote first, matching record()'s consumer ordering: before the first
     // publish there is nothing to composite, so return early WITHOUT requiring
@@ -609,20 +343,22 @@ std::optional<NativeQuadView> QuadLayer::acquire_native_quad(uint32_t in_flight_
         throw std::logic_error("QuadLayer: native OpenXR quad requires Config::placement to be set");
     }
 
-    NativeQuadView v{};
+    NativeLayerView v{};
+    v.shape = NativeLayerShape::kQuad;
     v.color_left = slots_[cur]->vk_image();
     v.color_right = config_.stereo ? slots_right_[cur]->vk_image() : VK_NULL_HANDLE;
     v.extent = config_.resolution;
     v.pose = placement->pose;
     v.size_meters = placement->size_meters;
     v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.alpha_blend = config_.alpha_blend;
     v.source_id = this;
     return v;
 }
 
 void QuadLayer::record_pre_render_pass(VkCommandBuffer cmd, uint32_t in_flight_slot)
 {
-    require_alive(slots_[0], "record_pre_render_pass");
+    require_alive("record_pre_render_pass");
 
     const uint8_t cur = promote_slot(in_flight_slot);
     if (cur == kSlotNone)
@@ -651,13 +387,12 @@ void QuadLayer::record(VkCommandBuffer cmd,
                        const RenderTarget& /*target*/,
                        uint32_t in_flight_slot)
 {
-    require_alive(slots_[0], "record");
+    require_alive("record");
 
     // Slot promotion ran in record_pre_render_pass with the same
     // in_flight_slot. Read the result; skip the draw if there's been
     // no publish yet (RT keeps its clear value).
-    const uint32_t idx = in_flight_slot;
-    const uint8_t cur = in_use_[idx].load(std::memory_order_acquire);
+    const uint8_t cur = promoted_slot(in_flight_slot);
     if (cur == kSlotNone)
     {
         return;
@@ -734,8 +469,9 @@ void QuadLayer::record(VkCommandBuffer cmd,
     }
 }
 
-void QuadLayer::set_placement(std::optional<Config::Placement> placement) noexcept
+void QuadLayer::set_placement(std::optional<Config::Placement> placement)
 {
+    validate_placement(placement);
     std::lock_guard<std::mutex> lk(placement_mutex_);
     placement_ = std::move(placement);
 }
@@ -746,41 +482,13 @@ std::optional<QuadLayer::Config::Placement> QuadLayer::placement() const noexcep
     return placement_;
 }
 
-std::vector<LayerBase::WaitSemaphore> QuadLayer::get_wait_semaphores() const
+VkPipelineStageFlags QuadLayer::first_read_stage() const noexcept
 {
-    // Compositor calls record_pre_render_pass first (which sets
-    // last_in_use_slot_). We return THAT slot's cuda_done_writing
-    // semaphore so the submit waits for the producer's memcpy.
-    // Wait stage:
-    //   * No mips: first GPU read is the fragment sampler.
-    //   * Mips on: the mip-gen blit chain in pre-pass reads level 0
-    //     first (TRANSFER stage); fragment sampling comes later but
-    //     is already ordered via the chain's barriers, so the submit
-    //     wait can gate at TRANSFER.
-    const uint8_t cur = last_in_use_slot_.load(std::memory_order_acquire);
-    if (cur == kSlotNone || !slots_[cur])
-    {
-        return {};
-    }
-    const DeviceImage& image = *slots_[cur];
-    const uint64_t value = image.cuda_done_writing_value();
-    if (value == 0)
-    {
-        return {};
-    }
     // Native quad: first GPU read is the backend's copy into the quad
     // swapchain (TRANSFER). Composited-with-mips: the mip-gen blit chain
     // reads level 0 at TRANSFER first. Plain composited: the fragment
     // sampler is the first read.
-    const VkPipelineStageFlags wait_stage =
-        (native_active() || mip_levels_ > 1) ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    return {
-        WaitSemaphore{
-            image.cuda_done_writing(),
-            value,
-            wait_stage,
-        },
-    };
+    return (native_active() || mip_levels_ > 1) ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 }
 
 void QuadLayer::create_sampler()
@@ -910,7 +618,6 @@ void QuadLayer::create_pipeline()
     multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-    // Depth disabled — fullscreen blits don't need it.
     // Depth on so XR backends can submit XrCompositionLayerDepthInfoKHR
     // alongside the projection layer (CloudXR uses depth for server-
     // side reprojection). LESS_OR_EQUAL keeps last-wins semantics for

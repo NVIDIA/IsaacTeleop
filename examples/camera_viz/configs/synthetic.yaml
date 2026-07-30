@@ -36,4 +36,4 @@ display:
   placements:
     synth:                      # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
-      distance: 1.5
+      distance: 1.0

@@ -297,11 +297,12 @@ EOF
     fi
 fi
 
-# isaacteleop comes from PyPI by default (the published wheel includes the
-# viz module). --wheel <path> installs a locally built wheel instead — only
-# needed when developing against an unreleased build (see the build-from-source
-# docs). Sender-only deploys don't install isaacteleop at all.
-ISAACTELEOP_PKG="isaacteleop"
+# isaacteleop comes from PyPI by default. camera_viz needs >= 1.4 (shaped
+# composition layers, compositor choice, CloudXR launcher helpers).
+# --wheel <path> installs a locally built wheel instead — only needed when
+# developing against an unreleased build (see the build-from-source docs).
+# Sender-only deploys don't install isaacteleop at all.
+ISAACTELEOP_PKG="isaacteleop>=1.4"
 if [[ "$MODE" == full && -n "$WHEEL" ]]; then
     [[ -f "$WHEEL" ]] || {
         echo "_install_deps.sh: --wheel '$WHEEL' not found." >&2

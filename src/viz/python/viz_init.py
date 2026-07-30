@@ -31,6 +31,12 @@ Quick start::
 """
 
 from ._viz import (
+    CylinderLayer,
+    CylinderLayerConfig,
+    CylinderLayerPlacement,
+    EquirectLayer,
+    EquirectLayerConfig,
+    EquirectLayerPlacement,
     DisplayMode,
     Fov,
     FrameInfo,
@@ -56,6 +62,12 @@ from ._viz import (
 )
 
 __all__ = [
+    "CylinderLayer",
+    "CylinderLayerConfig",
+    "CylinderLayerPlacement",
+    "EquirectLayer",
+    "EquirectLayerConfig",
+    "EquirectLayerPlacement",
     "DisplayMode",
     "Fov",
     "FrameInfo",

@@ -340,6 +340,25 @@ void VizSession::validate_layer_against_backend_(LayerBase* layer) const
             "VizSession: layer was created from a different VkContext than the session's; "
             "build layers with VizSession::get_vk_context().");
     }
+    // Native-only layers (cylinder / equirect) can't fall back to the
+    // composite draw path — reject them up front when the backend can't
+    // composite the shape, instead of failing on the first frame.
+    if (const auto shape = layer->required_native_shape(); shape.has_value())
+    {
+        if (!backend_->supports_native_layers())
+        {
+            throw std::invalid_argument("VizSession: layer '" + layer->name() +
+                                        "' requires native OpenXR composition (DisplayMode::kXr); "
+                                        "window/offscreen sessions cannot composite it");
+        }
+        if (!backend_->supports_native_layer_shape(*shape))
+        {
+            const char* ext = (*shape == NativeLayerShape::kCylinder) ? "XR_KHR_composition_layer_cylinder" :
+                                                                        "XR_KHR_composition_layer_equirect2";
+            throw std::invalid_argument("VizSession: layer '" + layer->name() + "' requires the " + ext +
+                                        " extension, which the OpenXR runtime does not advertise");
+        }
+    }
     const uint32_t backend_view_count = backend_->is_xr() ? 2u : 1u;
     layer->validate_backend_compatibility(
         backend_->recommended_view_resolution(), backend_view_count, backend_->image_count());

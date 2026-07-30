@@ -31,10 +31,10 @@ Requirements
 
 - A workstation meeting the :doc:`system requirements </references/requirements>` (Ubuntu, NVIDIA
   GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.
-- For the default XR mode, a running CloudXR server with a connected headset — follow the
-  :doc:`quick start </getting_started/quick_start>` steps :ref:`run-cloudxr-server` and
-  :ref:`connect-xr-headset`. No headset handy? ``--mode window`` renders to a desktop window
-  instead and only needs a local display.
+- For the default XR mode, a headset to connect as the CloudXR client — follow the
+  :doc:`quick start </getting_started/quick_start>` step :ref:`connect-xr-headset`. The viewer
+  launches the CloudXR runtime itself; nothing to start separately. No headset handy?
+  ``--mode window`` renders to a desktop window instead.
 
 Setup
 -----
@@ -48,7 +48,7 @@ run the sample's one-time setup:
    source examples/camera_viz/.venv/bin/activate
 
 There is no need to install the ``isaacteleop`` pip package yourself — ``setup`` creates the
-sample's own environment: it installs ``isaacteleop`` (which bundles Televiz) and every other
+sample's own environment: it installs ``isaacteleop>=1.4`` (which bundles Televiz) and every other
 Python dependency from PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC codec, and
 probes system packages (GStreamer plugins, cairo / girepository headers, JetPack ``cuda-nvrtc`` +
 ``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line and prompts
@@ -96,15 +96,17 @@ at it:
    ./camera_viz.sh run configs/replay.yaml                 # XR headset (default)
    ./camera_viz.sh run configs/replay.yaml --mode window   # desktop window instead
 
-**You should see** the terminal report the session and the source coming up::
+In XR mode the viewer first brings up the CloudXR runtime (accept the EULA on first launch, or
+pass ``--accept-eula``), then **you should see** the terminal report the session and the source
+coming up::
 
-   camera_viz: source=local, mode=xr, xr=True, 1 layer(s)
+   camera_viz: source=local, mode=xr, xr=True, shapes=quad, 1 layer(s)
    [video] opening...
    [video] connected
    [video] streaming
 
-and the clip looping on a plane in the headset — or in a desktop window (``mode=window,
-xr=False``) with the ``--mode window`` override.
+and the clip looping on a plane in the headset once it connects — or in a desktop window
+(``mode=window, xr=False``) with the ``--mode window`` override, which starts no runtime.
 
 To replay your own video, set a custom ``path:`` in :code-file:`configs/replay.yaml
 <examples/camera_viz/configs/replay.yaml>` — relative paths resolve against the YAML's directory.
@@ -168,12 +170,62 @@ In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` u
    * - ``world``
      - Placed once in front of you and stays put.
    * - ``head``
-     - Follows your head every frame.
+     - Follows your head every frame. Head-locked content updates its pose at application
+       rate, so it trails fast head motion by roughly a frame — expected for any head-locked
+       OpenXR layer; prefer ``lazy`` unless you need a true HUD.
+   * - ``gimbal``
+     - Follows your position but not your rotation: the surface stays pointed where you first
+       looked, walks with you, and turning your head looks around it. The natural mode for
+       wide cylinder feeds (a "virtual gimbal").
    * - ``lazy``
      - World-locked, but re-snaps in front of you when you look away (default).
 
 Lazy-mode knobs live under ``placements.<name>``: ``look_away_angle_deg``,
 ``reposition_distance``, ``reposition_delay_s``, ``transition_duration_s``.
+
+Display surfaces
+----------------
+
+By default each camera renders on a flat plane, which suits normal-FOV feeds. Wide-FOV and
+panoramic sources look better on a curved surface: set ``shape`` per camera under
+``display.placements.<name>``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Shape
+     - Behavior
+   * - ``quad`` (default)
+     - Flat plane. All lock modes apply.
+   * - ``cylinder``
+     - Curved arc facing the operator, so the image stays at a constant viewing distance edge
+       to edge. ``cylinder_radius_m`` (default 2.0) sets that distance, ``cylinder_angle_deg``
+       (default 90) the arc width. All lock modes apply (``head`` = gaze-tracking curved
+       visor).
+   * - ``equirect``
+     - Full 360°×180° sphere around the operator, for equirectangular panorama / VR-video
+       sources. Lock modes don't apply.
+
+Curved shapes exist only in XR mode — the viewer exits with an error in window mode. Stereo
+sources render per-eye textures on the same surface, and ``stereo_baseline_mm`` adds a per-eye
+pose shift (no effect on the equirect sphere at its default infinite radius).
+
+Surfaces are composited by the OpenXR runtime, which keeps them sharp under head motion and lets
+CloudXR stream them efficiently (see
+:ref:`OpenXR composition layers <openxr-composition-layers>`). For flat planes only,
+``compositor: televiz`` opts a camera back into Televiz's built-in compositor.
+
+CloudXR runtime flags
+---------------------
+
+In XR mode the viewer launches the CloudXR runtime and WSS proxy itself. Useful flags:
+
+- ``--no-launch-cloudxr-runtime`` — reuse an already-running runtime.
+- ``--accept-eula`` — accept the CloudXR EULA non-interactively (first run only).
+- ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
+
+Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
 
 Split mode — robot → workstation over RTP
 -----------------------------------------
@@ -253,10 +305,14 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
      clear_color: [r, g, b, a]
      placements:
        cam:
-         lock_mode: lazy         # world | head | lazy
+         lock_mode: lazy         # world | head | lazy | gimbal
          distance: 1.5
          # size: [w_m, h_m]
          # stereo_baseline_mm: 0
+         # shape: quad           # quad | cylinder | equirect (cylinder/equirect are XR-only)
+         # compositor: openxr    # openxr (default) | televiz — quads only
+         # cylinder_radius_m: 2.0
+         # cylinder_angle_deg: 90
 
 See the :code-dir:`configs/ <examples/camera_viz/configs>` directory for a complete, commented
 YAML per source kind.
@@ -264,9 +320,10 @@ YAML per source kind.
 Troubleshooting
 ---------------
 
-- **The XR session fails to create** — the default mode needs the CloudXR server running and a
-  headset connected (quick start steps :ref:`run-cloudxr-server` and :ref:`connect-xr-headset`);
-  pass ``--mode window`` to render to a desktop window instead.
+- **The XR session fails to create** — the viewer launches the CloudXR runtime itself; check
+  ``~/.cloudxr/logs/cxr_server.*.log`` and ``runtime_stderr.log`` for the startup failure. If a
+  runtime is already running from another app, pass ``--no-launch-cloudxr-runtime``. Pass
+  ``--mode window`` to render to a desktop window instead (no runtime involved).
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's
@@ -293,7 +350,7 @@ Televiz as the compositor at the end of the chain:
    ├── camera_viz.py        — receiver / viewer (drives a Televiz VizSession)
    ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
    ├── pipeline/            — source ABC + threaded runner
-   ├── placements/          — XR lock-mode strategies (world / head / lazy)
+   ├── placements/          — XR lock-mode strategies (world / head / lazy / gimbal)
    ├── sources/             — V4L2 / OAK-D / ZED / video replay / synthetic / rtp_h264
    ├── transports/          — RTP sender + receiver (native + GStreamer)
    ├── codec/               — native NVENC / NVDEC pybind module

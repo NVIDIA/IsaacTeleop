@@ -12,6 +12,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <viz/core/vk_context.hpp>
+#include <viz/layers/cylinder_layer.hpp>
+#include <viz/layers/equirect_layer.hpp>
 #include <viz/layers/projection_layer.hpp>
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/frame_info.hpp>
@@ -90,7 +92,8 @@ Top-level Televiz session. Owns the Vulkan context, compositor, and
 layer registry.
 
 Construct via ``VizSession.create(config)``. Add layers with
-``add_quad_layer(config)``. Drive the frame loop with ``render()``
+``add_quad_layer(config)`` (or ``add_cylinder_layer`` / ``add_equirect_layer``
+/ ``add_projection_layer``). Drive the frame loop with ``render()``
 (one-shot) or ``begin_frame()`` / ``end_frame()`` (paired).
 )doc")
         .def_static("create", &viz::VizSession::create, "config"_a,
@@ -111,6 +114,36 @@ Construct via ``VizSession.create(config)``. Add layers with
             "config"_a, py::return_value_policy::reference_internal,
             "Construct + register a QuadLayer. Returns a non-owning handle.")
         .def(
+            "add_cylinder_layer",
+            [](viz::VizSession& self, viz::CylinderLayer::Config config) -> viz::CylinderLayer*
+            {
+                const auto* ctx = self.get_vk_context();
+                if (ctx == nullptr)
+                {
+                    throw std::runtime_error("VizSession: cannot add layer before session is initialized");
+                }
+                // Native-only — no render pass; the runtime composites it.
+                return self.add_layer<viz::CylinderLayer>(*ctx, std::move(config));
+            },
+            "config"_a, py::return_value_policy::reference_internal,
+            "Construct + register a CylinderLayer (native XrCompositionLayerCylinderKHR; kXr only). "
+            "Returns a non-owning handle.")
+        .def(
+            "add_equirect_layer",
+            [](viz::VizSession& self, viz::EquirectLayer::Config config) -> viz::EquirectLayer*
+            {
+                const auto* ctx = self.get_vk_context();
+                if (ctx == nullptr)
+                {
+                    throw std::runtime_error("VizSession: cannot add layer before session is initialized");
+                }
+                // Native-only — no render pass; the runtime composites it.
+                return self.add_layer<viz::EquirectLayer>(*ctx, std::move(config));
+            },
+            "config"_a, py::return_value_policy::reference_internal,
+            "Construct + register an EquirectLayer (native XrCompositionLayerEquirect2KHR; kXr only). "
+            "Returns a non-owning handle.")
+        .def(
             "add_projection_layer",
             [](viz::VizSession& self, viz::ProjectionLayer::Config config) -> viz::ProjectionLayer*
             {
@@ -130,6 +163,10 @@ Construct via ``VizSession.create(config)``. Add layers with
             "layer"_a, "Remove + destroy a previously added layer (drains the GPU first; no-op if unregistered).")
         .def(
             "remove_layer", [](viz::VizSession& self, viz::QuadLayer* layer) { self.remove_layer(layer); }, "layer"_a)
+        .def(
+            "remove_layer", [](viz::VizSession& self, viz::CylinderLayer* layer) { self.remove_layer(layer); }, "layer"_a)
+        .def(
+            "remove_layer", [](viz::VizSession& self, viz::EquirectLayer* layer) { self.remove_layer(layer); }, "layer"_a)
         .def("render", &viz::VizSession::render, py::call_guard<py::gil_scoped_release>(),
              "Wait + composite + present in one call. Returns FrameInfo.")
         .def("begin_frame", &viz::VizSession::begin_frame, py::call_guard<py::gil_scoped_release>())

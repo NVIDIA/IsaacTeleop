@@ -46,4 +46,10 @@ display:
   placements:
     oakd:                       # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
-      distance: 1.5
+      distance: 1.0
+      # shape: cylinder           # quad (default) | cylinder | equirect
+      # compositor: openxr    # openxr (default: the OpenXR runtime
+      #                       # composites the layer) | televiz (built-in
+      #                       # compositor; quad shape only)
+      # cylinder_radius_m: 1.0    # cylinder only
+      # cylinder_angle_deg: 45    # cylinder only
