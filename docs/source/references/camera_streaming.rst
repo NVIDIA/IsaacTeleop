@@ -183,36 +183,38 @@ In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` u
 Lazy-mode knobs live under ``placements.<name>``: ``look_away_angle_deg``,
 ``reposition_distance``, ``reposition_delay_s``, ``transition_duration_s``.
 
-Surface shapes and native composition layers
---------------------------------------------
+Display surfaces
+----------------
 
-Each camera renders on a flat plane by default. Per-camera keys under
-``display.placements.<name>`` pick the surface (XR mode only; details in
-:ref:`Native OpenXR composition layers <native-openxr-composition-layers>`):
+By default each camera renders on a flat plane, which suits normal-FOV feeds. Wide-FOV and
+panoramic sources look better on a curved surface: set ``shape`` per camera under
+``display.placements.<name>``:
 
 .. list-table::
    :header-rows: 1
    :widths: 30 70
 
-   * - Key
-     - Effect
-   * - ``shape: quad`` (default)
+   * - Shape
+     - Behavior
+   * - ``quad`` (default)
      - Flat plane. All lock modes apply.
-   * - ``shape: cylinder``
-     - Curved arc facing the operator; ``cylinder_radius_m`` (default 2.0) sets the viewing
-       distance, ``cylinder_angle_deg`` (default 90) the arc width. All lock modes apply
-       (``head`` = gaze-tracking curved visor).
-   * - ``shape: equirect``
-     - Full 360°×180° sphere, for equirectangular panorama / VR-video sources. Lock modes
-       don't apply.
-   * - ``compositor: televiz``
-     - Quads only: Televiz's built-in compositor draws the quad server-side instead of
-       handing it to the OpenXR runtime (the ``openxr`` default). Cylinder / equirect are
-       runtime-composited always.
+   * - ``cylinder``
+     - Curved arc facing the operator, so the image stays at a constant viewing distance edge
+       to edge. ``cylinder_radius_m`` (default 2.0) sets that distance, ``cylinder_angle_deg``
+       (default 90) the arc width. All lock modes apply (``head`` = gaze-tracking curved
+       visor).
+   * - ``equirect``
+     - Full 360°×180° sphere around the operator, for equirectangular panorama / VR-video
+       sources. Lock modes don't apply.
 
-``cylinder`` and ``equirect`` require XR mode — the viewer exits with an error in window mode.
-Stereo sources render per-eye textures on the same surface; ``stereo_baseline_mm`` adds a
-per-eye pose shift (no effect on the equirect sphere at its default infinite radius).
+Curved shapes exist only in XR mode — the viewer exits with an error in window mode. Stereo
+sources render per-eye textures on the same surface, and ``stereo_baseline_mm`` adds a per-eye
+pose shift (no effect on the equirect sphere at its default infinite radius).
+
+Surfaces are composited by the OpenXR runtime, which keeps them sharp under head motion and lets
+CloudXR stream them efficiently (see
+:ref:`OpenXR composition layers <openxr-composition-layers>`). For flat planes only,
+``compositor: televiz`` opts a camera back into Televiz's built-in compositor.
 
 CloudXR runtime flags
 ---------------------

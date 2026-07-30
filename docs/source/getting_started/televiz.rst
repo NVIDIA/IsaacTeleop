@@ -55,19 +55,19 @@ Four layer types are available:
 * :code-file:`QuadLayer <src/viz/layers/cpp/inc/viz/layers/quad_layer.hpp>` — a CUDA-fed 2D texture
   plane (mono or stereo), optionally placed in 3D space. Use it for camera feeds.
 * :code-file:`CylinderLayer <src/viz/layers/cpp/inc/viz/layers/cylinder_layer.hpp>` — the same
-  CUDA-fed texture curved onto the inside of a cylinder arc. XR-only; composited natively by the
-  OpenXR runtime (see `Native OpenXR composition layers`_).
+  CUDA-fed texture curved onto the inside of a cylinder arc, so wide-FOV feeds keep a constant
+  viewing distance edge to edge. XR-only.
 * :code-file:`EquirectLayer <src/viz/layers/cpp/inc/viz/layers/equirect_layer.hpp>` — an
   equirectangular texture mapped onto the inside of a sphere, for 360°/180° panorama and VR-video
-  sources. XR-only; composited natively by the OpenXR runtime.
+  sources. XR-only.
 * :code-file:`ProjectionLayer <src/viz/layers/cpp/inc/viz/layers/projection_layer.hpp>` — a full-view
   RGBD layer for external renderers (gsplat, nvblox, neural reconstruction) that produce per-view
   ``(color, depth)`` buffers. Use it to present a rendered 3D scene from the current head pose.
 
 A session holds **either** one ``ProjectionLayer`` **or** any number of texture layers
-(``QuadLayer`` / ``CylinderLayer`` / ``EquirectLayer``), not both. Texture layers are composited
-natively by the XR runtime (or by Televiz's own compositor as the fallback and in window /
-offscreen modes), while a projection layer is presented directly (see `ProjectionLayer`_).
+(``QuadLayer`` / ``CylinderLayer`` / ``EquirectLayer``), not both. The texture layers share one
+submission API and differ only in the surface the texture is mapped onto; a projection layer is
+presented directly (see `ProjectionLayer`_).
 
 All symbols are imported from the top-level module::
 
@@ -221,11 +221,11 @@ A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
      - Who composites the quad in XR: ``True`` = the OpenXR runtime (submitted as an
        ``XrCompositionLayerQuad``), ``False`` = Televiz's built-in compositor (shared render
        target, where 3D-placed quads depth-test against each other). See
-       `Native OpenXR composition layers`_.
+       `OpenXR composition layers`_.
    * - ``alpha_blend``
      - ``False``
-     - Honor the texture's alpha channel (translucent content). Native path only; ignored on
-       the compositor path. See `Native OpenXR composition layers`_.
+     - Honor the texture's alpha channel (translucent content). OpenXR composition only;
+       ignored on the built-in compositor path.
 
 Submit and place a frame:
 
@@ -251,51 +251,17 @@ For a stereo layer both buffers are copied on the same stream and signaled toget
 never sees a half-matched pair. Lock-mode placement strategies (``world`` / ``head`` / ``lazy`` / ``gimbal``) are
 **application policy** and ship in the sample, not in the module.
 
-.. _native-openxr-composition-layers:
+CylinderLayer
+^^^^^^^^^^^^^
 
-Native OpenXR composition layers
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The same CUDA-fed texture, curved onto the inside of a vertical cylinder arc. Every point on the
+surface sits at the same distance from the cylinder's axis, which makes it the natural surface for
+wide-FOV camera feeds — a flat quad wide enough for a 110° image would put its edges much farther
+from the eye than its center.
 
-In XR mode, texture layers are handed straight to the OpenXR runtime as **native composition
-layers**: the runtime places, samples, and reprojects them itself. When every visible layer is
-native (and opaque), CloudXR streams color-only video and the headset reconstructs the
-composition from the layer geometry — lower bandwidth, sharper reprojection.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 36 42
-
-   * - Layer
-     - OpenXR type
-     - Native
-   * - ``QuadLayer``
-     - ``XrCompositionLayerQuad``
-     - Default. ``openxr_composition = False`` hands the quad to Televiz's compositor instead
-       (quads then depth-test against each other). Window / offscreen are always
-       Televiz-composited.
-   * - ``CylinderLayer``
-     - ``XrCompositionLayerCylinderKHR``
-     - Always (native-only).
-   * - ``EquirectLayer``
-     - ``XrCompositionLayerEquirect2KHR``
-     - Always (native-only).
-
-Rules of thumb:
-
-* ``CylinderLayer`` / ``EquirectLayer`` need ``DisplayMode.kXr`` and a runtime with the matching
-  ``XR_KHR_composition_layer_*`` extension (CloudXR has both); ``add_cylinder_layer`` /
-  ``add_equirect_layer`` raise ``ValueError`` otherwise.
-* Native layers carry no depth: they composite in insertion order. Add backgrounds first.
-* ``alpha_blend`` (default off) makes the runtime honor the texture's alpha channel — use for
-  translucent HUDs. Leave it off for opaque feeds: alpha-blended layers disable CloudXR's
-  per-layer streaming for the frame.
-* Stereo = per-eye textures on the same surface (the VR-video convention).
-  ``stereo_baseline_mm`` adds a per-eye pose shift on top; it has no effect on an
-  infinite-radius equirect sphere.
-
-``CylinderLayerConfig`` — ``name`` / ``resolution`` / ``stereo`` / ``stereo_baseline_mm`` /
-``alpha_blend`` as ``QuadLayerConfig``, plus a
-``CylinderLayerPlacement``:
+``CylinderLayerConfig`` carries the same ``name`` / ``resolution`` / ``format`` / ``stereo`` /
+``stereo_baseline_mm`` / ``alpha_blend`` fields as ``QuadLayerConfig``, plus a
+``CylinderLayerPlacement`` describing the arc:
 
 .. list-table::
    :header-rows: 1
@@ -317,8 +283,22 @@ Rules of thumb:
      - ``0``
      - Arc width / height. ``0`` derives it from ``resolution`` (square texels).
 
-``EquirectLayerConfig`` — same common fields, plus an ``EquirectLayerPlacement``. The defaults are
-a full 360°×180° sphere at infinite radius, so a panorama needs no placement at all:
+Cylinder layers exist only in XR: they are composited by the OpenXR runtime (see
+`OpenXR composition layers`_), so they require ``DisplayMode.kXr`` and a runtime with
+``XR_KHR_composition_layer_cylinder`` (CloudXR supports it). ``add_cylinder_layer`` raises
+``ValueError`` otherwise. ``submit`` and ``set_visible`` work exactly as on ``QuadLayer``.
+
+EquirectLayer
+^^^^^^^^^^^^^
+
+An equirectangular texture mapped onto the inside of a sphere centered on (by default) the
+operator, for 360°/180° panoramas and VR-video sources. Like ``CylinderLayer`` it is XR-only and
+composited by the OpenXR runtime — here the required extension is
+``XR_KHR_composition_layer_equirect2``.
+
+``EquirectLayerConfig`` carries the same common fields plus an ``EquirectLayerPlacement``. The
+defaults describe a full 360°×180° sphere at infinite radius, so a panorama needs no placement at
+all:
 
 .. list-table::
    :header-rows: 1
@@ -340,9 +320,10 @@ a full 360°×180° sphere at infinite radius, so a panorama needs no placement 
      - ``π/2`` / ``−π/2``
      - Vertical span from the horizon, upper > lower.
 
+Combining the two — a panorama background with a camera feed on an arc in front of it:
+
 .. code-block:: python
 
-   # 360 panorama background + a camera feed on a cylinder arc.
    eq_cfg = televiz.EquirectLayerConfig()
    eq_cfg.name = "sky"
    eq_cfg.resolution = televiz.Resolution(4096, 2048)
@@ -358,6 +339,34 @@ a full 360°×180° sphere at infinite radius, so a panorama needs no placement 
        sky.submit(panorama_rgba)
        cam.submit(camera_rgba)
        session.render()
+
+.. _openxr-composition-layers:
+
+OpenXR composition layers
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+In XR mode, texture layers are not drawn by Televiz — each one is submitted to the OpenXR runtime
+as its own composition layer (``XrCompositionLayerQuad`` / ``CylinderKHR`` / ``Equirect2KHR``),
+and the runtime places, samples, and reprojects it at display rate. This keeps text and fine
+detail sharp under head motion, and it lets CloudXR stream color-only video when every visible
+layer is runtime-composited and opaque — the headset then rebuilds the composition from the layer
+geometry at lower bandwidth.
+
+Two things follow from handing composition to the runtime:
+
+* Runtime-composited layers carry no depth; they blend in **insertion order**. Add backgrounds
+  (e.g. an ``EquirectLayer`` panorama) before foreground layers.
+* ``alpha_blend`` (default off) makes the runtime honor the texture's alpha channel — use it for
+  translucent HUDs. Leave it off for opaque feeds so CloudXR's color-only streaming stays
+  available.
+
+``QuadLayer`` is the one layer with a choice: set ``openxr_composition = False`` to draw the quad
+with Televiz's built-in compositor instead, where 3D-placed quads depth-test against each other in
+a shared render target. Window and offscreen modes always use the built-in compositor.
+
+For stereo, all texture layers follow the VR-video convention: per-eye textures on the *same*
+surface, with ``stereo_baseline_mm`` adding an optional per-eye pose shift on top (no effect on an
+infinite-radius equirect sphere).
 
 ProjectionLayer
 ^^^^^^^^^^^^^^^
@@ -388,7 +397,7 @@ that produce per-view ``(color, depth)`` buffers. Configure it with ``Projection
 
 Unlike ``QuadLayer``, a projection layer is **direct-present**: each view's ``(color, depth)`` is
 copied straight into the presentation swapchains (no shared render target). Because of that a session
-holds *either* one ``ProjectionLayer`` *or* any number of ``QuadLayer`` s, never both.
+holds *either* one ``ProjectionLayer`` *or* any number of texture layers, never both.
 
 The renderer runs **in-loop** with the frame loop: read the predicted view poses from the
 ``FrameInfo`` returned by ``begin_frame()``, render against them, then ``submit()`` before
@@ -523,7 +532,7 @@ VizSession
 - ``begin_frame() -> FrameInfo`` / ``end_frame()`` — explicit two-phase frame loop.
 - ``add_quad_layer(config) -> QuadLayer`` — construct + register a layer; returns a non-owning handle.
 - ``add_cylinder_layer(config) -> CylinderLayer`` / ``add_equirect_layer(config) -> EquirectLayer`` —
-  native OpenXR shaped layers (``kXr`` only; raise ``ValueError`` elsewhere).
+  shaped texture layers (``kXr`` only; raise ``ValueError`` elsewhere).
 - ``readback_to_host() -> HostImage`` — most recent frame as RGBA8 host pixels (``kOffscreen`` only).
 - ``get_state() -> SessionState``, ``should_close() -> bool``, ``is_xr_mode() -> bool``.
 - ``get_recommended_resolution() -> Resolution`` — runtime per-eye resolution (XR).
