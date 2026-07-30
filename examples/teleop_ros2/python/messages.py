@@ -22,7 +22,7 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     FullBodyInputIndex,
     HandInputIndex,
     HandJointIndex,
-    HeadPoseIndex,
+    HeadInputIndex,
 )
 
 from constants import BODY_JOINT_NAMES, HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES
@@ -403,8 +403,8 @@ def build_head_output(
     if not head_is_valid(head):
         return None
 
-    position = [float(x) for x in head[HeadPoseIndex.POSITION]]
-    orientation = [float(x) for x in head[HeadPoseIndex.ORIENTATION]]
+    position = [float(x) for x in head[HeadInputIndex.POSITION]]
+    orientation = [float(x) for x in head[HeadInputIndex.ORIENTATION]]
     pose = to_pose(position, orientation)
     if transform_rot is not None or transform_trans is not None:
         pose = apply_transform_to_pose(pose, transform_rot, transform_trans)

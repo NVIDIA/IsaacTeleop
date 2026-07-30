@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -34,7 +34,7 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
 from isaacteleop.retargeting_engine.interface import OutputCombiner, TensorGroup
 from isaacteleop.retargeting_engine.tensor_types import (
     HandInputIndex,
-    HeadPoseIndex,
+    HeadInputIndex,
     ControllerInputIndex,
 )
 
@@ -226,10 +226,10 @@ def main():
                         if head.is_none:
                             print("    Status: ABSENT (no tracker)")
                         else:
-                            head_valid = head[HeadPoseIndex.IS_VALID]
+                            head_valid = head[HeadInputIndex.IS_VALID]
                             print(f"    Status: {'VALID' if head_valid else 'INVALID'}")
                             if head_valid:
-                                head_position = head[HeadPoseIndex.POSITION]
+                                head_position = head[HeadInputIndex.POSITION]
                                 print(
                                     f"    Position: [{head_position[0]:6.3f}, {head_position[1]:6.3f}, {head_position[2]:6.3f}]"
                                 )

@@ -9,7 +9,7 @@ from .scalar_types import FloatType, IntType, BoolType
 from .ndarray_types import NDArrayType, DLDeviceType, DLDataType
 from .standard_types import (
     HandInput,
-    HeadPose,
+    HeadInput,
     ControllerInput,
     FullBodyInput,
     TransformMatrix,
@@ -30,7 +30,7 @@ from .tactile_types import (
 )
 from .indices import (
     HandInputIndex,
-    HeadPoseIndex,
+    HeadInputIndex,
     ControllerInputIndex,
     Generic3AxisPedalInputIndex,
     FullBodyInputIndex,
@@ -50,7 +50,7 @@ __all__ = [
     "DLDataType",
     # Standard types
     "HandInput",
-    "HeadPose",
+    "HeadInput",
     "ControllerInput",
     "FullBodyInput",
     "TransformMatrix",
@@ -69,7 +69,7 @@ __all__ = [
     "NUM_END_EFFECTOR_FORCE_AXES",
     # Indices
     "HandInputIndex",
-    "HeadPoseIndex",
+    "HeadInputIndex",
     "ControllerInputIndex",
     "Generic3AxisPedalInputIndex",
     "FullBodyInputIndex",
@@ -85,6 +85,10 @@ __all__ = [
 _DEPRECATED_ALIASES = {
     "BodyJointPicoIndex": "BodyJointIndex",
     "NUM_BODY_JOINTS_PICO": "NUM_BODY_JOINTS",
+    # Renamed for consistency with its siblings (HandInput, ControllerInput,
+    # FullBodyInput, Generic3AxisPedalInput); the group's fields are unchanged.
+    "HeadPose": "HeadInput",
+    "HeadPoseIndex": "HeadInputIndex",
 }
 
 

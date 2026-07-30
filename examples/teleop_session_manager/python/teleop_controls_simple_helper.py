@@ -26,8 +26,8 @@ from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInput,
     HandInput,
     HandInputIndex,
-    HeadPose,
-    HeadPoseIndex,
+    HeadInput,
+    HeadInputIndex,
 )
 
 
@@ -41,7 +41,7 @@ class TeleopStatePrinterRetargeter(BaseRetargeter):
 
     def input_spec(self) -> RetargeterIOType:
         return {
-            "head": OptionalType(HeadPose()),
+            "head": OptionalType(HeadInput()),
             "hand_left": OptionalType(HandInput()),
             "hand_right": OptionalType(HandInput()),
             "controller_left": OptionalType(ControllerInput()),
@@ -115,7 +115,7 @@ def print_frame(outputs, elapsed: float) -> None:
 
     head_pos_str = "absent"
     if head_present:
-        p = outputs["head"][HeadPoseIndex.POSITION]
+        p = outputs["head"][HeadInputIndex.POSITION]
         head_pos_str = f"[{p[0]:+.3f}, {p[1]:+.3f}, {p[2]:+.3f}]"
 
     left_wrist_str = "absent"

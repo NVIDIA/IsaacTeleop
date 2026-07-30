@@ -1,10 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
 Head Source Node - DeviceIO to Retargeting Engine converter.
 
-Converts raw HeadPoseT flatbuffer data to standard HeadPose tensor format.
+Converts raw HeadPoseT flatbuffer data to standard HeadInput tensor format.
 """
 
 import numpy as np
@@ -18,7 +18,7 @@ from ..interface.retargeter_core_types import (
 from ..interface.tensor_group import TensorGroup
 from ..interface.tensor_group_type import OptionalType
 from ..interface.retargeter_subgraph import RetargeterSubgraph
-from ..tensor_types import HeadPose, HeadPoseIndex
+from ..tensor_types import HeadInput, HeadInputIndex
 from .deviceio_tensor_types import DeviceIOHeadPoseTracked
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 class HeadSource(IDeviceIOSource):
     """
-    Stateless converter: DeviceIO HeadPoseT → HeadPose tensor.
+    Stateless converter: DeviceIO HeadPoseT → HeadInput tensor.
 
     Inputs:
         - "deviceio_head": Raw HeadPoseT flatbuffer object from DeviceIO
@@ -87,11 +87,11 @@ class HeadSource(IDeviceIOSource):
 
     def output_spec(self) -> RetargeterIOType:
         """Declare standard head pose output (Optional — may be absent)."""
-        return {"head": OptionalType(HeadPose())}
+        return {"head": OptionalType(HeadInput())}
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
-        Convert DeviceIO HeadPoseTrackedT to standard HeadPose tensor.
+        Convert DeviceIO HeadPoseTrackedT to standard HeadInput tensor.
 
         Calls ``set_none()`` on the output when head tracking is inactive.
 
@@ -127,9 +127,9 @@ class HeadSource(IDeviceIOSource):
             dtype=np.float32,
         )
 
-        output[HeadPoseIndex.POSITION] = position
-        output[HeadPoseIndex.ORIENTATION] = orientation
-        output[HeadPoseIndex.IS_VALID] = head_pose.is_valid
+        output[HeadInputIndex.POSITION] = position
+        output[HeadInputIndex.ORIENTATION] = orientation
+        output[HeadInputIndex.IS_VALID] = head_pose.is_valid
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """
@@ -140,7 +140,7 @@ class HeadSource(IDeviceIOSource):
                 (e.g., value_input.output("value")).
 
         Returns:
-            A RetargeterSubgraph with output "head" containing the transformed HeadPose.
+            A RetargeterSubgraph with output "head" containing the transformed HeadInput.
 
         Example:
             head_source = HeadSource("head")

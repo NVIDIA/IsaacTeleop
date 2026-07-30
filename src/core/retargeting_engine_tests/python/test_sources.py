@@ -23,7 +23,7 @@ from isaacteleop.retargeting_engine.interface.tensor_group import (
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
 from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInputIndex,
-    HeadPoseIndex,
+    HeadInputIndex,
 )
 from isaacteleop.schema import (
     Point,
@@ -260,12 +260,12 @@ class TestHeadSource:
         head = outputs["head"]
         assert not head.is_none
         np.testing.assert_array_almost_equal(
-            head[HeadPoseIndex.POSITION], [1.0, 2.0, 3.0]
+            head[HeadInputIndex.POSITION], [1.0, 2.0, 3.0]
         )
         np.testing.assert_array_almost_equal(
-            head[HeadPoseIndex.ORIENTATION], [0.0, 0.0, 0.0, 1.0]
+            head[HeadInputIndex.ORIENTATION], [0.0, 0.0, 0.0, 1.0]
         )
-        assert head[HeadPoseIndex.IS_VALID] is True
+        assert head[HeadInputIndex.IS_VALID] is True
 
     def test_head_source_compute_inactive(self):
         """Test that inactive head (TrackedT.data is None) produces absent output."""
@@ -447,7 +447,7 @@ class TestHeadSourceOptional:
 
         assert not outputs["head"].is_none
         np.testing.assert_array_almost_equal(
-            outputs["head"][HeadPoseIndex.POSITION], [0.5, 1.5, 0.0]
+            outputs["head"][HeadInputIndex.POSITION], [0.5, 1.5, 0.0]
         )
 
     def test_inactive_head_sets_none(self):
@@ -473,4 +473,4 @@ class TestHeadSourceOptional:
         source.compute(inputs, outputs)
 
         with pytest.raises(ValueError, match="absent"):
-            _ = outputs["head"][HeadPoseIndex.POSITION]
+            _ = outputs["head"][HeadInputIndex.POSITION]

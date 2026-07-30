@@ -16,7 +16,7 @@ import numpy as np
 from ..interface.base_retargeter import BaseRetargeter
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 from ..interface.tensor_group_type import OptionalType
-from ..tensor_types import HeadPose, HeadPoseIndex, TransformMatrix
+from ..tensor_types import HeadInput, HeadInputIndex, TransformMatrix
 from .transform_utils import (
     _copy_tensor_group_slots_from_dlpack_input,
     decompose_transform,
@@ -40,11 +40,11 @@ class HeadTransform(BaseRetargeter):
     sourced from a TransformSource node in the graph.
 
     Inputs:
-        - "head": OptionalType(HeadPose) tensor (position, orientation, is_valid)
+        - "head": OptionalType(HeadInput) tensor (position, orientation, is_valid)
         - "transform": TransformMatrix tensor containing the (4, 4) matrix
 
     Outputs:
-        - "head": OptionalType(HeadPose) tensor with transformed position and orientation
+        - "head": OptionalType(HeadInput) tensor with transformed position and orientation
 
     Example:
         transform_input = ValueInput("xform_input", TransformMatrix())
@@ -68,13 +68,13 @@ class HeadTransform(BaseRetargeter):
     def input_spec(self) -> RetargeterIOType:
         """Declare head pose (Optional) and transform matrix inputs."""
         return {
-            "head": OptionalType(HeadPose()),
+            "head": OptionalType(HeadInput()),
             "transform": TransformMatrix(),
         }
 
     def output_spec(self) -> RetargeterIOType:
         """Declare transformed head pose output (Optional)."""
-        return {"head": OptionalType(HeadPose())}
+        return {"head": OptionalType(HeadInput())}
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
@@ -104,5 +104,5 @@ class HeadTransform(BaseRetargeter):
 
         _copy_tensor_group_slots_from_dlpack_input(inp, out)
 
-        transform_position(out[HeadPoseIndex.POSITION], rotation, translation)
-        transform_orientation(out[HeadPoseIndex.ORIENTATION], rotation)
+        transform_position(out[HeadInputIndex.POSITION], rotation, translation)
+        transform_orientation(out[HeadInputIndex.ORIENTATION], rotation)

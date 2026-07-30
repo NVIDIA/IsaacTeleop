@@ -88,7 +88,7 @@ def HandInput() -> TensorGroupType:
 # ============================================================================
 
 
-def HeadPose() -> TensorGroupType:
+def HeadInput() -> TensorGroupType:
     """
     Standard TensorGroupType for head tracking data.
 
