@@ -30,46 +30,45 @@
  * and disconnect when in XR mode.
  */
 
-import { checkCapabilities } from '@helpers/BrowserCapabilities';
-import { getDeviceProfile, resolveDeviceProfileId } from '@helpers/DeviceProfiles';
-import { loadIWERIfNeeded } from '@helpers/LoadIWER';
-import { overridePressureObserver } from '@helpers/overridePressureObserver';
-import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
-import CloudXRComponent from '@helpers/react/CloudXRComponent';
-import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
-import { getControlPanelPositionVector } from '@helpers/react/utils';
-import {
-  logImmersiveXRSessionToConsole
-} from '@helpers/webxrModeDebugText';
-import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
-import {
-  DEFAULT_TELEOP_PATH,
-  loadStoredTeleopPath,
-  parseTeleopPathFromHash,
-  saveStoredTeleopPath,
-} from '@helpers/TeleopProjects';
 import * as CloudXR from '@nvidia/cloudxr';
 import { getResolutionValidationError } from '@nvidia/cloudxr';
-import { signal, computed } from '@preact/signals-react';
+import { computed, signal } from '@preact/signals-react';
 import { Canvas } from '@react-three/fiber';
 import { setPreferredColorScheme } from '@react-three/uikit';
-import { XR, createXRStore, noEvents, PointerEvents, XROrigin, useXR } from '@react-three/xr';
+import { createXRStore, noEvents, PointerEvents, useXR, XR, XROrigin } from '@react-three/xr';
 import type { XRDevice } from 'iwer';
-import { useState, useMemo, useEffect, useRef } from 'react';
-
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { v5 } from 'uuid';
-import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
-import { readUrlParam } from './config/resolve';
-import CloudXR3DUI from './CloudXRUI';
+
+import { checkCapabilities } from '@helpers/BrowserCapabilities';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
+import { getDeviceProfile, resolveDeviceProfileId } from '@helpers/DeviceProfiles';
+import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 import { MetricsAccumulator } from '@helpers/metricsAccumulator';
 import type {
   FrameMetricsUpdate,
   NetworkMetricsUpdate,
   RenderMetricsUpdate,
 } from '@helpers/metricsUpdates';
-import { RecorderProvider, useRecorder } from './RecorderContext';
+import { overridePressureObserver } from '@helpers/overridePressureObserver';
+import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
+import CloudXRComponent from '@helpers/react/CloudXRComponent';
+import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
+import { getControlPanelPositionVector } from '@helpers/react/utils';
+import {
+  DEFAULT_TELEOP_PATH,
+  loadStoredTeleopPath,
+  parseTeleopPathFromHash,
+  saveStoredTeleopPath,
+} from '@helpers/TeleopProjects';
+import { logImmersiveXRSessionToConsole } from '@helpers/webxrModeDebugText';
+
+import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
+import CloudXR3DUI from './CloudXRUI';
+import { readUrlParam } from './config/resolve';
 import { RecorderComponent } from './RecorderComponent';
+import { RecorderProvider, useRecorder } from './RecorderContext';
+import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
 import { TraceVisualization } from './TraceVisualization';
 
 // Performance metrics signals - raw numeric data backing the in-XR HUD.
@@ -136,7 +135,6 @@ overridePressureObserver();
 
 setPreferredColorScheme('dark');
 
-
 const TELEOP_CHANNEL_UUID: Uint8Array = v5('teleop_command', v5.DNS, new Uint8Array(16));
 
 type AvailableChannel = CloudXR.Session['availableMessageChannels'][number];
@@ -171,8 +169,7 @@ function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null
   const portStr = readUrlParam(searchParams, 'port')?.trim();
   if (!serverIP || portStr === undefined || portStr === '') return null;
   if (!/^\d{1,5}$/.test(portStr)) return null;
-  const host =
-    serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
+  const host = serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
   return `wss://${host}:${portStr}/oob/v1/ws`;
 }
 
@@ -241,19 +238,19 @@ function AppContent() {
   // Note: React Three Fiber's emulation is disabled (emulate: false) to avoid conflicts
   useEffect(() => {
     const loadIWER = async () => {
-        const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
-        if (!supportsImmersive) {
-          setErrorMessage('Immersive mode not supported');
-          setIwerLoaded(false);
-          setCapabilitiesValid(false);
-          capabilitiesCheckedRef.current = false; // Reset check flag on failure
-          return;
-        }
+      const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
+      if (!supportsImmersive) {
+        setErrorMessage('Immersive mode not supported');
+        setIwerLoaded(false);
+        setCapabilitiesValid(false);
+        capabilitiesCheckedRef.current = false; // Reset check flag on failure
+        return;
+      }
       // IWER loaded successfully, now we can proceed with capability checks
-        setIwerLoaded(true);
+      setIwerLoaded(true);
       // Store whether IWER was loaded for status message display later
-        if (wasIwerLoaded) {
-          sessionStorage.setItem('iwerWasLoaded', 'true');
+      if (wasIwerLoaded) {
+        sessionStorage.setItem('iwerWasLoaded', 'true');
       }
     };
 
@@ -417,10 +414,7 @@ function AppContent() {
     ui.initialize(resolvedPath);
     const doConnect = async () => {
       const config = ui.getConfiguration();
-      const resolutionError = getResolutionValidationError(
-        config.perEyeWidth,
-        config.perEyeHeight
-      );
+      const resolutionError = getResolutionValidationError(config.perEyeWidth, config.perEyeHeight);
       if (resolutionError) {
         ui.updateConnectButtonState();
         return;
@@ -760,7 +754,6 @@ function AppContent() {
     }, 1000);
   };
 
-
   const handleResetTeleop = async () => {
     console.info('Reset Teleop pressed');
 
@@ -897,11 +890,13 @@ function AppContent() {
     const turnCredential = readUrlParam(p, 'turnCredential') ?? undefined;
     const iceRelayOnly = readUrlParam(p, 'iceRelayOnly') === '1';
     return {
-      iceServers: [{
-        urls: turnServer,
-        ...(turnUsername !== undefined && { username: turnUsername }),
-        ...(turnCredential !== undefined && { credential: turnCredential }),
-      }],
+      iceServers: [
+        {
+          urls: turnServer,
+          ...(turnUsername !== undefined && { username: turnUsername }),
+          ...(turnCredential !== undefined && { credential: turnCredential }),
+        },
+      ],
       ...(iceRelayOnly && { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }),
     };
   }, []);
@@ -950,9 +945,7 @@ function AppContent() {
           const uuidHex = Array.from(ch.uuid as Uint8Array)
             .map((b: number) => b.toString(16).padStart(2, '0'))
             .join('');
-          console.info(
-            `  [${i}] uuid=${uuidHex} status=${ch.status}`
-          );
+          console.info(`  [${i}] uuid=${uuidHex} status=${ch.status}`);
         });
 
         const channel = findChannelByUuid(channels, TELEOP_CHANNEL_UUID);
@@ -1046,10 +1039,7 @@ function AppContent() {
           <XROrigin />
           {cloudXR2DUI && config && (
             <>
-              <RecorderComponent
-                isConnected={isConnected}
-                showTrace={config.showTrace ?? false}
-              />
+              <RecorderComponent isConnected={isConnected} showTrace={config.showTrace ?? false} />
               <TraceVisualization showTrace={config.showTrace ?? false} />
               <CloudXRComponent
                 config={config}
@@ -1071,9 +1061,7 @@ function AppContent() {
                 streamTest={
                   config.streamTestMode && config.streamTestMode !== 'off'
                     ? {
-                        durationSeconds: resolveStreamTestSeconds(
-                          config.streamTestDurationSeconds
-                        ),
+                        durationSeconds: resolveStreamTestSeconds(config.streamTestDurationSeconds),
                         mode: config.streamTestMode,
                       }
                     : undefined

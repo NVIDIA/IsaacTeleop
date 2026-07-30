@@ -32,10 +32,19 @@
  */
 
 import {
+  getGridValidationError,
+  getGridValidationMessageForConnect,
+  getResolutionValidationError,
+  getResolutionValidationMessageForConnect,
+  validateDepthReprojectionGrid,
+  validatePerEyeResolution,
+} from '@nvidia/cloudxr';
+
+import {
   detectDeviceProfileId,
+  type DeviceProfileId,
   getDeviceProfile,
   resolveDeviceProfileId,
-  type DeviceProfileId,
 } from '@helpers/DeviceProfiles';
 import {
   type AutoRefreshMode,
@@ -60,24 +69,18 @@ import {
   setSelectValueIfAvailable,
   setupCertificateAcceptanceLink,
 } from '@helpers/utils';
+
 import { URL_PARAMS } from './config/params';
 import { seedsFromParams } from './config/resolve';
 import type { ReplayPacing } from './xrInputRecorder';
-import {
-  getGridValidationError,
-  getGridValidationMessageForConnect,
-  getResolutionValidationError,
-  getResolutionValidationMessageForConnect,
-  validateDepthReprojectionGrid,
-  validatePerEyeResolution,
-} from '@nvidia/cloudxr';
 
 /** Full config: CloudXR connection settings + React UI options. */
-type AppConfig = CloudXRConfig & ReactUIConfig & {
-  showTrace: boolean;
-  showRecordingControls: boolean;
-  replayPacing: ReplayPacing;
-};
+type AppConfig = CloudXRConfig &
+  ReactUIConfig & {
+    showTrace: boolean;
+    showRecordingControls: boolean;
+    replayPacing: ReplayPacing;
+  };
 
 /**
  * localStorage key for the teleop-start countdown. Owned by the countdown feature in
@@ -293,15 +296,17 @@ export class CloudXR2DUI {
     const boolFromStorage = (raw: string) =>
       raw === 'true' ? true : raw === 'false' ? false : undefined;
     const panelHidden = loadPerProject<boolean>(
-      'panelHiddenAtStart', this.teleopPath,
+      'panelHiddenAtStart',
+      this.teleopPath,
       boolFromStorage,
-      settings.panelHiddenAtStart ?? false,
+      settings.panelHiddenAtStart ?? false
     );
     this.panelHiddenAtStartSelect.value = String(panelHidden);
     const headless = loadPerProject<boolean>(
-      'headless', this.teleopPath,
+      'headless',
+      this.teleopPath,
       boolFromStorage,
-      settings.headless ?? false,
+      settings.headless ?? false
     );
     this.headlessInput.checked = headless;
     this.applyHeadlessImmersiveDropdown();
@@ -356,7 +361,8 @@ export class CloudXR2DUI {
       const option = document.createElement('option');
       option.value = entry.hash;
       const isCurrent = entry.hash === currentHash;
-      option.textContent = INDENT.repeat(entry.depth) + entry.label + (isCurrent ? '  (current)' : '');
+      option.textContent =
+        INDENT.repeat(entry.depth) + entry.label + (isCurrent ? '  (current)' : '');
       if (isCurrent) option.disabled = true;
       select.appendChild(option);
     }
@@ -479,8 +485,7 @@ export class CloudXR2DUI {
       'controllerModelVisibility'
     );
     this.showTraceInXRSelect = this.getElement<HTMLSelectElement>('showTraceInXR');
-    this.showRecordingControlsSelect =
-      this.getElement<HTMLSelectElement>('showRecordingControls');
+    this.showRecordingControlsSelect = this.getElement<HTMLSelectElement>('showRecordingControls');
     this.replayPacingSelect = this.getElement<HTMLSelectElement>('replayPacing');
     this.headlessInput = this.getElement<HTMLInputElement>('cloudxrHeadless');
     this.autoRefreshModeSelect = this.getElement<HTMLSelectElement>('cloudxrAutoRefreshMode');
@@ -854,9 +859,7 @@ export class CloudXR2DUI {
     // Headset on-screen keyboards sometimes lack a minus key, so offsets can't be typed
     // negative. Each ± button (data-target = input id) flips its field's sign. Dispatch
     // 'change' so the existing offset listeners (updateConfiguration + localStorage) run.
-    for (const btn of Array.from(
-      document.querySelectorAll<HTMLButtonElement>('.input-sign-btn')
-    )) {
+    for (const btn of Array.from(document.querySelectorAll<HTMLButtonElement>('.input-sign-btn'))) {
       const targetId = btn.dataset.target;
       if (!targetId) continue;
       const input = document.getElementById(targetId) as HTMLInputElement | null;
@@ -951,9 +954,7 @@ export class CloudXR2DUI {
       reprojectionGridCols,
       reprojectionGridRows
     );
-    const combinedConnectMessage = [connectMessage, gridConnectMessage]
-      .filter(Boolean)
-      .join('\n');
+    const combinedConnectMessage = [connectMessage, gridConnectMessage].filter(Boolean).join('\n');
     if (combinedConnectMessage) {
       this.validationMessageText.textContent = combinedConnectMessage;
       this.validationMessageBox.className = 'validation-message-box show';

@@ -15,18 +15,12 @@
  * limitations under the License.
  */
 
-import { useFrame } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
-import {
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  Points,
-  PointsMaterial,
-} from "three";
+import { useFrame } from '@react-three/fiber';
+import { useEffect, useRef } from 'react';
+import { BufferAttribute, BufferGeometry, Color, Points, PointsMaterial } from 'three';
 
-import { useRecorder } from "./RecorderContext";
-import type { SerializedPose } from "./xrInputRecorder";
+import { useRecorder } from './RecorderContext';
+import type { SerializedPose } from './xrInputRecorder';
 
 const TRACE_LENGTH = 500;
 
@@ -76,13 +70,13 @@ function createChannel(color: string): TraceChannel {
   const positions = new Float32Array(TRACE_LENGTH * 3);
   const colors = new Float32Array(TRACE_LENGTH * 3);
   const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new BufferAttribute(colors, 3));
+  geometry.setAttribute('position', new BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new BufferAttribute(colors, 3));
   geometry.setDrawRange(0, 0);
 
   const points = new Points(
     geometry,
-    new PointsMaterial({ vertexColors: true, size: 6, sizeAttenuation: false }),
+    new PointsMaterial({ vertexColors: true, size: 6, sizeAttenuation: false })
   );
   points.visible = false;
 
@@ -111,28 +105,33 @@ export function TraceVisualization({ showTrace }: { showTrace: boolean }) {
   const channelsRef = useRef<TraceChannel[] | null>(null);
   if (!channelsRef.current) {
     channelsRef.current = [
-      createChannel("#4488ff"),
-      createChannel("#44ff88"),
-      createChannel("#ff4422"),
-      createChannel("#ff44cc"),
+      createChannel('#4488ff'),
+      createChannel('#44ff88'),
+      createChannel('#ff4422'),
+      createChannel('#ff44cc'),
     ];
   }
   const channels = channelsRef.current;
 
   useEffect(() => {
-    channels.forEach((channel) => channel.buffer.clear());
+    channels.forEach(channel => channel.buffer.clear());
   }, [channels, mode]);
 
-  useEffect(() => () => {
-    channels.forEach(({ points }) => {
-      points.geometry.dispose();
-      (points.material as PointsMaterial).dispose();
-    });
-  }, [channels]);
+  useEffect(
+    () => () => {
+      channels.forEach(({ points }) => {
+        points.geometry.dispose();
+        (points.material as PointsMaterial).dispose();
+      });
+    },
+    [channels]
+  );
 
   useFrame(() => {
     if (!showTrace) {
-      channels.forEach((channel) => { channel.points.visible = false; });
+      channels.forEach(channel => {
+        channel.points.visible = false;
+      });
       return;
     }
 

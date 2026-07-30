@@ -79,7 +79,10 @@ type UpdateOutcome =
  * @param timeoutMs - Upper bound on how long to wait for the update.
  * @returns The outcome of the race; never a rejection.
  */
-function raceUpdateAgainstTimeout(update: Promise<void>, timeoutMs: number): Promise<UpdateOutcome> {
+function raceUpdateAgainstTimeout(
+  update: Promise<void>,
+  timeoutMs: number
+): Promise<UpdateOutcome> {
   let timer!: ReturnType<typeof setTimeout>;
   const timeout = new Promise<UpdateOutcome>(resolve => {
     timer = setTimeout(() => resolve({ kind: 'timeout' }), timeoutMs);
@@ -183,10 +186,7 @@ export async function applyTargetFrameRate(
 
   // Never request a rate the device does not list; the browser would reject it.
   if (!containsFrameRate(session.supportedFrameRates, targetFrameRate)) {
-    logger.warn(
-      'Requested WebXR frame rate is not supported by this device:',
-      targetFrameRate
-    );
+    logger.warn('Requested WebXR frame rate is not supported by this device:', targetFrameRate);
     return fallbackFrameRate;
   }
 
