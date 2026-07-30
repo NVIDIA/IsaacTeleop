@@ -32,13 +32,27 @@ describe('URL_PARAMS', () => {
 
   it('still covers the params that were URL-settable before the registry', () => {
     const keys = new Set(URL_PARAMS.map(p => p.key));
-    for (const k of ['serverIP', 'port', 'codec', 'panelHiddenAtStart', 'headless', 'autoRefreshMode']) {
+    for (const k of [
+      'serverIP',
+      'port',
+      'codec',
+      'panelHiddenAtStart',
+      'headless',
+      'autoRefreshMode',
+    ]) {
       expect(keys.has(k)).toBe(true);
     }
   });
 
   it('declares the direct transport/OOB params (no element binding)', () => {
-    for (const k of ['turnServer', 'turnUsername', 'turnCredential', 'iceRelayOnly', 'oobEnable', 'controlToken']) {
+    for (const k of [
+      'turnServer',
+      'turnUsername',
+      'turnCredential',
+      'iceRelayOnly',
+      'oobEnable',
+      'controlToken',
+    ]) {
       const param = URL_PARAMS.find(p => p.key === k);
       expect(param).toBeDefined();
       expect(param!.elementId).toBeUndefined();
@@ -82,7 +96,9 @@ describe('seedsFromParams (form-backed params only)', () => {
 
   it('exposes every form-backed param as URL-settable', () => {
     const formParams = URL_PARAMS.filter(p => p.elementId);
-    const query = formParams.map(p => `${p.url ?? p.key}=${encodeURIComponent(sampleValid(p.key))}`).join('&');
+    const query = formParams
+      .map(p => `${p.url ?? p.key}=${encodeURIComponent(sampleValid(p.key))}`)
+      .join('&');
     expect(seed(query).size).toBe(formParams.length);
   });
 });
@@ -122,9 +138,19 @@ describe('url alias (param.url overrides param.key)', () => {
 /** A representative valid value per form param, for the coverage test above. */
 function sampleValid(key: string): string {
   const numeric = new Set([
-    'port', 'deviceFrameRate', 'maxStreamingBitrateMbps', 'perEyeWidth', 'perEyeHeight',
-    'reprojectionGridCols', 'reprojectionGridRows', 'posePredictionFactor',
-    'xrOffsetX', 'xrOffsetY', 'xrOffsetZ', 'mediaPort', 'streamTestDurationSeconds',
+    'port',
+    'deviceFrameRate',
+    'maxStreamingBitrateMbps',
+    'perEyeWidth',
+    'perEyeHeight',
+    'reprojectionGridCols',
+    'reprojectionGridRows',
+    'posePredictionFactor',
+    'xrOffsetX',
+    'xrOffsetY',
+    'xrOffsetZ',
+    'mediaPort',
+    'streamTestDurationSeconds',
   ]);
   if (numeric.has(key)) return '1';
   const enums: Record<string, string> = {

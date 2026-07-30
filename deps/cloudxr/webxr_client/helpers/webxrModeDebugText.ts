@@ -61,15 +61,15 @@ export function dumpXRSessionDetails(
   }
 
   const feats = session.enabledFeatures ?? [];
-  lines.push(`session.enabledFeatures [${feats.length}]: ${feats.map(String).join(', ') || '(none)'}`);
+  lines.push(
+    `session.enabledFeatures [${feats.length}]: ${feats.map(String).join(', ') || '(none)'}`
+  );
 
   const rs = session.renderState;
   lines.push(`session.renderState.depthNear: ${rs.depthNear}`);
   lines.push(`session.renderState.depthFar: ${rs.depthFar}`);
   const iFoV = rs.inlineVerticalFieldOfView;
-  lines.push(
-    `session.renderState.inlineVerticalFieldOfView: ${iFoV != null ? String(iFoV) : '—'}`
-  );
+  lines.push(`session.renderState.inlineVerticalFieldOfView: ${iFoV != null ? String(iFoV) : '—'}`);
 
   const base = rs.baseLayer;
   if (base == null) {

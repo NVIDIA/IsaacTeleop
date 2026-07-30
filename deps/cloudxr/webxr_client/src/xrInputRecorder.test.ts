@@ -15,20 +15,13 @@
  * limitations under the License.
  */
 
-import {
-  XRInputRecorder,
-  type RecordedFrame,
-  type Recording,
-} from "./xrInputRecorder";
+import { type RecordedFrame, type Recording, XRInputRecorder } from './xrInputRecorder';
 
 class FakeRigidTransform {
   readonly position: DOMPointReadOnly;
   readonly orientation: DOMPointReadOnly;
 
-  constructor(
-    position: DOMPointInit = {},
-    orientation: DOMPointInit = { w: 1 },
-  ) {
+  constructor(position: DOMPointInit = {}, orientation: DOMPointInit = { w: 1 }) {
     this.position = {
       x: position.x ?? 0,
       y: position.y ?? 0,
@@ -46,12 +39,7 @@ class FakeRigidTransform {
 
 const sceneSpace = {} as XRReferenceSpace;
 
-function pose(
-  x: number,
-  y = 0,
-  z = 0,
-  orientation: DOMPointInit = { w: 1 },
-): XRPose {
+function pose(x: number, y = 0, z = 0, orientation: DOMPointInit = { w: 1 }): XRPose {
   return {
     transform: new FakeRigidTransform({ x, y, z, w: 1 }, orientation),
     emulatedPosition: false,
@@ -78,7 +66,7 @@ function makeFrame(
   inputSources: XRInputSource[] = [],
   getPose: PoseResolver = () => null,
   getJointPose: JointResolver = () => null,
-  predictedDisplayTime = 0,
+  predictedDisplayTime = 0
 ): XRFrame {
   const session = { inputSources } as XRSession;
   return {
@@ -133,32 +121,32 @@ beforeAll(() => {
   (global as { XRRigidTransform?: unknown }).XRRigidTransform = FakeRigidTransform;
 });
 
-describe("lifecycle and frame advancement", () => {
-  test("records frames and returns to idle", () => {
+describe('lifecycle and frame advancement', () => {
+  test('records frames and returns to idle', () => {
     const recorder = new XRInputRecorder();
     recorder.startRecording();
     recorder.beginFrame(makeFrame(), sceneSpace);
     recorder.beginFrame(makeFrame(), sceneSpace);
-    expect(recorder.mode).toBe("recording");
+    expect(recorder.mode).toBe('recording');
     expect(recorder.recordedFrameCount).toBe(2);
 
     recorder.stopRecording();
-    expect(recorder.mode).toBe("idle");
+    expect(recorder.mode).toBe('idle');
     expect(recorder.currentFrame).toBeNull();
     expect(recorder.getRecording().frames).toHaveLength(2);
   });
 
-  test.each(["recording", "replaying"] as const)(
-    "rejects starting another operation while %s",
-    (mode) => {
+  test.each(['recording', 'replaying'] as const)(
+    'rejects starting another operation while %s',
+    mode => {
       const recorder = new XRInputRecorder();
-      if (mode === "recording") recorder.startRecording();
+      if (mode === 'recording') recorder.startRecording();
       else recorder.startReplay(recording(frameData()));
       expect(() => recorder.startRecording()).toThrow(/already active/);
-    },
+    }
   );
 
-  test("does not record or advance replay while disconnected", () => {
+  test('does not record or advance replay while disconnected', () => {
     const recorder = new XRInputRecorder();
     recorder.startRecording();
     recorder.beginFrame(makeFrame(), sceneSpace, false);
@@ -171,15 +159,15 @@ describe("lifecycle and frame advancement", () => {
     expect(recorder.currentFrame).toBeNull();
   });
 
-  test("loops replay by frame and can clamp at the final frame", () => {
+  test('loops replay by frame and can clamp at the final frame', () => {
     const looped = new XRInputRecorder();
-    looped.startReplay(recording(frameData(1), frameData(2)), true, "frame");
+    looped.startReplay(recording(frameData(1), frameData(2)), true, 'frame');
     looped.beginFrame(makeFrame(), sceneSpace);
     looped.beginFrame(makeFrame(), sceneSpace);
     expect(looped.replayFrameIndex).toBe(0);
 
     const clamped = new XRInputRecorder();
-    clamped.startReplay(recording(frameData(1), frameData(2)), false, "frame");
+    clamped.startReplay(recording(frameData(1), frameData(2)), false, 'frame');
     clamped.beginFrame(makeFrame(), sceneSpace);
     clamped.beginFrame(makeFrame(), sceneSpace);
     clamped.beginFrame(makeFrame(), sceneSpace);
@@ -187,7 +175,7 @@ describe("lifecycle and frame advancement", () => {
     expect(clamped.replayFrameIndex).toBe(1);
   });
 
-  test("time-paces replay by default and interpolates timestamped samples", () => {
+  test('time-paces replay by default and interpolates timestamped samples', () => {
     const first = timedFrame(0, 0);
     first.gamepads.left!.buttons[0].pressed = false;
     const second = timedFrame(100, 10);
@@ -211,7 +199,7 @@ describe("lifecycle and frame advancement", () => {
     expect(recorder.currentFrame?.handJoints.left.wrist?.px).toBe(7);
   });
 
-  test("holds the earlier gamepad sample when controller layouts differ", () => {
+  test('holds the earlier gamepad sample when controller layouts differ', () => {
     const first = timedFrame(0, 0);
     const second = timedFrame(100, 10);
     second.gamepads.left!.axes.push(20);
@@ -225,9 +213,9 @@ describe("lifecycle and frame advancement", () => {
     expect(recorder.currentFrame?.gamepads.left).toEqual(first.gamepads.left);
   });
 
-  test("holds the final timed sample before looping", () => {
+  test('holds the final timed sample before looping', () => {
     const recorder = new XRInputRecorder();
-    recorder.startReplay(recording(timedFrame(0, 0), timedFrame(100, 10)), true, "time");
+    recorder.startReplay(recording(timedFrame(0, 0), timedFrame(100, 10)), true, 'time');
 
     recorder.beginFrame(makeFrame([], undefined, undefined, 1000), sceneSpace);
     recorder.beginFrame(makeFrame([], undefined, undefined, 1100), sceneSpace);
@@ -240,9 +228,9 @@ describe("lifecycle and frame advancement", () => {
     expect(recorder.currentFrame).toEqual(timedFrame(0, 0));
   });
 
-  test("pauses time-paced replay while advancement is gated off", () => {
+  test('pauses time-paced replay while advancement is gated off', () => {
     const recorder = new XRInputRecorder();
-    recorder.startReplay(recording(timedFrame(0, 0), timedFrame(100, 10)), false, "time");
+    recorder.startReplay(recording(timedFrame(0, 0), timedFrame(100, 10)), false, 'time');
 
     recorder.beginFrame(makeFrame([], undefined, undefined, 1000), sceneSpace);
     recorder.beginFrame(makeFrame([], undefined, undefined, 1040), sceneSpace);
@@ -254,7 +242,7 @@ describe("lifecycle and frame advancement", () => {
     expect(recorder.currentFrame?.poses.leftGrip?.px).toBe(6);
   });
 
-  test("captures live input while idle only when requested", () => {
+  test('captures live input while idle only when requested', () => {
     const recorder = new XRInputRecorder();
     recorder.beginFrame(makeFrame(), sceneSpace, true, false);
     expect(recorder.currentFrame).toBeNull();
@@ -268,26 +256,26 @@ describe("lifecycle and frame advancement", () => {
   });
 });
 
-describe("canonical scene-space capture", () => {
-  test("captures grip, aim, gamepad, and joints by WebXR joint name", () => {
+describe('canonical scene-space capture', () => {
+  test('captures grip, aim, gamepad, and joints by WebXR joint name', () => {
     const grip = {} as XRSpace;
     const aim = {} as XRSpace;
     const wrist = {} as XRJointSpace;
     const indexTip = {} as XRJointSpace;
     const source = {
-      handedness: "left",
+      handedness: 'left',
       gripSpace: grip,
       targetRaySpace: aim,
       gamepad: gamepad(0.75),
       hand: new Map([
-        ["wrist", wrist],
-        ["index-finger-tip", indexTip],
+        ['wrist', wrist],
+        ['index-finger-tip', indexTip],
       ]),
     } as unknown as XRInputSource;
     const frame = makeFrame(
       [source],
-      (space) => space === grip ? pose(1) : space === aim ? pose(2) : null,
-      (joint) => joint === wrist ? jointPose(3) : jointPose(4),
+      space => (space === grip ? pose(1) : space === aim ? pose(2) : null),
+      joint => (joint === wrist ? jointPose(3) : jointPose(4))
     );
 
     const recorder = new XRInputRecorder();
@@ -299,12 +287,12 @@ describe("canonical scene-space capture", () => {
     expect(captured.poses.leftAim?.px).toBe(2);
     expect(captured.gamepads.left?.axes).toEqual([0.75]);
     expect(captured.handJoints.left.wrist?.px).toBe(3);
-    expect(captured.handJoints.left["index-finger-tip"]?.px).toBe(4);
+    expect(captured.handJoints.left['index-finger-tip']?.px).toBe(4);
   });
 });
 
-describe("scoped CloudXR replay frame", () => {
-  test("does not alter global prototypes and returns real frames outside replay", () => {
+describe('scoped CloudXR replay frame', () => {
+  test('does not alter global prototypes and returns real frames outside replay', () => {
     const recorder = new XRInputRecorder();
     const frame = makeFrame();
     const originalGetPose = frame.getPose;
@@ -314,12 +302,12 @@ describe("scoped CloudXR replay frame", () => {
     recorder.stopRecording();
   });
 
-  test("transforms recorded grip and aim from scene space into the requested base space", () => {
+  test('transforms recorded grip and aim from scene space into the requested base space', () => {
     const grip = {} as XRSpace;
     const aim = {} as XRSpace;
     const cloudSpace = {} as XRSpace;
     const source = {
-      handedness: "left",
+      handedness: 'left',
       gripSpace: grip,
       targetRaySpace: aim,
       gamepad: gamepad(99),
@@ -346,21 +334,21 @@ describe("scoped CloudXR replay frame", () => {
     expect(replayedGrip.transform.orientation.z).toBeCloseTo(quarterTurn);
   });
 
-  test("replays gamepads and joints without changing the real input source", () => {
+  test('replays gamepads and joints without changing the real input source', () => {
     const grip = {} as XRSpace;
     const wrist = {} as XRJointSpace;
     const cloudSpace = {} as XRSpace;
     const source = {
-      handedness: "left",
+      handedness: 'left',
       gripSpace: grip,
       targetRaySpace: {} as XRSpace,
       gamepad: gamepad(99),
-      hand: new Map([["wrist", wrist]]),
+      hand: new Map([['wrist', wrist]]),
     } as unknown as XRInputSource;
     const frame = makeFrame(
       [source],
-      (space, base) => space === sceneSpace && base === cloudSpace ? pose(10) : null,
-      () => jointPose(99),
+      (space, base) => (space === sceneSpace && base === cloudSpace ? pose(10) : null),
+      () => jointPose(99)
     );
     const recorder = new XRInputRecorder();
     recorder.startReplay(recording(frameData(3)));
@@ -376,10 +364,14 @@ describe("scoped CloudXR replay frame", () => {
     expect(adapted.getJointPose(wrist, cloudSpace)?.radius).toBe(0.02);
   });
 
-  test("delegates unknown spaces and joints to the real frame", () => {
+  test('delegates unknown spaces and joints to the real frame', () => {
     const unknownSpace = {} as XRSpace;
     const unknownJoint = {} as XRJointSpace;
-    const frame = makeFrame([], () => pose(7), () => jointPose(8));
+    const frame = makeFrame(
+      [],
+      () => pose(7),
+      () => jointPose(8)
+    );
     const recorder = new XRInputRecorder();
     recorder.startReplay(recording(frameData()));
     recorder.beginFrame(frame, sceneSpace);
@@ -390,27 +382,27 @@ describe("scoped CloudXR replay frame", () => {
   });
 });
 
-describe("serialization", () => {
-  test("round-trips version 1 recordings", () => {
+describe('serialization', () => {
+  test('round-trips version 1 recordings', () => {
     const recorder = new XRInputRecorder();
     recorder.startRecording();
     recorder.beginFrame(makeFrame(), sceneSpace);
     recorder.stopRecording();
     expect(XRInputRecorder.importJSON(recorder.exportJSON()).frames).toHaveLength(1);
-    expect(typeof recorder.getRecording().recordedAt).toBe("number");
+    expect(typeof recorder.getRecording().recordedAt).toBe('number');
   });
 
-  test("records relative XR frame timing", () => {
+  test('records relative XR frame timing', () => {
     const recorder = new XRInputRecorder();
     recorder.startRecording();
     recorder.beginFrame(makeFrame([], undefined, undefined, 100), sceneSpace);
     recorder.beginFrame(makeFrame([], undefined, undefined, 116.5), sceneSpace);
     recorder.stopRecording();
 
-    expect(recorder.getRecording().frames.map((frame) => frame.timeMs)).toEqual([0, 16.5]);
+    expect(recorder.getRecording().frames.map(frame => frame.timeMs)).toEqual([0, 16.5]);
   });
 
-  test("records finite monotonic timeMs when predictedDisplayTime is missing", () => {
+  test('records finite monotonic timeMs when predictedDisplayTime is missing', () => {
     // PICO leaves predictedDisplayTime undefined; without a fallback timeMs was
     // NaN -> serialized to null -> rejected on import.
     const noTime = undefined as unknown as number;
@@ -420,8 +412,8 @@ describe("serialization", () => {
     recorder.beginFrame(makeFrame([], undefined, undefined, noTime), sceneSpace);
     recorder.stopRecording();
 
-    const times = recorder.getRecording().frames.map((frame) => frame.timeMs);
-    expect(times.every((t) => Number.isFinite(t) && t >= 0)).toBe(true);
+    const times = recorder.getRecording().frames.map(frame => frame.timeMs);
+    expect(times.every(t => Number.isFinite(t) && t >= 0)).toBe(true);
     expect(times[1]).toBeGreaterThanOrEqual(times[0]);
     expect(() => XRInputRecorder.importJSON(recorder.exportJSON())).not.toThrow();
   });
@@ -434,17 +426,15 @@ describe("serialization", () => {
     null,
     42,
     [],
-  ])("rejects incompatible or malformed recordings", (value) => {
+  ])('rejects incompatible or malformed recordings', value => {
     expect(() => XRInputRecorder.importJSON(JSON.stringify(value))).toThrow();
   });
 
-  test("rejects non-JSON input with a clear message", () => {
-    expect(() => XRInputRecorder.importJSON("not json {")).toThrow(
-      "File is not valid JSON",
-    );
+  test('rejects non-JSON input with a clear message', () => {
+    expect(() => XRInputRecorder.importJSON('not json {')).toThrow('File is not valid JSON');
   });
 
-  test("returns a recording snapshot", () => {
+  test('returns a recording snapshot', () => {
     const recorder = new XRInputRecorder();
     recorder.startRecording();
     recorder.beginFrame(makeFrame(), sceneSpace);
@@ -456,7 +446,7 @@ describe("serialization", () => {
     expect(snapshot.frames).toHaveLength(1);
   });
 
-  test("helper can create recordings for replay tests", () => {
+  test('helper can create recordings for replay tests', () => {
     expect(recordFrames(3).frames).toHaveLength(3);
   });
 });

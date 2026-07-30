@@ -160,7 +160,8 @@ const capabilities: CapabilityCheck[] = [
         return false;
       }
     },
-    message: 'AV1 codec is not supported on this device. H.264 or HEVC can be selected as an alternative.',
+    message:
+      'AV1 codec is not supported on this device. H.264 or HEVC can be selected as an alternative.',
   },
   {
     name: 'HEVC Codec Support',
@@ -189,7 +190,8 @@ const capabilities: CapabilityCheck[] = [
         return false;
       }
     },
-    message: 'HEVC (H.265) codec is not supported on this device. H.264 or AV1 can be selected as an alternative.',
+    message:
+      'HEVC (H.265) codec is not supported on this device. H.264 or AV1 can be selected as an alternative.',
   },
 ];
 

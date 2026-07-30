@@ -35,19 +35,21 @@
  * back to the parent component through callback props.
  */
 
+import { ReadonlySignal } from '@preact/signals-react';
+import { useFrame } from '@react-three/fiber';
+import { Handle, HandleState, HandleTarget } from '@react-three/handle';
+import { Container, Image, Text } from '@react-three/uikit';
+import { Button } from '@react-three/uikit-default';
+import React, { useEffect, useRef, useState } from 'react';
+import { Color, Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
+import { damp } from 'three/src/math/MathUtils.js';
+
+import { PerformanceCanvasImage } from '@helpers/react/PerformanceCanvasImage';
+import { useXRButton } from '@helpers/react/useXRButton';
+
 import arrowLeftStartOnRectangleSvg from './icons/arrow-left-start-on-rectangle.svg';
 import arrowUturnLeftSvg from './icons/arrow-uturn-left.svg';
 import playCircleSvg from './icons/play-circle.svg';
-import { PerformanceCanvasImage } from '@helpers/react/PerformanceCanvasImage';
-import { useXRButton } from '@helpers/react/useXRButton';
-import { ReadonlySignal } from '@preact/signals-react';
-import { useFrame } from '@react-three/fiber';
-import { Handle, HandleTarget, HandleState } from '@react-three/handle';
-import { Container, Text, Image } from '@react-three/uikit';
-import { Button } from '@react-three/uikit-default';
-import React, { useRef, useState, useEffect } from 'react';
-import { Color, Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
-import { damp } from 'three/src/math/MathUtils.js';
 import { useRecorder } from './RecorderContext';
 
 // Face-camera rotation constants
@@ -136,10 +138,12 @@ function RecordingButton({
       height={72}
       borderRadius={20}
       disabled={disabled}
-      backgroundColor={active ? "rgba(220, 60, 60, 0.9)" : "rgba(220, 220, 220, 0.9)"}
+      backgroundColor={active ? 'rgba(220, 60, 60, 0.9)' : 'rgba(220, 220, 220, 0.9)'}
       hover={{ backgroundColor: 'rgba(100, 150, 255, 1)', borderColor: 'white', borderWidth: 2 }}
     >
-      <Text fontSize={30} color="black" fontWeight="medium">{label}</Text>
+      <Text fontSize={30} color="black" fontWeight="medium">
+        {label}
+      </Text>
     </Button>
   );
 }
@@ -489,18 +493,30 @@ export default function CloudXR3DUI({
                 </Container>
 
                 {showRecordingControls && (
-                  <Container width="100%" flexDirection="column" gap={12} alignItems="center" marginTop={16}>
+                  <Container
+                    width="100%"
+                    flexDirection="column"
+                    gap={12}
+                    alignItems="center"
+                    marginTop={16}
+                  >
                     <Text fontSize={36} fontWeight="bold" color="rgba(220, 220, 220, 1)">
                       {recorder.mode === 'recording'
                         ? `REC ${recorder.recordedFrameCount} frames`
-                        : recorder.mode === 'replaying' ? 'Replaying' : 'Recording'}
+                        : recorder.mode === 'replaying'
+                          ? 'Replaying'
+                          : 'Recording'}
                     </Text>
                     <Container flexDirection="row" gap={12} justifyContent="center">
                       {recorder.mode !== 'replaying' && (
                         <RecordingButton
                           id="record-input"
                           label={recorder.mode === 'recording' ? 'Stop' : 'Rec'}
-                          onClick={recorder.mode === 'recording' ? recorder.stopRecord : recorder.startRecord}
+                          onClick={
+                            recorder.mode === 'recording'
+                              ? recorder.stopRecord
+                              : recorder.startRecord
+                          }
                           active={recorder.mode === 'recording'}
                         />
                       )}
@@ -508,17 +524,24 @@ export default function CloudXR3DUI({
                         <RecordingButton
                           id="replay-input"
                           label={recorder.mode === 'replaying' ? 'Stop' : 'Play'}
-                          onClick={recorder.mode === 'replaying' ? recorder.stopReplay : recorder.startReplay}
+                          onClick={
+                            recorder.mode === 'replaying'
+                              ? recorder.stopReplay
+                              : recorder.startReplay
+                          }
                           disabled={recorder.mode === 'idle' && !recorder.savedRecording}
                         />
                       )}
                       {recorder.mode === 'idle' && recorder.savedRecording && (
-                        <RecordingButton id="save-input" label="Save" onClick={recorder.onSaveRecording} />
+                        <RecordingButton
+                          id="save-input"
+                          label="Save"
+                          onClick={recorder.onSaveRecording}
+                        />
                       )}
                     </Container>
                   </Container>
                 )}
-
               </Container>
 
               {/* Right Column - Controls */}
