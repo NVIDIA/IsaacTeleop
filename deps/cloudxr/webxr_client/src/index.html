@@ -641,10 +641,6 @@ limitations under the License.
         font-size: 0.9rem;
         font-weight: 500;
         line-height: 1.4;
-        /* Messages are set via textContent and separate entries with newlines
-           (browser capability failures, host workstation notices), so newlines
-           must render while long lines still wrap. */
-        white-space: pre-line;
       }
 
       .error-message-box.show {
@@ -676,6 +672,17 @@ limitations under the License.
         display: inline-block;
         margin-right: 8px;
         font-weight: bold;
+      }
+
+      /* Messages are set via textContent and separate entries with newlines
+         (browser capability failures, host workstation notices), so newlines
+         must render while long lines still wrap.
+
+         Scoped to the text span, not the box: the icon and text spans sit on
+         separate source lines, and pre-line on the container would render that
+         markup newline as a line break, pushing every message below the icon. */
+      .error-message-box #errorMessageText {
+        white-space: pre-line;
       }
 
       /* Load Recording status feedback */
