@@ -685,14 +685,23 @@ function AppContent() {
   // static colors at render time rather than subscribing.
   const [systemNoticeLevel, setSystemNoticeLevel] = useState<'warning' | 'info'>('warning');
 
+  /** Exact text this component last wrote to the shared 2D status box. */
+  const systemNoticeTextRef = useRef<string | null>(null);
+
   /** Take the notice down, in both surfaces, and cancel any pending auto-dismiss. */
   const dismissSystemNotice = () => {
     systemNotice.value = null;
     setSystemNoticeVisible(false);
-    // showStatus() sets .show and never clears itself, so without this the 2D
-    // status box keeps the notice after dismissal, after the timeout, and
-    // across a disconnect into the next connection.
-    cloudXR2DUI?.hideError();
+    // showStatus() sets .show and never clears itself, so the 2D box needs an
+    // explicit retraction. Clear it only while it still holds our notice: the
+    // box is shared, and handleDisconnect() runs this on the way out of a
+    // failed session -- moments after CloudXR reported the failure into that
+    // same box. Blanking unconditionally erased that error, and because it is
+    // reported imperatively there is no React state to bring it back.
+    if (systemNoticeTextRef.current !== null) {
+      cloudXR2DUI?.hideStatusIfShowing(systemNoticeTextRef.current);
+      systemNoticeTextRef.current = null;
+    }
     if (systemNoticeTimerRef.current !== null) {
       clearTimeout(systemNoticeTimerRef.current);
       systemNoticeTimerRef.current = null;
@@ -735,17 +744,16 @@ function AppContent() {
         clearTimeout(systemNoticeTimerRef.current);
       }
       systemNoticeTimerRef.current = window.setTimeout(() => {
-        systemNotice.value = null;
-        setSystemNoticeVisible(false);
         systemNoticeTimerRef.current = null;
+        dismissSystemNotice();
       }, SYSTEM_NOTICE_AUTO_DISMISS_MS);
 
       // Mirror to the 2D banner so the notice is visible when testing from a
-      // desktop browser, where the in-XR panel never renders.
-      cloudXR2DUI?.showStatus(
-        formatSystemNotice(notice),
-        notice.level === 'warning' ? 'error' : 'info'
-      );
+      // desktop browser, where the in-XR panel never renders. Remember the exact
+      // text so dismissal can retract it without clobbering a later message.
+      const mirroredText = formatSystemNotice(notice);
+      systemNoticeTextRef.current = mirroredText;
+      cloudXR2DUI?.showStatus(mirroredText, notice.level === 'warning' ? 'error' : 'info');
       return;
     }
 
