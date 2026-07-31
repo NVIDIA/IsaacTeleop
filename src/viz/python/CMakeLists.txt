@@ -3,7 +3,7 @@
 #
 # Python bindings for Televiz — _viz.so + isaacteleop.viz package.
 # Output lands in ${CMAKE_BINARY_DIR}/python_package/<cfg>/isaacteleop/viz/
-# next to the __init__.py staged by src/core/python/CMakeLists.txt.
+# next to the __init__.py staged by src/python/CMakeLists.txt.
 
 cmake_minimum_required(VERSION 3.20)
 

@@ -37,26 +37,20 @@ optional-dependencies.cloudxr = {file = ["requirements-cloudxr.txt"]}
 [tool.setuptools]
 include-package-data = false
 
-# Discover packages from the staged tree instead of listing them by hand: this
-# file is generated into python_package/<config>/, whose isaacteleop/ subtree CMake
-# has already assembled. A new subpackage then needs no registration here, and
-# BUILD_VIZ / BUNDLE_ROBOTIC_GROUNDING select their packages purely by staging
-# them or not -- which is why the CMake-substituted viz / robotic_grounding
-# package blocks this file used to carry are gone.
+# Packages are discovered from the staged tree: this file is generated into
+# python_package/<config>/, whose isaacteleop/ subtree CMake has already
+# assembled, so a package ships exactly when it was staged -- which is how
+# BUILD_VIZ and BUNDLE_ROBOTIC_GROUNDING select theirs.
 #
-# namespaces = false is REQUIRED, not a default restated. In pyproject.toml there
-# is no separate find-namespace table, and the default finder IS the namespace one
-# (setuptools config/expand.py calls find_packages(namespaces=True) ->
-# PEP420PackageFinder). Left at the default, any staged directory without an
-# __init__.py becomes a package -- notably isaacteleop/cloudxr/native/, the
-# vendored CloudXR runtime, whose inclusion would then hinge on package-data glob
-# overlap instead of being carried as package data of isaacteleop.cloudxr.
+# namespaces = false is load-bearing: pyproject.toml has no separate
+# find-namespace table and the default finder is the namespace one, so any staged
+# directory without an __init__.py would be taken for a package -- notably
+# isaacteleop/cloudxr/native/, which ships as package data of isaacteleop.cloudxr.
 #
-# include is scoped to the exact top-level names the old hand-written list carried.
+# include names the top-level packages explicitly, so files that sit in the
+# staging root (setuptools' own build/, *.egg-info) are never mistaken for one.
 # robotic_grounding comes from the optional V2D drop (BUNDLE_ROBOTIC_GROUNDING);
-# naming it explicitly keeps it reachable while an absent drop simply matches
-# nothing, and keeps unrelated files that may sit in the staging root (setuptools'
-# own build/, *.egg-info) from ever being mistaken for packages.
+# when that drop is absent the entry matches nothing.
 [tool.setuptools.packages.find]
 where = ["."]
 namespaces = false
@@ -76,9 +70,8 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 # runtime; the package's two .py ship either way.
 "isaacteleop.cloudxr_exp" = ["native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
 "isaacteleop.haptic_devices" = ["*.so", "*.pyd", "*.pyi"]
-# Keys for packages that are only staged in some configurations are inert
-# otherwise -- package-data for a package `find` did not discover matches nothing.
-# So these no longer need the CMake-substituted blocks they replace.
+# Keys for packages staged in only some configurations are inert in the rest:
+# package-data for a package `find` did not discover matches nothing.
 "isaacteleop.viz" = ["*.so", "*.pyd", "*.pyi"]
 robotic_grounding = ["assets/xmls/sharpawave/*.xml"]
 

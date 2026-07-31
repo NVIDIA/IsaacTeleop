@@ -11,10 +11,9 @@
 # produce a wheel without robotic_grounding, and Sharpa imports skip.
 option(BUNDLE_ROBOTIC_GROUNDING "Bundle V2D's robotic_grounding into the wheel" OFF)
 
-# pyproject.toml.in no longer needs per-configuration packages / package-data
-# substitutions: it discovers packages from the staged tree via
-# [tool.setuptools.packages.find], so viz and robotic_grounding are selected by
-# whether they were staged at all, not by injected TOML.
+# pyproject.toml.in discovers packages from the staged tree via
+# [tool.setuptools.packages.find], so viz and robotic_grounding ship exactly when
+# they were staged; the template carries no per-configuration substitutions.
 set(ROBOTIC_GROUNDING_SRC "${CMAKE_SOURCE_DIR}/deps/v2d/src/robotic_grounding")
 if(BUNDLE_ROBOTIC_GROUNDING)
     if(NOT EXISTS "${ROBOTIC_GROUNDING_SRC}/__init__.py")

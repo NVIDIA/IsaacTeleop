@@ -77,15 +77,11 @@ exclude = [
     "test_.*",
 ]
 
-# `IHapticDevice.accepted_type()` is annotated `-> TensorGroupType`, so the
-# `cast()` at haptic_sink.py:67 is dead code. It only became visible once the
-# source move unified module identities: previously the engine was checked as
-# `python.*` while `isaacteleop.haptic_devices` resolved to the staged copy, so
-# the two `TensorGroupType` symbols were distinct types and the cast looked
-# meaningful. Deleting the cast is the real fix, but haptic_sink.py is staged
-# into the Python package, and the commit that moved these files is required to
-# leave the staged tree byte-for-byte identical. Drop this override together
-# with the cast in a follow-up.
+# `IHapticDevice.accepted_type()` already returns `TensorGroupType`, so the
+# `cast()` in haptic_sink.py is redundant -- visible only now that engine and
+# haptic_devices are checked as one package instead of two module identities.
+# Deleting the cast is the real fix; this override holds until that follow-up,
+# so the move leaves the staged tree byte-for-byte identical.
 [[tool.mypy.overrides]]
 module = "isaacteleop.retargeting_engine.deviceio_source_nodes.haptic_sink"
 disable_error_code = ["redundant-cast"]

@@ -30,30 +30,10 @@ endif()
 
 set(ISAAC_TELEOP_PYTHON_STAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
 
-# Staging never removes, so a deleted .py would linger and packages.find would ship
-# it in the RELEASED wheel. Prune the authored *.py set only, never a directory:
-# these dirs also hold the .so/.pyi/native runtime, all written before this target
-# runs, so a directory prune would delete live artifacts without a relink.
-# $<CONFIG> cannot be globbed at configure time, so walk the concrete per-config dirs.
-file(GLOB _isaac_teleop_stage_config_dirs LIST_DIRECTORIES true
-    "${CMAKE_BINARY_DIR}/python_package/*")
-foreach(_stage_config_dir IN LISTS _isaac_teleop_stage_config_dirs)
-    if(NOT IS_DIRECTORY "${_stage_config_dir}/isaacteleop")
-        continue()
-    endif()
-    file(GLOB_RECURSE _staged_python_files
-        RELATIVE "${_stage_config_dir}"
-        "${_stage_config_dir}/isaacteleop/*.py"
-    )
-    foreach(_staged_rel_path IN LISTS _staged_python_files)
-        if(NOT _staged_rel_path IN_LIST ISAAC_TELEOP_PYTHON_SOURCES)
-            message(STATUS
-                "[isaacteleop_python] pruning stale staged file: ${_staged_rel_path}")
-            file(REMOVE "${_stage_config_dir}/${_staged_rel_path}")
-        endif()
-    endforeach()
-endforeach()
-
+# Staging copies, it never removes: a .py deleted or renamed in the source tree
+# survives in an incremental build dir until it is wiped. Wheels are built from a
+# clean tree, so this only ever shows up locally -- rebuild from scratch if a
+# module you deleted still imports.
 set(ISAAC_TELEOP_PYTHON_STAGED_FILES "")
 foreach(_rel_path IN LISTS ISAAC_TELEOP_PYTHON_SOURCES)
     set(_src_file "${CMAKE_CURRENT_SOURCE_DIR}/${_rel_path}")
