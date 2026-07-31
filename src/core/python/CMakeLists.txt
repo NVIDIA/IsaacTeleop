@@ -85,6 +85,21 @@ set(STUBGEN_PYPROJECT "${CMAKE_CURRENT_SOURCE_DIR}/stubgen_pyproject.toml")
 set(STUBGEN_PACKAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
 set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/isaacteleop/py.typed")
 
+# isaacteleop.viz._viz is stubbed here rather than from a POST_BUILD hook on
+# viz_py. Importing any submodule runs the parent isaacteleop/__init__.py, which
+# eagerly imports every sibling extension module, so stub generation must follow
+# all of them. This command already DEPENDS on python_package, which aggregates
+# every module, so ordering is correct by construction; a POST_BUILD hook on
+# viz_py carries no dependency edges and raced the siblings' links under -j.
+# Empty when BUILD_VIZ=OFF, where the target does not exist.
+set(_viz_stub_command)
+if(BUILD_VIZ)
+    set(_viz_stub_command
+        COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+            python "${STUBGEN_SCRIPT}" isaacteleop.viz._viz "${STUBGEN_PACKAGE_DIR}"
+    )
+endif()
+
 add_custom_command(
     OUTPUT "${PY_TYPED_MARKER}"
     COMMAND ${CMAKE_COMMAND} -E echo "Generating Python type stubs..."
@@ -104,6 +119,7 @@ add_custom_command(
         python "${STUBGEN_SCRIPT}" isaacteleop.plugin_manager._plugin_manager "${STUBGEN_PACKAGE_DIR}"
     COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
         python "${STUBGEN_SCRIPT}" isaacteleop.schema._schema "${STUBGEN_PACKAGE_DIR}"
+    ${_viz_stub_command}
 
     # Create py.typed marker file (PEP 561) - also serves as build stamp
     COMMAND ${CMAKE_COMMAND} -E touch "${PY_TYPED_MARKER}"
