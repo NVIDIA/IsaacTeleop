@@ -85,20 +85,32 @@ set(STUBGEN_PYPROJECT "${CMAKE_CURRENT_SOURCE_DIR}/stubgen_pyproject.toml")
 set(STUBGEN_PACKAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
 set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/isaacteleop/py.typed")
 
+set(STUBGEN_MODULES
+    isaacteleop.deviceio_trackers._deviceio_trackers
+    isaacteleop.deviceio_session._deviceio_session
+    isaacteleop.oxr._oxr
+    isaacteleop.plugin_manager._plugin_manager
+    isaacteleop.schema._schema
+)
+
 # isaacteleop.viz._viz is stubbed here rather than from a POST_BUILD hook on
 # viz_py. Importing any submodule runs the parent isaacteleop/__init__.py, which
 # eagerly imports every sibling extension module, so stub generation must follow
 # all of them. This command already DEPENDS on python_package, which aggregates
 # every module, so ordering is correct by construction; a POST_BUILD hook on
 # viz_py carries no dependency edges and raced the siblings' links under -j.
-# Empty when BUILD_VIZ=OFF, where the target does not exist.
-set(_viz_stub_command)
+# Omitted when BUILD_VIZ=OFF, where the target does not exist.
 if(BUILD_VIZ)
-    set(_viz_stub_command
-        COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
-            python "${STUBGEN_SCRIPT}" isaacteleop.viz._viz "${STUBGEN_PACKAGE_DIR}"
-    )
+    list(APPEND STUBGEN_MODULES isaacteleop.viz._viz)
 endif()
+
+set(STUBGEN_COMMANDS)
+foreach(_module IN LISTS STUBGEN_MODULES)
+    list(APPEND STUBGEN_COMMANDS
+        COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+            python "${STUBGEN_SCRIPT}" ${_module} "${STUBGEN_PACKAGE_DIR}"
+    )
+endforeach()
 
 add_custom_command(
     OUTPUT "${PY_TYPED_MARKER}"
@@ -109,17 +121,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy "${STUBGEN_PYPROJECT}" "${CMAKE_BINARY_DIR}/stubgen/pyproject.toml"
 
     # Generate stubs for each pybind11 module using the stubgen pyproject.toml
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" isaacteleop.deviceio_trackers._deviceio_trackers "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" isaacteleop.deviceio_session._deviceio_session "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" isaacteleop.oxr._oxr "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" isaacteleop.plugin_manager._plugin_manager "${STUBGEN_PACKAGE_DIR}"
-    COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
-        python "${STUBGEN_SCRIPT}" isaacteleop.schema._schema "${STUBGEN_PACKAGE_DIR}"
-    ${_viz_stub_command}
+    ${STUBGEN_COMMANDS}
 
     # Create py.typed marker file (PEP 561) - also serves as build stamp
     COMMAND ${CMAKE_COMMAND} -E touch "${PY_TYPED_MARKER}"

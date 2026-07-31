@@ -17,6 +17,16 @@ import traceback
 from pathlib import Path
 
 
+def _err(message: str) -> None:
+    """Report a failure on stderr.
+
+    Diagnostics go to stderr so they stay adjacent to each other: stdout is
+    block-buffered under a pipe (as in a CMake custom command), which otherwise
+    strands related lines dozens apart in the build log.
+    """
+    print(message, file=sys.stderr)
+
+
 def generate_stub(module_name: str, package_dir: Path) -> bool:
     """Generate stub file for a single pybind11 module.
 
@@ -40,8 +50,8 @@ def generate_stub(module_name: str, package_dir: Path) -> bool:
             to_output_and_subdir,
         )
     except ImportError:
-        print("Error: pybind11-stubgen not installed")
-        print("This script should be run via: uv run --with pybind11-stubgen")
+        _err("Error: pybind11-stubgen not installed")
+        _err("This script should be run via: uv run --with pybind11-stubgen")
         return False
 
     print(f"Generating stubs for {module_name}...")
@@ -91,23 +101,19 @@ def generate_stub(module_name: str, package_dir: Path) -> bool:
         return True
 
     except Exception as e:
-        # Print the whole chain, not just str(e). Importing a pybind11 module
-        # runs PYBIND11_MODULE's init, which re-raises any failure as a bare
-        # "ImportError: initialization failed" and hangs the real cause off
-        # __cause__ -- so str(e) alone hides what actually went wrong.
-        # Both on stderr so the header stays adjacent to its traceback: stdout
-        # is block-buffered under a pipe (as in a CMake POST_BUILD), which
-        # otherwise strands the two dozens of lines apart in the build log.
-        print(f"Error: stubgen failed for {module_name}: {e}", file=sys.stderr)
-        traceback.print_exc()
+        # Headline the failure, then print the whole chain. str(e) alone is not
+        # enough: importing a pybind11 module runs PYBIND11_MODULE's init, which
+        # re-raises any failure as a bare "ImportError: initialization failed"
+        # and hangs the real cause off __cause__.
+        _err(f"Error: stubgen failed for {module_name}: {e}\n{traceback.format_exc()}")
         return False
 
 
 def main() -> int:
     """Main entry point."""
     if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <module_name> <package_dir>")
-        print(
+        _err(f"Usage: {sys.argv[0]} <module_name> <package_dir>")
+        _err(
             f"Example: {sys.argv[0]} isaacteleop.deviceio._deviceio /path/to/python_package"
         )
         return 1
@@ -116,13 +122,13 @@ def main() -> int:
     package_dir = Path(sys.argv[2]).resolve()
 
     if not package_dir.exists():
-        print(f"Error: Package directory does not exist: {package_dir}")
+        _err(f"Error: Package directory does not exist: {package_dir}")
         return 1
 
     if generate_stub(module_name, package_dir):
         return 0
     else:
-        print("Stub generation failed.")
+        _err("Stub generation failed.")
         return 1
 
 
