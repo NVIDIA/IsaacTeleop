@@ -37,6 +37,16 @@ class HeadTracker;
 class IHeadTrackerImpl;
 class MessageChannelTracker;
 class IMessageChannelTrackerImpl;
+class FrameMetadataTrackerOrbbec;
+class IFrameMetadataTrackerOrbbecImpl;
+class OrbbecImuTracker;
+class IOrbbecImuTrackerImpl;
+class OrbbecAudioTracker;
+class IOrbbecAudioTrackerImpl;
+class OrbbecCalibrationTracker;
+class IOrbbecCalibrationTrackerImpl;
+class OrbbecDeviceStateTracker;
+class IOrbbecDeviceStateTrackerImpl;
 
 /**
  * @brief Factory for replay (MCAP-backed) tracker implementations.
@@ -67,6 +77,14 @@ public:
     std::unique_ptr<IJointStateTrackerImpl> create_joint_state_tracker_impl(const JointStateTracker* tracker);
     std::unique_ptr<ISe3TrackerImpl> create_se3_tracker_impl(const Se3Tracker* tracker);
     std::unique_ptr<IMessageChannelTrackerImpl> create_message_channel_tracker_impl(const MessageChannelTracker* tracker);
+    std::unique_ptr<IFrameMetadataTrackerOrbbecImpl> create_frame_metadata_tracker_orbbec_impl(
+        const FrameMetadataTrackerOrbbec* tracker);
+    std::unique_ptr<IOrbbecImuTrackerImpl> create_orbbec_imu_tracker_impl(const OrbbecImuTracker* tracker);
+    std::unique_ptr<IOrbbecAudioTrackerImpl> create_orbbec_audio_tracker_impl(const OrbbecAudioTracker* tracker);
+    std::unique_ptr<IOrbbecCalibrationTrackerImpl> create_orbbec_calibration_tracker_impl(
+        const OrbbecCalibrationTracker* tracker);
+    std::unique_ptr<IOrbbecDeviceStateTrackerImpl> create_orbbec_device_state_tracker_impl(
+        const OrbbecDeviceStateTracker* tracker);
 
 private:
     std::string_view get_name(const ITracker* tracker) const;

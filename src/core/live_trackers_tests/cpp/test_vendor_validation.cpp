@@ -26,8 +26,10 @@
 #include <deviceio_base/tracker.hpp>
 #include <deviceio_base/tracker_vendor.hpp>
 #include <deviceio_session/deviceio_session.hpp>
+#include <deviceio_trackers/frame_metadata_tracker_orbbec.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/orbbec_ego_trackers.hpp>
 #include <live_trackers/live_deviceio_factory.hpp>
 
 #include <algorithm>
@@ -192,4 +194,41 @@ TEST_CASE("vendor validation: validate_vendor_selections rejects an invalid sele
         VendorList vendors{ { body.get(), core::TrackerVendor{ "body.does-not-exist" } } };
         REQUIRE_THROWS_AS(core::validate_vendor_selections(vendors), std::invalid_argument);
     }
+}
+
+TEST_CASE("Orbbec frame metadata tracker requires the schema tensor extensions", "[live_trackers][orbbec]")
+{
+    auto tracker = std::make_shared<core::FrameMetadataTrackerOrbbec>(
+        "orbbec_ego", std::vector{ core::OrbbecCameraStream_ColorLeft, core::OrbbecCameraStream_ColorRight });
+    const auto extensions = core::DeviceIOSession::get_required_extensions({ tracker });
+    // The host tracker consumes tensor data. The separate camera plugin owns
+    // SchemaPusher and therefore owns the push-tensor extension requirement.
+    REQUIRE(contains(extensions, "XR_NVX1_tensor_data"));
+    REQUIRE_FALSE(contains(extensions, "XR_NVX1_push_tensor"));
+}
+
+TEST_CASE("Orbbec frame metadata tracker validates stream configuration", "[live_trackers][orbbec]")
+{
+    REQUIRE_THROWS_AS(core::FrameMetadataTrackerOrbbec("orbbec_ego", {}), std::invalid_argument);
+    REQUIRE_THROWS_AS(
+        core::FrameMetadataTrackerOrbbec("", { core::OrbbecCameraStream_ColorLeft }), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::FrameMetadataTrackerOrbbec(
+                          "orbbec_ego", { core::OrbbecCameraStream_ColorLeft, core::OrbbecCameraStream_ColorLeft }),
+                      std::invalid_argument);
+    REQUIRE_THROWS_AS(core::FrameMetadataTrackerOrbbec("orbbec_ego", { core::OrbbecCameraStream_ColorLeft }, 0),
+                      std::invalid_argument);
+}
+
+TEST_CASE("Orbbec Ego auxiliary trackers require schema extensions and validate input", "[live_trackers][orbbec]")
+{
+    auto imu = std::make_shared<core::OrbbecImuTracker>("ego");
+    auto audio = std::make_shared<core::OrbbecAudioTracker>("ego");
+    auto calibration = std::make_shared<core::OrbbecCalibrationTracker>("ego");
+    auto state = std::make_shared<core::OrbbecDeviceStateTracker>("ego");
+    const auto extensions = core::DeviceIOSession::get_required_extensions({ imu, audio, calibration, state });
+    REQUIRE(contains(extensions, "XR_NVX1_tensor_data"));
+    REQUIRE_THROWS_AS(core::OrbbecImuTracker("", {}), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::OrbbecImuTracker("ego", { core::OrbbecImuSensor_Accel, core::OrbbecImuSensor_Accel }),
+                      std::invalid_argument);
+    REQUIRE_THROWS_AS(core::OrbbecAudioTracker("ego", 0), std::invalid_argument);
 }

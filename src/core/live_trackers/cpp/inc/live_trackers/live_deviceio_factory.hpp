@@ -27,6 +27,16 @@ class ControllerTracker;
 class IControllerTrackerImpl;
 class FrameMetadataTrackerOak;
 class IFrameMetadataTrackerOakImpl;
+class FrameMetadataTrackerOrbbec;
+class IFrameMetadataTrackerOrbbecImpl;
+class OrbbecImuTracker;
+class IOrbbecImuTrackerImpl;
+class OrbbecAudioTracker;
+class IOrbbecAudioTrackerImpl;
+class OrbbecCalibrationTracker;
+class IOrbbecCalibrationTrackerImpl;
+class OrbbecDeviceStateTracker;
+class IOrbbecDeviceStateTrackerImpl;
 class MessageChannelTracker;
 class IMessageChannelTrackerImpl;
 class FullBodyTracker;
@@ -100,6 +110,14 @@ public:
     std::unique_ptr<ISe3TrackerImpl> create_se3_tracker_impl(const Se3Tracker* tracker);
     std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
+    std::unique_ptr<IFrameMetadataTrackerOrbbecImpl> create_frame_metadata_tracker_orbbec_impl(
+        const FrameMetadataTrackerOrbbec* tracker);
+    std::unique_ptr<IOrbbecImuTrackerImpl> create_orbbec_imu_tracker_impl(const OrbbecImuTracker* tracker);
+    std::unique_ptr<IOrbbecAudioTrackerImpl> create_orbbec_audio_tracker_impl(const OrbbecAudioTracker* tracker);
+    std::unique_ptr<IOrbbecCalibrationTrackerImpl> create_orbbec_calibration_tracker_impl(
+        const OrbbecCalibrationTracker* tracker);
+    std::unique_ptr<IOrbbecDeviceStateTrackerImpl> create_orbbec_device_state_tracker_impl(
+        const OrbbecDeviceStateTracker* tracker);
 
 private:
     // Per-tracker data resolved from the session config: MCAP channel base name (recording) and

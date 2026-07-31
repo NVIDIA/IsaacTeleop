@@ -67,6 +67,7 @@ Table of Contents
    device/haptic_feedback
    device/manus
    device/oak
+   device/orbbec
    device/oglo
    device/wuji_glove
    device/haptikos

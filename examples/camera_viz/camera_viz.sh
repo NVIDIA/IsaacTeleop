@@ -7,6 +7,7 @@
 #
 # Local:
 #   ./camera_viz.sh setup [--sender-only]      install deps + build codec
+#       [--with-orbbec --orbbec-sdk-root PATH]
 #   ./camera_viz.sh loopback CONFIG            run streamer + viz on 127.0.0.1
 #   ./camera_viz.sh run CONFIG [--mode M]      run the viewer (honors source:)
 #
@@ -391,13 +392,15 @@ cmd_service_restart() {
 # ──────────────────────────────────────────────────────────────────────
 
 show_help() {
-    cat <<EOF
+    # Keep literal environment-variable examples intact under `set -u`.
+    cat <<'EOF'
 camera_viz.sh — local development + Jetson deployment for camera_viz
 
 LOCAL
     setup [--venv PATH] [--sender-only] [--jetson]
           [--no-v4l2] [--no-oakd] [--with-rtp] [--with-zed]
           [--wheel PATH | --build-from-source]
+          [--with-orbbec --orbbec-sdk-root PATH]
                           Create .venv, install Python deps via uv into
                           the venv, build native codec. Python deps stay
                           inside .venv (no --system-site-packages).
@@ -426,6 +429,8 @@ LOCAL
                           setup offers to build it from this checkout;
                           --build-from-source picks that without asking,
                           --wheel PATH installs a wheel you already built.
+                          --with-orbbec builds the native Ego capture
+                          binding against the supplied SDK root.
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 

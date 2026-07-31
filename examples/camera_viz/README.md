@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 | `synthetic` | GPU test pattern — no hardware. `stereo: true` adds a `disparity_px` offset between eyes |
 | `v4l2`      | USB / UVC — anything `v4l2-ctl --list-formats-ext` shows |
 | `oakd`      | OAK-D RGB / LEFT / RIGHT; mono or `stereo: true` (GRAY8 over USB, GPU-broadcast to RGBA; `stereo_rgb` for color). Needs the Luxonis udev rule — see below |
+| `orbbec_ego` | Ego PID 0x1201 stereo ColorLeft/ColorRight; native SDK capture with MJPEG or NVDEC H.264/H.265 |
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
@@ -36,6 +37,48 @@ source examples/camera_viz/.venv/bin/activate
 `setup` creates `.venv/` via `uv` (no `--system-site-packages`) and installs `isaacteleop[cloudxr]` — which bundles Televiz — plus every other Python dep. The `cloudxr` extra is not optional here: XR is the default mode and the viewer launches the runtime itself. It then probes system packages (cairo / girepository headers, GStreamer plugins under `--with-rtp`, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
 
 camera_viz needs an `isaacteleop` new enough to carry the features it uses, so `setup` works down a ladder to get one: newest **final release** meeting that minimum; else newest **release candidate** (an rc is published from every release-branch commit, and PEP 440 keeps pre-releases out of a plain minimum-version specifier); else a **source build** of this checkout, after asking. Final releases win automatically whenever one qualifies. The minimum itself lives in `scripts/_install_deps.sh`.
+
+On Ubuntu 22.04, full setup uses uv's managed Python 3.12, including its Python
+development headers; **do not** install or add a PPA for `python3.12-dev` (that
+package is not in Ubuntu 22.04). The prompt should list only Cairo,
+gobject-introspection, and GStreamer dependencies as needed. `--sender-only`
+uses the system Python instead and may correctly request its matching
+`pythonX-dev` package.
+
+The default Orbbec Ego configuration uses H.264 and native NVDEC. It requires
+both a working NVIDIA driver **and** the NVIDIA CUDA Toolkit (`nvcc`); the CUDA
+version printed by `nvidia-smi` reports driver capability and does not mean the
+Toolkit is installed. Install the Toolkit for Ubuntu 22.04 from NVIDIA's
+[CUDA installation guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html),
+then verify and rerun setup:
+
+```bash
+nvcc --version
+examples/camera_viz/camera_viz.sh setup --with-orbbec --orbbec-sdk-root /path/to/OrbbecSDK
+```
+
+If NVDEC is intentionally unavailable, set `format: mjpg` in
+`configs/orbbec_ego.yaml`. MJPEG is decoded by OrbbecSDK and uploaded to CuPy;
+H.264/H.265 are unavailable until the native codec builds successfully.
+
+`setup` also safely retries a codec configuration that previously ran before
+the Toolkit was installed: it clears only CMake's generated cache and preserves
+the downloaded NVIDIA Video Codec SDK. Do not delete
+`examples/camera_viz/codec/build/` merely to retry; rerun `setup` instead.
+An interrupted SDK download is detected by checksum, removed, and retried; a
+network error is reported directly rather than as a later missing-source error.
+
+If the prompted `apt-get install` reports unmet dependencies and suggests
+`apt --fix-broken install`, the host package database is inconsistent rather
+than a camera_viz dependency being unavailable. Review the repair first, then
+repair it and rerun setup:
+
+```bash
+sudo apt-get -s --fix-broken install  # simulation: inspect changes first
+sudo apt --fix-broken install
+```
+
+Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--with-orbbec --orbbec-sdk-root PATH`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
 
 Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--sender-only`), `--with-zed`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
 
@@ -57,6 +100,12 @@ Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--
 ```
 
 Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `realsense.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `synthetic_xr_3up.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
+Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `realsense.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `synthetic_xr_3up.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording), or `orbbec_ego.yaml`. The Orbbec configuration requires the optional native binding:
+
+```bash
+./camera_viz.sh setup --with-orbbec --orbbec-sdk-root /absolute/path/to/OrbbecSDK
+./camera_viz.sh run configs/orbbec_ego.yaml --mode window
+```
 
 ## Mode 2 — Split (robot → workstation, RTP)
 

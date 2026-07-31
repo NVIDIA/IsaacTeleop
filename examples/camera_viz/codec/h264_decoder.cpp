@@ -66,17 +66,18 @@ struct H264Decoder::Impl
         {
             check_rt(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking), "cudaStreamCreate");
             // Zero-latency, decode-order output. Output stays on GPU.
-            decoder = std::make_unique<NvDecoder>(cu_context,
-                                                  true, // bUseDeviceFrame
-                                                  cudaVideoCodec_H264,
-                                                  true, // bLowLatency
-                                                  false, // bDeviceFramePitched
-                                                  nullptr, // pCropRect
-                                                  nullptr, // pResizeDim
-                                                  false, // bExtractSEIMessage
-                                                  0, 0, // max width/height (auto)
-                                                  1000, // nClockRate
-                                                  true); // bForceZeroLatency
+            decoder =
+                std::make_unique<NvDecoder>(cu_context,
+                                            true, // bUseDeviceFrame
+                                            cfg.codec == DecoderCodec::kH264 ? cudaVideoCodec_H264 : cudaVideoCodec_HEVC,
+                                            true, // bLowLatency
+                                            false, // bDeviceFramePitched
+                                            nullptr, // pCropRect
+                                            nullptr, // pResizeDim
+                                            false, // bExtractSEIMessage
+                                            0, 0, // max width/height (auto)
+                                            1000, // nClockRate
+                                            true); // bForceZeroLatency
         }
         catch (...)
         {

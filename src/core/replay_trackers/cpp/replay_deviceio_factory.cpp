@@ -12,10 +12,12 @@
 #include "replay_joint_state_tracker_impl.hpp"
 #include "replay_message_channel_tracker_impl.hpp"
 #include "replay_oglo_tactile_tracker_impl.hpp"
+#include "replay_orbbec_tracker_impl.hpp"
 #include "replay_se3_tracker_impl.hpp"
 #include "replay_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
+#include <deviceio_trackers/frame_metadata_tracker_orbbec.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
@@ -24,6 +26,7 @@
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/oglo_tactile_tracker.hpp>
+#include <deviceio_trackers/orbbec_ego_trackers.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <mcap/reader.hpp>
@@ -118,6 +121,36 @@ std::unique_ptr<ITrackerImpl> try_create_message_channel_impl(ReplayDeviceIOFact
     return typed ? factory.create_message_channel_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_orbbec_frame_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FrameMetadataTrackerOrbbec*>(&tracker);
+    return typed ? factory.create_frame_metadata_tracker_orbbec_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_imu_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecImuTracker*>(&tracker);
+    return typed ? factory.create_orbbec_imu_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_audio_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecAudioTracker*>(&tracker);
+    return typed ? factory.create_orbbec_audio_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_calibration_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecCalibrationTracker*>(&tracker);
+    return typed ? factory.create_orbbec_calibration_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_device_state_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecDeviceStateTracker*>(&tracker);
+    return typed ? factory.create_orbbec_device_state_tracker_impl(typed) : nullptr;
+}
+
 using TryCreateFn = std::unique_ptr<ITrackerImpl> (*)(ReplayDeviceIOFactory&, const ITracker&);
 
 inline const TryCreateFn k_tracker_dispatch[] = {
@@ -132,6 +165,11 @@ inline const TryCreateFn k_tracker_dispatch[] = {
     &try_create_joint_state_impl,
     &try_create_se3_tracker_impl,
     &try_create_message_channel_impl,
+    &try_create_orbbec_frame_impl,
+    &try_create_orbbec_imu_impl,
+    &try_create_orbbec_audio_impl,
+    &try_create_orbbec_calibration_impl,
+    &try_create_orbbec_device_state_impl,
 };
 
 } // namespace
@@ -229,6 +267,37 @@ std::unique_ptr<IMessageChannelTrackerImpl> ReplayDeviceIOFactory::create_messag
     const MessageChannelTracker* tracker)
 {
     return std::make_unique<ReplayMessageChannelTrackerImpl>(open_reader(filename_), get_name(tracker));
+}
+
+std::unique_ptr<IFrameMetadataTrackerOrbbecImpl> ReplayDeviceIOFactory::create_frame_metadata_tracker_orbbec_impl(
+    const FrameMetadataTrackerOrbbec* tracker)
+{
+    return std::make_unique<ReplayFrameMetadataTrackerOrbbecImpl>(
+        open_reader(filename_), get_name(tracker), tracker->get_stream_names());
+}
+
+std::unique_ptr<IOrbbecImuTrackerImpl> ReplayDeviceIOFactory::create_orbbec_imu_tracker_impl(const OrbbecImuTracker* tracker)
+{
+    return std::make_unique<ReplayOrbbecImuTrackerImpl>(
+        open_reader(filename_), get_name(tracker), tracker->stream_names());
+}
+
+std::unique_ptr<IOrbbecAudioTrackerImpl> ReplayDeviceIOFactory::create_orbbec_audio_tracker_impl(
+    const OrbbecAudioTracker* tracker)
+{
+    return std::make_unique<ReplayOrbbecAudioTrackerImpl>(open_reader(filename_), get_name(tracker));
+}
+
+std::unique_ptr<IOrbbecCalibrationTrackerImpl> ReplayDeviceIOFactory::create_orbbec_calibration_tracker_impl(
+    const OrbbecCalibrationTracker* tracker)
+{
+    return std::make_unique<ReplayOrbbecCalibrationTrackerImpl>(open_reader(filename_), get_name(tracker));
+}
+
+std::unique_ptr<IOrbbecDeviceStateTrackerImpl> ReplayDeviceIOFactory::create_orbbec_device_state_tracker_impl(
+    const OrbbecDeviceStateTracker* tracker)
+{
+    return std::make_unique<ReplayOrbbecDeviceStateTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 } // namespace core

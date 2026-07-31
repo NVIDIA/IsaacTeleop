@@ -25,8 +25,9 @@ videos. Integrates ViPE and Dyn-HaMR in containerized environments.
 Video Capture
 ---------------------------
 
-To capture egocentric video with an OAK camera, see the
-`OAK camera plugin <https://nvidia.github.io/IsaacTeleop/main/device/oak.html>`_ documentation.
+To capture egocentric video, see the
+`OAK camera plugin <https://nvidia.github.io/IsaacTeleop/main/device/oak.html>`_ or the
+:doc:`Orbbec Ego camera plugin </device/orbbec>` documentation.
 
 Setup
 -----
