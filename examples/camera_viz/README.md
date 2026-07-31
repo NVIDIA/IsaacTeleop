@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 | `synthetic` | GPU test pattern — no hardware. `stereo: true` adds a `disparity_px` offset between eyes |
 | `v4l2`      | USB / UVC — anything `v4l2-ctl --list-formats-ext` shows |
 | `oakd`      | OAK-D mono RGB / LEFT / RIGHT (stereo not yet wired) |
+| `orbbec_ego` | Ego PID 0x1201 stereo ColorLeft/ColorRight; native SDK capture with MJPEG or NVDEC H.264/H.265 |
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
@@ -35,7 +36,47 @@ source examples/camera_viz/.venv/bin/activate
 
 `setup` installs `isaacteleop` (which bundles Televiz) and every other Python dep from PyPI into `.venv/` via `uv` (no `--system-site-packages`), builds the native NVENC/NVDEC codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
 
-Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
+On Ubuntu 22.04, full setup uses uv's managed Python 3.12, including its Python
+development headers; **do not** install or add a PPA for `python3.12-dev` (that
+package is not in Ubuntu 22.04). The prompt should list only Cairo,
+gobject-introspection, and GStreamer dependencies as needed. `--sender-only`
+uses the system Python instead and may correctly request its matching
+`pythonX-dev` package.
+
+The default Orbbec Ego configuration uses H.264 and native NVDEC. It requires
+both a working NVIDIA driver **and** the NVIDIA CUDA Toolkit (`nvcc`); the CUDA
+version printed by `nvidia-smi` reports driver capability and does not mean the
+Toolkit is installed. Install the Toolkit for Ubuntu 22.04 from NVIDIA's
+[CUDA installation guide](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html),
+then verify and rerun setup:
+
+```bash
+nvcc --version
+examples/camera_viz/camera_viz.sh setup --with-orbbec --orbbec-sdk-root /path/to/OrbbecSDK
+```
+
+If NVDEC is intentionally unavailable, set `format: mjpg` in
+`configs/orbbec_ego.yaml`. MJPEG is decoded by OrbbecSDK and uploaded to CuPy;
+H.264/H.265 are unavailable until the native codec builds successfully.
+
+`setup` also safely retries a codec configuration that previously ran before
+the Toolkit was installed: it clears only CMake's generated cache and preserves
+the downloaded NVIDIA Video Codec SDK. Do not delete
+`examples/camera_viz/codec/build/` merely to retry; rerun `setup` instead.
+An interrupted SDK download is detected by checksum, removed, and retried; a
+network error is reported directly rather than as a later missing-source error.
+
+If the prompted `apt-get install` reports unmet dependencies and suggests
+`apt --fix-broken install`, the host package database is inconsistent rather
+than a camera_viz dependency being unavailable. Review the repair first, then
+repair it and rerun setup:
+
+```bash
+sudo apt-get -s --fix-broken install  # simulation: inspect changes first
+sudo apt --fix-broken install
+```
+
+Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--with-orbbec --orbbec-sdk-root PATH`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
 
 > **Developing against a local build?** Pass `--wheel <path>` (e.g. `camera_viz.sh setup --wheel build/wheels/isaacteleop-*.whl`) to install a locally built wheel instead of the PyPI release. See the [build-from-source guide](../../docs/source/getting_started/build_from_source/index.rst).
 
@@ -48,7 +89,12 @@ Flags: `--no-{v4l2,oakd,rtp}`, `--with-zed`, `--sender-only`, `--jetson`. Pass `
 ./camera_viz.sh run configs/v4l2.yaml --mode window    # desktop window instead
 ```
 
-Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
+Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording), or `orbbec_ego.yaml`. The Orbbec configuration requires the optional native binding:
+
+```bash
+./camera_viz.sh setup --with-orbbec --orbbec-sdk-root /absolute/path/to/OrbbecSDK
+./camera_viz.sh run configs/orbbec_ego.yaml --mode window
+```
 
 ## Mode 2 — Split (robot → workstation, RTP)
 

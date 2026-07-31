@@ -16,6 +16,8 @@ add_library(deviceio_trackers STATIC
     joint_state_tracker.cpp
     se3_tracker.cpp
     frame_metadata_tracker_oak.cpp
+    frame_metadata_tracker_orbbec.cpp
+    orbbec_ego_trackers.cpp
     full_body_tracker.cpp
     inc/deviceio_trackers/head_tracker.hpp
     inc/deviceio_trackers/hand_tracker.hpp
@@ -29,6 +31,8 @@ add_library(deviceio_trackers STATIC
     inc/deviceio_trackers/joint_state_tracker.hpp
     inc/deviceio_trackers/se3_tracker.hpp
     inc/deviceio_trackers/frame_metadata_tracker_oak.hpp
+    inc/deviceio_trackers/frame_metadata_tracker_orbbec.hpp
+    inc/deviceio_trackers/orbbec_ego_trackers.hpp
 )
 
 target_include_directories(deviceio_trackers

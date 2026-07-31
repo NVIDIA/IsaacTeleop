@@ -31,6 +31,12 @@ if command -v ninja >/dev/null 2>&1; then
     generator=(-G Ninja)
 fi
 
+# A failed configure before CUDA is installed leaves CMake's compiler-feature
+# cache incomplete.  Clear generated CMake state on every setup retry, but
+# keep build/_deps and the downloaded Video Codec SDK to avoid another fetch.
+cmake -E rm -f "${build_dir}/CMakeCache.txt"
+cmake -E rm -rf "${build_dir}/CMakeFiles"
+
 cmake -S "${here}" -B "${build_dir}" "${generator[@]}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DPython3_EXECUTABLE="$(command -v python)"

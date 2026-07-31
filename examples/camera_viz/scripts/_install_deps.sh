@@ -11,7 +11,7 @@
 #   --sender-only  sender path only. No isaacteleop, no vulkan deps.
 #
 # Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --no-rtp,
-#        --with-zed, --zed-sdk.
+#        --with-zed, --zed-sdk, --with-orbbec, --orbbec-sdk-root.
 
 set -euo pipefail
 
@@ -35,6 +35,8 @@ WITH_OAKD=true
 WITH_RTP=true
 WITH_ZED=false
 ZED_SDK_DIR=/usr/local/zed
+WITH_ORBBEC=false
+ORBBEC_SDK_DIR=
 # Jetson-specific provisioning: apt-install cuda-nvrtc and create the
 # unversioned CUDA lib symlinks + ld.so cache entry that JetPack skips.
 # Off on desktop where the normal CUDA installer covers both.
@@ -53,6 +55,8 @@ while (( $# )); do
         --no-rtp)       WITH_RTP=false; shift;;
         --with-zed)     WITH_ZED=true; shift;;
         --zed-sdk)      ZED_SDK_DIR=$2; shift 2;;
+        --with-orbbec)  WITH_ORBBEC=true; shift;;
+        --orbbec-sdk-root) ORBBEC_SDK_DIR=$2; shift 2;;
         *) echo "_install_deps.sh: unknown arg: $1" >&2; exit 1;;
     esac
 done
@@ -85,26 +89,28 @@ check_system_deps() {
     fi
 
     local pkgs=()
-    # PyGObject lives in the venv (installed via uv below). What apt
-    # owns here is:
-    #   * Python extension build metadata/headers when uv resolves to a
-    #     system Python (pycairo's Meson build asks for dependency('python')).
+    # PyGObject lives in the venv (installed via uv below). In full mode uv's
+    # managed Python supplies its own development headers, so do not require a
+    # distro pythonX-dev package: Ubuntu 22.04, for example, has no
+    # python3.12-dev. Sender mode deliberately uses the system Python and does
+    # need matching development headers for pycairo's Meson build.
+    # What apt owns here is:
+    #   * Python extension build metadata/headers for sender-only mode.
     #   * C build deps for the source build (libcairo / libgirepository /
     #     pkg-config).
     #   * Runtime Gst typelib (PyGObject loads it via gobject-introspection).
     #   * gst-inspect-1.0 for the plugin-presence probe below.
     command -v pkg-config >/dev/null 2>&1                       || pkgs+=(pkg-config)
-    local py_dev_ver="$PYTHON_VERSION"
     if [[ "$MODE" == sender ]]; then
-        local sys_py
+        local sys_py py_dev_ver="$PYTHON_VERSION"
         sys_py="$(command -v python3 || true)"
         if [[ -x "$sys_py" ]]; then
             py_dev_ver="$("$sys_py" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "$PYTHON_VERSION")"
         fi
-    fi
-    if ! pkg-config --exists "python-$py_dev_ver" 2>/dev/null \
-            || [[ ! -f "/usr/include/python$py_dev_ver/Python.h" ]]; then
-        pkgs+=("python${py_dev_ver}-dev")
+        if ! pkg-config --exists "python-$py_dev_ver" 2>/dev/null \
+                || [[ ! -f "/usr/include/python$py_dev_ver/Python.h" ]]; then
+            pkgs+=("python${py_dev_ver}-dev")
+        fi
     fi
     pkg-config --exists cairo 2>/dev/null                       || pkgs+=(libcairo2-dev)
     # Debian's libgirepository1.0-dev publishes the .pc file as
@@ -415,6 +421,18 @@ if $WITH_ZED; then
     rm -rf "$tmp"
 fi
 
+if $WITH_ORBBEC; then
+    if [[ -z "$ORBBEC_SDK_DIR" || ! -f "$ORBBEC_SDK_DIR/include/libobsensor/ObSensor.hpp" ]]; then
+        echo "_install_deps.sh: --with-orbbec requires a valid --orbbec-sdk-root PATH" >&2
+        exit 1
+    fi
+    echo "==> building native Orbbec Ego capture binding"
+    # shellcheck disable=SC1091
+    source "$VENV_DIR/bin/activate"
+    "$CAMERA_VIZ_DIR/orbbec/build.sh" --orbbec-sdk-root "$ORBBEC_SDK_DIR"
+    deactivate
+fi
+
 # Native NVENC/NVDEC codec. Failures are non-fatal: the runtime falls
 # back to the GStreamer encoder when the native ``.so`` isn't importable.
 if $WITH_RTP; then
@@ -422,10 +440,20 @@ if $WITH_RTP; then
     if [[ -d "$CODEC_DIR" ]]; then
         echo "==> building native codec"
         # shellcheck disable=SC1091
-        source "$VENV_DIR/bin/activate"
-        if ! "$CODEC_DIR/build.sh"; then
-            echo "_install_deps.sh: codec build failed — GStreamer encoder will be used at runtime" >&2
+    source "$VENV_DIR/bin/activate"
+    if ! "$CODEC_DIR/build.sh"; then
+        if $WITH_ORBBEC && ! command -v nvcc >/dev/null 2>&1 \
+                && [[ ! -x /usr/local/cuda/bin/nvcc ]]; then
+            cat >&2 <<'EOF'
+_install_deps.sh: the CUDA Toolkit compiler (nvcc) is missing. Orbbec H.264/H.265
+camera_viz sources require the native NVDEC codec; an NVIDIA driver and nvidia-smi
+alone are not sufficient. Install NVIDIA's CUDA Toolkit, verify `nvcc --version`,
+then rerun setup. For MJPEG-only preview, set `format: mjpg` in orbbec_ego.yaml.
+EOF
+        else
+            echo "_install_deps.sh: codec build failed — GStreamer encoder will be used where supported" >&2
         fi
+    fi
         deactivate
     fi
 fi

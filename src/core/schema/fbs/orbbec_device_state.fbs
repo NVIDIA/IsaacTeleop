@@ -1,0 +1,31 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+struct OrbbecDevicePropertyValue {
+  property_id: int32;
+  value: double;
+}
+
+table OrbbecDeviceState {
+  sequence_number: uint64 (id: 0);
+  device_uid: string (id: 1);
+  work_mode: int32 (id: 2);
+  status_flags: uint64 (id: 3);
+  error_flags: uint64 (id: 4);
+  storage_free_bytes: uint64 (id: 5);
+  temperature_c: float (id: 6);
+  properties: [OrbbecDevicePropertyValue] (id: 7);
+}
+
+table OrbbecDeviceStateTracked { data: OrbbecDeviceState (id: 0); }
+
+table OrbbecDeviceStateRecord {
+  data: OrbbecDeviceState (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type OrbbecDeviceStateRecord;

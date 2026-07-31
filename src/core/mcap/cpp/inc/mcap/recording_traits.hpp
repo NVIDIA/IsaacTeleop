@@ -84,6 +84,31 @@ struct OakRecordingTraits
     static constexpr std::string_view schema_name = "core.FrameMetadataOakRecord";
 };
 
+struct OrbbecRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.FrameMetadataOrbbecRecord";
+};
+
+struct OrbbecImuRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.OrbbecImuBatchRecord";
+};
+
+struct OrbbecAudioRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.OrbbecAudioChunkRecord";
+};
+
+struct OrbbecCalibrationRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.OrbbecCalibrationRecord";
+};
+
+struct OrbbecDeviceStateRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.OrbbecDeviceStateRecord";
+};
+
 struct MessageChannelRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.MessageChannelMessagesRecord";

@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: orbbec_camera
+description: "Orbbec Ego stereo video, IMU, audio, calibration, and state plugin"
+command: "./camera_plugin_orbbec"
+version: "1.0.0"
+devices:
+  - path: "/camera/orbbec/ego"
+    type: "camera"
+    description: "Orbbec Ego ColorLeft/ColorRight, IMU, audio, calibration, and state"

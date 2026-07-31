@@ -3,6 +3,7 @@
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
+#include <deviceio_trackers/frame_metadata_tracker_orbbec.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
@@ -10,6 +11,7 @@
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/oglo_tactile_tracker.hpp>
+#include <deviceio_trackers/orbbec_ego_trackers.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
@@ -141,6 +143,51 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             "Get FrameMetadataOakTrackedT for a specific stream by index; .data is None until first frame arrives")
         .def_property_readonly("stream_count", &core::FrameMetadataTrackerOak::get_stream_count,
                                "Number of streams this tracker is configured for");
+
+    py::class_<core::FrameMetadataTrackerOrbbec, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOrbbec>>(
+        m, "FrameMetadataTrackerOrbbec")
+        .def(py::init<const std::string&, const std::vector<core::OrbbecCameraStream>&, size_t>(),
+             py::arg("collection_prefix"), py::arg("streams"),
+             py::arg("max_flatbuffer_size") = core::FrameMetadataTrackerOrbbec::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a multi-stream Orbbec Ego frame metadata tracker")
+        .def(
+            "get_stream_data",
+            [](const core::FrameMetadataTrackerOrbbec& self, const core::ITrackerSession& session,
+               size_t stream_index) -> core::FrameMetadataOrbbecTrackedT
+            { return self.get_stream_data(session, stream_index); },
+            py::arg("session"), py::arg("stream_index"), "Get FrameMetadataOrbbecTrackedT for a configured stream")
+        .def_property_readonly(
+            "stream_count", &core::FrameMetadataTrackerOrbbec::get_stream_count, "Number of configured streams");
+
+    py::class_<core::OrbbecImuTracker, core::ITracker, std::shared_ptr<core::OrbbecImuTracker>>(m, "OrbbecImuTracker")
+        .def(py::init<std::string, std::vector<core::OrbbecImuSensor>, size_t>(), py::arg("collection_prefix"),
+             py::arg("sensors") =
+                 std::vector<core::OrbbecImuSensor>{ core::OrbbecImuSensor_Accel, core::OrbbecImuSensor_Gyro },
+             py::arg("max_flatbuffer_size") = core::ORBBEC_MAX_FLATBUFFER_SIZE)
+        .def(
+            "get_stream_data",
+            [](const core::OrbbecImuTracker& self, const core::ITrackerSession& session,
+               size_t index) -> core::OrbbecImuBatchTrackedT { return self.get_stream_data(session, index); },
+            py::arg("session"), py::arg("stream_index"))
+        .def_property_readonly("stream_count", &core::OrbbecImuTracker::get_stream_count);
+
+    py::class_<core::OrbbecAudioTracker, core::ITracker, std::shared_ptr<core::OrbbecAudioTracker>>(
+        m, "OrbbecAudioTracker")
+        .def(py::init<std::string, size_t>(), py::arg("collection_prefix"),
+             py::arg("max_flatbuffer_size") = core::ORBBEC_MAX_FLATBUFFER_SIZE)
+        .def("get_data", &core::OrbbecAudioTracker::get_data, py::arg("session"));
+
+    py::class_<core::OrbbecCalibrationTracker, core::ITracker, std::shared_ptr<core::OrbbecCalibrationTracker>>(
+        m, "OrbbecCalibrationTracker")
+        .def(py::init<std::string, size_t>(), py::arg("collection_prefix"),
+             py::arg("max_flatbuffer_size") = core::ORBBEC_MAX_FLATBUFFER_SIZE)
+        .def("get_data", &core::OrbbecCalibrationTracker::get_data, py::arg("session"));
+
+    py::class_<core::OrbbecDeviceStateTracker, core::ITracker, std::shared_ptr<core::OrbbecDeviceStateTracker>>(
+        m, "OrbbecDeviceStateTracker")
+        .def(py::init<std::string, size_t>(), py::arg("collection_prefix"),
+             py::arg("max_flatbuffer_size") = core::ORBBEC_MAX_FLATBUFFER_SIZE)
+        .def("get_data", &core::OrbbecDeviceStateTracker::get_data, py::arg("session"));
 
     py::class_<core::Generic3AxisPedalTracker, core::ITracker, std::shared_ptr<core::Generic3AxisPedalTracker>>(
         m, "Generic3AxisPedalTracker")

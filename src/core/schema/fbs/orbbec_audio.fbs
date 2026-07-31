@@ -1,0 +1,28 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+enum OrbbecAudioSampleFormat : byte { S16LE = 0 }
+
+table OrbbecAudioChunk {
+  sequence_number: uint64 (id: 0);
+  sample_rate_hz: uint32 (id: 1);
+  channel_count: uint16 (id: 2);
+  bits_per_sample: uint16 (id: 3);
+  sample_format: OrbbecAudioSampleFormat (id: 4);
+  sample_count: uint32 (id: 5);
+  wav_data_offset: uint64 (id: 6);
+  byte_count: uint32 (id: 7);
+}
+
+table OrbbecAudioChunkTracked { data: OrbbecAudioChunk (id: 0); }
+
+table OrbbecAudioChunkRecord {
+  data: OrbbecAudioChunk (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type OrbbecAudioChunkRecord;

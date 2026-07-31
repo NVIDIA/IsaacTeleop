@@ -13,6 +13,12 @@
 namespace camera_viz::codec
 {
 
+enum class DecoderCodec
+{
+    kH264,
+    kHEVC,
+};
+
 struct DecoderConfig
 {
     uint32_t width = 0;
@@ -20,6 +26,7 @@ struct DecoderConfig
     // BT.601 full-range (ITU-T T.871) when true; BT.709 limited (16-235) when false.
     bool full_range = false;
     int gpu_id = 0;
+    DecoderCodec codec = DecoderCodec::kH264;
 };
 
 class H264Decoder
@@ -49,5 +56,9 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
+
+// General decoder name for new callers. H264Decoder remains source and
+// Python API compatible with existing camera_viz integrations.
+using VideoDecoder = H264Decoder;
 
 } // namespace camera_viz::codec

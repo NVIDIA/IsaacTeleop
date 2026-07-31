@@ -15,6 +15,8 @@
 #include "message_channel_bindings.h"
 #include "oak_bindings.h"
 #include "oglo_tactile_bindings.h"
+#include "orbbec_camera_bindings.h"
+#include "orbbec_ego_bindings.h"
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
 #include "se3_tracker_bindings.h"
@@ -61,6 +63,10 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind OAK types (StreamType enum, FrameMetadataOak table).
     core::bind_oak(m);
+
+    // Bind Orbbec Ego camera types.
+    core::bind_orbbec_camera(m);
+    core::bind_orbbec_ego(m);
 
     // Bind full body types (BodyJointPose, BodyJoints structs, FullBodyPoseT table).
     core::bind_full_body(m);

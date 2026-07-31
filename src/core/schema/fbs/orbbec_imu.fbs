@@ -1,0 +1,34 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+enum OrbbecImuSensor : byte { Accel = 0, Gyro = 1 }
+
+struct OrbbecImuSample {
+  x_si: double;
+  y_si: double;
+  z_si: double;
+  temperature_c: double;
+  sample_time_local_common_clock_ns: int64;
+  sample_time_raw_device_clock_ns: int64;
+}
+
+table OrbbecImuBatch {
+  sensor: OrbbecImuSensor (id: 0);
+  sequence_number: uint64 (id: 1);
+  sample_rate_hz: uint32 (id: 2);
+  full_scale: float (id: 3);
+  samples: [OrbbecImuSample] (id: 4);
+}
+
+table OrbbecImuBatchTracked { data: OrbbecImuBatch (id: 0); }
+
+table OrbbecImuBatchRecord {
+  data: OrbbecImuBatch (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type OrbbecImuBatchRecord;

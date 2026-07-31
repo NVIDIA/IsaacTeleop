@@ -9,8 +9,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class NvH264Decoder:
-    """Annex-B H.264 packet → RGBA8 GPU buffer.
+class NvVideoDecoder:
+    """Annex-B H.264/HEVC packet → RGBA8 GPU buffer.
 
     Decoder is created lazily on the first packet. Resolution is fixed
     at construction; streams that don't match drop frames with a warning.
@@ -23,6 +23,7 @@ class NvH264Decoder:
         full_range: bool = False,
         gpu_id: int = 0,
         low_latency: bool = True,
+        codec: str = "h264",
     ) -> None:
         del low_latency  # native codec is always zero-latency
 
@@ -30,6 +31,9 @@ class NvH264Decoder:
         self._height = height
         self._full_range = full_range
         self._gpu_id = gpu_id
+        self._codec = codec.lower()
+        if self._codec not in ("h264", "h265", "hevc"):
+            raise ValueError(f"unsupported NVDEC codec: {codec!r}")
         self._decoder = None
 
     def _ensure_initialized(self) -> None:
@@ -48,7 +52,12 @@ class NvH264Decoder:
         cfg.height = self._height
         cfg.full_range = self._full_range
         cfg.gpu_id = self._gpu_id
-        self._decoder = codec.H264Decoder(cfg)
+        cfg.codec = (
+            codec.DecoderCodec.H264
+            if self._codec == "h264"
+            else codec.DecoderCodec.HEVC
+        )
+        self._decoder = codec.VideoDecoder(cfg)
 
     def decode(self, packet: bytes, rgba_out) -> bool:
         """Feed one Annex-B AU. Returns True iff a frame was written to ``rgba_out``."""
@@ -59,3 +68,11 @@ class NvH264Decoder:
         """Tear down NVDEC state. Use after stream-timeout / disconnect."""
         if self._decoder is not None:
             self._decoder.reset()
+
+
+class NvH264Decoder(NvVideoDecoder):
+    """Backward-compatible H.264-only name."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        kwargs.setdefault("codec", "h264")
+        super().__init__(*args, **kwargs)

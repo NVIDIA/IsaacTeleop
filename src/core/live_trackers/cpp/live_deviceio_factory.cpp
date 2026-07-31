@@ -5,6 +5,7 @@
 
 #include "live_controller_tracker_impl.hpp"
 #include "live_frame_metadata_tracker_oak_impl.hpp"
+#include "live_frame_metadata_tracker_orbbec_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
@@ -13,11 +14,13 @@
 #include "live_joint_state_tracker_impl.hpp"
 #include "live_message_channel_tracker_impl.hpp"
 #include "live_oglo_tactile_tracker_impl.hpp"
+#include "live_orbbec_ego_tracker_impl.hpp"
 #include "live_se3_tracker_impl.hpp"
 #include "live_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
+#include <deviceio_trackers/frame_metadata_tracker_orbbec.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
@@ -26,6 +29,7 @@
 #include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/oglo_tactile_tracker.hpp>
+#include <deviceio_trackers/orbbec_ego_trackers.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
@@ -130,6 +134,36 @@ std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, 
     return typed ? factory.create_frame_metadata_tracker_oak_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_orbbec_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FrameMetadataTrackerOrbbec*>(&tracker);
+    return typed ? factory.create_frame_metadata_tracker_orbbec_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_imu_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecImuTracker*>(&tracker);
+    return typed ? factory.create_orbbec_imu_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_audio_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecAudioTracker*>(&tracker);
+    return typed ? factory.create_orbbec_audio_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_calibration_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecCalibrationTracker*>(&tracker);
+    return typed ? factory.create_orbbec_calibration_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_orbbec_device_state_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const OrbbecDeviceStateTracker*>(&tracker);
+    return typed ? factory.create_orbbec_device_state_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_oglo_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const OgloTactileTracker*>(&tracker);
@@ -179,6 +213,11 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<JointStateTracker, LiveJointStateTrackerImpl>(&try_create_joint_state_impl),
     make_dispatch_entry<Se3Tracker, LiveSe3TrackerImpl>(&try_create_se3_tracker_impl),
     make_dispatch_entry<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>(&try_create_oak_impl),
+    make_dispatch_entry<FrameMetadataTrackerOrbbec, LiveFrameMetadataTrackerOrbbecImpl>(&try_create_orbbec_impl),
+    make_dispatch_entry<OrbbecImuTracker, LiveOrbbecImuTrackerImpl>(&try_create_orbbec_imu_impl),
+    make_dispatch_entry<OrbbecAudioTracker, LiveOrbbecAudioTrackerImpl>(&try_create_orbbec_audio_impl),
+    make_dispatch_entry<OrbbecCalibrationTracker, LiveOrbbecCalibrationTrackerImpl>(&try_create_orbbec_calibration_impl),
+    make_dispatch_entry<OrbbecDeviceStateTracker, LiveOrbbecDeviceStateTrackerImpl>(&try_create_orbbec_device_state_impl),
     make_dispatch_entry<OgloTactileTracker, LiveOgloTactileTrackerImpl>(&try_create_oglo_impl),
 };
 
@@ -532,6 +571,52 @@ std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_
         channels = LiveFrameMetadataTrackerOakImpl::create_mcap_channels(*writer_, get_name(tracker), tracker);
     }
     return std::make_unique<LiveFrameMetadataTrackerOakImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IFrameMetadataTrackerOrbbecImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_orbbec_impl(
+    const FrameMetadataTrackerOrbbec* tracker)
+{
+    std::unique_ptr<OrbbecMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveFrameMetadataTrackerOrbbecImpl::create_mcap_channels(*writer_, get_name(tracker), tracker);
+    }
+    return std::make_unique<LiveFrameMetadataTrackerOrbbecImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IOrbbecImuTrackerImpl> LiveDeviceIOFactory::create_orbbec_imu_tracker_impl(const OrbbecImuTracker* tracker)
+{
+    std::unique_ptr<OrbbecImuMcapChannels> channels;
+    if (should_record(tracker))
+        channels = LiveOrbbecImuTrackerImpl::create_mcap_channels(*writer_, get_name(tracker), tracker);
+    return std::make_unique<LiveOrbbecImuTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IOrbbecAudioTrackerImpl> LiveDeviceIOFactory::create_orbbec_audio_tracker_impl(
+    const OrbbecAudioTracker* tracker)
+{
+    std::unique_ptr<OrbbecAudioMcapChannels> channels;
+    if (should_record(tracker))
+        channels = LiveOrbbecAudioTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    return std::make_unique<LiveOrbbecAudioTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IOrbbecCalibrationTrackerImpl> LiveDeviceIOFactory::create_orbbec_calibration_tracker_impl(
+    const OrbbecCalibrationTracker* tracker)
+{
+    std::unique_ptr<OrbbecCalibrationMcapChannels> channels;
+    if (should_record(tracker))
+        channels = LiveOrbbecCalibrationTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    return std::make_unique<LiveOrbbecCalibrationTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IOrbbecDeviceStateTrackerImpl> LiveDeviceIOFactory::create_orbbec_device_state_tracker_impl(
+    const OrbbecDeviceStateTracker* tracker)
+{
+    std::unique_ptr<OrbbecDeviceStateMcapChannels> channels;
+    if (should_record(tracker))
+        channels = LiveOrbbecDeviceStateTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    return std::make_unique<LiveOrbbecDeviceStateTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 } // namespace core

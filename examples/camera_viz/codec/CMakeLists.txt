@@ -73,15 +73,40 @@ set(_nvc_sdk_url
 )
 set(_nvc_sdk_zip "${CMAKE_BINARY_DIR}/holohub_nvc_13.0.19.zip")
 set(_nvc_sdk_dir "${CMAKE_BINARY_DIR}/_deps/nvc_sdk")
+set(_nvc_sdk_md5 "a08c33c282bc92469ab8cf863aca9087")
 
-if(NOT EXISTS ${_nvc_sdk_zip})
-  message(STATUS "Downloading NVIDIA Video Codec SDK...")
-  file(DOWNLOAD ${_nvc_sdk_url} ${_nvc_sdk_zip}
-    SHOW_PROGRESS
-    EXPECTED_MD5 "a08c33c282bc92469ab8cf863aca9087"
-  )
+# An interrupted download may leave a zero-byte ZIP. Validate a pre-existing
+# cache before deciding to reuse it; otherwise later source-file errors hide
+# the actionable network failure.
+if(EXISTS "${_nvc_sdk_zip}")
+  file(MD5 "${_nvc_sdk_zip}" _nvc_sdk_actual_md5)
+  if(NOT _nvc_sdk_actual_md5 STREQUAL _nvc_sdk_md5)
+    message(STATUS "Removing invalid NVIDIA Video Codec SDK download cache")
+    file(REMOVE "${_nvc_sdk_zip}")
+    file(REMOVE_RECURSE "${_nvc_sdk_dir}")
+  endif()
 endif()
-if(NOT EXISTS ${_nvc_sdk_dir}/NvEncoder)
+
+if(NOT EXISTS "${_nvc_sdk_zip}")
+  message(STATUS "Downloading NVIDIA Video Codec SDK...")
+  file(DOWNLOAD "${_nvc_sdk_url}" "${_nvc_sdk_zip}"
+    SHOW_PROGRESS
+    STATUS _nvc_sdk_download_status
+  )
+  list(GET _nvc_sdk_download_status 0 _nvc_sdk_download_code)
+  list(GET _nvc_sdk_download_status 1 _nvc_sdk_download_message)
+  if(NOT _nvc_sdk_download_code EQUAL 0)
+    file(REMOVE "${_nvc_sdk_zip}")
+    message(FATAL_ERROR
+      "Could not download the NVIDIA Video Codec SDK: ${_nvc_sdk_download_message}")
+  endif()
+  file(MD5 "${_nvc_sdk_zip}" _nvc_sdk_actual_md5)
+  if(NOT _nvc_sdk_actual_md5 STREQUAL _nvc_sdk_md5)
+    file(REMOVE "${_nvc_sdk_zip}")
+    message(FATAL_ERROR "NVIDIA Video Codec SDK checksum verification failed")
+  endif()
+endif()
+if(NOT EXISTS "${_nvc_sdk_dir}/NvEncoder/NvEncoder.cpp")
   message(STATUS "Extracting NVIDIA Video Codec SDK...")
   file(MAKE_DIRECTORY ${_nvc_sdk_dir})
   execute_process(

@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+mode: window
+source: local
+verbose: false
+
+cameras:
+  - name: orbbec_ego
+    enabled: true
+    type: orbbec_ego
+    stereo: true
+    device_uid: ""
+    width: 1600
+    height: 1300
+    fps: 30
+    format: h264
+    gpu_id: 0
+
+placements:
+  window:
+    orbbec_ego:
+      lock_mode: world
+      position: [0.0, 0.0, -1.5]
+      size: [1.0, 0.8125]
