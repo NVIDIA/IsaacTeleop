@@ -8,6 +8,8 @@ These definitions match the FlatBuffers schemas in IsaacTeleop/src/core/schema/f
 and provide type-safe specifications for hand tracking, head tracking, and controller data.
 """
 
+import warnings
+
 from ..interface.tensor_group_type import TensorGroupType
 from .scalar_types import FloatType, BoolType
 from .ndarray_types import NDArrayType, DLDataType
@@ -326,3 +328,24 @@ def Generic3AxisPedalInput() -> TensorGroupType:
             FloatType("pedal_rudder"),
         ],
     )
+
+
+# Deprecated aliases resolved lazily via __getattr__ so accessing them emits a
+# DeprecationWarning.
+_DEPRECATED_ALIASES = {
+    # Renamed for consistency with its siblings (HandInput, ControllerInput,
+    # FullBodyInput, Generic3AxisPedalInput); the group's fields are unchanged.
+    "HeadPose": "HeadInput",
+}
+
+
+def __getattr__(name: str):
+    new_name = _DEPRECATED_ALIASES.get(name)
+    if new_name is not None:
+        warnings.warn(
+            f"{name} is deprecated; use {new_name} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -640,6 +640,30 @@ class TestOptionalTensorGroupCopy:
 
         cp = tg.create_snapshot()
         assert type(cp) is OptionalTensorGroup
+
+
+class TestDeprecatedHeadAliases:
+    """``HeadPose``/``HeadPoseIndex`` still resolve to the renamed ``HeadInput``
+    names and emit a DeprecationWarning on access."""
+
+    def test_package_level_aliases_resolve_and_warn(self):
+        from isaacteleop.retargeting_engine import tensor_types
+
+        for old, new in (
+            ("HeadPose", "HeadInput"),
+            ("HeadPoseIndex", "HeadInputIndex"),
+        ):
+            with pytest.warns(DeprecationWarning, match=old):
+                deprecated = getattr(tensor_types, old)
+            assert deprecated is getattr(tensor_types, new)
+
+    def test_submodule_aliases_resolve_and_warn(self):
+        from isaacteleop.retargeting_engine.tensor_types import indices, standard_types
+
+        with pytest.warns(DeprecationWarning, match="HeadPose"):
+            assert standard_types.HeadPose is standard_types.HeadInput
+        with pytest.warns(DeprecationWarning, match="HeadPoseIndex"):
+            assert indices.HeadPoseIndex is indices.HeadInputIndex
 
 
 if __name__ == "__main__":

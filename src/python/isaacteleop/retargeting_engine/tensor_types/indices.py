@@ -109,9 +109,14 @@ class BodyJointIndex(IntEnum):
     RIGHT_HAND = 23
 
 
-# Deprecated alias for BodyJointIndex, resolved lazily via __getattr__ so accessing
-# it emits a DeprecationWarning.
-_DEPRECATED_ALIASES = {"BodyJointPicoIndex": "BodyJointIndex"}
+# Deprecated aliases resolved lazily via __getattr__ so accessing them emits a
+# DeprecationWarning.
+_DEPRECATED_ALIASES = {
+    "BodyJointPicoIndex": "BodyJointIndex",
+    # Renamed for consistency with its siblings (HandInputIndex, ControllerInputIndex,
+    # FullBodyInputIndex); the underlying fields are unchanged.
+    "HeadPoseIndex": "HeadInputIndex",
+}
 
 
 def __getattr__(name: str):

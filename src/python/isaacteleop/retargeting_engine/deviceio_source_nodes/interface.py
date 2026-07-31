@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -26,7 +26,7 @@ class IDeviceIOSource(BaseRetargeter):
 
     DeviceIO source nodes are retargeters that:
     - Take DeviceIO tracked wrappers as input (DeviceIOHeadPoseTracked, DeviceIOHandPoseTracked, etc.)
-    - Convert them to standard retargeting engine tensor formats (HeadPose, HandInput, etc.)
+    - Convert them to standard retargeting engine tensor formats (HeadInput, HandInput, etc.)
     - Are pure converters with no internal state or session dependencies
     - Provide access to their associated tracker via get_tracker()
     - Know how to poll their own tracker via poll_tracker()
