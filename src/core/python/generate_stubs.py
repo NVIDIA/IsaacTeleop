@@ -13,6 +13,7 @@ Example:
 """
 
 import sys
+import traceback
 from pathlib import Path
 
 
@@ -90,7 +91,15 @@ def generate_stub(module_name: str, package_dir: Path) -> bool:
         return True
 
     except Exception as e:
-        print(f"Error: stubgen failed for {module_name}: {e}")
+        # Print the whole chain, not just str(e). Importing a pybind11 module
+        # runs PYBIND11_MODULE's init, which re-raises any failure as a bare
+        # "ImportError: initialization failed" and hangs the real cause off
+        # __cause__ -- so str(e) alone hides what actually went wrong.
+        # Both on stderr so the header stays adjacent to its traceback: stdout
+        # is block-buffered under a pipe (as in a CMake POST_BUILD), which
+        # otherwise strands the two dozens of lines apart in the build log.
+        print(f"Error: stubgen failed for {module_name}: {e}", file=sys.stderr)
+        traceback.print_exc()
         return False
 
 
