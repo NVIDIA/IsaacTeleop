@@ -23,6 +23,7 @@ from .oob_teleop_adb import (
     run_oob_connect,
 )
 from .oob_teleop_env import (
+    cloudxr_server_port,
     client_ui_fields_from_env,
     default_initial_stream_config,
     oob_progress,
@@ -516,7 +517,7 @@ async def run(
     log_file_path: str | Path | None,
     stop_future: asyncio.Future,
     backend_host: str = "localhost",
-    backend_port: int = 49100,
+    backend_port: int | None = None,
     proxy_port: int | None = None,
     setup_oob: bool = False,
     usb_local: bool = False,
@@ -543,6 +544,9 @@ async def run(
         _extra_log.addHandler(_handler)
 
     try:
+        resolved_backend_port = (
+            cloudxr_server_port() if backend_port is None else backend_port
+        )
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
 
         logging.getLogger("websockets").setLevel(logging.WARNING)
@@ -574,7 +578,7 @@ async def run(
                 path = _normalize_request_path(ws.request.path or "/")
                 if path == OOB_WS_PATH:
                     return hub.handle_connection(ws)
-            return proxy_handler(ws, backend_host, backend_port)
+            return proxy_handler(ws, backend_host, resolved_backend_port)
 
         _host_client_static_dir = None
         if host_client:
@@ -583,7 +587,10 @@ async def run(
             _host_client_static_dir = require_web_client_static_dir()
 
         http_handler = _make_http_handler(
-            backend_host, backend_port, hub=hub, static_dir=_host_client_static_dir
+            backend_host,
+            resolved_backend_port,
+            hub=hub,
+            static_dir=_host_client_static_dir,
         )
 
         async with ws_serve(

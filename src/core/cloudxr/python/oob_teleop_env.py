@@ -104,7 +104,8 @@ CHROME_INSPECT_DEVICES_URL = "chrome://inspect/#devices"
 
 USB_HOST = "127.0.0.1"  # serverIP seen by the headset (its own localhost)
 USB_UI_DEFAULT_PORT = 8080  # HTTPS static WebXR UI (loopback)
-USB_BACKEND_DEFAULT_PORT = 49100  # CloudXR backend (webrtc client direct connection)
+CLOUDXR_SERVER_DEFAULT_PORT = 49100  # CloudXR runtime backend
+USB_BACKEND_DEFAULT_PORT = CLOUDXR_SERVER_DEFAULT_PORT  # adb reverse'd backend
 USB_TURN_DEFAULT_PORT = 3478  # coturn TURN server port (adb reverse'd to headset)
 USB_TURN_USER = "cloudxr"  # TURN username
 USB_TURN_CREDENTIAL = "cloudxrpass"  # TURN credential
@@ -362,6 +363,18 @@ def wss_proxy_port() -> int:
     return WSS_PROXY_DEFAULT_PORT
 
 
+def cloudxr_server_port() -> int:
+    """TCP port for the CloudXR runtime backend.
+
+    Reads the ``NV_CXR_SERVER_PORT`` environment variable if set, else falls
+    back to :data:`CLOUDXR_SERVER_DEFAULT_PORT` (49100).
+    """
+    raw = os.environ.get("NV_CXR_SERVER_PORT", "").strip()
+    if raw:
+        return parse_env_port("NV_CXR_SERVER_PORT", raw)
+    return CLOUDXR_SERVER_DEFAULT_PORT
+
+
 def usb_ui_port() -> int:
     """TCP port for the USB-local WebXR static HTTPS server.
 
@@ -378,10 +391,10 @@ def usb_ui_port() -> int:
 def usb_backend_port() -> int:
     """TCP port for the USB-local CloudXR backend (native client direct connection).
 
-    Reads the ``USB_BACKEND_PORT`` environment variable if set, else falls
-    back to :data:`USB_BACKEND_DEFAULT_PORT` (49100).  This port is exposed
-    to the headset via ``adb reverse``; override only when a host process
-    already owns 49100.
+    Reads the ``USB_BACKEND_PORT`` environment variable if set, else falls back
+    to :data:`USB_BACKEND_DEFAULT_PORT` (49100). This port is exposed to the
+    headset via ``adb reverse``; override only when a host process already owns
+    the CloudXR runtime port.
     """
     raw = os.environ.get("USB_BACKEND_PORT", "").strip()
     if raw:
