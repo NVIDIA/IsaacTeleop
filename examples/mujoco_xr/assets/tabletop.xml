@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Minimal AR tabletop scene.
+
+TWO conventions in here are load-bearing and are shared with
+cpp/frames.hpp's kTransMjFromXr:
+
+  1. The table TOP is at z = 0. kTransMjFromXr's z = -0.73 says that plane
+     stands 0.73 m above the physical floor, so the virtual table lands on the
+     real one. A scene that floats its content above z = 0, or thickens the
+     table downward from it, invalidates that calibration for this scene only.
+  2. There is deliberately NO ground plane. This is an AR scene: the renderer
+     skips mjGEOM_PLANE outright and passthrough is the background.
+
+Geometry is boxes only: the renderer draws mjGEOM_BOX and mjGEOM_MESH and
+skips everything else, so a sphere or capsule added here renders as nothing.
+-->
+<mujoco model="mujoco_xr_tabletop">
+  <!-- timestep only. `gravity` is MuJoCo's default and was noise; there is no
+       <visual><headlight> either, because this scene is not lit by MuJoCo:
+       cpp/shaders/scene.frag has one hardcoded directional light and mjvGLCamera
+       is bypassed, so any lighting declared here is silently inert. -->
+  <option timestep="0.002"/>
+
+  <worldbody>
+    <!-- Table: top face at z = 0, body extends downward. -->
+    <body name="table" pos="0 0 -0.02">
+      <geom name="table_top" type="box" size="0.45 0.40 0.02" rgba="0.55 0.45 0.35 1"/>
+    </body>
+
+    <!-- Three free-falling blocks, resting on the table top. -->
+    <body name="block_red" pos="0.10 0.12 0.03">
+      <freejoint/>
+      <geom name="block_red_geom" type="box" size="0.03 0.03 0.03" rgba="0.85 0.20 0.20 1" mass="0.2"/>
+    </body>
+    <body name="block_green" pos="0.00 -0.05 0.03">
+      <freejoint/>
+      <geom name="block_green_geom" type="box" size="0.03 0.03 0.03" rgba="0.20 0.75 0.30 1" mass="0.2"/>
+    </body>
+    <body name="block_blue" pos="-0.12 0.02 0.09">
+      <freejoint/>
+      <geom name="block_blue_geom" type="box" size="0.03 0.03 0.03" rgba="0.20 0.35 0.90 1" mass="0.2"/>
+    </body>
+
+    <!-- A static pedestal so there is something with a fixed pose to judge
+         head-tracking stability against. -->
+    <body name="pedestal" pos="0.25 -0.20 0.06">
+      <geom name="pedestal_geom" type="box" size="0.04 0.04 0.06" rgba="0.65 0.65 0.70 1"/>
+    </body>
+  </worldbody>
+</mujoco>

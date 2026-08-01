@@ -1,0 +1,187 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Pure helpers from the app that guard against silent-corruption bugs."""
+
+import math
+
+import pytest
+
+app = pytest.importorskip("mujoco_xr.app", reason="isaacteleop is not on PYTHONPATH")
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (0.011, 0.011),
+        (0.0, 0.0),
+        (-1.0, 0.0),  # clock went backwards
+        (5.0, app.MAX_DT_S),  # a long stall
+        (float("inf"), app.MAX_DT_S),
+    ],
+)
+def test_clamp_dt(raw, expected):
+    assert app._clamp_dt(raw) == expected
+
+
+def test_clamp_dt_sends_nan_to_zero():
+    """The whole reason the clamp is spelled with comparisons.
+
+    ``min(max(nan, 0), 0.1)`` returns nan -- NaN passes through BOTH limits and
+    reaches mj_step, which then poisons every qpos in the model. The comparison
+    form sends it to 0 because ``nan > 0`` is False.
+    """
+    assert app._clamp_dt(float("nan")) == 0.0
+
+
+def test_frame_clock_refuses_the_zeroed_xr_timestamp():
+    """Regression: the 50-step physics lurch at every session start.
+
+    ``viz_session.cpp:255-256`` sets ``should_render = false`` AND
+    ``predicted_display_time = 0`` together, on every frame before the session
+    reaches kRunning. Sampling that zero as a clock reading makes the next real
+    frame compute ``dt = t_now - 0``, which clamps to MAX_DT_S and steps the
+    simulation 0.1 s inside a single display frame. _frame_clock must report
+    "no sample here" instead, so the caller can skip it.
+    """
+
+    class _Info:
+        predicted_display_time = 0
+
+    assert app._frame_clock(_Info(), app.viz.DisplayMode.kXr) is None
+
+    _Info.predicted_display_time = 2_000_000_000  # ns
+    assert app._frame_clock(_Info(), app.viz.DisplayMode.kXr) == 2.0
+
+
+def test_frame_clock_falls_back_to_monotonic_outside_xr():
+    """predicted_display_time is 0 in window/offscreen for a different reason.
+
+    There is no runtime predicting anything, so 0 there is not a missing
+    sample -- and must NOT be treated as one, or those modes never step.
+    """
+
+    class _Info:
+        predicted_display_time = 0
+
+    for mode in (app.viz.DisplayMode.kWindow, app.viz.DisplayMode.kOffscreen):
+        now = app._frame_clock(_Info(), mode)
+        assert now is not None and now > 0.0
+
+
+def test_clock_stall_streak_ignores_the_startup_burst():
+    """The watchdog must stay silent through a normal session start.
+
+    ``viz_session.cpp:238`` does not call the backend below kRunning, so a real
+    session opens with a long run of ``should_render == False`` frames whose
+    ``predicted_display_time`` is 0 -- and nothing throttles them, so hundreds
+    go by while the operator is still putting the headset on. If those counted,
+    the error would fire at every single startup and the watchdog would be
+    deleted by the first person who saw it. This is the test that keeps the
+    ``should_render`` gate through the next refactor.
+    """
+    streak = 0
+    for _ in range(500):
+        streak = app._clock_stall_streak(streak, 0.0, should_render=False)
+    assert streak == 0
+
+    # And a non-rendered frame does not RESET a stall that is already building.
+    streak = app._clock_stall_streak(0, 0.0, should_render=True)
+    assert app._clock_stall_streak(streak, 0.0, should_render=False) == streak
+
+
+def test_clock_stall_streak_counts_only_frozen_rendered_frames():
+    """A frame the runtime WANTS rendered but that carries no time is the alarm."""
+    streak = 0
+    for expected in range(1, app.STALL_FRAMES + 1):
+        streak = app._clock_stall_streak(streak, 0.0, should_render=True)
+        assert streak == expected
+    # The caller fires on ``== STALL_FRAMES``, so the threshold has to be
+    # reached exactly rather than jumped over.
+    assert streak == app.STALL_FRAMES
+
+    # Any real time advance clears it.
+    assert app._clock_stall_streak(streak, 0.011, should_render=True) == 0
+
+
+def test_clock_stall_streak_catches_a_nan_clock():
+    """NaN reaches the watchdog as 0, via _clamp_dt -- the reference's own case.
+
+    ``sim_scene.cc:86-97`` exists because a NaN dt takes the else branch of
+    every comparison, leaving physics frozen and rendering perfect.
+    """
+    elapsed = app._clamp_dt(float("nan"))
+    assert app._clock_stall_streak(0, elapsed, should_render=True) == 1
+
+
+def test_near_far_are_a_single_sane_pair():
+    assert 0.0 < app.NEAR_Z < app.FAR_Z
+    # viz defaults far to 100.0; a tabletop scene does not want that precision
+    # spent 50-100 m away.
+    assert app.FAR_Z <= 100.0
+
+
+def test_debug_view_is_a_valid_frustum_not_a_zeroed_one():
+    """The non-XR modes must never inherit viz's default-constructed Fov.
+
+    ``window_backend.cpp`` and ``offscreen_backend.cpp`` fill FrameInfo.views
+    with one default ViewInfo whose Fov is four zeros; feeding that to the
+    projection yields +inf and NaN. The app therefore builds its own, and it
+    must be a real frustum.
+    """
+
+    class _Res:
+        width = 1280
+        height = 720
+
+    pose, fov = app._debug_view(_Res())
+
+    assert len(pose) == 7
+    assert len(fov) == 4
+    angle_left, angle_right, angle_up, angle_down = fov
+    assert angle_right > angle_left
+    assert angle_up > angle_down
+    assert not any(a == 0.0 for a in fov)
+
+    # Unit quaternion, and the eye is above the floor rather than at the XR
+    # origin (which under this app's frames convention is inside the table).
+    qw, qx, qy, qz = pose[3:]
+    assert math.isclose(
+        math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz), 1.0, rel_tol=1e-9
+    )
+    assert pose[1] > 1.0
+
+    # And it survives the shipped per-frame assertion.
+    from mujoco_xr import _mujoco_xr
+
+    app._assert_projection(
+        _mujoco_xr.projection_from_fov(fov, app.NEAR_Z, app.FAR_Z),
+        app.NEAR_Z,
+        app.FAR_Z,
+    )
+
+
+def test_assert_projection_rejects_a_lost_y_flip():
+    """The assertion has to actually fire, or it is decoration."""
+    from mujoco_xr import _mujoco_xr
+
+    good = _mujoco_xr.projection_from_fov([-0.7, 0.7, 0.7, -0.7], app.NEAR_Z, app.FAR_Z)
+    app._assert_projection(good, app.NEAR_Z, app.FAR_Z)
+
+    flipped = list(good)
+    flipped[5] = -flipped[5]  # P[1][1] positive: the angleUp->bottom swap is gone
+    with pytest.raises(AssertionError, match=r"P\[1\]\[1\]"):
+        app._assert_projection(flipped, app.NEAR_Z, app.FAR_Z)
+
+
+def test_assert_projection_rejects_reverse_z():
+    from mujoco_xr import _mujoco_xr
+
+    p = list(
+        _mujoco_xr.projection_from_fov([-0.7, 0.7, 0.7, -0.7], app.NEAR_Z, app.FAR_Z)
+    )
+    # Swap the depth endpoints: near -> 1, far -> 0.
+    p[10] = -p[10] - 1.0
+    p[14] = -p[14]
+    with pytest.raises(AssertionError, match="depth encoding"):
+        app._assert_projection(p, app.NEAR_Z, app.FAR_Z)

@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run with: python -m isaacteleop.rig rigs/mujoco_xr.yaml
+#
+# Two panes: the CloudXR runtime, and the app. Only ONE is declared below --
+# there is no `runtime:` key here, so the runtime pane is IMPLICIT: with
+# `runtime` unset, RigConfig.runtime_command falls back to
+# DEFAULT_RUNTIME_COMMAND (`{python} -m isaacteleop.cloudxr --accept-eula`,
+# isaacteleop/rig/config.py:42,89-91). `consumers:` therefore lists only the
+# app. There are no producers -- the app opens the OpenXR session itself
+# (through Televiz) and reads controllers straight from the runtime, so there
+# is no producer/consumer rendezvous and therefore deliberately no `params:` /
+# `collection_id:` here.
+#
+# Requires a build AND an install: the command below runs out of install/, and
+# the rig's preflight is not what catches a missing one -- see the note on the
+# command. The order below is not decorative: configure CREATES the build venv
+# and the mujoco probe runs at configure time, so the first configure
+# necessarily skips this example and a second one is required after the wheel
+# exists. Full explanation in examples/mujoco_xr/README.md#build.
+#   cmake --preset py3.12 -DBUILD_VIZ=ON
+#   uv pip install --python build/cmake-cpython-312/teleop_build_venv/bin/python "mujoco==3.11.0"
+#   cmake --preset py3.12 -DBUILD_VIZ=ON        # re-configure: NOW mujoco is found
+#   cmake --build --preset py3.12 --parallel
+#   cmake --install build/cmake-cpython-312
+#
+# See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
+name: mujoco_xr
+description: CloudXR runtime + MuJoCo tabletop scene in XR with controller markers
+cwd: ..                        # -> Teleop repo root
+consumers:
+  - name: mujoco xr app (requires headset)
+    # --no-launch-cloudxr-runtime IS NOT A NO-OP. Removing it makes the app
+    # start a SECOND CloudXR runtime, and the runtime is a host singleton on
+    # WSS port 48322 -- the second one kills the framework's runtime pane
+    # (the implicit one described in the header). Neither guard in
+    # the launcher fires for this line: the PYTHONPATH injection and the
+    # find_runtime_footguns() warning both only trigger when a command contains
+    # `{python}`, and this one does not.
+    #
+    # `uv run --directory`, not `--project`: `python -m mujoco_xr` needs the
+    # package's parent directory on sys.path, and only --directory changes cwd.
+    # The installed pyproject.toml has no [build-system], so uv treats it as a
+    # virtual project and does not try to install it -- the .so beside
+    # __init__.py is imported straight from disk.
+    #
+    # A missing install is NOT caught by the rig preflight: _check_commands_exist
+    # only validates a first token containing a path separator, and this one is
+    # the bare name `uv`. The failure surfaces inside the pane instead.
+    command: "uv run --directory install/examples/mujoco_xr/python python -m mujoco_xr --no-launch-cloudxr-runtime"
