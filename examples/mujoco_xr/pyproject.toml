@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# This example is its own wheel, and the wheel is the ONLY way to run it:
+#
+#     uv pip install ./examples/mujoco_xr
+#     python -m mujoco_xr --mode offscreen
+#
+# Why this is a separate wheel rather than part of `isaacteleop`, and why
+# `install_python_example()` could not be used: README.md#build.
+
+[build-system]
+requires = [
+    "scikit-build-core>=1.0",
+    # The extension is a pybind11 module. NOT the same pybind11 the root build
+    # FetchContents (deps/third_party/CMakeLists.txt pins v2.11.0-182) and
+    # deliberately not pinned to it: no pybind11-registered type crosses this
+    # module's boundary (poses and fovs are plain float lists, buffers are
+    # __cuda_array_interface__ dicts, MuJoCo objects are integer addresses), so
+    # the two builds share no pybind11 internals ABI and need not agree.
+    "pybind11>=2.12",
+    # BUILD-TIME mujoco, and it is not optional: CMakeLists.txt discovers
+    # MuJoCo by importing it from the build interpreter, and compiles the
+    # extension against that wheel's headers while linking its fully-versioned
+    # libmujoco SONAME. Without this line a PEP-517 isolated build would find no
+    # mujoco and produce a wheel with NO extension in it -- which is why the
+    # standalone branch of CMakeLists.txt turns that case into a hard error
+    # rather than the STATUS + return() the in-tree build uses.
+    #
+    # This is the SAME pin as `dependencies` below, and it must stay that way:
+    # the version compiled against and the version imported at run time are one
+    # libmujoco. CMakeLists.txt reads EVERY `mujoco==` occurrence in this
+    # file (REGEX MATCHALL, not MATCH) and fails the configure if they disagree
+    # with each other or with the build interpreter -- so do not restate the
+    # number in prose anywhere in this file, or a comment edit becomes a
+    # configure failure.
+    "mujoco==3.11.0",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "mujoco-xr-example"
+version = "0.0.0"  # Internal example - not versioned
+description = "MuJoCo scene rendered into an Isaac Teleop Televiz XR session"
+
+# A RANGE, not an interpreter pin: scikit-build-core compiles against the
+# interpreter doing the install and tags the wheel with its ABI
+# (cp312-cp312-linux_aarch64), so ABI compatibility is enforced by the packaging
+# metadata and this only has to express the project's supported range. Bounds
+# match ISAAC_TELEOP_PYTHON_VERSION_MIN / _MAX_EXCLUSIVE in the root
+# CMakeLists.txt.
+requires-python = ">=3.11,<3.14"
+
+dependencies = [
+    # RUN-TIME mujoco. Exact, and equal to the build-time pin above -- see the
+    # long note there. Exactly one libmujoco may be loaded in the process,
+    # because mjModel* / mjData* addresses cross the pybind boundary.
+    "mujoco==3.11.0",
+    # isaacteleop is a real import (isaacteleop.viz, .cloudxr, .oxr,
+    # .teleop_session_manager), so it is declared. It is not on a public index:
+    # install the locally built wheel FIRST, into the same environment --
+    #   uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/
+    # -- and this project then resolves against the installed copy.
+    "isaacteleop",
+]
+
+[tool.scikit-build]
+# Floor matches CMakeLists.txt's cmake_minimum_required; the <4 cap mirrors
+# the root pyproject.toml so an isolated build does not pull a 4.x CMake and
+# drift from what the classic `cmake --preset` flow uses.
+cmake.version = ">=3.20,<4"
+cmake.build-type = "Release"
+
+# The extension is compiled twice -- once in place by the root build for ctest,
+# once here for the wheel; README.md#build has the why and when that collapses.
+# PERSISTENT rather than a temp directory, which is the whole point of naming it:
+# it keeps `uv pip install --reinstall-package ...` incremental (~8 s) instead of
+# a from-scratch configure every time. `{cache_tag}` keeps per-interpreter caches
+# apart. `**/build/` is gitignored.
+build-dir = "build/wheel-{cache_tag}"
+
+# THE ONE FILE THAT MUST NOT BE COPIED FROM THE SOURCE TREE.
+#
+# Ownership, same rule as the root pyproject.toml: `wheel.packages` below owns
+# every authored file under python/mujoco_xr/ (the .py sources AND
+# assets/tabletop.xml, which is package data precisely so it resolves from
+# site-packages), while CMake's `install(TARGETS mujoco_xr_py ...)` owns the one
+# build-produced file, _mujoco_xr*.so. Their intersection must be empty -- and
+# without this line it is NOT, because the in-tree root build drops its own
+# _mujoco_xr*.so right there beside __init__.py for ctest to import. Measured:
+# omit this and a cp313 wheel ships the root build's stale cp312 .so as well.
+#
+# The repo-root .gitignore does NOT save you, though it excludes `*.so`
+# repo-wide: scikit-build-core reads `.gitignore` relative to the PROJECT root
+# (this directory), not the git root, so the repo's rule is never seen.
+#
+# `sdist.exclude`, NOT `wheel.exclude`, and the difference is load-bearing.
+# wheel.exclude is applied TWICE -- once to the package copy and once to the
+# assembled wheel at zip time (build/wheel.py: `wheel.build(exclude=...)`) --
+# so `*.so` there would delete the freshly compiled extension along with the
+# stale one and produce an importable-looking wheel with no extension in it.
+# sdist.exclude filters only the source side (it reaches the package copy as
+# `src_exclude`), which is exactly the half that needs filtering. It is also
+# honestly named: a stale build artifact is not part of the distribution, and
+# an sdist must not carry a prebuilt binary either.
+#
+# THESE TWO LINES ARE A PAIR. The exclude path only matches because `packages`
+# below sources this package from `python/mujoco_xr`; re-point that and this
+# pattern silently stops matching anything, with no error -- it would just start
+# shipping the stale .so again. Change them together.
+[tool.scikit-build.sdist]
+exclude = ["python/mujoco_xr/*.so"]
+
+[tool.scikit-build.wheel]
+packages = { mujoco_xr = "python/mujoco_xr" }
+
+# The absent [tool.scikit-build.editable] block is deliberate: `pip install -e`
+# is not supported here, because an editable install's redirect resolves
+# `mujoco_xr` back to the source tree and so hits the same stale-.so hazard the
+# sdist.exclude above exists to prevent, through another door. Adding the block
+# would not help. Full reasoning and the supported iterate-in-place command:
+# README.md#build, under "`pip install -e` is not supported here".

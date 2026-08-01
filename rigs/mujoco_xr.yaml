@@ -13,17 +13,28 @@
 # is no producer/consumer rendezvous and therefore deliberately no `params:` /
 # `collection_id:` here.
 #
-# Requires a build AND an install: the command below runs out of install/, and
-# the rig's preflight is not what catches a missing one -- see the note on the
-# command. The order below is not decorative: configure CREATES the build venv
-# and the mujoco probe runs at configure time, so the first configure
-# necessarily skips this example and a second one is required after the wheel
-# exists. Full explanation in examples/mujoco_xr/README.md#build.
+# REQUIRES TWO WHEELS IN ONE ENVIRONMENT, and that environment is the one you
+# launch the rig from. `{python}` below expands to the LAUNCHING interpreter
+# (rig/config.py:249, shlex.quote(sys.executable)), so `-m mujoco_xr` resolves
+# against it -- which means `mujoco_xr` must be installed beside `isaacteleop`
+# rather than in a private .venv of its own. This is new: the command used to be
+# `uv run --directory install/examples/mujoco_xr/python ...`, which built its own
+# environment out of the install tree. Nothing is installed to
+# install/examples/mujoco_xr/ any more; the example is its own wheel.
+#
 #   cmake --preset py3.12 -DBUILD_VIZ=ON
 #   uv pip install --python build/cmake-cpython-312/teleop_build_venv/bin/python "mujoco==3.11.0"
 #   cmake --preset py3.12 -DBUILD_VIZ=ON        # re-configure: NOW mujoco is found
 #   cmake --build --preset py3.12 --parallel
-#   cmake --install build/cmake-cpython-312
+#   uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/ --reinstall
+#   uv pip install ./examples/mujoco_xr        # same environment as the line above
+#
+# The first four lines build the repo (the mujoco probe runs at CONFIGURE time,
+# so the first configure necessarily skips this example and a second one is
+# required after the wheel exists). Only the last two are needed to RUN this
+# rig -- `uv pip install ./examples/mujoco_xr` compiles the extension itself and
+# does not read the CMake build tree at all. Full explanation in
+# examples/mujoco_xr/README.md#build.
 #
 # See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
 name: mujoco_xr
@@ -34,18 +45,16 @@ consumers:
     # --no-launch-cloudxr-runtime IS NOT A NO-OP. Removing it makes the app
     # start a SECOND CloudXR runtime, and the runtime is a host singleton on
     # WSS port 48322 -- the second one kills the framework's runtime pane
-    # (the implicit one described in the header). Neither guard in
-    # the launcher fires for this line: the PYTHONPATH injection and the
-    # find_runtime_footguns() warning both only trigger when a command contains
-    # `{python}`, and this one does not.
+    # (the implicit one described in the header).
     #
-    # `uv run --directory`, not `--project`: `python -m mujoco_xr` needs the
-    # package's parent directory on sys.path, and only --directory changes cwd.
-    # The installed pyproject.toml has no [build-system], so uv treats it as a
-    # virtual project and does not try to install it -- the .so beside
-    # __init__.py is imported straight from disk.
+    # AND NOTHING WARNS YOU IF YOU DROP IT. Delete the flag and this rig kills
+    # its own runtime pane: the headset drops mid-session and the failure looks
+    # like a runtime crash rather than a config edit. The rig's own lint does not
+    # catch it -- find_runtime_footguns() only recognises a Python app as
+    # `-m isaacteleop` or a `.py` token, and `-m mujoco_xr` is neither
+    # (rig/config.py:264-288). This comment is the only guard on that flag.
     #
-    # A missing install is NOT caught by the rig preflight: _check_commands_exist
-    # only validates a first token containing a path separator, and this one is
-    # the bare name `uv`. The failure surfaces inside the pane instead.
-    command: "uv run --directory install/examples/mujoco_xr/python python -m mujoco_xr --no-launch-cloudxr-runtime"
+    # `-m mujoco_xr` resolves from site-packages, not from cwd: the package is
+    # an installed wheel and `cwd: ..` (the repo root) contains no directory
+    # that could shadow it.
+    command: "{python} -m mujoco_xr --no-launch-cloudxr-runtime"

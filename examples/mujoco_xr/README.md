@@ -50,33 +50,102 @@ first one debuggable.
 
 ## Build
 
+**This example is its own wheel, and the wheel is the only way to run it.**
+
+```bash
+uv pip install ./examples/mujoco_xr     # from the repository root
+python -m mujoco_xr --mode offscreen
+```
+
+That is the whole run path. Nothing is installed into `install/examples/mujoco_xr/`
+any more, and there is no `uv run --directory ...` invocation. `uv pip install`
+compiles the extension itself, through scikit-build-core, and does not read the
+CMake build tree at all.
+
+**Why a separate wheel rather than part of `isaacteleop`.** `uv pip install .`
+at the repository root does not deliver this example — the root
+`pyproject.toml`'s `install.components = ["isaacteleop_wheel",
+"isaacteleop_binaries"]` filters out everything else. Folding it in was rejected:
+`_mujoco_xr` links `libmujoco`, so the `isaacteleop` wheel's *contents* would
+depend on whether the build host happened to have `mujoco` installed, and a
+MuJoCo-linked `.so` would ship to every user. A separate wheel declares
+`mujoco` as a real dependency instead of a build-host accident. This is only
+possible because the module links **no viz target** — just `Vulkan::Vulkan`,
+`CUDA::cudart_static` and `libmujoco`.
+
+**The `isaacteleop` wheel must be installed first, into the same environment.**
+It is a declared dependency but is not on any public index, so install it from
+your local build before installing this example:
+
+```bash
+uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/
+uv pip install ./examples/mujoco_xr
+```
+
+Both must land in **one** environment; that same environment is what
+[`rigs/mujoco_xr.yaml`](../../rigs/mujoco_xr.yaml) runs from.
+
+**`pip install -e` is not supported here — use a plain install.** An editable
+install redirects `mujoco_xr` back to `python/mujoco_xr/` in the source tree,
+which is exactly where the in-tree CMake build drops *its* `_mujoco_xr*.so`; you
+would silently import the root build's extension instead of the one the editable
+install compiled. The redirect is what makes it silent: the wrong `.so` imports
+fine right up until `mjModel*` crosses the boundary — a different interpreter,
+potentially a different ABI, potentially a different `libmujoco`. Adding a
+`[tool.scikit-build.editable]` block does not help; `mode = "redirect"` is the
+default and the redirect *is* the problem. To iterate, re-run `uv pip install
+--reinstall-package mujoco-xr-example ./examples/mujoco_xr` — it stays
+incremental (~8 s) because the build directory persists.
+
 ### Prerequisites
 
 | | |
 |---|---|
-| **`uv`** | Load-bearing, and used by four separate commands below (installing the wheel into the build venv, and every `uv run` that launches the app or the tests). `pip` is **not** a substitute for the build-venv step — that venv has no `pip`. Install: <https://docs.astral.sh/uv/getting-started/installation/> |
+| **`uv`** | Load-bearing. Install: <https://docs.astral.sh/uv/getting-started/installation/> |
 | **CMake ≥ 3.21** | Not 3.20: the project floor is `3.20...3.25` (root `CMakeLists.txt`), but every command on this page goes through `--preset`, and `CMakePresets.json` declares `cmakeMinimumRequired 3.21.0`. Measured on this host with 3.28.3. |
 | **A C++ compiler, the Vulkan SDK/loader, CUDA** | The same toolchain the rest of this repository needs; see `docs/source/getting_started/build_from_source/`. |
+| **`glslangValidator`** (`apt install glslang-tools`) | The scene shaders are compiled to SPIR-V at build time. In the root build this was implied by `BUILD_VIZ`, which auto-disables when it is missing; on the wheel path it is a hard `FATAL_ERROR` from `cpp/CMakeLists.txt`, so an otherwise-fine host fails the install. |
 | **A GPU with Vulkan + CUDA** | Needed to *run* anything, including `--mode offscreen`. Without one, `test_offscreen_render.py` skips with a reason and the app fails at `VizSession.create`. |
 | **A headset + CloudXR runtime** | Only for `--mode xr`. Everything else on this page runs without one. |
 
-The first build of a fresh clone builds **the whole of Isaac Teleop**, not just
-this example, so expect it to take a while — it has not been timed here, so no
-number is quoted. What *was* measured on this host is the incremental case that
-matters when you are iterating: **7.6 s** to rebuild after touching
-`cpp/frames.hpp`, plus a sub-second `cmake --install`.
+**Build isolation does not save you from the toolchain rows above.**
+`pyproject.toml`'s `build-system.requires` can declare a *Python* build
+dependency — that is how `mujoco` gets into an isolated PEP-517 build — but
+there is no way to declare CUDA, the Vulkan loader, or `glslangValidator` there.
+On a host missing any of them, `uv pip install ./examples/mujoco_xr` fails
+*inside* the isolated build, where the CMake error is wrapped in build-backend
+output rather than reported as a missing dependency.
 
-The example is wired into the root build and is gated on `BUILD_VIZ`. There is
-no `BUILD_EXAMPLE_MUJOCO_XR` flag — the only gate is whether the `mujoco`
-**wheel is installed in the interpreter CMake resolves** (`Python3_EXECUTABLE`),
-because the C++ module compiles against that wheel's headers and links its
-`libmujoco`.
+### The in-tree CMake build, which is a separate thing
 
-**The order below is not decorative, and steps 1 and 3 are the same command.**
-On a fresh clone the interpreter in step 2 *does not exist yet*: configure is
-what creates `teleop_build_venv` (`cmake/SetupPython.cmake:152-200`) and then
-points `Python3_EXECUTABLE` at it. And the mujoco probe runs **at configure
-time**, so it has to run again after the wheel exists.
+The example is **also** wired into the root build, and that path still exists —
+it is what the [tests](#tests) run against. It builds `_mujoco_xr*.so` in place
+beside `python/mujoco_xr/__init__.py` and installs nothing.
+
+**So the extension gets compiled twice, and that is a consequence of the design
+rather than a bug**: once by the root CMake build for `ctest` (in place, by the
+preset's `teleop_build_venv` interpreter), and once by scikit-build-core for the
+wheel (by whichever interpreter is installing, whose ABI tag the wheel gets).
+Collapsing them today would mean either shipping the root build's tree as a wheel
+with no ABI tag, or dropping the in-tree ctest path. Keeping both is the
+deliberate trade. The two never collide: `sdist.exclude` in `pyproject.toml`
+keeps the in-place `.so` out of the wheel's package copy — see the comment there,
+it is a sharper edge than it looks.
+
+**What would collapse it:** the day `ctest` runs against the *installed wheel*
+instead of the in-place `.so`. That removes the only reason the source tree needs
+a compiled extension in it, and with it the whole `_mujoco_xr_standalone`
+discriminator — `CMakeLists.txt` would have exactly one configuration. That is
+blocked on packaging, not on this example: `isaacteleop` is a declared dependency
+and is on no index, so the test environment cannot resolve it without a
+`--find-links` pointing at a local build that may not exist yet.
+
+You only need this path to run the tests. The order is not decorative, and steps
+1 and 3 are the same command: on a fresh clone the interpreter in step 2 *does
+not exist yet* — configure is what creates `teleop_build_venv`
+(`cmake/SetupPython.cmake:152-200`) and then points `Python3_EXECUTABLE` at it —
+and the mujoco probe runs **at configure time**, so it has to run again after
+the wheel exists.
 
 ```bash
 # 1. Configure once to create the build venv. This first pass necessarily
@@ -90,22 +159,35 @@ uv pip install --python build/cmake-cpython-312/teleop_build_venv/bin/python "mu
 # 3. Re-configure. NOW the probe finds mujoco and the example is added.
 cmake --preset py3.12 -DBUILD_VIZ=ON
 
-# 4. Build and install.
+# 4. Build. There is no `cmake --install` step for this example any more.
 cmake --build --preset py3.12 --parallel
-cmake --install build/cmake-cpython-312
 ```
 
-`py3.12` is the preset name; its binary directory is
-`build/cmake-cpython-312`, which is why steps 2 and 4 spell it out. The install
-prefix is set by the preset and lands under `install/`, which is where the
-[Run](#run) commands read from.
+`py3.12` is the preset name; its binary directory is `build/cmake-cpython-312`,
+which is why steps 2 and 4 spell it out.
 
-**Yes, `mujoco` gets installed twice, for two unrelated reasons.** Once into the
-*build* interpreter above (headers + `libmujoco` to compile and link against),
-and once into the *run* environment by `uv` from `python/pyproject.toml` (what
-the app imports). They must be the same version; the next section is about that.
+The first build of a fresh clone builds **the whole of Isaac Teleop**, not just
+this example, so expect it to take a while — it has not been timed here, so no
+number is quoted. What *was* measured on this host is the incremental case that
+matters when you are iterating: **7.6 s** to rebuild after touching
+`cpp/frames.hpp`.
 
-### Confirming the example was actually built
+This path is gated on `BUILD_VIZ`. There is no `BUILD_EXAMPLE_MUJOCO_XR` flag —
+the only gate is whether the `mujoco` **wheel is installed in the interpreter
+CMake resolves** (`Python3_EXECUTABLE`), because the C++ module compiles against
+that wheel's headers and links its `libmujoco`.
+
+`examples/mujoco_xr/CMakeLists.txt` is configured **two ways** and branches on
+which: `add_subdirectory`'d from the root (the above), or as the top-level
+project under scikit-build-core (the wheel). Standalone it sets up for itself the
+three things root scope used to provide — `Python3_EXECUTABLE`, pybind11, and
+where the `.so` goes. (`glslangValidator` is not among them: `cpp/CMakeLists.txt`
+probes for it itself in both configures.) One difference is worth
+knowing: a missing `mujoco` is a **skip** in the root build (nobody who did not
+ask for this example should have their configure fail) and a **hard error**
+standalone (a `return()` there would hand you a wheel with no extension in it).
+
+### Confirming the in-tree example was actually built
 
 A green build does **not** mean this example compiled. Step 3 prints one of:
 
@@ -127,25 +209,38 @@ cmake --preset py3.12 -DBUILD_VIZ=ON 2>&1 | grep '^-- mujoco_xr:'
 The `ON` line also names the exact `libmujoco.so.*` that was linked, which is
 the diagnostic for the failure mode below.
 
-### The MuJoCo version is pinned in two places, and cross-checked against a third
+### The MuJoCo version is pinned in two files, and cross-checked against the build interpreter
 
-| file | pin |
-|---|---|
-| `python/pyproject.toml` | `mujoco==3.11.0` — what the app resolves at run time |
-| `tests/pyproject.toml` | `mujoco==3.11.0` — what ctest resolves |
+| file | pin | decides |
+|---|---|---|
+| `pyproject.toml` | `build-system.requires` | what an isolated wheel build compiles and links against |
+| `pyproject.toml` | `project.dependencies` | what the app imports at run time |
+| `tests/pyproject.toml` | `dev` extra | what `ctest` resolves |
 
-`CMakeLists.txt` deliberately hardcodes **no** version. It *reads* both files,
-and fails the configure if either disagrees with the version actually installed
-in the build interpreter:
+Becoming a wheel added a *third pin*, but not a third pin **file**: the new
+top-level `pyproject.toml` replaced the deleted `python/pyproject.toml` rather
+than joining it. The build-time pin is not optional — without `mujoco` in
+`build-system.requires`, a PEP-517 isolated build would find none and emit a
+wheel with no extension in it.
+
+`CMakeLists.txt` deliberately hardcodes **no** version. It *reads* both files and
+fails the configure if any pin disagrees with the version actually installed in
+the build interpreter:
 
 ```
-CMake Error: mujoco_xr: python/pyproject.toml pins mujoco==3.11.0, but
+CMake Error: mujoco_xr: pyproject.toml pins mujoco==3.11.0, but
 '<python>' has 3.12.0. ...
 ```
 
-Note the limit of that check: it compares the two files against **the build
-interpreter only**. It cannot see what `uv` will later resolve on the machine
-that runs the app, so it is a drift detector, not a guarantee.
+It matches **every** occurrence in each file (`REGEX MATCHALL`, not `MATCH`), so
+the two pins inside `pyproject.toml` are checked against each other as well as
+against the interpreter. One consequence: never restate the version number in
+prose in those files — a `mujoco==` in a *comment* would be matched too, and a
+harmless comment edit would become a configure failure. Write "the pin below".
+
+Note the limit of the check: it compares against **the build interpreter only**.
+It cannot see what `uv` will later resolve on the machine that runs the app, so
+it is a drift detector, not a guarantee.
 
 The reason any of this matters is that `mjModel*` and `mjData*` pointers cross
 the pybind boundary: **exactly one `libmujoco` may be loaded in the process.**
@@ -158,15 +253,21 @@ an import error — fix the version.
 
 ## Run
 
-`--help` lists every flag, including the ones `CloudXRLauncher` adds:
+Every command in this section runs from the environment the two wheels were
+installed into (see [Build](#build)). `--help` lists every flag, including the
+ones `CloudXRLauncher` adds:
 
 ```bash
-uv run --directory install/examples/mujoco_xr/python python -m mujoco_xr --help
+python -m mujoco_xr --help
 ```
 
 `--mode` takes `xr` (default), `window` or `offscreen`. `--scene` overrides the
-scene XML, which defaults to `assets/tabletop.xml` beside the installed package
-(`install/examples/mujoco_xr/assets/tabletop.xml`).
+scene XML, which defaults to **package data inside the installed package** —
+`<site-packages>/mujoco_xr/assets/tabletop.xml`. It lives at
+`python/mujoco_xr/assets/tabletop.xml` in the source tree, which is one
+directory deeper than you might expect precisely so that the same one-`.parent`
+lookup in `app.py` resolves both in the wheel and in the source tree that the
+tests import.
 
 ### With a headset
 
@@ -178,23 +279,26 @@ python -m isaacteleop.rig rigs/mujoco_xr.yaml
 ```
 
 That `python` is the repo-wide convention (`docs/source/references/rig.rst`),
-and it means **the environment you installed the built wheel into** — not the
-build venv (which has no `isaacteleop`) and not the system interpreter. If you
-have not made one:
+and it means **the environment you installed both wheels into** — not the build
+venv (which has no `isaacteleop`) and not the system interpreter. The rig's
+command is `{python} -m mujoco_xr --no-launch-cloudxr-runtime`, and `{python}`
+expands to the interpreter you launch the rig with, so `mujoco_xr` has to be
+installed *there*. If you have not made such an environment:
 
 ```bash
 uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/ --reinstall
+uv pip install ./examples/mujoco_xr
 ```
 
 Since this README warns that picking up the wrong venv is silent, here is how
 to check before you start rather than after:
 
 ```bash
-python -c "import sys, isaacteleop; print(sys.executable); print(isaacteleop.__file__)"
+python -c "import sys, isaacteleop, mujoco_xr; print(sys.executable); print(isaacteleop.__file__); print(mujoco_xr.__file__)"
 ```
 
-The app's own startup log prints the same thing (`isaacteleop:` line) for the
-app's separate, `uv`-managed environment.
+Both packages must come from the same `site-packages`. The app's own startup log
+prints the `isaacteleop:` line for the same reason.
 
 Directly, against a runtime you started yourself:
 
@@ -203,7 +307,7 @@ Directly, against a runtime you started yourself:
 python -m isaacteleop.cloudxr --accept-eula
 
 # In another.
-uv run --directory install/examples/mujoco_xr/python python -m mujoco_xr --no-launch-cloudxr-runtime
+python -m mujoco_xr --no-launch-cloudxr-runtime
 ```
 
 `--no-launch-cloudxr-runtime` is not cosmetic: **omitting it makes the app start
@@ -226,7 +330,7 @@ displayed, so it is a smoke test rather than a way to look at the scene. It runs
 until interrupted.
 
 ```bash
-uv run --directory install/examples/mujoco_xr/python python -m mujoco_xr --mode offscreen --no-launch-cloudxr-runtime
+python -m mujoco_xr --mode offscreen --no-launch-cloudxr-runtime
 ```
 
 **Know when it has succeeded**, because success is quiet: it prints the startup
@@ -257,8 +361,8 @@ Verbatim, from `--mode offscreen` on this host. Every assumption that is
 otherwise invisible is printed exactly once, before the first frame:
 
 ```
-[mujoco_xr] scene:      /ws/.../install/examples/mujoco_xr/assets/tabletop.xml
-[mujoco_xr] isaacteleop: /ws/.../install/examples/mujoco_xr/python/.venv/lib/python3.12/site-packages/isaacteleop/viz (version 1.5+local)
+[mujoco_xr] scene:      /tmp/mjxr_venv/lib/python3.12/site-packages/mujoco_xr/assets/tabletop.xml
+[mujoco_xr] isaacteleop: /tmp/mjxr_venv/lib/python3.12/site-packages/isaacteleop/viz (version 1.5+local)
 [mujoco_xr] mujoco:     3.11.0 (extension links 3.11.0)
 [mujoco_xr] mode:       DisplayMode.kOffscreen   view resolution: 1024x1024
 [mujoco_xr] clip:       near=0.0500 far=50.00 (one pair -> VizSessionConfig, projection, submitted depth)
@@ -274,7 +378,7 @@ otherwise invisible is printed exactly once, before the first frame:
 
 | line | on your run |
 |---|---|
-| `scene:` / `isaacteleop:` | **Paths differ** — they are absolute and rooted in your `install/`. What matters is that `isaacteleop:` names the venv you expected. |
+| `scene:` / `isaacteleop:` | **Paths differ** — they are absolute and rooted in the `site-packages` you installed into. What matters is that both name the venv you expected, and **the same one**. |
 | `mujoco:` | **Both numbers must be identical** to each other (`3.11.0 (extension links 3.11.0)`). Two different versions means two `libmujoco`s in one process; `__init__.py` asserts this, so you would have seen an error instead. |
 | `mode:` | Matches your `--mode`. The resolution is whatever the backend recommends and **varies by runtime/host**. |
 | `clip:` / `frames:` | **Must match exactly** — they are compiled-in constants. If `frames:` reads anything but `(-1.000, 0.000, -0.730)` on an unmodified tree, something has been edited. |
@@ -285,8 +389,8 @@ In `--mode xr` the `clock:` line instead reads
 `FrameInfo.predicted_display_time (XR); frames with no prediction are skipped, not sampled as 0`,
 `control disengaged` is replaced by a `controller markers: N validly tracked`
 line that reprints whenever N changes, and `isaacteleop:` is the single most
-useful line on the block — if it points at a `.venv` you did not expect, stop
-there.
+useful line on the block — if it points at a `site-packages` you did not expect,
+stop there.
 
 ## Conventions you can break
 
@@ -319,10 +423,19 @@ this host, and worth knowing before you decide the loop is too slow to iterate
 in:
 
 ```bash
-# edit cpp/frames.hpp, then:
-cmake --build --preset py3.12 --parallel   # 7.6 s, touching frames.hpp
-cmake --install build/cmake-cpython-312    # <1 s
+# edit cpp/frames.hpp, then reinstall; this recompiles the extension.
+uv pip install --reinstall-package mujoco-xr-example ./examples/mujoco_xr   # 8.2 s
 ```
+
+`--reinstall-package` rather than a bare reinstall: the project version is fixed
+at `0.0.0`, so without it `uv` sees the same version already installed and skips
+the rebuild. It stays incremental because `pyproject.toml` sets
+`build-dir = "build/wheel-{cache_tag}"` — the CMake cache persists between
+installs instead of landing in a temp directory.
+
+If you are iterating on the tests instead, `cmake --build --preset py3.12
+--parallel` (7.6 s touching `frames.hpp`) rebuilds the in-place `.so` that
+`ctest` uses; the two builds are independent and neither refreshes the other.
 
 There is deliberately no `--workspace-offset` flag; see
 [Deliberately not a flag](#deliberately-not-a-flag) below. Filed as a follow-up: a

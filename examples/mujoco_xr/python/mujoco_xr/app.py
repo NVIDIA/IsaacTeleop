@@ -86,9 +86,20 @@ _MODES = {
     "offscreen": viz.DisplayMode.kOffscreen,
 }
 
-DEFAULT_SCENE = (
-    Path(__file__).resolve().parent.parent.parent / "assets" / "tabletop.xml"
-)
+# PACKAGE DATA, resolved from inside the package -- one `.parent`, not three.
+#
+# It used to walk three parents up to examples/mujoco_xr/assets/, which was
+# correct only in the old install tree. From site-packages/mujoco_xr/app.py that
+# same walk points at site-packages/../.. -- outside site-packages entirely, at a
+# path that does not exist. Since the wheel is now the only run path, the scene
+# lives under python/mujoco_xr/assets/ and ships as package data, which resolves
+# identically in the wheel and in the source tree (the in-tree ctest path).
+#
+# Plain __file__ arithmetic rather than importlib.resources: this package is
+# always installed as real files on disk (it contains a compiled extension, so
+# it can never be imported from a zip), and a Path is what --scene and
+# MjModel.from_xml_path want anyway.
+DEFAULT_SCENE = Path(__file__).resolve().parent / "assets" / "tabletop.xml"
 
 # Controller marker appearance. Half-extents in metres; translucent so the
 # robot behind stays legible.
@@ -617,7 +628,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--scene",
         default=str(DEFAULT_SCENE),
-        help="MuJoCo scene XML. Its table TOP must sit at z=0 (see assets/tabletop.xml).",
+        help=(
+            "MuJoCo scene XML. Its table TOP must sit at z=0 -- compare the default, "
+            "which ships as package data beside this module (see the path on the "
+            "'scene:' line of the startup log)."
+        ),
     )
     parser.add_argument(
         "--mode",

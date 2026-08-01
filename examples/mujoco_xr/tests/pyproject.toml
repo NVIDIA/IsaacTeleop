@@ -9,7 +9,7 @@
 [project]
 name = "mujoco-xr-tests"
 version = "0.0.0"
-# Pinned for the same reason as ../python/pyproject.toml: these tests import
+# Pinned for the same reason as ../pyproject.toml: these tests import
 # the ABI-specific _mujoco_xr*.so built by the preset's interpreter.
 requires-python = "==3.12.*"
 
@@ -17,10 +17,17 @@ requires-python = "==3.12.*"
 dev = [
     "pytest",
     "numpy",
-    # KEEP IN SYNC with the pin in ../python/pyproject.toml. ../CMakeLists.txt
+    # KEEP IN SYNC with the pin in ../pyproject.toml. ../CMakeLists.txt
     # reads BOTH files and fails the configure if either disagrees with the
     # version installed in the build interpreter. The tests import the compiled
     # extension, which needs libmujoco.so.3.11.0 by its fully-versioned SONAME.
+    #
+    # THIS FILE IS A PIN SOURCE, which constrains what may be written in its
+    # COMMENTS. ../CMakeLists.txt collects every `mujoco` + `==` + version it
+    # can find here (REGEX MATCHALL, not MATCH), so restating the number in
+    # prose registers as an extra pin and turns an innocent comment edit into a
+    # configure failure. Say "the pin below" instead. The SONAME on the line
+    # above is safe only because it is spelled `libmujoco.so.<version>`.
     "mujoco==3.11.0",
 ]
 

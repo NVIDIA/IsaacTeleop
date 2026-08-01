@@ -55,10 +55,9 @@ dist/
 # SPDX report
 project.spdx
 
-# MuJoCo writes this to the CURRENT WORKING DIRECTORY, not next to the model.
-# examples/mujoco_xr's own documented run commands are executed from inside the
-# install tree, so it reappears there (and anywhere else the app is run) on
-# every run that logs a warning.
+# MuJoCo writes this to the CURRENT WORKING DIRECTORY, not next to the model, so
+# it lands wherever examples/mujoco_xr happened to be launched from -- commonly
+# the repository root -- on every run that logs a warning.
 MUJOCO_LOG.TXT
 
 # robotic_grounding source bundle (cloned locally / in CI from

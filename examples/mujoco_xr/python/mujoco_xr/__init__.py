@@ -23,10 +23,12 @@ if _mujoco.mj_versionString() != _mujoco_xr.mujoco_version():
     raise ImportError(
         "mujoco_xr: two different libmujoco libraries are loaded -- "
         f"the `mujoco` wheel reports {_mujoco.mj_versionString()} but the compiled "
-        f"extension reports {_mujoco_xr.mujoco_version()}. Fix it by making the `mujoco==` pin "
-        "in this package's pyproject.toml equal the version installed in the BUILD interpreter "
-        "(build/<preset-dir>/teleop_build_venv/bin/python), then re-run cmake --preset, rebuild "
-        "and re-install -- the extension is what has to be rebuilt, the wheel is not. "
+        f"extension reports {_mujoco_xr.mujoco_version()}. The extension is what has to be "
+        "rebuilt. Both `mujoco==` pins in examples/mujoco_xr/pyproject.toml (build-system.requires "
+        "and project.dependencies) must name one version, and reinstalling recompiles against it: "
+        "uv pip install --reinstall ./examples/mujoco_xr. (If you hit this from the in-tree ctest "
+        "path instead, the extension came from the root build: install that same version into "
+        "build/<preset-dir>/teleop_build_venv/bin/python and re-run cmake --preset.) "
         "mjModel* / mjData* pointers cannot cross this boundary otherwise."
     )
 
