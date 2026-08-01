@@ -15,7 +15,7 @@ import math
 
 import pytest
 
-from mujoco_xr import _mujoco_xr
+from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
 NEAR = 0.05
 FAR = 50.0

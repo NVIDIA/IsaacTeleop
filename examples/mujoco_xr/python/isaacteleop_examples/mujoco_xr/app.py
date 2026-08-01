@@ -89,11 +89,19 @@ _MODES = {
 # PACKAGE DATA, resolved from inside the package -- one `.parent`, not three.
 #
 # It used to walk three parents up to examples/mujoco_xr/assets/, which was
-# correct only in the old install tree. From site-packages/mujoco_xr/app.py that
-# same walk points at site-packages/../.. -- outside site-packages entirely, at a
-# path that does not exist. Since the wheel is now the only run path, the scene
-# lives under python/mujoco_xr/assets/ and ships as package data, which resolves
-# identically in the wheel and in the source tree (the in-tree ctest path).
+# correct only in the old install tree. From
+# site-packages/isaacteleop_examples/mujoco_xr/app.py that same walk points
+# outside site-packages entirely, at a path that does not exist. Since the wheel
+# is now the only run path, the scene lives under
+# python/isaacteleop_examples/mujoco_xr/assets/ and ships as package data, which
+# resolves identically in the wheel and in the source tree (the in-tree ctest
+# path).
+#
+# Namespacing the package pushed BOTH the source tree and site-packages one
+# directory deeper, together, so this is still one `.parent`. It stays one only
+# as long as assets/ stays inside the mujoco_xr package -- hoisting it up to the
+# namespace directory would need two, and the namespace has no owner to put
+# files in.
 #
 # Plain __file__ arithmetic rather than importlib.resources: this package is
 # always installed as real files on disk (it contains a compiled extension, so

@@ -54,7 +54,7 @@ first one debuggable.
 
 ```bash
 uv pip install ./examples/mujoco_xr     # from the repository root
-python -m mujoco_xr --mode offscreen
+python -m isaacteleop_examples.mujoco_xr --mode offscreen
 ```
 
 That is the whole run path. Nothing is installed into `install/examples/mujoco_xr/`
@@ -73,6 +73,20 @@ MuJoCo-linked `.so` would ship to every user. A separate wheel declares
 possible because the module links **no viz target** — just `Vulkan::Vulkan`,
 `CUDA::cudart_static` and `libmujoco`.
 
+**Why the name is `isaacteleop-examples-mujoco-xr` and the import is
+`isaacteleop_examples.mujoco_xr`.** This is a new pattern here — every other
+example except `examples/haptic_feedback/` names its project bare
+(`camera-viz`, `teleop-examples`), and this one was `mujoco-xr-example` for the
+same reason. Bare is harmless for a project that is never installed. This one
+**is** installed, and a bare top-level `mujoco_xr` in `site-packages` is an
+example package claiming a plain, plausible, permanent name — right next to the
+real `mujoco`. `isaacteleop_examples` is a **PEP 420 namespace**: it has no
+`__init__.py` and no owning distribution, so the next example that wants to ship
+a wheel can add `isaacteleop_examples.<other>` beside this one without either
+wheel owning the directory. Adding an `__init__.py` there would turn it into a
+regular package owned by this wheel and permanently close it — `pyproject.toml`'s
+`wheel.packages` comment says so at the point where it could go wrong.
+
 **The `isaacteleop` wheel must be installed first, into the same environment.**
 It is a declared dependency but is not on any public index, so install it from
 your local build before installing this example:
@@ -86,7 +100,8 @@ Both must land in **one** environment; that same environment is what
 [`rigs/mujoco_xr.yaml`](../../rigs/mujoco_xr.yaml) runs from.
 
 **`pip install -e` is not supported here — use a plain install.** An editable
-install redirects `mujoco_xr` back to `python/mujoco_xr/` in the source tree,
+install redirects `isaacteleop_examples.mujoco_xr` back to
+`python/isaacteleop_examples/mujoco_xr/` in the source tree,
 which is exactly where the in-tree CMake build drops *its* `_mujoco_xr*.so`; you
 would silently import the root build's extension instead of the one the editable
 install compiled. The redirect is what makes it silent: the wrong `.so` imports
@@ -94,7 +109,7 @@ fine right up until `mjModel*` crosses the boundary — a different interpreter,
 potentially a different ABI, potentially a different `libmujoco`. Adding a
 `[tool.scikit-build.editable]` block does not help; `mode = "redirect"` is the
 default and the redirect *is* the problem. To iterate, re-run `uv pip install
---reinstall-package mujoco-xr-example ./examples/mujoco_xr` — it stays
+--reinstall-package isaacteleop-examples-mujoco-xr ./examples/mujoco_xr` — it stays
 incremental (~8 s) because the build directory persists.
 
 ### Prerequisites
@@ -120,7 +135,7 @@ output rather than reported as a missing dependency.
 
 The example is **also** wired into the root build, and that path still exists —
 it is what the [tests](#tests) run against. It builds `_mujoco_xr*.so` in place
-beside `python/mujoco_xr/__init__.py` and installs nothing.
+beside `python/isaacteleop_examples/mujoco_xr/__init__.py` and installs nothing.
 
 **So the extension gets compiled twice, and that is a consequence of the design
 rather than a bug**: once by the root CMake build for `ctest` (in place, by the
@@ -244,7 +259,7 @@ it is a drift detector, not a guarantee.
 
 The reason any of this matters is that `mjModel*` and `mjData*` pointers cross
 the pybind boundary: **exactly one `libmujoco` may be loaded in the process.**
-`python/mujoco_xr/__init__.py` imports `mujoco` *before* the extension so that
+`python/isaacteleop_examples/mujoco_xr/__init__.py` imports `mujoco` *before* the extension so that
 the wheel's already-loaded library satisfies the extension's `NEEDED` entry, and
 the extension is deliberately built with **no RPATH** so a mismatch is a clean
 `ImportError` rather than a second copy loaded silently. `__init__.py` also
@@ -258,16 +273,17 @@ installed into (see [Build](#build)). `--help` lists every flag, including the
 ones `CloudXRLauncher` adds:
 
 ```bash
-python -m mujoco_xr --help
+python -m isaacteleop_examples.mujoco_xr --help
 ```
 
 `--mode` takes `xr` (default), `window` or `offscreen`. `--scene` overrides the
 scene XML, which defaults to **package data inside the installed package** —
-`<site-packages>/mujoco_xr/assets/tabletop.xml`. It lives at
-`python/mujoco_xr/assets/tabletop.xml` in the source tree, which is one
-directory deeper than you might expect precisely so that the same one-`.parent`
-lookup in `app.py` resolves both in the wheel and in the source tree that the
-tests import.
+`<site-packages>/isaacteleop_examples/mujoco_xr/assets/tabletop.xml`. It lives at
+`python/isaacteleop_examples/mujoco_xr/assets/tabletop.xml` in the source tree,
+which is one directory deeper than you might expect precisely so that the same
+one-`.parent` lookup in `app.py` resolves both in the wheel and in the source
+tree that the tests import. Namespacing the package moved both paths in lockstep,
+so the lookup is still one `.parent`.
 
 ### With a headset
 
@@ -281,9 +297,10 @@ python -m isaacteleop.rig rigs/mujoco_xr.yaml
 That `python` is the repo-wide convention (`docs/source/references/rig.rst`),
 and it means **the environment you installed both wheels into** — not the build
 venv (which has no `isaacteleop`) and not the system interpreter. The rig's
-command is `{python} -m mujoco_xr --no-launch-cloudxr-runtime`, and `{python}`
-expands to the interpreter you launch the rig with, so `mujoco_xr` has to be
-installed *there*. If you have not made such an environment:
+command is `{python} -m isaacteleop_examples.mujoco_xr --no-launch-cloudxr-runtime`,
+and `{python}` expands to the interpreter you launch the rig with, so
+`isaacteleop_examples.mujoco_xr` has to be installed *there*. If you have not
+made such an environment:
 
 ```bash
 uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/ --reinstall
@@ -294,7 +311,7 @@ Since this README warns that picking up the wrong venv is silent, here is how
 to check before you start rather than after:
 
 ```bash
-python -c "import sys, isaacteleop, mujoco_xr; print(sys.executable); print(isaacteleop.__file__); print(mujoco_xr.__file__)"
+python -c "import sys, isaacteleop; from isaacteleop_examples import mujoco_xr; print(sys.executable); print(isaacteleop.__file__); print(mujoco_xr.__file__)"
 ```
 
 Both packages must come from the same `site-packages`. The app's own startup log
@@ -307,7 +324,7 @@ Directly, against a runtime you started yourself:
 python -m isaacteleop.cloudxr --accept-eula
 
 # In another.
-python -m mujoco_xr --no-launch-cloudxr-runtime
+python -m isaacteleop_examples.mujoco_xr --no-launch-cloudxr-runtime
 ```
 
 `--no-launch-cloudxr-runtime` is not cosmetic: **omitting it makes the app start
@@ -330,7 +347,7 @@ displayed, so it is a smoke test rather than a way to look at the scene. It runs
 until interrupted.
 
 ```bash
-python -m mujoco_xr --mode offscreen --no-launch-cloudxr-runtime
+python -m isaacteleop_examples.mujoco_xr --mode offscreen --no-launch-cloudxr-runtime
 ```
 
 **Know when it has succeeded**, because success is quiet: it prints the startup
@@ -361,7 +378,7 @@ Verbatim, from `--mode offscreen` on this host. Every assumption that is
 otherwise invisible is printed exactly once, before the first frame:
 
 ```
-[mujoco_xr] scene:      /tmp/mjxr_venv/lib/python3.12/site-packages/mujoco_xr/assets/tabletop.xml
+[mujoco_xr] scene:      /tmp/mjxr_venv/lib/python3.12/site-packages/isaacteleop_examples/mujoco_xr/assets/tabletop.xml
 [mujoco_xr] isaacteleop: /tmp/mjxr_venv/lib/python3.12/site-packages/isaacteleop/viz (version 1.5+local)
 [mujoco_xr] mujoco:     3.11.0 (extension links 3.11.0)
 [mujoco_xr] mode:       DisplayMode.kOffscreen   view resolution: 1024x1024
@@ -424,7 +441,7 @@ in:
 
 ```bash
 # edit cpp/frames.hpp, then reinstall; this recompiles the extension.
-uv pip install --reinstall-package mujoco-xr-example ./examples/mujoco_xr   # 8.2 s
+uv pip install --reinstall-package isaacteleop-examples-mujoco-xr ./examples/mujoco_xr   # 8.2 s
 ```
 
 `--reinstall-package` rather than a bare reinstall: the project version is fixed

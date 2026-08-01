@@ -7,7 +7,9 @@ import math
 
 import pytest
 
-app = pytest.importorskip("mujoco_xr.app", reason="isaacteleop is not on PYTHONPATH")
+app = pytest.importorskip(
+    "isaacteleop_examples.mujoco_xr.app", reason="isaacteleop is not on PYTHONPATH"
+)
 
 
 @pytest.mark.parametrize(
@@ -152,7 +154,7 @@ def test_debug_view_is_a_valid_frustum_not_a_zeroed_one():
     assert pose[1] > 1.0
 
     # And it survives the shipped per-frame assertion.
-    from mujoco_xr import _mujoco_xr
+    from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
     app._assert_projection(
         _mujoco_xr.projection_from_fov(fov, app.NEAR_Z, app.FAR_Z),
@@ -163,7 +165,7 @@ def test_debug_view_is_a_valid_frustum_not_a_zeroed_one():
 
 def test_assert_projection_rejects_a_lost_y_flip():
     """The assertion has to actually fire, or it is decoration."""
-    from mujoco_xr import _mujoco_xr
+    from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
     good = _mujoco_xr.projection_from_fov([-0.7, 0.7, 0.7, -0.7], app.NEAR_Z, app.FAR_Z)
     app._assert_projection(good, app.NEAR_Z, app.FAR_Z)
@@ -175,7 +177,7 @@ def test_assert_projection_rejects_a_lost_y_flip():
 
 
 def test_assert_projection_rejects_reverse_z():
-    from mujoco_xr import _mujoco_xr
+    from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
     p = list(
         _mujoco_xr.projection_from_fov([-0.7, 0.7, 0.7, -0.7], app.NEAR_Z, app.FAR_Z)

@@ -4,7 +4,7 @@
 # This example is its own wheel, and the wheel is the ONLY way to run it:
 #
 #     uv pip install ./examples/mujoco_xr
-#     python -m mujoco_xr --mode offscreen
+#     python -m isaacteleop_examples.mujoco_xr --mode offscreen
 #
 # Why this is a separate wheel rather than part of `isaacteleop`, and why
 # `install_python_example()` could not be used: README.md#build.
@@ -39,7 +39,21 @@ requires = [
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "mujoco-xr-example"
+# NEW PATTERN IN THIS REPOSITORY, and deliberately so. Every other example
+# except examples/haptic_feedback/python/ names itself bare (`camera-viz`,
+# `teleop-examples`, `mcap-record-replay-example`), and this project was
+# `mujoco-xr-example` for exactly that reason. Bare is fine for a project that
+# is never installed; this one IS installed, and an installed distribution
+# whose import name is a bare top-level `mujoco_xr` stakes a claim on the whole
+# `mujoco_xr` name in site-packages -- for an EXAMPLE, next to a real `mujoco`
+# package. `isaacteleop_examples` (see the wheel.packages table below) fixes
+# that and gives the next example somewhere to live: the namespace is PEP 420,
+# so a second distribution can add `isaacteleop_examples.<other>` without
+# either wheel owning the directory.
+#
+# The dist name mirrors the import path rather than the directory name, which
+# is what makes `pip list` and `uv pip install --reinstall-package` legible.
+name = "isaacteleop-examples-mujoco-xr"
 version = "0.0.0"  # Internal example - not versioned
 description = "MuJoCo scene rendered into an Isaac Teleop Televiz XR session"
 
@@ -82,9 +96,9 @@ build-dir = "build/wheel-{cache_tag}"
 # THE ONE FILE THAT MUST NOT BE COPIED FROM THE SOURCE TREE.
 #
 # Ownership, same rule as the root pyproject.toml: `wheel.packages` below owns
-# every authored file under python/mujoco_xr/ (the .py sources AND
-# assets/tabletop.xml, which is package data precisely so it resolves from
-# site-packages), while CMake's `install(TARGETS mujoco_xr_py ...)` owns the one
+# every authored file under python/isaacteleop_examples/mujoco_xr/ (the .py
+# sources AND assets/tabletop.xml, which is package data precisely so it resolves
+# from site-packages), while CMake's `install(TARGETS mujoco_xr_py ...)` owns the one
 # build-produced file, _mujoco_xr*.so. Their intersection must be empty -- and
 # without this line it is NOT, because the in-tree root build drops its own
 # _mujoco_xr*.so right there beside __init__.py for ctest to import. Measured:
@@ -104,19 +118,32 @@ build-dir = "build/wheel-{cache_tag}"
 # honestly named: a stale build artifact is not part of the distribution, and
 # an sdist must not carry a prebuilt binary either.
 #
-# THESE TWO LINES ARE A PAIR. The exclude path only matches because `packages`
-# below sources this package from `python/mujoco_xr`; re-point that and this
-# pattern silently stops matching anything, with no error -- it would just start
-# shipping the stale .so again. Change them together.
+# THESE TWO LINES ARE A PAIR, and they were re-pointed together when the package
+# moved under the `isaacteleop_examples` namespace. The exclude path only matches
+# because `packages` below sources this package from
+# `python/isaacteleop_examples/mujoco_xr`; re-point that and this pattern
+# silently stops matching anything, with no error -- it would just start shipping
+# the stale .so again. Change them together.
 [tool.scikit-build.sdist]
-exclude = ["python/mujoco_xr/*.so"]
+exclude = ["python/isaacteleop_examples/mujoco_xr/*.so"]
 
+# The KEY is the path inside the wheel and the VALUE is the source directory, so
+# this is what puts the package at site-packages/isaacteleop_examples/mujoco_xr/.
+#
+# `isaacteleop_examples` IS NOT LISTED, and must not be: it is a PEP 420
+# namespace, which means it has no `__init__.py` and no owner. scikit-build-core
+# creates the intermediate directory implicitly from this key. Add an
+# `__init__.py` to python/isaacteleop_examples/ (or list that directory here as
+# a package in its own right) and the namespace becomes a REGULAR package owned
+# by this wheel -- at which point a second example distribution installing
+# `isaacteleop_examples.<other>` either collides on the file or is shadowed
+# entirely. That is the whole reason the namespace directory is empty.
 [tool.scikit-build.wheel]
-packages = { mujoco_xr = "python/mujoco_xr" }
+packages = { "isaacteleop_examples/mujoco_xr" = "python/isaacteleop_examples/mujoco_xr" }
 
 # The absent [tool.scikit-build.editable] block is deliberate: `pip install -e`
 # is not supported here, because an editable install's redirect resolves
-# `mujoco_xr` back to the source tree and so hits the same stale-.so hazard the
-# sdist.exclude above exists to prevent, through another door. Adding the block
-# would not help. Full reasoning and the supported iterate-in-place command:
+# `isaacteleop_examples.mujoco_xr` back to the source tree and so hits the same
+# stale-.so hazard the sdist.exclude above exists to prevent, through another
+# door. Adding the block would not help. Full reasoning and the command to use:
 # README.md#build, under "`pip install -e` is not supported here".

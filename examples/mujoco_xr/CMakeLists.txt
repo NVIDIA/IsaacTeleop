@@ -8,7 +8,7 @@
 # THIS FILE IS CONFIGURED TWO WAYS, and every branch below turns on which:
 #
 #   IN-TREE     add_subdirectory'd from the root CMakeLists.txt. Builds the
-#               extension in place under python/mujoco_xr/ so the four ctest
+#               extension in place under python/isaacteleop_examples/mujoco_xr/ so the four ctest
 #               entries (and a bare `pytest` in tests/) import it from the
 #               source tree. Installs NOTHING -- see the note at the bottom.
 #
@@ -79,7 +79,7 @@ endif()
 # ==============================================================================
 # There is deliberately no find_package(mujoco): the wheel is the only
 # supported source, and it is what the Python side loads at runtime. One
-# libmujoco serves both languages (python/mujoco_xr/__init__.py imports
+# libmujoco serves both languages (python/isaacteleop_examples/mujoco_xr/__init__.py imports
 # `mujoco` BEFORE the extension so the SONAME is already resolved).
 
 # In-tree only in practice: standalone, the find_package(Python3 REQUIRED) above
@@ -170,11 +170,11 @@ if(NOT _mujoco_probe_rc EQUAL 0)
     # STANDALONE THIS IS FATAL, and the difference matters. Here the build IS
     # the example: returning would emit a syntactically valid wheel containing
     # the .py sources and no _mujoco_xr*.so, and the first symptom would be an
-    # ImportError at `python -m mujoco_xr` with nothing in the install output to
-    # explain it. pyproject.toml's build-system.requires lists mujoco precisely
-    # so this cannot happen under an isolated PEP-517 build; reaching here means
-    # build isolation was turned off (`--no-build-isolation`) without supplying
-    # it.
+    # ImportError at `python -m isaacteleop_examples.mujoco_xr` with nothing in
+    # the install output to explain it. pyproject.toml's build-system.requires
+    # lists mujoco precisely so this cannot happen under an isolated PEP-517
+    # build; reaching here means build isolation was turned off
+    # (`--no-build-isolation`) without supplying it.
     if(_mujoco_xr_standalone)
         message(FATAL_ERROR "mujoco_xr: '${Python3_EXECUTABLE}' cannot import mujoco, so the "
                             "extension cannot be compiled and this wheel would contain no "

@@ -15,8 +15,9 @@
 #
 # REQUIRES TWO WHEELS IN ONE ENVIRONMENT, and that environment is the one you
 # launch the rig from. `{python}` below expands to the LAUNCHING interpreter
-# (rig/config.py:249, shlex.quote(sys.executable)), so `-m mujoco_xr` resolves
-# against it -- which means `mujoco_xr` must be installed beside `isaacteleop`
+# (rig/config.py:249, shlex.quote(sys.executable)), so
+# `-m isaacteleop_examples.mujoco_xr` resolves against it -- which means the
+# isaacteleop-examples-mujoco-xr wheel must be installed beside `isaacteleop`
 # rather than in a private .venv of its own. This is new: the command used to be
 # `uv run --directory install/examples/mujoco_xr/python ...`, which built its own
 # environment out of the install tree. Nothing is installed to
@@ -47,14 +48,20 @@ consumers:
     # WSS port 48322 -- the second one kills the framework's runtime pane
     # (the implicit one described in the header).
     #
-    # AND NOTHING WARNS YOU IF YOU DROP IT. Delete the flag and this rig kills
-    # its own runtime pane: the headset drops mid-session and the failure looks
-    # like a runtime crash rather than a config edit. The rig's own lint does not
-    # catch it -- find_runtime_footguns() only recognises a Python app as
-    # `-m isaacteleop` or a `.py` token, and `-m mujoco_xr` is neither
-    # (rig/config.py:264-288). This comment is the only guard on that flag.
+    # Delete the flag and this rig kills its own runtime pane: the headset drops
+    # mid-session and the failure looks like a runtime crash rather than a
+    # config edit.
     #
-    # `-m mujoco_xr` resolves from site-packages, not from cwd: the package is
-    # an installed wheel and `cwd: ..` (the repo root) contains no directory
-    # that could shadow it.
-    command: "{python} -m mujoco_xr --no-launch-cloudxr-runtime"
+    # THE RIG'S OWN LINT NOW CATCHES THAT, and it did not before the package was
+    # namespaced. find_runtime_footguns() recognises a Python app by the
+    # SUBSTRING `-m isaacteleop` or a `.py` token (rig/config.py:264-288); the
+    # old command was `-m mujoco_xr`, which is neither, so dropping the flag was
+    # silent and this comment was the only guard. `-m isaacteleop_examples...`
+    # contains `-m isaacteleop`, so the warning fires. That is a side effect of
+    # the rename, not something the lint was taught -- keep this comment anyway,
+    # since the lint is warn-only and never a gate.
+    #
+    # `-m isaacteleop_examples.mujoco_xr` resolves from site-packages, not from
+    # cwd: the package is an installed wheel and `cwd: ..` (the repo root)
+    # contains no directory that could shadow it.
+    command: "{python} -m isaacteleop_examples.mujoco_xr --no-launch-cloudxr-runtime"

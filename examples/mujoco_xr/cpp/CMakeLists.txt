@@ -133,7 +133,7 @@ set_target_properties(mujoco_xr_py PROPERTIES
     OUTPUT_NAME "_mujoco_xr"
     # NO RPATH, deliberately, and do not "fix" this. libmujoco's SONAME is
     # fully versioned (libmujoco.so.3.11.0) with no unversioned symlink, and
-    # python/mujoco_xr/__init__.py imports `mujoco` BEFORE this extension, so
+    # python/isaacteleop_examples/mujoco_xr/__init__.py imports `mujoco` BEFORE this extension, so
     # the wheel's already-loaded library satisfies our NEEDED entry. With an
     # RPATH pointing at the BUILD interpreter's wheel we would silently load a
     # SECOND libmujoco and hand mjModel* pointers across two copies. Without
@@ -147,8 +147,12 @@ set_target_properties(mujoco_xr_py PROPERTIES
 # ==============================================================================
 if(_mujoco_xr_standalone)
     # THE WHEEL. CMAKE_INSTALL_PREFIX is scikit-build-core's platlib staging
-    # root, so this lands at site-packages/mujoco_xr/_mujoco_xr*.so -- beside the
+    # root, so this lands at
+    # site-packages/isaacteleop_examples/mujoco_xr/_mujoco_xr*.so -- beside the
     # .py sources and assets/ that ../pyproject.toml's `wheel.packages` copies.
+    # The DESTINATION must therefore spell the namespace too; drop the
+    # `isaacteleop_examples/` half and the .so lands one directory up, outside
+    # the package, and the wheel imports with no extension in it.
     # This install rule is the ONLY owner of a build-produced file in the wheel.
     # What keeps the package copy from ALSO shipping a stale in-place .so is
     # `sdist.exclude` in ../pyproject.toml -- nothing else. The repo-root
@@ -163,7 +167,7 @@ if(_mujoco_xr_standalone)
     # in-place .so the in-tree build maintains for ctest, with one built by a
     # different interpreter.
     install(TARGETS mujoco_xr_py
-        LIBRARY DESTINATION mujoco_xr
+        LIBRARY DESTINATION isaacteleop_examples/mujoco_xr
     )
 else()
     # IN-TREE. Drop the .so next to __init__.py so the package imports straight
@@ -179,7 +183,7 @@ else()
     # CAVEAT: this copies, it never removes. A renamed or deleted module leaves
     # a stale .so behind until the source tree is cleaned.
     set_target_properties(mujoco_xr_py PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${_mujoco_xr_root}/python/mujoco_xr"
+        LIBRARY_OUTPUT_DIRECTORY "${_mujoco_xr_root}/python/isaacteleop_examples/mujoco_xr"
     )
     # No install() rule: nothing from this example is installed into install/
     # any more. See the note at the bottom of ../CMakeLists.txt.

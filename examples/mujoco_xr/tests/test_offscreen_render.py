@@ -30,7 +30,9 @@ RESOLUTION = 256
 # local copy would let app.NEAR_Z change while every assertion here still
 # passed -- the test would be checking its own constants, not the shipped ones.
 # Same importorskip shape as test_app_helpers.py:10.
-app = pytest.importorskip("mujoco_xr.app", reason="isaacteleop is not on PYTHONPATH")
+app = pytest.importorskip(
+    "isaacteleop_examples.mujoco_xr.app", reason="isaacteleop is not on PYTHONPATH"
+)
 NEAR_Z = app.NEAR_Z
 FAR_Z = app.FAR_Z
 
@@ -80,7 +82,7 @@ def _mono_view(resolution):
 
 
 def _make_renderer(session, model, view_count=1):
-    from mujoco_xr import _mujoco_xr
+    from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
     resolution = session.get_recommended_resolution()
     return _mujoco_xr.Renderer(
@@ -210,7 +212,7 @@ def test_markers_are_cleared_not_accumulated(gpu_session, scene):
 
 def test_renderer_rejects_a_view_count_that_cannot_match_frameinfo(gpu_session, scene):
     model, _ = scene
-    from mujoco_xr import _mujoco_xr
+    from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
     resolution = gpu_session.get_recommended_resolution()
     with pytest.raises(ValueError):

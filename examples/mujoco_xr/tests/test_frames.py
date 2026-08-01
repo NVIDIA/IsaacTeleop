@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pytest
 
-from mujoco_xr import _mujoco_xr
+from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
 
 def test_extension_and_wheel_share_one_libmujoco():

@@ -7,7 +7,11 @@
 # examples/camera_viz/tests/pyproject.toml.
 
 [project]
-name = "mujoco-xr-tests"
+# Follows the dist name in ../pyproject.toml the way camera-viz-tests follows
+# camera-viz. Nothing reads this name -- `uv run` only needs *a* project here,
+# and ../CMakeLists.txt's pin check reads this FILE, not this field -- so it is
+# cosmetic, and cosmetic names should match the thing they belong to.
+name = "isaacteleop-examples-mujoco-xr-tests"
 version = "0.0.0"
 # Pinned for the same reason as ../pyproject.toml: these tests import
 # the ABI-specific _mujoco_xr*.so built by the preset's interpreter.
