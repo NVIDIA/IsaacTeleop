@@ -19,8 +19,9 @@ depth/IR images, and point clouds are therefore not implemented here.
 - Dual ColorLeft/ColorRight raw video recording without a container.
 - Per-stream MJPEG, H.264, or H.265 profile selection; per-stream dimensions and
   frame rate override global defaults.
-- Latest-frame, non-blocking SDL stereo preview. MJPEG is decoded by OrbbecSDK;
-  H.264/H.265 by FFmpeg.
+- Latest-frame SDL stereo preview. MJPEG is decoded by OrbbecSDK; H.264/H.265
+  by FFmpeg. It is a convenience preview, not the lowest-latency GPU path;
+  use `camera_viz` for GPU preview.
 - Frame metadata, IMU batches, WAV sample indices, calibration, and device state.
 - Three recording modes: raw media only, plugin-local MCAP, or TeleopSession
   multi-device MCAP through OpenXR SchemaPushers.
@@ -127,14 +128,51 @@ SDK property permissions, ranges, and integer steps for the connected device.
 For brevity, the examples below use this shell variable:
 
 ```bash
-ORBBEC_PLUGIN=build/cmake-cpython-311/src/plugins/orbbec/app/camera_plugin_orbbec
+export ORBBEC_PLUGIN="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/camera_plugin_orbbec"
 ```
 
-This shell variable exists only in the terminal where it is assigned. Run the
-assignment again after opening a new terminal, and verify it before a capture:
+This is the complete initialization needed for the build-tree executable. It
+has a build RPATH to the selected SDK, so do **not** add arbitrary SDK paths to
+`LD_LIBRARY_PATH`. The variable exists only in the terminal where it is
+assigned. In every new terminal, first `cd` to the repository root, run the
+`export` above again, and verify it before a capture:
 
 ```bash
 test -x "$ORBBEC_PLUGIN" || { echo "ORBBEC_PLUGIN is unset or invalid" >&2; exit 1; }
+```
+
+## Before every recording: terminal, directory, and clean stop
+
+All relative output paths below are relative to the repository root. Create one
+new, timestamped directory per run; this prevents a new elementary stream from
+being confused with an earlier recording.
+
+```bash
+cd /absolute/path/to/IsaacTeleop
+export ORBBEC_PLUGIN="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/camera_plugin_orbbec"
+test -x "$ORBBEC_PLUGIN" || { echo "Build the plugin first" >&2; exit 1; }
+
+RUN="recordings/ego_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/raw" "$RUN/logs"
+echo "Recording directory: $RUN"
+```
+
+Keep the capture terminal open and stop the plugin with `Ctrl-C` once. Wait for
+its final statistics and the shell prompt before inspecting files; this closes
+the WAV/MCAP writers and flushes elementary video. To make a bounded automated
+capture, use `timeout -s INT 20 ...`; status `124` is expected when `timeout`
+sends that intentional SIGINT.
+
+Each run has this layout when the corresponding options are used:
+
+```text
+<RUN>/raw/left.mjpg|h264|h265      elementary left video
+<RUN>/raw/right.mjpg|h264|h265     elementary right video
+<RUN>/ego.wav                      48 kHz mono S16_LE audio (optional)
+<RUN>/calibration.json             structured calibration export (optional)
+<RUN>/local.mcap                   metadata MCAP in local mode (optional)
+<RUN>/teleop.mcap                  metadata plus other trackers in TeleopSession mode (optional)
+<RUN>/logs/capture.log             terminal output and final counters
 ```
 
 ## Usage
@@ -142,18 +180,40 @@ test -x "$ORBBEC_PLUGIN" || { echo "ORBBEC_PLUGIN is unset or invalid" >&2; exit
 Press `Ctrl-C` to stop a capture cleanly. The plugin finalizes WAV and MCAP output
 on shutdown. Every capture needs at least one `--add-stream` argument.
 
+### Recording-mode decision
+
+Choose exactly one of these modes. In all three modes, video is always written
+as separate `.mjpg`, `.h264`, or `.h265` files and optional audio is a separate
+`.wav` file. MCAP intentionally stores time-synchronised structured data, **not**
+the high-throughput video or PCM bytes.
+
+| Mode | Plugin option | MCAP writer | Use it when |
+|---|---|---|---|
+| Raw media only | neither MCAP option | none | You only need video and/or WAV. |
+| Local metadata MCAP | `--mcap-filename=<RUN>/local.mcap` | plugin | You need camera metadata, IMU, audio index, calibration, and state in one local file. |
+| TeleopSession MCAP | `--collection-prefix=<prefix>` | Python DeviceIO/TeleopSession | You need the camera data in the **same** MCAP as hands, head, controllers, or other trackers. |
+
+`--mcap-filename` and `--collection-prefix` are mutually exclusive. Supplying
+both is an intentional startup error, not a way to obtain two MCAP files.
+
 ### 1. Record raw video only
 
 This writes only elementary video; no MCAP is created.
 
 ```bash
+RUN="recordings/ego_raw_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/raw" "$RUN/logs"
 "$ORBBEC_PLUGIN" \
-  --add-stream=camera=ColorLeft,output=recordings/left.mjpg \
-  --add-stream=camera=ColorRight,output=recordings/right.mjpg
+  --add-stream=camera=ColorLeft,output="$RUN/raw/left.mjpg" \
+  --add-stream=camera=ColorRight,output="$RUN/raw/right.mjpg" \
+  2>&1 | tee "$RUN/logs/capture.log"
 ```
 
 The default format is MJPEG and a zero/omitted width, height, or FPS lets the SDK
-select a compatible profile.
+select a compatible profile. On successful clean shutdown, `capture.log` prints
+nonzero frame and byte counts for both eyes. For an acceptance recording, its
+last statistics must show `0 sequence gaps`, `video_frame_sets_dropped=0`, and
+`dropped=0`.
 
 ### 2. Record explicit H.264 or H.265 profiles
 
@@ -161,10 +221,13 @@ select a compatible profile.
 the global `--width`, `--height`, and `--fps` defaults.
 
 ```bash
+RUN="recordings/ego_h264_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/raw" "$RUN/logs"
 "$ORBBEC_PLUGIN" \
-  --add-stream=camera=ColorLeft,output=recordings/left.h264,format=h264,width=1600,height=1300,fps=30 \
-  --add-stream=camera=ColorRight,output=recordings/right.h264,format=h264,width=1600,height=1300,fps=30 \
-  --bitrate=8 --dynamic-bitrate=on
+  --add-stream=camera=ColorLeft,output="$RUN/raw/left.h264",format=h264,width=1600,height=1300,fps=30 \
+  --add-stream=camera=ColorRight,output="$RUN/raw/right.h264",format=h264,width=1600,height=1300,fps=30 \
+  --bitrate=8 --dynamic-bitrate=on \
+  2>&1 | tee "$RUN/logs/capture.log"
 ```
 
 Use `format=h265` and `.h265` filenames for HEVC. `--bitrate` is passed as the
@@ -193,29 +256,62 @@ SDK pull queue. The periodic statistics must remain at `0 sequence gaps` and
 the separate IMU/audio/metadata publication queue. Treat any nonzero video or
 metadata drop count as an acceptance failure and preserve the log for diagnosis.
 
+After either raw-video command, verify that both files are non-empty and fully
+decodable. MJPEG needs its input format declared; H.264/H.265 can be inferred
+from the filename.
+
+```bash
+find "$RUN/raw" -maxdepth 1 -type f -printf '%f %s bytes\n'
+
+# For MJPEG recordings:
+ffmpeg -v error -f mjpeg -i "$RUN/raw/left.mjpg" -f null -
+ffmpeg -v error -f mjpeg -i "$RUN/raw/right.mjpg" -f null -
+
+# For H.264 recordings:
+ffprobe -v error -select_streams v:0 -count_frames -show_streams "$RUN/raw/left.h264"
+ffmpeg -v error -i "$RUN/raw/left.h264" -f null -
+ffmpeg -v error -i "$RUN/raw/right.h264" -f null -
+
+# For H.265 recordings, substitute the actual run directory:
+ffmpeg -v error -i "$RUN/raw/left.h265" -f null -
+ffmpeg -v error -i "$RUN/raw/right.h265" -f null -
+```
+
+No output from each `ffmpeg -v error` command means decoding succeeded. To
+watch a recording, use any desktop player after conversion to MP4 as shown in
+[Media inspection and conversion](#media-inspection-and-conversion).
+
 ### 3. Show a live preview while recording
 
 ```bash
+RUN="recordings/ego_preview_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/raw" "$RUN/logs"
 "$ORBBEC_PLUGIN" \
-  --add-stream=camera=ColorLeft,output=recordings/left.h265,format=h265,width=1600,height=1300,fps=30 \
-  --add-stream=camera=ColorRight,output=recordings/right.h265,format=h265,width=1600,height=1300,fps=30 \
-  --preview
+  --add-stream=camera=ColorLeft,output="$RUN/raw/left.h265",format=h265,width=1600,height=1300,fps=30 \
+  --add-stream=camera=ColorRight,output="$RUN/raw/right.h265",format=h265,width=1600,height=1300,fps=30 \
+  --preview 2>&1 | tee "$RUN/logs/capture.log"
 ```
 
-Preview is a latest-frame consumer and does not block recording or alter capture
-timestamps. Closing its window requests normal shutdown. Do not run this plugin
-and the independent `camera_viz` Orbbec source against the same physical Ego at
-the same time.
+Preview is a latest-frame consumer and does not alter recording timestamps, but
+its CPU decode and SDL upload work can compete for host CPU/GPU time at this
+resolution. It is therefore a convenience check, not a latency benchmark:
+record without `--preview` for an integrity run, and use `camera_viz` for the
+GPU preview path. Closing its window requests normal shutdown. Do not run this
+plugin and the independent `camera_viz` Orbbec source against the same physical
+Ego at the same time.
 
 ### 4. Add IMU, audio, calibration, and state
 
 ```bash
+RUN="recordings/ego_sensors_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/raw" "$RUN/logs"
 "$ORBBEC_PLUGIN" \
-  --add-stream=camera=ColorLeft,output=recordings/left.mjpg \
-  --add-stream=camera=ColorRight,output=recordings/right.mjpg \
+  --add-stream=camera=ColorLeft,output="$RUN/raw/left.mjpg" \
+  --add-stream=camera=ColorRight,output="$RUN/raw/right.mjpg" \
   --enable-imu --imu-rate=1000 --accel-full-scale=24 --gyro-full-scale=2000 \
-  --audio-output=recordings/ego.wav \
-  --calibration-output=recordings/ego_calibration.json
+  --audio-output="$RUN/ego.wav" \
+  --calibration-output="$RUN/calibration.json" \
+  2>&1 | tee "$RUN/logs/capture.log"
 ```
 
 The currently validated firmware exposes 24 g and 2000 dps at its enumerated
@@ -233,11 +329,27 @@ sample count, and timestamps rather than duplicating audio bytes.
 No Python host or TeleopSession is required. The plugin writes metadata itself:
 
 ```bash
+RUN="recordings/ego_local_mcap_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/raw" "$RUN/logs"
 "$ORBBEC_PLUGIN" \
-  --add-stream=camera=ColorLeft,output=recordings/left.h264,format=h264,width=1600,height=1300,fps=30 \
-  --add-stream=camera=ColorRight,output=recordings/right.h264,format=h264,width=1600,height=1300,fps=30 \
-  --enable-imu --audio-output=recordings/ego.wav \
-  --mcap-filename=recordings/orbbec_local.mcap
+  --add-stream=camera=ColorLeft,output="$RUN/raw/left.h264",format=h264,width=1600,height=1300,fps=30 \
+  --add-stream=camera=ColorRight,output="$RUN/raw/right.h264",format=h264,width=1600,height=1300,fps=30 \
+  --enable-imu --audio-output="$RUN/ego.wav" \
+  --calibration-output="$RUN/calibration.json" \
+  --mcap-filename="$RUN/local.mcap" \
+  2>&1 | tee "$RUN/logs/capture.log"
+```
+
+After a clean stop, confirm all requested artefacts exist. The MCAP's size
+alone is not a video-quality indicator: validate the elementary streams with
+the commands above and use your MCAP analysis/replay tool to inspect its
+metadata channels.
+
+```bash
+find "$RUN" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
+ffprobe -v error -show_entries stream=codec_name,sample_rate,channels,bits_per_raw_sample \
+  -of default=noprint_wrappers=1 "$RUN/ego.wav"
+jq '.left_intrinsics, .right_intrinsics, .left_to_right' "$RUN/calibration.json"
 ```
 
 Its channels are:
@@ -266,6 +378,8 @@ from isaacteleop import deviceio
 from isaacteleop.teleop_session_manager import PluginConfig, TeleopSession, TeleopSessionConfig
 
 prefix = "orbbec_ego"
+run_dir = Path("recordings/ego_teleop_YYYYMMDD_HHMMSS")
+(run_dir / "raw").mkdir(parents=True, exist_ok=False)
 camera_trackers = [
     deviceio.FrameMetadataTrackerOrbbec(prefix, [
         deviceio.OrbbecCameraStream.ColorLeft,
@@ -281,7 +395,7 @@ camera_trackers = [
 # TeleopSession configuration. Their definitions depend on the selected hardware.
 all_trackers = [hand_tracker, head_tracker, controller_tracker, *camera_trackers]
 recording = deviceio.McapRecordingConfig(
-    "teleop_all_devices.mcap",
+    str(run_dir / "teleop.mcap"),
     [
         (hand_tracker, "hands"),
         (head_tracker, "head"),
@@ -305,10 +419,10 @@ config = TeleopSessionConfig(
             plugin_root_id="orbbec_camera",
             search_paths=[Path("build/cmake-cpython-311/src/plugins")],
             plugin_args=[
-                "--add-stream=camera=ColorLeft,output=recordings/left.h264,format=h264,width=1600,height=1300,fps=30",
-                "--add-stream=camera=ColorRight,output=recordings/right.h264,format=h264,width=1600,height=1300,fps=30",
+                f"--add-stream=camera=ColorLeft,output={run_dir / 'raw/left.h264'},format=h264,width=1600,height=1300,fps=30",
+                f"--add-stream=camera=ColorRight,output={run_dir / 'raw/right.h264'},format=h264,width=1600,height=1300,fps=30",
                 "--enable-imu",
-                "--audio-output=recordings/ego.wav",
+                f"--audio-output={run_dir / 'ego.wav'}",
                 f"--collection-prefix={prefix}",
             ],
         ),
@@ -325,6 +439,11 @@ standalone, hardware-focused example for all five camera Trackers. It does not
 create hand/head/controller Trackers, so use the configuration above to combine
 them with an existing teleop session.
 
+For a directly runnable camera-only TeleopSession/SchemaPusher check, create
+the output directory before starting the plugin. The example itself writes raw
+media below `recordings/`; `--mcap` controls the one MCAP written by
+`DeviceIOSession`.
+
 SchemaPusher is an OpenXR path, so its runtime must actually be running before
 the script starts. An existing `~/.cloudxr/run/cloudxr.env` file alone is not
 enough: it can remain after its runtime has stopped. Install the CloudXR Python
@@ -339,17 +458,24 @@ python -m isaacteleop.cloudxr --cloudxr-install-dir "$HOME/.cloudxr"
 
 ```bash
 # A second terminal, after the first prints "CloudXR runtime: running".
+cd /absolute/path/to/IsaacTeleop
 source "$HOME/.cloudxr/run/cloudxr.env"
+RUN="recordings/ego_schema_pusher_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN" recordings
 python examples/oxr/python/test_orbbec_camera.py \
   --plugin-root "$PWD/build/cmake-cpython-311/src/plugins" \
   --mode schema-pusher --format h264 --duration 20 \
-  --mcap "$PWD/recordings/orbbec_schema_pusher.mcap"
+  --mcap "$PWD/$RUN/teleop.mcap"
 ```
 
 The runtime terminal must remain open until the test exits. The resulting MCAP
 is written by `DeviceIOSession`, together with any hand/head/controller Tracker
 channels added to a real `TeleopSession`; raw video and WAV remain separate
-media files as designed.
+media files as designed. For this standalone example they are
+`recordings/left.h264`, `recordings/right.h264`, and `recordings/audio.wav`;
+move or rename them into `$RUN/raw/` after the run if you want each test kept
+together. A real TeleopSession configuration should instead pass one dedicated
+run directory in every `plugin_args` output path, as in the Python template.
 
 ## Device controls
 
@@ -400,21 +526,37 @@ alignment YAML rather than discarding usable stereo calibration.
 
 ## Media inspection and conversion
 
+Elementary video has no container index, so many desktop players will not open
+it directly. First validate it with `ffmpeg`, then remux/convert it to MP4.
+Run the command that matches the format actually recorded; it writes an MP4
+beside the raw file. Replace `left` with `right` to view the other eye.
+
 ```bash
 # Inspect raw streams and WAV.
-ffprobe -v error -show_streams recordings/left.h264
-ffprobe -v error -show_streams recordings/ego.wav
+ffprobe -v error -show_streams "$RUN/raw/left.h264"
+ffprobe -v error -show_streams "$RUN/ego.wav"
 
 # Copy supported elementary codecs into MP4 without re-encoding.
-ffmpeg -f h264 -framerate 30 -i recordings/left.h264 -c:v copy recordings/left.mp4
-ffmpeg -f hevc -framerate 30 -i recordings/left.h265 -c:v copy recordings/left.mp4
+ffmpeg -f h264 -framerate 30 -i "$RUN/raw/left.h264" -c:v copy "$RUN/left.mp4"
+ffmpeg -f hevc -framerate 30 -i "$RUN/raw/left.h265" -c:v copy "$RUN/left.mp4"
 
 # MJPEG normally needs video re-encoding for MP4.
-ffmpeg -f mjpeg -framerate 30 -i recordings/left.mjpg -c:v libx264 -pix_fmt yuv420p recordings/left.mp4
+ffmpeg -f mjpeg -framerate 30 -i "$RUN/raw/left.mjpg" -c:v libx264 -pix_fmt yuv420p "$RUN/left.mp4"
+
+# Open the generated MP4 and WAV with the desktop's default player.
+xdg-open "$RUN/left.mp4"
+xdg-open "$RUN/ego.wav"
 ```
 
 Use a video frame's `sample_time_local_common_clock_ns` / device timestamp and an
 audio chunk's WAV offset/sample count to align elementary media with MCAP records.
+MCAP is not a video container and will not play the camera image: it is the
+structured timing/metadata companion to the media files. Inspect it in the
+MCAP-capable analysis application used by your team, or replay it through an
+Isaac `ReplaySession` configured with the same Orbbec Tracker-to-channel mapping
+as the original recording. In local mode the channel bases are the six names
+listed above; in TeleopSession mode they are the names supplied in
+`McapRecordingConfig` (for example `orbbec_metadata` and `orbbec_imu`).
 
 ## Reproducible build and delivery checks
 
@@ -474,7 +616,7 @@ package.
 4. On the physical host, first record the outputs of `lsusb -t`, `nvidia-smi`,
    and `--list-capabilities`. Ego PID `0x1201` normally reports `bcdUSB 2.00`
    and `480M`; that is its expected transport, not a failed acceptance check.
-5. For the 15-minute load check use two H.264 or H.265 1600x1300@60 streams,
+5. For the 15-minute load check use two H.264 or H.265 1600x1300@30 streams,
    `--enable-imu --imu-rate=1000`, audio, and local MCAP. Monitor the process
    with `pidstat -r -u -d -p <pid> 10` and preserve the plugin's periodic
    frame/sample/queue statistics. `dropped_events` must remain zero, the queue
@@ -531,9 +673,7 @@ jq '.left_intrinsics, .right_intrinsics, .left_to_right' recordings/ego_calibrat
 ```
 
 Do not use an unguarded ``timeout`` loop in a shell that enables ``set -e``:
-its expected status ``124`` otherwise stops after the first format. A terminal
-that prints ``^[[200~`` before a command received a pasted control sequence;
-press ``Ctrl-C`` once and paste the command again.
+its expected status ``124`` otherwise stops after the first format.
 
 For the MCAP, verify the five expected schema families and the channel names in
 the plugin-local list above with the MCAP reader used by your analysis workflow.
@@ -544,15 +684,17 @@ records appear beside the hand, head, and controller records in **one**
 TeleopSession MCAP. Also confirm that supplying both `--mcap-filename` and
 `--collection-prefix` fails before capture begins.
 
-For the 15-minute stress command, replace `fps=30` below with `fps=60` only if
-`--list-capabilities` reports that profile. The pass/fail criterion is sustained
-capture quality and the recorded statistics, not a SuperSpeed USB enumeration:
+The following is the supported 15-minute stress command. The pass/fail criterion
+is sustained capture quality and the recorded statistics, not a SuperSpeed USB
+enumeration. Do **not** change it to 60 FPS merely because the profile is
+enumerated: as documented above, encoded 60 FPS has not passed integrity
+validation on the validated Ego firmware.
 
 ```bash
 mkdir -p recordings/stress
 "$ORBBEC_PLUGIN" \
-  --add-stream=camera=ColorLeft,output=recordings/stress/left.h265,format=h265,width=1600,height=1300,fps=60 \
-  --add-stream=camera=ColorRight,output=recordings/stress/right.h265,format=h265,width=1600,height=1300,fps=60 \
+  --add-stream=camera=ColorLeft,output=recordings/stress/left.h265,format=h265,width=1600,height=1300,fps=30 \
+  --add-stream=camera=ColorRight,output=recordings/stress/right.h265,format=h265,width=1600,height=1300,fps=30 \
   --enable-imu --imu-rate=1000 --accel-full-scale=24 --gyro-full-scale=2000 \
   --audio-output=recordings/stress/ego.wav \
   --mcap-filename=recordings/stress/local.mcap

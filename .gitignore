@@ -4,6 +4,12 @@
 # macOS
 .DS_Store
 
+# Local IDE indexes and hardware-capture artifacts. These are generated on a
+# developer's machine and can contain multi-gigabyte video/MCAP recordings.
+/.vscode/
+/Log/
+/recordings/
+
 # Node.js
 node_modules/
 package-lock.json
