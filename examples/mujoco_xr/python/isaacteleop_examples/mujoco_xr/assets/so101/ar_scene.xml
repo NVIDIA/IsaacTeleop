@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+AR composition, the twin of assets/franka/ar_scene.xml: the UNMODIFIED
+Menagerie so101.xml on a simple table whose top sits at z = 0 (the robot base
+plane), extending down 0.73 m to the operator's physical floor. No skybox, no
+ground plane: the background is passthrough. The table is smaller than the
+Franka's because the arm is -- the SO-101's reach is ~0.35 m, not ~0.85 m.
+
+THIS FILE IS THE ONLY TRACKED FILE IN THIS DIRECTORY; so101.xml and assets/ are
+fetched by scripts/fetch-menagerie.sh, and the include has no path in it
+because the wrapper must be a sibling of the file it includes. Both facts are
+explained at the top of that script and in the Franka twin.
+
+THE ROBOT SITS AT THE ORIGIN, exactly as the Franka does, and this is a
+decision rather than an omission. A verified alternative exists and was
+deliberately not taken. Putting the arm in a <frame pos="..."> requires
+<attach> instead of <include>, and <attach> under MuJoCo's default conflict
+policy silently DISCARDS ALL SIX authored <option> fields of so101.xml --
+timestep 0.005->0.002, integrator implicitfast->Euler, cone elliptic->pyramidal,
+impratio 10->1, iterations 10->100, ls_iterations 20->50. THE PAIR THAT MATTERS
+IS cone/impratio, the gripper's authored friction model: so101.xml's
+collision_gripper class is condim=6 with torsional friction, and elliptic cone +
+impratio=10 is what makes that pinch hold. Lose those and the arm looks
+identical and grasps differently. <compiler conflict="merge"/> restores all six
+with a bitwise-identical trace, and is not used here because moving the robot
+is a WHOLE-APP comfort question, not an SO-101 one: at the shipped calibration
+the Franka's home TCP is 1.592 m from the eye and the SO-101's is 1.493 m, so
+the placement argument indicts the Franka harder, and fixing it for one scene
+alone is incoherent. TRIGGER, so this is a decision with an expiry: the first
+headset session that reports the robot reads too small or too far away -> add
+<compiler conflict="merge"/> and wrap an <attach> in a <frame pos="...">.
+-->
+<mujoco model="so101 AR scene">
+  <include file="so101.xml"/>
+
+  <!-- AFTER the robot, and that is the entire transparency design: mjv_updateScene
+       emits in GEOM-ID ORDER (measured; tests/test_ghost.py asserts it), so a body
+       declared here lands last in mjvScene and blends correctly against everything
+       drawn before it. Moving this line above the include silently breaks the
+       ghost -- it would still render, just wrongly composited. -->
+  <include file="../leader/leader_gripper.xml"/>
+
+  <worldbody>
+    <geom name="table" type="box" size="0.32 0.30 0.365" pos="0.10 0 -0.365"
+        rgba="0.46 0.36 0.25 1"/>
+  </worldbody>
+
+  <!-- so101.xml ships no keyframe, and the control step requires one named
+       "home" (it is both the A-reset pose and, where ns_gain != 0, the
+       nullspace bias -- though this robot's row sets ns_gain = 0).
+
+       The four arm-plane joints are /code/Lab's Isaac-Stack-Cube-SO101 reach
+       posture verbatim: they ARE that posture, and their sum is its 45.8 deg
+       approach pitch. wrist_roll = pi/2 is NOT from Lab.
+
+       IN JOINT SPACE that deviation is free: wrist_roll is distal to all four
+       arm-plane joints, so it changes the jaw orientation without disturbing
+       the reach posture at all. IT IS NOT FREE IN THE TASK SPACE. It is a spin
+       about the WRIST axis, and the TCP does not lie on that axis:
+       tcp_offset[0] = 0.012 puts it 12.0 mm off, so the TCP sweeps a 12 mm
+       circle. Measured against Lab's wrist_roll = 0, TCP displacement is
+       9.186 mm at pi/4, 16.973 mm at pi/2 (shipped) and 24.004 mm at pi --
+       exactly sqrt(2)*12 and 2*12. THE SHIPPED HOME TCP THEREFORE SITS 17.0 mm
+       FROM LAB'S. If you are comparing poses against Lab, that offset is
+       expected and is here.
+
+       Why pi/2 anyway: it rolls the jaws toward level, which is the
+       orientation a table-top pick needs. Measured as the jaw-tip SEPARATION
+       axis (centroid of the three fixed_jaw_sph_tip* geoms to the centroid of
+       the three moving_jaw_sph_tip*, at the home aperture of 129.9 mm), it
+       goes from 80.0 deg off horizontal at wrist_roll = 0 to 26.9 deg at pi/2.
+       NONE OF THIS HAS BEEN CHECKED ON A DEVICE.
+
+       qpos[gripper] MUST equal robot_spec.py's gripper_open (1.745), and ctrl=
+       must be present and equal to qpos: the jaw is driven to gripper_open at
+       trigger = 0, so any other value here makes every A-press twitch the jaw
+       as it snaps to the commanded one. -->
+  <keyframe>
+    <key name="home" qpos="0 -0.6 0.8 0.6 1.5708 1.745"
+         ctrl="0 -0.6 0.8 0.6 1.5708 1.745"/>
+  </keyframe>
+</mujoco>

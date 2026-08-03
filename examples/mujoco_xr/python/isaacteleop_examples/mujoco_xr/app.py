@@ -1,20 +1,33 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""MuJoCo scene rendered into a Televiz XR session, with controller markers.
+"""MuJoCo scene teleoperated from a Televiz XR session.
 
 Single process, single thread, one OpenXR session:
 
     VizSession(kXr)  ──get_oxr_handles()──▶  TeleopSession
          │                                        │
          │ vk_device / vk_physical_device         │ controller grip poses
-         ▼                                        ▼
-    _mujoco_xr.Renderer  ──__cuda_array_interface__──▶  ProjectionLayer.submit()
+         ▼                                        ▼                      │
+    _mujoco_xr.Renderer  ──__cuda_array_interface__──▶  ProjectionLayer  │
+         ▲                                                               │
+         └──────── mjData ◀──── teleop.Teleop (clutch + DLS IK) ◀────────┘
 
-SCOPE: the controller poses are drawn as MARKERS ONLY. There is no IK, no
-clutch, no rate limiting and no jaw mapping here, deliberately -- a
-frame-convention bug and a control bug produce the identical symptom ("the arm
-jumped"), and separating them is what makes the first one debuggable.
+WHERE THE LINE BETWEEN THE LANGUAGES IS, because it is not arbitrary:
+``cpp/scene_renderer.hpp`` owns ``mjvScene`` / ``mjvOption`` / ``mjvCamera``,
+and Python owns ``mjModel`` / ``mjData`` / ``mj_step``. Control writes
+``d.ctrl``, so control is Python -- which also makes the whole of it testable
+with no GPU, no headset and no runtime (``tests/test_teleop.py``).
+
+FRAME ORDER IS LOAD-BEARING and is not the order this file originally had:
+
+    sample input -> clutch -> IK -> write ctrl -> mj_step xN -> render gate
+    -> compose -> render -> submit
+
+Control runs BEFORE the physics it commands, and on EVERY frame rather than
+only on rendered ones. Sampling after the ``should_render`` gate was harmless
+while the controller poses were only markers; once they drive ``d.ctrl`` it
+means physics advancing open-loop on every non-rendered frame.
 """
 
 from __future__ import annotations
@@ -41,7 +54,7 @@ from isaacteleop.teleop_session_manager import (
     get_required_oxr_extensions_from_pipeline,
 )
 
-from . import _mujoco_xr
+from . import _mujoco_xr, robot_spec, teleop
 
 LOG = logging.getLogger("mujoco_xr")
 
@@ -105,9 +118,18 @@ _MODES = {
 #
 # Plain __file__ arithmetic rather than importlib.resources: this package is
 # always installed as real files on disk (it contains a compiled extension, so
-# it can never be imported from a zip), and a Path is what --scene and
+# it can never be imported from a zip), and a Path is what --scene-xml and
 # MjModel.from_xml_path want anyway.
-DEFAULT_SCENE = Path(__file__).resolve().parent / "assets" / "tabletop.xml"
+#
+# STILL POINTS AT tabletop.xml, which is still the default scene, and that is a
+# deliberate constraint rather than inertia: tabletop.xml is the only scene that
+# needs no fetch, so an unfetched checkout runs and tests unchanged. It is also
+# the name tests/test_offscreen_render.py:69 reads, so the 36-case baseline is
+# preserved byte for byte. The scene CATALOGUE lives in robot_spec.SCENES; this
+# is the one row of it that app.py names directly.
+DEFAULT_SCENE = robot_spec.scene_path(
+    robot_spec.scene_by_id(robot_spec.DEFAULT_SCENE_ID)
+)
 
 # Controller marker appearance. Half-extents in metres; translucent so the
 # robot behind stays legible.
@@ -116,6 +138,21 @@ _MARKER_RGBA = {
     ControllersSource.LEFT: (0.20, 0.55, 1.00, 0.65),
     ControllersSource.RIGHT: (1.00, 0.45, 0.15, 0.65),
 }
+
+# WHICH HAND DRIVES THE ARM. One hand, one arm, and no flag: both shipped scenes
+# contain exactly one arm, so a second controller has nothing to drive. The
+# other hand is still TRACKED and still drawn as a marker -- that is what makes
+# "the markers move but the arm does not" a readable symptom rather than an
+# ambiguous one.
+CONTROL_HAND = ControllersSource.RIGHT
+
+# The target-pose box: where the clutch says the tool should be, as opposed to
+# where the arm has got to. Green when engaged, grey when idle. It is the only
+# visual indication of clutch state, and the gap between it and the tool is the
+# IK's tracking error made visible.
+_TARGET_HALF_EXTENT = (0.02, 0.02, 0.02)
+_TARGET_RGBA_ENGAGED = (0.20, 1.00, 0.30, 0.50)
+_TARGET_RGBA_IDLE = (0.70, 0.70, 0.70, 0.35)
 
 
 def _clamp_dt(dt: float) -> float:
@@ -365,6 +402,33 @@ def _draw_controller_markers(renderer, result) -> int:
     return drawn
 
 
+def _draw_target_marker(renderer, control) -> None:
+    """The clutch target, drawn last so it lands over the arm."""
+    renderer.add_marker(
+        pos_mj=[float(v) for v in control.target_pos],
+        quat_mj_wxyz=[float(v) for v in control.target_quat],
+        half_extent=list(_TARGET_HALF_EXTENT),
+        rgba=list(_TARGET_RGBA_ENGAGED if control.engaged else _TARGET_RGBA_IDLE),
+    )
+
+
+def _build_control(model, data):
+    """A ``teleop.Teleop`` for this model, or None with the reason logged.
+
+    ALWAYS LOGGED, AND AT WARNING. A scene with no robot in it (``tabletop``) is
+    a legitimate configuration and reaches here too, so this is not an error --
+    but a scene that HAS a robot and failed to resolve produces the identical
+    outcome: a robot that draws perfectly and never moves, which on a headset is
+    indistinguishable from a dead controller. This string is the only thing that
+    tells the two apart, so it is never swallowed.
+    """
+    try:
+        return teleop.Teleop(model, data)
+    except ValueError as exc:
+        LOG.warning("teleop control is OFF: %s", exc)
+        return None
+
+
 def _frame_clock(info, mode) -> float | None:
     """The single simulation clock, or None if this frame carries no time.
 
@@ -397,9 +461,29 @@ def _frame_clock(info, mode) -> float | None:
     return time.monotonic()
 
 
-def run(args: argparse.Namespace) -> int:
+def _resolve_scene(args: argparse.Namespace) -> Path:
+    """--scene-xml if given, else the --scene catalogue row. Never both.
+
+    The catalogue row is checked for its FETCHED half before MuJoCo sees the
+    path, because MjModel.from_xml_path's own failure for a missing
+    ``<include>`` target is a bare "Error opening file <mesh>.stl" naming a file
+    nobody asked for. robot_spec.scene_missing() names the fetch script instead.
+
+    --scene-xml deliberately does NOT get that check: it is the escape hatch for
+    a scene this catalogue does not know about, so there is nothing to check it
+    against, and MuJoCo's own error is the right one there.
+    """
+    if args.scene_xml is not None:
+        return Path(args.scene_xml).resolve()
+    scene = robot_spec.scene_by_id(args.scene)
+    missing = robot_spec.scene_missing(scene)
+    if missing is not None:
+        raise SystemExit(f"mujoco_xr: {missing}")
+    return robot_spec.scene_path(scene)
+
+
+def run(args: argparse.Namespace, scene_path: Path) -> int:
     mode = _MODES[args.mode]
-    scene_path = Path(args.scene).resolve()
 
     model = mujoco.MjModel.from_xml_path(str(scene_path))
     data = mujoco.MjData(model)
@@ -471,6 +555,28 @@ def run(args: argparse.Namespace) -> int:
         )
         _log_startup(mode, resolution, clock_source, scene_path)
 
+        # Built AFTER the startup block so the robot line it logs reads as part
+        # of the same report, and BEFORE the frame loop so a resolution failure
+        # is visible at startup rather than discovered by an arm that never
+        # moves. None for a scene with no arm in it.
+        control = _build_control(model, data)
+        if control is not None:
+            # START AT `home`, and this is not cosmetic. A fresh MjData is at
+            # `qpos0` -- all zeros for both shipped arms -- which is NOT the
+            # posture either scene authors. Measured on the SO-101: without this
+            # the session opens with the arm folded at zero, the clutch target
+            # latched onto the zero-pose TCP at (0.012, -0.000, -0.098) (below
+            # the table, at the base), and `ctrl` all zeros, which by the jaw
+            # table is a 16.3 mm aperture -- nearly closed -- rather than the
+            # 1.745 / 129.9 mm the `home` keyframe authors. The operator would
+            # then have to press A before anything looked right.
+            #
+            # AFTER _build_control, deliberately: Teleop.__init__ latches its
+            # target from `data`, and Teleop.reset re-latches it after running
+            # mj_forward. Doing it inside __init__ instead would change the
+            # constructor's contract, which the tests rely on.
+            control.reset(model, data)
+
         if mode == viz.DisplayMode.kXr:
             oxr = session.get_oxr_handles()
             if oxr is None:
@@ -484,7 +590,7 @@ def run(args: argparse.Namespace) -> int:
                 # pipeline graph, and passing them again duplicates the set.
                 oxr_handles=OpenXRSessionHandles(*oxr),
             )
-            with TeleopSession(teleop_config) as teleop:
+            with TeleopSession(teleop_config) as teleop_session:
                 _loop(
                     session,
                     layer,
@@ -493,12 +599,14 @@ def run(args: argparse.Namespace) -> int:
                     data,
                     mode,
                     resolution,
-                    teleop,
+                    teleop_session,
+                    control,
                     clock_name,
                 )
         else:
             LOG.info(
-                "control disengaged: %s has no OpenXR session, so no controllers and no markers.",
+                "control disengaged: %s has no OpenXR session, so no controllers, "
+                "no markers and nothing driving the arm. The scene still steps.",
                 mode,
             )
             _loop(
@@ -509,7 +617,8 @@ def run(args: argparse.Namespace) -> int:
                 data,
                 mode,
                 resolution,
-                teleop=None,
+                teleop_session=None,
+                control=control,
                 clock_name=clock_name,
             )
     finally:
@@ -521,9 +630,21 @@ def run(args: argparse.Namespace) -> int:
 
 
 def _loop(
-    session, layer, renderer, model, data, mode, resolution, teleop, clock_name
+    session,
+    layer,
+    renderer,
+    model,
+    data,
+    mode,
+    resolution,
+    teleop_session,
+    control,
+    clock_name,
 ) -> None:
     view_count = renderer.view_count
+    # One source, for one hand. Constructed here rather than per frame so it is
+    # obvious there is exactly one.
+    source = teleop.XrControllerSource(CONTROL_HAND)
     # `resolution` is passed in rather than re-queried: run() already asked for
     # it and sized both the layer and the renderer from that answer, so a second
     # call here would be a second chance for the three to disagree.
@@ -561,6 +682,37 @@ def _loop(
                     STALL_FRAMES,
                 )
 
+            # ── CONTROL, BEFORE THE PHYSICS IT COMMANDS ──────────────────
+            # Above the `should_render` gate and above the step loop, and both
+            # of those placements are the point. Sampling below the gate was
+            # harmless while the poses were only markers; once they drive
+            # `d.ctrl` it means the simulation advances open-loop on every
+            # non-rendered frame, holding the last command while the operator's
+            # hand keeps moving.
+            #
+            # `elapsed` is what reaches the rate limiter, and it has already
+            # been through _clamp_dt -- so a NaN clock arrives as 0, which stops
+            # the target rather than switching the limit off.
+            #
+            # GATED, and the gate is the exact statement of the requirement
+            # rather than "every frame": sample when this frame will STEP
+            # PHYSICS (so control precedes anything it commands) or will BE
+            # DRAWN (so the markers are not a frame stale). An ungated version
+            # calls teleop_session.step(), and therefore xrSyncActions, on the
+            # pre-kRunning startup burst -- viz_session.cpp:238 does not call the
+            # backend below kRunning and nothing throttles those frames, so this
+            # loop spins through hundreds of them in milliseconds while the
+            # operator is still putting the headset on. Those frames carry no
+            # time and render nothing, so there is nothing for control to do on
+            # them, and syncing actions at kilohertz is not something this app
+            # should be the first to try on a runtime.
+            result = None
+            will_step = accumulator >= model.opt.timestep
+            if teleop_session is not None and (will_step or info.should_render):
+                result = teleop_session.step()
+                if control is not None:
+                    control.update(model, data, source.sample(result), elapsed)
+
             steps = 0
             while accumulator >= model.opt.timestep and steps < 64:
                 mujoco.mj_step(model, data)
@@ -573,15 +725,17 @@ def _loop(
 
             renderer.update_scene(model._address, data._address)
             renderer.clear_markers()
-            if teleop is not None:
-                result = teleop.step()
+            if result is not None:
                 drawn = _draw_controller_markers(renderer, result)
                 if drawn != markers_logged:
                     LOG.info("controller markers: %d validly tracked", drawn)
                     markers_logged = drawn
+            if control is not None:
+                _draw_target_marker(renderer, control)
             # NOT redundant with add_marker()'s own full-scene throw, because
-            # add_marker only runs when `teleop is not None` -- the non-XR modes
-            # never reach it. This is the one check that covers mjv_updateScene
+            # add_marker only runs when there is something to draw -- a scene
+            # with no arm in an offscreen run reaches neither branch above. This
+            # is the one check that covers mjv_updateScene
             # alone filling mjvScene. Measured against mujoco 3.11.0: that case
             # prints "WARNING: Pre-allocated visual geom buffer is full" on
             # stderr, truncates, and returns normally with ngeom == maxgeom. A
@@ -633,13 +787,30 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    # A CATALOGUE ID, not a path -- and there is deliberately no --robot flag to
+    # go with it. The robot is always PROBED from the loaded model, so a caller
+    # cannot assert a robot the model is not. `--scene-xml` below is the escape
+    # hatch for a scene this catalogue does not list.
     parser.add_argument(
         "--scene",
-        default=str(DEFAULT_SCENE),
+        choices=robot_spec.scene_ids(),
+        default=robot_spec.DEFAULT_SCENE_ID,
         help=(
-            "MuJoCo scene XML. Its table TOP must sit at z=0 -- compare the default, "
-            "which ships as package data beside this module (see the path on the "
-            "'scene:' line of the startup log)."
+            "Scene to load: "
+            + "; ".join(f"{s.id} = {s.label}" for s in robot_spec.SCENES)
+            + ". Everything but the default needs "
+            + robot_spec.FETCH_SCRIPT
+            + " to have been run (and the wheel reinstalled after it)."
+        ),
+    )
+    parser.add_argument(
+        "--scene-xml",
+        default=None,
+        help=(
+            "Escape hatch: load this MuJoCo scene XML instead of a --scene "
+            "catalogue id. Its table TOP must sit at z=0 -- compare the shipped "
+            "scenes, which are package data beside this module (see the path on "
+            "the 'scene:' line of the startup log)."
         ),
     )
     parser.add_argument(
@@ -663,11 +834,21 @@ def main(argv: list[str]) -> int:
         format="[mujoco_xr] %(message)s",
     )
 
+    # BEFORE launch_context, and that ordering is the whole point of doing it
+    # here rather than inside run(). CloudXRLauncher.launch_context STARTS A
+    # RUNTIME PROCESS on entry and tears it down on exit, so a --scene whose
+    # assets have not been fetched -- an ordinary, expected mistake on a fresh
+    # clone -- would otherwise spin the runtime up and back down before printing
+    # a one-line "run the fetch script" message, and the message lands buried in
+    # the middle of the runtime's own startup and shutdown logging. Everything
+    # cheap and local happens first; nothing here touches a device.
+    scene_path = _resolve_scene(args)
+
     with CloudXRLauncher.launch_context(args) as launcher:
         if launcher is not None:
             LOG.info("CloudXR runtime started (WSS log: %s)", launcher.wss_log_path)
         try:
-            return run(args)
+            return run(args, scene_path)
         except KeyboardInterrupt:
             LOG.info("interrupted")
             return 0

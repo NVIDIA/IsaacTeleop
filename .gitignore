@@ -70,3 +70,20 @@ deps/v2d/wheels/
 
 # Runtime device files injected by MCP server infrastructure
 .mcp.json
+
+# MuJoCo Menagerie, fetched (not vendored) by
+# examples/mujoco_xr/scripts/fetch-menagerie.sh at a pinned commit. It unpacks
+# INTO the scene directories because a MuJoCo wrapper must be a sibling of the
+# robot XML it <include>s, so the authored ar_scene.xml and ~55 MB of fetched
+# payload share one directory and only the wrapper is tracked.
+#
+# THIS RULE MUST STAY IN THE REPOSITORY-ROOT .gitignore and must NOT be moved
+# into examples/mujoco_xr/.gitignore: scikit-build-core reads .gitignore
+# relative to the PROJECT root (examples/mujoco_xr/), never the git root, so a
+# rule there would also delete the payload from the wheel -- and `--scene
+# so101` would then fail from site-packages with nothing to explain it. Same
+# asymmetry the `*.so` note in examples/mujoco_xr/pyproject.toml describes,
+# used in the opposite direction.
+/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/franka/*
+/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/so101/*
+!/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/*/ar_scene.xml

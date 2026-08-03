@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+AR composition: the UNMODIFIED Menagerie panda.xml on a simple table whose top
+sits at z = 0 (the robot base plane), extending down 0.73 m to the operator's
+physical floor. No skybox, no ground plane: the background is passthrough, and
+cpp/scene_renderer.cpp skips mjGEOM_PLANE outright.
+
+THIS FILE IS THE ONLY TRACKED FILE IN THIS DIRECTORY. Everything beside it --
+panda.xml, assets/, LICENSE -- is fetched by scripts/fetch-menagerie.sh at a
+pinned commit and is gitignored. That is also why the include below has no path
+in it: MuJoCo resolves an INCLUDED file's `meshdir` against the included file's
+own directory and DROPS the `meshdir` when the wrapper lives elsewhere
+(measured on mujoco 3.11.0), so the wrapper must be a sibling of panda.xml.
+See the long note at the top of scripts/fetch-menagerie.sh.
+
+The 0.73 is cpp/frames.hpp's kTransMjFromXr[2] and is shared by every scene.
+What makes one calibration legal for all of them is that each wrapper puts its
+table TOP at z = 0 with the robot base on it. The tables are otherwise sized to
+their own arm -- this one is 0.45 x 0.4 at x = 0.15 for a ~0.85 m reach, the
+SO-101's is smaller -- but the z = 0 plane is the load-bearing part and is
+common. A wrapper that floats its robot above the table, or thickens the table
+downward from z = 0, silently invalidates the 0.73 for that scene only.
+
+NO <keyframe> HERE, and that is not an omission: panda.xml:281 already authors
+one named `home`, with a matching `ctrl=` (qpos-only would make the A-reset
+drop every actuator command to zero and the arm collapse). The SO-101 wrapper
+has to author its own because so101.xml ships none.
+-->
+<mujoco model="panda AR scene">
+  <include file="panda.xml"/>
+
+  <worldbody>
+    <geom name="table" type="box" size="0.45 0.4 0.365" pos="0.15 0 -0.365"
+        rgba="0.46 0.36 0.25 1"/>
+  </worldbody>
+</mujoco>

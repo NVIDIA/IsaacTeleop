@@ -42,11 +42,24 @@ The five names, since none of them are standard:
 
 ## Scope
 
-Renderer + MuJoCo + rig. **Controller poses are drawn as markers only — there
-is no control authority.** No IK, no clutch, no rate limiting, no jaw mapping.
-That is deliberate: a frame-convention bug and a control bug produce the
-identical symptom ("the arm jumped"), and separating them is what makes the
-first one debuggable.
+Renderer + MuJoCo + rig + **full teleop**: the right controller drives the arm
+through a squeeze-clutched damped-least-squares IK loop, the trigger drives the
+jaw, and A resets to the scene's `home` keyframe. Three scenes — `tabletop`
+(no robot), `franka` and `so101` — and on the SO-101 a 50 %-transparent
+**leader-gripper ghost** locked to the controller.
+
+The control stack lives in Python (`robot_spec.py`, `ik_dls.py`, `teleop.py`)
+because `cpp/scene_renderer.hpp` already draws the line there: C++ owns
+`mjvScene` / `mjvOption` / `mjvCamera`, Python owns `mjModel` / `mjData` /
+`mj_step`, and control writes `d.ctrl`. The practical consequence is that
+**the whole of it is testable with no GPU, no headset and no runtime** — see
+[Tests](#tests).
+
+Controller markers are still drawn, for both hands, and that is deliberate: a
+frame-convention bug and a control bug produce the identical symptom ("the arm
+jumped"), and the markers are what separate them. The target-pose box (green
+engaged, grey idle) is the only visual indication of clutch state, and the gap
+between it and the tool is the IK's tracking error made visible.
 
 ## Build
 
@@ -276,8 +289,11 @@ ones `CloudXRLauncher` adds:
 python -m isaacteleop_examples.mujoco_xr --help
 ```
 
-`--mode` takes `xr` (default), `window` or `offscreen`. `--scene` overrides the
-scene XML, which defaults to **package data inside the installed package** —
+`--mode` takes `xr` (default), `window` or `offscreen`. `--scene` takes a
+catalogue id — `tabletop` (the default), `franka` or `so101`; the two robot
+scenes need [a fetch](#scene-assets) first. `--scene-xml` overrides the
+scene XML with a path. The default is **package data inside the installed
+package** —
 `<site-packages>/isaacteleop_examples/mujoco_xr/assets/tabletop.xml`. It lives at
 `python/isaacteleop_examples/mujoco_xr/assets/tabletop.xml` in the source tree,
 which is one directory deeper than you might expect precisely so that the same
@@ -476,6 +492,53 @@ never been done (see the [Status](#status--read-this-before-the-diagram) table).
 
 ### Scene assets
 
+`--scene` takes a **catalogue id**, not a path: `tabletop` (the default),
+`franka` or `so101`. The catalogue is `robot_spec.SCENES`, one row per scene.
+`--scene-xml <path>` is the escape hatch for a scene the catalogue does not
+list. There is deliberately **no `--robot` flag** — the robot is always probed
+from the loaded model, so a caller cannot assert a robot the model is not.
+
+`franka` and `so101` wrap **unmodified** MuJoCo Menagerie models, which are
+**fetched, not vendored**:
+
+```bash
+examples/mujoco_xr/scripts/fetch-menagerie.sh      # from the repository root
+uv pip install ./examples/mujoco_xr --reinstall-package isaacteleop-examples-mujoco-xr
+```
+
+Three things about that pair of commands are not obvious and each has bitten
+someone:
+
+* **Fetch, then install — in that order.** The fetch unpacks Menagerie *into*
+  `python/isaacteleop_examples/mujoco_xr/assets/<id>/`, which is package data,
+  so the files only reach `site-packages` on the next install. Skip the
+  reinstall and `--scene so101` works from the source tree and fails from the
+  wheel. The fetch script prints the reinstall command when it finishes.
+* **Nothing fetches at build time.** An isolated PEP-517 wheel build must not
+  clone from GitHub, so this is an explicit step and the app fails at startup
+  naming the script (`robot_spec.scene_missing`) rather than reaching for the
+  network.
+* **The wrapper has to be a sibling of the robot XML.** MuJoCo resolves an
+  *included* file's `meshdir` against the included file's own directory and
+  drops it when the wrapper lives elsewhere (measured on mujoco 3.11.0: a
+  cross-directory `<include>` looks for `<include dir>/<mesh>.stl` and fails).
+  That is why `assets/franka/ar_scene.xml` says `<include file="panda.xml"/>`
+  with no path, and why the fetched payload and the one tracked file share a
+  directory. The repository-root `.gitignore` keeps the payload untracked; that
+  rule must **not** move into `examples/mujoco_xr/.gitignore`, because
+  scikit-build-core reads `.gitignore` relative to the *project* root and would
+  then also strip the robots out of the wheel.
+
+A fetched wheel is ~55 MB rather than ~100 kB. That is the price of `--scene
+so101` working from a bare `uv pip install` in a fresh environment.
+
+The **leader-gripper ghost** (`so101` only) is the exception to "fetch, don't
+vendor": three STLs, 1.3 MB, Apache-2.0, from `TheRobotStudio/SO-ARM100`, sitting
+tracked in `assets/leader/` beside the `LICENSE`. Small enough to vendor, and it
+keeps the ghost testable without a second fetch step. `assets/leader/leader_gripper.xml`
+carries the full derivation of all three mesh transforms and the two rendering
+risks that are documented rather than fixed.
+
 The renderer draws `mjGEOM_BOX` and `mjGEOM_MESH` only, and skips
 `mjGEOM_PLANE` outright (this is an AR scene; passthrough is the background). A
 sphere or a capsule in the XML renders as nothing. The table **top** must sit
@@ -503,16 +566,30 @@ ctest --test-dir build/cmake-cpython-312 -L mujoco_xr --output-on-failure
 | `test_projection.py` | nothing | the clip-space convention (Y flip, standard Z, degenerate-fov rejection) |
 | `test_app_helpers.py` | nothing | the NaN-safe `dt` clamp, the zeroed-`predicted_display_time` guard, the stalled-clock watchdog (including that it stays **silent** through a normal startup burst), the debug frustum, and that the per-frame projection assertion actually fires |
 | `test_offscreen_render.py` | Vulkan + CUDA | **the whole Vulkan→CUDA→`ProjectionLayer.submit()` path**, in `kOffscreen` — no headset needed |
+| `test_scenes.py` | nothing, or a fetch | the scene catalogue: that the fetch script and `robot_spec.SCENES` name the same Menagerie directories, that the default needs no fetch, that every scene puts its table top at `z = 0`, that no scene emits a geom type the renderer silently drops, and that every robot scene has a `home` keyframe whose `ctrl=` agrees with its own `qpos` |
+| `test_ik_dls.py` | nothing, or a fetch | resolution and the solver: `actuator_ctrlrange ∩ jnt_range` (on a synthetic arm built to make every kind of mismatch visible, **and** on the SO-101, where clamping to `ctrlrange` alone parks `wrist_roll` at 100 % of rated torque against a live joint limit), the Jacobian at the TCP rather than the body origin, the gravity feed-forward and its `kp > 0` guard, and that each resolution failure names what failed |
+| `test_teleop.py` | nothing, or a fetch | the clutch: a constant reference-space offset and a right-multiplied orientation offset leave the `ctrl` trace unchanged, a left-multiplied one **changes** it (the negative control — do not delete it), zero-jump engage, hysteresis, auto-disengage holding the target, jaw polarity at both endpoints and with an inverted spec, rate limiting including a NaN `dt`, and that a commanded pure translation stays pure on the SO-101 |
+| `test_ghost.py` | nothing, or a fetch | the overlay: that `mjv_updateScene` emits in geom-id order with the ghost last (the fact that replaced a second Vulkan pipeline), that the three leader parts form one assembly with sub-mm gaps, that the ghost tracks the controller and diverges from the target by exactly the clutch scaling, and that it is written **after** an A-reset |
 
 `test_offscreen_render.py` skips (with a reason naming what was missing) on a
-machine with no usable Vulkan/CUDA device. Nothing here is gated on a headset,
+machine with no usable Vulkan/CUDA device. The `franka` / `so101` cases in
+`test_scenes.py` skip the same way, with a reason naming
+`scripts/fetch-menagerie.sh`, so an unfetched checkout is green rather than
+red — and the checks that need no assets (the script/table cross-check, the
+error-string check) still run there. Nothing here is gated on a headset,
 because a permanently-skipping test reports green while covering nothing.
 
 ## Not verified anywhere in CI or on a developer desktop
 
 The XR frame loop, OpenXR session sharing via `oxr_handles`, whether the
 runtime accepts the depth layer, and **controllers on a shared session** all
-require a headset plus a CloudXR runtime. (The Vulkan→CUDA interop underneath
+require a headset plus a CloudXR runtime. Neither is anything about how the
+teleop *feels*: the tuned constants in `robot_spec.py` come from an upstream
+implementation and are reproduced here in simulation only, the ghost's placement
+relative to the operator's hand has never been seen, and the two rendering risks
+in `assets/leader/leader_gripper.xml` (the ghost writing depth into the
+reprojection buffer, and ghost self-overlap with culling off) are both
+headset-only symptoms. (The Vulkan→CUDA interop underneath
 them *is* covered — see `tests/test_offscreen_render.py` — and so is the frame
 loop itself, in `--mode offscreen`, minus everything XR-specific.) The last one
 has no precedent elsewhere in this repository: `xrAttachSessionActionSets` is

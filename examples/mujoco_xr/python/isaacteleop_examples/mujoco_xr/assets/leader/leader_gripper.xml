@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+THE LEADER GRIPPER GHOST: a 50 %-transparent SO-101 *leader* gripper locked to
+the operator's controller, drawn on top of the follower arm it is driving.
+
+INCLUDED AFTER `<include file="so101.xml"/>`, AND THAT ORDER IS THE WHOLE
+TRANSPARENCY STORY. `mjv_updateScene` emits geoms in GEOM-ID ORDER -- measured,
+not assumed, and `tests/test_ghost.py` asserts it on this very scene. A body
+declared after the robot therefore gets higher geom ids, lands last in
+`mjvScene`, and is drawn last by `cpp/scene_renderer.cpp`'s single pass. With
+`depthWriteEnable = TRUE` and `srcAlpha / oneMinusSrcAlpha` that blends
+correctly *because nothing is drawn after it*. Alpha works out too:
+ghost(0.5) over robot(1.0) gives A = 0.5 + 0.5*1 = 1.0, so there is no
+passthrough hole where the ghost overlaps the arm.
+
+NO RENDERER CHANGE WAS MADE, and a second Vulkan pipeline with
+`depthWriteEnable = FALSE` was considered and rejected as premature. TWO
+RESIDUAL RISKS ARE DOCUMENTED RATHER THAN FIXED, and the remedy for both is
+that second pipeline -- build it if either bites on a headset, not before:
+  1. the ghost writes DEPTH into the buffer CloudXR reprojects against, so a
+     translucent surface can pull reprojected geometry toward the operator;
+  2. ghost-vs-ghost self-overlap. `cullMode` is VK_CULL_MODE_NONE during
+     bring-up, so back faces of the ghost blend against its own front faces and
+     the overlapping regions read darker than the rest.
+
+PROVENANCE. The three meshes are TheRobotStudio/SO-ARM100
+`STL/SO101/Individual/{Wrist_Roll,Trigger,Handle}_SO101.stl`, at commit
+fda892cba81032c46c40976a48c9ceadbf40a9ca, Apache-2.0 (LICENSE is vendored
+beside them). They are VENDORED rather than fetched: 1.3 MB total, and it keeps
+the ghost testable without a second fetch step.
+
+THE STLs ARE NOT IN PRINT ORIENTATION. That was asserted early in this project
+and it is wrong -- they sit on a shared CAD datum:
+
+    Handle_SO101.stl        z[ 36.703,  96.768]   <- floats 37 mm above z=0
+    Trigger_SO101.stl       z[-26.000,   6.000]   <- straddles zero
+    Wrist_Roll_SO101.stl    x[-35.200,  30.000] y[-24.000, 28.000]
+    wrist_roll_follower...  x[-35.000,  30.000] y[-24.000, 28.000]  <- SAME DATUM
+
+Nothing on a print bed floats 37 mm above the plate; the print PLATES are the
+separate `STL/SO101/Leader/{Prusa,Ender}_*.stl` files. `Wrist_Roll_SO101` is the
+follower's shank with the fixed jaw amputated, and its bounds are Menagerie's
+mesh x 1000.
+
+ALL THREE TRANSFORMS BELOW ARE THEREFORE DERIVED, not hand-tuned -- including
+the handle, which the brief this file was written to expected to be seven
+unknown numbers. See the geom comments; the assembled gaps are the evidence.
+
+`scale="0.001 0.001 0.001"`: SO-ARM STLs are in MILLIMETRES and Menagerie is in
+metres. Getting this wrong does NOT read as "a big mesh" -- the camera ends up
+inside a 65 m solid with culling off, and the symptom is a full-screen
+50 %-alpha wash that reads as "passthrough broke".
+-->
+<mujoco model="so101 leader gripper ghost">
+  <asset>
+    <!-- Paths are relative to THIS file's directory. MuJoCo resolves an
+         included file's assets against the include-relative directory, which is
+         why these three names carry no prefix and why this fragment lives in
+         the same directory as the STLs it names. -->
+    <mesh name="leader_wrist_roll" file="Wrist_Roll_SO101.stl"
+          scale="0.001 0.001 0.001"/>
+    <mesh name="leader_trigger" file="Trigger_SO101.stl"
+          scale="0.001 0.001 0.001"/>
+    <mesh name="leader_handle" file="Handle_SO101.stl"
+          scale="0.001 0.001 0.001"/>
+    <!-- alpha 0.5. The ghost is meant to be read THROUGH: the follower's own
+         jaw has to stay legible underneath it, because the gap between the two
+         is the whole point of showing it. -->
+    <material name="leader_ghost" rgba="0.55 0.80 1.00 0.5"/>
+  </asset>
+
+  <worldbody>
+    <!-- A MOCAP BODY, not decor geoms appended to mjvScene by hand. MuJoCo then
+         owns the mesh_pos/mesh_quat composition, which it applies at compile
+         time and which is REQUIRED and silently wrong if skipped: measured on
+         the moving jaw, raw STL z spans [-5e-5, 0.1054] while MuJoCo's own mesh
+         frame gives z[-0.035, 0.0718] -- a COM translation plus a
+         principal-axis rotation. Hand-placed decor geoms would have to
+         reproduce both, from mjModel fields most people do not know exist.
+
+         `pos` here is where the ghost sits until the first VALID controller
+         sample, and in --mode window / offscreen that is forever -- which is
+         what makes the whole overlay pipeline verifiable with no headset.
+         Chosen to be in frame of the debug camera and clear of the arm. -->
+    <body name="leader_ghost" mocap="true" pos="0.12 0.16 0.22"
+          quat="0.5 0.5 -0.5 -0.5">
+      <!-- DERIVED, NOT TUNED. so101.xml puts the follower's fixed-jaw shank at
+           pos="0 -0.000218 0.00095" quat="0 1 0 0" in the `gripper` body, and
+           Wrist_Roll_SO101.stl is that same part on the same datum with the
+           fixed jaw amputated. So this slot is Menagerie's, verbatim. -->
+      <geom name="leader_ghost_wrist_roll" type="mesh" mesh="leader_wrist_roll"
+            material="leader_ghost" pos="0 -0.000218 0.00095" quat="0 1 0 0"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+
+      <!-- DERIVED. The trigger occupies the follower's `moving_jaw_so101_v1`
+           slot: body pos="0.0202 0.0188 -0.0234" quat="1 1 0 0" composed with
+           that body's own visual geom pos="0 0 0.0189", which gives
+           pos="0.0202 -0.0001 -0.0234" in the gripper frame.
+
+           DRAWN AT THE OPEN POSE AND IT DOES NOT ARTICULATE. The trigger is a
+           rigid child here: a hinged ghost jaw would need a second mocap
+           channel and would show the operator their own trigger, which they can
+           already feel. What they cannot see is where the FOLLOWER's jaw is,
+           and that is drawn underneath. -->
+      <geom name="leader_ghost_trigger" type="mesh" mesh="leader_trigger"
+            material="leader_ghost" pos="0.0202 -0.0001 -0.0234" quat="1 1 0 0"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+
+      <!-- DERIVED TOO, and this CORRECTS the brief this file was written to,
+           which said the handle was seven unknown hand-tuned numbers. It is not
+           unknown: it is on the same CAD datum as the shank, so it takes the
+           SAME transform, and the assembly proves itself.
+
+           Raw STL bounds, in the STLs' own millimetres:
+
+               Wrist_Roll_SO101      x[-35.200, 30.000] y[-24.000, 28.000] z[ -1.000, 41.850]
+               wrist_roll_follower   x[-35.000, 30.000] y[-24.000, 28.000] z[  0.000,105.000]
+               Handle_SO101          x[-93.879,-5.754]  y[-12.500, 12.500] z[ 36.703, 96.768]
+
+           The first two agree on x, on y and on the z origin: the leader part IS
+           the follower's shank, amputated at z = 41.85 instead of running out to
+           105. The handle then STARTS at z = 36.703 -- inside that truncation --
+           and overlaps the shank in x as well, over [-35.200, -5.754].
+
+           THE CHECK THAT SETTLES IT is not the bounds but the assembled gap.
+           Nearest-vertex distance between the three parts once all three
+           transforms are applied, measured in world:
+
+               wrist_roll <-> handle    0.3 mm
+               wrist_roll <-> trigger   2.1 mm
+               handle     <-> trigger   3.4 mm
+
+           Sub-millimetre between the two parts that bolt together, and a few
+           millimetres of running clearance to the part that pivots. That is a
+           mechanical assembly, not three shapes that happen to be near each
+           other -- tests/test_ghost.py asserts it, so a Menagerie bump or an STL
+           refresh that broke the datum would fail rather than drift.
+
+           TRIGGER, kept because the derivation is only as good as the datum
+           claim and NOTHING HERE HAS BEEN SEEN ON A HEADSET: the first session
+           that reports the handle is not where the hand is -> these seven
+           numbers, and nothing else in this file or in teleop.py. The controller
+           pose is written to the BODY, so the whole ghost is rigidly attached to
+           the hand and this transform is exactly "where the hand grips the
+           handle". -->
+      <geom name="leader_ghost_handle" type="mesh" mesh="leader_handle"
+            material="leader_ghost" pos="0 -0.000218 0.00095" quat="0 1 0 0"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+  </worldbody>
+</mujoco>
