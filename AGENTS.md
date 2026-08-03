@@ -70,6 +70,9 @@ only point here — edit the rules in the doc, not the shims.
   confirm the script's interpreter is bash — a genuine `#!/bin/sh` (dash) script
   must keep `[ ... ]`. Check the shebang (and, for sourced files, who sources
   them) first.
+- A file with a shebang is an executable entry point: preserve or set its
+  executable Git mode (including for new Bash build helpers) so the
+  `check-shebang-scripts-are-executable` hook passes.
 
 ## Comments and docstrings — say it once, briefly
 
@@ -150,6 +153,17 @@ pre-commit install --hook-type commit-msg
 3. Respect **scope vs `main`** (below): only add `AGENTS.md` bullets for **this branch’s delta** to **`main`** (or the agreed base), not for behavior that already exists on the base branch.
 
 **You must not** skip documentation updates because the user did not say “update AGENTS.md”—failed checks and repeated mistakes **trigger** this loop automatically.
+
+- A hardware-plugin README is an executable cold-start guide: state the command
+  context, output-directory creation, output locations, clean-stop procedure,
+  success criteria, and inspection/replay commands together with each workflow.
+  Do not leave those operational steps only in an acceptance plan or chat reply.
+- If a CTest Python invocation cannot write the user ``uv`` cache, rerun it
+  with ``UV_CACHE_DIR`` set to a writable temporary directory; do not mistake
+  that sandbox/cache failure for a source-test regression.
+- When an auto-fixing pre-commit hook changes a file, rerun the complete hook
+  set before staging so the final tree, rather than the pre-fix tree, is what
+  is validated.
 
 **What belongs in `AGENTS.md`**
 
