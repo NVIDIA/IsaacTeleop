@@ -65,12 +65,9 @@ Reference schema: :code-file:`src/core/schema/fbs/pedals.fbs`
 
 - **Output table** — The primary payload type (e.g. ``Generic3AxisPedalOutput``) with the
   device fields. This is what the plugin serializes and pushes.
-- **Tracked wrapper** — A table that wraps the output in an optional ``data`` field
-  (e.g. ``Generic3AxisPedalOutputTracked``). Used by the in-memory tracker API so that
-  ``data`` can be null when no sample is available.
 - **Record wrapper** — A table that wraps the output plus ``DeviceDataTimestamp``
   (e.g. ``Generic3AxisPedalOutputRecord``). This is the root type written to MCAP channels
-  by the recorder; trackers serialize into this type in ``serialize_all()``.
+  by the recorder.
 - **root_type** — Set to the Record type (e.g. ``root_type Generic3AxisPedalOutputRecord;``).
 
 Include ``timestamp.fbs`` for ``DeviceDataTimestamp``; include other shared types (e.g.
@@ -126,32 +123,35 @@ tensor samples from OpenXR. Implement a concrete tracker class (e.g.
 - **Factory registration** — Register your tracker in the live factory dispatch table
   (see ``LiveDeviceIOFactory``). The factory constructs an ``ITrackerImpl`` that holds
   a ``SchemaTracker``, builds a ``SchemaTrackerConfig`` from the tracker's stored
-  configuration, and implements ``update(XrTime)`` and
-  ``serialize_all(channel_index, callback)``.
+  configuration, and implements ``update(int64_t monotonic_time_ns)``.
 
 In the **Impl**:
 
-- **update()** — Call ``m_schema_reader.read_all_samples(pending_records)``. If the
-  collection is not present, clear the tracked state (e.g. set ``m_tracked.data = nullptr``).
-  Otherwise, deserialize the latest sample (or all samples) into your tracked type and
-  keep the last one for ``get_data()``.
-- **serialize_all()** — For each sample in the pending batch, deserialize, build the
-  Record FlatBuffer (output table + ``DeviceDataTimestamp``), and invoke the callback with
-  ``(log_time_ns, buffer_ptr, size)``. The buffer is only valid during the callback. If the
-  device disappeared and there are no samples, you may emit one record with null data and
-  the update-tick timestamp so the MCAP stream marks absence.
+- **Construction** — Build the ``SchemaTrackerConfig`` from the tracker's configuration and
+  hand it to the ``SchemaTracker``, along with the MCAP channels (or ``nullptr`` when
+  recording is disabled) and the sub-channel indices to write.
+- **update()** — Call ``m_schema_reader.update(m_tracked)``, where ``m_tracked`` is the
+  published ``Serialized<Generic3AxisPedalOutput>`` handle. That one call reads the pending
+  samples, writes each of them to MCAP when channels are attached, and publishes the final
+  one. A tick with no new samples leaves the last-known handle in place; an absent
+  collection empties it.
+- **get_data()** — Return the published handle. See
+  :ref:`Reading a payload <data-schema-convention>` for what a consumer may assume about it.
+
+Recording needs no per-tracker serialization code: ``SchemaTracker`` writes through
+``McapTrackerChannels``, which wraps the payload in the Record type with its
+``DeviceDataTimestamp``.
 
 Reference implementation — split across facade and live backend:
 
 - **Tracker facade** — :code-file:`src/core/deviceio_trackers/cpp/generic_3axis_pedal_tracker.cpp`
   (class ``Generic3AxisPedalTracker``): holds collection configuration, implements ``ITracker``, and
   exposes ``get_data(session)`` returning
-  ``Generic3AxisPedalOutputTrackedT`` by dispatching to the session’s
+  ``Serialized<Generic3AxisPedalOutput>`` by dispatching to the session’s
   ``IGeneric3AxisPedalTrackerImpl`` (see :code-file:`src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp`).
 - **Live backend** — :code-file:`src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp`
-  (``LiveGeneric3AxisPedalTrackerImpl``): composes ``SchemaTracker``, implements ``update()`` and
-  ``serialize_all()``, and uses ``SchemaTracker::read_all_samples()`` with
-  ``std::vector<SchemaTracker::SampleResult>`` for the pending batch. See
+  (``LiveGeneric3AxisPedalTrackerImpl``): composes ``SchemaTracker``, owns the MCAP channels, and
+  implements ``update()`` as a single ``SchemaTracker::update()`` call. See
   :code-file:`src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp`
   for ``SchemaTracker`` and ``SampleResult`` (buffer + timestamp metadata).
 
@@ -166,8 +166,8 @@ the collection and prints samples. Pattern (see :code-file:`examples/schemaio/pe
 2. Get required extensions with ``DeviceIOSession::get_required_extensions(trackers)`` and
    create an ``OpenXRSession``.
 3. Create a ``DeviceIOSession`` with ``DeviceIOSession::run(trackers, oxr_session->get_handles())``.
-4. Loop: call ``session->update()``, then read ``tracker->get_data(*session)``. If
-   ``tracked.data`` is non-null, use the latest sample; otherwise sleep briefly and repeat.
+4. Loop: call ``session->update()``, then read ``tracker->get_data(*session)``. If the
+   returned handle is non-empty, use the latest sample; otherwise sleep briefly and repeat.
 
 Use the same ``collection_id`` (and optionally ``tensor_identifier``) as the plugin. See
 :ref:`Schema IO example: build and run <schema-io-example>` above for building and running
@@ -214,12 +214,13 @@ Both exit after 100 samples, or press Ctrl+C to exit early.
   the configured identifier, provides ``push_buffer()`` for raw serialized data. Use composition
   to create typed wrappers (e.g. ``Generic3AxisPedalPusher`` in :code-file:`examples/schemaio/pedal_pusher.cpp`).
 - **SchemaTracker** (``live_trackers``) — Helper for reading FlatBuffer schema data via
-  OpenXR tensor collections: discovers collections by identifier, exposes ``read_all_samples()`` into
-  ``SampleResult`` values. Live tracker implementations (e.g. ``LiveGeneric3AxisPedalTrackerImpl``)
-  compose a ``SchemaTracker`` and implement ``ITrackerImpl::update()`` / ``serialize_all()``.
+  OpenXR tensor collections: discovers collections by identifier, reads pending ``SampleResult``
+  values, records them when MCAP channels are attached, and publishes the final one as a
+  ``Serialized<...>``. Live tracker implementations (e.g. ``LiveGeneric3AxisPedalTrackerImpl``)
+  compose a ``SchemaTracker`` and implement ``ITrackerImpl::update()`` on top of it.
 - **Generic3AxisPedalTracker** (tracker facade in ``deviceio_trackers``) — Concrete ``ITracker`` for
   ``Generic3AxisPedalOutput``: holds configuration and
-  ``get_data(session)`` returning ``Generic3AxisPedalOutputTrackedT`` via the session’s
+  ``get_data(session)`` returning ``Serialized<Generic3AxisPedalOutput>`` via the session’s
   ``IGeneric3AxisPedalTrackerImpl``.
 - **DeviceIOSession** — Session manager: collects required OpenXR extensions from registered
   trackers, creates tracker implementations with session handles, and calls ``update()`` on all

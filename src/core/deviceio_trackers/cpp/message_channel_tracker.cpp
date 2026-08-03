@@ -24,7 +24,7 @@ MessageChannelStatus MessageChannelTracker::get_status(const ITrackerSession& se
     return static_cast<const IMessageChannelTrackerImpl&>(session.get_tracker_impl(*this)).get_status();
 }
 
-const MessageChannelMessagesTrackedT& MessageChannelTracker::get_messages(const ITrackerSession& session) const
+const Serialized<MessageChannelMessagesTracked>& MessageChannelTracker::get_messages(const ITrackerSession& session) const
 {
     return static_cast<const IMessageChannelTrackerImpl&>(session.get_tracker_impl(*this)).get_messages();
 }

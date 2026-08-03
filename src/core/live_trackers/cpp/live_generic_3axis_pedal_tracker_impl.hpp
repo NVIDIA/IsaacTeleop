@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -40,12 +40,12 @@ public:
     LiveGeneric3AxisPedalTrackerImpl& operator=(LiveGeneric3AxisPedalTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const Generic3AxisPedalOutputTrackedT& get_data() const override;
+    const Serialized<Generic3AxisPedalOutput>& get_data() const override;
 
 private:
     std::unique_ptr<PedalMcapChannels> mcap_channels_;
     PedalSchemaTracker m_schema_reader;
-    Generic3AxisPedalOutputTrackedT m_tracked;
+    Serialized<Generic3AxisPedalOutput> m_tracked;
 };
 
 } // namespace core

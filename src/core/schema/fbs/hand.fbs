@@ -63,16 +63,11 @@ struct HandJoints {
 }
 
 // Hand pose data.
-// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+// All fields are always present whenever this table itself is present.
 table HandPose {
     // Fixed-size hand joint poses in HandJoint / OpenXR order (struct HandJoints, not a variable-length vector).
     // The HandJoints.poses array length must stay in sync with HandJoint::NUM_JOINTS.
     joints: HandJoints (id: 0);
-}
-
-// Tracked wrapper for the in-memory tracker API (data is null when hand is inactive).
-table HandPoseTracked {
-    data: HandPose (id: 0);
 }
 
 // MCAP recording wrapper for HandPose.

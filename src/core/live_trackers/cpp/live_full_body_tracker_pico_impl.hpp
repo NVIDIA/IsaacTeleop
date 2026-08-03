@@ -45,13 +45,16 @@ public:
     LiveFullBodyTrackerPicoImpl& operator=(LiveFullBodyTrackerPicoImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const FullBodyPoseTrackedT& get_body_pose() const override;
+    const Serialized<FullBodyPose>& get_body_pose() const override;
 
 private:
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
-    FullBodyPoseTrackedT tracked_;
+    // Assembly scratch for the OpenXR query, and the encoded snapshot published from it
+    // each frame. Only the latter leaves this class.
+    std::shared_ptr<FullBodyPoseT> native_;
+    Serialized<FullBodyPose> tracked_;
     int64_t last_update_time_ = 0;
 
     PFN_xrCreateBodyTrackerBD pfn_create_body_tracker_;

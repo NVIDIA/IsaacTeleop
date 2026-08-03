@@ -7,18 +7,13 @@ include "timestamp.fbs";
 namespace core;
 
 // Head pose data.
-// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+// All fields are always present whenever this table itself is present.
 table HeadPose {
     // The concrete pose data
     pose: Pose (id: 0);
 
     // Whether the head pose data is valid
     is_valid: bool (id: 1);
-}
-
-// Tracked wrapper for the in-memory tracker API (data is null when head is inactive).
-table HeadPoseTracked {
-    data: HeadPose (id: 0);
 }
 
 // MCAP recording wrapper for HeadPose.

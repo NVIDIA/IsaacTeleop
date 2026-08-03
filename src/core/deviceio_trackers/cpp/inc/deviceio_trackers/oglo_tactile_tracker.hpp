@@ -13,13 +13,13 @@ namespace core
 {
 
 /*!
- * @brief Facade for one OGLO tactile glove exposed as ``OgloGloveSampleTrackedT``.
+ * @brief Facade for one OGLO tactile glove exposed as ``Serialized<OgloGloveSample>``.
  *
  * Reads a tensor collection pushed by the ``oglo_tactile`` plugin
  * (``--collection-prefix``). One tracker per hand: construct with the matching
  * ``collection_id`` (e.g. ``"oglo/left"`` / ``"oglo/right"``). After each
  * ``ITrackerSession::update()`` that includes this tracker, ``get_data(session)``
- * reflects the latest decoded sample; ``data`` is null until the first sample
+ * reflects the latest decoded sample; the handle is empty until the first sample
  * arrives or when the collection is unavailable.
  *
  * Usage:
@@ -28,7 +28,7 @@ namespace core
  * // ... register with a session, then each tick: ...
  * session->update();
  * const auto& tracked = glove->get_data(*session);
- * if (tracked.data) { auto& taxels = tracked.data->taxels; ... }
+ * if (tracked) { const auto* taxels = tracked->taxels(); ... }
  * @endcode
  */
 class OgloTactileTracker : public ITracker
@@ -54,10 +54,10 @@ public:
 
     /*!
      * @brief Glove snapshot from the session's implementation.
-     * @c tracked.data is null when no valid sample is available; when non-null,
-     * @c data->taxels (80 values) and the IMU fields are safe to read.
+     * The handle is empty when no valid sample is available; when non-empty,
+     * @c taxels() (80 values) and the IMU fields are safe to read.
      */
-    const OgloGloveSampleTrackedT& get_data(const ITrackerSession& session) const;
+    const Serialized<OgloGloveSample>& get_data(const ITrackerSession& session) const;
 
     const std::string& collection_id() const
     {

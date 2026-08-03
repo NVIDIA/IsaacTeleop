@@ -5,7 +5,9 @@
 
 #include <mcap/recording_traits.hpp>
 #include <schema/oglo_tactile_bfbs_generated.h>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
+#include <schema/tracked.hpp>
 
 #include <cassert>
 #include <cstring>
@@ -28,22 +30,22 @@ ReplayOgloTactileTrackerImpl::ReplayOgloTactileTrackerImpl(std::unique_ptr<mcap:
 {
 }
 
-const OgloGloveSampleTrackedT& ReplayOgloTactileTrackerImpl::get_data() const
+const Serialized<OgloGloveSample>& ReplayOgloTactileTrackerImpl::get_data() const
 {
     return tracked_;
 }
 
 void ReplayOgloTactileTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    auto record = mcap_viewers_->read(0);
+    auto record = mcap_viewers_->read_serialized(0);
     if (record)
     {
-        tracked_.data = std::move(record->data);
+        tracked_ = record.narrow(payload(record));
     }
     else
     {
         std::cerr << "ReplayOgloTactileTrackerImpl: glove data not found" << std::endl;
-        tracked_.data.reset();
+        tracked_.reset();
     }
 }
 

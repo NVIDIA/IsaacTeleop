@@ -32,7 +32,7 @@ public:
     }
 
     MessageChannelStatus get_status(const ITrackerSession& session) const;
-    const MessageChannelMessagesTrackedT& get_messages(const ITrackerSession& session) const;
+    const Serialized<MessageChannelMessagesTracked>& get_messages(const ITrackerSession& session) const;
     void send_message(const ITrackerSession& session, const std::vector<uint8_t>& payload) const;
 
     const std::array<uint8_t, CHANNEL_UUID_SIZE>& channel_uuid() const

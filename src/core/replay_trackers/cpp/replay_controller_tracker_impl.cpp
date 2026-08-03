@@ -5,7 +5,9 @@
 
 #include <mcap/recording_traits.hpp>
 #include <schema/controller_bfbs_generated.h>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
+#include <schema/tracked.hpp>
 
 #include <cassert>
 #include <cstring>
@@ -28,38 +30,38 @@ ReplayControllerTrackerImpl::ReplayControllerTrackerImpl(std::unique_ptr<mcap::M
 {
 }
 
-const ControllerSnapshotTrackedT& ReplayControllerTrackerImpl::get_left_controller() const
+const Serialized<ControllerSnapshot>& ReplayControllerTrackerImpl::get_left_controller() const
 {
     return left_tracked_;
 }
 
-const ControllerSnapshotTrackedT& ReplayControllerTrackerImpl::get_right_controller() const
+const Serialized<ControllerSnapshot>& ReplayControllerTrackerImpl::get_right_controller() const
 {
     return right_tracked_;
 }
 
 void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    auto left_record = mcap_viewers_->read(0);
-    auto right_record = mcap_viewers_->read(1);
+    auto left_record = mcap_viewers_->read_serialized(0);
+    auto right_record = mcap_viewers_->read_serialized(1);
     if (left_record)
     {
-        left_tracked_.data = std::move(left_record->data);
+        left_tracked_ = left_record.narrow(payload(left_record));
     }
     else
     {
         std::cerr << "ReplayControllerTrackerImpl: left controller data not found" << std::endl;
-        left_tracked_.data.reset();
+        left_tracked_.reset();
     }
 
     if (right_record)
     {
-        right_tracked_.data = std::move(right_record->data);
+        right_tracked_ = right_record.narrow(payload(right_record));
     }
     else
     {
         std::cerr << "ReplayControllerTrackerImpl: right controller data not found" << std::endl;
-        right_tracked_.data.reset();
+        right_tracked_.reset();
     }
 }
 

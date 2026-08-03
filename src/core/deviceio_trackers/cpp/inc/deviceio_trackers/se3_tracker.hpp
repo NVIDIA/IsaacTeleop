@@ -14,7 +14,7 @@ namespace core
 {
 
 /*!
- * @brief Facade for a generic SE3 (6-DoF pose) tracker device exposed as ``Se3TrackerPoseTrackedT``.
+ * @brief Facade for a generic SE3 (6-DoF pose) tracker device exposed as ``Serialized<Se3TrackerPose>``.
  *
  * Generic across rigid-body pose sources (tracker pucks, mocap rigid bodies, logical trackers
  * derived from other devices, ...): the payload is a single pose plus a validity flag. The
@@ -25,9 +25,9 @@ namespace core
  * After each ``ITrackerSession::update()`` that includes this tracker, ``get_data(session)``
  * reflects the implementation's tracked snapshot. As with other ``SchemaTracker``-backed trackers,
  * the live backend may retain the last-known sample when a tick has no new samples while the
- * collection remains available (``data`` stays non-null but may be stale); ``data`` is null only
- * when no sample has arrived yet or the collection is unavailable. Independently,
- * ``data->is_valid == false`` means the producer is streaming but tracking is lost — the pose
+ * collection remains available (the handle stays non-empty but may be stale); the handle is empty
+ * only when no sample has arrived yet or the collection is unavailable. Independently,
+ * ``is_valid() == false`` means the producer is streaming but tracking is lost — the pose
  * contents are then unspecified.
  *
  * Note: ``collection_id`` (stream instance), ``TENSOR_IDENTIFIER`` (tensor name within the
@@ -69,11 +69,11 @@ public:
     /*!
      * @brief SE3 tracker snapshot from the session's implementation.
      *
-     * ``tracked.data`` is null when no sample has arrived yet or the collection is unavailable.
-     * When non-null, gate on ``data->is_valid`` before consuming ``data->pose`` — the pose is
+     * The handle is empty when no sample has arrived yet or the collection is unavailable.
+     * When non-empty, gate on ``is_valid()`` before consuming ``pose()`` — the pose is
      * unspecified while tracking is lost.
      */
-    const Se3TrackerPoseTrackedT& get_data(const ITrackerSession& session) const;
+    const Serialized<Se3TrackerPose>& get_data(const ITrackerSession& session) const;
 
     const std::string& collection_id() const
     {

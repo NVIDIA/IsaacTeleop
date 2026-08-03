@@ -27,10 +27,10 @@ public:
     ReplayOgloTactileTrackerImpl& operator=(ReplayOgloTactileTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const OgloGloveSampleTrackedT& get_data() const override;
+    const Serialized<OgloGloveSample>& get_data() const override;
 
 private:
-    OgloGloveSampleTrackedT tracked_;
+    Serialized<OgloGloveSample> tracked_;
     std::unique_ptr<OgloMcapViewers> mcap_viewers_;
 };
 

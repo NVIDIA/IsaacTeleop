@@ -28,10 +28,10 @@ public:
     ReplaySe3TrackerImpl& operator=(ReplaySe3TrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const Se3TrackerPoseTrackedT& get_data() const override;
+    const Serialized<Se3TrackerPose>& get_data() const override;
 
 private:
-    Se3TrackerPoseTrackedT tracked_;
+    Serialized<Se3TrackerPose> tracked_;
     std::unique_ptr<Se3TrackerMcapViewers> mcap_viewers_;
     // Pre-baked warn-once message including the base_name, so multi-tracker replays are
     // distinguishable in the log.

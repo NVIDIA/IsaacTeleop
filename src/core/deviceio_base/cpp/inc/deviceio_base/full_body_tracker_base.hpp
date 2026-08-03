@@ -5,18 +5,20 @@
 
 #include "tracker.hpp"
 
+#include <schema/serialized.hpp>
+
 namespace core
 {
 
-struct FullBodyPoseTrackedT;
+struct FullBodyPose;
 
 // Abstract base interface for full body tracker implementations.
 // Vendor-agnostic: every live/replay backend (native XR, pushed tensor, ...)
-// implements this and produces the same FullBodyPoseTrackedT payload.
+// implements this and produces the same Serialized<FullBodyPose> payload.
 class IFullBodyTrackerImpl : public ITrackerImpl
 {
 public:
-    virtual const FullBodyPoseTrackedT& get_body_pose() const = 0;
+    virtual const Serialized<FullBodyPose>& get_body_pose() const = 0;
 };
 
 } // namespace core

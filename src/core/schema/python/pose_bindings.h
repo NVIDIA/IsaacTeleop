@@ -9,10 +9,23 @@
 #include <pybind11/pybind11.h>
 #include <schema/pose_generated.h>
 
+#include <string>
+
 namespace py = pybind11;
 
 namespace core
 {
+
+//! The `Pose(position=..., orientation=...)` text used by `Pose.__repr__` and by every
+//! table repr that nests a pose, so the five of them cannot drift apart.
+inline std::string pose_repr(const Pose& p)
+{
+    return "Pose(position=Point(x=" + std::to_string(p.position().x()) + ", y=" + std::to_string(p.position().y()) +
+           ", z=" + std::to_string(p.position().z()) +
+           "), orientation=Quaternion(x=" + std::to_string(p.orientation().x()) +
+           ", y=" + std::to_string(p.orientation().y()) + ", z=" + std::to_string(p.orientation().z()) +
+           ", w=" + std::to_string(p.orientation().w()) + "))";
+}
 
 inline void bind_pose(py::module& m)
 {
@@ -51,15 +64,7 @@ inline void bind_pose(py::module& m)
         .def(py::init<const Point&, const Quaternion&>(), py::arg("position"), py::arg("orientation"))
         .def_property_readonly("position", &Pose::position)
         .def_property_readonly("orientation", &Pose::orientation)
-        .def("__repr__",
-             [](const Pose& p)
-             {
-                 return "Pose(position=Point(x=" + std::to_string(p.position().x()) +
-                        ", y=" + std::to_string(p.position().y()) + ", z=" + std::to_string(p.position().z()) +
-                        "), orientation=Quaternion(x=" + std::to_string(p.orientation().x()) +
-                        ", y=" + std::to_string(p.orientation().y()) + ", z=" + std::to_string(p.orientation().z()) +
-                        ", w=" + std::to_string(p.orientation().w()) + "))";
-             });
+        .def("__repr__", [](const Pose& p) { return pose_repr(p); });
 }
 
 } // namespace core

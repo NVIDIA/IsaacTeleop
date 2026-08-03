@@ -10,7 +10,12 @@ table MessageChannelMessages {
     payload: [ubyte] (id: 0);
 }
 
-// Tracked wrapper for drained batches (data is null when no messages were drained).
+// A batch of messages drained during one update.
+//
+// The one table that still fronts a tracker's payload, because that payload is a *list*:
+// something has to hold the vector. Trackers publish this unconditionally, so the handle
+// is always non-empty; FlatBuffers omits an empty vector rather than encoding a
+// zero-length one, so a null `data` means "no messages this frame", not missing data.
 table MessageChannelMessagesTracked {
     data: [MessageChannelMessages] (id: 0);
 }

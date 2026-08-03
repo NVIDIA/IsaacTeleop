@@ -21,8 +21,6 @@ namespace core
 // ---- Table / struct / record type aliases -------------------------------------
 using FullBodyPosePico [[deprecated("renamed to core::FullBodyPose")]] = FullBodyPose;
 using FullBodyPosePicoT [[deprecated("renamed to core::FullBodyPoseT")]] = FullBodyPoseT;
-using FullBodyPosePicoTracked [[deprecated("renamed to core::FullBodyPoseTracked")]] = FullBodyPoseTracked;
-using FullBodyPosePicoTrackedT [[deprecated("renamed to core::FullBodyPoseTrackedT")]] = FullBodyPoseTrackedT;
 using FullBodyPosePicoRecord [[deprecated("renamed to core::FullBodyPoseRecord")]] = FullBodyPoseRecord;
 using FullBodyPosePicoRecordT [[deprecated("renamed to core::FullBodyPoseRecordT")]] = FullBodyPoseRecordT;
 using BodyJointsPico [[deprecated("renamed to core::BodyJoints")]] = BodyJoints;

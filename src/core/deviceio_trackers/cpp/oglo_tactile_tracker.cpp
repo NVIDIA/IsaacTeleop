@@ -15,7 +15,7 @@ OgloTactileTracker::OgloTactileTracker(const std::string& collection_id, size_t 
 {
 }
 
-const OgloGloveSampleTrackedT& OgloTactileTracker::get_data(const ITrackerSession& session) const
+const Serialized<OgloGloveSample>& OgloTactileTracker::get_data(const ITrackerSession& session) const
 {
     return static_cast<const IOgloTactileTrackerImpl&>(session.get_tracker_impl(*this)).get_data();
 }

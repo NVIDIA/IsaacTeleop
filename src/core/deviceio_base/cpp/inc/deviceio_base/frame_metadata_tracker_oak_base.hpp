@@ -5,18 +5,20 @@
 
 #include "tracker.hpp"
 
+#include <schema/serialized.hpp>
+
 #include <cstddef>
 
 namespace core
 {
 
-struct FrameMetadataOakTrackedT;
+struct FrameMetadataOak;
 
 // Abstract base interface for FrameMetadataTrackerOak implementations.
 class IFrameMetadataTrackerOakImpl : public ITrackerImpl
 {
 public:
-    virtual const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const = 0;
+    virtual const Serialized<FrameMetadataOak>& get_stream_data(size_t stream_index) const = 0;
 };
 
 } // namespace core

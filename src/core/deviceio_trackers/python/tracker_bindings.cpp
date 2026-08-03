@@ -27,41 +27,28 @@ namespace py = pybind11;
 namespace
 {
 
-// Hand a tracker's tracked snapshot to Python without cloning its payload.
+// Hand an encoded snapshot to Python, mapping "no payload" onto None.
 //
-// Every Tracked wrapper holds its payload behind a shared_ptr, but flatc gives each generated
-// -T a deep-copying copy constructor, so returning one by value clones the whole payload on
-// every call: for a hand that is two allocations and 936 bytes of joints, twice per frame.
-// Copying the shared_ptr instead costs one small wrapper allocation and a refcount bump, which
-// is also what the .data property on these wrappers has always done.
-//
-// The payload is therefore live tracker storage. Most impls refill it in place on the next
-// session.update(), so the returned object is a view valid until that call, not a snapshot --
-// see the note repeated on each accessor below.
-template <typename TrackedT>
-std::shared_ptr<TrackedT> share_tracked(const TrackedT& tracked)
+// C++ spells absence as an empty handle, but exposing that to Python would make an
+// inactive device answer field reads with defaults -- a disconnected pedal would read
+// 0.0, indistinguishable from a pedal at rest. None makes the same mistake an
+// AttributeError instead, and is what the caller already tests for.
+template <typename T>
+py::object to_python(const core::Serialized<T>& handle)
 {
-    // Only `data` is carried over, so a Tracked wrapper that grows a second field (the parallel
-    // Record wrappers already carry a timestamp) would be silently dropped here with nothing to
-    // flag it. NativeTable is empty, so a one-field wrapper is exactly as wide as its member.
-    static_assert(sizeof(TrackedT) == sizeof(decltype(TrackedT::data)),
-                  "Tracked wrapper has fields beyond .data; share_tracked() would drop them");
-    auto shared = std::make_shared<TrackedT>();
-    shared->data = tracked.data;
-    return shared;
+    return handle ? py::cast(handle) : py::none();
 }
 
 } // namespace
 
-// Appended to the docstring of every accessor that returns a Tracked wrapper. A macro so it
-// concatenates with the surrounding literal at compile time; pybind11 takes a const char*.
-#define TRACKED_LIFETIME_DOC                                                                                           \
-    "\n\nThe returned wrapper shares the tracker's storage rather than copying it: its contents are "                  \
-    "refilled by the next session.update(). Read what you need before that call, or copy it."
+// Handing a snapshot to Python copies a shared_ptr to an immutable buffer, so there is no
+// payload clone on the read path and no aliasing of live tracker storage: what a caller
+// reads this frame keeps its values after the next session.update(), which publishes a new
+// buffer rather than refilling this one.
 
 PYBIND11_MODULE(_deviceio_trackers, m)
 {
-    // Load schema pybind converters (TrackedT / schema types) before exposing tracker accessors.
+    // Load schema pybind converters (the encoded table views) before exposing tracker accessors.
     py::module_::import("isaacteleop.schema._schema");
 
     m.doc() = "Isaac Teleop DeviceIO - Tracker classes";
@@ -75,37 +62,34 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_left_hand",
             [](const core::HandTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_left_hand(session)); },
-            // No lifetime note on either hand: like full body, the impls install freshly allocated
-            // joint storage each frame rather than refilling it, so the result is a snapshot of the
-            // frame it was read on. Call again to see newer hand data.
-            py::arg("session"), "Get the left hand tracked state (data is None if inactive)")
+            { return to_python(self.get_left_hand(session)); },
+            py::arg("session"), "Get the left hand tracked state (None if inactive)")
         .def(
             "get_right_hand",
             [](const core::HandTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_right_hand(session)); },
-            py::arg("session"), "Get the right hand tracked state (data is None if inactive)");
+            { return to_python(self.get_right_hand(session)); },
+            py::arg("session"), "Get the right hand tracked state (None if inactive)");
 
     py::class_<core::HeadTracker, core::ITracker, std::shared_ptr<core::HeadTracker>>(m, "HeadTracker")
         .def(py::init<>())
         .def(
             "get_head",
             [](const core::HeadTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_head(session)); },
-            py::arg("session"), "Get the head tracked state (data is None if inactive)" TRACKED_LIFETIME_DOC);
+            { return to_python(self.get_head(session)); },
+            py::arg("session"), "Get the head tracked state (None if inactive)");
 
     py::class_<core::ControllerTracker, core::ITracker, std::shared_ptr<core::ControllerTracker>>(m, "ControllerTracker")
         .def(py::init<>())
         .def(
             "get_left_controller",
             [](const core::ControllerTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_left_controller(session)); },
-            py::arg("session"), "Get the left controller tracked state (data is None if inactive)" TRACKED_LIFETIME_DOC)
+            { return to_python(self.get_left_controller(session)); },
+            py::arg("session"), "Get the left controller tracked state (None if inactive)")
         .def(
             "get_right_controller",
             [](const core::ControllerTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_right_controller(session)); },
-            py::arg("session"), "Get the right controller tracked state (data is None if inactive)" TRACKED_LIFETIME_DOC)
+            { return to_python(self.get_right_controller(session)); },
+            py::arg("session"), "Get the right controller tracked state (None if inactive)")
         .def(
             "apply_left_haptic_feedback",
             [](const core::ControllerTracker& self, const core::ITrackerSession& session, float amplitude,
@@ -151,9 +135,7 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_messages",
             [](const core::MessageChannelTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_messages(session)); },
-            // No lifetime note here: this payload is a vector, so share_tracked() copies the list
-            // itself, and every drained message is freshly allocated. The result is a snapshot.
+            { return to_python(self.get_messages(session)); },
             py::arg("session"), "Get all messages drained during the last update (possibly empty)")
         .def(
             "get_status",
@@ -163,7 +145,12 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "send_message",
             [](const core::MessageChannelTracker& self, const core::ITrackerSession& session,
-               const core::MessageChannelMessagesT& message) { self.send_message(session, message.payload); },
+               const core::Serialized<core::MessageChannelMessages>& message)
+            {
+                const auto* payload = message ? message->payload() : nullptr;
+                self.send_message(session, payload != nullptr ? std::vector<uint8_t>(payload->begin(), payload->end()) :
+                                                                std::vector<uint8_t>{});
+            },
             py::arg("session"), py::arg("message"), "Send a MessageChannelMessages payload over the message channel");
 
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
@@ -175,10 +162,9 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_stream_data",
             [](const core::FrameMetadataTrackerOak& self, const core::ITrackerSession& session, size_t stream_index)
-            { return share_tracked(self.get_stream_data(session, stream_index)); },
+            { return to_python(self.get_stream_data(session, stream_index)); },
             py::arg("session"), py::arg("stream_index"),
-            "Get FrameMetadataOakTrackedT for a specific stream by index; .data is None until first frame "
-            "arrives" TRACKED_LIFETIME_DOC)
+            "Get the frame metadata for a specific stream by index; None until the first frame arrives")
         .def_property_readonly("stream_count", &core::FrameMetadataTrackerOak::get_stream_count,
                                "Number of streams this tracker is configured for");
 
@@ -190,9 +176,8 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_pedal_data",
             [](const core::Generic3AxisPedalTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the current foot pedal tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);
+            { return to_python(self.get_data(session)); },
+            py::arg("session"), "Get the current foot pedal tracked state (None when no data available)");
 
     py::class_<core::OgloTactileTracker, core::ITracker, std::shared_ptr<core::OgloTactileTracker>>(
         m, "OgloTactileTracker")
@@ -203,9 +188,8 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_glove_data",
             [](const core::OgloTactileTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the current tactile glove tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);
+            { return to_python(self.get_data(session)); },
+            py::arg("session"), "Get the current tactile glove tracked state (None when no data available)");
 
     py::class_<core::TensorPushTracker, core::ITracker, std::shared_ptr<core::TensorPushTracker>> tensor_push_tracker(
         m, "TensorPushTracker");
@@ -234,9 +218,8 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_data",
             [](const core::JointStateTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the current joint-state tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);
+            { return to_python(self.get_data(session)); },
+            py::arg("session"), "Get the current joint-state tracked state (None when no data available)");
 
     py::class_<core::Se3Tracker, core::ITracker, std::shared_ptr<core::Se3Tracker>>(m, "Se3Tracker")
         .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
@@ -246,10 +229,10 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_data",
             [](const core::Se3Tracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
+            { return to_python(self.get_data(session)); },
             py::arg("session"),
-            "Get the current SE3 tracked state (data is None when no data available; gate on "
-            "data.is_valid before consuming the pose)" TRACKED_LIFETIME_DOC);
+            "Get the current SE3 tracked state (None when no data available; gate on "
+            "is_valid before consuming the pose)");
 
     py::class_<core::FullBodyTracker, core::ITracker, std::shared_ptr<core::FullBodyTracker>>(m, "FullBodyTracker")
         .def(py::init<>(),
@@ -258,11 +241,8 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_body_pose",
             [](const core::FullBodyTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_body_pose(session)); },
-            // No lifetime note here: the full-body impls install freshly allocated joint storage
-            // each frame rather than refilling it, so the result is a snapshot of the frame it was
-            // read on. Call again to see newer body data.
-            py::arg("session"), "Get full body pose tracked state (data is None if inactive)");
+            { return to_python(self.get_body_pose(session)); },
+            py::arg("session"), "Get full body pose tracked state (None if inactive)");
 
     m.attr("NUM_JOINTS") = static_cast<int>(core::HandJoint_NUM_JOINTS);
     m.attr("JOINT_PALM") = static_cast<int>(core::HandJoint_PALM);

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -37,8 +37,8 @@ public:
     LiveHandTrackerImpl& operator=(LiveHandTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const HandPoseTrackedT& get_left_hand() const override;
-    const HandPoseTrackedT& get_right_hand() const override;
+    const Serialized<HandPose>& get_left_hand() const override;
+    const Serialized<HandPose>& get_right_hand() const override;
 
 private:
     void initialize_xdev_hand_trackers(const OpenXRSessionHandles& handles);
@@ -49,8 +49,8 @@ private:
     bool try_create_default_hand_tracker(XrSession session, XrHandEXT hand, std::vector<XrHandTrackerEXT>& trackers);
     void destroy_hand_trackers(std::vector<XrHandTrackerEXT>& trackers);
     void destroy_xdev_list();
-    void update_hand(const std::vector<XrHandTrackerEXT>& trackers, XrTime time, HandPoseTrackedT& tracked);
-    bool try_update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
+    void update_hand(const std::vector<XrHandTrackerEXT>& trackers, XrTime time, std::shared_ptr<HandPoseT>& tracked);
+    bool try_update_hand(XrHandTrackerEXT tracker, XrTime time, std::shared_ptr<HandPoseT>& tracked);
 
     XrTimeConverter time_converter_;
     XrSpace base_space_;
@@ -59,8 +59,12 @@ private:
     std::vector<XrHandTrackerEXT> right_hand_trackers_;
     XrXDevListMNDX xdev_list_;
 
-    HandPoseTrackedT left_tracked_;
-    HandPoseTrackedT right_tracked_;
+    // Assembly scratch for the OpenXR query, and the encoded snapshots published from
+    // it each frame. Only the latter leave this class.
+    std::shared_ptr<HandPoseT> left_native_;
+    std::shared_ptr<HandPoseT> right_native_;
+    Serialized<HandPose> left_tracked_;
+    Serialized<HandPose> right_tracked_;
     int64_t last_update_time_ = 0;
 
     PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;

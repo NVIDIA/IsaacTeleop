@@ -44,23 +44,17 @@ Data Schema Convention
 ----------------------
 
 Every tracker's data is defined by a FlatBuffers schema under
-:code-dir:`src/core/schema/fbs`. Each schema follows a three-tier convention:
+:code-dir:`src/core/schema/fbs`. Each schema follows a two-tier convention:
 
 .. code-block:: idl
 
-   // 1. Inner data table -- the actual payload
+   // 1. Payload table -- the actual data, and what trackers hand to consumers.
    table Xxx {
        field_a: SomeType (id: 0);
        field_b: AnotherType (id: 1);
    }
 
-   // 2. Tracked wrapper -- used by the in-memory tracker API.
-   //    data is null when the tracked entity is inactive.
-   table XxxTracked {
-       data: Xxx (id: 0);
-   }
-
-   // 3. Record wrapper -- used as the MCAP recording root type.
+   // 2. Record wrapper -- used as the MCAP recording root type.
    //    Adds a DeviceDataTimestamp alongside the payload.
    table XxxRecord {
        data: Xxx (id: 0);
@@ -69,18 +63,39 @@ Every tracker's data is defined by a FlatBuffers schema under
 
    root_type XxxRecord;
 
-- **Inner data table** (e.g. ``HeadPose``, ``HandPose``, ``ControllerSnapshot``) --
-  contains the device-specific fields. All fields are present when the parent
-  wrapper's ``data`` pointer is non-null.
+- **Payload table** (e.g. ``HeadPose``, ``HandPose``, ``ControllerSnapshot``) --
+  contains the device-specific fields. All fields are present whenever the table
+  itself is present.
 
-- **Tracked wrapper** (e.g. ``HeadPoseTracked``) -- wraps the inner data in an
-  optional ``data`` field. The in-memory ``get_*()`` accessors return a reference
-  to this wrapper. When ``data`` is ``nullptr`` (C++) or ``None`` (Python), the
-  device is inactive or no sample has arrived yet.
-
-- **Record wrapper** (e.g. ``HeadPoseRecord``) -- wraps the inner data plus a
+- **Record wrapper** (e.g. ``HeadPoseRecord``) -- wraps the payload plus a
   ``DeviceDataTimestamp``. This is the ``root_type`` written to MCAP channels by
-  the recorder via ``serialize_all()``.
+  the recorder.
+
+Reading a payload
+~~~~~~~~~~~~~~~~~
+
+The ``get_*()`` accessors hand out the payload table itself as an owning handle
+over the encoded bytes -- ``Serialized<HeadPose>`` in C++
+(:code-file:`src/core/schema/cpp/inc/schema/serialized.hpp`), a read-only view
+class (``HeadPose``) in Python. Reads go straight into the buffer, so there is no
+unpack step and joint arrays come back as zero-copy NumPy views.
+
+An **empty handle is the absent payload**: the device is inactive, no sample has
+arrived yet, or replay hit a gap. Test it with ``if (handle)`` in C++; in Python
+the accessor returns ``None``.
+
+Each ``session.update()`` publishes a *new* buffer rather than refilling the
+previous one, so a handle read this frame keeps its values after the next update.
+
+To build a payload from Python, pass every field to its constructor -- these
+views are immutable, so there are no setters.
+
+.. note::
+
+   ``MessageChannelMessagesTracked`` wraps its payload in a table, because that
+   payload is a **list** and something has to hold the vector. ``get_messages()``
+   always returns a non-empty handle; an absent ``data`` vector means no messages
+   arrived this frame.
 
 Shared Types
 ~~~~~~~~~~~~

@@ -56,10 +56,10 @@ void LiveSe3TrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     // Policy: SchemaTracker throws on critical OpenXR/tensor API failures.
     // Missing collection/no new data are treated as common non-fatal cases.
-    m_schema_reader.update(m_tracked.data);
+    m_schema_reader.update(m_tracked);
 }
 
-const Se3TrackerPoseTrackedT& LiveSe3TrackerImpl::get_data() const
+const Serialized<Se3TrackerPose>& LiveSe3TrackerImpl::get_data() const
 {
     return m_tracked;
 }

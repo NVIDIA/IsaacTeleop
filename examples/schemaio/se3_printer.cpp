@@ -20,6 +20,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <schema/serialized.hpp>
 
 #include <chrono>
 #include <iomanip>
@@ -30,11 +31,11 @@
 
 using namespace schemaio_example;
 
-void print_se3_data(const core::Se3TrackerPoseT& data, size_t sample_count)
+void print_se3_data(const core::Se3TrackerPose& data, size_t sample_count)
 {
     std::cout << "Sample " << sample_count;
 
-    if (!data.is_valid)
+    if (!data.is_valid())
     {
         // Pose contents are unspecified while tracking is lost (see se3_tracker.fbs) —
         // gate on is_valid, never on pose values.
@@ -42,8 +43,8 @@ void print_se3_data(const core::Se3TrackerPoseT& data, size_t sample_count)
         return;
     }
 
-    const auto& position = data.pose->position();
-    const auto& orientation = data.pose->orientation();
+    const auto& position = data.pose()->position();
+    const auto& orientation = data.pose()->orientation();
     std::cout << std::fixed << std::setprecision(3) << " pos=[" << position.x() << ", " << position.y() << ", "
               << position.z() << "] quat(xyzw)=[" << orientation.x() << ", " << orientation.y() << ", "
               << orientation.z() << ", " << orientation.w() << "]";
@@ -93,9 +94,9 @@ try
         // last-known sample between pushes, so without the fixed-rate sleep below this
         // loop would spin and reprint stale data as fast as the CPU allows.
         const auto& tracked = tracker->get_data(*session);
-        if (tracked.data)
+        if (const auto* pose = tracked.get())
         {
-            print_se3_data(*tracked.data, received_count++);
+            print_se3_data(*pose, received_count++);
         }
 
         // Tick at ~30 Hz. Each update drains all pending samples, so the printer keeps up

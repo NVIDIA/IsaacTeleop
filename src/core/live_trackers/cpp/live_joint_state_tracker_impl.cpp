@@ -53,10 +53,10 @@ void LiveJointStateTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     // Policy: SchemaTracker throws on critical OpenXR/tensor API failures.
     // Missing collection/no new data are treated as common non-fatal cases.
-    m_schema_reader.update(m_tracked.data);
+    m_schema_reader.update(m_tracked);
 }
 
-const JointStateOutputTrackedT& LiveJointStateTrackerImpl::get_data() const
+const Serialized<JointStateOutput>& LiveJointStateTrackerImpl::get_data() const
 {
     return m_tracked;
 }

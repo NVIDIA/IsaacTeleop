@@ -6,6 +6,7 @@
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/reader.hpp>
 #include <mcap/writer.hpp>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
 
 #include <algorithm>
@@ -165,12 +166,21 @@ public:
     }
 
     /**
-     * @brief Read and deserialize the next record.
+     * @brief Read the next record as an encoded handle.
      * @param channel_index Index into the sub_channels list passed at construction.
-     * @return The deserialized Record (data member is null when the tracker
-     *         was inactive), or std::nullopt when no more messages remain.
+     * @return A handle owning the recorded bytes, empty when no more messages remain.
+     *
+     * The two levels of absence are the handle and its payload, not a wrapper around
+     * either: an empty handle means the stream had nothing left, while a non-empty handle
+     * whose `payload()` is null means a record was read for a tracker that was inactive.
+     * A record that was read always yields a non-empty handle, so there is nothing for an
+     * optional to say that the handle does not.
+     *
+     * The recorded root is a Record whose `data` is byte-for-byte the payload table
+     * consumers read, so a caller narrows to it rather than unpacking: `record.narrow(...)`
+     * shares this buffer instead of allocating a second one.
      */
-    std::optional<NativeRecordT> read(size_t channel_index)
+    Serialized<RecordT> read_serialized(size_t channel_index)
     {
         if (channel_index >= channels_.size())
         {
@@ -191,7 +201,7 @@ public:
         {
             const auto& msg_view = *(tracker_view_->it);
             size_t idx = find_channel_idx(msg_view.channel->topic);
-            NativeRecordT record = deserialize(msg_view.message, idx);
+            Serialized<RecordT> record = adopt_message(msg_view.message, idx);
 
             ++(tracker_view_->it);
 
@@ -204,14 +214,38 @@ public:
             channels_[idx].buffer.push_back(std::move(record));
         }
 
-        return std::nullopt;
+        return Serialized<RecordT>();
+    }
+
+    /**
+     * @brief Read the next record as an object-API value.
+     * @param channel_index Index into the sub_channels list passed at construction.
+     * @return The deserialized Record (data member is null when the tracker
+     *         was inactive), or std::nullopt when no more messages remain.
+     *
+     * For callers that compose a new table out of what they read and so need owning,
+     * mutable members; a `-T` is not nullable, so this one does need the optional.
+     * Prefer read_serialized() when the recorded payload is what gets published: this
+     * unpacks it.
+     */
+    std::optional<NativeRecordT> read(size_t channel_index)
+    {
+        const Serialized<RecordT> record = read_serialized(channel_index);
+        if (!record)
+        {
+            return std::nullopt;
+        }
+
+        NativeRecordT native;
+        record->UnPackTo(&native);
+        return native;
     }
 
 private:
     struct ChannelBuffer
     {
         std::string topic;
-        std::deque<NativeRecordT> buffer;
+        std::deque<Serialized<RecordT>> buffer;
     };
 
     struct TrackerView
@@ -236,7 +270,10 @@ private:
         throw std::runtime_error("McapTrackerViewers: unexpected topic '" + topic + "'");
     }
 
-    NativeRecordT deserialize(const mcap::Message& msg, size_t channel_index) const
+    // Verifies the recorded bytes and takes ownership of a copy of them. The copy is
+    // needed either way: the iterator owns the message storage and reuses it on the next
+    // advance, so the bytes cannot outlive this call by reference.
+    Serialized<RecordT> adopt_message(const mcap::Message& msg, size_t channel_index) const
     {
         flatbuffers::Verifier verifier(reinterpret_cast<const uint8_t*>(msg.data), msg.dataSize);
         if (!verifier.VerifyBuffer<RecordT>())
@@ -245,10 +282,8 @@ private:
                                      std::to_string(channel_index) + " at sequence " + std::to_string(msg.sequence));
         }
 
-        auto* fb_record = flatbuffers::GetRoot<RecordT>(msg.data);
-        NativeRecordT record;
-        fb_record->UnPackTo(&record);
-        return record;
+        const auto* bytes = reinterpret_cast<const uint8_t*>(msg.data);
+        return Serialized<RecordT>::adopt(std::vector<uint8_t>(bytes, bytes + msg.dataSize));
     }
 
     std::unique_ptr<mcap::McapReader> reader_;

@@ -27,12 +27,12 @@ public:
     ReplayHandTrackerImpl& operator=(ReplayHandTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const HandPoseTrackedT& get_left_hand() const override;
-    const HandPoseTrackedT& get_right_hand() const override;
+    const Serialized<HandPose>& get_left_hand() const override;
+    const Serialized<HandPose>& get_right_hand() const override;
 
 private:
-    HandPoseTrackedT left_tracked_;
-    HandPoseTrackedT right_tracked_;
+    Serialized<HandPose> left_tracked_;
+    Serialized<HandPose> right_tracked_;
     std::unique_ptr<HandMcapViewers> mcap_viewers_;
 };
 

@@ -26,8 +26,8 @@ namespace core
  * // ... create session with tracker ...
  * session->update();
  * const auto& color = tracker->get_stream_data(*session, 0);
- * if (color.data)
- *     std::cout << EnumNameStreamType(color.data->stream) << " seq=" << color.data->sequence_number << std::endl;
+ * if (color)
+ *     std::cout << EnumNameStreamType(color->stream()) << " seq=" << color->sequence_number() << std::endl;
  * @endcode
  */
 class FrameMetadataTrackerOak : public ITracker
@@ -56,12 +56,11 @@ public:
      * @brief Get per-stream frame metadata.
      * @param session Active ITrackerSession.
      * @param stream_index Index into the streams vector passed at construction.
-     * @return Reference to the FrameMetadataOakTrackedT for that stream.
-     *         The inner @c data pointer is null until the first frame arrives.
-     *         When @c data is non-null, nested fields in FrameMetadataOakT are
-     *         safe to read.
+     * @return Reference to the Serialized<FrameMetadataOak> for that stream.
+     *         The handle is empty until the first frame arrives. When non-empty,
+     *         nested fields in FrameMetadataOak are safe to read.
      */
-    const FrameMetadataOakTrackedT& get_stream_data(const ITrackerSession& session, size_t stream_index) const;
+    const Serialized<FrameMetadataOak>& get_stream_data(const ITrackerSession& session, size_t stream_index) const;
 
     //! Number of streams this tracker is configured for.
     size_t get_stream_count() const

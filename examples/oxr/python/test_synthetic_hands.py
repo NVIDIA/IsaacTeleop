@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -103,15 +103,15 @@ def run_test():
                     right_tracked = hand_tracker.get_right_hand(deviceio_session)
 
                     print(f"Frame {frame_count}:")
-                    if left_tracked.data is not None:
-                        pos = left_tracked.data.joints.poses(
+                    if left_tracked:
+                        pos = left_tracked.joints.poses(
                             deviceio.JOINT_WRIST
                         ).pose.position
                         print(f"  Left wrist:  [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
                     else:
                         print("  Left hand:   inactive")
-                    if right_tracked.data is not None:
-                        pos = right_tracked.data.joints.poses(
+                    if right_tracked:
+                        pos = right_tracked.joints.poses(
                             deviceio.JOINT_WRIST
                         ).pose.position
                         print(f"  Right wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")

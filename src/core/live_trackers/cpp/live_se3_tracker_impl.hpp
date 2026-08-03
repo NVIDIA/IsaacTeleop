@@ -41,12 +41,12 @@ public:
     LiveSe3TrackerImpl& operator=(LiveSe3TrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const Se3TrackerPoseTrackedT& get_data() const override;
+    const Serialized<Se3TrackerPose>& get_data() const override;
 
 private:
     std::unique_ptr<Se3TrackerMcapChannels> mcap_channels_;
     Se3TrackerSchemaTracker m_schema_reader;
-    Se3TrackerPoseTrackedT m_tracked;
+    Serialized<Se3TrackerPose> m_tracked;
 };
 
 } // namespace core

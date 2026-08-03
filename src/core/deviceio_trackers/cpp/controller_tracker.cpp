@@ -10,12 +10,12 @@ namespace core
 // ControllerTracker Public Interface
 // ============================================================================
 
-const ControllerSnapshotTrackedT& ControllerTracker::get_left_controller(const ITrackerSession& session) const
+const Serialized<ControllerSnapshot>& ControllerTracker::get_left_controller(const ITrackerSession& session) const
 {
     return static_cast<const IControllerTrackerImpl&>(session.get_tracker_impl(*this)).get_left_controller();
 }
 
-const ControllerSnapshotTrackedT& ControllerTracker::get_right_controller(const ITrackerSession& session) const
+const Serialized<ControllerSnapshot>& ControllerTracker::get_right_controller(const ITrackerSession& session) const
 {
     return static_cast<const IControllerTrackerImpl&>(session.get_tracker_impl(*this)).get_right_controller();
 }

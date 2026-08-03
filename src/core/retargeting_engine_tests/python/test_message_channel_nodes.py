@@ -5,7 +5,7 @@ from collections import deque
 
 from isaacteleop.schema import (
     MessageChannelMessages,
-    MessageChannelMessagesTrackedT,
+    MessageChannelMessagesTracked,
 )
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     MessageChannelConnectionStatus,
@@ -21,7 +21,7 @@ class DummyTracker:
 
     def __init__(self):
         self.sent_payloads = []
-        self._drained = MessageChannelMessagesTrackedT()
+        self._drained = MessageChannelMessagesTracked()
         self.connected = True
 
     def send_message(self, session, payload):
@@ -51,7 +51,7 @@ def test_message_channel_source_active_message():
     tracker = DummyTracker()
     source = MessageChannelSource("msg_source", tracker, deque())
     message = MessageChannelMessages(b"hello")
-    tracker._drained = MessageChannelMessagesTrackedT([message])
+    tracker._drained = MessageChannelMessagesTracked([message])
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -66,7 +66,7 @@ def test_message_channel_source_active_message():
 def test_message_channel_source_inactive_message():
     tracker = DummyTracker()
     source = MessageChannelSource("msg_source", tracker, deque())
-    tracker._drained = MessageChannelMessagesTrackedT()
+    tracker._drained = MessageChannelMessagesTracked()
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -83,7 +83,7 @@ def test_message_channel_sink_enqueues_message():
     m1 = MessageChannelMessages(b"echo")
     m2 = MessageChannelMessages(b"pong")
 
-    batch = MessageChannelMessagesTrackedT([m1, m2])
+    batch = MessageChannelMessagesTracked([m1, m2])
     inputs = _make_inputs(sink, {"messages_tracked": [batch]})
     outputs = {k: _make_output_group(v) for k, v in sink.output_spec().items()}
     sink.compute(inputs, outputs)
@@ -102,7 +102,7 @@ def test_message_channel_source_returns_all_drained_messages():
     source = MessageChannelSource("msg_source_list", tracker, deque())
     m1 = MessageChannelMessages(b"x")
     m2 = MessageChannelMessages(b"y")
-    tracker._drained = MessageChannelMessagesTrackedT([m1, m2])
+    tracker._drained = MessageChannelMessagesTracked([m1, m2])
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -122,12 +122,8 @@ def test_message_channel_source_keeps_outbound_queue_while_disconnected():
     outbound_queue = deque()
     source = MessageChannelSource("msg_source_disconnected", tracker, outbound_queue)
 
-    outbound_queue.append(
-        MessageChannelMessagesTrackedT([MessageChannelMessages(b"a")])
-    )
-    outbound_queue.append(
-        MessageChannelMessagesTrackedT([MessageChannelMessages(b"b")])
-    )
+    outbound_queue.append(MessageChannelMessagesTracked([MessageChannelMessages(b"a")]))
+    outbound_queue.append(MessageChannelMessagesTracked([MessageChannelMessages(b"b")]))
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -156,9 +152,9 @@ def test_message_channel_sink_bounded_queue_drops_oldest():
     m2 = MessageChannelMessages(b"2")
     m3 = MessageChannelMessages(b"3")
 
-    b1 = MessageChannelMessagesTrackedT([m1])
-    b2 = MessageChannelMessagesTrackedT([m2])
-    b3 = MessageChannelMessagesTrackedT([m3])
+    b1 = MessageChannelMessagesTracked([m1])
+    b2 = MessageChannelMessagesTracked([m2])
+    b3 = MessageChannelMessagesTracked([m3])
     outputs = {k: _make_output_group(v) for k, v in sink.output_spec().items()}
     sink.compute(_make_inputs(sink, {"messages_tracked": [b1]}), outputs)
     sink.compute(_make_inputs(sink, {"messages_tracked": [b2]}), outputs)

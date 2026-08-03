@@ -60,7 +60,7 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
     last_update_time_ = monotonic_time_ns;
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
 
-    messages_.data.clear();
+    native_.data.clear();
 
     const MessageChannelStatus status = query_status();
     if (status == MessageChannelStatus::DISCONNECTED)
@@ -76,6 +76,11 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
     // are drained but the sentinel write below still advances the
     // replay frame clock.
 
+    // Always encode, including for an empty drain: unlike the single-payload trackers,
+    // `data` here is a list, and "no messages this frame" is an empty batch rather than
+    // an absent one.
+    messages_ = pack<MessageChannelMessagesTracked>(native_);
+
     if (mcap_channels_)
     {
         // The message channel is the replay impl's own frame clock:
@@ -87,13 +92,13 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
         // the replay from the per-frame trackers (head / hand / ...)
         // by the duration of the gap.
         DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        if (messages_.data.empty())
+        if (native_.data.empty())
         {
             mcap_channels_->write(0, timestamp, nullptr);
         }
         else
         {
-            for (const auto& msg : messages_.data)
+            for (const auto& msg : native_.data)
             {
                 mcap_channels_->write(0, timestamp, msg);
             }
@@ -165,7 +170,7 @@ void LiveMessageChannelTrackerImpl::drain_messages()
 
         auto message = std::make_shared<MessageChannelMessagesT>();
         message->payload.assign(receive_buffer_.begin(), receive_buffer_.begin() + read_count);
-        messages_.data.push_back(message);
+        native_.data.push_back(message);
     }
 }
 
@@ -174,7 +179,7 @@ MessageChannelStatus LiveMessageChannelTrackerImpl::get_status() const
     return query_status();
 }
 
-const MessageChannelMessagesTrackedT& LiveMessageChannelTrackerImpl::get_messages() const
+const Serialized<MessageChannelMessagesTracked>& LiveMessageChannelTrackerImpl::get_messages() const
 {
     return messages_;
 }

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 /*!
@@ -18,6 +18,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <schema/serialized.hpp>
 
 #include <chrono>
 #include <iomanip>
@@ -27,12 +28,12 @@
 
 using namespace schemaio_example;
 
-void print_pedal_data(const core::Generic3AxisPedalOutputT& data, size_t sample_count)
+void print_pedal_data(const core::Generic3AxisPedalOutput& data, size_t sample_count)
 {
     std::cout << "Sample " << sample_count;
 
-    std::cout << std::fixed << std::setprecision(3) << " [left=" << data.left_pedal << ", right=" << data.right_pedal
-              << ", rudder=" << data.rudder << "]";
+    std::cout << std::fixed << std::setprecision(3) << " [left=" << data.left_pedal()
+              << ", right=" << data.right_pedal() << ", rudder=" << data.rudder() << "]";
 
     std::cout << std::endl;
 }
@@ -73,9 +74,9 @@ try
 
         // Print current data if available
         const auto& tracked = tracker->get_data(*session);
-        if (tracked.data)
+        if (const auto* pedals = tracked.get())
         {
-            print_pedal_data(*tracked.data, received_count++);
+            print_pedal_data(*pedals, received_count++);
         }
         else
         {

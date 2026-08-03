@@ -42,13 +42,13 @@ public:
     LiveFrameMetadataTrackerOakImpl& operator=(LiveFrameMetadataTrackerOakImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
+    const Serialized<FrameMetadataOak>& get_stream_data(size_t stream_index) const override;
 
 private:
     struct StreamState
     {
         std::unique_ptr<OakSchemaTracker> reader;
-        FrameMetadataOakTrackedT tracked;
+        Serialized<FrameMetadataOak> tracked;
     };
 
     std::unique_ptr<OakMcapChannels> mcap_channels_;

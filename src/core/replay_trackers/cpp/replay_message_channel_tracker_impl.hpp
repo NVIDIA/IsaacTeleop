@@ -57,13 +57,16 @@ public:
 
     void update(int64_t monotonic_time_ns) override;
     MessageChannelStatus get_status() const override;
-    const MessageChannelMessagesTrackedT& get_messages() const override;
+    const Serialized<MessageChannelMessagesTracked>& get_messages() const override;
     void send_message(const std::vector<uint8_t>& payload) const override;
 
 private:
     static int64_t record_monotonic_ns(const MessageChannelMessagesRecordT& record);
 
-    MessageChannelMessagesTrackedT messages_;
+    // Assembly scratch for the frame's batch, and the encoded snapshot published
+    // from it. Only the latter leaves this class.
+    MessageChannelMessagesTrackedT native_;
+    Serialized<MessageChannelMessagesTracked> messages_;
     std::unique_ptr<MessageChannelMcapViewers> mcap_viewers_;
     // Holds the first record of the next frame, peeked but not yet
     // consumed. McapTrackerViewers::read() advances the underlying

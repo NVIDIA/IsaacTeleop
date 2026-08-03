@@ -5,6 +5,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <schema/serialized.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -85,12 +86,13 @@ try
 
         if (i % 3 == 0)
         {
+            const bool head_valid = head_tracked && head_tracked->is_valid();
             std::cout << "Frame " << i << ": "
-                      << "Hands=" << (left_tracked.data ? "ACTIVE" : "INACTIVE") << " | "
-                      << "Head=" << ((head_tracked.data && head_tracked.data->is_valid) ? "VALID" : "INVALID");
-            if (head_tracked.data && head_tracked.data->is_valid && head_tracked.data->pose)
+                      << "Hands=" << (left_tracked ? "ACTIVE" : "INACTIVE") << " | "
+                      << "Head=" << (head_valid ? "VALID" : "INVALID");
+            if (head_valid && head_tracked->pose() != nullptr)
             {
-                const auto& pos = head_tracked.data->pose->position();
+                const auto& pos = head_tracked->pose()->position();
                 std::cout << " [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]";
             }
             std::cout << std::endl;

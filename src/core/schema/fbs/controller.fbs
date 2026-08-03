@@ -31,7 +31,7 @@ struct ControllerPose {
 }
 
 // Snapshot data for a single controller.
-// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+// All fields are always present whenever this table itself is present.
 table ControllerSnapshot {
     // Grip pose - represents the physical controller position/orientation
     grip_pose: ControllerPose (id: 0);
@@ -41,11 +41,6 @@ table ControllerSnapshot {
 
     // Input state - all buttons and axes
     inputs: ControllerInputState (id: 2);
-}
-
-// Tracked wrapper for the in-memory tracker API (data is null when controller is inactive).
-table ControllerSnapshotTracked {
-    data: ControllerSnapshot (id: 0);
 }
 
 // MCAP recording wrapper for ControllerSnapshot.

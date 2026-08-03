@@ -48,12 +48,12 @@ public:
     LiveFullBodyTrackerNoitomImpl& operator=(LiveFullBodyTrackerNoitomImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const FullBodyPoseTrackedT& get_body_pose() const override;
+    const Serialized<FullBodyPose>& get_body_pose() const override;
 
 private:
     std::unique_ptr<FullBodyMcapChannels> mcap_channels_;
     FullBodyNoitomSchemaTracker schema_reader_;
-    FullBodyPoseTrackedT tracked_;
+    Serialized<FullBodyPose> tracked_;
 };
 
 } // namespace core

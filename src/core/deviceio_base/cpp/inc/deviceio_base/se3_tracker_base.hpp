@@ -5,10 +5,12 @@
 
 #include "tracker.hpp"
 
+#include <schema/serialized.hpp>
+
 namespace core
 {
 
-struct Se3TrackerPoseTrackedT;
+struct Se3TrackerPose;
 
 // Abstract base interface for Se3Tracker implementations.
 //
@@ -18,7 +20,7 @@ struct Se3TrackerPoseTrackedT;
 class ISe3TrackerImpl : public ITrackerImpl
 {
 public:
-    virtual const Se3TrackerPoseTrackedT& get_data() const = 0;
+    virtual const Serialized<Se3TrackerPose>& get_data() const = 0;
 };
 
 } // namespace core

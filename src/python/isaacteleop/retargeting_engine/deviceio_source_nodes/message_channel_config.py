@@ -13,7 +13,7 @@ from .message_channel_source import MessageChannelSource
 import isaacteleop.deviceio as deviceio
 
 if TYPE_CHECKING:
-    from isaacteleop.schema import MessageChannelMessagesTrackedT
+    from isaacteleop.schema import MessageChannelMessagesTracked
 
 
 @dataclass
@@ -39,7 +39,7 @@ class MessageChannelConfig:
             self.max_message_size,
         )
         # deque(maxlen=N) provides bounded queueing and drops oldest on overflow.
-        outbound_queue: deque["MessageChannelMessagesTrackedT"] = deque(
+        outbound_queue: deque["MessageChannelMessagesTracked"] = deque(
             maxlen=self.outbound_queue_capacity
         )
         source = MessageChannelSource(

@@ -52,10 +52,10 @@ void LiveOgloTactileTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     // SchemaTracker throws on critical OpenXR/tensor failures; missing collection
     // and "no new data" are non-fatal.
-    m_schema_reader.update(m_tracked.data);
+    m_schema_reader.update(m_tracked);
 }
 
-const OgloGloveSampleTrackedT& LiveOgloTactileTrackerImpl::get_data() const
+const Serialized<OgloGloveSample>& LiveOgloTactileTrackerImpl::get_data() const
 {
     return m_tracked;
 }

@@ -15,7 +15,7 @@ Se3Tracker::Se3Tracker(const std::string& collection_id, size_t max_flatbuffer_s
 {
 }
 
-const Se3TrackerPoseTrackedT& Se3Tracker::get_data(const ITrackerSession& session) const
+const Serialized<Se3TrackerPose>& Se3Tracker::get_data(const ITrackerSession& session) const
 {
     return static_cast<const ISe3TrackerImpl&>(session.get_tracker_impl(*this)).get_data();
 }

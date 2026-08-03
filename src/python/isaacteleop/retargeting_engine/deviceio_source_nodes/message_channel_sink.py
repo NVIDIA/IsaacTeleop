@@ -15,14 +15,14 @@ from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 from .deviceio_tensor_types import MessageChannelMessagesTrackedGroup
 
 if TYPE_CHECKING:
-    from isaacteleop.schema import MessageChannelMessagesTrackedT
+    from isaacteleop.schema import MessageChannelMessagesTracked
 
 
 class MessageChannelSink(BaseRetargeter):
     """Sink node that enqueues outbound message channel payloads."""
 
     def __init__(
-        self, name: str, outbound_queue: "deque[MessageChannelMessagesTrackedT]"
+        self, name: str, outbound_queue: "deque[MessageChannelMessagesTracked]"
     ) -> None:
         self._outbound_queue = outbound_queue
         super().__init__(name)

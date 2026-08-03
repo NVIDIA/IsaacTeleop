@@ -27,10 +27,10 @@ public:
     ReplayJointStateTrackerImpl& operator=(ReplayJointStateTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const JointStateOutputTrackedT& get_data() const override;
+    const Serialized<JointStateOutput>& get_data() const override;
 
 private:
-    JointStateOutputTrackedT tracked_;
+    Serialized<JointStateOutput> tracked_;
     std::unique_ptr<JointStateMcapViewers> mcap_viewers_;
     // Warn only on the first frame of a no-data gap (EOF / sparse stream) to avoid per-frame spam.
     bool warned_no_data_ = false;

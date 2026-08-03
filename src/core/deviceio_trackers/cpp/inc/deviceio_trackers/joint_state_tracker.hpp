@@ -13,7 +13,7 @@ namespace core
 {
 
 /*!
- * @brief Facade for a generic joint-space device exposed as ``JointStateOutputTrackedT``.
+ * @brief Facade for a generic joint-space device exposed as ``Serialized<JointStateOutput>``.
  *
  * Generic across joint-space input devices (leader arms, exoskeletons, gloves, ...): the payload
  * is a list of named joints (``JointStateOutput.joints``, keyed by ``JointState.name``) plus an
@@ -24,8 +24,8 @@ namespace core
  * After each ``ITrackerSession::update()`` that includes this tracker, ``get_data(session)``
  * reflects the implementation's tracked snapshot. As with other ``SchemaTracker``-backed trackers,
  * the live backend may retain the last-known sample when a tick has no new samples while the
- * collection remains available (``data`` stays non-null but may be stale); ``data`` is null only
- * when no sample has arrived yet or the collection is unavailable.
+ * collection remains available (the handle stays non-empty but may be stale); the handle is empty
+ * only when no sample has arrived yet or the collection is unavailable.
  *
  * Usage:
  * @code
@@ -59,10 +59,10 @@ public:
     /*!
      * @brief Joint-state snapshot from the session's implementation.
      *
-     * ``tracked.data`` is null when no valid sample exists. When non-null, the nested
-     * ``JointStateOutputT`` (joints, device_id, optional ee_pose) is safe to read.
+     * The handle is empty when no valid sample exists. When non-empty, the nested
+     * ``JointStateOutput`` fields (joints, device_id, optional ee_pose) are safe to read.
      */
-    const JointStateOutputTrackedT& get_data(const ITrackerSession& session) const;
+    const Serialized<JointStateOutput>& get_data(const ITrackerSession& session) const;
 
     const std::string& collection_id() const
     {

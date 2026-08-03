@@ -83,10 +83,10 @@ LiveFullBodyTrackerNoitomImpl::LiveFullBodyTrackerNoitomImpl(const OpenXRSession
 
 void LiveFullBodyTrackerNoitomImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    schema_reader_.update(tracked_.data);
+    schema_reader_.update(tracked_);
 }
 
-const FullBodyPoseTrackedT& LiveFullBodyTrackerNoitomImpl::get_body_pose() const
+const Serialized<FullBodyPose>& LiveFullBodyTrackerNoitomImpl::get_body_pose() const
 {
     return tracked_;
 }

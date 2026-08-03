@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -38,14 +38,17 @@ public:
     LiveHeadTrackerImpl& operator=(LiveHeadTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const HeadPoseTrackedT& get_head() const override;
+    const Serialized<HeadPose>& get_head() const override;
 
 private:
     const OpenXRCoreFunctions core_funcs_;
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrSpacePtr view_space_;
-    HeadPoseTrackedT tracked_;
+    // Assembly scratch for the OpenXR query, and the encoded snapshot published from it
+    // each frame. Only the latter leaves this class.
+    std::shared_ptr<HeadPoseT> native_;
+    Serialized<HeadPose> tracked_;
     int64_t last_update_time_ = 0;
     std::unique_ptr<HeadMcapChannels> mcap_channels_;
 };

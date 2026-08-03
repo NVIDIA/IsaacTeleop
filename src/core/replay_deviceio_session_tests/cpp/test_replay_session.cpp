@@ -17,6 +17,7 @@
 #include <schema/head_generated.h>
 #include <schema/message_channel_generated.h>
 #include <schema/se3_tracker_generated.h>
+#include <schema/tracked.hpp>
 
 #include <array>
 #include <atomic>
@@ -139,9 +140,17 @@ std::vector<std::string> to_string_vec(auto traits_channels)
     return std::vector<std::string>(traits_channels.begin(), traits_channels.end());
 }
 
-std::string payload_string(const std::shared_ptr<core::MessageChannelMessagesT>& msg)
+// FlatBuffers omits an empty vector rather than encoding a zero-length one, so an
+// absent `data` field is how a drained-nothing frame arrives.
+size_t message_count(const core::Serialized<core::MessageChannelMessagesTracked>& msgs)
 {
-    return std::string(msg->payload.begin(), msg->payload.end());
+    const auto* messages = payload(msgs);
+    return messages != nullptr ? messages->size() : 0;
+}
+
+std::string payload_string(const core::MessageChannelMessages* msg)
+{
+    return std::string(msg->payload()->begin(), msg->payload()->end());
 }
 
 std::array<uint8_t, core::MessageChannelTracker::CHANNEL_UUID_SIZE> make_test_uuid()
@@ -186,15 +195,15 @@ TEST_CASE("ReplaySession: head tracker round-trip with multiple frames", "[repla
     {
         session->update();
         const auto& head = head_tracker.get_head(*session);
-        REQUIRE(head.data);
+        REQUIRE(head);
         float v = static_cast<float>(i + 1);
-        CHECK(head.data->pose->position().x() == v);
-        CHECK(head.data->pose->position().y() == v * 10.0f);
-        CHECK(head.data->pose->position().z() == v * 100.0f);
+        CHECK(head->pose()->position().x() == v);
+        CHECK(head->pose()->position().y() == v * 10.0f);
+        CHECK(head->pose()->position().z() == v * 100.0f);
     }
 
     session->update();
-    CHECK_FALSE(head_tracker.get_head(*session).data);
+    CHECK_FALSE(head_tracker.get_head(*session));
 }
 
 // =============================================================================
@@ -240,19 +249,19 @@ TEST_CASE("ReplaySession: se3 tracker round-trip and null at EOF", "[replay][ses
     {
         session->update();
         const auto& tracked = tracker.get_data(*session);
-        REQUIRE(tracked.data);
-        CHECK(tracked.data->is_valid);
+        REQUIRE(tracked);
+        CHECK(tracked->is_valid());
         float v = static_cast<float>(i + 1);
-        CHECK(tracked.data->pose->position().x() == v);
-        CHECK(tracked.data->pose->position().y() == v * 10.0f);
-        CHECK(tracked.data->pose->position().z() == v * 100.0f);
+        CHECK(tracked->pose()->position().x() == v);
+        CHECK(tracked->pose()->position().y() == v * 10.0f);
+        CHECK(tracked->pose()->position().z() == v * 100.0f);
     }
 
     // Replay nulls data at gap/EOF — intentionally different from the live impl's
     // stale-sample retention on sample-less ticks. See the "Record/replay fidelity"
     // paragraph in docs/se3-tracker-design.md before "fixing" this toward sample-and-hold.
     session->update();
-    CHECK_FALSE(tracker.get_data(*session).data);
+    CHECK_FALSE(tracker.get_data(*session));
 }
 
 // =============================================================================
@@ -293,13 +302,13 @@ TEST_CASE("ReplaySession: hand tracker round-trip with left and right", "[replay
         session->update();
         const auto& left = hand_tracker.get_left_hand(*session);
         const auto& right = hand_tracker.get_right_hand(*session);
-        CHECK(left.data != nullptr);
-        CHECK(right.data != nullptr);
+        CHECK(left);
+        CHECK(right);
     }
 
     session->update();
-    CHECK_FALSE(hand_tracker.get_left_hand(*session).data);
-    CHECK_FALSE(hand_tracker.get_right_hand(*session).data);
+    CHECK_FALSE(hand_tracker.get_left_hand(*session));
+    CHECK_FALSE(hand_tracker.get_right_hand(*session));
 }
 
 // =============================================================================
@@ -354,19 +363,19 @@ TEST_CASE("ReplaySession: head and hand trackers in one session", "[replay][sess
         float v = static_cast<float>(i + 1);
 
         const auto& head = head_tracker.get_head(*session);
-        REQUIRE(head.data);
-        CHECK(head.data->pose->position().x() == v);
-        CHECK(head.data->pose->position().y() == v * 2.0f);
-        CHECK(head.data->pose->position().z() == v * 3.0f);
+        REQUIRE(head);
+        CHECK(head->pose()->position().x() == v);
+        CHECK(head->pose()->position().y() == v * 2.0f);
+        CHECK(head->pose()->position().z() == v * 3.0f);
 
-        CHECK(hand_tracker.get_left_hand(*session).data != nullptr);
-        CHECK(hand_tracker.get_right_hand(*session).data != nullptr);
+        CHECK(hand_tracker.get_left_hand(*session));
+        CHECK(hand_tracker.get_right_hand(*session));
     }
 
     session->update();
-    CHECK_FALSE(head_tracker.get_head(*session).data);
-    CHECK_FALSE(hand_tracker.get_left_hand(*session).data);
-    CHECK_FALSE(hand_tracker.get_right_hand(*session).data);
+    CHECK_FALSE(head_tracker.get_head(*session));
+    CHECK_FALSE(hand_tracker.get_left_hand(*session));
+    CHECK_FALSE(hand_tracker.get_right_hand(*session));
 }
 
 // =============================================================================
@@ -417,15 +426,15 @@ TEST_CASE("ReplaySession: message channel drains records on their recorded frame
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
-        REQUIRE(msgs.data.size() == 3);
-        CHECK(payload_string(msgs.data[0]) == "start");
-        CHECK(payload_string(msgs.data[1]) == "stop");
-        CHECK(payload_string(msgs.data[2]) == "reset");
+        REQUIRE(message_count(msgs) == 3);
+        CHECK(payload_string(payload(msgs)->Get(0)) == "start");
+        CHECK(payload_string(payload(msgs)->Get(1)) == "stop");
+        CHECK(payload_string(payload(msgs)->Get(2)) == "reset");
     }
 
     // EOF: subsequent updates produce empty batches (no double-emission).
     session->update();
-    CHECK(ctrl_tracker.get_messages(*session).data.empty());
+    CHECK(message_count(ctrl_tracker.get_messages(*session)) == 0);
 }
 
 TEST_CASE("ReplaySession: message channel fans recorded events across update ticks", "[replay][session][message_channel]")
@@ -462,26 +471,26 @@ TEST_CASE("ReplaySession: message channel fans recorded events across update tic
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
-        REQUIRE(msgs.data.size() == 1);
-        CHECK(payload_string(msgs.data[0]) == "start");
+        REQUIRE(message_count(msgs) == 1);
+        CHECK(payload_string(payload(msgs)->Get(0)) == "start");
     }
 
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
-        REQUIRE(msgs.data.size() == 1);
-        CHECK(payload_string(msgs.data[0]) == "stop");
+        REQUIRE(message_count(msgs) == 1);
+        CHECK(payload_string(payload(msgs)->Get(0)) == "stop");
     }
 
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
-        REQUIRE(msgs.data.size() == 1);
-        CHECK(payload_string(msgs.data[0]) == "reset");
+        REQUIRE(message_count(msgs) == 1);
+        CHECK(payload_string(payload(msgs)->Get(0)) == "reset");
     }
 
     session->update();
-    CHECK(ctrl_tracker.get_messages(*session).data.empty());
+    CHECK(message_count(ctrl_tracker.get_messages(*session)) == 0);
 }
 
 TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of replay-loop speed",
@@ -547,17 +556,17 @@ TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of 
         const auto& msgs = ctrl_tracker.get_messages(*session);
         if (frame == kStartFrame)
         {
-            REQUIRE(msgs.data.size() == 1);
-            CHECK(payload_string(msgs.data[0]) == "start");
+            REQUIRE(message_count(msgs) == 1);
+            CHECK(payload_string(payload(msgs)->Get(0)) == "start");
         }
         else if (frame == kStopFrame)
         {
-            REQUIRE(msgs.data.size() == 1);
-            CHECK(payload_string(msgs.data[0]) == "stop");
+            REQUIRE(message_count(msgs) == 1);
+            CHECK(payload_string(payload(msgs)->Get(0)) == "stop");
         }
         else
         {
-            CHECK(msgs.data.empty());
+            CHECK(message_count(msgs) == 0);
         }
     }
 }
@@ -600,21 +609,21 @@ TEST_CASE("ReplaySession: message channel drains payloads alongside sentinels in
     REQUIRE(session != nullptr);
 
     session->update();
-    CHECK(ctrl_tracker.get_messages(*session).data.empty());
+    CHECK(message_count(ctrl_tracker.get_messages(*session)) == 0);
 
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
-        REQUIRE(msgs.data.size() == 2);
-        CHECK(payload_string(msgs.data[0]) == "hello");
-        CHECK(payload_string(msgs.data[1]) == "world");
+        REQUIRE(message_count(msgs) == 2);
+        CHECK(payload_string(payload(msgs)->Get(0)) == "hello");
+        CHECK(payload_string(payload(msgs)->Get(1)) == "world");
     }
 
     session->update();
-    CHECK(ctrl_tracker.get_messages(*session).data.empty());
+    CHECK(message_count(ctrl_tracker.get_messages(*session)) == 0);
 
     session->update();
-    CHECK(ctrl_tracker.get_messages(*session).data.empty());
+    CHECK(message_count(ctrl_tracker.get_messages(*session)) == 0);
 }
 
 // =============================================================================

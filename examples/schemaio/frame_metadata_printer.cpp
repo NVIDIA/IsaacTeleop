@@ -17,6 +17,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <oxr/oxr_session.hpp>
+#include <schema/serialized.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -95,10 +96,9 @@ try
     std::vector<std::optional<uint64_t>> last_sequences(stream_count);
     for (size_t i = 0; i < stream_count; ++i)
     {
-        const auto& tracked = tracker->get_stream_data(*session, i);
-        if (tracked.data)
+        if (const auto* metadata = tracker->get_stream_data(*session, i).get())
         {
-            last_sequences[i] = tracked.data->sequence_number;
+            last_sequences[i] = metadata->sequence_number();
         }
     }
 
@@ -119,10 +119,9 @@ try
             // data is already present so we don't reprint an existing sample.
             for (size_t i = old_count; i < stream_count; ++i)
             {
-                const auto& tracked = tracker->get_stream_data(*session, i);
-                if (tracked.data)
+                if (const auto* metadata = tracker->get_stream_data(*session, i).get())
                 {
-                    last_sequences[i] = tracked.data->sequence_number;
+                    last_sequences[i] = metadata->sequence_number();
                 }
             }
         }
@@ -130,15 +129,15 @@ try
         // Print one line per stream that has a new sample.
         for (size_t i = 0; i < stream_count; ++i)
         {
-            const auto& tracked = tracker->get_stream_data(*session, i);
-            if (!tracked.data ||
-                (last_sequences[i].has_value() && tracked.data->sequence_number == last_sequences[i].value()))
+            const auto* metadata = tracker->get_stream_data(*session, i).get();
+            if (metadata == nullptr ||
+                (last_sequences[i].has_value() && metadata->sequence_number() == last_sequences[i].value()))
             {
                 continue;
             }
-            last_sequences[i] = tracked.data->sequence_number;
-            std::cout << "Sample " << ++received_count << ": " << core::EnumNameStreamType(tracked.data->stream)
-                      << " seq=" << tracked.data->sequence_number << std::endl;
+            last_sequences[i] = metadata->sequence_number();
+            std::cout << "Sample " << ++received_count << ": " << core::EnumNameStreamType(metadata->stream())
+                      << " seq=" << metadata->sequence_number() << std::endl;
         }
 
         auto now = std::chrono::steady_clock::now();

@@ -140,9 +140,9 @@ def _make_overlay_layer(
 
 
 def _taxels(tracked) -> np.ndarray | None:
-    if tracked is None or tracked.data is None:
+    if not tracked:
         return None
-    t = tracked.data.taxels
+    t = tracked.taxels
     if not t or len(t) < NUM_TAXELS:
         return None
     return np.asarray(t, dtype=np.float32)[:NUM_TAXELS]

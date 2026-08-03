@@ -45,29 +45,32 @@ void ReplayMessageChannelTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     // sharing the first pending record's timestamp. See the class
     // docstring for the invariant this relies on (the live recorder
     // writes ≥1 record per session.update()).
-    messages_.data.clear();
+    native_.data.clear();
 
     if (!pending_record_)
     {
         pending_record_ = mcap_viewers_->read(0);
     }
-    if (!pending_record_)
-    {
-        return;
-    }
 
-    const int64_t frame_ns = record_monotonic_ns(*pending_record_);
-    while (pending_record_ && record_monotonic_ns(*pending_record_) == frame_ns)
+    if (pending_record_)
     {
-        // Sentinel records carry no data and only exist to mark a
-        // frame boundary; skip them but still advance the iterator so
-        // the next update reads the following frame.
-        if (pending_record_->data)
+        const int64_t frame_ns = record_monotonic_ns(*pending_record_);
+        while (pending_record_ && record_monotonic_ns(*pending_record_) == frame_ns)
         {
-            messages_.data.push_back(std::move(pending_record_->data));
+            // Sentinel records carry no data and only exist to mark a
+            // frame boundary; skip them but still advance the iterator so
+            // the next update reads the following frame.
+            if (pending_record_->data)
+            {
+                native_.data.push_back(std::move(pending_record_->data));
+            }
+            pending_record_ = mcap_viewers_->read(0);
         }
-        pending_record_ = mcap_viewers_->read(0);
     }
+
+    // Always encode, including for an empty batch: `data` is a list here, so "no
+    // messages this frame" is an empty batch rather than an absent one.
+    messages_ = pack<MessageChannelMessagesTracked>(native_);
 }
 
 MessageChannelStatus ReplayMessageChannelTrackerImpl::get_status() const
@@ -78,7 +81,7 @@ MessageChannelStatus ReplayMessageChannelTrackerImpl::get_status() const
     return MessageChannelStatus::CONNECTED;
 }
 
-const MessageChannelMessagesTrackedT& ReplayMessageChannelTrackerImpl::get_messages() const
+const Serialized<MessageChannelMessagesTracked>& ReplayMessageChannelTrackerImpl::get_messages() const
 {
     return messages_;
 }

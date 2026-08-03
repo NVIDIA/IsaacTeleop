@@ -65,11 +65,11 @@ void LiveFrameMetadataTrackerOakImpl::update(int64_t /*monotonic_time_ns*/)
     // Missing stream collection/no fresh sample are treated as common non-fatal cases.
     for (auto& stream : m_streams)
     {
-        stream.reader->update(stream.tracked.data);
+        stream.reader->update(stream.tracked);
     }
 }
 
-const FrameMetadataOakTrackedT& LiveFrameMetadataTrackerOakImpl::get_stream_data(size_t stream_index) const
+const Serialized<FrameMetadataOak>& LiveFrameMetadataTrackerOakImpl::get_stream_data(size_t stream_index) const
 {
     if (stream_index >= m_streams.size())
     {

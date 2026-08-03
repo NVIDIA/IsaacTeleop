@@ -44,7 +44,7 @@ public:
 
     void update(int64_t monotonic_time_ns) override;
     MessageChannelStatus get_status() const override;
-    const MessageChannelMessagesTrackedT& get_messages() const override;
+    const Serialized<MessageChannelMessagesTracked>& get_messages() const override;
     void send_message(const std::vector<uint8_t>& payload) const override;
 
 private:
@@ -73,7 +73,10 @@ private:
 
     XrTimeConverter time_converter_;
     int64_t last_update_time_ = 0;
-    MessageChannelMessagesTrackedT messages_;
+    // Assembly scratch for the drained batch, and the encoded snapshot published
+    // from it each frame. Only the latter leaves this class.
+    MessageChannelMessagesTrackedT native_;
+    Serialized<MessageChannelMessagesTracked> messages_;
     std::vector<uint8_t> receive_buffer_;
     std::unique_ptr<MessageChannelMcapChannels> mcap_channels_;
 };

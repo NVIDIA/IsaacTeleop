@@ -336,13 +336,13 @@ bool WristPoseSource::query_controller(bool is_left, XrPosef& out_pose, bool& ou
 
     const auto& tracked = is_left ? m_controller_tracker->get_left_controller(*m_deviceio_session) :
                                     m_controller_tracker->get_right_controller(*m_deviceio_session);
-    if (tracked.data == nullptr)
+    if (!tracked)
     {
         return false;
     }
 
     bool aim_valid = false;
-    const XrPosef aim_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
+    const XrPosef aim_pose = oxr_utils::get_aim_pose(*tracked, aim_valid);
     if (!aim_valid)
     {
         return false;

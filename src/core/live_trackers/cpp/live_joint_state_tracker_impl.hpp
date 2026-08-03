@@ -41,12 +41,12 @@ public:
     LiveJointStateTrackerImpl& operator=(LiveJointStateTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const JointStateOutputTrackedT& get_data() const override;
+    const Serialized<JointStateOutput>& get_data() const override;
 
 private:
     std::unique_ptr<JointStateMcapChannels> mcap_channels_;
     JointStateSchemaTracker m_schema_reader;
-    JointStateOutputTrackedT m_tracked;
+    Serialized<JointStateOutput> m_tracked;
 };
 
 } // namespace core

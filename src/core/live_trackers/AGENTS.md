@@ -41,6 +41,13 @@ When adding MCAP support to a new tracker impl, all of the following are require
 7. **Always build** (`cmake --build <build_dir> -- -j$(nproc)`) before treating work as done. Pre-commit alone does not catch compile errors or clang-format violations enforced at build time.
 8. Read `AGENTS.md` before starting. Not after CI breaks.
 
+## Publishing tracker output
+
+- An impl may keep a `-T` as **assembly scratch** (name it `native_`), but what it publishes is a `Serialized<XPayload>` encoded once per `update()`. Getters return the published handle; the scratch never escapes.
+- **Encode on every exit path of `update()`**, including early returns and the throwing ones (limp mode, locate failure) — otherwise a consumer keeps reading last frame's snapshot after the device drops out.
+- Encode into a **new** buffer each frame rather than over the previous one. Consumers hold snapshots, so a caller that read last frame must keep seeing last frame's values; this is what removed the old "valid until the next `session.update()`" caveat.
+- `SchemaTracker` does this for tensor-sourced trackers, and does it without encoding at all: the wire already carries the payload table, so it **adopts the sample's buffer**. Do not reintroduce an unpack on that path — the only reason it materialises a native is MCAP recording, which is why that unpack is gated on `mcap_channels_`.
+
 ## Related docs
 
 - Session update loop: [`../deviceio_session/AGENTS.md`](../deviceio_session/AGENTS.md)

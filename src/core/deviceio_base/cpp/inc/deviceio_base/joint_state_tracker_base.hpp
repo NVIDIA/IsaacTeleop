@@ -5,10 +5,12 @@
 
 #include "tracker.hpp"
 
+#include <schema/serialized.hpp>
+
 namespace core
 {
 
-struct JointStateOutputTrackedT;
+struct JointStateOutput;
 
 // Abstract base interface for JointStateTracker implementations.
 //
@@ -17,7 +19,7 @@ struct JointStateOutputTrackedT;
 class IJointStateTrackerImpl : public ITrackerImpl
 {
 public:
-    virtual const JointStateOutputTrackedT& get_data() const = 0;
+    virtual const Serialized<JointStateOutput>& get_data() const = 0;
 };
 
 } // namespace core

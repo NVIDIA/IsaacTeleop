@@ -4,6 +4,7 @@
 #include "live_haptic_command_reader_tracker_impl.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <schema/serialized.hpp>
 
 #include <memory>
 #include <string>
@@ -61,34 +62,32 @@ void LiveHapticCommandReaderTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     // collection interleaves all endpoints, so bucket by HapticCommand.endpoint
     // instead of collapsing to one latest sample (which would drop every endpoint
     // but the last one pushed each frame).
-    for (const auto& sample : samples_)
+    for (auto& sample : samples_)
     {
         const auto* fb = flatbuffers::GetRoot<HapticCommand>(sample.buffer.data());
         if (fb == nullptr)
         {
             continue;
         }
-        const std::string endpoint = fb->endpoint() != nullptr ? fb->endpoint()->str() : std::string{};
-        HapticCommandTrackedT& tracked = tracked_by_endpoint_[endpoint];
-        if (!tracked.data)
-        {
-            tracked.data = std::make_unique<HapticCommandT>();
-        }
-        fb->UnPackTo(tracked.data.get());
-        latest_endpoint_ = endpoint;
+        std::string endpoint = fb->endpoint() != nullptr ? fb->endpoint()->str() : std::string{};
+        // The wire already carries HapticCommand, so adopt the sample's bytes instead of
+        // unpacking and re-encoding them. `fb` dangles past this point; read the endpoint
+        // out first.
+        tracked_by_endpoint_[endpoint] = Serialized<HapticCommand>::adopt(std::move(sample.buffer));
+        latest_endpoint_ = std::move(endpoint);
     }
 }
 
-const HapticCommandTrackedT& LiveHapticCommandReaderTrackerImpl::get_data() const
+const Serialized<HapticCommand>& LiveHapticCommandReaderTrackerImpl::get_data() const
 {
     // Backward-compatible latest-across-all-endpoints view: the endpoint of the
     // most recently drained sample.
     return get_data(latest_endpoint_);
 }
 
-const HapticCommandTrackedT& LiveHapticCommandReaderTrackerImpl::get_data(std::string_view endpoint) const
+const Serialized<HapticCommand>& LiveHapticCommandReaderTrackerImpl::get_data(std::string_view endpoint) const
 {
-    static const HapticCommandTrackedT kEmpty{};
+    static const Serialized<HapticCommand> kEmpty{};
     const auto it = tracked_by_endpoint_.find(endpoint);
     return it != tracked_by_endpoint_.end() ? it->second : kEmpty;
 }

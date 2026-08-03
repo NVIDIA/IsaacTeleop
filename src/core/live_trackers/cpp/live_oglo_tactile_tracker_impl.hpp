@@ -40,12 +40,12 @@ public:
     LiveOgloTactileTrackerImpl& operator=(LiveOgloTactileTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const OgloGloveSampleTrackedT& get_data() const override;
+    const Serialized<OgloGloveSample>& get_data() const override;
 
 private:
     std::unique_ptr<OgloMcapChannels> mcap_channels_;
     OgloSchemaTracker m_schema_reader;
-    OgloGloveSampleTrackedT m_tracked;
+    Serialized<OgloGloveSample> m_tracked;
 };
 
 } // namespace core
