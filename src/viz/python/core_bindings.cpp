@@ -13,6 +13,7 @@
 #include <viz/core/viz_types.hpp>
 #include <viz/session/display_mode.hpp>
 #include <viz/session/viz_session.hpp> // SessionState
+#include <viz/session/xr_reference_space.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -32,6 +33,13 @@ void bind_core(py::module_& m)
         .value("kOffscreen", viz::DisplayMode::kOffscreen)
         .value("kWindow", viz::DisplayMode::kWindow)
         .value("kXr", viz::DisplayMode::kXr);
+
+    py::enum_<viz::XrReferenceSpace>(m, "XrReferenceSpace")
+        .value("kLocal", viz::XrReferenceSpace::kLocal, "Origin at the headset's start pose. y=0 is HEAD HEIGHT.")
+        .value("kLocalFloor", viz::XrReferenceSpace::kLocalFloor,
+               "Origin on the floor below the headset's start pose. y=0 is the FLOOR.")
+        .value("kStage", viz::XrReferenceSpace::kStage,
+               "Origin at the runtime's stage centre, on the floor. Does not follow the operator.");
 
     py::enum_<viz::PixelFormat>(m, "PixelFormat")
         .value("kRGBA8", viz::PixelFormat::kRGBA8)

@@ -168,6 +168,92 @@ def _clamp_dt(dt: float) -> float:
     return 0.0
 
 
+class _HeadTravelProbe:
+    """Separates "the scene is in the wrong place" from "the head is not tracked".
+
+    Those two present IDENTICALLY through a headset and have disjoint fixes, so
+    guessing between them costs a session each time. A scene that keeps a fixed
+    offset from the operator -- rotating correctly, translating with them -- is
+    not a calibration error and no constant in ``cpp/frames.hpp`` can correct
+    it: it is what rendering against a view pose whose POSITION never changes
+    looks like. Rotation-only (3DoF) tracking is the usual cause, and a
+    streaming runtime can assert ``XR_VIEW_STATE_POSITION_VALID_BIT`` while
+    still returning a pinned position, so the validity flags viz already checks
+    (``openxr_session.cpp:554``) do not catch it.
+
+    MEASURED FROM ``FrameInfo.views``, not from ``head_pose_now()``, for two
+    reasons: those poses are exactly what ``renderer.render()`` consumes, so a
+    pinned reading here IS the explanation for what the operator sees rather
+    than a correlate of it; and ``head_pose_now()`` returns None without the
+    time-conversion extension, which would make the diagnostic quietly absent
+    on the runtimes most likely to need it.
+
+    Reports peak displacement from the first sample, because an operator asked
+    to "walk around" produces a maximum that is stable to read, where an
+    instantaneous position is three numbers that mean nothing on their own.
+    """
+
+    # Long enough not to spam a 72 Hz loop, short enough that an operator who
+    # takes one step sees the number move while they are still moving.
+    _LOG_PERIOD_S = 2.0
+    # Above headset jitter (millimetres) and below any deliberate motion.
+    _MOVED_EPSILON_M = 0.05
+
+    def __init__(self) -> None:
+        self._origin: tuple[float, float, float] | None = None
+        self._max_travel_m = 0.0
+        self._next_log_s = 0.0
+        self._called_it = False
+
+    def sample(
+        self, poses_xyz_qwxyz: list[float], view_count: int, now_s: float
+    ) -> None:
+        """One rendered frame's flattened view poses; call after _flatten_xr_views."""
+        if view_count <= 0 or len(poses_xyz_qwxyz) < view_count * 7:
+            return
+        # Midpoint of the eyes = head position in the reference space. Averaged
+        # rather than eye 0 so a head ROLL, which swings either eye on its own,
+        # does not read as translation and mask a pinned position.
+        center = tuple(
+            sum(poses_xyz_qwxyz[v * 7 + axis] for v in range(view_count)) / view_count
+            for axis in range(3)
+        )
+        if self._origin is None:
+            self._origin = center
+            self._next_log_s = now_s + self._LOG_PERIOD_S
+            LOG.info(
+                "head tracking: origin sample at (%.3f, %.3f, %.3f) m in the reference space. "
+                "Walk or lean; the travel below must grow.",
+                *center,
+            )
+            return
+
+        travel = math.dist(center, self._origin)
+        self._max_travel_m = max(self._max_travel_m, travel)
+        if now_s < self._next_log_s:
+            return
+        self._next_log_s = now_s + self._LOG_PERIOD_S
+
+        if self._max_travel_m >= self._MOVED_EPSILON_M:
+            if not self._called_it:
+                LOG.info(
+                    "head tracking: 6DoF confirmed -- head has moved %.3f m from the origin sample. "
+                    "A scene in the wrong PLACE from here is a calibration question, not a tracking one.",
+                    self._max_travel_m,
+                )
+                self._called_it = True
+            return
+
+        LOG.warning(
+            "head tracking: head has moved at most %.3f m since the origin sample. If you have been "
+            "moving, the runtime is streaming ROTATION ONLY (3DoF) -- the view pose this app renders "
+            "against has a pinned position, so the whole scene keeps a fixed offset from your head and "
+            "no reference space or frames.py constant can anchor it. That is a CloudXR client/runtime "
+            "question (device profile, 6DoF pose upload), not an app one.",
+            self._max_travel_m,
+        )
+
+
 def _clock_stall_streak(streak: int, elapsed: float, should_render: bool) -> int:
     """Consecutive frames the runtime asked us to RENDER whose clock gave no time.
 
@@ -337,12 +423,12 @@ def _log_startup(mode, resolution, clock_source: str, scene: Path) -> None:
         FAR_Z,
     )
     LOG.info(
-        "reference space: LOCAL. VizSession exposes no reference-space option and its backend never sets one, "
-        "so the origin is wherever the headset was at session start -- NOT the floor."
+        "reference space: LOCAL_FLOOR -- origin on the floor below the operator's start pose, so the z below is a "
+        "measured floor datum. viz logs what the runtime actually offered on its own line."
     )
     LOG.info(
-        "frames:     mj_from_xr translation = (%.3f, %.3f, %.3f) m. x is operator standoff; z is a FLOOR datum "
-        "and is only correct if the reference-space origin is on the floor (see above). Neither term may be zeroed.",
+        "frames:     mj_from_xr translation = (%.3f, %.3f, %.3f) m. x is operator standoff; z is the FLOOR datum, "
+        "valid because the reference space above is floor-origin. Neither term may be zeroed.",
         trans[0],
         trans[1],
         trans[2],
@@ -502,6 +588,18 @@ def run(args: argparse.Namespace, scene_path: Path) -> int:
     config.xr_near_z = NEAR_Z
     config.xr_far_z = FAR_Z
     config.required_extensions = required_extensions
+    # THE FLOOR DATUM, AND THE REASON kTransMjFromXr's z means anything. This
+    # app draws world-locked geometry at a height above the FLOOR -- the table
+    # top is MuJoCo z=0, which cpp/frames.hpp puts 0.73 m up -- so the session
+    # origin has to be on the floor for that number to be a measurement rather
+    # than a guess about where the operator was standing. kLocal, the viz
+    # default, puts the origin at the headset's start pose: the table then
+    # renders 0.73 m above the operator's HEAD, which is what this used to do.
+    # kLocalFloor keeps kLocal's position and facing (so the -1.0 m standoff is
+    # unaffected) and moves y=0 down to the floor. It is core in OpenXR 1.1;
+    # a runtime that cannot supply it throws here naming the space, which is
+    # deliberate -- see the note in viz_session.hpp.
+    config.xr_reference_space = viz.XrReferenceSpace.kLocalFloor
     # Alpha 0 = "show passthrough here", and this is set UNCONDITIONALLY while
     # the runtime is what decides whether that alpha is honoured: viz only sets
     # XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT when the environment
@@ -656,6 +754,7 @@ def _loop(
     checked_projection = False
     markers_logged = -1
     stalled = 0
+    head_probe = _HeadTravelProbe()
 
     while not session.should_close():
         info = session.begin_frame()
@@ -754,6 +853,7 @@ def _loop(
                 # sees the flattened lengths and says so in those terms. There
                 # is deliberately no second check here.
                 poses, fovs = _flatten_xr_views(info)
+                head_probe.sample(poses, view_count, time.monotonic())
             else:
                 poses, fovs = list(debug_pose), list(debug_fov)
 

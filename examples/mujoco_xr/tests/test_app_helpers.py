@@ -187,3 +187,61 @@ def test_assert_projection_rejects_reverse_z():
     p[14] = -p[14]
     with pytest.raises(AssertionError, match="depth encoding"):
         app._assert_projection(p, app.NEAR_Z, app.FAR_Z)
+
+
+def _eye_pair(x: float, y: float, z: float) -> list[float]:
+    """Two eyes 6.5 cm apart on the x axis, midpoint at (x, y, z)."""
+    return [x - 0.0325, y, z, 1, 0, 0, 0, x + 0.0325, y, z, 1, 0, 0, 0]
+
+
+def test_head_travel_probe_flags_a_pinned_position(caplog):
+    """The 3DoF case: rotation streams, position does not.
+
+    This is the reading that separates "the scene is mis-placed" from "the head
+    is not tracked" -- the two present identically through a headset and have
+    disjoint fixes.
+    """
+    probe = app._HeadTravelProbe()
+    with caplog.at_level("WARNING"):
+        t = 0.0
+        for _ in range(3):
+            probe.sample(_eye_pair(0.0, 1.6, 0.0), 2, t)
+            t += probe._LOG_PERIOD_S + 0.5
+    assert any("ROTATION ONLY" in r.message for r in caplog.records)
+
+
+def test_head_travel_probe_confirms_real_translation(caplog):
+    probe = app._HeadTravelProbe()
+    with caplog.at_level("INFO"):
+        t = 0.0
+        for i in range(3):
+            probe.sample(_eye_pair(0.2 * i, 1.6, 0.0), 2, t)
+            t += probe._LOG_PERIOD_S + 0.5
+    assert any("6DoF confirmed" in r.message for r in caplog.records)
+    assert not any(r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_head_travel_probe_does_not_read_head_roll_as_translation(caplog):
+    """Why the eyes are averaged rather than eye 0 being sampled.
+
+    A head ROLL swings either eye through an arc while the head itself stays
+    put. Sampling one eye would report that as travel and mask a genuinely
+    pinned position -- the exact failure the probe exists to catch.
+    """
+    probe = app._HeadTravelProbe()
+    with caplog.at_level("WARNING"):
+        t = 0.0
+        for i in range(3):
+            d = 0.0325 * (1 if i % 2 else -1)
+            probe.sample(
+                [-0.0325, 1.6 + d, 0, 1, 0, 0, 0, 0.0325, 1.6 - d, 0, 1, 0, 0, 0], 2, t
+            )
+            t += probe._LOG_PERIOD_S + 0.5
+    assert any("ROTATION ONLY" in r.message for r in caplog.records)
+
+
+def test_head_travel_probe_ignores_a_short_pose_array():
+    """A view-count mismatch must not raise out of the frame loop."""
+    probe = app._HeadTravelProbe()
+    probe.sample([0.0, 1.6, 0.0, 1, 0, 0, 0], 2, 0.0)  # claims 2 views, supplies 1
+    probe.sample([], 0, 0.0)

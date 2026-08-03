@@ -46,11 +46,12 @@ inline constexpr std::array<double, 4> kQuatMjFromXr = { 0.5, 0.5, -0.5, -0.5 };
 //             operator. The reference space does not affect this term.
 //   z = -0.73 floor datum: MuJoCo z=0 is the table TOP, which stands 0.73 m
 //             above the physical floor. This term is only correct when the XR
-//             reference space has its origin at the floor. VizSession is
-//             hard-wired to LOCAL today (viz_session.cpp make_backend never
-//             sets a reference space), whose origin is at the headset's
-//             start-of-session position -- so this value is an assumption
-//             about where the operator was standing, not a measurement.
+//             reference space has its origin at the floor, and app.py asks for
+//             exactly that (`config.xr_reference_space = kLocalFloor`). Under
+//             viz's kLocal DEFAULT the origin is the headset's start pose
+//             instead, i.e. head height, and everything here renders about a
+//             person too high -- so an app that drops that line does not get a
+//             slightly wrong scene, it gets a floating one.
 // A scene XML that floats its robot above the table, or thickens the table
 // downward from z=0, silently invalidates the 0.73 for that scene only.
 inline constexpr std::array<double, 3> kTransMjFromXr = { -1.0, 0.0, -0.73 };
