@@ -368,7 +368,7 @@ class MultiRetargeterTuningUIImGui:
                 imgui.set_next_window_size(400, 500, imgui.FIRST_USE_EVER)
 
             # Create independent floating window
-            expanded, opened = imgui.begin(f"{name}##floating", closable=False)
+            expanded, _opened = imgui.begin(f"{name}##floating", closable=False)
             if expanded:
                 self._render_retargeter_params(name, param_state)
             imgui.end()

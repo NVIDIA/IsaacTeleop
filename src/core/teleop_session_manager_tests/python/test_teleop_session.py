@@ -603,8 +603,6 @@ class FailingPollSource(MockDeviceIOSource):
 class MockOpenXRHandles:
     """Mock OpenXR session handles."""
 
-    pass
-
 
 class MockOpenXRSession:
     """Mock OpenXR session that supports context manager protocol."""
@@ -985,7 +983,7 @@ class TestValidateExternalInputs:
         config = make_config(pipeline)
         session = TeleopSession(config)
 
-        with pytest.raises(ValueError, match="external.*non-DeviceIO"):
+        with pytest.raises(ValueError, match=r"external.*non-DeviceIO"):
             session._validate_external_inputs(None)
 
     def test_external_leaves_missing_some_inputs(self):
@@ -1573,7 +1571,7 @@ class TestStep:
         with mock_session_dependencies():
             session = TeleopSession(config)
             with session:
-                with pytest.raises(ValueError, match="external.*non-DeviceIO"):
+                with pytest.raises(ValueError, match=r"external.*non-DeviceIO"):
                     session.step()
 
     def test_step_checks_plugin_health_every_60_frames(self):

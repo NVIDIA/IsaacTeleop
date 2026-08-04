@@ -122,9 +122,10 @@ class TestAcceptedType:
         sink = HapticSink("sink", device)
 
         leaf = ValueInput("upstream", TactileVector(5))
-        with pytest.raises(Exception):
-            # Compatibility check raises a TypeError or AssertionError depending
-            # on which TensorType detects the mismatch first; either is fine.
+        # Which exception surfaces depends on which TensorType detects the mismatch
+        # first; NDArrayType currently raises ValueError. Naming the accepted set
+        # beats a bare Exception, which would also swallow an unrelated failure.
+        with pytest.raises((TypeError, AssertionError, ValueError)):
             sink.connect({"left": leaf.output("value")})
 
 

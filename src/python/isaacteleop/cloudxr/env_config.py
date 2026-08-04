@@ -13,6 +13,7 @@ import os
 import shlex
 import warnings
 from pathlib import Path
+from typing import ClassVar
 
 DEFAULT_DEVICE_PROFILE = "Quest3"
 """``NV_DEVICE_PROFILE`` used when no env file, process env, or caller sets one."""
@@ -46,7 +47,7 @@ class EnvConfig:
     )
 
     # Default env var name -> default value. Empty string or None means "resolve later"
-    _DEFAULT_ENV: dict[str, str | None] = {
+    _DEFAULT_ENV: ClassVar[dict[str, str | None]] = {
         "XR_RUNTIME_JSON": None,  # resolved from openxr_run_dir()
         "NV_CXR_RUNTIME_DIR": None,  # resolved from openxr_run_dir()
         "NV_CXR_OUTPUT_DIR": None,  # resolved from ensure_logs_dir()
