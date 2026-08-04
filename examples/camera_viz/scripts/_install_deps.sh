@@ -301,8 +301,9 @@ fi
 # composition layers, compositor choice, CloudXR launcher helpers).
 # --wheel <path> installs a locally built wheel instead — only needed when
 # developing against an unreleased build (see the build-from-source docs).
-# Sender-only deploys don't install isaacteleop at all.
-ISAACTELEOP_PKG="isaacteleop>=1.4"
+# Sender-only deploys don't install isaacteleop at all. Python extras are
+# additive, so this includes the base package and its dependencies.
+ISAACTELEOP_PKG="isaacteleop[cloudxr]>=1.4"
 if [[ "$MODE" == full && -n "$WHEEL" ]]; then
     [[ -f "$WHEEL" ]] || {
         echo "_install_deps.sh: --wheel '$WHEEL' not found." >&2
@@ -388,6 +389,13 @@ if (( ${#EXTRA_UV[@]} > 0 )); then
     uv pip install --python "$PY" --upgrade "${EXTRA_UV[@]}" "${PKGS[@]}"
 else
     uv pip install --python "$PY" --upgrade "${PKGS[@]}"
+fi
+
+# A direct wheel requirement does not activate optional dependencies. Install
+# the CloudXR extra after the local wheel is present; without --upgrade, uv
+# reuses that wheel and adds only its missing optional dependencies.
+if [[ "$MODE" == full && -n "$WHEEL" ]]; then
+    uv pip install --python "$PY" "isaacteleop[cloudxr]"
 fi
 
 # ZED SDK ships get_python_api.py which downloads a matching pyzed wheel
