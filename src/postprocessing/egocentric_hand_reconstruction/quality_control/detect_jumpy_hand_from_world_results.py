@@ -379,7 +379,7 @@ def _load_track_info_detection_lost(
     for b, s in enumerate(stats):
         # Find vis_mask for this track: track_info has track_id -> {index, vis_mask}; index matches our b
         vis_mask = None
-        for tid, info in tracks.items():
+        for info in tracks.values():
             if info.get("index") == b:
                 vis_mask = info.get("vis_mask")
                 break

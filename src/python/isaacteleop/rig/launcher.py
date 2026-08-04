@@ -111,6 +111,7 @@ def _check_python_can_import_cloudxr(env: Mapping[str, str]) -> None:
         [sys.executable, "-c", "import isaacteleop.cloudxr"],
         env=dict(env),
         capture_output=True,
+        check=False,
     )
     if probe.returncode != 0:
         raise PreflightError(
