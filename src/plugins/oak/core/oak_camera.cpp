@@ -63,7 +63,7 @@ dai::DeviceInfo OakCamera::find_device(const std::string& device_id)
 
     if (device_id.empty())
     {
-        std::cout << "Found " << devices.size() << " OAK device(s), using: " << devices[0].getMxId() << std::endl;
+        std::cout << "Found " << devices.size() << " OAK device(s), using: " << devices[0].getDeviceId() << std::endl;
         return devices[0];
     }
 

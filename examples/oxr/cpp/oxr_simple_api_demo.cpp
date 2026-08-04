@@ -20,7 +20,7 @@
  * Internal lifecycle methods (initialize, update, cleanup) are hidden!
  */
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** argv)
 try
 {
     std::cout << "OpenXR Simple API Demo" << std::endl;
