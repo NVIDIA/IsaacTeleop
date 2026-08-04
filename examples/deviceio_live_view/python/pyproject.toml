@@ -6,11 +6,16 @@ name = "deviceio-live-view-example"
 version = "0.0.0"  # Internal example - not versioned
 description = "Isaac Teleop live DeviceIO viewer with viser visualization"
 requires-python = ">=3.11,<3.14"
+# No version on isaacteleop: the example runs against the one next to it -- this
+# checkout, or the wheel install_python_example() pins into the installed copy.
 dependencies = [
-    "isaacteleop[cloudxr]==1.3.9rc1",
+    "isaacteleop[cloudxr]",
     "numpy>=1.23.0",
     "viser>=0.2.0",
 ]
 
-[[tool.uv.index]]
-url = "https://pypi.nvidia.com"
+[tool.uv.sources]
+# Editable, so edits under src/python/ need no rebuild. Dropped from the
+# installed copy, which has no repo above it.
+# TODO(#880): nothing runs this example in CI; neither path is covered.
+isaacteleop = { path = "../../..", editable = true }

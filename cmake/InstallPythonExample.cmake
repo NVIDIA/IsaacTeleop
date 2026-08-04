@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # ==============================================================================
@@ -6,9 +6,10 @@
 # ==============================================================================
 # Macro to install a Python example directory with a generated pyproject.toml.
 #
-# Reads the source pyproject.toml (which stays tool-agnostic) and appends a
-# [tool.uv] block only to the installed copy so that `uv run` works out of the
-# box in the install tree.
+# Reads the source pyproject.toml and appends a [tool.uv] block only to the
+# installed copy so that `uv run` works out of the box in the install tree. On the
+# way it pins isaacteleop to the version this build produced and drops any
+# [tool.uv.sources], so the installed example resolves the wheel next to it.
 #
 # Usage:
 #   install_python_example(DESTINATION examples/oxr/python)
@@ -33,6 +34,18 @@ macro(install_python_example)
     # Read the bare pyproject.toml and append uv configuration for the
     # installed environment.
     file(READ "${CMAKE_CURRENT_SOURCE_DIR}/python/pyproject.toml" _PYPROJECT_BASE)
+
+    # A source-tree [tool.uv.sources] path is relative to the pyproject, so from
+    # the installed copy it points at the install prefix, which is not a Python
+    # project. Matched at line start, so prose naming the header is left alone.
+    string(REGEX REPLACE "\n\\[tool\\.uv\\.sources\\][^[]*" "\n" _PYPROJECT_BASE "${_PYPROJECT_BASE}")
+
+    # Pin to the wheel this build produced. Unversioned, uv would prefer the
+    # newest release on an index whenever the local wheel is a pre-release --
+    # which every CI build is (see IsaacTeleopVersion.cmake).
+    # TODO(#880): no test covers the generated pyproject.
+    string(REGEX REPLACE "\"(isaacteleop(\\[[^]]*\\])?)\""
+        "\"\\1==${ISAAC_TELEOP_PYPROJECT_VERSION}\"" _PYPROJECT_BASE "${_PYPROJECT_BASE}")
     set(_TOOL_UV_BLOCK "[tool.uv]
 find-links = [\"../../../wheels\"]
 python-preference = \"only-managed\"
