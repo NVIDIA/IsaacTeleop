@@ -19,7 +19,7 @@ import logging
 import sys
 import threading
 import time
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 import isaacteleop.viz as viz
 
@@ -169,11 +169,14 @@ class VizRunner:
                     logger.exception("source.stop() raised")
         return clean
 
-    def wait(self) -> None:
+    def wait(self, health_check: Optional[Callable[[], None]] = None) -> None:
         """Block until the render thread exits, then re-raise any captured
-        thread error. Polls so SIGINT is delivered."""
+        thread error. Polls so SIGINT is delivered and optional external
+        dependencies can report failure on the main thread."""
         while self._render_thread is not None and self._render_thread.is_alive():
             self._render_thread.join(timeout=0.1)
+            if health_check is not None:
+                health_check()
         # The submit thread may still be running (it exits on _stop set
         # by render's exit / signal handler / record_error). Give it the
         # same poll-loop courtesy so its error has a chance to land
