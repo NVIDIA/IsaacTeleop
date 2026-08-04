@@ -27,22 +27,18 @@ class ParameterSpec(ABC):
     @abstractmethod
     def validate(self, value: Any) -> bool:
         """Check if a value is valid for this parameter."""
-        pass
 
     @abstractmethod
     def get_default_value(self) -> Any:
         """Get the default value for this parameter."""
-        pass
 
     @abstractmethod
     def serialize(self, value: Any) -> Any:
         """Serialize a value to a JSON-compatible format."""
-        pass
 
     @abstractmethod
     def deserialize(self, value: Any) -> Any:
         """Deserialize a value from a JSON-compatible format."""
-        pass
 
 
 @dataclass

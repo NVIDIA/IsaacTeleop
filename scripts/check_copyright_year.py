@@ -30,6 +30,7 @@ def git_last_modified_year(path: Path) -> int | None:
             text=True,
             cwd=path.parent,
             timeout=5,
+            check=False,
         )
         if result.returncode != 0:
             return None
@@ -41,6 +42,7 @@ def git_last_modified_year(path: Path) -> int | None:
             text=True,
             cwd=root,
             timeout=5,
+            check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return None

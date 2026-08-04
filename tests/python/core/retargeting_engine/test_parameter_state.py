@@ -158,13 +158,12 @@ class TestParameterState:
     def test_load_nonexistent_file_doesnt_error(self):
         """Test loading from nonexistent file doesn't error."""
         param = FloatParameter(name="value", description="Value", default_value=1.0)
-        try:
-            ParameterState(
-                name="test", parameters=[param], config_file="/nonexistent/path.json"
-            )
-        except Exception as e:
-            # Should not raise error during construction
-            assert False, f"Unexpected exception raised: {e}"
+        # Must not raise during construction; letting any exception propagate
+        # fails the test with the original traceback (and unlike `assert False`,
+        # this still holds under `python -O`).
+        ParameterState(
+            name="test", parameters=[param], config_file="/nonexistent/path.json"
+        )
 
     def test_load_from_file_after_save(self):
         """Test loading from saved file."""
