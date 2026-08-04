@@ -443,7 +443,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         if effective_mode == "xr"
         else contextlib.nullcontext(None)
     )
-    launch_ctx.__enter__()
+    launcher = launch_ctx.__enter__()
     stop_launcher = True
     try:
         session = _make_session(cfg, mode_override=args.mode)
@@ -484,7 +484,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         runner.start()
         try:
-            runner.wait()
+            runner.wait(
+                health_check=launcher.health_check if launcher is not None else None
+            )
         finally:
             # Skip session.destroy() when a worker thread is still alive —
             # it may be inside session.render() and destroying under it
