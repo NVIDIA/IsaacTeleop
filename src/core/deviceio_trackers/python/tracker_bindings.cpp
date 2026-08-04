@@ -16,6 +16,7 @@
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
 #include <schema/message_channel_generated.h>
+#include <schema/oak_generated.h>
 
 #include <array>
 #include <cstring>
@@ -168,19 +169,17 @@ PYBIND11_MODULE(_deviceio_trackers, m)
 
     py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
         m, "FrameMetadataTrackerOak")
-        .def(py::init<const std::string&, const std::vector<core::StreamType>&, size_t>(), py::arg("collection_prefix"),
-             py::arg("streams"),
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
              py::arg("max_flatbuffer_size") = core::FrameMetadataTrackerOak::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a multi-stream FrameMetadataTrackerOak")
+             "Construct a FrameMetadataTrackerOak for one OAK stream's tensor collection, named "
+             "\"{collection_prefix}/{StreamName}\" (e.g. \"oak_camera/Color\"); create one per stream")
         .def(
-            "get_stream_data",
-            [](const core::FrameMetadataTrackerOak& self, const core::ITrackerSession& session, size_t stream_index)
-            { return share_tracked(self.get_stream_data(session, stream_index)); },
-            py::arg("session"), py::arg("stream_index"),
-            "Get FrameMetadataOakTrackedT for a specific stream by index; .data is None until first frame "
-            "arrives" TRACKED_LIFETIME_DOC)
-        .def_property_readonly("stream_count", &core::FrameMetadataTrackerOak::get_stream_count,
-                               "Number of streams this tracker is configured for");
+            "get_data",
+            [](const core::FrameMetadataTrackerOak& self, const core::ITrackerSession& session)
+            { return share_tracked(self.get_data(session)); },
+            py::arg("session"),
+            "Get this stream's FrameMetadataOakTrackedT; .data is None until first frame "
+            "arrives" TRACKED_LIFETIME_DOC);
 
     py::class_<core::Generic3AxisPedalTracker, core::ITracker, std::shared_ptr<core::Generic3AxisPedalTracker>>(
         m, "Generic3AxisPedalTracker")

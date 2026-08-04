@@ -28,9 +28,7 @@ public:
     {
         return SchemaTrackerBase::get_required_extensions();
     }
-    static std::unique_ptr<OakMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
-                                                                 std::string_view base_name,
-                                                                 const FrameMetadataTrackerOak* tracker);
+    static std::unique_ptr<OakMcapChannels> create_mcap_channels(mcap::McapWriter& writer, std::string_view base_name);
 
     LiveFrameMetadataTrackerOakImpl(const OpenXRSessionHandles& handles,
                                     const FrameMetadataTrackerOak* tracker,
@@ -42,17 +40,12 @@ public:
     LiveFrameMetadataTrackerOakImpl& operator=(LiveFrameMetadataTrackerOakImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const override;
+    const FrameMetadataOakTrackedT& get_data() const override;
 
 private:
-    struct StreamState
-    {
-        std::unique_ptr<OakSchemaTracker> reader;
-        FrameMetadataOakTrackedT tracked;
-    };
-
     std::unique_ptr<OakMcapChannels> mcap_channels_;
-    std::vector<StreamState> m_streams;
+    OakSchemaTracker m_schema_reader;
+    FrameMetadataOakTrackedT m_tracked;
 };
 
 } // namespace core

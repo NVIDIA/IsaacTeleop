@@ -108,34 +108,39 @@ controllers, etc.):
    :doc:`TeleopSession <../getting_started/teleop_session>`'s ``PluginConfig``,
    passing ``--collection-prefix`` so the plugin pushes metadata via OpenXR
    ``SchemaPusher``.
-2. **Host tracker** — create ``FrameMetadataTrackerOak`` with the **same**
-   collection prefix and stream list (see :doc:`trackers`). TeleopSession's
+2. **Host trackers** — create one ``FrameMetadataTrackerOak`` **per stream**,
+   each with collection id ``{collection_prefix}/{StreamName}`` using the
+   **same** prefix the plugin was given (see :doc:`trackers`). TeleopSession's
    DeviceIO layer uses the live tracker implementation to read the pushed
    tensors and write MCAP channels.
-3. **MCAP config** — add the tracker to both ``TeleopSessionConfig.trackers``
-   and ``McapRecordingConfig.tracker_names``. See also
-   :doc:`../references/mcap_record_replay`.
+3. **MCAP config** — add every tracker to both ``TeleopSessionConfig.trackers``
+   and ``McapRecordingConfig.tracker_names``, each under its own base name. See
+   also :doc:`../references/mcap_record_replay`.
 
 .. code-block:: python
 
    from pathlib import Path
 
-   from isaacteleop.deviceio import FrameMetadataTrackerOak, McapRecordingConfig, StreamType
+   from isaacteleop.deviceio import FrameMetadataTrackerOak, McapRecordingConfig
    from isaacteleop.teleop_session_manager import PluginConfig, TeleopSession, TeleopSessionConfig
 
    PLUGIN_ROOT = Path("build/src/plugins")  # or your installed plugin search path
    COLLECTION_PREFIX = "oak_camera"
-   STREAMS = [StreamType.Color, StreamType.MonoLeft]
+   STREAM_NAMES = ["Color", "MonoLeft"]
 
-   oak_tracker = FrameMetadataTrackerOak(COLLECTION_PREFIX, STREAMS)
+   # One tracker per stream, each on the collection the plugin publishes it under.
+   oak_trackers = {
+       name: FrameMetadataTrackerOak(f"{COLLECTION_PREFIX}/{name}")
+       for name in STREAM_NAMES
+   }
 
    config = TeleopSessionConfig(
        app_name="OakTeleop",
        pipeline=pipeline,  # your retargeting pipeline
-       trackers=[oak_tracker],
+       trackers=list(oak_trackers.values()),
        mcap_config=McapRecordingConfig(
            "recording.mcap",
-           [(oak_tracker, "oak_metadata")],
+           [(tracker, f"oak_metadata_{name.lower()}") for name, tracker in oak_trackers.items()],
        ),
        plugins=[
            PluginConfig(

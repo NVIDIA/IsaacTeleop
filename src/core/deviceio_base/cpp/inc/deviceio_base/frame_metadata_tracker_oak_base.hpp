@@ -5,8 +5,6 @@
 
 #include "tracker.hpp"
 
-#include <cstddef>
-
 namespace core
 {
 
@@ -16,7 +14,7 @@ struct FrameMetadataOakTrackedT;
 class IFrameMetadataTrackerOakImpl : public ITrackerImpl
 {
 public:
-    virtual const FrameMetadataOakTrackedT& get_stream_data(size_t stream_index) const = 0;
+    virtual const FrameMetadataOakTrackedT& get_data() const = 0;
 };
 
 } // namespace core

@@ -20,7 +20,7 @@ APIs (``xrLocateSpace``, ``xrSyncActions``, etc.):
 reading it from OpenXR tensor collections via the
 :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>` utility.
 
-- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp>` -- per-stream frame metadata from OAK cameras
+- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp>` -- frame metadata for one OAK camera stream
 - :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp>` -- foot pedal axis values
 - :code-file:`JointStateTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/joint_state_tracker.hpp>` -- named joint-space device state (leader arms, exoskeletons, gloves, ...)
 - :code-file:`Se3Tracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/se3_tracker.hpp>` -- generic SE3 (6-DoF) pose sources (tracker pucks, mocap rigid bodies, logical trackers)
@@ -220,14 +220,16 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
 FrameMetadataTrackerOak
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Multi-channel tracker for per-frame metadata from OAK camera streams.
-Uses the :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>`
+Per-frame metadata for a **single** OAK camera stream. Create one tracker per
+stream, passing the tensor collection the plugin publishes that stream under --
+``{collection_prefix}/{StreamName}``, e.g. ``"oak_camera/Color"``. Uses the
+:code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>`
 utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/oak.fbs`
 - C++ header: ``#include <deviceio/frame_metadata_tracker_oak.hpp>``
 - Python import: ``from isaacteleop.deviceio import FrameMetadataTrackerOak``
-- Record channels: one per configured stream (e.g. ``Color``, ``MonoLeft``) | MCAP schema: ``core.FrameMetadataOakRecord``
+- Record channels: ``oak``, ``oak_tracked`` | MCAP schema: ``core.FrameMetadataOakRecord``
 - Tests:
 
   - :code-file:`src/core/schema_tests/cpp/test_oak.cpp`

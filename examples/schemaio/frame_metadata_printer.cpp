@@ -5,8 +5,8 @@
  * @file frame_metadata_printer.cpp
  * @brief Standalone application that reads and prints camera frame metadata from the OpenXR runtime.
  *
- * This application demonstrates using FrameMetadataTrackerOak to read per-stream
- * FrameMetadataOak pushed by a camera plugin, with each stream on its own MCAP channel.
+ * This application demonstrates using one FrameMetadataTrackerOak per camera stream
+ * to read the FrameMetadataOak pushed by a camera plugin.
  *
  * Usage:
  *   ./frame_metadata_printer --collection-prefix=<prefix>
@@ -17,6 +17,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <oxr/oxr_session.hpp>
+#include <schema/oak_generated.h>
 
 #include <chrono>
 #include <iostream>
@@ -67,15 +68,21 @@ try
 
     std::cout << "Frame Metadata Printer (prefix: " << collection_prefix << ")" << std::endl;
 
-    // Track all three stream types; streams without a pusher simply won't receive data.
-    std::vector<core::StreamType> streams = { core::StreamType_Color, core::StreamType_MonoLeft,
-                                              core::StreamType_MonoRight };
+    // One tracker per stream; streams without a pusher simply won't receive data.
+    // The plugin publishes each stream as "{collection_prefix}/{StreamName}".
+    const std::vector<std::string> stream_names = { "Color", "MonoLeft", "MonoRight" };
 
-    std::cout << "[Step 1] Creating FrameMetadataTrackerOak..." << std::endl;
-    auto tracker = std::make_shared<core::FrameMetadataTrackerOak>(collection_prefix, streams, MAX_FLATBUFFER_SIZE);
+    std::cout << "[Step 1] Creating one FrameMetadataTrackerOak per stream..." << std::endl;
+    std::vector<std::shared_ptr<core::FrameMetadataTrackerOak>> stream_trackers;
+    for (const auto& name : stream_names)
+    {
+        const std::string collection_id = collection_prefix + "/" + name;
+        std::cout << "  " << collection_id << std::endl;
+        stream_trackers.push_back(std::make_shared<core::FrameMetadataTrackerOak>(collection_id, MAX_FLATBUFFER_SIZE));
+    }
 
     std::cout << "[Step 2] Creating OpenXR session with required extensions..." << std::endl;
-    std::vector<std::shared_ptr<core::ITracker>> trackers = { tracker };
+    std::vector<std::shared_ptr<core::ITracker>> trackers(stream_trackers.begin(), stream_trackers.end());
     auto required_extensions = core::DeviceIOSession::get_required_extensions(trackers);
     auto oxr_session = std::make_shared<core::OpenXRSession>("FrameMetadataPrinter", required_extensions);
     std::cout << "  OpenXR session created" << std::endl;
@@ -91,11 +98,10 @@ try
     // been observed — the first sample is always printed regardless of its value.
     // If data is already present at startup we seed with its sequence so we don't
     // reprint it; absent data stays nullopt so sequence 0 is never skipped.
-    size_t stream_count = tracker->get_stream_count();
-    std::vector<std::optional<uint64_t>> last_sequences(stream_count);
-    for (size_t i = 0; i < stream_count; ++i)
+    std::vector<std::optional<uint64_t>> last_sequences(stream_trackers.size());
+    for (size_t i = 0; i < stream_trackers.size(); ++i)
     {
-        const auto& tracked = tracker->get_stream_data(*session, i);
+        const auto& tracked = stream_trackers[i]->get_data(*session);
         if (tracked.data)
         {
             last_sequences[i] = tracked.data->sequence_number;
@@ -109,28 +115,10 @@ try
     {
         session->update();
 
-        // Refresh stream count and extend per-stream tracking if streams were added.
-        stream_count = tracker->get_stream_count();
-        if (last_sequences.size() != stream_count)
-        {
-            size_t old_count = last_sequences.size();
-            last_sequences.resize(stream_count);
-            // Newly added streams start as nullopt; seed with current sequence if
-            // data is already present so we don't reprint an existing sample.
-            for (size_t i = old_count; i < stream_count; ++i)
-            {
-                const auto& tracked = tracker->get_stream_data(*session, i);
-                if (tracked.data)
-                {
-                    last_sequences[i] = tracked.data->sequence_number;
-                }
-            }
-        }
-
         // Print one line per stream that has a new sample.
-        for (size_t i = 0; i < stream_count; ++i)
+        for (size_t i = 0; i < stream_trackers.size(); ++i)
         {
-            const auto& tracked = tracker->get_stream_data(*session, i);
+            const auto& tracked = stream_trackers[i]->get_data(*session);
             if (!tracked.data ||
                 (last_sequences[i].has_value() && tracked.data->sequence_number == last_sequences[i].value()))
             {

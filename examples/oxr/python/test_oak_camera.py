@@ -55,21 +55,26 @@ def _run_recording_loop(plugin, duration: float):
 def _run_schema_pusher(
     plugin,
     duration: float,
-    tracker,
-    stream_names: list[str],
+    trackers: dict,
     required_extensions: list[str],
     mcap_filename: str,
 ):
-    """Read metadata via OpenXR schema tracker and record to MCAP on the host side."""
+    """Read metadata via one OpenXR schema tracker per stream, recording to MCAP on the host side."""
+    stream_names = list(trackers)
     with oxr.OpenXRSession("OakCameraTest", required_extensions) as oxr_session:
         handles = oxr_session.get_handles()
         print("  ✓ OpenXR session created")
 
+        # One tracker per stream, so each gets its own MCAP base name.
         recording_config = deviceio.McapRecordingConfig(
-            mcap_filename, [(tracker, "oak_metadata")]
+            mcap_filename,
+            [
+                (tracker, f"oak_metadata_{name.lower()}")
+                for name, tracker in trackers.items()
+            ],
         )
         with deviceio.DeviceIOSession.run(
-            [tracker], handles, recording_config
+            list(trackers.values()), handles, recording_config
         ) as session:
             print("  ✓ DeviceIO session initialized (recording active during update())")
             print()
@@ -88,8 +93,8 @@ def _run_schema_pusher(
                 frame_count += 1
 
                 elapsed = time.time() - start_time
-                for idx, name in enumerate(stream_names):
-                    tracked = tracker.get_stream_data(session, idx)
+                for name, tracker in trackers.items():
+                    tracked = tracker.get_data(session)
                     if (
                         tracked.data is not None
                         and tracked.data.sequence_number != last_seq.get(name, -1)
@@ -152,22 +157,22 @@ def run_test(duration: float = 10.0, mode: str = MODE_NO_METADATA):
 
     # 3. Prepare mode-specific state
     stream_names = ["Color", "MonoLeft"]
-    stream_types = [deviceio.StreamType.Color, deviceio.StreamType.MonoLeft]
     collection_prefix = "oak_camera"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     mcap_filename = f"camera_metadata_{timestamp}.mcap"
 
-    tracker = None
+    trackers = {}
     required_extensions = []
 
     if mode == MODE_SCHEMA_PUSHER:
-        print("[Step 3] Creating composite FrameMetadataTrackerOak...")
-        tracker = deviceio.FrameMetadataTrackerOak(collection_prefix, stream_types)
-        print(
-            f"  Created tracker (prefix: {collection_prefix}, streams: {stream_names})"
-        )
+        print("[Step 3] Creating one FrameMetadataTrackerOak per stream...")
+        # The plugin publishes each stream as "{collection_prefix}/{StreamName}".
+        for name in stream_names:
+            collection_id = f"{collection_prefix}/{name}"
+            trackers[name] = deviceio.FrameMetadataTrackerOak(collection_id)
+            print(f"  Created tracker for {name} (collection: {collection_id})")
         required_extensions = deviceio.DeviceIOSession.get_required_extensions(
-            [tracker]
+            list(trackers.values())
         )
         print()
         print("[Step 4] Getting required OpenXR extensions...")
@@ -210,8 +215,7 @@ def run_test(duration: float = 10.0, mode: str = MODE_NO_METADATA):
             _run_schema_pusher(
                 plugin,
                 duration,
-                tracker,
-                stream_names,
+                trackers,
                 required_extensions,
                 mcap_filename,
             )
