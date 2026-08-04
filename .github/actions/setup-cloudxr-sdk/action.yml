@@ -39,6 +39,8 @@ runs:
       shell: bash
       env:
         CXR_RUNTIME_SDK_VERSION: ${{ steps.parse.outputs.runtime_version }}
+        # Staged here because the configure step re-runs this script without a key.
+        CXR_DOWNLOAD_EXP: '1'
         NGC_API_KEY: ${{ inputs.ngc-api-key }}
       run: |
         ./scripts/download_cloudxr_runtime_sdk.sh
