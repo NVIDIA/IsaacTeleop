@@ -148,25 +148,35 @@ public:
         return current_extent();
     }
 
-    // True when the backend can composite native OpenXR quad layers
-    // (XrCompositionLayerQuad). Only the kXr backend does. The compositor
-    // pairs this with a layer's is_native_quad() to route it natively.
-    virtual bool supports_native_quad() const noexcept
+    // True when the backend can composite native OpenXR composition layers
+    // (quad / cylinder / equirect). Only the kXr backend does. The
+    // compositor pairs this with a layer's is_native_layer() to route it
+    // natively.
+    virtual bool supports_native_layers() const noexcept
     {
         return false;
     }
 
-    // Native-quad path: for each NativeQuadView, copy the source image(s)
-    // into a backend-owned per-quad swapchain and remember it for
-    // submission at end_frame (as one XrCompositionLayerQuad per eye).
+    // Fine-grained per-shape capability: quads are core OpenXR, cylinder /
+    // equirect need their XR_KHR_composition_layer_* extension on the
+    // runtime. VizSession::add_layer checks a layer's
+    // required_native_shape() against this. Default: nothing supported.
+    virtual bool supports_native_layer_shape(NativeLayerShape /*shape*/) const noexcept
+    {
+        return false;
+    }
+
+    // Native path: for each NativeLayerView, copy the source image(s)
+    // into a backend-owned per-layer swapchain and remember it for
+    // submission at end_frame (as one XrCompositionLayer* per eye).
     // Recorded into the compositor's command buffer (so the layer's
     // CUDA-done wait semaphores, threaded at TRANSFER stage, gate the copy)
     // OUTSIDE any render pass. Empty ``views`` → nothing to composite.
     // end_frame submits the shared projection layer only if the render pass
     // or direct path also ran this frame. Default: unsupported (no-op).
-    virtual void record_native_quads(VkCommandBuffer /*cmd*/,
-                                     const Frame& /*frame*/,
-                                     const std::vector<NativeQuadView>& /*views*/)
+    virtual void record_native_layers(VkCommandBuffer /*cmd*/,
+                                      const Frame& /*frame*/,
+                                      const std::vector<NativeLayerView>& /*views*/)
     {
     }
 

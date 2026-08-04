@@ -23,7 +23,7 @@ cameras:
     # full list.
     width: 1280
     height: 720
-    fps: 30
+    fps: 60
     bus_type: usb               # usb | gmsl
     serial_number: 0            # 0 → first available
     stereo: true
@@ -47,3 +47,10 @@ display:
       lock_mode: lazy
       distance: 1.0
       stereo_baseline_mm: 50.0
+      # Surface the feed is mapped onto (all shapes are per-camera):
+      # shape: cylinder           # quad (default) | cylinder | equirect
+      # compositor: openxr    # openxr (default: the OpenXR runtime
+      #                       # composites the layer) | televiz (built-in
+      #                       # compositor; quad shape only)
+      # cylinder_radius_m: 2.0    # cylinder only
+      # cylinder_angle_deg: 45    # cylinder only

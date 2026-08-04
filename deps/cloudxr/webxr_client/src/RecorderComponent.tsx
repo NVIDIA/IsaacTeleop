@@ -22,10 +22,10 @@
  * tracking-frame adapter at priority -1000.
  */
 
-import { useFrame } from "@react-three/fiber";
-import { useRef } from "react";
+import { useFrame } from '@react-three/fiber';
+import { useRef } from 'react';
 
-import { useRecorder } from "./RecorderContext";
+import { useRecorder } from './RecorderContext';
 
 interface RecorderComponentProps {
   /** True when the CloudXR session is in the Connected state — gates replay frame advancement. */
@@ -34,14 +34,11 @@ interface RecorderComponentProps {
   showTrace: boolean;
 }
 
-export function RecorderComponent({
-  isConnected,
-  showTrace,
-}: RecorderComponentProps) {
+export function RecorderComponent({ isConnected, showTrace }: RecorderComponentProps) {
   const { recorder, onFrameRecord } = useRecorder();
   const tickRef = useRef(0);
 
-  useFrame((state) => {
+  useFrame(state => {
     const xrFrame = state.gl.xr.getFrame() as XRFrame | null;
     if (!xrFrame) return;
 
@@ -49,16 +46,16 @@ export function RecorderComponent({
     // with null poses on Quest sleep) AND CloudXR is Connected (avoids consuming replay
     // frames during Connecting state before the server is ready).
     const session = state.gl.xr.getSession() as XRSession | null;
-    const isVisible = session?.visibilityState === "visible";
+    const isVisible = session?.visibilityState === 'visible';
 
     recorder.beginFrame(
       xrFrame,
       state.gl.xr.getReferenceSpace(),
       isConnected && isVisible,
-      showTrace && isVisible,
+      showTrace && isVisible
     );
 
-    if (recorder.mode === "recording") {
+    if (recorder.mode === 'recording') {
       tickRef.current++;
       if (tickRef.current % 30 === 0) {
         onFrameRecord(recorder.recordedFrameCount);

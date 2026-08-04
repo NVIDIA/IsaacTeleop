@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """Unit tests for HandPoseT and related types in isaacteleop.schema.
@@ -16,6 +16,9 @@ HandJointPose is a struct containing:
 Timestamps are carried by HandPoseRecord, not HandPoseT.
 """
 
+import gc
+
+import numpy as np
 import pytest
 
 from isaacteleop.schema import (
@@ -128,6 +131,111 @@ class TestHandJointsStruct:
 
         with pytest.raises(IndexError):
             _ = hand_joints.poses(HandJoint.NUM_JOINTS)
+
+
+class TestHandJointsFieldViews:
+    """Tests for the bulk per-field HandJoints array accessors."""
+
+    def test_shapes_and_dtypes(self):
+        """The field views carry the layout HandInput declares."""
+        joints = HandJoints()
+        positions, orientations = joints.positions, joints.orientations
+        radii, is_valid = joints.radii, joints.is_valid
+
+        assert positions.shape == (HandJoint.NUM_JOINTS, 3)
+        assert orientations.shape == (HandJoint.NUM_JOINTS, 4)
+        assert radii.shape == (HandJoint.NUM_JOINTS,)
+        assert is_valid.shape == (HandJoint.NUM_JOINTS,)
+        assert positions.dtype == np.float32
+        assert orientations.dtype == np.float32
+        assert radii.dtype == np.float32
+        assert is_valid.dtype == np.uint8
+
+    def test_matches_per_joint_accessor(self):
+        """Every row agrees with the corresponding poses(i) read.
+
+        Each field gets its own value range so a view pointed at the wrong
+        offset, or rows read at the wrong stride, cannot still compare equal.
+        """
+        num_joints = int(HandJoint.NUM_JOINTS)
+        hand_joints = HandJoints()
+        positions, orientations = hand_joints.positions, hand_joints.orientations
+        radii, is_valid = hand_joints.radii, hand_joints.is_valid
+
+        positions[:] = np.arange(num_joints * 3, dtype=np.float32).reshape(-1, 3)
+        orientations[:] = np.arange(
+            1000, 1000 + num_joints * 4, dtype=np.float32
+        ).reshape(-1, 4)
+        radii[:] = np.arange(5000, 5000 + num_joints, dtype=np.float32)
+        is_valid[:] = np.arange(num_joints, dtype=np.uint8) % 2
+
+        for i in range(num_joints):
+            joint = hand_joints.poses(i)
+            assert positions[i].tolist() == [
+                joint.pose.position.x,
+                joint.pose.position.y,
+                joint.pose.position.z,
+            ]
+            assert positions[i].tolist() == [3 * i, 3 * i + 1, 3 * i + 2]
+            assert orientations[i].tolist() == [
+                joint.pose.orientation.x,
+                joint.pose.orientation.y,
+                joint.pose.orientation.z,
+                joint.pose.orientation.w,
+            ]
+            assert orientations[i].tolist() == [
+                1000 + 4 * i,
+                1000 + 4 * i + 1,
+                1000 + 4 * i + 2,
+                1000 + 4 * i + 3,
+            ]
+            assert radii[i] == joint.radius == 5000 + i
+            assert is_valid[i] == (1 if joint.is_valid else 0) == i % 2
+
+    def test_returns_strided_views(self):
+        """Arrays alias the interleaved joint storage instead of copying it."""
+        hand_joints = HandJoints()
+        positions, orientations = hand_joints.positions, hand_joints.orientations
+        radii, is_valid = hand_joints.radii, hand_joints.is_valid
+
+        stride = positions.strides[0]
+        for array in (positions, orientations, radii, is_valid):
+            assert not array.flags.owndata
+            # Row stride is one whole HandJointPose, not the packed field width.
+            assert array.strides[0] == stride
+            assert not array.flags.c_contiguous
+
+    def test_views_write_through_to_schema(self):
+        """Views are writable and alias schema state; callers must copy to detach."""
+        hand_joints = HandJoints()
+        positions = hand_joints.positions
+
+        positions[0, 0] = 42.0
+
+        assert hand_joints.poses(0).pose.position.x == 42.0
+
+    def test_views_keep_owner_alive(self):
+        """A view outlives the last direct reference to the table it came from."""
+        pose = HandPoseT()
+        positions = pose.joints.positions
+        expected = np.arange(int(HandJoint.NUM_JOINTS) * 3, dtype=np.float32).reshape(
+            -1, 3
+        )
+        positions[:] = expected
+
+        del pose
+        gc.collect()
+
+        # Would read freed memory if the base object chain were not held.
+        assert positions.shape == (HandJoint.NUM_JOINTS, 3)
+        assert np.array_equal(np.asarray(positions), expected)
+
+    def test_copy_yields_packed_writable_array(self):
+        """The documented escape hatch produces contiguous, writable data."""
+        packed = HandJoints().positions.copy()
+
+        assert packed.flags.c_contiguous
+        assert packed.flags.writeable
 
 
 class TestHandJointsRepr:

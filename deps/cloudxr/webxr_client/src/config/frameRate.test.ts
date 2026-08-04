@@ -105,9 +105,7 @@ describe('applyTargetFrameRate', () => {
       updateTargetFrameRate: jest.fn(() => new Promise<void>(() => {})),
     };
 
-    await expect(
-      applyTargetFrameRate(session, 72, log, { updateTimeoutMs: 20 })
-    ).resolves.toBe(90);
+    await expect(applyTargetFrameRate(session, 72, log, { updateTimeoutMs: 20 })).resolves.toBe(90);
     expect(log.warn).toHaveBeenCalled();
   });
 
@@ -148,9 +146,9 @@ describe('applyTargetFrameRate', () => {
       removeEventListener: jest.fn(),
     };
 
-    await expect(
-      applyTargetFrameRate(session, 72, log, { rateSettleGraceMs: 10 })
-    ).resolves.toBe(72);
+    await expect(applyTargetFrameRate(session, 72, log, { rateSettleGraceMs: 10 })).resolves.toBe(
+      72
+    );
     expect(log.warn).toHaveBeenCalled();
   });
 

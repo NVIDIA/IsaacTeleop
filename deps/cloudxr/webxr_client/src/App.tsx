@@ -30,47 +30,52 @@
  * and disconnect when in XR mode.
  */
 
-import { checkCapabilities } from '@helpers/BrowserCapabilities';
-import { getDeviceProfile, resolveDeviceProfileId } from '@helpers/DeviceProfiles';
-import { loadIWERIfNeeded } from '@helpers/LoadIWER';
-import { overridePressureObserver } from '@helpers/overridePressureObserver';
-import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
-import CloudXRComponent from '@helpers/react/CloudXRComponent';
-import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
-import { getControlPanelPositionVector } from '@helpers/react/utils';
-import {
-  logImmersiveXRSessionToConsole
-} from '@helpers/webxrModeDebugText';
-import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
-import {
-  DEFAULT_TELEOP_PATH,
-  loadStoredTeleopPath,
-  parseTeleopPathFromHash,
-  saveStoredTeleopPath,
-} from '@helpers/TeleopProjects';
 import * as CloudXR from '@nvidia/cloudxr';
 import { getResolutionValidationError } from '@nvidia/cloudxr';
-import { signal, computed } from '@preact/signals-react';
+import { computed, signal } from '@preact/signals-react';
 import { Canvas } from '@react-three/fiber';
 import { setPreferredColorScheme } from '@react-three/uikit';
-import { XR, createXRStore, noEvents, PointerEvents, XROrigin, useXR } from '@react-three/xr';
+import { createXRStore, noEvents, PointerEvents, useXR, XR, XROrigin } from '@react-three/xr';
 import type { XRDevice } from 'iwer';
-import { useState, useMemo, useEffect, useRef } from 'react';
-
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { v5 } from 'uuid';
-import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
-import { readUrlParam } from './config/resolve';
-import CloudXR3DUI from './CloudXRUI';
+
+import { checkCapabilities } from '@helpers/BrowserCapabilities';
 import { HeadsetControlChannel } from '@helpers/controlChannel';
+import { getDeviceProfile, resolveDeviceProfileId } from '@helpers/DeviceProfiles';
+import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 import { MetricsAccumulator } from '@helpers/metricsAccumulator';
 import type {
   FrameMetricsUpdate,
   NetworkMetricsUpdate,
   RenderMetricsUpdate,
 } from '@helpers/metricsUpdates';
-import { RecorderProvider, useRecorder } from './RecorderContext';
+import { overridePressureObserver } from '@helpers/overridePressureObserver';
+import { kPerformanceOptions } from '@helpers/PerformanceProfiles';
+import CloudXRComponent from '@helpers/react/CloudXRComponent';
+import { SimpleEnvironment } from '@helpers/react/SimpleEnvironment';
+import { getControlPanelPositionVector } from '@helpers/react/utils';
+import {
+  DEFAULT_TELEOP_PATH,
+  loadStoredTeleopPath,
+  parseTeleopPathFromHash,
+  saveStoredTeleopPath,
+} from '@helpers/TeleopProjects';
+import { logImmersiveXRSessionToConsole } from '@helpers/webxrModeDebugText';
+
+import { CloudXR2DUI, COUNTDOWN_STORAGE_KEY } from './CloudXR2DUI';
+import CloudXR3DUI from './CloudXRUI';
+import { readUrlParam } from './config/resolve';
 import { RecorderComponent } from './RecorderComponent';
+import { RecorderProvider, useRecorder } from './RecorderContext';
+import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
 import { TraceVisualization } from './TraceVisualization';
+import {
+  SystemNotice,
+  formatSystemNotice,
+  formatSystemNoticeBody,
+  isSystemNoticeMessage,
+} from './types/serverMessages';
 
 // Performance metrics signals - raw numeric data backing the in-XR HUD.
 // Signals update their value without triggering React re-renders.
@@ -125,6 +130,21 @@ function resolveStreamTestSeconds(configured: number | undefined): number {
   return Math.min(MAX_STREAM_TEST_SECONDS, Math.max(MIN_STREAM_TEST_SECONDS, seconds));
 }
 
+// Advisory pushed by the host when its workstation is below the recommended
+// teleop spec. Held in a signal so the in-XR banner updates without a React
+// re-render, matching the metrics signals above.
+const systemNotice = signal<SystemNotice | null>(null);
+const systemNoticeTitleText = computed(() => systemNotice.value?.title ?? '');
+// Shares formatSystemNoticeBody with the 2D banner rather than formatting here,
+// so the in-headset text cannot drift from what a desktop tester sees -- notably
+// the per-item remediation hint, which is the most actionable part of a notice.
+const systemNoticeBodyText = computed(() =>
+  systemNotice.value ? formatSystemNoticeBody(systemNotice.value) : ''
+);
+
+/** How long the in-XR notice stays up before dismissing itself [ms]. */
+const SYSTEM_NOTICE_AUTO_DISMISS_MS = 20000;
+
 const CONTROL_PANEL_LAYOUT = {
   distance: 1.8,
   height: 1.85,
@@ -135,7 +155,6 @@ const CONTROL_PANEL_LAYOUT = {
 overridePressureObserver();
 
 setPreferredColorScheme('dark');
-
 
 const TELEOP_CHANNEL_UUID: Uint8Array = v5('teleop_command', v5.DNS, new Uint8Array(16));
 
@@ -171,8 +190,7 @@ function buildOobHubWsUrlFromQuery(searchParams: URLSearchParams): string | null
   const portStr = readUrlParam(searchParams, 'port')?.trim();
   if (!serverIP || portStr === undefined || portStr === '') return null;
   if (!/^\d{1,5}$/.test(portStr)) return null;
-  const host =
-    serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
+  const host = serverIP.includes(':') && !serverIP.startsWith('[') ? `[${serverIP}]` : serverIP;
   return `wss://${host}:${portStr}/oob/v1/ws`;
 }
 
@@ -241,19 +259,19 @@ function AppContent() {
   // Note: React Three Fiber's emulation is disabled (emulate: false) to avoid conflicts
   useEffect(() => {
     const loadIWER = async () => {
-        const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
-        if (!supportsImmersive) {
-          setErrorMessage('Immersive mode not supported');
-          setIwerLoaded(false);
-          setCapabilitiesValid(false);
-          capabilitiesCheckedRef.current = false; // Reset check flag on failure
-          return;
-        }
+      const { supportsImmersive, iwerLoaded: wasIwerLoaded } = await loadIWERIfNeeded();
+      if (!supportsImmersive) {
+        setErrorMessage('Immersive mode not supported');
+        setIwerLoaded(false);
+        setCapabilitiesValid(false);
+        capabilitiesCheckedRef.current = false; // Reset check flag on failure
+        return;
+      }
       // IWER loaded successfully, now we can proceed with capability checks
-        setIwerLoaded(true);
+      setIwerLoaded(true);
       // Store whether IWER was loaded for status message display later
-        if (wasIwerLoaded) {
-          sessionStorage.setItem('iwerWasLoaded', 'true');
+      if (wasIwerLoaded) {
+        sessionStorage.setItem('iwerWasLoaded', 'true');
       }
     };
 
@@ -417,10 +435,7 @@ function AppContent() {
     ui.initialize(resolvedPath);
     const doConnect = async () => {
       const config = ui.getConfiguration();
-      const resolutionError = getResolutionValidationError(
-        config.perEyeWidth,
-        config.perEyeHeight
-      );
+      const resolutionError = getResolutionValidationError(config.perEyeWidth, config.perEyeHeight);
       if (resolutionError) {
         ui.updateConnectButtonState();
         return;
@@ -660,6 +675,98 @@ function AppContent() {
     setCloudXRSession(session);
   };
 
+  const systemNoticeTimerRef = useRef<number | null>(null);
+  // Signal writes deliberately bypass React, so the banner's *text* updates
+  // without a re-render -- but its presence must be React state, or mounting and
+  // unmounting it would never happen.
+  const [systemNoticeVisible, setSystemNoticeVisible] = useState(false);
+  // Level drives the XR banner palette. Kept as React state next to the
+  // visibility flag rather than read off the signal, because the banner picks
+  // static colors at render time rather than subscribing.
+  const [systemNoticeLevel, setSystemNoticeLevel] = useState<'warning' | 'info'>('warning');
+
+  /** Exact text this component last wrote to the shared 2D status box. */
+  const systemNoticeTextRef = useRef<string | null>(null);
+
+  /** Take the notice down, in both surfaces, and cancel any pending auto-dismiss. */
+  const dismissSystemNotice = () => {
+    systemNotice.value = null;
+    setSystemNoticeVisible(false);
+    // showStatus() sets .show and never clears itself, so the 2D box needs an
+    // explicit retraction. Clear it only while it still holds our notice: the
+    // box is shared, and handleDisconnect() runs this on the way out of a
+    // failed session -- moments after CloudXR reported the failure into that
+    // same box. Blanking unconditionally erased that error, and because it is
+    // reported imperatively there is no React state to bring it back.
+    if (systemNoticeTextRef.current !== null) {
+      cloudXR2DUI?.hideStatusIfShowing(systemNoticeTextRef.current);
+      systemNoticeTextRef.current = null;
+    }
+    if (systemNoticeTimerRef.current !== null) {
+      clearTimeout(systemNoticeTimerRef.current);
+      systemNoticeTimerRef.current = null;
+    }
+  };
+
+  // [4] Cancel a pending auto-dismiss if the app tears down first; otherwise the
+  // timeout fires setSystemNoticeVisible on an unmounted component.
+  useEffect(
+    () => () => {
+      if (systemNoticeTimerRef.current !== null) {
+        clearTimeout(systemNoticeTimerRef.current);
+      }
+    },
+    []
+  );
+
+  /**
+   * Dispatch a message received from the server on the teleop channel.
+   *
+   * Unknown `type` values are logged and ignored rather than treated as errors:
+   * the host and this client are versioned independently, so a newer host may
+   * send message kinds this build does not know about.
+   */
+  const handleServerMessage = (message: unknown) => {
+    if (isSystemNoticeMessage(message)) {
+      const notice = message.message;
+      // No unmet requirements: treat it as an all-clear so a host can retract a
+      // notice it raised earlier, rather than leaving a stale banner up.
+      if (notice.items.length === 0) {
+        dismissSystemNotice();
+        return;
+      }
+
+      systemNotice.value = notice;
+      setSystemNoticeVisible(true);
+      setSystemNoticeLevel(notice.level);
+      // Restart the countdown so a second notice gets its full dwell time.
+      if (systemNoticeTimerRef.current !== null) {
+        clearTimeout(systemNoticeTimerRef.current);
+      }
+      systemNoticeTimerRef.current = window.setTimeout(() => {
+        systemNoticeTimerRef.current = null;
+        dismissSystemNotice();
+      }, SYSTEM_NOTICE_AUTO_DISMISS_MS);
+
+      // Mirror to the 2D banner so the notice is visible when testing from a
+      // desktop browser, where the in-XR panel never renders. Remember the exact
+      // text so dismissal can retract it without clobbering a later message.
+      const mirroredText = formatSystemNotice(notice);
+      systemNoticeTextRef.current = mirroredText;
+      cloudXR2DUI?.showStatus(mirroredText, notice.level === 'warning' ? 'error' : 'info');
+      return;
+    }
+
+    const type = (message as { type?: unknown })?.type;
+    console.info(`Ignoring server message of unhandled type: ${String(type)}`);
+  };
+
+  // The receive loop below is created once per session and lives for its whole
+  // duration, so it must not capture this handler directly -- that would pin the
+  // first render's `cloudXR2DUI`. Route through a ref that each render refreshes.
+  const handleServerMessageRef = useRef(handleServerMessage);
+  handleServerMessageRef.current = handleServerMessage;
+
   /**
    * Helper to send a message using MessageChannel API (new) or legacy API (fallback).
    * Looks for the teleop_command channel by UUID, then falls back to legacy API.
@@ -760,7 +867,6 @@ function AppContent() {
     }, 1000);
   };
 
-
   const handleResetTeleop = async () => {
     console.info('Reset Teleop pressed');
 
@@ -813,6 +919,9 @@ function AppContent() {
     setIsCountingDown(false);
     setCountdownRemaining(0);
     setIsTeleopRunning(false);
+    // The notice describes the host we are leaving; it must not persist into a
+    // later connection to a different one.
+    dismissSystemNotice();
 
     // Close message channels before ending XR session to avoid
     // "Cannot send control message" errors during SDK cleanup.
@@ -897,11 +1006,13 @@ function AppContent() {
     const turnCredential = readUrlParam(p, 'turnCredential') ?? undefined;
     const iceRelayOnly = readUrlParam(p, 'iceRelayOnly') === '1';
     return {
-      iceServers: [{
-        urls: turnServer,
-        ...(turnUsername !== undefined && { username: turnUsername }),
-        ...(turnCredential !== undefined && { credential: turnCredential }),
-      }],
+      iceServers: [
+        {
+          urls: turnServer,
+          ...(turnUsername !== undefined && { username: turnUsername }),
+          ...(turnCredential !== undefined && { credential: turnCredential }),
+        },
+      ],
       ...(iceRelayOnly && { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }),
     };
   }, []);
@@ -950,9 +1061,7 @@ function AppContent() {
           const uuidHex = Array.from(ch.uuid as Uint8Array)
             .map((b: number) => b.toString(16).padStart(2, '0'))
             .join('');
-          console.info(
-            `  [${i}] uuid=${uuidHex} status=${ch.status}`
-          );
+          console.info(`  [${i}] uuid=${uuidHex} status=${ch.status}`);
         });
 
         const channel = findChannelByUuid(channels, TELEOP_CHANNEL_UUID);
@@ -981,7 +1090,7 @@ function AppContent() {
               try {
                 const message = JSON.parse(messageText);
                 console.info('Parsed message:', message);
-                // Handle message here if needed
+                handleServerMessageRef.current(message);
               } catch {
                 console.info('Non-JSON message:', messageText);
               }
@@ -1046,10 +1155,7 @@ function AppContent() {
           <XROrigin />
           {cloudXR2DUI && config && (
             <>
-              <RecorderComponent
-                isConnected={isConnected}
-                showTrace={config.showTrace ?? false}
-              />
+              <RecorderComponent isConnected={isConnected} showTrace={config.showTrace ?? false} />
               <TraceVisualization showTrace={config.showTrace ?? false} />
               <CloudXRComponent
                 config={config}
@@ -1071,9 +1177,7 @@ function AppContent() {
                 streamTest={
                   config.streamTestMode && config.streamTestMode !== 'off'
                     ? {
-                        durationSeconds: resolveStreamTestSeconds(
-                          config.streamTestDurationSeconds
-                        ),
+                        durationSeconds: resolveStreamTestSeconds(config.streamTestDurationSeconds),
                         mode: config.streamTestMode,
                       }
                     : undefined
@@ -1113,6 +1217,11 @@ function AppContent() {
                   streamTestText={streamTestText}
                   streamTestColor={streamTestColor}
                   showRecordingControls={config.showRecordingControls}
+                  systemNoticeTitleText={systemNoticeTitleText}
+                  systemNoticeBodyText={systemNoticeBodyText}
+                  systemNoticeVisible={systemNoticeVisible}
+                  systemNoticeLevel={systemNoticeLevel}
+                  onDismissSystemNotice={dismissSystemNotice}
                 />
               )}
             </>

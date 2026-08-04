@@ -25,7 +25,9 @@ const { eagerExceptEmulatorParserRules } = require('./webpack.chunkNames.js');
 
 function git(cmd) {
   try {
-    return execSync(`git ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return execSync(`git ${cmd}`, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
   } catch {
     return '';
   }
@@ -38,8 +40,12 @@ try {
 // CXR_WEB_SDK_VERSION (also controls which tarball `npm install`
 // consumes); package.json.version is just a local-dev fallback.
 const CLIENT_SDK_VERSION = process.env.SDK_VERSION || require('./package.json').version;
-const CLIENT_GIT_REF = process.env.CLIENT_GIT_REF || git('rev-parse --abbrev-ref HEAD') || 'unknown';
-const CLIENT_GIT_SHA = (process.env.CLIENT_GIT_SHA || git('rev-parse HEAD') || 'unknown').slice(0, 12);
+const CLIENT_GIT_REF =
+  process.env.CLIENT_GIT_REF || git('rev-parse --abbrev-ref HEAD') || 'unknown';
+const CLIENT_GIT_SHA = (process.env.CLIENT_GIT_SHA || git('rev-parse HEAD') || 'unknown').slice(
+  0,
+  12
+);
 const CLIENT_BUILD_TIME = new Date().toISOString();
 
 // WebXR input profile assets are used by default when @webxr-input-profiles/assets is installed.

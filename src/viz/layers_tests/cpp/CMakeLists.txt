@@ -9,6 +9,7 @@ add_executable(viz_layers_tests
     test_clear_rect_layer.cpp
     test_projection_layer.cpp
     test_quad_layer.cpp
+    test_shaped_layers.cpp
     test_throwing_layer.cpp
 )
 

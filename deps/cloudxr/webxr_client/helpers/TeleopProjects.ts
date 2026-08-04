@@ -110,7 +110,10 @@ function pathSegments(teleopPath: string | undefined): string[] {
  * Copies only keys whose value is not `undefined`, so explicit `undefined` on a
  * descendant node inherits the ancestor's value.
  */
-function assignDefined(target: TeleopProjectSettings, source: TeleopProjectSettings | undefined): void {
+function assignDefined(
+  target: TeleopProjectSettings,
+  source: TeleopProjectSettings | undefined
+): void {
   if (!source) return;
   for (const [k, v] of Object.entries(source)) {
     if (v !== undefined) (target as Record<string, unknown>)[k] = v;
@@ -165,7 +168,10 @@ export function getProjectBreadcrumb(teleopPath: string | undefined): string[] {
 export function parseTeleopPathFromHash(hash: string): string | null {
   const cleaned = hash.replace(/^#\/?/, '');
   if (!cleaned) return null;
-  const segments = cleaned.split('/').filter(Boolean).map(s => s.toLowerCase());
+  const segments = cleaned
+    .split('/')
+    .filter(Boolean)
+    .map(s => s.toLowerCase());
   if (segments.length === 0) return null;
   const root = TELEOP_PROJECTS[segments[0]];
   if (!root) return null;

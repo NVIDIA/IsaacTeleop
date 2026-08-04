@@ -146,23 +146,11 @@ if(ENABLE_CLOUDXR_EXP_BUNDLE)
     endif()
 endif()
 
-# Copy CloudXR Python module to package structure (always; pure Python is cross-platform)
+# isaacteleop.cloudxr's pure-Python source is staged by src/python; this target
+# owns only the native bundle and anchors its build-order dependencies below.
 add_custom_target(cloudxr_python ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_PYTHON_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_CURRENT_SOURCE_DIR}/__init__.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/__main__.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/env_config.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/launcher.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/wss.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/webclient.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_adb.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_env.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/oob_teleop_hub.py"
-        "${CLOUDXR_PYTHON_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_PYTHON_DIR}/__pycache__"
-    COMMENT "Copying cloudxr Python files to package structure"
+    COMMENT "Staging the cloudxr native runtime into the package structure"
 )
 if(TARGET cloudxr_patchelf)
     add_dependencies(cloudxr_python cloudxr_patchelf)
@@ -177,18 +165,7 @@ elseif(TARGET cloudxr_exp_bundle)
     add_dependencies(cloudxr_python cloudxr_exp_bundle)
 endif()
 
-# Python modules for isaacteleop.cloudxr_exp (natives staged above when enabled).
-if(TARGET cloudxr_exp_dir)
-    add_custom_command(TARGET cloudxr_python POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_EXP_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_SOURCE_DIR}/exp_init.py"
-            "${CLOUDXR_EXP_DIR}/__init__.py"
-        COMMAND ${CMAKE_COMMAND} -E copy
-            "${CMAKE_CURRENT_SOURCE_DIR}/runtime.py"
-            "${CMAKE_CURRENT_SOURCE_DIR}/env_config.py"
-            "${CLOUDXR_EXP_DIR}/"
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CLOUDXR_EXP_DIR}/__pycache__"
-        COMMENT "Copying cloudxr_exp Python files to package structure"
-    )
-endif()
+# isaacteleop.cloudxr_exp's pure-Python source (__init__.py and the runtime.py
+# re-export of isaacteleop.cloudxr.runtime) is staged by src/python like every
+# other subpackage. This file owns only the experimental native bundle above,
+# which stays gated on ENABLE_CLOUDXR_EXP_BUNDLE.

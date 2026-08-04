@@ -12,7 +12,7 @@ examples more readable by focusing on **what** you want to do rather than
 Overview
 --------
 
-The main component is :code-file:`TeleopSession <src/core/teleop_session_manager/python/teleop_session.py>`, which manages the complete lifecycle
+The main component is :code-file:`TeleopSession <src/python/isaacteleop/teleop_session_manager/teleop_session.py>`, which manages the complete lifecycle
 of a teleop session. It wraps the lower-level
 :code-file:`DeviceIOSession <src/core/deviceio_session/cpp/inc/deviceio_session/deviceio_session.hpp>`
 and :doc:`device trackers <../device/trackers>` so that callers don't need to

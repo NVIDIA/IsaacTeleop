@@ -33,7 +33,8 @@ class VkContext;
 // that means the renderer's depth lands in the XR depth swapchain with no
 // gl_FragDepth round-trip, so CloudXR positional reprojection gets exact
 // depth. Consequently a VizSession holds EITHER one ProjectionLayer OR
-// any number of QuadLayers, never both (enforced by VizSession). Because
+// any number of texture layers (native XR composition or compositor-drawn),
+// never both (enforced by VizSession). Because
 // the copy is 1:1, ``view_resolution`` MUST equal the swapchain per-view
 // size (use VizSession::get_recommended_resolution()).
 //

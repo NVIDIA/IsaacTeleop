@@ -29,7 +29,7 @@ namespace
 // them, and other XR_EXT_hand_tracking consumers treat them as untracked.
 //
 // KEEP IN SYNC with the Python table OPENXR_TO_MEDIAPIPE_INDICES in
-// src/retargeters/wuji_hand_retargeter.py — same 21 entries, applied in the
+// src/python/isaacteleop/retargeters/wuji_hand_retargeter.py — same 21 entries, applied in the
 // opposite direction (that one gathers OpenXR -> MediaPipe). A silent
 // divergence is a joint-permutation bug nothing catches at runtime.
 constexpr XrHandJointEXT kMpToXr[21] = {

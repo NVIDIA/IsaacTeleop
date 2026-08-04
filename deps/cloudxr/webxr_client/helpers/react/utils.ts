@@ -29,7 +29,7 @@ export function loadPerProject<T>(
   key: string,
   teleopPath: string,
   parse: (raw: string) => T | undefined,
-  fallback: T,
+  fallback: T
 ): T {
   try {
     const stored = localStorage.getItem(`cxr.isaac.${key}|${teleopPath}`);
@@ -48,7 +48,7 @@ export function savePerProject<T>(
   key: string,
   teleopPath: string,
   value: T,
-  serialize: (v: T) => string = String,
+  serialize: (v: T) => string = String
 ): void {
   try {
     localStorage.setItem(`cxr.isaac.${key}|${teleopPath}`, serialize(value));

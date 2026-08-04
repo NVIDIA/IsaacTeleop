@@ -17,8 +17,8 @@ import numpy.testing as npt
 from isaacteleop.retargeting_engine.interface import TensorGroup
 from isaacteleop.retargeting_engine.interface.tensor_group import OptionalTensorGroup
 from isaacteleop.retargeting_engine.tensor_types import (
-    HeadPose,
-    HeadPoseIndex,
+    HeadInput,
+    HeadInputIndex,
     HandInput,
     ControllerInput,
     TransformMatrix,
@@ -292,10 +292,10 @@ class TestTransformOrientationsBatch:
 
 class TestHeadTransform:
     def _make_head_input(self, position, orientation, is_valid=True):
-        tg = TensorGroup(HeadPose())
-        tg[HeadPoseIndex.POSITION] = np.array(position, dtype=np.float32)
-        tg[HeadPoseIndex.ORIENTATION] = np.array(orientation, dtype=np.float32)
-        tg[HeadPoseIndex.IS_VALID] = is_valid
+        tg = TensorGroup(HeadInput())
+        tg[HeadInputIndex.POSITION] = np.array(position, dtype=np.float32)
+        tg[HeadInputIndex.ORIENTATION] = np.array(orientation, dtype=np.float32)
+        tg[HeadInputIndex.IS_VALID] = is_valid
         return tg
 
     def test_identity_transform(self):
@@ -305,12 +305,12 @@ class TestHeadTransform:
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
         npt.assert_array_almost_equal(
-            np.from_dlpack(out[HeadPoseIndex.POSITION]), [1, 2, 3], decimal=5
+            np.from_dlpack(out[HeadInputIndex.POSITION]), [1, 2, 3], decimal=5
         )
         npt.assert_array_almost_equal(
-            np.from_dlpack(out[HeadPoseIndex.ORIENTATION]), [0, 0, 0, 1], decimal=5
+            np.from_dlpack(out[HeadInputIndex.ORIENTATION]), [0, 0, 0, 1], decimal=5
         )
-        assert out[HeadPoseIndex.IS_VALID] is True
+        assert out[HeadInputIndex.IS_VALID] is True
 
     def test_translation_transform(self):
         node = HeadTransform("head_xform")
@@ -319,11 +319,11 @@ class TestHeadTransform:
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
         npt.assert_array_almost_equal(
-            np.from_dlpack(out[HeadPoseIndex.POSITION]), [11, 20, 30], decimal=5
+            np.from_dlpack(out[HeadInputIndex.POSITION]), [11, 20, 30], decimal=5
         )
         # Orientation unchanged by pure translation
         npt.assert_array_almost_equal(
-            np.from_dlpack(out[HeadPoseIndex.ORIENTATION]), [0, 0, 0, 1], decimal=5
+            np.from_dlpack(out[HeadInputIndex.ORIENTATION]), [0, 0, 0, 1], decimal=5
         )
 
     def test_rotation_transform(self):
@@ -333,7 +333,7 @@ class TestHeadTransform:
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
         npt.assert_array_almost_equal(
-            np.from_dlpack(out[HeadPoseIndex.POSITION]), [0, 1, 0], decimal=5
+            np.from_dlpack(out[HeadInputIndex.POSITION]), [0, 1, 0], decimal=5
         )
 
     def test_passthrough_fields_preserved(self):
@@ -342,7 +342,7 @@ class TestHeadTransform:
         xform_in = _make_transform_input(_rotation_z_90_with_translation())
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
-        assert out[HeadPoseIndex.IS_VALID] is False
+        assert out[HeadInputIndex.IS_VALID] is False
 
 
 # ============================================================================
@@ -614,12 +614,12 @@ class TestHeadTransformNoAliasing:
 
     def test_mutating_output_position_does_not_affect_input(self):
         node = HeadTransform("head_xform")
-        head_in = TensorGroup(HeadPose())
-        head_in[HeadPoseIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
-        head_in[HeadPoseIndex.ORIENTATION] = np.array(
+        head_in = TensorGroup(HeadInput())
+        head_in[HeadInputIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+        head_in[HeadInputIndex.ORIENTATION] = np.array(
             [0.0, 0.0, 0.0, 1.0], dtype=np.float32
         )
-        head_in[HeadPoseIndex.IS_VALID] = True
+        head_in[HeadInputIndex.IS_VALID] = True
         xform_in = _make_transform_input(_identity_4x4())
 
         # Save a copy of the original input values
@@ -630,19 +630,19 @@ class TestHeadTransformNoAliasing:
         out = result["head"]
 
         # Mutate the output position in-place
-        out_pos = np.from_dlpack(out[HeadPoseIndex.POSITION])
+        out_pos = np.from_dlpack(out[HeadInputIndex.POSITION])
         out_pos[:] = [99.0, 99.0, 99.0]
 
         # Mutate the output orientation in-place
-        out_ori = np.from_dlpack(out[HeadPoseIndex.ORIENTATION])
+        out_ori = np.from_dlpack(out[HeadInputIndex.ORIENTATION])
         out_ori[:] = [1.0, 1.0, 1.0, 0.0]
 
         # Original input must be unchanged
         npt.assert_array_equal(
-            np.from_dlpack(head_in[HeadPoseIndex.POSITION]), orig_pos
+            np.from_dlpack(head_in[HeadInputIndex.POSITION]), orig_pos
         )
         npt.assert_array_equal(
-            np.from_dlpack(head_in[HeadPoseIndex.ORIENTATION]), orig_ori
+            np.from_dlpack(head_in[HeadInputIndex.ORIENTATION]), orig_ori
         )
 
 
@@ -913,10 +913,10 @@ class TestHeadTransformOptionalPropagation:
     """Verify HeadTransform propagates absent inputs to absent outputs."""
 
     def _make_active_head(self):
-        tg = TensorGroup(HeadPose())
-        tg[HeadPoseIndex.POSITION] = np.array([1, 2, 3], dtype=np.float32)
-        tg[HeadPoseIndex.ORIENTATION] = np.array([0, 0, 0, 1], dtype=np.float32)
-        tg[HeadPoseIndex.IS_VALID] = True
+        tg = TensorGroup(HeadInput())
+        tg[HeadInputIndex.POSITION] = np.array([1, 2, 3], dtype=np.float32)
+        tg[HeadInputIndex.ORIENTATION] = np.array([0, 0, 0, 1], dtype=np.float32)
+        tg[HeadInputIndex.IS_VALID] = True
         return tg
 
     def test_output_spec_is_optional(self):
@@ -940,7 +940,7 @@ class TestHeadTransformOptionalPropagation:
 
     def test_absent_head_propagates(self):
         node = HeadTransform("xform")
-        head = OptionalTensorGroup(HeadPose())
+        head = OptionalTensorGroup(HeadInput())
         xform = _make_transform_input(_identity_4x4())
 
         result = _run_retargeter(node, {"head": head, "transform": xform})
@@ -949,13 +949,13 @@ class TestHeadTransformOptionalPropagation:
 
     def test_absent_output_raises_on_read(self):
         node = HeadTransform("xform")
-        head = OptionalTensorGroup(HeadPose())
+        head = OptionalTensorGroup(HeadInput())
         xform = _make_transform_input(_identity_4x4())
 
         result = _run_retargeter(node, {"head": head, "transform": xform})
 
         with pytest.raises(ValueError, match="absent"):
-            _ = result["head"][HeadPoseIndex.POSITION]
+            _ = result["head"][HeadInputIndex.POSITION]
 
 
 class TestTransformOptionalNoneToggle:
@@ -970,22 +970,22 @@ class TestTransformOptionalNoneToggle:
         node = HeadTransform("head_toggle")
         xform_90 = _make_transform_input(_rotation_z_90())
         xform_id = _make_transform_input(_identity_4x4())
-        absent = OptionalTensorGroup(HeadPose())
+        absent = OptionalTensorGroup(HeadInput())
 
         r1 = _run_retargeter(node, {"head": absent, "transform": xform_id})
         assert r1["head"].is_none
 
-        active = TensorGroup(HeadPose())
-        active[HeadPoseIndex.POSITION] = np.array([1.0, 0.0, 0.0], dtype=np.float32)
-        active[HeadPoseIndex.ORIENTATION] = np.array(
+        active = TensorGroup(HeadInput())
+        active[HeadInputIndex.POSITION] = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        active[HeadInputIndex.ORIENTATION] = np.array(
             [0.0, 0.0, 0.0, 1.0], dtype=np.float32
         )
-        active[HeadPoseIndex.IS_VALID] = True
+        active[HeadInputIndex.IS_VALID] = True
 
         r2 = _run_retargeter(node, {"head": active, "transform": xform_90})
         assert not r2["head"].is_none
         npt.assert_array_almost_equal(
-            np.from_dlpack(r2["head"][HeadPoseIndex.POSITION]),
+            np.from_dlpack(r2["head"][HeadInputIndex.POSITION]),
             [0.0, 1.0, 0.0],
             decimal=5,
         )
@@ -996,7 +996,7 @@ class TestTransformOptionalNoneToggle:
         r4 = _run_retargeter(node, {"head": active, "transform": xform_id})
         assert not r4["head"].is_none
         npt.assert_array_almost_equal(
-            np.from_dlpack(r4["head"][HeadPoseIndex.POSITION]),
+            np.from_dlpack(r4["head"][HeadInputIndex.POSITION]),
             [1.0, 0.0, 0.0],
             decimal=5,
         )

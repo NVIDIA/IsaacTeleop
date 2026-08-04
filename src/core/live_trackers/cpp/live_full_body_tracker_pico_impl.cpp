@@ -130,17 +130,12 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
         throw std::runtime_error("[FullBodyTracker] xrLocateBodyJointsBD failed: " + std::to_string(result));
     }
 
-    if (!tracked_.data)
-    {
-        tracked_.data = std::make_shared<FullBodyPoseT>();
-    }
-
-    tracked_.data->all_joint_poses_tracked = locations.allJointPosesTracked;
-
-    if (!tracked_.data->joints)
-    {
-        tracked_.data->joints = std::make_shared<BodyJoints>();
-    }
+    // Publish freshly allocated joint storage each frame instead of refilling the previous
+    // frame's. The query API hands the pose out by reference and callers may still hold an
+    // earlier frame's joints, so an in-place refill would change data already handed out.
+    auto data = std::make_shared<FullBodyPoseT>();
+    data->all_joint_poses_tracked = locations.allJointPosesTracked;
+    data->joints = std::make_shared<BodyJoints>();
 
     for (uint32_t i = 0; i < XR_BODY_JOINT_COUNT_BD; ++i)
     {
@@ -155,8 +150,10 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
         BodyJointPose joint_pose(pose, is_valid);
-        tracked_.data->joints->mutable_joints()->Mutate(i, joint_pose);
+        data->joints->mutable_joints()->Mutate(i, joint_pose);
     }
+
+    tracked_.data = std::move(data);
 
     if (mcap_channels_)
     {

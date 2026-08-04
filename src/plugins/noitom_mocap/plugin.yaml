@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: noitom_mocap
+description: "Noitom mocap stream via Hybrid Data Server and OpenXR tensor data"
+command: "./noitom_mocap_plugin"
+version: "0.1.0"
+args:
+  - "--protocol=tcp"
+  - "--host=127.0.0.1"
+  - "--port=8001"
+  - "--collection-id=noitom_mocap"
+  - "--max-flatbuffer-size=16384"
+  - "--rate=90"
+devices:
+  - path: "/mocap/noitom"
+    type: "noitom_mocap"
+    description: "Noitom avatar joints and PWR trackers"

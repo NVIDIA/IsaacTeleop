@@ -27,7 +27,7 @@ Just grab the instance IP and connect from your headset.
 
    **Server (Brev):** CloudXR + Isaac Teleop retargeting + Isaac Lab sim on a cloud GPU.
 
-   **Client (you):** open the `web client <https://nvidia.github.io/IsaacTeleop/client>`__
+   **Client (you):** open the `Isaac Teleop Web Client`_
    in your headset or browser, enter the Brev instance IP, accept the certificate, and click
    **Connect** — see step :ref:`connect-xr-headset`.
 
@@ -212,7 +212,7 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
    :open:
 
    No physical headset required for a quick test: open
-   `https://nvidia.github.io/IsaacTeleop/client <https://nvidia.github.io/IsaacTeleop/client>`__
+   `nvidia.github.io/IsaacTeleop/client`_
    in a **desktop browser** — IWER (Immersive Web Emulator Runtime) loads automatically and
    emulates a Meta Quest 3 headset.
 

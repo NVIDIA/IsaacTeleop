@@ -35,20 +35,10 @@ add_subdirectory(deviceio_session)
 # Build MCAP library (depends on deviceio for DeviceIOSession and tracker interfaces)
 add_subdirectory(mcap)
 
-# Build Retargeting Engine (pure Python module)
-add_subdirectory(retargeting_engine)
-
-# Build Retargeting Engine UI (pure Python module with optional dependencies)
-add_subdirectory(retargeting_engine_ui)
-
-# Build TeleopSessionManager (pure Python module)
-add_subdirectory(teleop_session_manager)
-
-# CloudXR runtime helper (pure Python, docker-less)
+# CloudXR runtime helper (stages the vendored CloudXR runtime SDK bundle).
+# Its pure-Python source lives in src/python/isaacteleop/cloudxr/, as does the
+# retargeting engine's, the rig launcher's and the session manager's.
 add_subdirectory(cloudxr)
-
-# Rig launcher (pure Python, YAML-driven tmux teleop rigs)
-add_subdirectory(rig)
 
 # Python wheel packaging (combines both modules)
 if(BUILD_PYTHON_BINDINGS)

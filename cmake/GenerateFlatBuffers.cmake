@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # CMake function to generate C++ headers from FlatBuffer schema files.
@@ -51,12 +51,16 @@ function(generate_flatbuffer_headers OUT_VAR INPUT_DIR OUTPUT_DIR)
               --gen-mutable
               --schema
               --bfbs-gen-embed
+              # Mini-reflect type tables with field names. Supersedes --reflect-types, which
+              # sets the same flatc option to a names-less value.
               --reflect-names
-              --reflect-types
               -I ${INPUT_DIR}
               -o ${OUTPUT_DIR}
               ${INPUT_DIR}/${SCHEMA_FILE}
-      DEPENDS ${INPUT_DIR}/${SCHEMA_FILE} flatc
+      # Depend on this file too: the flatc flags live here, and generators that compare
+      # timestamps rather than command lines would otherwise keep stale headers after a
+      # flag change.
+      DEPENDS ${INPUT_DIR}/${SCHEMA_FILE} flatc ${CMAKE_CURRENT_FUNCTION_LIST_FILE}
       COMMENT "Generating FlatBuffers C++ for ${SCHEMA_FILE}"
       VERBATIM
     )

@@ -5,6 +5,7 @@
 
 #include "live_controller_tracker_impl.hpp"
 #include "live_frame_metadata_tracker_oak_impl.hpp"
+#include "live_full_body_tracker_noitom_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
@@ -94,6 +95,12 @@ std::unique_ptr<ITrackerImpl> try_create_full_body_pico_impl(LiveDeviceIOFactory
     return typed ? factory.create_full_body_tracker_pico_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_full_body_noitom_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FullBodyTracker*>(&tracker);
+    return typed ? factory.create_full_body_tracker_noitom_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const Generic3AxisPedalTracker*>(&tracker);
@@ -172,6 +179,8 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<ControllerTracker, LiveControllerTrackerImpl>(&try_create_controller_impl),
     make_dispatch_entry<MessageChannelTracker, LiveMessageChannelTrackerImpl>(&try_create_message_channel_impl),
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerPicoImpl>(&try_create_full_body_pico_impl, "body.pico-xr"),
+    make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerNoitomImpl>(
+        &try_create_full_body_noitom_impl, LiveFullBodyTrackerNoitomImpl::VENDOR_ID),
     make_dispatch_entry<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>(&try_create_generic_pedal_impl),
     make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
     make_dispatch_entry<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>(
@@ -303,10 +312,11 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
             throw std::invalid_argument("LiveDeviceIOFactory: vendor id '" + vendor.id +
                                         "' is not available for tracker '" + tracker_name_for_error(tracker) + "'");
         }
-        // No impl consumes TrackerVendor::params yet, so a non-empty map would be
-        // silently dropped. Reject it to keep the contract strict; accepting params
-        // once a vendor reads them is an additive, backward-compatible change.
-        if (!vendor.params.empty())
+        if (vendor.id == LiveFullBodyTrackerNoitomImpl::VENDOR_ID)
+        {
+            LiveFullBodyTrackerNoitomImpl::validate_vendor(vendor);
+        }
+        else if (!vendor.params.empty())
         {
             throw std::invalid_argument("LiveDeviceIOFactory: vendor params are not supported yet for tracker '" +
                                         tracker_name_for_error(tracker) + "' (vendor id '" + vendor.id + "')");
@@ -468,6 +478,19 @@ std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_trac
         channels = LiveFullBodyTrackerPicoImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveFullBodyTrackerPicoImpl>(handles_, std::move(channels));
+}
+
+std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_tracker_noitom_impl(const FullBodyTracker* tracker)
+{
+    std::unique_ptr<FullBodyMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveFullBodyTrackerPicoImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+
+    const TrackerVendor* vendor = find_vendor(tracker);
+    assert(vendor && vendor->id == LiveFullBodyTrackerNoitomImpl::VENDOR_ID);
+    return std::make_unique<LiveFullBodyTrackerNoitomImpl>(handles_, *vendor, std::move(channels));
 }
 
 std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_generic_3axis_pedal_tracker_impl(

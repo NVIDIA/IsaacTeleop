@@ -408,15 +408,11 @@ bool LiveHandTrackerImpl::try_update_hand(XrHandTrackerEXT tracker, XrTime time,
         return false;
     }
 
-    if (!tracked.data)
-    {
-        tracked.data = std::make_shared<HandPoseT>();
-    }
-
-    if (!tracked.data->joints)
-    {
-        tracked.data->joints = std::make_shared<HandJoints>();
-    }
+    // Publish freshly allocated joint storage each frame instead of refilling the previous
+    // frame's. The query API hands the pose out by reference and callers may still hold an
+    // earlier frame's joints, so an in-place refill would change data already handed out.
+    auto data = std::make_shared<HandPoseT>();
+    data->joints = std::make_shared<HandJoints>();
 
     for (uint32_t i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i)
     {
@@ -431,9 +427,10 @@ bool LiveHandTrackerImpl::try_update_hand(XrHandTrackerEXT tracker, XrTime time,
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
         HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
-        tracked.data->joints->mutable_poses()->Mutate(i, joint_pose);
+        data->joints->mutable_poses()->Mutate(i, joint_pose);
     }
 
+    tracked.data = std::move(data);
     return true;
 }
 

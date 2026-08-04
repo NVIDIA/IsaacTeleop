@@ -26,6 +26,7 @@ struct PluginInfo
     std::string command;
     std::string version;
     std::string working_dir;
+    std::vector<std::string> args;
     std::vector<DeviceInfo> devices;
 };
 
@@ -55,7 +56,7 @@ public:
      * @brief Start a plugin and return a RAII handle.
      * @param plugin_name The name of the plugin to start.
      * @param plugin_root_id The root ID for the plugin.
-     * @param plugin_args Optional arguments passed to the plugin process.
+     * @param plugin_args Optional arguments appended after plugin.yaml args.
      * @return A unique pointer to the Plugin instance (stops on destruction).
      */
     std::unique_ptr<Plugin> start(const std::string& plugin_name,

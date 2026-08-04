@@ -23,8 +23,10 @@ declare global {
   }
 }
 
-const IWER_version = '2.2.1';
-const IWER_DEVUI_version = '2.2.0';
+// Both versions are loaded from CDN; bump them together when upgrading IWER.
+const IWER_version = '2.3.0';
+const IWER_DEVUI_version = '2.3.0';
+let pendingIWERLoad: Promise<IWERLoadResult> | null = null;
 
 export interface IWERLoadResult {
   supportsImmersive: boolean;
@@ -32,6 +34,19 @@ export interface IWERLoadResult {
 }
 
 export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
+  if (pendingIWERLoad) {
+    return pendingIWERLoad;
+  }
+  pendingIWERLoad = loadIWER();
+  const result = await pendingIWERLoad;
+  if (!result.supportsImmersive) {
+    // Clear so a later call can retry after a transient failure.
+    pendingIWERLoad = null;
+  }
+  return result;
+}
+
+async function loadIWER(): Promise<IWERLoadResult> {
   let supportsImmersive = false;
   let iwerLoaded = false;
 
@@ -50,7 +65,7 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
     const script = document.createElement('script');
     script.src = `https://unpkg.com/iwer@${IWER_version}/build/iwer.min.js`;
     script.async = true;
-    script.integrity = 'sha384-3G2UIBh0RX9Imd3PFwcHyXbqRYAeQo9FDMgQTOLcflo9H6LDHaxADB24vKC3b+OY';
+    script.integrity = 'sha384-m8Xcl9WwdP6j/5Fv7MAs7IvvW3PmWCbNZlbF8IsJAnujyeMZi0/xgUE4mM7Tbm/j';
     script.crossOrigin = 'anonymous';
 
     await new Promise<void>(resolve => {
@@ -69,7 +84,7 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
         devUIScript.src = `https://unpkg.com/@iwer/devui@${IWER_DEVUI_version}/build/iwer-devui.min.js`;
         devUIScript.async = true;
         devUIScript.integrity =
-          'sha384-gPhqycVT+bNyiNIH8kMEWFjaysw6xH9NGYwuduRzK71Ro0Tp3hXByxqAI9sWrc9T';
+          'sha384-TAu5gWlv92O6gkVclV8HYctTEswyA/0eoS6ULHjjLCShUVts4kDlUg6iLEKmL1r8';
         devUIScript.crossOrigin = 'anonymous';
 
         await new Promise<void>(devUIResolve => {
@@ -95,7 +110,9 @@ export async function loadIWERIfNeeded(): Promise<IWERLoadResult> {
             console.warn('IWER DevUI not found after script load, continuing without DevUI.');
           }
 
-          await device.installRuntime();
+          // This fallback runs only after the native XRSystem reports no immersive
+          // support. IWER 2.3 otherwise preserves that unusable navigator.xr.
+          await device.installRuntime({ forceInstall: true });
           window.xrDevice = device;
           supportsImmersive = true;
           iwerLoaded = true;

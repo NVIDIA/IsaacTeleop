@@ -301,17 +301,17 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     // window/offscreen letterboxing only.
     const bool xr_mode = backend_->is_xr();
 
-    // Partition visible layers into native OpenXR quads (composited by the
-    // runtime as XrCompositionLayerQuad) and the rest (composited into the
-    // shared render target). is_native_quad() is true only in a kXr session,
+    // Partition visible layers into native OpenXR composition layers (handled by the
+    // runtime as XrCompositionLayer* structs) and the rest (composited into the
+    // shared render target). is_native_layer() is only true in a kXr session,
     // so window/offscreen keep every layer on the composite path.
     std::vector<LayerBase*> composite_layers;
     std::vector<LayerBase*> native_layers;
     composite_layers.reserve(visible_layers.size());
-    const bool backend_native = backend_->supports_native_quad();
+    const bool backend_native = backend_->supports_native_layers();
     for (LayerBase* layer : visible_layers)
     {
-        if (backend_native && layer->is_native_quad())
+        if (backend_native && layer->is_native_layer())
         {
             native_layers.push_back(layer);
         }
@@ -322,10 +322,10 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     }
 
     // Run the shared render pass (and thus submit the projection layer) when
-    // there is composite content, OR when there are no native quads at all
+    // there is composite content, OR when there are no native layers at all
     // (preserve the "no visible layers → cleared frame" behavior). A
-    // native-quad-only frame skips the render pass entirely, so the backend
-    // drops the projection layer and the runtime sees a quad-only frame.
+    // native-only frame skips the render pass entirely, so the backend
+    // drops the projection layer and the runtime sees a native-only frame.
     const bool run_composite = !composite_layers.empty() || native_layers.empty();
 
     // Direct-present: a single ProjectionLayer copied straight to the
@@ -362,15 +362,15 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
         vkCmdWriteTimestamp(command_buffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, gpu_timestamp_pool_, query_base + 0);
     }
 
-    // Native quads: promote each layer's mailbox slot and gather its per-eye
+    // Native layers: promote each layer's mailbox slot and gather its per-eye
     // source images. Must precede the wait-semaphore gather below so
     // get_wait_semaphores() reflects the promoted slot (like acquire_direct_views).
-    // acquire_native_quad returns nullopt when the layer hasn't published yet.
-    std::vector<NativeQuadView> native_views;
+    // acquire_native_layer returns nullopt when the layer hasn't published yet.
+    std::vector<NativeLayerView> native_views;
     native_views.reserve(native_layers.size());
     for (LayerBase* layer : native_layers)
     {
-        if (auto v = layer->acquire_native_quad(slot))
+        if (auto v = layer->acquire_native_layer(slot))
         {
             native_views.push_back(*v);
         }
@@ -470,7 +470,7 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
     }
     else
     {
-        // Native-quad-only frame: no shared render pass, no projection layer.
+        // Native-only frame: no shared render pass, no projection layer.
         // Mark ts1/ts2 for gpu-timing symmetry (no render/post-pass work).
         if (gpu_timestamp_pool_ != VK_NULL_HANDLE)
         {
@@ -481,10 +481,10 @@ void VizCompositor::render(const DisplayBackend::Frame& frame, const std::vector
         }
     }
 
-    // Copy each native quad's source image(s) into the backend's runtime quad
+    // Copy each native layer's source image(s) into the backend's runtime layer
     // swapchain(s). No-op (and no projection-layer effect) when empty. Outside
     // any render pass; the layer's CUDA-done waits gate it at TRANSFER stage.
-    backend_->record_native_quads(command_buffer, frame, native_views);
+    backend_->record_native_layers(command_buffer, frame, native_views);
 
     // ts3: cmd-buffer-end (total = ts3-ts0).
     if (gpu_timestamp_pool_ != VK_NULL_HANDLE)

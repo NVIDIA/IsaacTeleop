@@ -4,14 +4,17 @@
 """Tests for isaacteleop.cloudxr.runtime — wait_for_runtime_ready_sync and
 terminate_or_kill_runtime."""
 
+import importlib.util
 import os
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 from unittest.mock import MagicMock, patch
 
 from isaacteleop.cloudxr.runtime import (
+    _is_exp_available,
     _should_join_main,
     _should_use_exp,
     get_sdk_path,
@@ -34,6 +37,53 @@ class _FakeEnvConfig:
 
     def openxr_run_dir(self) -> str:
         return self._run_dir
+
+
+def _patch_find_spec(monkeypatch, roots_by_name: dict[str, list[str]]) -> list[str]:
+    """Serve fake ``__path__`` roots from ``find_spec``; record the names asked for.
+
+    Patching ``find_spec`` mutates the process-wide ``importlib.util`` module,
+    so unmapped names delegate to the real implementation rather than failing:
+    any import machinery that runs inside the patch window must keep working.
+    The returned list lets a test assert that only the bare *package* name was
+    probed -- a dotted submodule would import the package as a side effect.
+    """
+    real_find_spec = importlib.util.find_spec
+    calls: list[str] = []
+
+    def _fake_find_spec(name: str, package: str | None = None):
+        calls.append(name)
+        if name in roots_by_name:
+            return SimpleNamespace(submodule_search_locations=list(roots_by_name[name]))
+        return real_find_spec(name, package)
+
+    monkeypatch.setattr(
+        "isaacteleop.cloudxr.runtime.importlib.util.find_spec", _fake_find_spec
+    )
+    return calls
+
+
+def _make_package_roots(tmp_path, artifact_index: int | None) -> tuple[list[str], str]:
+    """Build a two-entry ``__path__``, at most one root holding the runtime.
+
+    Both roots get a ``native/`` directory; only ``roots[artifact_index]`` gets
+    ``libcloudxr.so`` in it. An empty ``native/`` is exactly what a build leaves
+    behind when the SDK tarball is missing, and the two-root shape is the only
+    one that catches a regression to single-root (``__path__[0]``) resolution.
+
+    Returns the roots and the expected ``native/`` path ("" when no root holds
+    the artifact).
+    """
+    roots = []
+    for index in range(2):
+        native = tmp_path / f"root{index}" / "native"
+        native.mkdir(parents=True)
+        roots.append(str(native.parent))
+    if artifact_index is None:
+        return roots, ""
+    native_dir = os.path.join(roots[artifact_index], "native")
+    (tmp_path / f"root{artifact_index}" / "native" / "libcloudxr.so").write_bytes(b"")
+    return roots, native_dir
 
 
 # ============================================================================
@@ -115,17 +165,72 @@ class TestResolveCloudxrRuntimeModule:
         monkeypatch.setattr(
             "isaacteleop.cloudxr.runtime._is_exp_available", lambda: False
         )
-        with pytest.raises(RuntimeError, match="cloudxr_exp|ENABLE_CLOUDXR_EXP"):
+        with pytest.raises(
+            RuntimeError, match="cloudxr_exp|ENABLE_CLOUDXR_EXP"
+        ) as excinfo:
             resolve_cloudxr_runtime_module()
+        # The message must blame the missing *artifact*: cloudxr_exp is authored
+        # Python that ships in every wheel, so "is not installed" would be false.
+        assert "libcloudxr.so" in str(excinfo.value)
+
+    @pytest.mark.parametrize("artifact_index", [0, 1])
+    def test_is_exp_available_scans_every_root(
+        self, tmp_path, monkeypatch, artifact_index
+    ):
+        """The bundled runtime is found in whichever root holds it."""
+        roots, _ = _make_package_roots(tmp_path, artifact_index)
+        calls = _patch_find_spec(monkeypatch, {"isaacteleop.cloudxr_exp": roots})
+
+        assert _is_exp_available() is True
+        # Bare package name only -- a dotted submodule would import cloudxr_exp.
+        assert calls == ["isaacteleop.cloudxr_exp"]
+
+    def test_is_exp_available_false_without_artifact(self, tmp_path, monkeypatch):
+        """An importable cloudxr_exp with an empty native/ is NOT available.
+
+        This is the regression that matters: probing module presence would
+        report True here, and every Orin install would then fail in
+        get_sdk_path() because the experimental runtime was never bundled.
+        """
+        roots, _ = _make_package_roots(tmp_path, None)
+        calls = _patch_find_spec(monkeypatch, {"isaacteleop.cloudxr_exp": roots})
+
+        assert _is_exp_available() is False
+        assert calls == ["isaacteleop.cloudxr_exp"]
 
     def test_is_exp_available_handles_missing_parent(self, monkeypatch):
-        def _boom(_name: str):
+        """A package that cannot be located is not available, and does not raise."""
+
+        def _boom(_name: str, _package: str | None = None):
             raise ModuleNotFoundError("isaacteleop.cloudxr_exp")
 
         monkeypatch.setattr(
             "isaacteleop.cloudxr.runtime.importlib.util.find_spec", _boom
         )
-        from isaacteleop.cloudxr.runtime import _is_exp_available
+
+        assert _is_exp_available() is False
+
+    def test_is_exp_available_handles_unspecced_parent(self, monkeypatch):
+        """find_spec raises ValueError when a parent has ``__spec__`` set to None."""
+
+        def _boom(_name: str, _package: str | None = None):
+            raise ValueError("isaacteleop.__spec__ is None")
+
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime.importlib.util.find_spec", _boom
+        )
+
+        assert _is_exp_available() is False
+
+    def test_is_exp_available_handles_absent_package(self, monkeypatch):
+        """find_spec returns None for a name the finders cannot resolve."""
+
+        def _none(_name: str, _package: str | None = None):
+            return None
+
+        monkeypatch.setattr(
+            "isaacteleop.cloudxr.runtime.importlib.util.find_spec", _none
+        )
 
         assert _is_exp_available() is False
 
@@ -140,52 +245,43 @@ class TestResolveCloudxrRuntimeModule:
 
 
 class TestGetSdkPath:
-    """Tests for selected-package native/ resolution."""
+    """Tests for selected-package native/ resolution across every __path__ root."""
 
-    def test_uses_resolved_package_native(self, tmp_path, monkeypatch):
-        native = tmp_path / "native"
-        native.mkdir()
-        (native / "libcloudxr.so").write_bytes(b"")
+    @staticmethod
+    def _select(monkeypatch, module: str) -> None:
         monkeypatch.setattr(
             "isaacteleop.cloudxr.runtime.resolve_cloudxr_runtime_module",
-            lambda: "isaacteleop.cloudxr",
+            lambda: module,
         )
-        monkeypatch.setattr(
-            "isaacteleop.cloudxr.__file__", str(tmp_path / "__init__.py")
-        )
-        assert get_sdk_path() == str(native)
+
+    @pytest.mark.parametrize("artifact_index", [0, 1])
+    def test_scans_every_root(self, tmp_path, monkeypatch, artifact_index):
+        """Resolution must not depend on root order: __path__ is unordered."""
+        roots, expected = _make_package_roots(tmp_path, artifact_index)
+        self._select(monkeypatch, "isaacteleop.cloudxr")
+        calls = _patch_find_spec(monkeypatch, {"isaacteleop.cloudxr": roots})
+
+        assert get_sdk_path() == expected
+        assert calls == ["isaacteleop.cloudxr"]
 
     def test_missing_raises(self, tmp_path, monkeypatch):
-        (tmp_path / "native").mkdir()
-        monkeypatch.setattr(
-            "isaacteleop.cloudxr.runtime.resolve_cloudxr_runtime_module",
-            lambda: "isaacteleop.cloudxr",
-        )
-        monkeypatch.setattr(
-            "isaacteleop.cloudxr.__file__", str(tmp_path / "__init__.py")
-        )
-        with pytest.raises(RuntimeError, match="libcloudxr.so"):
+        """No root holds libcloudxr.so -- an empty native/ must not satisfy it."""
+        roots, _ = _make_package_roots(tmp_path, None)
+        self._select(monkeypatch, "isaacteleop.cloudxr")
+        _patch_find_spec(monkeypatch, {"isaacteleop.cloudxr": roots})
+
+        with pytest.raises(RuntimeError, match="libcloudxr.so") as excinfo:
             get_sdk_path()
+        for root in roots:
+            assert root in str(excinfo.value)
 
-    def test_follows_exp_selection(self, monkeypatch):
-        fake_pkg = MagicMock()
-        fake_pkg.__file__ = "/fake/cloudxr_exp/__init__.py"
-        monkeypatch.setattr(
-            "isaacteleop.cloudxr.runtime.resolve_cloudxr_runtime_module",
-            lambda: "isaacteleop.cloudxr_exp",
-        )
+    def test_follows_exp_selection(self, tmp_path, monkeypatch):
+        roots, expected = _make_package_roots(tmp_path, 1)
+        self._select(monkeypatch, "isaacteleop.cloudxr_exp")
+        calls = _patch_find_spec(monkeypatch, {"isaacteleop.cloudxr_exp": roots})
 
-        def _import_module(name: str):
-            if name == "isaacteleop.cloudxr_exp":
-                return fake_pkg
-            raise AssertionError(f"unexpected import: {name}")
-
-        monkeypatch.setattr(
-            "isaacteleop.cloudxr.runtime.importlib.import_module",
-            _import_module,
-        )
-        monkeypatch.setattr(os.path, "isfile", lambda p: p.endswith("libcloudxr.so"))
-        assert get_sdk_path() == "/fake/cloudxr_exp/native"
+        assert get_sdk_path() == expected
+        assert calls == ["isaacteleop.cloudxr_exp"]
 
 
 # ============================================================================

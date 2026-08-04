@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { WebGLStateTracker, WebGLState } from './WebGLState';
+import { WebGLState, WebGLStateTracker } from './WebGLState';
 import { apply } from './WebGLStateApply';
 
 /**

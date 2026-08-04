@@ -9,7 +9,7 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     ControllerInputIndex,
     HandInputIndex,
     HandJointIndex,
-    HeadPoseIndex,
+    HeadInputIndex,
 )
 
 
@@ -31,7 +31,7 @@ def hand_wrist_is_valid(hand: OptionalTensorGroup) -> bool:
 
 
 def head_is_valid(head: OptionalTensorGroup) -> bool:
-    return _flag_is_valid(head, HeadPoseIndex.IS_VALID)
+    return _flag_is_valid(head, HeadInputIndex.IS_VALID)
 
 
 def joint_names_from_group_type(group_type) -> list[str]:

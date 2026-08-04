@@ -36,18 +36,18 @@ def main() -> None:
 
     from isaacteleop.retargeting_engine.interface import TensorGroup
     from isaacteleop.retargeting_engine.tensor_types import (
-        HeadPose,
-        HeadPoseIndex,
+        HeadInput,
+        HeadInputIndex,
         TransformMatrix,
     )
     from isaacteleop.retargeting_engine.utilities import HeadTransform
 
-    head_in = TensorGroup(HeadPose())
-    head_in[HeadPoseIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
-    head_in[HeadPoseIndex.ORIENTATION] = np.array(
+    head_in = TensorGroup(HeadInput())
+    head_in[HeadInputIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    head_in[HeadInputIndex.ORIENTATION] = np.array(
         [0.0, 0.0, 0.0, 1.0], dtype=np.float32
     )
-    head_in[HeadPoseIndex.IS_VALID] = True
+    head_in[HeadInputIndex.IS_VALID] = True
 
     xform_in = TensorGroup(TransformMatrix())
     xform_in[0] = np.eye(4, dtype=np.float32)
@@ -55,7 +55,7 @@ def main() -> None:
     node = HeadTransform("numpy_smoke_head")
     result = node({"head": head_in, "transform": xform_in})
     out = result["head"]
-    pos = out[HeadPoseIndex.POSITION]
+    pos = out[HeadInputIndex.POSITION]
     if not np.allclose(pos, [1.0, 2.0, 3.0], rtol=0, atol=1e-4):
         raise AssertionError(f"unexpected position {pos!r}")
 

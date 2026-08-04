@@ -90,6 +90,17 @@ public:
         return has_depth_composition_layer_;
     }
 
+    // True iff the shaped composition-layer extension is enabled. Drives
+    // whether XrBackend accepts CylinderLayer / EquirectLayer.
+    bool has_cylinder_composition_layer() const noexcept
+    {
+        return has_cylinder_composition_layer_;
+    }
+    bool has_equirect2_composition_layer() const noexcept
+    {
+        return has_equirect2_composition_layer_;
+    }
+
     // True iff XR_KHR_convert_timespec_time is enabled. When false the
     // conversion methods throw. CLOCK_MONOTONIC == steady_clock on Linux.
     bool has_time_conversion() const noexcept
@@ -199,6 +210,8 @@ private:
     InstanceHandle instance_{ nullptr, nullptr };
     XrSystemId system_id_ = XR_NULL_SYSTEM_ID;
     bool has_depth_composition_layer_ = false;
+    bool has_cylinder_composition_layer_ = false;
+    bool has_equirect2_composition_layer_ = false;
     bool has_time_conversion_ = false;
     // Type-erased so this header doesn't need XR_USE_TIMESPEC; .cpp casts back.
     PFN_xrVoidFunction xr_convert_timespec_time_to_time_ = nullptr;

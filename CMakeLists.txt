@@ -59,6 +59,7 @@ endif()
 # Options
 option(BUILD_PLUGINS "Build plugins" ON)
 option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
+option(BUILD_PLUGIN_NOITOM_MOCAP "Build Noitom mocap plugin (downloads MocapApi SDK)" OFF)
 option(BUILD_PLUGIN_OGLO "Build OGLO tactile glove plugin (BLE, Linux only; fetches SimpleBLE + nlohmann/json)" OFF)
 option(BUILD_PLUGIN_WUJI_GLOVE "Build Wuji glove plugin (requires the wuji_sdk C SDK)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
@@ -144,17 +145,8 @@ add_subdirectory(deps/cloudxr/openxr_extensions)
 # Build core modules (OXR and DEVICEIO)
 add_subdirectory(src/core)
 
-# Build retargeters (pure Python, sibling of src/core)
-add_subdirectory(src/retargeters)
-
-# Build haptic device adapters (pure Python, sibling of src/core).
-# Vendor-specific pybind extensions (e.g. src/plugins/manus/python) write
-# their .so files into the wheel-staging tree at
-# python_package/<cfg>/isaacteleop/haptic_devices/ alongside the Python adapter
-# modules so adapters can lazy-import them via `from . import _<vendor>_haptic`.
-# (cmake-install of those extensions goes to ${CMAKE_INSTALL_LIBDIR} per the
-# vendor plugin's own install rules; verify wheel layout matches.)
-add_subdirectory(src/haptic_devices)
+# Stage the isaacteleop Python tree. Must follow src/core (defines BUILD_PYTHON_BINDINGS).
+add_subdirectory(src/python)
 
 # Build Televiz visualization module (sibling of src/core).
 # src/viz/CMakeLists.txt orchestrates its own sub-modules and tests.
@@ -192,6 +184,9 @@ if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/rebot_devarm_leader)
     add_subdirectory(src/plugins/manus)
     add_subdirectory(src/plugins/haptikos)
+    if(BUILD_PLUGIN_NOITOM_MOCAP)
+        add_subdirectory(src/plugins/noitom_mocap)
+    endif()
     if(BUILD_PLUGIN_OAK_CAMERA)
         add_subdirectory(src/plugins/oak)
     endif()

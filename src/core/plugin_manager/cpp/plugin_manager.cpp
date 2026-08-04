@@ -33,6 +33,13 @@ static PluginInfo parse_plugin_yaml(const std::string& path)
             info.command = config["command"].as<std::string>();
         if (config["version"])
             info.version = config["version"].as<std::string>();
+        if (config["args"] && config["args"].IsSequence())
+        {
+            for (const auto& arg_node : config["args"])
+            {
+                info.args.push_back(arg_node.as<std::string>());
+            }
+        }
 
         // Parse devices list
         if (config["devices"] && config["devices"].IsSequence())
@@ -159,7 +166,9 @@ std::unique_ptr<Plugin> PluginManager::start(const std::string& plugin_name,
     }
 
     const auto& info = it->second;
-    return std::make_unique<Plugin>(info.command, info.working_dir, plugin_root_id, plugin_args);
+    std::vector<std::string> args = info.args;
+    args.insert(args.end(), plugin_args.begin(), plugin_args.end());
+    return std::make_unique<Plugin>(info.command, info.working_dir, plugin_root_id, args);
 }
 
 } // namespace core

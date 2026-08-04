@@ -79,15 +79,18 @@ public:
     void record_direct(VkCommandBuffer cmd, const Frame& frame, const std::vector<DirectPresentView>& views) override;
     Resolution recommended_view_resolution() const override;
 
-    // Native OpenXR quad layers (XrCompositionLayerQuad). Copies each
-    // NativeQuadView's source image(s) into a per-quad color swapchain and
-    // records the submission for end_frame; quad-only frames drop the shared
-    // projection layer (see projection_active_).
-    bool supports_native_quad() const noexcept override
+    // Native OpenXR composition layers (quad / cylinder / equirect).
+    // Copies each NativeLayerView's source image(s) into a per-layer color
+    // swapchain and records the submission for end_frame; native-only
+    // frames drop the shared projection layer (see projection_active_).
+    bool supports_native_layers() const noexcept override
     {
         return true;
     }
-    void record_native_quads(VkCommandBuffer cmd, const Frame& frame, const std::vector<NativeQuadView>& views) override;
+    // Quads are core; cylinder / equirect are gated on the runtime
+    // advertising the matching XR_KHR_composition_layer_* extension.
+    bool supports_native_layer_shape(NativeLayerShape shape) const noexcept override;
+    void record_native_layers(VkCommandBuffer cmd, const Frame& frame, const std::vector<NativeLayerView>& views) override;
 
     void poll_events() override;
     bool should_close() const override;
@@ -138,17 +141,17 @@ private:
     void destroy_swapchains();
     void create_intermediate();
 
-    // Native-quad color swapchain(s) for one QuadLayer: 1 (mono) or 2
+    // Native-layer color swapchain(s) for one source layer: 1 (mono) or 2
     // (stereo, [left, right]). Created lazily on first submission, keyed by
     // the layer's stable source_id, reused each frame.
-    struct NativeQuadSwapchain
+    struct NativeLayerSwapchain
     {
         std::vector<ViewSwapchain> eyes; // 1 mono, 2 stereo
     };
-    // Ensure (lazily create) the quad swapchain(s) for ``key`` sized to
+    // Ensure (lazily create) the layer swapchain(s) for ``key`` sized to
     // ``extent`` with ``eye_count`` eyes; returns the cached entry.
-    NativeQuadSwapchain& ensure_native_quad_swapchain(const void* key, Resolution extent, uint32_t eye_count);
-    void destroy_native_quad_swapchains();
+    NativeLayerSwapchain& ensure_native_layer_swapchain(const void* key, Resolution extent, uint32_t eye_count);
+    void destroy_native_layer_swapchains();
 
     // Per-eye staging buffers that bridge a direct ProjectionLayer's depth
     // (stored as R32_SFLOAT — CUDA can't interop a depth-format image) into
@@ -180,26 +183,36 @@ private:
     std::vector<ViewSwapchain> depth_swapchains_;
     bool depth_layer_enabled_ = false;
 
-    // Persistent per-QuadLayer native-quad swapchains, keyed by the layer's
-    // source_id. Created lazily in record_native_quads, destroyed with the
-    // backend. (Removing a native quad layer mid-session leaves its
-    // swapchain allocated until destroy — layer removal is rare.)
-    std::map<const void*, NativeQuadSwapchain> native_quad_swapchains_;
+    // Persistent per-layer native swapchains, keyed by the layer's
+    // source_id. Created lazily in record_native_layers, destroyed with the
+    // backend. (Removing a native layer mid-session leaves its swapchain
+    // allocated until destroy — layer removal is rare.)
+    std::map<const void*, NativeLayerSwapchain> native_layer_swapchains_;
 
-    // One XrCompositionLayerQuad to submit this frame. Storage for the
-    // built XrCompositionLayerQuad lives in end_frame; this holds the
-    // inputs record_native_quads gathered. eye_visibility selects the eye
-    // (BOTH for mono).
-    struct NativeQuadSubmit
+    // One XrCompositionLayer* to submit this frame. Storage for the built
+    // struct lives in end_frame; this holds the inputs
+    // record_native_layers gathered. eye_visibility selects the eye (BOTH
+    // for mono). shape picks which XrCompositionLayer* struct end_frame
+    // builds and which of the per-shape params are read (see
+    // NativeLayerView for their meaning).
+    struct NativeLayerSubmit
     {
         XrSwapchain swapchain = XR_NULL_HANDLE;
         uint32_t width = 0;
         uint32_t height = 0;
         XrPosef pose{};
-        XrExtent2Df size{};
         XrEyeVisibility eye_visibility = XR_EYE_VISIBILITY_BOTH;
+        bool alpha_blend = false; // honor the texture's alpha when compositing
+        NativeLayerShape shape = NativeLayerShape::kQuad;
+        XrExtent2Df size{}; // kQuad
+        float radius = 0.0f; // kCylinder + kEquirect2
+        float central_angle = 0.0f; // kCylinder
+        float aspect_ratio = 0.0f; // kCylinder
+        float central_horizontal_angle = 0.0f; // kEquirect2
+        float upper_vertical_angle = 0.0f; // kEquirect2
+        float lower_vertical_angle = 0.0f; // kEquirect2
     };
-    std::vector<NativeQuadSubmit> active_native_quads_;
+    std::vector<NativeLayerSubmit> active_native_layers_;
 
     // Per-eye R32_SFLOAT->D32_SFLOAT bridge buffers (see create_depth_staging).
     struct DepthStaging
@@ -218,9 +231,9 @@ private:
     bool frame_renderable_ = false; // false on shouldRender=0 / locate failure
     // Set when the shared render pass (record_post_render_pass) or the
     // direct path (record_direct) produced content for the projection
-    // layer this frame. When false at end_frame (every visible layer was a
-    // native quad), the projection layer is dropped so the runtime sees a
-    // quad-only frame and can engage its client-reconstructed path.
+    // layer this frame. When false at end_frame (every visible layer was
+    // native), the projection layer is dropped so the runtime sees a
+    // native-only frame and can engage its client-reconstructed path.
     bool projection_active_ = false;
     // Monotonic counter that drives Frame::backend_token; the contract
     // (display_backend.hpp) requires 0..image_count()-1, which the

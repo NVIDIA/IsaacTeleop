@@ -19,10 +19,9 @@ namespace core
 // `id` is a string (rather than an enum baked into the tracker marker) so vendor
 // routing stays decoupled from the tracker type. The selectable vendors are the
 // live factory's compile-time dispatch table (e.g. "body.pico-xr"), so adding a
-// vendor still means extending that table and rebuilding core. `params` is
-// reserved for vendor-specific settings as free-form strings (mirroring plugin
-// CLI arguments, e.g. {"max_flatbuffer_size": "16384"}); no vendor consumes it
-// yet, so a non-empty map is rejected at validation until the first consumer lands.
+// vendor still means extending that table and rebuilding core. `params` carries
+// vendor-specific settings as free-form strings (mirroring plugin CLI arguments,
+// e.g. {"max_flatbuffer_size": "16384"}); each vendor validates the keys it supports.
 struct TrackerVendor
 {
     std::string id;

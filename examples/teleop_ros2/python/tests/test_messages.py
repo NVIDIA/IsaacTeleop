@@ -26,8 +26,8 @@ from isaacteleop.retargeting_engine.tensor_types import (
     HandInput,
     HandInputIndex,
     HandJointIndex,
-    HeadPose,
-    HeadPoseIndex,
+    HeadInput,
+    HeadInputIndex,
     RobotHandJoints,
 )
 
@@ -102,10 +102,10 @@ def _active_hand() -> TensorGroup:
 
 
 def _active_head() -> TensorGroup:
-    head = TensorGroup(HeadPose())
-    head[HeadPoseIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
-    head[HeadPoseIndex.ORIENTATION] = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
-    head[HeadPoseIndex.IS_VALID] = True
+    head = TensorGroup(HeadInput())
+    head[HeadInputIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    head[HeadInputIndex.ORIENTATION] = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+    head[HeadInputIndex.IS_VALID] = True
     return head
 
 
@@ -342,7 +342,7 @@ def test_build_head_output_keeps_pose_and_tf_consistent() -> None:
 def test_build_head_output_returns_none_when_head_is_absent() -> None:
     assert (
         build_head_output(
-            OptionalTensorGroup(HeadPose()),
+            OptionalTensorGroup(HeadInput()),
             Time(),
             "world",
             "head",

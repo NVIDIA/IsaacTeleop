@@ -26,7 +26,7 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     BodyJointIndex,
     ControllerInputIndex,
     FullBodyInputIndex,
-    HeadPoseIndex,
+    HeadInputIndex,
 )
 
 HANDS_CHANNEL = "hands"
@@ -425,12 +425,12 @@ class HeadViz:
         )
 
     def update_if_active(self, head) -> bool:
-        if head.is_none or not bool(head[HeadPoseIndex.IS_VALID]):
+        if head.is_none or not bool(head[HeadInputIndex.IS_VALID]):
             self.frame.visible = False
             return False
 
-        position = np.asarray(head[HeadPoseIndex.POSITION], dtype=np.float32)
-        orientation = np.asarray(head[HeadPoseIndex.ORIENTATION], dtype=np.float32)
+        position = np.asarray(head[HeadInputIndex.POSITION], dtype=np.float32)
+        orientation = np.asarray(head[HeadInputIndex.ORIENTATION], dtype=np.float32)
         self.frame.position = (
             float(position[0]),
             float(position[1]),

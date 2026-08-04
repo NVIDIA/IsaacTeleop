@@ -3,16 +3,15 @@
 
 #pragma once
 
+#include "image_layer_base.hpp"
+
 #include <viz/core/device_image.hpp>
 #include <viz/core/viz_buffer.hpp>
 #include <viz/core/viz_types.hpp>
-#include <viz/session/layer_base.hpp>
 #include <vulkan/vulkan.h>
 
 #include <array>
-#include <atomic>
 #include <cstdint>
-#include <cuda_runtime.h>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -27,48 +26,16 @@ class VkContext;
 // (window/offscreen — quad fills the layer's tile) or as a world-space
 // rectangle (kXr — Config::placement required).
 //
-// Mailbox: kSlotCount DeviceImages. submit() picks a slot that's
-// neither the latest publish nor in use by any in-flight frame, copies
-// pixels in, signals cuda_done_writing, and atomic-stores latest.
-// record(slot_index) atomic-stores latest into in_use_[slot_index]
-// and draws. Producer never collides with the slot any in-flight
-// renderer is sampling; renderer always sees the most recent
-// completed publish.
+// The image mailbox (submit / slot promotion / CUDA semaphores) lives in
+// ImageLayerBase; this class adds the draw path into the shared render
+// target plus the optional native XrCompositionLayerQuad path.
 //
-// Sizing invariant: kSlotCount = kMaxFramesInFlight + 2. Worst-case
-// forbidden set is {latest} ∪ in_use_ → 1 + kMaxFramesInFlight distinct
-// values, the +2 leaves at least one free slot. If a backend's
-// image_count ever exceeds kMaxFramesInFlight, record() asserts —
-// bump kMaxFramesInFlight and kSlotCount together.
-//
-// Memory: kSlotCount × width × height × bpp.
-//   mono   1080p RGBA8: ~56 MB / layer
-//   mono   4K    RGBA8: ~232 MB / layer
-//   stereo 1080p RGBA8: ~112 MB / layer (×2 from paired slots)
-//   stereo 4K    RGBA8: ~464 MB / layer
-// With ``generate_mipmaps`` on (default), add ~33% for the mip chain.
-// A single 4K stereo layer with mips is ~620 MB — sizing concern for
-// the host's VRAM budget and worth surfacing to whoever picks the
-// resolution / layer count.
-//
-// Stereo: when Config::stereo is true, each slot owns a PAIR of
-// DeviceImages (left + right). The two-arg submit() does both
-// memcpy2Ds + the cuda_done_writing signal on a single CUDA stream,
-// so stream ordering guarantees the renderer never sees a half-
-// updated pair. In kXr, record() binds the left descriptor for
-// view 0 and the right for view 1; window/offscreen (single view)
-// draws the left buffer only.
-class QuadLayer : public LayerBase
+// Stereo: in kXr, record() binds the left descriptor for view 0 and the
+// right for view 1; window/offscreen (single view) draws the left buffer
+// only. See ImageLayerBase for the paired-mailbox submit contract.
+class QuadLayer : public ImageLayerBase
 {
 public:
-    // Sized to cover swapchains up to 5 images. The window swapchain
-    // requests <= 3 (see Swapchain::init), but drivers may grant more
-    // than requested; this headroom keeps record() from throwing on
-    // those platforms. Memory cost: kSlotCount × W × H × bpp per layer
-    // (~56 MB at 1080p RGBA8).
-    static constexpr uint32_t kMaxFramesInFlight = 5;
-    static constexpr uint32_t kSlotCount = kMaxFramesInFlight + 2;
-
     struct Config
     {
         std::string name = "QuadLayer";
@@ -120,22 +87,36 @@ public:
         // world IPDs and camera baselines are 50–80 mm.
         float stereo_baseline_mm = 0.0f;
 
-        // Submit this quad as a native OpenXR quad layer
-        // (XrCompositionLayerQuad) instead of compositing it into the
-        // shared render target. kXr only: the runtime places + samples the
-        // quad directly, which enables its quad fast path (and, for
-        // quad-only frames, client-reconstructed streaming — the shared
-        // projection layer is dropped when every visible layer is native).
-        // Ignored outside kXr (window/offscreen fall back to the compositor
-        // draw path). Stereo emits one quad per eye via eyeVisibility.
+        // WHO composites this quad in kXr. true (the DEFAULT): the OpenXR
+        // runtime — the quad is submitted as an XrCompositionLayerQuad and
+        // the runtime places + samples it directly, enabling its layer
+        // fast path (and, for frames where every visible layer is
+        // runtime-composited, client-reconstructed streaming — the shared
+        // projection layer is dropped). Stereo emits one quad per eye via
+        // eyeVisibility. Ignored outside kXr (window/offscreen are always
+        // composited by Televiz).
         //
-        // Trade-off vs the compositor path: a native quad carries NO depth
-        // (OpenXR quad layers have none), so it can't z-compose with 3D
-        // ProjectionLayer content — it's a flat billboard ordered by
-        // submission. ``generate_mipmaps`` is unused in native mode (the
-        // runtime samples the quad). Requires ``placement`` at record time,
-        // same as any kXr quad. Off by default.
-        bool use_openxr_quad_layer = false;
+        // false: Televiz's built-in compositor draws the quad into the
+        // shared render target, where 3D-placed quads depth-test against
+        // each other — a runtime-composited quad carries NO depth (OpenXR
+        // quad layers have none), so it's a flat billboard ordered by
+        // submission. Also the escape hatch for runtimes that mishandle
+        // quad layers. QuadLayer is the only shape with this choice:
+        // CylinderLayer / EquirectLayer are runtime-composited always.
+        // ``generate_mipmaps`` only applies on the compositor path (the
+        // runtime samples native quads). Requires ``placement`` at record
+        // time either way, same as any kXr quad.
+        bool openxr_composition = true;
+
+        // Composite honoring the texture's alpha channel. Native path:
+        // sets XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT on the
+        // submitted XrCompositionLayerQuad. Off by default: camera feeds
+        // are opaque, and alpha-free layers keep the frame eligible for
+        // the runtime's client-reconstructed streaming (which excludes
+        // source-alpha layers). Turn on for translucent content (HUDs).
+        // Compositor path: currently ignored (the draw pipeline blends
+        // per the shared render target setup).
+        bool alpha_blend = false;
     };
 
     // Hard cap on the mip chain when generate_mipmaps is enabled.
@@ -143,50 +124,13 @@ public:
     // at 4 that's 1/8 (240x135 from 1080p, 480x270 from 4K).
     static constexpr uint32_t kMaxMipLevels = 4;
 
-    // Builds the 3 DeviceImages + pipeline up front. Throws
+    // Builds the mailbox DeviceImages + pipeline up front. Throws
     // std::invalid_argument on bad config; std::runtime_error on
     // Vulkan / CUDA failure.
     QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config config);
 
     ~QuadLayer() override;
     void destroy();
-
-    // submit() = producer side, record() = consumer side; may run on
-    // separate threads. NOT safe with multiple concurrent producers
-    // (one QuadLayer per producer).
-    //
-    // src.space must be kDevice; dims/format must match the layer.
-    // The copy + cuda_done_writing signal run on ``stream``. submit()
-    // BLOCKS on cudaStreamSynchronize(stream) before returning so the
-    // producer can safely reuse src.data — without that wait, a fast
-    // producer wrapping its mailbox could overwrite src.data while our
-    // async memcpy was still reading. Cost: ~0.5 ms per 1080p call on
-    // the calling thread; the render path is unaffected.
-    //
-    // Mono layer (Config::stereo == false): use the one-arg overload.
-    // The two-arg overload throws std::logic_error.
-    //
-    // Stereo layer (Config::stereo == true): use the two-arg overload.
-    // Both buffers are copied + the single cuda_done_writing signal is
-    // emitted on the SAME ``stream``, so stream ordering guarantees
-    // the renderer never reads a half-matched pair. The one-arg
-    // overload throws std::logic_error.
-    //
-    // STREAM PRECONDITION (stereo): the two-arg overload runs the copies
-    // for BOTH eyes on the single ``stream`` argument. CUDA's stream
-    // ordering only sequences work submitted to the SAME stream, so
-    // when ``left.data`` or ``right.data`` was produced on a different
-    // stream than ``stream``, the caller MUST synchronize that producer
-    // stream before calling submit (cudaStreamSynchronize, or a recorded
-    // event waited on ``stream`` via cudaStreamWaitEvent). Otherwise the
-    // memcpy here can read stale / torn pixels for that eye. The
-    // in-tree ZED + OAK-D producers handle this by calling
-    // ``cu_stream.synchronize()`` per eye-slot before publishing, which
-    // makes calling ``submit(left, right, stream=0)`` safe; external
-    // producers wiring separate per-eye streams must follow the same
-    // pattern.
-    void submit(const VizBuffer& src, cudaStream_t stream = 0);
-    void submit(const VizBuffer& left, const VizBuffer& right, cudaStream_t stream = 0);
 
     // Pre-pass slot: promote latest_ -> in_use_[in_flight_slot] AND
     // (when generate_mipmaps is on) emit the mip-chain blits on the
@@ -203,38 +147,32 @@ public:
                 const RenderTarget& target,
                 uint32_t in_flight_slot) override;
 
-    // Timeline wait on the in-use slot's cuda_done_writing.
-    std::vector<LayerBase::WaitSemaphore> get_wait_semaphores() const override;
-
-    // Native OpenXR quad path. is_native_quad() is true only when the flag
-    // is set AND this layer is in a kXr session (so window/offscreen keep
-    // using record()). acquire_native_quad() promotes the mailbox slot (like
-    // record()'s consumer side) and returns the per-eye source images +
-    // placement for the backend to blit into its quad swapchain. See
-    // Config::use_openxr_quad_layer.
-    bool is_native_quad() const noexcept override;
-    std::optional<NativeQuadView> acquire_native_quad(uint32_t in_flight_slot) override;
+    // Native OpenXR quad path. is_native_layer() is true only when
+    // openxr_composition is on (the default) AND this layer is in a kXr
+    // session (so window/offscreen keep using record()).
+    // acquire_native_layer() promotes the mailbox slot (like record()'s
+    // consumer side) and returns the per-eye source images + placement for
+    // the backend to blit into its quad swapchain. See
+    // Config::openxr_composition.
+    bool is_native_layer() const noexcept override;
+    std::optional<NativeLayerView> acquire_native_layer(uint32_t in_flight_slot) override;
 
     // Drives aspect-fit letterbox in window mode; ignored in kXr.
     std::optional<float> aspect_ratio() const noexcept override;
 
-    const VkContext* vk_context() const noexcept override
-    {
-        return ctx_;
-    }
-
-    Resolution resolution() const noexcept;
-    PixelFormat format() const noexcept;
-
     // Atomic placement swap, thread-safe vs record(). nullopt switches
-    // to fullscreen mode (kXr will throw on next record).
-    void set_placement(std::optional<Config::Placement> placement) noexcept;
+    // to fullscreen mode (kXr will throw on next record). Validates the
+    // same invariants as construction (size_meters > 0); throws
+    // std::invalid_argument.
+    void set_placement(std::optional<Config::Placement> placement);
     std::optional<Config::Placement> placement() const noexcept;
 
-    // Diagnostic accessor; nullptr for slots beyond kSlotCount, and
-    // device_image_right is null on mono layers.
-    const DeviceImage* device_image(uint32_t slot) const noexcept;
-    const DeviceImage* device_image_right(uint32_t slot) const noexcept;
+protected:
+    // Native quad: first GPU read is the backend's copy into the quad
+    // swapchain (TRANSFER). Composited-with-mips: the mip-gen blit chain
+    // reads level 0 at TRANSFER first. Plain composited: the fragment
+    // sampler is the first read.
+    VkPipelineStageFlags first_read_stage() const noexcept override;
 
 private:
     void init();
@@ -247,28 +185,10 @@ private:
     void allocate_descriptor_sets();
     void update_descriptor_sets();
 
-    // Mailbox slot allocation. submit() picks one of these states
-    // and atomically takes ownership; record() atomically promotes
-    // a freshly-published slot to `in_use_`.
-    static constexpr uint8_t kSlotNone = 0xFF;
-
-    // Promote latest_ -> in_use_[in_flight_slot] and update
-    // last_in_use_slot_ (shared by the render-pass consumer and the
-    // native-quad consumer). Returns the promoted slot, or kSlotNone if
-    // nothing has been published yet. Throws if in_flight_slot is out of
-    // range. Renderer thread only.
-    uint8_t promote_slot(uint32_t in_flight_slot);
-
     // True when this layer should composite as a native OpenXR quad:
     // the flag is set AND the attached session is kXr. Non-XR sessions
     // (and a detached layer) fall back to the record() draw path.
     bool native_active() const noexcept;
-
-    // Picks a slot that is neither latest_ nor in any in_use_ entry.
-    // Returns kSlotNone if every slot is forbidden (producer outran the
-    // renderer beyond the sizing invariant) — caller drops the publish.
-    uint8_t pick_free_slot(uint8_t latest,
-                           const std::array<std::atomic<uint8_t>, kMaxFramesInFlight>& in_use) const noexcept;
 
     // Emit a full mip-chain regeneration for ``image`` via
     // vkCmdBlitImage. Assumes the image is currently in
@@ -276,16 +196,10 @@ private:
     // same layout. Only called when Config::generate_mipmaps is true.
     void record_mip_generation(VkCommandBuffer cmd, DeviceImage& image);
 
-    const VkContext* ctx_ = nullptr;
     VkRenderPass render_pass_ = VK_NULL_HANDLE; // borrowed from compositor
     Config config_;
     // Number of mip levels per DeviceImage slot. 1 when mips disabled.
     uint32_t mip_levels_ = 1;
-
-    // One DeviceImage per mailbox slot. ``slots_`` is the left/mono
-    // image; ``slots_right_`` only allocated when Config::stereo.
-    std::array<std::unique_ptr<DeviceImage>, kSlotCount> slots_;
-    std::array<std::unique_ptr<DeviceImage>, kSlotCount> slots_right_;
 
     VkSampler sampler_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
@@ -297,25 +211,6 @@ private:
     // ``descriptor_sets_right_`` is only populated when Config::stereo.
     std::array<VkDescriptorSet, kSlotCount> descriptor_sets_{};
     std::array<VkDescriptorSet, kSlotCount> descriptor_sets_right_{};
-
-    // Mailbox: latest_ = most recent publish. in_use_[i] = slot the
-    // i-th in-flight frame is sampling. Atomic so producer and
-    // renderer share without locks. All kSlotNone until first
-    // submit() / first sampling record(). Both record() and
-    // get_wait_semaphores() use the LAST seen in_use_ slot (any
-    // entry — record updates one, get_wait_semaphores reads from
-    // whichever entry corresponds to the in-flight frame that just
-    // recorded).
-    std::atomic<uint8_t> latest_{ kSlotNone };
-    std::array<std::atomic<uint8_t>, kMaxFramesInFlight> in_use_{};
-    // Tracks which in_use_ entry was MOST RECENTLY promoted by
-    // record(). get_wait_semaphores() reads this entry's slot — it's
-    // the one whose cuda_done_writing semaphore gates the GPU's
-    // sampling work that was just queued. Atomic but doesn't need
-    // mutual exclusion with in_use_ stores (the renderer thread does
-    // both writes; we use atomics for cross-thread visibility with
-    // submit's reads in pick_free_slot).
-    std::atomic<uint8_t> last_in_use_slot_{ kSlotNone };
 
     // Live placement; lock for set_placement / record() snapshot.
     mutable std::mutex placement_mutex_;
