@@ -31,6 +31,8 @@ Requirements
 
 - A workstation meeting the :doc:`system requirements </references/requirements>` (Ubuntu, NVIDIA
   GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.
+- For Jetson Orin, use
+  `JetPack 6.2.1 <https://developer.nvidia.com/embedded/jetpack-sdk-621>`_.
 - For the default XR mode, a headset to connect as the CloudXR client — follow the
   :doc:`quick start </getting_started/quick_start>` step :ref:`connect-xr-headset`. The viewer
   launches the CloudXR runtime itself; nothing to start separately. No headset handy?
@@ -48,11 +50,11 @@ run the sample's one-time setup:
    source examples/camera_viz/.venv/bin/activate
 
 There is no need to install the ``isaacteleop`` pip package yourself — ``setup`` creates the
-sample's own environment: it installs ``isaacteleop>=1.4`` (which bundles Televiz) and every other
-Python dependency from PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC codec, and
-probes system packages (GStreamer plugins, cairo / girepository headers, JetPack ``cuda-nvrtc`` +
-``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line and prompts
-``[y/N]`` — answering ``n`` or running non-interactively aborts.
+sample's own environment: it installs ``isaacteleop>=1.4`` (which bundles Televiz) and
+every other Python dependency from PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC
+codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack
+``cuda-nvrtc`` + ``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line
+and prompts ``[y/N]`` — answering ``n`` or running non-interactively aborts.
 
 By default ``setup`` provisions everything except ZED support; flags trim or extend that:
 
