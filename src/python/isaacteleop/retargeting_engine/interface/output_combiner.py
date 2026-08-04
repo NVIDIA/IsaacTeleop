@@ -109,7 +109,7 @@ class OutputCombiner(GraphExecutable):
         if outputs is not None:
             return outputs
 
-        outputs = dict()
+        outputs = {}
         for custom_name, selector in self.output_mapping.items():
             source_outputs = selector.module._compute_with_cache(cache)
             outputs[custom_name] = source_outputs[selector.output_name]

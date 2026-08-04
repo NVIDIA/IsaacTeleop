@@ -79,18 +79,18 @@ def make_exe(tmp_path: Path, rel: str) -> str:
 def make_config(tmp_path: Path, **kwargs) -> RigConfig:
     producer = make_exe(tmp_path, "install/plugins/foo/foo_plugin")
     consumer = make_exe(tmp_path, "install/examples/bar/bar_printer")
-    defaults = dict(
-        name="test_rig",
-        description="test rig",
-        cwd=tmp_path,
-        params={"hand": "right", "collection_id": "cid"},
-        runtime=None,
-        producers=(
+    defaults = {
+        "name": "test_rig",
+        "description": "test rig",
+        "cwd": tmp_path,
+        "params": {"hand": "right", "collection_id": "cid"},
+        "runtime": None,
+        "producers": (
             ProcessConfig("foo plugin", f"{producer} {{hand}} {{collection_id}}"),
         ),
-        consumers=(ProcessConfig("bar printer", f"{consumer} {{collection_id}}"),),
-        source=tmp_path / "rig.yaml",
-    )
+        "consumers": (ProcessConfig("bar printer", f"{consumer} {{collection_id}}"),),
+        "source": tmp_path / "rig.yaml",
+    }
     defaults.update(kwargs)
     return RigConfig(**defaults)
 

@@ -91,12 +91,12 @@ def main() -> int:
         print("Set ACCESS_KEY_ID and SECRET_ACCESS_KEY.")
         return 1
 
-    client_kwargs = dict(
-        aws_access_key_id=access_key_id,
-        aws_secret_access_key=secret_access_key,
-        region_name=region,
-        config=Config(connect_timeout=5),
-    )
+    client_kwargs = {
+        "aws_access_key_id": access_key_id,
+        "aws_secret_access_key": secret_access_key,
+        "region_name": region,
+        "config": Config(connect_timeout=5),
+    }
     if endpoint_url:
         client_kwargs["endpoint_url"] = endpoint_url
 

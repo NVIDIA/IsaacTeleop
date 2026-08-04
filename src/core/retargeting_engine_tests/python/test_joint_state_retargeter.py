@@ -441,7 +441,7 @@ class TestPipeline:
         )
         reorderer = TensorReorderer(
             input_config={"ee_pose": pose_labels, "gripper_command": ["gripper_value"]},
-            output_order=pose_labels + ["gripper_value"],
+            output_order=[*pose_labels, "gripper_value"],
             name="action_reorderer",
             input_types={"ee_pose": "array", "gripper_command": "scalar"},
         )

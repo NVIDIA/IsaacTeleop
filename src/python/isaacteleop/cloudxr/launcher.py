@@ -589,6 +589,7 @@ class CloudXRLauncher:
                     ["fuser", "-k", "-TERM", ipc_socket],
                     capture_output=True,
                     timeout=5,
+                    check=False,
                 )
                 if result.returncode == 0:
                     time.sleep(1)

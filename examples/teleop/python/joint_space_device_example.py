@@ -108,7 +108,7 @@ def build_pipeline(
     head = retargeter.connect(
         {JointStateRetargeter.JOINTS: source.output(JointStateSource.JOINTS)}
     )
-    action_labels = _POSE_LABELS + ["gripper_value"]
+    action_labels = [*_POSE_LABELS, "gripper_value"]
     reorderer = TensorReorderer(
         input_config={"ee_pose": _POSE_LABELS, "gripper_command": ["gripper_value"]},
         output_order=action_labels,

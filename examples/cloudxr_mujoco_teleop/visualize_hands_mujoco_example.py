@@ -37,6 +37,7 @@ from scipy.spatial.transform import Rotation as R
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
 from isaacteleop.cloudxr import CloudXRLauncher
+import itertools
 
 
 # Route MuJoCo warnings to stderr instead of writing MUJOCO_LOG.TXT in CWD.
@@ -74,7 +75,7 @@ LITTLE = (21, 22, 23, 24, 25)
 def _finger_chain(root: int, joints: tuple) -> list:
     """[(root,j0), (j0,j1), (j1,j2), ...] — adjacent-pair bone segments."""
     chain = [(root, joints[0])]
-    for a, b in zip(joints[:-1], joints[1:]):
+    for a, b in itertools.pairwise(joints):
         chain.append((a, b))
     return chain
 

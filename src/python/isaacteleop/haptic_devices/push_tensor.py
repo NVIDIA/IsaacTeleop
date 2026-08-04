@@ -86,9 +86,7 @@ class PushTensorHapticDevice(IHapticDevice):
         )
         # Latest-wins per endpoint within a frame; emitted and cleared by flush.
         self._pending: dict[Endpoint, list[float]] = {}
-        self._error_logged: dict[Endpoint, bool] = {
-            endpoint: False for endpoint in self._endpoints
-        }
+        self._error_logged: dict[Endpoint, bool] = dict.fromkeys(self._endpoints, False)
 
     def accepted_type(self) -> TensorGroupType:
         return self._accepted_type

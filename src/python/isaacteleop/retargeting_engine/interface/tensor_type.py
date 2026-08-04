@@ -66,7 +66,6 @@ class TensorType(ABC):
         Returns:
             True if the instances are compatible, False otherwise
         """
-        pass
 
     @abstractmethod
     def validate_value(self, value: Any) -> None:
@@ -83,7 +82,6 @@ class TensorType(ABC):
         Raises:
             TypeError: If the value does not conform to this tensor type
         """
-        pass
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name='{self._name}')"
