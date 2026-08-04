@@ -47,10 +47,19 @@ Prerequisites
 Configure and Build
 ~~~~~~~~~~~~~~~~~~~
 
+.. warning::
+
+   ``CMAKE_TOOLCHAIN_FILE`` is a CMake constraint: it is only read on the
+   **first** configure of a build tree and is silently ignored on any
+   re-configure. **If** ``build/`` **already exists, delete it before running
+   the commands below**, otherwise the vcpkg toolchain will not be picked up and
+   configure will fail.
+
 .. code-block:: bash
 
    cd IsaacTeleop
 
+   rm -rf build/   # required if build/ already exists or was previously configured without CMAKE_TOOLCHAIN_FILE
    cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
        -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
    cmake --build build --target camera_plugin_oak --parallel
