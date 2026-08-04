@@ -67,7 +67,7 @@ private:
     core::SchemaPusher m_pusher;
 };
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** argv)
 try
 {
     std::cout << "Schema Pusher (collection: " << COLLECTION_ID << ")" << std::endl;
