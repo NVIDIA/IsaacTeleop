@@ -94,9 +94,7 @@ def test_the_default_scene_needs_no_fetch():
     """S7, asserted rather than assumed.
 
     The default must be loadable on an unfetched checkout, or every fresh clone
-    fails at `python -m isaacteleop_examples.mujoco_xr` -- and the existing
-    36-case baseline (test_offscreen_render.py builds its model from
-    app.DEFAULT_SCENE) stops being reachable.
+    fails at `python -m isaacteleop_examples.mujoco_xr`.
     """
     default = robot_spec.scene_by_id(robot_spec.DEFAULT_SCENE_ID)
     assert default.menagerie_dir is None

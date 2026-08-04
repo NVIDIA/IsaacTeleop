@@ -4,13 +4,15 @@
 # mujoco_xr tests. Each test_*.py registers as its own ctest entry under the
 # `mujoco_xr` label -- same shape as examples/camera_viz/tests/CMakeLists.txt.
 #
-# Most are unit-level (frame conventions, the projection matrix, the clock),
-# but test_offscreen_render.py is not: it builds a real GPU-backed kOffscreen
-# VizSession and runs the whole Vulkan -> CUDA -> submit path, skipping with a
-# reason when there is no usable device. What is deliberately NOT here is
-# anything requiring a HEADSET or a CloudXR runtime, because a
-# permanently-skipping test reports green while covering nothing. Same split
-# README.md states under "Not verified anywhere in CI".
+# All of them are unit-level and need NO GPU, no headset, no CloudXR runtime
+# and no window system: frame conventions, the projection matrix, the clock, the
+# scene catalogue, the IK solver, the clutch and the ghost overlay. That is the
+# whole of it, deliberately -- a test that needs hardware only one developer has
+# reports green by skipping, and examples have no CI to run it in anyway
+# (NVIDIA/IsaacTeleop#880). The GPU-backed kOffscreen render test that used to
+# live here was removed for exactly that reason; the Vulkan -> CUDA -> submit
+# path is now covered nowhere, and README.md says so under
+# "Not verified anywhere in CI or on a developer desktop".
 
 file(GLOB TEST_FILES
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"

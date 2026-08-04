@@ -3,8 +3,6 @@
 
 """Pure helpers from the app that guard against silent-corruption bugs."""
 
-import math
-
 import pytest
 
 app = pytest.importorskip(
@@ -36,7 +34,7 @@ def test_clamp_dt_sends_nan_to_zero():
     assert app._clamp_dt(float("nan")) == 0.0
 
 
-def test_frame_clock_refuses_the_zeroed_xr_timestamp():
+def test_frame_clock_refuses_the_zeroed_timestamp():
     """Regression: the 50-step physics lurch at every session start.
 
     ``viz_session.cpp:255-256`` sets ``should_render = false`` AND
@@ -50,25 +48,10 @@ def test_frame_clock_refuses_the_zeroed_xr_timestamp():
     class _Info:
         predicted_display_time = 0
 
-    assert app._frame_clock(_Info(), app.viz.DisplayMode.kXr) is None
+    assert app._frame_clock(_Info()) is None
 
     _Info.predicted_display_time = 2_000_000_000  # ns
-    assert app._frame_clock(_Info(), app.viz.DisplayMode.kXr) == 2.0
-
-
-def test_frame_clock_falls_back_to_monotonic_outside_xr():
-    """predicted_display_time is 0 in window/offscreen for a different reason.
-
-    There is no runtime predicting anything, so 0 there is not a missing
-    sample -- and must NOT be treated as one, or those modes never step.
-    """
-
-    class _Info:
-        predicted_display_time = 0
-
-    for mode in (app.viz.DisplayMode.kWindow, app.viz.DisplayMode.kOffscreen):
-        now = app._frame_clock(_Info(), mode)
-        assert now is not None and now > 0.0
+    assert app._frame_clock(_Info()) == 2.0
 
 
 def test_clock_stall_streak_ignores_the_startup_burst():
@@ -121,46 +104,6 @@ def test_near_far_are_a_single_sane_pair():
     # viz defaults far to 100.0; a tabletop scene does not want that precision
     # spent 50-100 m away.
     assert app.FAR_Z <= 100.0
-
-
-def test_debug_view_is_a_valid_frustum_not_a_zeroed_one():
-    """The non-XR modes must never inherit viz's default-constructed Fov.
-
-    ``window_backend.cpp`` and ``offscreen_backend.cpp`` fill FrameInfo.views
-    with one default ViewInfo whose Fov is four zeros; feeding that to the
-    projection yields +inf and NaN. The app therefore builds its own, and it
-    must be a real frustum.
-    """
-
-    class _Res:
-        width = 1280
-        height = 720
-
-    pose, fov = app._debug_view(_Res())
-
-    assert len(pose) == 7
-    assert len(fov) == 4
-    angle_left, angle_right, angle_up, angle_down = fov
-    assert angle_right > angle_left
-    assert angle_up > angle_down
-    assert not any(a == 0.0 for a in fov)
-
-    # Unit quaternion, and the eye is above the floor rather than at the XR
-    # origin (which under this app's frames convention is inside the table).
-    qw, qx, qy, qz = pose[3:]
-    assert math.isclose(
-        math.sqrt(qw * qw + qx * qx + qy * qy + qz * qz), 1.0, rel_tol=1e-9
-    )
-    assert pose[1] > 1.0
-
-    # And it survives the shipped per-frame assertion.
-    from isaacteleop_examples.mujoco_xr import _mujoco_xr
-
-    app._assert_projection(
-        _mujoco_xr.projection_from_fov(fov, app.NEAR_Z, app.FAR_Z),
-        app.NEAR_Z,
-        app.FAR_Z,
-    )
 
 
 def test_assert_projection_rejects_a_lost_y_flip():

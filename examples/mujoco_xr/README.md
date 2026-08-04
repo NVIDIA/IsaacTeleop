@@ -12,13 +12,24 @@ session, with the operator's controllers drawn as markers.
 
 | | |
 |---|---|
-| **Covered by tests** | [`ctest -L mujoco_xr`](#tests), no headset needed: the whole Vulkan→CUDA→`ProjectionLayer.submit()` path against a real `kOffscreen` session, plus the frame conventions, the projection convention and the clock as unit tests. |
-| **Run, but not asserted by any test** | The app's own **frame loop** — the code that sequences clock → `mj_step` → render → projection assertion → submit — via `--mode offscreen`. Each of those pieces has a unit test; the loop that calls them is executed by hand, not in CI. |
-| **Never executed anywhere** | `--mode xr` — the whole XR frame loop, OpenXR session sharing via `oxr_handles`, controllers on a shared session, and whether the runtime accepts the depth layer. All need a headset plus a CloudXR runtime. |
-| **Known-failing here** | `--mode window` on a Tegra/Xvfb host (see [Run](#run)). |
+| **Covered by tests** | [`ctest -L mujoco_xr`](#tests) — the frame conventions, the projection convention, the clock, the scene catalogue, the IK solver, the clutch and the ghost overlay. All of it is **pure CPU**: no GPU, no headset, no runtime, no window system. |
+| **Never executed anywhere** | **The app itself.** There is one display mode, `kXr`, and it needs a headset plus a CloudXR runtime — so the frame loop, the renderer, OpenXR session sharing via `oxr_handles`, controllers on a shared session, the Vulkan→CUDA→`ProjectionLayer.submit()` path, and whether the runtime accepts the depth layer are **none of them run by any test or any developer here**. |
 | **Wrong by construction until calibrated** | The workspace translation — see [Frames](#frames-cppframeshpp). |
 
 Details in [Not verified anywhere in CI or on a developer desktop](#not-verified-anywhere-in-ci-or-on-a-developer-desktop).
+
+**This used to claim more, and the claim was hollow.** A `--mode` flag offered
+`window` and `offscreen` alongside `xr`. `window` never worked on any machine
+anyone checked. `offscreen` rendered into memory, displayed nothing, could not
+terminate on its own (`OffscreenBackend` never overrides `should_close()`), and
+was invoked by no CI job, no rig and no script — only by a human copy-pasting
+from this file. A GPU-backed `kOffscreen` test covered the Vulkan→CUDA→submit
+path, and it too ran only when somebody on a GPU workstation typed `ctest`;
+nothing in `.github/workflows/` installs `mujoco`, so **no `mujoco_xr` test has
+ever run in CI**. Both are gone. Examples have no test infrastructure yet
+([NVIDIA/IsaacTeleop#880](https://github.com/NVIDIA/IsaacTeleop/issues/880)); when
+they do, a headless path should come back **with the job that runs it**, not
+before.
 
 Single process, single thread, **one** OpenXR session:
 
@@ -67,8 +78,11 @@ between it and the tool is the IK's tracking error made visible.
 
 ```bash
 uv pip install ./examples/mujoco_xr     # from the repository root
-python -m isaacteleop_examples.mujoco_xr --mode offscreen
+python -m isaacteleop_examples.mujoco_xr
 ```
+
+That second line **needs a headset and a running CloudXR runtime** — there is no
+mode that does not. See [Run](#run).
 
 That is the whole run path. Nothing is installed into `install/examples/mujoco_xr/`
 any more, and there is no `uv run --directory ...` invocation. `uv pip install`
@@ -133,8 +147,8 @@ incremental (~8 s) because the build directory persists.
 | **CMake ≥ 3.21** | Not 3.20: the project floor is `3.20...3.25` (root `CMakeLists.txt`), but every command on this page goes through `--preset`, and `CMakePresets.json` declares `cmakeMinimumRequired 3.21.0`. Measured on this host with 3.28.3. |
 | **A C++ compiler, the Vulkan SDK/loader, CUDA** | The same toolchain the rest of this repository needs; see `docs/source/getting_started/build_from_source/`. |
 | **`glslangValidator`** (`apt install glslang-tools`) | The scene shaders are compiled to SPIR-V at build time. In the root build this was implied by `BUILD_VIZ`, which auto-disables when it is missing; on the wheel path it is a hard `FATAL_ERROR` from `cpp/CMakeLists.txt`, so an otherwise-fine host fails the install. |
-| **A GPU with Vulkan + CUDA** | Needed to *run* anything, including `--mode offscreen`. Without one, `test_offscreen_render.py` skips with a reason and the app fails at `VizSession.create`. |
-| **A headset + CloudXR runtime** | Only for `--mode xr`. Everything else on this page runs without one. |
+| **A GPU with Vulkan + CUDA** | Needed to *run* the app at all; it fails at `VizSession.create` without one. Not needed to build it, and not needed by any test. |
+| **A headset + CloudXR runtime** | Needed to run the app, full stop — `kXr` is the only display mode. Everything else on this page (build, tests) runs without one. |
 
 **Build isolation does not save you from the toolchain rows above.**
 `pyproject.toml`'s `build-system.requires` can declare a *Python* build
@@ -289,7 +303,9 @@ ones `CloudXRLauncher` adds:
 python -m isaacteleop_examples.mujoco_xr --help
 ```
 
-`--mode` takes `xr` (default), `window` or `offscreen`. `--scene` takes a
+**There is no `--mode`.** The app always opens a `kXr` session, so every command
+below needs a headset and a CloudXR runtime; there is no desktop window and no
+headless path. `--scene` takes a
 catalogue id — `tabletop` (the default), `franka` or `so101`; the two robot
 scenes need [a fetch](#scene-assets) first. `--scene-xml` overrides the
 scene XML with a path. The default is **package data inside the installed
@@ -352,78 +368,64 @@ the failure comes out of `VizSession.create(kXr)` as an OpenXR instance/runtime
 error before any of this example's own code runs — you will not see the startup
 log block at all. Getting *no* `[mujoco_xr]` lines is the tell that it failed
 here rather than anywhere downstream. (Not reproduced on this host: nobody has
-run `--mode xr` — see the [Status](#status--read-this-before-the-diagram) table.)
+run the app — see the [Status](#status--read-this-before-the-diagram) table.)
 
 ### Without a headset
 
-`--mode offscreen` runs the app's own frame loop — clock, `mj_step`, render,
-per-frame projection assertion, `ProjectionLayer.submit()` — with no window
-system, no runtime and no headset. It renders into memory and nothing is
-displayed, so it is a smoke test rather than a way to look at the scene. It runs
-until interrupted.
+You cannot run the app. There is no desktop window, no headless render, and no
+flag that produces either — see the note under
+[Status](#status--read-this-before-the-diagram) for why the two that used to
+exist were removed.
 
-```bash
-python -m isaacteleop_examples.mujoco_xr --mode offscreen --no-launch-cloudxr-runtime
-```
-
-**Know when it has succeeded**, because success is quiet: it prints the startup
-block below, then the single `projection convention verified...` line, and then
-**nothing further, ever**. There is no per-frame output and no progress
-indicator — a silent terminal *is* the passing state. `Ctrl-C` exits **0**
-(`main` catches `KeyboardInterrupt`). Anything else — a traceback, a `RuntimeError`
-about `mjvScene is full`, or a `clock stalled:` line — is a real failure.
-
-`--mode window` is meant to be the "look at the scene on a desktop" path, and it
-is **known-failing on this Tegra/Xvfb host**:
-
-```
-Swapchain::create: chosen queue family does not support present on this surface
-```
-
-That is pre-existing and unrelated to this example — the same defect fails four
-`[window]`-labelled tests in `src/viz` on a clean checkout, before any code here
-is reached. On a normal desktop with a present-capable surface it should work,
-but nobody has run it there.
-
-**The primary verification path on a machine with no headset is
-[`ctest -L mujoco_xr`](#tests)**, not either of the two modes above.
+**The only verification path on a machine with no headset is
+[`ctest -L mujoco_xr`](#tests)**, and it exercises no GPU code at all. That is a
+real gap, not a tidied-up one: everything below `_loop` — the renderer, the
+Vulkan→CUDA export, `ProjectionLayer.submit()` — is now covered by nothing.
 
 ## A real startup log
 
-Verbatim, from `--mode offscreen` on this host. Every assumption that is
-otherwise invisible is printed exactly once, before the first frame:
+**Transcribed from `_log_startup`, not captured from a run** — and that
+distinction is the point. This block used to be a verbatim `--mode offscreen`
+paste; with that mode gone the app only starts on a headset, and nobody here has
+one, so **no one has ever seen these lines print**. Treat the shape as accurate
+and the values as unconfirmed. Every assumption that is otherwise invisible is
+printed exactly once, before the first frame:
 
 ```
-[mujoco_xr] scene:      /tmp/mjxr_venv/lib/python3.12/site-packages/isaacteleop_examples/mujoco_xr/assets/tabletop.xml
-[mujoco_xr] isaacteleop: /tmp/mjxr_venv/lib/python3.12/site-packages/isaacteleop/viz (version 1.5+local)
+[mujoco_xr] scene:      <site-packages>/isaacteleop_examples/mujoco_xr/assets/tabletop.xml
+[mujoco_xr] isaacteleop: <site-packages>/isaacteleop/viz (version 1.5+local)
 [mujoco_xr] mujoco:     3.11.0 (extension links 3.11.0)
-[mujoco_xr] mode:       DisplayMode.kOffscreen   view resolution: 1024x1024
+[mujoco_xr] views:      2 (stereo)   view resolution: 1024x1024
 [mujoco_xr] clip:       near=0.0500 far=50.00 (one pair -> VizSessionConfig, projection, submitted depth)
-[mujoco_xr] reference space: LOCAL. VizSession exposes no reference-space option and its backend never sets one, so the origin is wherever the headset was at session start -- NOT the floor.
-[mujoco_xr] frames:     mj_from_xr translation = (-1.000, 0.000, -0.730) m. x is operator standoff; z is a FLOOR datum and is only correct if the reference-space origin is on the floor (see above). Neither term may be zeroed.
-[mujoco_xr] clock:      time.monotonic() (predicted_display_time is 0 outside kXr)
+[mujoco_xr] reference space: LOCAL_FLOOR -- origin on the floor below the operator's start pose, so the z below is a measured floor datum. viz logs what the runtime actually offered on its own line.
+[mujoco_xr] frames:     mj_from_xr translation = (-1.000, 0.000, -0.730) m. x is operator standoff; z is the FLOOR datum, valid because the reference space above is floor-origin. Neither term may be zeroed.
+[mujoco_xr] clock:      FrameInfo.predicted_display_time; frames with no prediction are skipped, not sampled as 0
 [mujoco_xr] depth submission: requested (ProjectionLayer depth_format=D32F). Whether the runtime ACCEPTED it is not queryable -- XrBackend::depth_layer_enabled_ is private with no accessor or binding. The absence of errors is NOT confirmation.
-[mujoco_xr] control disengaged: DisplayMode.kOffscreen has no OpenXR session, so no controllers and no markers.
+[mujoco_xr] controller markers: 2 validly tracked
+[mujoco_xr] head tracking: origin sample at (0.000, 1.600, 0.000) m in the reference space. Walk or lean; the travel below must grow.
 [mujoco_xr] projection convention verified on the first rendered frame (P[1][1] < 0, near->0, far->1)
 ```
+
+The last three come from the first *rendered* frame rather than from startup, and
+their order is fixed by `_loop`: markers are drawn before the scene-full check,
+the head probe samples just before `render()`, and the projection is asserted
+after it.
 
 **Which of those must match on your machine, and which will not:**
 
 | line | on your run |
 |---|---|
-| `scene:` / `isaacteleop:` | **Paths differ** — they are absolute and rooted in the `site-packages` you installed into. What matters is that both name the venv you expected, and **the same one**. |
+| `scene:` / `isaacteleop:` | **Paths differ** — they are absolute and rooted in the `site-packages` you installed into. What matters is that both name the venv you expected, and **the same one**. This is the single most useful line on the block: if it points at a `site-packages` you did not expect, stop there. |
 | `mujoco:` | **Both numbers must be identical** to each other (`3.11.0 (extension links 3.11.0)`). Two different versions means two `libmujoco`s in one process; `__init__.py` asserts this, so you would have seen an error instead. |
-| `mode:` | Matches your `--mode`. The resolution is whatever the backend recommends and **varies by runtime/host**. |
+| `views:` | Always `2 (stereo)` — `kXr` is the only mode. The resolution is whatever the backend recommends and **varies by runtime/host**. |
 | `clip:` / `frames:` | **Must match exactly** — they are compiled-in constants. If `frames:` reads anything but `(-1.000, 0.000, -0.730)` on an unmodified tree, something has been edited. |
 | `reference space:` / `depth submission:` | Fixed text. Always identical. |
+| `head tracking:` / `controller markers:` | **Vary with what the runtime is actually tracking.** `controller markers:` reprints whenever the count changes; `head tracking:` is followed either by a 6DoF confirmation or by the 3DoF warning — see `_HeadTravelProbe`. |
 | `version 1.5+local` | **Varies** with the build. |
 
-In `--mode xr` the `clock:` line instead reads
-`FrameInfo.predicted_display_time (XR); frames with no prediction are skipped, not sampled as 0`,
-`control disengaged` is replaced by a `controller markers: N validly tracked`
-line that reprints whenever N changes, and `isaacteleop:` is the single most
-useful line on the block — if it points at a `site-packages` you did not expect,
-stop there.
+A scene with no arm in it (`tabletop`) additionally logs `teleop control is OFF:`
+at WARNING, naming why. That is legitimate for `tabletop` and a real failure for
+`franka` / `so101`, and the string is the only thing that tells the two apart.
 
 ## Conventions you can break
 
@@ -564,35 +566,47 @@ ctest --test-dir build/cmake-cpython-312 -L mujoco_xr --output-on-failure
 |---|---|---|
 | `test_frames.py` | nothing | the XR→MuJoCo axis map and quaternion order |
 | `test_projection.py` | nothing | the clip-space convention (Y flip, standard Z, degenerate-fov rejection) |
-| `test_app_helpers.py` | nothing | the NaN-safe `dt` clamp, the zeroed-`predicted_display_time` guard, the stalled-clock watchdog (including that it stays **silent** through a normal startup burst), the debug frustum, and that the per-frame projection assertion actually fires |
-| `test_offscreen_render.py` | Vulkan + CUDA | **the whole Vulkan→CUDA→`ProjectionLayer.submit()` path**, in `kOffscreen` — no headset needed |
+| `test_app_helpers.py` | nothing | the NaN-safe `dt` clamp, the zeroed-`predicted_display_time` guard, the stalled-clock watchdog (including that it stays **silent** through a normal startup burst), the head-travel probe, and that the per-frame projection assertion actually fires |
 | `test_scenes.py` | nothing, or a fetch | the scene catalogue: that the fetch script and `robot_spec.SCENES` name the same Menagerie directories, that the default needs no fetch, that every scene puts its table top at `z = 0`, that no scene emits a geom type the renderer silently drops, and that every robot scene has a `home` keyframe whose `ctrl=` agrees with its own `qpos` |
 | `test_ik_dls.py` | nothing, or a fetch | resolution and the solver: `actuator_ctrlrange ∩ jnt_range` (on a synthetic arm built to make every kind of mismatch visible, **and** on the SO-101, where clamping to `ctrlrange` alone parks `wrist_roll` at 100 % of rated torque against a live joint limit), the Jacobian at the TCP rather than the body origin, the gravity feed-forward and its `kp > 0` guard, and that each resolution failure names what failed |
 | `test_teleop.py` | nothing, or a fetch | the clutch: a constant reference-space offset and a right-multiplied orientation offset leave the `ctrl` trace unchanged, a left-multiplied one **changes** it (the negative control — do not delete it), zero-jump engage, hysteresis, auto-disengage holding the target, jaw polarity at both endpoints and with an inverted spec, rate limiting including a NaN `dt`, and that a commanded pure translation stays pure on the SO-101 |
 | `test_ghost.py` | nothing, or a fetch | the overlay: that `mjv_updateScene` emits in geom-id order with the ghost last (the fact that replaced a second Vulkan pipeline), that the three leader parts form one assembly with sub-mm gaps, that the ghost tracks the controller and diverges from the target by exactly the clutch scaling, and that it is written **after** an A-reset |
 
-`test_offscreen_render.py` skips (with a reason naming what was missing) on a
-machine with no usable Vulkan/CUDA device. The `franka` / `so101` cases in
-`test_scenes.py` skip the same way, with a reason naming
-`scripts/fetch-menagerie.sh`, so an unfetched checkout is green rather than
-red — and the checks that need no assets (the script/table cross-check, the
-error-string check) still run there. Nothing here is gated on a headset,
-because a permanently-skipping test reports green while covering nothing.
+**Every one of these runs on a CPU**, with no GPU, no headset, no CloudXR
+runtime and no window system. The `franka` / `so101` cases in `test_scenes.py`
+skip with a reason naming `scripts/fetch-menagerie.sh`, so an unfetched checkout
+is green rather than red — and the checks that need no assets (the script/table
+cross-check, the error-string check) still run there.
+
+Nothing here is gated on hardware, because a permanently-skipping test reports
+green while covering nothing. That principle is why the GPU-backed
+`test_offscreen_render.py` was deleted rather than kept: it needed a Vulkan +
+CUDA device, so it skipped everywhere except a workstation, and since nothing in
+`.github/workflows/` installs `mujoco`, **not one test in this table has ever run
+in CI either**. Wiring examples into CI is
+[NVIDIA/IsaacTeleop#880](https://github.com/NVIDIA/IsaacTeleop/issues/880); until
+that lands, `ctest -L mujoco_xr` means "a developer ran this locally".
 
 ## Not verified anywhere in CI or on a developer desktop
 
-The XR frame loop, OpenXR session sharing via `oxr_handles`, whether the
-runtime accepts the depth layer, and **controllers on a shared session** all
-require a headset plus a CloudXR runtime. Neither is anything about how the
-teleop *feels*: the tuned constants in `robot_spec.py` come from an upstream
-implementation and are reproduced here in simulation only, the ghost's placement
-relative to the operator's hand has never been seen, and the two rendering risks
-in `assets/leader/leader_gripper.xml` (the ghost writing depth into the
-reprojection buffer, and ghost self-overlap with culling off) are both
-headset-only symptoms. (The Vulkan→CUDA interop underneath
-them *is* covered — see `tests/test_offscreen_render.py` — and so is the frame
-loop itself, in `--mode offscreen`, minus everything XR-specific.) The last one
-has no precedent elsewhere in this repository: `xrAttachSessionActionSets` is
+**Everything the GPU touches.** The renderer, the Vulkan→CUDA export,
+`ProjectionLayer.submit()`, the frame loop that sequences them, OpenXR session
+sharing via `oxr_handles`, whether the runtime accepts the depth layer, and
+**controllers on a shared session** — none of it is executed by any test or on
+any machine here. `kXr` is the only display mode, so the app does not start
+without a headset plus a CloudXR runtime, and the `kOffscreen` test that once
+covered the interop was removed for reporting green by skipping everywhere it
+mattered. That is a deliberate, documented gap; the fix is CI
+([#880](https://github.com/NVIDIA/IsaacTeleop/issues/880)), not a mode nobody
+runs.
+
+Nor is any of it anything about how the teleop *feels*: the tuned constants in
+`robot_spec.py` come from an upstream implementation and are reproduced here in
+simulation only, the ghost's placement relative to the operator's hand has never
+been seen, and the two rendering risks in `assets/leader/leader_gripper.xml` (the
+ghost writing depth into the reprojection buffer, and ghost self-overlap with
+culling off) are both headset-only symptoms. Controllers on a shared session
+have no precedent elsewhere in this repository: `xrAttachSessionActionSets` is
 legal once per `XrSession`, Teleop sidesteps it with `XR_NVX1_action_context`,
 and the one existing shared-session example (`examples/oglo_tactile`) exercises
 only Hand and Head trackers, which use no actions. Treat that as the likeliest

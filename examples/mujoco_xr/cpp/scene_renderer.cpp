@@ -166,8 +166,9 @@ std::array<float, 16> projection_from_fov(const std::array<float, 4>& fov_lrud, 
     {
         throw std::invalid_argument(
             "mujoco_xr: degenerate fov (need angle_right > angle_left and angle_up > angle_down). A "
-            "default-constructed viz::Fov is four zeros -- branch on the configured display mode, never on "
-            "inspecting the fov you were handed.");
+            "default-constructed viz::Fov is four zeros, and rendering one yields P[0][0] = +inf with a "
+            "NaN column -- a blank headset and no error. Fix the FrameInfo.views the session handed over; "
+            "do not relax this check.");
     }
     std::array<float, 16> out{};
     proj_from_fov(fov_lrud.data(), near_z, far_z, out.data());

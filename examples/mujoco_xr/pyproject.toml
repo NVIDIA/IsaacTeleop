@@ -4,7 +4,7 @@
 # This example is its own wheel, and the wheel is the ONLY way to run it:
 #
 #     uv pip install ./examples/mujoco_xr
-#     python -m isaacteleop_examples.mujoco_xr --mode offscreen
+#     python -m isaacteleop_examples.mujoco_xr     # needs a headset + CloudXR
 #
 # Why this is a separate wheel rather than part of `isaacteleop`, and why
 # `install_python_example()` could not be used: README.md#build.

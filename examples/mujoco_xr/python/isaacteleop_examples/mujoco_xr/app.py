@@ -83,21 +83,36 @@ MAX_DT_S = 0.1
 # (MuJoCoXR/src/sim_scene.cc:105). See _clock_stall_streak.
 STALL_FRAMES = 11
 
-# --mode. Three values, and each one is reachable somewhere different:
-#   xr        the product path; needs a headset and a CloudXR runtime.
-#   window    a desktop window; needs a working present-capable surface.
-#   offscreen renders into memory and submits, with NO window system, no
-#             headset and no runtime. It is the only mode that runs this app's
-#             own frame loop on a headless machine, which is what makes the
-#             startup log and the per-frame projection assertion observable
-#             without hardware.
-# The app branches on the CONFIGURED mode and never on the fov it got back --
-# see _debug_view for why that distinction is load-bearing.
-_MODES = {
-    "xr": viz.DisplayMode.kXr,
-    "window": viz.DisplayMode.kWindow,
-    "offscreen": viz.DisplayMode.kOffscreen,
-}
+# THE ONLY DISPLAY MODE. This app runs in kXr and nowhere else: it needs a
+# headset and a CloudXR runtime, and there is deliberately no desktop or
+# headless fallback. viz offers kWindow and kOffscreen, and both were once
+# reachable here through a --mode flag; they were removed because neither ever
+# ran anything a user wanted. kWindow never worked on any machine anyone
+# checked, and kOffscreen rendered into memory and displayed nothing, so its
+# only role was as a hand-run smoke test that no CI job ever executed (see
+# NVIDIA/IsaacTeleop#880 -- examples have no test infrastructure to run it in).
+#
+# What their removal bought: no fabricated debug camera, one clock instead of
+# two, an unconditional view_count, and a run() with no branch that builds
+# everything except the TeleopSession. If a headless path is ever wanted again,
+# it should arrive with the CI job that runs it, not before.
+_DISPLAY_MODE = viz.DisplayMode.kXr
+
+# Stereo, always: kXr is the only mode, and it has two eyes. Three places depend
+# on this being 2 -- the Renderer, ProjectionLayerConfig.stereo, and the
+# four-argument layer.submit() in _loop, which is spelled out per eye rather than
+# built in a loop. The first two read this name; the submit call cannot, so
+# changing this constant means editing that call too.
+_VIEW_COUNT = 2
+
+# The simulation clock, in two spellings of one fact: the short name is what the
+# stall watchdog names in an error line, the long one is what the startup block
+# prints. The second is DERIVED from the first so they cannot drift -- they used
+# to be produced together by one conditional, for the same reason.
+_CLOCK_NAME = "FrameInfo.predicted_display_time"
+_CLOCK_SOURCE = (
+    f"{_CLOCK_NAME}; frames with no prediction are skipped, not sampled as 0"
+)
 
 # PACKAGE DATA, resolved from inside the package -- one `.parent`, not three.
 #
@@ -123,10 +138,9 @@ _MODES = {
 #
 # STILL POINTS AT tabletop.xml, which is still the default scene, and that is a
 # deliberate constraint rather than inertia: tabletop.xml is the only scene that
-# needs no fetch, so an unfetched checkout runs and tests unchanged. It is also
-# the name tests/test_offscreen_render.py:69 reads, so the 36-case baseline is
-# preserved byte for byte. The scene CATALOGUE lives in robot_spec.SCENES; this
-# is the one row of it that app.py names directly.
+# needs no fetch, so an unfetched checkout runs and tests unchanged. The scene
+# CATALOGUE lives in robot_spec.SCENES; this is the one row of it that app.py
+# names directly.
 DEFAULT_SCENE = robot_spec.scene_path(
     robot_spec.scene_by_id(robot_spec.DEFAULT_SCENE_ID)
 )
@@ -298,43 +312,6 @@ def _build_pipeline() -> OutputCombiner:
     )
 
 
-def _debug_view(resolution) -> tuple[list[float], list[float]]:
-    """An EXPLICIT camera pose + symmetric fov for the non-XR modes.
-
-    Two separate traps live here, and neither is hypothetical:
-
-    1. ``window_backend.cpp`` (and ``offscreen_backend.cpp``) fill
-       ``FrameInfo.views`` with a single default-constructed ``ViewInfo``, whose
-       ``Fov`` is four ZEROS. Feeding that to the projection gives
-       ``right - left == 0`` -> ``P[0][0] = +inf`` and
-       ``P[2][0] = P[2][1] = NaN``. So the app branches on the CONFIGURED mode,
-       never on inspecting the fov it got back.
-    2. That same default ``ViewInfo`` has an IDENTITY pose, which puts the eye
-       at the XR origin. Under this app's frames convention the XR origin is
-       on the floor, so the camera would be inside the table looking at
-       nothing.
-    """
-    aspect = resolution.width / resolution.height
-    half_v = math.radians(30.0)
-    half_h = math.atan(math.tan(half_v) * aspect)
-    fov = [-half_h, half_h, half_v, -half_v]
-
-    # Eye at operator height, a little behind the workspace, pitched down 25
-    # degrees. XR space is Y-up with -Z forward; pitching the view down is a
-    # NEGATIVE rotation about +X.
-    pitch = math.radians(-25.0)
-    pose = [
-        0.0,
-        1.60,
-        0.30,
-        math.cos(pitch / 2.0),  # qw
-        math.sin(pitch / 2.0),  # qx
-        0.0,
-        0.0,
-    ]
-    return pose, fov
-
-
 def _flatten_xr_views(info) -> tuple[list[float], list[float]]:
     """FrameInfo.views -> the flat float arrays the renderer takes.
 
@@ -392,7 +369,7 @@ def _assert_projection(p: list[float], near: float, far: float) -> None:
         )
 
 
-def _log_startup(mode, resolution, clock_source: str, scene: Path) -> None:
+def _log_startup(resolution, scene: Path) -> None:
     """One block naming every assumption that is invisible at runtime."""
     try:
         version = importlib.metadata.version("isaacteleop")
@@ -412,8 +389,8 @@ def _log_startup(mode, resolution, clock_source: str, scene: Path) -> None:
         _mujoco_xr.mujoco_version(),
     )
     LOG.info(
-        "mode:       %s   view resolution: %sx%s",
-        mode,
+        "views:      %d (stereo)   view resolution: %sx%s",
+        _VIEW_COUNT,
         resolution.width,
         resolution.height,
     )
@@ -433,7 +410,7 @@ def _log_startup(mode, resolution, clock_source: str, scene: Path) -> None:
         trans[1],
         trans[2],
     )
-    LOG.info("clock:      %s", clock_source)
+    LOG.info("clock:      %s", _CLOCK_SOURCE)
     LOG.info(
         "depth submission: requested (ProjectionLayer depth_format=D32F). Whether the runtime ACCEPTED it is "
         "not queryable -- XrBackend::depth_layer_enabled_ is private with no accessor or binding. The absence "
@@ -515,15 +492,15 @@ def _build_control(model, data):
         return None
 
 
-def _frame_clock(info, mode) -> float | None:
+def _frame_clock(info) -> float | None:
     """The single simulation clock, or None if this frame carries no time.
 
-    In kXr this is ``predicted_display_time`` -- the time the frame will
-    actually be DISPLAYED, which is what the geometry should correspond to.
+    ``predicted_display_time`` -- the time the frame will actually be
+    DISPLAYED, which is what the geometry should correspond to.
     ``FrameInfo.delta_time`` is CPU wall-clock and appears nowhere in this app.
 
-    RETURNS None IN kXr WHEN ``predicted_display_time`` IS 0, and that case is
-    not hypothetical. ``src/viz/session/cpp/viz_session.cpp:255-256`` sets
+    RETURNS None WHEN ``predicted_display_time`` IS 0, and that case is not
+    hypothetical. ``src/viz/session/cpp/viz_session.cpp:255-256`` sets
     ``should_render = false`` **and** ``predicted_display_time = 0`` together on
     every frame the runtime does not want rendered -- which is every frame
     before the session reaches kRunning, i.e. the start of every single
@@ -535,16 +512,10 @@ def _frame_clock(info, mode) -> float | None:
 
     The caller must skip the SAMPLE and leave the accumulator alone: the
     simulation still owes the time between the last two real samples.
-
-    ``predicted_display_time`` is 0 in kWindow / kOffscreen as well, so those
-    modes use ``time.monotonic()`` instead -- there is no runtime to predict
-    for. Which clock is live is printed at startup.
     """
-    if mode == viz.DisplayMode.kXr:
-        if info.predicted_display_time == 0:
-            return None
-        return info.predicted_display_time / 1e9
-    return time.monotonic()
+    if info.predicted_display_time == 0:
+        return None
+    return info.predicted_display_time / 1e9
 
 
 def _resolve_scene(args: argparse.Namespace) -> Path:
@@ -569,8 +540,6 @@ def _resolve_scene(args: argparse.Namespace) -> Path:
 
 
 def run(args: argparse.Namespace, scene_path: Path) -> int:
-    mode = _MODES[args.mode]
-
     model = mujoco.MjModel.from_xml_path(str(scene_path))
     data = mujoco.MjData(model)
 
@@ -583,7 +552,7 @@ def run(args: argparse.Namespace, scene_path: Path) -> int:
     required_extensions = get_required_oxr_extensions_from_pipeline(pipeline)
 
     config = viz.VizSessionConfig()
-    config.mode = mode
+    config.mode = _DISPLAY_MODE
     config.app_name = "MuJoCoXR"
     config.xr_near_z = NEAR_Z
     config.xr_far_z = FAR_Z
@@ -615,14 +584,13 @@ def run(args: argparse.Namespace, scene_path: Path) -> int:
     renderer = None
     try:
         resolution = session.get_recommended_resolution()
-        view_count = 2 if mode == viz.DisplayMode.kXr else 1
 
         layer_config = viz.ProjectionLayerConfig()
         layer_config.name = "mujoco_scene"
         layer_config.view_resolution = resolution
         layer_config.color_format = viz.PixelFormat.kRGBA8
         layer_config.depth_format = viz.PixelFormat.kD32F
-        layer_config.stereo = view_count == 2
+        layer_config.stereo = _VIEW_COUNT == 2
         layer = session.add_projection_layer(layer_config)
 
         renderer = _mujoco_xr.Renderer(
@@ -631,27 +599,13 @@ def run(args: argparse.Namespace, scene_path: Path) -> int:
             vk_queue_family_index=session.vk_queue_family_index,
             width=resolution.width,
             height=resolution.height,
-            view_count=view_count,
+            view_count=_VIEW_COUNT,
             near_z=NEAR_Z,
             far_z=FAR_Z,
             model_address=model._address,
         )
 
-        # One conditional, two spellings of the same fact: the short name is
-        # what the stall watchdog names in an error line, the long one is what
-        # the startup block prints. Derived together so they cannot drift.
-        clock_name, clock_source = (
-            (
-                "FrameInfo.predicted_display_time",
-                "FrameInfo.predicted_display_time (XR); frames with no prediction are skipped, not sampled as 0",
-            )
-            if mode == viz.DisplayMode.kXr
-            else (
-                "time.monotonic()",
-                "time.monotonic() (predicted_display_time is 0 outside kXr)",
-            )
-        )
-        _log_startup(mode, resolution, clock_source, scene_path)
+        _log_startup(resolution, scene_path)
 
         # Built AFTER the startup block so the robot line it logs reads as part
         # of the same report, and BEFORE the frame loop so a resolution failure
@@ -675,50 +629,20 @@ def run(args: argparse.Namespace, scene_path: Path) -> int:
             # constructor's contract, which the tests rely on.
             control.reset(model, data)
 
-        if mode == viz.DisplayMode.kXr:
-            oxr = session.get_oxr_handles()
-            if oxr is None:
-                raise RuntimeError(
-                    "VizSession is in kXr mode but produced no OpenXR handles; the backend did not initialize."
-                )
-            teleop_config = TeleopSessionConfig(
-                app_name="MuJoCoXR",
-                pipeline=pipeline,
-                # Never pass trackers=: TeleopSession discovers them from the
-                # pipeline graph, and passing them again duplicates the set.
-                oxr_handles=OpenXRSessionHandles(*oxr),
+        oxr = session.get_oxr_handles()
+        if oxr is None:
+            raise RuntimeError(
+                "VizSession is in kXr mode but produced no OpenXR handles; the backend did not initialize."
             )
-            with TeleopSession(teleop_config) as teleop_session:
-                _loop(
-                    session,
-                    layer,
-                    renderer,
-                    model,
-                    data,
-                    mode,
-                    resolution,
-                    teleop_session,
-                    control,
-                    clock_name,
-                )
-        else:
-            LOG.info(
-                "control disengaged: %s has no OpenXR session, so no controllers, "
-                "no markers and nothing driving the arm. The scene still steps.",
-                mode,
-            )
-            _loop(
-                session,
-                layer,
-                renderer,
-                model,
-                data,
-                mode,
-                resolution,
-                teleop_session=None,
-                control=control,
-                clock_name=clock_name,
-            )
+        teleop_config = TeleopSessionConfig(
+            app_name="MuJoCoXR",
+            pipeline=pipeline,
+            # Never pass trackers=: TeleopSession discovers them from the
+            # pipeline graph, and passing them again duplicates the set.
+            oxr_handles=OpenXRSessionHandles(*oxr),
+        )
+        with TeleopSession(teleop_config) as teleop_session:
+            _loop(session, layer, renderer, model, data, teleop_session, control)
     finally:
         # The renderer borrows the session's device: it must go first.
         if renderer is not None:
@@ -727,26 +651,11 @@ def run(args: argparse.Namespace, scene_path: Path) -> int:
     return 0
 
 
-def _loop(
-    session,
-    layer,
-    renderer,
-    model,
-    data,
-    mode,
-    resolution,
-    teleop_session,
-    control,
-    clock_name,
-) -> None:
+def _loop(session, layer, renderer, model, data, teleop_session, control) -> None:
     view_count = renderer.view_count
     # One source, for one hand. Constructed here rather than per frame so it is
     # obvious there is exactly one.
     source = teleop.XrControllerSource(CONTROL_HAND)
-    # `resolution` is passed in rather than re-queried: run() already asked for
-    # it and sized both the layer and the renderer from that answer, so a second
-    # call here would be a second chance for the three to disagree.
-    debug_pose, debug_fov = _debug_view(resolution)
     previous_clock: float | None = None
     # Fixed-step accumulator. NOT reset or drained on a non-render frame: the
     # simulation owes that time regardless of whether anything was displayed.
@@ -761,7 +670,7 @@ def _loop(
         try:
             # None means "this frame carries no usable timestamp" -- skip the
             # sample entirely rather than recording a zero. See _frame_clock.
-            now = _frame_clock(info, mode)
+            now = _frame_clock(info)
             elapsed = 0.0
             if now is not None:
                 if previous_clock is not None:
@@ -777,7 +686,7 @@ def _loop(
                 LOG.error(
                     "clock stalled: %s has not advanced across %d rendered frames; physics is frozen "
                     "while rendering continues normally.",
-                    clock_name,
+                    _CLOCK_NAME,
                     STALL_FRAMES,
                 )
 
@@ -807,7 +716,7 @@ def _loop(
             # should be the first to try on a runtime.
             result = None
             will_step = accumulator >= model.opt.timestep
-            if teleop_session is not None and (will_step or info.should_render):
+            if will_step or info.should_render:
                 result = teleop_session.step()
                 if control is not None:
                     control.update(model, data, source.sample(result), elapsed)
@@ -833,8 +742,8 @@ def _loop(
                 _draw_target_marker(renderer, control)
             # NOT redundant with add_marker()'s own full-scene throw, because
             # add_marker only runs when there is something to draw -- a scene
-            # with no arm in an offscreen run reaches neither branch above. This
-            # is the one check that covers mjv_updateScene
+            # with no arm and no validly-tracked controller reaches neither
+            # branch above. This is the one check that covers mjv_updateScene
             # alone filling mjvScene. Measured against mujoco 3.11.0: that case
             # prints "WARNING: Pre-allocated visual geom buffer is full" on
             # stderr, truncates, and returns normally with ngeom == maxgeom. A
@@ -848,14 +757,11 @@ def _loop(
                     "in cpp/scene_renderer.cpp."
                 )
 
-            if mode == viz.DisplayMode.kXr:
-                # A view-count mismatch is rejected by render() below, which
-                # sees the flattened lengths and says so in those terms. There
-                # is deliberately no second check here.
-                poses, fovs = _flatten_xr_views(info)
-                head_probe.sample(poses, view_count, time.monotonic())
-            else:
-                poses, fovs = list(debug_pose), list(debug_fov)
+            # A view-count mismatch is rejected by render() below, which sees
+            # the flattened lengths and says so in those terms. There is
+            # deliberately no second check here.
+            poses, fovs = _flatten_xr_views(info)
+            head_probe.sample(poses, view_count, time.monotonic())
 
             renderer.render(poses, fovs)
 
@@ -867,15 +773,12 @@ def _loop(
                 )
                 checked_projection = True
 
-            if view_count == 2:
-                layer.submit(
-                    renderer.color(0),
-                    renderer.depth(0),
-                    renderer.color(1),
-                    renderer.depth(1),
-                )
-            else:
-                layer.submit(renderer.color(0), renderer.depth(0))
+            layer.submit(
+                renderer.color(0),
+                renderer.depth(0),
+                renderer.color(1),
+                renderer.depth(1),
+            )
         finally:
             # end_frame() follows EVERY begin_frame(), including the
             # should_render == False path and any exception above. Skipping it
@@ -911,18 +814,6 @@ def main(argv: list[str]) -> int:
             "catalogue id. Its table TOP must sit at z=0 -- compare the shipped "
             "scenes, which are package data beside this module (see the path on "
             "the 'scene:' line of the startup log)."
-        ),
-    )
-    parser.add_argument(
-        "--mode",
-        choices=tuple(_MODES),
-        default="xr",
-        help=(
-            "xr: stereo through the headset, with controller markers. "
-            "window: a single desktop view with an explicit debug camera and NO controllers; needs a "
-            "present-capable surface and is known-failing on Tegra/Xvfb hosts. "
-            "offscreen: the same single view rendered and submitted with no window system at all -- "
-            "the mode that runs on a headless machine. Both non-xr modes run until interrupted."
         ),
     )
     parser.add_argument("--verbose", action="store_true", help="Debug-level logging.")

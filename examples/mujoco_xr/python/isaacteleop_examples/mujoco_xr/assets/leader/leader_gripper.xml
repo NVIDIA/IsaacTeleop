@@ -82,9 +82,11 @@ inside a 65 m solid with culling off, and the symptom is a full-screen
          reproduce both, from mjModel fields most people do not know exist.
 
          `pos` here is where the ghost sits until the first VALID controller
-         sample, and in --mode window / offscreen that is forever -- which is
-         what makes the whole overlay pipeline verifiable with no headset.
-         Chosen to be in frame of the debug camera and clear of the arm. -->
+         sample, so it is what an operator sees while the controller is still
+         untracked. Chosen to be clear of the arm rather than buried in it, so
+         "the ghost has not moved yet" reads differently from "the ghost is
+         broken". tests/test_ghost.py asserts the tracking behaviour from
+         here. -->
     <body name="leader_ghost" mocap="true" pos="0.12 0.16 0.22"
           quat="0.5 0.5 -0.5 -0.5">
       <!-- DERIVED, NOT TUNED. so101.xml puts the follower's fixed-jaw shank at

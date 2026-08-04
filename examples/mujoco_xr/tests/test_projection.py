@@ -81,12 +81,13 @@ def test_symmetric_fov_centres_the_optical_axis():
 
 
 def test_a_default_constructed_fov_is_rejected_loudly():
-    """viz's window backend hands back a Fov of four ZEROS.
+    """A default-constructed viz::Fov is four ZEROS, and must never render.
 
     Feeding that through gives right - left == 0 -> P[0][0] = +inf and
-    P[2][0] = P[2][1] = NaN, i.e. an all-NaN frame with no error anywhere. The
-    app must branch on the CONFIGURED display mode rather than inspect the fov;
-    this is the backstop for when somebody does not.
+    P[2][0] = P[2][1] = NaN, i.e. an all-NaN frame with no error anywhere.
+    ``FrameInfo.views`` is filled by the runtime, so a degenerate fov is a
+    runtime/session bug the app cannot prevent -- only refuse. Throwing here
+    turns a silently blank headset into a named failure.
     """
     with pytest.raises(ValueError):
         _mujoco_xr.projection_from_fov([0.0, 0.0, 0.0, 0.0], NEAR, FAR)
