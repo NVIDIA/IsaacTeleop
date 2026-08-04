@@ -220,14 +220,15 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
 FrameMetadataTrackerOak
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Multi-channel tracker for per-frame metadata from OAK camera streams.
+Single-stream tracker for per-frame metadata from an OAK camera stream.
+Create one instance per stream (e.g. ``"oak_camera/Color"``, ``"oak_camera/MonoLeft"``).
 Uses the :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>`
 utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/oak.fbs`
 - C++ header: ``#include <deviceio/frame_metadata_tracker_oak.hpp>``
 - Python import: ``from isaacteleop.deviceio import FrameMetadataTrackerOak``
-- Record channels: one per configured stream (e.g. ``Color``, ``MonoLeft``) | MCAP schema: ``core.FrameMetadataOakRecord``
+- Record channels: ``frame_metadata`` | MCAP schema: ``core.FrameMetadataOakRecord``
 - Tests:
 
   - :code-file:`src/core/schema_tests/cpp/test_oak.cpp`

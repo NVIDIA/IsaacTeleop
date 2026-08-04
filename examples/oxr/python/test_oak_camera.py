@@ -26,7 +26,9 @@ import isaacteleop.plugin_manager as pm
 import isaacteleop.deviceio as deviceio
 import isaacteleop.oxr as oxr
 
-PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
+PLUGIN_ROOT_DIR = (
+    Path(__file__).resolve().parent.parent.parent.parent / "install/plugins"
+)
 
 MODE_NO_METADATA = "no-metadata"
 MODE_SCHEMA_PUSHER = "schema-pusher"
@@ -55,21 +57,18 @@ def _run_recording_loop(plugin, duration: float):
 def _run_schema_pusher(
     plugin,
     duration: float,
-    tracker,
+    trackers: list,
     stream_names: list[str],
     required_extensions: list[str],
-    mcap_filename: str,
+    recording_config: deviceio.McapRecordingConfig,
 ):
     """Read metadata via OpenXR schema tracker and record to MCAP on the host side."""
     with oxr.OpenXRSession("OakCameraTest", required_extensions) as oxr_session:
         handles = oxr_session.get_handles()
         print("  ✓ OpenXR session created")
 
-        recording_config = deviceio.McapRecordingConfig(
-            mcap_filename, [(tracker, "oak_metadata")]
-        )
         with deviceio.DeviceIOSession.run(
-            [tracker], handles, recording_config
+            trackers, handles, recording_config
         ) as session:
             print("  ✓ DeviceIO session initialized (recording active during update())")
             print()
@@ -88,8 +87,8 @@ def _run_schema_pusher(
                 frame_count += 1
 
                 elapsed = time.time() - start_time
-                for idx, name in enumerate(stream_names):
-                    tracked = tracker.get_stream_data(session, idx)
+                for tracker, name in zip(trackers, stream_names):
+                    tracked = tracker.get_data(session)
                     if (
                         tracked.data is not None
                         and tracked.data.sequence_number != last_seq.get(name, -1)
@@ -152,23 +151,23 @@ def run_test(duration: float = 10.0, mode: str = MODE_NO_METADATA):
 
     # 3. Prepare mode-specific state
     stream_names = ["Color", "MonoLeft"]
-    stream_types = [deviceio.StreamType.Color, deviceio.StreamType.MonoLeft]
     collection_prefix = "oak_camera"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     mcap_filename = f"camera_metadata_{timestamp}.mcap"
 
-    tracker = None
+    trackers = []
     required_extensions = []
 
     if mode == MODE_SCHEMA_PUSHER:
-        print("[Step 3] Creating composite FrameMetadataTrackerOak...")
-        tracker = deviceio.FrameMetadataTrackerOak(collection_prefix, stream_types)
+        print("[Step 3] Creating FrameMetadataTrackerOak instances (one per stream)...")
+        trackers = [
+            deviceio.FrameMetadataTrackerOak(f"{collection_prefix}/{name}")
+            for name in stream_names
+        ]
         print(
-            f"  Created tracker (prefix: {collection_prefix}, streams: {stream_names})"
+            f"  Created {len(trackers)} trackers: {[f'{collection_prefix}/{n}' for n in stream_names]}"
         )
-        required_extensions = deviceio.DeviceIOSession.get_required_extensions(
-            [tracker]
-        )
+        required_extensions = deviceio.DeviceIOSession.get_required_extensions(trackers)
         print()
         print("[Step 4] Getting required OpenXR extensions...")
         print(f"  Required extensions: {required_extensions}")
@@ -207,13 +206,21 @@ def run_test(duration: float = 10.0, mode: str = MODE_NO_METADATA):
         print("  Camera plugin started")
 
         if mode == MODE_SCHEMA_PUSHER:
+            recording_config = deviceio.McapRecordingConfig(
+                mcap_filename,
+                [
+                    (t, f"oak_metadata/{name}")
+                    for t, name in zip(trackers, stream_names)
+                ],
+            )
+
             _run_schema_pusher(
                 plugin,
                 duration,
-                tracker,
+                trackers,
                 stream_names,
                 required_extensions,
-                mcap_filename,
+                recording_config,
             )
         else:
             _run_recording_loop(plugin, duration)

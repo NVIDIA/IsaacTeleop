@@ -108,10 +108,10 @@ controllers, etc.):
    :doc:`TeleopSession <../getting_started/teleop_session>`'s ``PluginConfig``,
    passing ``--collection-prefix`` so the plugin pushes metadata via OpenXR
    ``SchemaPusher``.
-2. **Host tracker** — create ``FrameMetadataTrackerOak`` with the **same**
-   collection prefix and stream list (see :doc:`trackers`). TeleopSession's
-   DeviceIO layer uses the live tracker implementation to read the pushed
-   tensors and write MCAP channels.
+2. **Host trackers** — create one ``FrameMetadataTrackerOak`` per stream, each
+   with a ``collection_id`` matching the plugin's ``{collection_prefix}/{StreamName}``
+   (see :doc:`trackers`). TeleopSession's DeviceIO layer uses the live tracker
+   implementation to read the pushed tensors and write MCAP channels.
 3. **MCAP config** — add the tracker to both ``TeleopSessionConfig.trackers``
    and ``McapRecordingConfig.tracker_names``. See also
    :doc:`../references/mcap_record_replay`.
@@ -120,22 +120,25 @@ controllers, etc.):
 
    from pathlib import Path
 
-   from isaacteleop.deviceio import FrameMetadataTrackerOak, McapRecordingConfig, StreamType
+   from isaacteleop.deviceio import FrameMetadataTrackerOak, McapRecordingConfig
    from isaacteleop.teleop_session_manager import PluginConfig, TeleopSession, TeleopSessionConfig
 
    PLUGIN_ROOT = Path("build/src/plugins")  # or your installed plugin search path
    COLLECTION_PREFIX = "oak_camera"
-   STREAMS = [StreamType.Color, StreamType.MonoLeft]
+   STREAM_NAMES = ["Color", "MonoLeft"]
 
-   oak_tracker = FrameMetadataTrackerOak(COLLECTION_PREFIX, STREAMS)
+   oak_trackers = [
+       FrameMetadataTrackerOak(f"{COLLECTION_PREFIX}/{name}")
+       for name in STREAM_NAMES
+   ]
 
    config = TeleopSessionConfig(
        app_name="OakTeleop",
        pipeline=pipeline,  # your retargeting pipeline
-       trackers=[oak_tracker],
+       trackers=oak_trackers,
        mcap_config=McapRecordingConfig(
            "recording.mcap",
-           [(oak_tracker, "oak_metadata")],
+           [(t, f"oak_metadata/{name}") for t, name in zip(oak_trackers, STREAM_NAMES)],
        ),
        plugins=[
            PluginConfig(

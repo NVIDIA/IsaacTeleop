@@ -82,6 +82,7 @@ struct Se3TrackerRecordingTraits
 struct OakRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.FrameMetadataOakRecord";
+    static constexpr std::array recording_channels = { "frame_metadata" };
 };
 
 struct MessageChannelRecordingTraits
