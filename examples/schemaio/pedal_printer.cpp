@@ -37,7 +37,7 @@ void print_pedal_data(const core::Generic3AxisPedalOutputT& data, size_t sample_
     std::cout << std::endl;
 }
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** argv)
 try
 {
     std::cout << "Pedal Printer (collection: " << COLLECTION_ID << ")" << std::endl;
