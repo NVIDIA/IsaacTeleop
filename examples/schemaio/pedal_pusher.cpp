@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 /*!
@@ -67,7 +67,7 @@ private:
     core::SchemaPusher m_pusher;
 };
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** argv)
 try
 {
     std::cout << "Schema Pusher (collection: " << COLLECTION_ID << ")" << std::endl;

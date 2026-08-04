@@ -139,6 +139,13 @@ isaac_teleop_check_build_deps()
 # Build dependencies (OpenXR SDK, etc.)
 add_subdirectory(deps)
 
+# Project warning set. Deliberately after add_subdirectory(deps): directory-scope
+# compile options are inherited only by subdirectories added *after* this call, so
+# third-party trees keep their own flags while everything below (src/, examples/,
+# plugins) is held to ours. See cmake/CompilerWarnings.cmake.
+include(cmake/CompilerWarnings.cmake)
+isaac_teleop_enable_compiler_warnings()
+
 # Enable CTest at top level so tests from subdirectories are discoverable
 if(BUILD_TESTING)
     # Make sure to call this after `deps` is added so that Catch2 is available

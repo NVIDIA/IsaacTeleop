@@ -7,6 +7,7 @@
 #include <openxr/openxr.h>
 
 #include <XR_MNDX_xdev_space.h>
+#include <cstring>
 #include <exception>
 #include <iostream>
 #include <stdexcept>
@@ -93,13 +94,6 @@ std::vector<XrXDevIdMNDX> enumerate_xdevs(const OpenXRBundle& openxr_bundle, XrX
 }
 
 /*!
- * Print information about available XDevs using XR_MNDX_xdev_space extension
- */
-static void print_xdev_info(const OpenXRBundle& openxr_bundle)
-{
-}
-
-/*!
  * XDev List Application - Prints information about available XDevs
  */
 class XDevListApp : public HeadlessApp
@@ -156,7 +150,10 @@ public:
                 throw std::runtime_error("Failed to get properties for XDev " + std::to_string(xdevId));
             }
 
-            std::string serial_str = properties.serial ? properties.serial : "";
+            // serial is a fixed char[256], never a pointer, so a null check would always be true.
+            // Bound the length so a runtime that fills the array without a terminator cannot
+            // walk past it.
+            std::string serial_str(properties.serial, ::strnlen(properties.serial, sizeof(properties.serial)));
             if (serial_str == "Head Device (0)" || serial_str == "Head Device (1)")
             {
                 std::cout << "[CREATE HAND] XDev ID=" << xdevId << " Name=\"" << properties.name << "\""
@@ -168,7 +165,7 @@ public:
             else
             {
                 std::cout << "[SKIP] XDev ID=" << xdevId << " Name=\"" << properties.name << "\""
-                          << " Serial=\"" << (properties.serial ? properties.serial : "") << "\"" << std::endl;
+                          << " Serial=\"" << serial_str << "\"" << std::endl;
             }
         }
 
@@ -179,7 +176,7 @@ public:
     }
 };
 
-int main(int argc, char* argv[])
+int main(int /*argc*/, char* argv[])
 try
 {
     XDevListApp app;
