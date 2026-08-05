@@ -15,6 +15,7 @@ examples. The instructions align with the project's CMake configuration and the 
 .. admonition:: Next Steps
 
    - To build and serve the **WebXR client** locally, see :doc:`webxr`.
+   - To build inside VS Code without installing dependencies on the host, see :doc:`devcontainer`.
 
 Prerequisites
 -------------
@@ -393,6 +394,7 @@ See :doc:`/references/build` for the full build-system reference.
    :hidden:
 
    webxr
+   devcontainer
 
 ..
    References
