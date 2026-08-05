@@ -104,7 +104,7 @@ void print_usage(const char* program)
               << "  --width=N --height=N --fps=N  0 selects the SDK default profile\n"
               << "  --bitrate=N --dynamic-bitrate=on|off\n"
               << "  --device-uid=UID               Select a specific Orbbec device\n"
-              << "  --preview                      SDL side-by-side non-blocking preview\n"
+              << "  --preview                      SDL side-by-side latest-frame preview\n"
               << "  --enable-imu --imu-rate=400|1000\n"
               << "  --accel-full-scale=<g> --gyro-full-scale=<dps>\n"
               << "  --audio-output=PATH.wav\n"
@@ -228,7 +228,10 @@ try
     std::vector<plugins::orbbec::StreamConfig> streams;
     streams.reserve(stream_map.size());
     for (auto& [_, stream] : stream_map)
+    {
+        plugins::orbbec::validate_stream_config(stream, capture_config);
         streams.push_back(std::move(stream));
+    }
 
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
@@ -248,6 +251,7 @@ try
             last_stats = now;
         }
     }
+    camera.close();
     camera.print_stats();
     return 0;
 }

@@ -19,6 +19,9 @@ struct PreviewFrame
     core::OrbbecPixelFormat format;
     uint32_t width = 0;
     uint32_t height = 0;
+    uint64_t sequence_number = 0;
+    int64_t device_timestamp_ns = 0;
+    int64_t capture_timestamp_ns = 0;
     std::vector<uint8_t> encoded;
 };
 

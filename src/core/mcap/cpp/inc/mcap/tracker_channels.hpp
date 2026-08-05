@@ -102,7 +102,7 @@ public:
         auto status = writer_->write(msg);
         if (!status.ok())
         {
-            std::cerr << "McapTrackerChannels: write failed: " << status.message << std::endl;
+            throw std::runtime_error("McapTrackerChannels: write failed: " + status.message);
         }
     }
 

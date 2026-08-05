@@ -19,7 +19,7 @@ namespace core
 static constexpr uint32_t DLPACK_DTYPE_UINT8 = (1 << 8) | 8;
 
 SchemaPusher::SchemaPusher(const OpenXRSessionHandles& handles, SchemaPusherConfig config)
-    : m_config(std::move(config)), m_time_converter(handles)
+    : m_config(std::move(config)), m_time_converter(handles), m_padded_buffer(m_config.max_flatbuffer_size, 0)
 {
     // Validate handles
     assert(handles.instance != XR_NULL_HANDLE && "OpenXR instance handle cannot be null");
@@ -63,8 +63,8 @@ void SchemaPusher::push_buffer(const uint8_t* buffer,
 
     // Create padded buffer to match declared tensor size
     // The DLPack tensor is declared as uint8[max_flatbuffer_size], so we need to pad
-    std::vector<uint8_t> padded_buffer(m_config.max_flatbuffer_size, 0);
-    std::memcpy(padded_buffer.data(), buffer, size);
+    std::fill(m_padded_buffer.begin(), m_padded_buffer.end(), 0);
+    std::memcpy(m_padded_buffer.data(), buffer, size);
 
     // Convert monotonic nanoseconds to XrTime for the tensor header
     XrTime xr_time = m_time_converter.convert_monotonic_ns_to_xrtime(sample_time_local_common_clock_ns);
@@ -80,7 +80,7 @@ void SchemaPusher::push_buffer(const uint8_t* buffer,
                                  std::to_string(sample_time_raw_device_clock_ns) + ")");
     }
     tensorData.rawDeviceTimestamp = static_cast<uint64_t>(sample_time_raw_device_clock_ns);
-    tensorData.buffer = padded_buffer.data();
+    tensorData.buffer = m_padded_buffer.data();
     tensorData.bufferSize = static_cast<uint32_t>(m_config.max_flatbuffer_size);
 
     // Push the data

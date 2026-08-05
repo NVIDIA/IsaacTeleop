@@ -36,6 +36,7 @@ from placements import PlacementConfig, PlacementStrategy, build as build_placem
 from sources import (
     PairedFrameSource,
     RtpH264Source,
+    StereoSbsDebugSource,
     build_local_camera,
     resolve_video_paths,
     set_verbose,
@@ -392,6 +393,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         "(default: the config's value, or xr when the config omits it).",
     )
     CloudXRLauncher.add_launcher_arguments(parser)
+    parser.add_argument(
+        "--stereo-debug",
+        choices=("off", "sbs"),
+        default=None,
+        help="Desktop-only stereo inspector. sbs displays left|right in one window; XR keeps separate eyes.",
+    )
     args = parser.parse_args(argv)
 
     with open(args.config) as f:
@@ -453,6 +460,25 @@ def main(argv: Optional[list[str]] = None) -> int:
             entries = _build_local_entries(cfg, is_xr)
         else:
             entries = _build_rtp_entries(cfg, is_xr)
+
+        stereo_debug = args.stereo_debug or cfg.get("display", {}).get("window", {}).get(
+            "stereo_debug", "off"
+        )
+        if stereo_debug not in ("off", "sbs"):
+            raise ValueError("camera_viz: display.window.stereo_debug must be off|sbs")
+        if stereo_debug == "sbs":
+            if is_xr:
+                raise ValueError(
+                    "camera_viz: stereo SBS debug mode is available only in window mode"
+                )
+            entries = [
+                SourceEntry(
+                    source=StereoSbsDebugSource(entry.source), placement=None, stereo=False
+                )
+                if entry.stereo
+                else entry
+                for entry in entries
+            ]
 
         # Build sources, layers, and placement strategies in parallel arrays.
         sources, layers, strategies = [], [], []

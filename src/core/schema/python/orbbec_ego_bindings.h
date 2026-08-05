@@ -112,6 +112,10 @@ inline void bind_orbbec_ego(py::module& m)
     bind_orbbec_tracked<OrbbecCalibrationTrackedT, OrbbecCalibrationT>(m, "OrbbecCalibrationTrackedT");
     bind_orbbec_record<OrbbecCalibrationRecordT, OrbbecCalibrationT>(m, "OrbbecCalibrationRecord");
 
+    py::enum_<OrbbecCaptureHealth>(m, "OrbbecCaptureHealth")
+        .value("Healthy", OrbbecCaptureHealth_Healthy)
+        .value("Warning", OrbbecCaptureHealth_Warning)
+        .value("Incomplete", OrbbecCaptureHealth_Incomplete);
     py::class_<OrbbecDevicePropertyValue>(m, "OrbbecDevicePropertyValue")
         .def(py::init<int32_t, double>(), py::arg("property_id") = 0, py::arg("value") = 0.0)
         .def_property(
@@ -126,7 +130,12 @@ inline void bind_orbbec_ego(py::module& m)
         .def_readwrite("error_flags", &OrbbecDeviceStateT::error_flags)
         .def_readwrite("storage_free_bytes", &OrbbecDeviceStateT::storage_free_bytes)
         .def_readwrite("temperature_c", &OrbbecDeviceStateT::temperature_c)
-        .def_readwrite("properties", &OrbbecDeviceStateT::properties);
+        .def_readwrite("properties", &OrbbecDeviceStateT::properties)
+        .def_readwrite("capture_health", &OrbbecDeviceStateT::capture_health)
+        .def_readwrite("failure_reason", &OrbbecDeviceStateT::failure_reason)
+        .def_readwrite("queue_capacity", &OrbbecDeviceStateT::queue_capacity)
+        .def_readwrite("queue_peak", &OrbbecDeviceStateT::queue_peak)
+        .def_readwrite("dropped_events", &OrbbecDeviceStateT::dropped_events);
     bind_orbbec_tracked<OrbbecDeviceStateTrackedT, OrbbecDeviceStateT>(m, "OrbbecDeviceStateTrackedT");
     bind_orbbec_record<OrbbecDeviceStateRecordT, OrbbecDeviceStateT>(m, "OrbbecDeviceStateRecord");
 }

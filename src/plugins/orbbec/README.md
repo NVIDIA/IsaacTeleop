@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Orbbec Ego Camera Plugin
 
-This C++ Isaac Teleop plugin captures the validated **Orbbec Ego PID 0x1201**
+This C++ Isaac Teleop plugin captures **capability-compatible Orbbec Ego** devices
 sensor set: `ColorLeft`, `ColorRight`, accelerometer, gyroscope, and microphone.
 It records elementary MJPEG/H.264/H.265 video, PCM WAV audio, and the structured
 data required to synchronize those media files with Isaac Teleop MCAP recordings.
@@ -19,9 +19,9 @@ depth/IR images, and point clouds are therefore not implemented here.
 - Dual ColorLeft/ColorRight raw video recording without a container.
 - Per-stream MJPEG, H.264, or H.265 profile selection; per-stream dimensions and
   frame rate override global defaults.
-- Latest-frame SDL stereo preview. MJPEG is decoded by OrbbecSDK; H.264/H.265
-  by FFmpeg. It is a convenience preview, not the lowest-latency GPU path;
-  use `camera_viz` for GPU preview.
+- Latest-frame, timestamp-paired SDL stereo preview with persistent textures.
+  MJPEG is decoded by OrbbecSDK; H.264/H.265 by FFmpeg. It is a convenience
+  preview, not the latency-certified GPU path; use `camera_viz` for NVDEC.
 - Frame metadata, IMU batches, WAV sample indices, calibration, and device state.
 - Three recording modes: raw media only, plugin-local MCAP, or TeleopSession
   multi-device MCAP through OpenXR SchemaPushers.
@@ -33,7 +33,7 @@ depth/IR images, and point clouds are therefore not implemented here.
 
 ### Hardware
 
-- An Orbbec Ego PID `0x1201` with a USB data cable.
+- An Orbbec Ego with ColorLeft and/or ColorRight sensors and a USB data cable.
 - The validated Ego PID `0x1201` enumerates as USB 2.0 (`bcdUSB 2.00` and
   `480M` in `lsusb -t`), including when connected to a USB 3.x host port. This
   is normal device behavior, not a cable or port downgrade. Use a direct,
@@ -241,20 +241,26 @@ If the SDK reports a compressed-frame sequence gap, the plugin reports the gap
 in its statistics and waits for the next parameterized IDR before resuming that
 stream; it does not write P frames whose references were lost.
 
-`--list-capabilities` on the current Ego firmware may enumerate 60 FPS H.264
-and H.265 profiles. Enumeration is not an integrity guarantee: on the validated
-PID `0x1201`, firmware `0.0.11`, a 10-minute dual H.265@60 run and a dual
-H.264@60 follow-up produced decoder errors despite zero frame-index gaps. Those
-60 FPS encoded profiles are therefore **not certified** by this integration.
-Use the 1600×1300@30 profiles shown above for recording until a firmware/SDK
-combination passes both the no-gap log check and a complete `ffmpeg -v error`
-decode on the target device.
+`--list-capabilities` on a connected Ego may enumerate 60 FPS H.264 and H.265
+profiles. Enumeration is not an integrity guarantee: the validated `0x1201`,
+firmware `0.0.11`, produced decoder errors in dual encoded 60 FPS runs despite
+zero frame-index gaps. The CLI therefore **rejects** encoded H.264/H.265 above
+30 FPS before opening a device; it never silently writes a 30 FPS file for a
+60 FPS request. Use the 1600×1300@30 profiles shown above until a particular
+device/firmware/SDK combination has passed both a no-gap capture and a complete
+`ffmpeg -v error` decode certification.
 
 Video arrives from OrbbecSDK through a bounded callback queue rather than the
 SDK pull queue. The periodic statistics must remain at `0 sequence gaps` and
 `video_frame_sets_dropped=0` for a no-loss run. `queue_peak`/`dropped` describe
 the separate IMU/audio/metadata publication queue. Treat any nonzero video or
 metadata drop count as an acceptance failure and preserve the log for diagnosis.
+The plugin stops with a nonzero status if either capture queue fills; it does
+not continue with a silently incomplete recording. In SchemaPusher mode, a
+single publisher thread owns pushes and warns at 85% queue capacity. Device
+state records expose `capture_health`, `failure_reason`, queue capacity/peak,
+and dropped-event count so downstream MCAP analysis can reject a run marked
+`Incomplete` rather than treating it as valid data.
 
 After either raw-video command, verify that both files are non-empty and fully
 decodable. MJPEG needs its input format declared; H.264/H.265 can be inferred
@@ -292,13 +298,13 @@ mkdir -p "$RUN/raw" "$RUN/logs"
   --preview 2>&1 | tee "$RUN/logs/capture.log"
 ```
 
-Preview is a latest-frame consumer and does not alter recording timestamps, but
-its CPU decode and SDL upload work can compete for host CPU/GPU time at this
-resolution. It is therefore a convenience check, not a latency benchmark:
-record without `--preview` for an integrity run, and use `camera_viz` for the
-GPU preview path. Closing its window requests normal shutdown. Do not run this
-plugin and the independent `camera_viz` Orbbec source against the same physical
-Ego at the same time.
+Preview is a timestamp-paired latest-frame consumer and does not alter recording
+timestamps. It discards stale work and reuses SDL textures, but CPU decode and
+SDL upload can still compete at this resolution. It is therefore a convenience
+check, not the 100 ms latency-certified path: record without `--preview` for an
+integrity run, and use `camera_viz` for the GPU/NVDEC path. Closing its window
+requests normal shutdown. Do not run this plugin and the independent
+`camera_viz` Orbbec source against the same physical Ego at the same time.
 
 ### 4. Add IMU, audio, calibration, and state
 
@@ -349,7 +355,8 @@ metadata channels.
 find "$RUN" -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
 ffprobe -v error -show_entries stream=codec_name,sample_rate,channels,bits_per_raw_sample \
   -of default=noprint_wrappers=1 "$RUN/ego.wav"
-jq '.left_intrinsics, .right_intrinsics, .left_to_right' "$RUN/calibration.json"
+# The exported field names are color_left/color_right, not left_intrinsics/right_intrinsics.
+jq -e '.color_left and .color_right and .left_to_right' "$RUN/calibration.json"
 ```
 
 Its channels are:
@@ -361,6 +368,56 @@ orbbec_audio/Audio
 orbbec_calibration/Calibration
 orbbec_device/DeviceState
 ```
+
+### C. Run the repository's OAK-equivalent Orbbec recording sample
+
+`examples/oxr/python/test_orbbec_camera.py` is the Orbbec counterpart to
+the repository's OAK camera sample. It exercises the PluginManager launch
+path, not just the standalone executable. Use `plugin-mcap` first: it needs
+no CloudXR runtime and records both media and every Orbbec metadata class.
+
+The MCAP writer does **not** create a missing parent directory. Create the run
+directory before starting the sample; otherwise the plugin exits immediately
+with `Unable to open Orbbec MCAP output`.
+
+```bash
+cd /absolute/path/to/IsaacTeleop
+
+# Create/update the sample's Python environment once. The local build remains
+# first on PYTHONPATH, so this exercises the code built by the CMake commands
+# above rather than an unrelated installed isaacteleop wheel.
+uv sync --project examples/oxr/python
+export PYTHONPATH="$PWD/build/cmake-cpython-311/python_package/Release${PYTHONPATH:+:$PYTHONPATH}"
+
+RUN="recordings/orbbec_plugin_sample_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN"
+
+examples/oxr/python/.venv/bin/python examples/oxr/python/test_orbbec_camera.py \
+  --plugin-root "$PWD/build/cmake-cpython-311/src/plugins" \
+  --mode plugin-mcap --format mjpg --duration 15 \
+  --mcap "$PWD/$RUN/orbbec_plugin.mcap"
+```
+
+On a clean 15-second Ego run, the plugin prints nonzero ColorLeft/ColorRight,
+Accel, Gyro, and audio sample counts, plus `0 sequence gaps`, `dropped=0`, and
+`video_frame_sets_dropped=0`. Confirm that the MCAP is nonempty and that it
+contains all seven channels listed above. The sample currently gives raw-media
+arguments relative paths, so PluginManager writes its `.mjpg`, `.wav`, and
+`calibration.json` under the build-tree plugin working directory:
+
+```bash
+PLUGIN_RECORDINGS="$PWD/build/cmake-cpython-311/src/plugins/orbbec_camera/recordings"
+find "$RUN" "$PLUGIN_RECORDINGS" -maxdepth 1 -type f -printf '%p %s bytes\n' | sort
+ffmpeg -v error -f mjpeg -i "$PLUGIN_RECORDINGS/left.mjpg" -f null -
+ffmpeg -v error -f mjpeg -i "$PLUGIN_RECORDINGS/right.mjpg" -f null -
+ffprobe -v error -show_entries stream=codec_name,sample_rate,channels \
+  -of default=noprint_wrappers=1 "$PLUGIN_RECORDINGS/audio.wav"
+```
+
+No output from the two `ffmpeg -v error` commands means both elementary MJPEG
+files decoded successfully. The expected WAV report is `pcm_s16le`, `48000`,
+and `1`. The sample deliberately leaves its outputs in ignored `recordings/`
+directories; do not add these media or MCAP files to Git.
 
 ### B. TeleopSession: one MCAP for camera, hands, head, and controllers
 
@@ -439,43 +496,86 @@ standalone, hardware-focused example for all five camera Trackers. It does not
 create hand/head/controller Trackers, so use the configuration above to combine
 them with an existing teleop session.
 
-For a directly runnable camera-only TeleopSession/SchemaPusher check, create
-the output directory before starting the plugin. The example itself writes raw
-media below `recordings/`; `--mcap` controls the one MCAP written by
-`DeviceIOSession`.
+For a directly runnable camera-only SchemaPusher + `DeviceIOSession` check,
+create the output directory before starting the plugin. It verifies the
+SchemaPusher transport and all five Orbbec Trackers; `--mcap` controls the one
+MCAP written by `DeviceIOSession`. It is not, by itself, a real multi-device
+`TeleopSession` with hand/head/controller hardware.
 
 SchemaPusher is an OpenXR path, so its runtime must actually be running before
 the script starts. An existing `~/.cloudxr/run/cloudxr.env` file alone is not
-enough: it can remain after its runtime has stopped. Install the CloudXR Python
-extra in the same environment that runs the script, start the runtime in one
-terminal, then source its environment and run the test in a second terminal:
+enough: it can remain after its runtime has stopped. The commands below use the
+examples virtual environment by its full path. This is intentional: on Ubuntu,
+`python` is often absent, and a bare `uv pip install` can install dependencies
+into a different environment from the one that runs `isaacteleop`.
+
+Terminal A starts the runtime and must remain open for the entire recording:
 
 ```bash
-# In the virtual environment that contains the locally built isaacteleop wheel.
-uv pip install 'websockets>=14'
-python -m isaacteleop.cloudxr --cloudxr-install-dir "$HOME/.cloudxr"
+cd /absolute/path/to/IsaacTeleop
+export TELEOP_PY="$PWD/examples/oxr/python/.venv/bin/python"
+test -x "$TELEOP_PY" || { echo "Run: uv sync --project examples/oxr/python"; exit 1; }
+export PYTHONPATH="$PWD/build/cmake-cpython-311/python_package/Release${PYTHONPATH:+:$PYTHONPATH}"
+
+# Install both runtime and MCAP-inspection dependencies into this exact venv.
+uv pip install --python "$TELEOP_PY" 'websockets>=14' mcap
+
+"$TELEOP_PY" -m isaacteleop.cloudxr \
+  --cloudxr-install-dir "$HOME/.cloudxr" \
+  --accept-eula
 ```
 
 ```bash
-# A second terminal, after the first prints "CloudXR runtime: running".
+# Terminal B: only after terminal A prints "CloudXR runtime: running".
 cd /absolute/path/to/IsaacTeleop
+export TELEOP_PY="$PWD/examples/oxr/python/.venv/bin/python"
+export PYTHONPATH="$PWD/build/cmake-cpython-311/python_package/Release${PYTHONPATH:+:$PYTHONPATH}"
+test -f "$HOME/.cloudxr/run/cloudxr.env" || {
+  echo "CloudXR runtime has not written cloudxr.env"; exit 1;
+}
 source "$HOME/.cloudxr/run/cloudxr.env"
+: "${XR_RUNTIME_JSON:?cloudxr.env did not set XR_RUNTIME_JSON}"
+
 RUN="recordings/ego_schema_pusher_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "$RUN" recordings
-python examples/oxr/python/test_orbbec_camera.py \
+mkdir -p "$RUN"
+"$TELEOP_PY" examples/oxr/python/test_orbbec_camera.py \
   --plugin-root "$PWD/build/cmake-cpython-311/src/plugins" \
-  --mode schema-pusher --format h264 --duration 20 \
+  --mode schema-pusher --format h264 --duration 30 \
   --mcap "$PWD/$RUN/teleop.mcap"
+
+test -s "$RUN/teleop.mcap" || { echo "MCAP is missing or empty"; exit 1; }
+
+# Standard-reader acceptance: every Orbbec channel must be readable.
+"$TELEOP_PY" - "$RUN/teleop.mcap" <<'PY'
+from collections import Counter
+from pathlib import Path
+import sys
+
+from mcap.reader import make_reader
+
+expected = {
+    "orbbec_metadata/ColorLeft", "orbbec_metadata/ColorRight",
+    "orbbec_imu/Accel", "orbbec_imu/Gyro", "orbbec_audio/Audio",
+    "orbbec_calibration/Calibration", "orbbec_device/DeviceState",
+}
+with Path(sys.argv[1]).open("rb") as file:
+    counts = Counter(channel.topic for _, channel, _ in make_reader(file).iter_messages())
+missing = expected - counts.keys()
+if missing:
+    raise SystemExit(f"Missing Orbbec MCAP topics: {sorted(missing)}")
+for topic in sorted(counts):
+    print(f"{topic}: {counts[topic]}")
+PY
 ```
 
 The runtime terminal must remain open until the test exits. The resulting MCAP
 is written by `DeviceIOSession`, together with any hand/head/controller Tracker
 channels added to a real `TeleopSession`; raw video and WAV remain separate
-media files as designed. For this standalone example they are
-`recordings/left.h264`, `recordings/right.h264`, and `recordings/audio.wav`;
-move or rename them into `$RUN/raw/` after the run if you want each test kept
-together. A real TeleopSession configuration should instead pass one dedicated
-run directory in every `plugin_args` output path, as in the Python template.
+media files as designed. For this standalone example, PluginManager launches
+the plugin from its build-tree working directory, so they are under
+`build/cmake-cpython-311/src/plugins/orbbec_camera/recordings/` rather than
+`$RUN`. A real TeleopSession configuration should pass one dedicated run
+directory in every `plugin_args` output path, as in the Python template.
 
 ## Device controls
 
@@ -497,6 +597,59 @@ range, and integer step. Original values are restored on normal exit unless
 Ego has no OAK-equivalent `--quality` property. Use bitrate and dynamic bitrate;
 the plugin intentionally rejects a misleading `--quality` option.
 
+For every non-persistent control run, require one `Restored PROPERTY=VALUE`
+line for every `Set PROPERTY=VALUE` line and no `Failed to restore` line before
+accepting the recording. `timeout` returns status 124 when it delivers its
+planned SIGINT; that is acceptable only when the plugin prints all restore
+lines and neither crashes nor reports a restore failure.
+
+Some firmware can report a self-contradictory integer range (the tested Ego's
+brightness reports `0..3` with step `7`). The plugin refuses to change such a
+property because its original value cannot be restored safely. This is a
+firmware capability-reporting limitation, not permission to use
+`--persist-controls`; use only controls whose enumerated range and step are
+consistent.
+
+### Non-persistent control acceptance
+
+Run this on a physical camera only. It deliberately omits `--persist-controls`.
+First save the exact capabilities, then select values from that file; the
+numbers below were accepted by the tested Ego but are not portable defaults for
+another model or firmware.
+
+```bash
+cd /absolute/path/to/IsaacTeleop
+export ORBBEC_PLUGIN="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/camera_plugin_orbbec"
+export RUN="recordings/acceptance/controls_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/raw" "$RUN/logs"
+
+"$ORBBEC_PLUGIN" --list-capabilities | tee "$RUN/capabilities_before.txt"
+
+# Replace values only with values allowed by capabilities_before.txt.
+# Do not include --brightness when its SDK range/step is inconsistent.
+timeout --foreground -s INT -k 15s 10s "$ORBBEC_PLUGIN" \
+  --add-stream=camera=ColorLeft,output="$RUN/raw/left.h264",format=h264,width=1600,height=1300,fps=30 \
+  --add-stream=camera=ColorRight,output="$RUN/raw/right.h264",format=h264,width=1600,height=1300,fps=30 \
+  --set-property=OB_PROP_COLOR_AUTO_EXPOSURE_BOOL=0 \
+  --set-property=OB_PROP_COLOR_AUTO_WHITE_BALANCE_BOOL=0 \
+  --exposure=1000 --gain=100 --white-balance=5000 \
+  --sharpness=20 --saturation=128 --contrast=50 --power-frequency=1 \
+  2>&1 | tee "$RUN/logs/controls.log"
+
+"$ORBBEC_PLUGIN" --list-capabilities | tee "$RUN/capabilities_after.txt"
+rg '^(Set|Restored|Failed to restore)' "$RUN/logs/controls.log"
+ffmpeg -v error -i "$RUN/raw/left.h264" -f null -
+ffmpeg -v error -i "$RUN/raw/right.h264" -f null -
+```
+
+For this run, every `Set` line must have exactly one matching `Restored` line,
+there must be no `Failed to restore`, no `terminate called`, and both FFmpeg
+commands must exit successfully. The `timeout` status may be 124 after its
+planned SIGINT; use the plugin's restore lines and absence of a crash as the
+clean-stop criterion. `--quality=80` must fail as an unknown option. A
+firmware-reported invalid brightness range must fail before capture and leave
+the property unchanged; that safe refusal is the expected result.
+
 Device state publishes readable property snapshots and the SDK temperature snapshot
 every five seconds, in addition to Ego state-callback changes. Calibration exports
 structured stereo intrinsics and left-to-right extrinsics (and camera-to-IMU
@@ -511,10 +664,10 @@ alignment YAML rather than discarding usable stereo calibration.
 |---|---|---|
 | `--add-stream=camera=...,output=...[,format=...,width=...,height=...,fps=...]` | required | `camera` is `ColorLeft` or `ColorRight`; repeat once per active sensor. |
 | `--width`, `--height`, `--fps` | `0` | Global defaults; zero selects SDK-compatible defaults. Stream values win. |
-| `--device-uid=UID` | first matching Ego | Select one device. |
+| `--device-uid=UID` | first device with requested ColorLeft/ColorRight capabilities | Select one device; PID is never used as a rejection rule. |
 | `--bitrate=N` | SDK setting unchanged | Device H.264/H.265 bitrate property. |
 | `--dynamic-bitrate=on|off` | unchanged | Device dynamic-bitrate property. |
-| `--preview` | off | Side-by-side SDL preview. |
+| `--preview` | off | Timestamp-paired, latest-frame side-by-side SDL preview. CPU decode only; use camera_viz for NVDEC. |
 | `--enable-imu` | off | Enable both accelerometer and gyro. |
 | `--imu-rate=400|1000` | `400` | Requested IMU ODR. |
 | `--accel-full-scale`, `--gyro-full-scale` | 24 g / 2000 dps | Requested IMU range; must match the device profile. |
@@ -554,9 +707,78 @@ MCAP is not a video container and will not play the camera image: it is the
 structured timing/metadata companion to the media files. Inspect it in the
 MCAP-capable analysis application used by your team, or replay it through an
 Isaac `ReplaySession` configured with the same Orbbec Tracker-to-channel mapping
-as the original recording. In local mode the channel bases are the six names
-listed above; in TeleopSession mode they are the names supplied in
+as the original recording. In local mode there are five channel bases
+(`orbbec_metadata`, `orbbec_imu`, `orbbec_audio`, `orbbec_calibration`, and
+`orbbec_device`); in TeleopSession mode they are the names supplied in
 `McapRecordingConfig` (for example `orbbec_metadata` and `orbbec_imu`).
+
+### MCAP replay acceptance
+
+MCAP replay validates structured Tracker data; it does not play the camera
+video. Use a completed local-mode recording, the examples virtual environment,
+and the current build-tree Python package. Do not substitute `uv run python`:
+it can resolve an older installed wheel that lacks the Orbbec Trackers.
+
+```bash
+cd /absolute/path/to/IsaacTeleop
+export RUN="/absolute/path/to/the/local-mcap-run-directory"
+export TELEOP_PY="$PWD/examples/oxr/python/.venv/bin/python"
+export PYTHONPATH="$PWD/build/cmake-cpython-311/python_package/Release${PYTHONPATH:+:$PYTHONPATH}"
+
+test -s "$RUN/local.mcap" || { echo "local.mcap is missing or empty"; exit 1; }
+
+"$TELEOP_PY" - "$RUN/local.mcap" <<'PY'
+import sys
+
+from isaacteleop import deviceio
+
+prefix = "orbbec_ego"
+frame = deviceio.FrameMetadataTrackerOrbbec(
+    prefix,
+    [deviceio.OrbbecCameraStream.ColorLeft, deviceio.OrbbecCameraStream.ColorRight],
+)
+imu = deviceio.OrbbecImuTracker(prefix)
+audio = deviceio.OrbbecAudioTracker(prefix)
+calibration = deviceio.OrbbecCalibrationTracker(prefix)
+state = deviceio.OrbbecDeviceStateTracker(prefix)
+config = deviceio.McapReplayConfig(
+    sys.argv[1],
+    [
+        (frame, "orbbec_metadata"), (imu, "orbbec_imu"),
+        (audio, "orbbec_audio"), (calibration, "orbbec_calibration"),
+        (state, "orbbec_device"),
+    ],
+)
+
+expected = {"ColorLeft", "ColorRight", "Accel", "Gyro", "Audio", "Calibration", "DeviceState"}
+seen = set()
+with deviceio.ReplaySession.run(config) as replay:
+    for update in range(1500):
+        replay.update()
+        values = {
+            "ColorLeft": frame.get_stream_data(replay, 0).data,
+            "ColorRight": frame.get_stream_data(replay, 1).data,
+            "Accel": imu.get_stream_data(replay, 0).data,
+            "Gyro": imu.get_stream_data(replay, 1).data,
+            "Audio": audio.get_data(replay).data,
+            "Calibration": calibration.get_data(replay).data,
+            "DeviceState": state.get_data(replay).data,
+        }
+        seen.update(name for name, value in values.items() if value is not None)
+        if seen == expected:
+            print(f"All Orbbec classes materialized by replay update {update + 1}")
+            break
+
+missing = expected - seen
+if missing:
+    raise SystemExit(f"Replay never materialized: {sorted(missing)}")
+print("Orbbec MCAP replay acceptance passed")
+PY
+```
+
+Passing output contains both `All Orbbec classes materialized` and `Orbbec
+MCAP replay acceptance passed`. The replay requires no camera, CloudXR runtime,
+or XR headset.
 
 ## Reproducible build and delivery checks
 
@@ -669,7 +891,7 @@ ffmpeg -v error -i recordings/left.h265 -f null -
   --mcap-filename=recordings/local.mcap
 ffprobe -v error -show_entries stream=codec_name,sample_rate,channels,bits_per_raw_sample \
   -of default=noprint_wrappers=1 recordings/ego.wav
-jq '.left_intrinsics, .right_intrinsics, .left_to_right' recordings/ego_calibration.json
+jq -e '.color_left and .color_right and .left_to_right' recordings/ego_calibration.json
 ```
 
 Do not use an unguarded ``timeout`` loop in a shell that enables ``set -e``:

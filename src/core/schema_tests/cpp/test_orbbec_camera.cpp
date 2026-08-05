@@ -93,12 +93,19 @@ TEST_CASE("Orbbec Ego auxiliary schemas round trip", "[orbbec][schema]")
     core::OrbbecDeviceStateT state;
     state.sequence_number = 7;
     state.temperature_c = 31.5f;
+    state.capture_health = core::OrbbecCaptureHealth_Warning;
+    state.failure_reason = "queue warning";
+    state.queue_capacity = 4096;
+    state.queue_peak = 3482;
     state.properties.emplace_back(279, 8'000'000);
     flatbuffers::FlatBufferBuilder state_builder;
     state_builder.Finish(core::OrbbecDeviceState::Pack(state_builder, &state));
     core::OrbbecDeviceStateT restored_state;
     flatbuffers::GetRoot<core::OrbbecDeviceState>(state_builder.GetBufferPointer())->UnPackTo(&restored_state);
     CHECK(restored_state.temperature_c == 31.5f);
+    CHECK(restored_state.capture_health == core::OrbbecCaptureHealth_Warning);
+    CHECK(restored_state.failure_reason == "queue warning");
+    CHECK(restored_state.queue_capacity == 4096);
     REQUIRE(restored_state.properties.size() == 1);
 }
 

@@ -15,6 +15,8 @@ extern "C"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
@@ -30,6 +32,34 @@ struct RgbFrame
     uint32_t width = 0;
     uint32_t height = 0;
     std::vector<uint8_t> pixels;
+};
+
+struct Texture
+{
+    SDL_Texture* handle = nullptr;
+    uint32_t width = 0;
+    uint32_t height = 0;
+
+    ~Texture()
+    {
+        if (handle)
+            SDL_DestroyTexture(handle);
+    }
+
+    void update(SDL_Renderer* renderer, const RgbFrame& image)
+    {
+        if (!handle || width != image.width || height != image.height)
+        {
+            if (handle)
+                SDL_DestroyTexture(handle);
+            handle = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
+                                       static_cast<int>(image.width), static_cast<int>(image.height));
+            width = image.width;
+            height = image.height;
+        }
+        if (handle)
+            SDL_UpdateTexture(handle, nullptr, image.pixels.data(), static_cast<int>(image.width * 3));
+    }
 };
 
 class Decoder
@@ -153,6 +183,7 @@ private:
         }
         std::map<core::OrbbecCameraStream, std::unique_ptr<Decoder>> decoders;
         std::map<core::OrbbecCameraStream, RgbFrame> images;
+        std::map<core::OrbbecCameraStream, Texture> textures;
         while (!stop_.load())
         {
             SDL_Event event;
@@ -170,6 +201,18 @@ private:
                 wake_.wait_for(lock, std::chrono::milliseconds(10), [this] { return stop_.load() || !latest_.empty(); });
                 frames.swap(latest_);
             }
+            // A preview must never turn mismatched eyes into a stereo pair.
+            // The capture side is a latest-frame mailbox, so stale work is
+            // discarded before decoding rather than becoming visual latency.
+            const auto left = frames.find(core::OrbbecCameraStream_ColorLeft);
+            const auto right = frames.find(core::OrbbecCameraStream_ColorRight);
+            if (left != frames.end() && right != frames.end())
+            {
+                const int64_t timestamp_delta =
+                    std::llabs(left->second.device_timestamp_ns - right->second.device_timestamp_ns);
+                if (left->second.sequence_number != right->second.sequence_number && timestamp_delta > 5'000'000)
+                    continue;
+            }
             for (const auto& [stream, frame] : frames)
             {
                 auto it = decoders.find(stream);
@@ -183,17 +226,15 @@ private:
             int window_height = 0;
             SDL_GetRendererOutputSize(renderer, &window_width, &window_height);
             int index = 0;
-            for (const auto& [_, image] : images)
+            for (const auto& [stream, image] : images)
             {
-                SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGB24, SDL_TEXTUREACCESS_STREAMING,
-                                                         static_cast<int>(image.width), static_cast<int>(image.height));
-                if (texture)
+                auto& texture = textures[stream];
+                texture.update(renderer, image);
+                if (texture.handle)
                 {
-                    SDL_UpdateTexture(texture, nullptr, image.pixels.data(), static_cast<int>(image.width * 3));
                     const int count = static_cast<int>(images.size());
                     SDL_Rect target{ index * window_width / count, 0, window_width / count, window_height };
-                    SDL_RenderCopy(renderer, texture, nullptr, &target);
-                    SDL_DestroyTexture(texture);
+                    SDL_RenderCopy(renderer, texture.handle, nullptr, &target);
                 }
                 ++index;
             }

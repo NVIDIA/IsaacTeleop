@@ -5,6 +5,10 @@ include "timestamp.fbs";
 
 namespace core;
 
+// Append-only capture-health summary. Consumers can filter incomplete runs
+// without inferring state from a partially written media file.
+enum OrbbecCaptureHealth : byte { Healthy = 0, Warning = 1, Incomplete = 2 }
+
 struct OrbbecDevicePropertyValue {
   property_id: int32;
   value: double;
@@ -19,6 +23,11 @@ table OrbbecDeviceState {
   storage_free_bytes: uint64 (id: 5);
   temperature_c: float (id: 6);
   properties: [OrbbecDevicePropertyValue] (id: 7);
+  capture_health: OrbbecCaptureHealth = Healthy (id: 8);
+  failure_reason: string (id: 9);
+  queue_capacity: uint32 (id: 10);
+  queue_peak: uint32 (id: 11);
+  dropped_events: uint64 (id: 12);
 }
 
 table OrbbecDeviceStateTracked { data: OrbbecDeviceState (id: 0); }

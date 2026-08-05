@@ -22,18 +22,23 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cmath>
 #include <condition_variable>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 #include <variant>
 
@@ -452,7 +457,10 @@ double read_property(const std::shared_ptr<ob::Device>& device, const OBProperty
     }
 }
 
-void write_property(const std::shared_ptr<ob::Device>& device, const OBPropertyItem& item, double value)
+void validate_property_value(const std::shared_ptr<ob::Device>& device,
+                             const OBPropertyItem& item,
+                             double value,
+                             bool validate_step = true)
 {
     if ((item.permission & OB_PERMISSION_WRITE) == 0)
         throw std::invalid_argument(std::string(item.name) + " is read-only");
@@ -461,16 +469,20 @@ void write_property(const std::shared_ptr<ob::Device>& device, const OBPropertyI
     case OB_BOOL_PROPERTY:
         if (value != 0.0 && value != 1.0)
             throw std::out_of_range(std::string(item.name) + " accepts only 0 or 1");
-        device->setBoolProperty(item.id, value != 0.0);
         break;
     case OB_INT_PROPERTY:
     {
         const auto range = device->getIntPropertyRange(item.id);
         const auto integer = static_cast<int32_t>(value);
+        if (validate_step && range.max > range.min && range.step > range.max - range.min)
+        {
+            throw std::runtime_error(std::string(item.name) +
+                                     " reports an invalid SDK range/step; refusing to change a property that "
+                                     "cannot be restored safely");
+        }
         if (value != integer || integer < range.min || integer > range.max ||
-            (range.step > 0 && (integer - range.min) % range.step != 0))
+            (validate_step && range.step > 0 && (integer - range.min) % range.step != 0))
             throw std::out_of_range(std::string(item.name) + " value is outside its range or step");
-        device->setIntProperty(item.id, integer);
         break;
     }
     case OB_FLOAT_PROPERTY:
@@ -478,9 +490,30 @@ void write_property(const std::shared_ptr<ob::Device>& device, const OBPropertyI
         const auto range = device->getFloatPropertyRange(item.id);
         if (value < range.min || value > range.max)
             throw std::out_of_range(std::string(item.name) + " value is outside its range");
-        device->setFloatProperty(item.id, static_cast<float>(value));
         break;
     }
+    default:
+        throw std::invalid_argument(std::string(item.name) + " is not a scalar property");
+    }
+}
+
+void write_property(const std::shared_ptr<ob::Device>& device,
+                    const OBPropertyItem& item,
+                    double value,
+                    bool validate_step = true)
+{
+    validate_property_value(device, item, value, validate_step);
+    switch (item.type)
+    {
+    case OB_BOOL_PROPERTY:
+        device->setBoolProperty(item.id, value != 0.0);
+        break;
+    case OB_INT_PROPERTY:
+        device->setIntProperty(item.id, static_cast<int32_t>(value));
+        break;
+    case OB_FLOAT_PROPERTY:
+        device->setFloatProperty(item.id, static_cast<float>(value));
+        break;
     default:
         throw std::invalid_argument(std::string(item.name) + " is not a scalar property");
     }
@@ -574,6 +607,7 @@ std::shared_ptr<ob::VideoStreamProfile> select_profile(const std::shared_ptr<ob:
                                                        const StreamConfig& stream,
                                                        const CaptureConfig& config)
 {
+    validate_stream_config(stream, config);
     const auto width = stream.width != 0 ? stream.width : config.width;
     const auto height = stream.height != 0 ? stream.height : config.height;
     const auto fps = stream.fps != 0 ? stream.fps : config.fps;
@@ -624,6 +658,18 @@ public:
         audio_pusher_ = make_pusher(collection_prefix + "/Audio", "audio_chunk", "Orbbec audio index");
         calibration_pusher_ = make_pusher(collection_prefix + "/Calibration", "calibration", "Orbbec calibration");
         device_state_pusher_ = make_pusher(collection_prefix + "/DeviceState", "device_state", "Orbbec device state");
+        publisher_ = std::thread([this] { publish_loop(); });
+    }
+
+    ~SchemaMetadataSink() override
+    {
+        {
+            std::lock_guard<std::mutex> lock(publish_mutex_);
+            stopping_ = true;
+        }
+        publish_wake_.notify_all();
+        if (publisher_.joinable())
+            publisher_.join();
     }
 
     void on_frame_metadata(const CapturedFrame& frame) override
@@ -632,31 +678,34 @@ public:
         if (it == pushers_.end())
             return;
 
-        flatbuffers::FlatBufferBuilder builder(kMaxFlatbufferSize);
-        const auto offset = core::FrameMetadataOrbbec::Pack(builder, &frame.metadata);
-        builder.Finish(offset);
-        it->second->push_buffer(builder.GetBufferPointer(), builder.GetSize(), frame.sample_time_local_common_clock_ns,
-                                frame.sample_time_raw_device_clock_ns);
+        enqueue<core::FrameMetadataOrbbec>(*it->second, frame.metadata, frame.sample_time_local_common_clock_ns,
+                                           frame.sample_time_raw_device_clock_ns);
     }
 
     void on_imu_batch(const core::OrbbecImuBatchT& batch, int64_t local_ns, int64_t device_ns) override
     {
-        push(imu_pushers_.at(batch.sensor), batch, local_ns, device_ns);
+        enqueue(*imu_pushers_.at(batch.sensor), batch, local_ns, device_ns);
     }
 
     void on_audio_chunk(const core::OrbbecAudioChunkT& chunk, int64_t local_ns, int64_t device_ns) override
     {
-        push(audio_pusher_, chunk, local_ns, device_ns);
+        enqueue(*audio_pusher_, chunk, local_ns, device_ns);
     }
 
     void on_calibration(const core::OrbbecCalibrationT& calibration, int64_t local_ns, int64_t device_ns) override
     {
-        push(calibration_pusher_, calibration, local_ns, device_ns);
+        enqueue(*calibration_pusher_, calibration, local_ns, device_ns);
     }
 
     void on_device_state(const core::OrbbecDeviceStateT& state, int64_t local_ns, int64_t device_ns) override
     {
-        push(device_state_pusher_, state, local_ns, device_ns);
+        enqueue(*device_state_pusher_, state, local_ns, device_ns);
+    }
+
+    std::string error() const override
+    {
+        std::lock_guard<std::mutex> lock(publish_mutex_);
+        return publish_error_;
     }
 
 private:
@@ -674,43 +723,80 @@ private:
     }
 
     template <typename TableT>
-    void push(const std::unique_ptr<core::SchemaPusher>& pusher,
-              const typename TableT::NativeTableType& value,
-              int64_t local_ns,
-              int64_t device_ns)
+    void enqueue(core::SchemaPusher& pusher,
+                 const typename TableT::NativeTableType& value,
+                 int64_t local_ns,
+                 int64_t device_ns)
     {
         flatbuffers::FlatBufferBuilder builder(kMaxFlatbufferSize);
         builder.Finish(TableT::Pack(builder, &value));
-        pusher->push_buffer(builder.GetBufferPointer(), builder.GetSize(), local_ns, device_ns);
+        std::vector<uint8_t> bytes(builder.GetBufferPointer(), builder.GetBufferPointer() + builder.GetSize());
+        enqueue_task([&pusher, bytes = std::move(bytes), local_ns, device_ns]()
+                     { pusher.push_buffer(bytes.data(), bytes.size(), local_ns, device_ns); });
     }
 
-    void push(const std::unique_ptr<core::SchemaPusher>& pusher,
-              const core::OrbbecImuBatchT& value,
-              int64_t local_ns,
-              int64_t device_ns)
+    void enqueue(core::SchemaPusher& pusher, const core::OrbbecImuBatchT& value, int64_t local_ns, int64_t device_ns)
     {
-        push<core::OrbbecImuBatch>(pusher, value, local_ns, device_ns);
+        enqueue<core::OrbbecImuBatch>(pusher, value, local_ns, device_ns);
     }
-    void push(const std::unique_ptr<core::SchemaPusher>& pusher,
-              const core::OrbbecAudioChunkT& value,
-              int64_t local_ns,
-              int64_t device_ns)
+    void enqueue(core::SchemaPusher& pusher, const core::OrbbecAudioChunkT& value, int64_t local_ns, int64_t device_ns)
     {
-        push<core::OrbbecAudioChunk>(pusher, value, local_ns, device_ns);
+        enqueue<core::OrbbecAudioChunk>(pusher, value, local_ns, device_ns);
     }
-    void push(const std::unique_ptr<core::SchemaPusher>& pusher,
-              const core::OrbbecCalibrationT& value,
-              int64_t local_ns,
-              int64_t device_ns)
+    void enqueue(core::SchemaPusher& pusher, const core::OrbbecCalibrationT& value, int64_t local_ns, int64_t device_ns)
     {
-        push<core::OrbbecCalibration>(pusher, value, local_ns, device_ns);
+        enqueue<core::OrbbecCalibration>(pusher, value, local_ns, device_ns);
     }
-    void push(const std::unique_ptr<core::SchemaPusher>& pusher,
-              const core::OrbbecDeviceStateT& value,
-              int64_t local_ns,
-              int64_t device_ns)
+    void enqueue(core::SchemaPusher& pusher, const core::OrbbecDeviceStateT& value, int64_t local_ns, int64_t device_ns)
     {
-        push<core::OrbbecDeviceState>(pusher, value, local_ns, device_ns);
+        enqueue<core::OrbbecDeviceState>(pusher, value, local_ns, device_ns);
+    }
+
+    void enqueue_task(std::function<void()> task)
+    {
+        std::lock_guard<std::mutex> lock(publish_mutex_);
+        if (!publish_error_.empty())
+            throw std::runtime_error("Orbbec SchemaPusher failed: " + publish_error_);
+        if (tasks_.size() >= kMaxQueuedEvents)
+            throw std::runtime_error("Orbbec SchemaPusher queue is full; capture stopped to avoid silent loss");
+        if (tasks_.size() + 1 >= kMaxQueuedEvents * 85 / 100 && !warning_emitted_)
+        {
+            warning_emitted_ = true;
+            std::cerr << "Warning: Orbbec SchemaPusher queue reached 85%; capture will stop if it fills." << std::endl;
+        }
+        tasks_.push_back(std::move(task));
+        publish_wake_.notify_one();
+    }
+
+    void publish_loop()
+    {
+        while (true)
+        {
+            std::function<void()> task;
+            {
+                std::unique_lock<std::mutex> lock(publish_mutex_);
+                publish_wake_.wait(lock, [this] { return stopping_ || !tasks_.empty(); });
+                if (tasks_.empty())
+                {
+                    if (stopping_)
+                        return;
+                    continue;
+                }
+                task = std::move(tasks_.front());
+                tasks_.pop_front();
+            }
+            try
+            {
+                task();
+            }
+            catch (const std::exception& error)
+            {
+                std::lock_guard<std::mutex> lock(publish_mutex_);
+                publish_error_ = error.what();
+                tasks_.clear();
+                std::cerr << "Orbbec SchemaPusher failure: " << publish_error_ << std::endl;
+            }
+        }
     }
 
     std::shared_ptr<core::OpenXRSession> session_;
@@ -719,6 +805,13 @@ private:
     std::unique_ptr<core::SchemaPusher> audio_pusher_;
     std::unique_ptr<core::SchemaPusher> calibration_pusher_;
     std::unique_ptr<core::SchemaPusher> device_state_pusher_;
+    mutable std::mutex publish_mutex_;
+    std::condition_variable publish_wake_;
+    std::deque<std::function<void()>> tasks_;
+    std::thread publisher_;
+    bool stopping_ = false;
+    bool warning_emitted_ = false;
+    std::string publish_error_;
 };
 
 class McapMetadataSink final : public IMetadataSink
@@ -728,9 +821,8 @@ public:
     {
         mcap::McapWriterOptions options("orbbec_ego");
         options.compression = mcap::Compression::None;
-        const auto status = writer_.open(filename, options);
-        if (!status.ok())
-            throw std::runtime_error("Unable to open Orbbec MCAP output: " + filename + ": " + status.message);
+        output_.open(filename);
+        writer_.open(output_, options);
         std::vector<std::string> video_names;
         for (const auto& stream : streams)
             video_names.emplace_back(core::EnumNameOrbbecCameraStream(stream.camera));
@@ -755,7 +847,35 @@ public:
 
     ~McapMetadataSink() override
     {
-        writer_.close();
+        try
+        {
+            close();
+        }
+        catch (const std::exception& error)
+        {
+            // Destructors run during capture-error unwinding. Preserve the primary
+            // failure rather than terminating while attempting to write the footer.
+            std::cerr << "Orbbec MCAP shutdown failed: " << error.what() << std::endl;
+        }
+    }
+
+    void close() override
+    {
+        if (closed_)
+            return;
+        try
+        {
+            writer_.close();
+            closed_ = true;
+        }
+        catch (...)
+        {
+            // McapWriter retries close from its destructor unless it is reset.
+            // Terminate after an I/O failure so an error-path footer retry cannot abort.
+            writer_.terminate();
+            closed_ = true;
+            throw;
+        }
     }
 
     void on_frame_metadata(const CapturedFrame& frame) override
@@ -783,11 +903,66 @@ public:
     }
 
 private:
+    class CheckedMcapFileWriter final : public mcap::IWritable
+    {
+    public:
+        ~CheckedMcapFileWriter() override
+        {
+            try
+            {
+                end();
+            }
+            catch (const std::exception&)
+            {
+            }
+        }
+
+        void open(const std::string& filename)
+        {
+            end();
+            file_ = std::fopen(filename.c_str(), "wb");
+            if (!file_)
+                throw std::runtime_error("Unable to open Orbbec MCAP output: " + filename + ": " + std::strerror(errno));
+        }
+
+        void end() override
+        {
+            if (!file_)
+                return;
+            FILE* const file = std::exchange(file_, nullptr);
+            const int flush_status = std::fflush(file);
+            const int close_status = std::fclose(file);
+            if (flush_status != 0 || close_status != 0)
+                throw std::runtime_error("Failed while closing Orbbec MCAP output: " + std::string(std::strerror(errno)));
+        }
+
+        uint64_t size() const override
+        {
+            return size_;
+        }
+
+    protected:
+        void handleWrite(const std::byte* data, uint64_t size) override
+        {
+            if (!file_)
+                throw std::runtime_error("Attempted to write a closed Orbbec MCAP output");
+            const size_t written = std::fwrite(data, 1, static_cast<size_t>(size), file_);
+            if (written != size)
+                throw std::runtime_error("Failed while writing Orbbec MCAP output: " + std::string(std::strerror(errno)));
+            size_ += size;
+        }
+
+    private:
+        FILE* file_ = nullptr;
+        uint64_t size_ = 0;
+    };
+
     static core::DeviceDataTimestamp timestamp(int64_t local_ns, int64_t device_ns)
     {
         return core::DeviceDataTimestamp(core::os_monotonic_now_ns(), local_ns, device_ns);
     }
 
+    CheckedMcapFileWriter output_;
     mcap::McapWriter writer_;
     std::unique_ptr<core::McapTrackerChannels<core::FrameMetadataOrbbecRecord, core::FrameMetadataOrbbec>> video_;
     std::unique_ptr<core::McapTrackerChannels<core::OrbbecImuBatchRecord, core::OrbbecImuBatch>> imu_;
@@ -795,9 +970,22 @@ private:
     std::unique_ptr<core::McapTrackerChannels<core::OrbbecCalibrationRecord, core::OrbbecCalibration>> calibration_;
     std::unique_ptr<core::McapTrackerChannels<core::OrbbecDeviceStateRecord, core::OrbbecDeviceState>> device_state_;
     std::map<core::OrbbecCameraStream, size_t> video_indices_;
+    bool closed_ = false;
 };
 
 } // namespace
+
+void validate_stream_config(const StreamConfig& stream, const CaptureConfig& config)
+{
+    const uint32_t fps = stream.fps != 0 ? stream.fps : config.fps;
+    if (fps > 30 &&
+        (stream.pixel_format == core::OrbbecPixelFormat_H264 || stream.pixel_format == core::OrbbecPixelFormat_H265))
+    {
+        throw std::invalid_argument(
+            "H.264/H.265 above 30 FPS is not certified for raw bitstream integrity on Orbbec Ego. "
+            "Refusing the requested profile; use fps=30. The plugin never silently substitutes 30 FPS.");
+    }
+}
 
 class FrameSink::Impl
 {
@@ -987,6 +1175,19 @@ IMetadataSink* FrameSink::metadata_sink()
     return impl_->metadata_sink();
 }
 
+void FrameSink::close_metadata()
+{
+    if (auto* sink = impl_->metadata_sink())
+        sink->close();
+}
+
+std::string FrameSink::metadata_error() const
+{
+    if (const auto* sink = impl_->metadata_sink())
+        return sink->error();
+    return {};
+}
+
 std::unique_ptr<FrameSink> create_frame_sink(const std::vector<StreamConfig>& streams,
                                              const std::string& collection_prefix)
 {
@@ -1044,13 +1245,23 @@ public:
             settings.push_back({ "OB_PROP_COLOR_BITRATE_INT", static_cast<double>(config.bitrate) });
         if (config.dynamic_bitrate_set)
             settings.push_back({ "OB_PROP_COLOR_DYNAMIC_BITRATE_ENABLE_BOOL", config.dynamic_bitrate ? 1.0 : 0.0 });
+        std::vector<std::pair<OBPropertyItem, double>> validated_settings;
+        validated_settings.reserve(settings.size());
         for (const auto& setting : settings)
         {
             const auto item = find_property(device_, setting.name);
+            // Constructors do not run their destructor after a throw. Validate every
+            // requested setting before the first device write, so a later invalid
+            // control can never leave an earlier one applied.
+            validate_property_value(device_, item, setting.value);
+            validated_settings.emplace_back(item, setting.value);
+        }
+        for (const auto& [item, value] : validated_settings)
+        {
             if (!config.persist_controls && (item.permission & OB_PERMISSION_READ) != 0)
                 original_properties_.push_back({ item, read_property(device_, item) });
-            write_property(device_, item, setting.value);
-            std::cout << "Set " << setting.name << "=" << setting.value << std::endl;
+            write_property(device_, item, value);
+            std::cout << "Set " << item.name << "=" << value << std::endl;
         }
 
         pipeline_ = std::make_unique<ob::Pipeline>(device_);
@@ -1073,22 +1284,24 @@ public:
         pipeline_config->setFrameAggregateOutputMode(has_interframe_video ?
                                                          OB_FRAME_AGGREGATE_OUTPUT_COLOR_FRAME_REQUIRE :
                                                          OB_FRAME_AGGREGATE_OUTPUT_ALL_TYPE_FRAME_REQUIRE);
-        pipeline_->start(pipeline_config,
-                         [this](std::shared_ptr<ob::FrameSet> frame_set)
-                         {
-                             if (!frame_set)
-                                 return;
-                             {
-                                 std::lock_guard<std::mutex> lock(video_queue_mutex_);
-                                 if (video_frame_sets_.size() >= kMaxQueuedVideoFrameSets)
-                                 {
-                                     ++auxiliary_stats_.dropped_video_frame_sets;
-                                     return;
-                                 }
-                                 video_frame_sets_.push_back(std::move(frame_set));
-                             }
-                             video_queue_cv_.notify_one();
-                         });
+        pipeline_->start(
+            pipeline_config,
+            [this](std::shared_ptr<ob::FrameSet> frame_set)
+            {
+                if (!frame_set)
+                    return;
+                {
+                    std::lock_guard<std::mutex> lock(video_queue_mutex_);
+                    if (video_frame_sets_.size() >= kMaxQueuedVideoFrameSets)
+                    {
+                        ++auxiliary_stats_.dropped_video_frame_sets;
+                        set_async_error("Orbbec video callback queue is full; capture stopped to avoid silent loss");
+                        return;
+                    }
+                    video_frame_sets_.push_back(std::move(frame_set));
+                }
+                video_queue_cv_.notify_one();
+            });
         std::cout << "Orbbec pipeline started for " << device_->getDeviceInfo()->getUid() << std::endl;
 
         if (config_.preview)
@@ -1105,6 +1318,18 @@ public:
 
     ~Impl()
     {
+        shutdown_noexcept();
+    }
+
+    void close()
+    {
+        shutdown();
+    }
+
+    void shutdown()
+    {
+        if (shutdown_complete_)
+            return;
         try
         {
             device_->setEgoStateCallback({});
@@ -1132,6 +1357,10 @@ public:
             {
             }
         }
+        // Restore controls while the video pipeline is still alive. On Ego, writing
+        // controls after Pipeline::stop() can leave an SDK worker joinable during
+        // Context teardown, which terminates the process before normal cleanup.
+        restore_properties();
         if (pipeline_)
         {
             try
@@ -1143,22 +1372,61 @@ public:
                 std::cerr << "Orbbec pipeline stop failed: " << error.what() << std::endl;
             }
         }
-        drain_video_frames();
-        flush_imu(core::OrbbecImuSensor_Accel);
-        flush_imu(core::OrbbecImuSensor_Gyro);
-        drain_events();
-        wav_writer_.close();
+        try
+        {
+            drain_video_frames();
+            flush_imu(core::OrbbecImuSensor_Accel);
+            flush_imu(core::OrbbecImuSensor_Gyro);
+            drain_events();
+            wav_writer_.close();
+            sink_->close_metadata();
+            shutdown_complete_ = true;
+        }
+        catch (...)
+        {
+            shutdown_complete_ = true;
+            throw;
+        }
+    }
+
+    void shutdown_noexcept() noexcept
+    {
+        try
+        {
+            shutdown();
+        }
+        catch (const std::exception& error)
+        {
+            std::cerr << "Orbbec shutdown failed: " << error.what() << std::endl;
+        }
+        catch (...)
+        {
+            std::cerr << "Orbbec shutdown failed: unknown error" << std::endl;
+        }
+    }
+
+    void restore_properties() noexcept
+    {
         for (auto it = original_properties_.rbegin(); it != original_properties_.rend(); ++it)
         {
             try
             {
-                write_property(device_, it->first, it->second);
+                // Some Ego firmware reports an invalid brightness step (0..3
+                // with step 7). The captured device value is authoritative;
+                // preserve it instead of rejecting it with that bad step.
+                write_property(device_, it->first, it->second, false);
+                std::cout << "Restored " << it->first.name << "=" << it->second << std::endl;
             }
-            catch (const ob::Error& error)
+            catch (const std::exception& error)
             {
                 std::cerr << "Failed to restore " << it->first.name << ": " << error.what() << std::endl;
             }
+            catch (...)
+            {
+                std::cerr << "Failed to restore " << it->first.name << ": unknown error" << std::endl;
+            }
         }
+        original_properties_.clear();
     }
 
     void update()
@@ -1168,11 +1436,15 @@ public:
             if (!async_error_.empty())
                 throw std::runtime_error(async_error_);
         }
+        if (const auto error = sink_->metadata_error(); !error.empty())
+            throw std::runtime_error("Orbbec metadata publication failed: " + error);
         drain_events();
         if (std::chrono::steady_clock::now() - last_device_poll_ >= std::chrono::seconds(5))
             poll_device_state();
         drain_video_frames();
         drain_events();
+        if (const auto error = sink_->metadata_error(); !error.empty())
+            throw std::runtime_error("Orbbec metadata publication failed: " + error);
     }
 
     void drain_video_frames()
@@ -1217,11 +1489,12 @@ public:
                     captured.metadata.sdk_metadata.emplace_back(type, frame->getMetadataValue(metadata_type));
             }
             captured.encoded_data.assign(frame->getData(), frame->getData() + frame->getDataSize());
-            if (preview_)
-                preview_->submit({ stream.camera, stream.pixel_format, captured.metadata.width,
-                                   captured.metadata.height, captured.encoded_data });
             captured.sample_time_local_common_clock_ns = core::os_monotonic_now_ns();
             captured.sample_time_raw_device_clock_ns = static_cast<int64_t>(frame->getTimeStampUs()) * 1000;
+            if (preview_)
+                preview_->submit({ stream.camera, stream.pixel_format, captured.metadata.width, captured.metadata.height,
+                                   captured.metadata.sequence_number, captured.sample_time_raw_device_clock_ns,
+                                   captured.sample_time_local_common_clock_ns, captured.encoded_data });
             sink_->on_frame(captured);
 
             auto& stats = stats_[stream.camera];
@@ -1298,6 +1571,8 @@ public:
         if (events_.size() >= kMaxQueuedEvents)
         {
             ++auxiliary_stats_.dropped_events;
+            if (async_error_.empty())
+                async_error_ = "Orbbec metadata queue is full; capture stopped to avoid silent loss";
             return;
         }
         events_.emplace_back(std::forward<Event>(event));
@@ -1640,6 +1915,24 @@ public:
         state.sequence_number = polled_state_sequence_++;
         state.device_uid = device_->getDeviceInfo()->getUid();
         state.temperature_c = std::numeric_limits<float>::quiet_NaN();
+        {
+            std::lock_guard<std::mutex> lock(queue_mutex_);
+            state.queue_capacity = static_cast<uint32_t>(kMaxQueuedEvents);
+            state.queue_peak = static_cast<uint32_t>(auxiliary_stats_.publish_queue_peak);
+            state.dropped_events = auxiliary_stats_.dropped_events;
+            if (!async_error_.empty() || state.dropped_events != 0)
+            {
+                state.capture_health = core::OrbbecCaptureHealth_Incomplete;
+                state.failure_reason = async_error_.empty() ? "dropped metadata event" : async_error_;
+            }
+            else if (events_.size() >= kMaxQueuedEvents * 85 / 100)
+            {
+                state.capture_health = core::OrbbecCaptureHealth_Warning;
+                state.failure_reason = "metadata queue reached 85 percent capacity";
+            }
+            else
+                state.capture_health = core::OrbbecCaptureHealth_Healthy;
+        }
         for (int index = 0; index < device_->getSupportedPropertyCount(); ++index)
         {
             const auto item = device_->getSupportedProperty(static_cast<uint32_t>(index));
@@ -1699,6 +1992,7 @@ private:
     std::string async_error_;
     uint64_t polled_state_sequence_ = 0;
     std::chrono::steady_clock::time_point last_device_poll_{};
+    bool shutdown_complete_ = false;
 };
 
 OrbbecCamera::OrbbecCamera(const CaptureConfig& config,
@@ -1713,6 +2007,11 @@ OrbbecCamera::~OrbbecCamera() = default;
 void OrbbecCamera::update()
 {
     impl_->update();
+}
+
+void OrbbecCamera::close()
+{
+    impl_->close();
 }
 
 void OrbbecCamera::print_stats() const

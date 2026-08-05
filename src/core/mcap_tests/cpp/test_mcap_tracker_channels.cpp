@@ -6,6 +6,7 @@
 #define MCAP_IMPLEMENTATION
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <mcap/reader.hpp>
 #include <mcap/recording_traits.hpp>
 #include <mcap/tracker_channels.hpp>
@@ -200,6 +201,20 @@ TEST_CASE("McapTrackerChannels: out-of-range channel_index throws", "[mcap][trac
     HeadChannels ch(*writer, "test", core::HeadRecordingTraits::schema_name, { "only" });
     CHECK_THROWS_AS(ch.write(99, core::DeviceDataTimestamp(100, 100, 1), data), std::out_of_range);
     writer->close();
+}
+
+TEST_CASE("McapTrackerChannels: writer failure propagates to the caller", "[mcap][tracker_channels]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto writer = open_writer(path);
+    HeadChannels ch(*writer, "test", core::HeadRecordingTraits::schema_name, { "only" });
+    writer->close();
+
+    auto data = std::make_shared<core::HeadPoseT>();
+    CHECK_THROWS_WITH(ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data),
+                      Catch::Matchers::ContainsSubstring("McapTrackerChannels: write failed"));
 }
 
 TEST_CASE("McapTrackerChannels: sequence numbers increment across writes", "[mcap][tracker_channels]")

@@ -418,3 +418,57 @@ class PairedFrameSource(FrameSource):
             source_id=self._spec.name,
             stream=self._cached_left.stream,
         )
+
+
+class StereoSbsDebugSource(FrameSource):
+    """Desktop-only stereo inspector.
+
+    Window backends have one view and normally sample the left image. This
+    wrapper packs a paired GPU frame into a side-by-side GPU buffer without
+    changing the XR stereo contract. It is intentionally an explicit debug
+    source: XR callers must keep the original two-eye source.
+    """
+
+    def __init__(self, source: FrameSource) -> None:
+        import cupy as cp
+
+        self._source = source
+        self._spec = SourceSpec(
+            name=f"{source.spec.name}.sbs",
+            width=source.spec.width * 2,
+            height=source.spec.height,
+            pixel_format=source.spec.pixel_format,
+        )
+        self._buffers = [
+            cp.empty((self._spec.height, self._spec.width, 4), dtype=cp.uint8)
+            for _ in range(2)
+        ]
+        self._write_index = 0
+
+    @property
+    def spec(self) -> SourceSpec:
+        return self._spec
+
+    def start(self) -> None:
+        self._source.start()
+
+    def stop(self) -> None:
+        self._source.stop()
+
+    def latest(self) -> Optional[Frame]:
+        frame = self._source.latest()
+        if frame is None:
+            return None
+        if frame.image_right is None:
+            raise RuntimeError("Stereo SBS debug mode requires a paired source")
+        buffer = self._buffers[self._write_index]
+        width = self._source.spec.width
+        buffer[:, :width] = frame.image
+        buffer[:, width:] = frame.image_right
+        self._write_index = (self._write_index + 1) % len(self._buffers)
+        return Frame(
+            image=buffer,
+            timestamp_ns=frame.timestamp_ns,
+            source_id=self._spec.name,
+            stream=frame.stream,
+        )

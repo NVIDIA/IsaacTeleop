@@ -46,7 +46,8 @@ struct CaptureConfig
     bool preview = false;
     bool enable_imu = false;
     uint32_t imu_rate = 400;
-    // Ego PID 0x1201 exposes the 24 g / 2000 dps profile on current firmware.
+    // These are requests, not a PID contract. start_imu validates them against
+    // the profiles enumerated from the selected device.
     float accel_full_scale_g = 24.0f;
     float gyro_full_scale_dps = 2000.0f;
     std::string audio_output;
@@ -56,6 +57,11 @@ struct CaptureConfig
     std::vector<PropertySetting> properties;
     bool persist_controls = false;
 };
+
+// Encoded 60 FPS profiles can be enumerated by an Ego firmware without being
+// bitstream-integrity certified. Keep the policy here (rather than silently
+// selecting a different SDK profile) so CLI and embedded callers agree.
+void validate_stream_config(const StreamConfig& stream, const CaptureConfig& config);
 
 struct CapturedFrame
 {
@@ -82,6 +88,13 @@ public:
     virtual void on_device_state(const core::OrbbecDeviceStateT&, int64_t, int64_t)
     {
     }
+    virtual void close()
+    {
+    }
+    virtual std::string error() const
+    {
+        return {};
+    }
 };
 
 class FrameSink
@@ -95,6 +108,8 @@ public:
 
     void on_frame(const CapturedFrame& frame);
     IMetadataSink* metadata_sink();
+    void close_metadata();
+    std::string metadata_error() const;
 
 private:
     class Impl;
@@ -134,6 +149,7 @@ public:
     OrbbecCamera& operator=(const OrbbecCamera&) = delete;
 
     void update();
+    void close();
     void print_stats() const;
     const std::map<core::OrbbecCameraStream, StreamStats>& stats() const;
     const AuxiliaryStats& auxiliary_stats() const;

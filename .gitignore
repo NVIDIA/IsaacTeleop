@@ -9,6 +9,7 @@
 /.vscode/
 /Log/
 /recordings/
+/acceptance_install/
 
 # Node.js
 node_modules/

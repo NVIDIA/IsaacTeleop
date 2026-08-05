@@ -164,6 +164,10 @@ pre-commit install --hook-type commit-msg
 - When an auto-fixing pre-commit hook changes a file, rerun the complete hook
   set before staging so the final tree, rather than the pre-fix tree, is what
   is validated.
+- For the repository CTest suite, clear a host ROS `PYTHONPATH` first. ROS
+  Humble's Python 3.10 pytest plugins can otherwise be imported by this
+  project's Python 3.11 test environments and produce unrelated dependency
+  failures.
 
 **What belongs in `AGENTS.md`**
 

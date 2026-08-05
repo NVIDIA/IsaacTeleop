@@ -13,7 +13,7 @@ from typing import List
 
 from pipeline import FrameSource
 
-from ._helpers import PairedFrameSource, set_verbose
+from ._helpers import PairedFrameSource, StereoSbsDebugSource, set_verbose
 from .oakd import OakdSource
 from .orbbec_ego import OrbbecEgoSource
 from .rtp_h264 import RtpH264Source
@@ -26,6 +26,7 @@ __all__ = [
     "OakdSource",
     "OrbbecEgoSource",
     "PairedFrameSource",
+    "StereoSbsDebugSource",
     "RtpH264Source",
     "SyntheticSource",
     "SyntheticStereoSource",

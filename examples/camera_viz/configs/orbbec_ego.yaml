@@ -5,6 +5,12 @@ mode: window
 source: local
 verbose: false
 
+display:
+  window:
+    # Set to sbs (or pass --stereo-debug sbs) to inspect ColorLeft|ColorRight
+    # in the desktop window. XR always submits the two eyes independently.
+    stereo_debug: off
+
 cameras:
   - name: orbbec_ego
     enabled: true

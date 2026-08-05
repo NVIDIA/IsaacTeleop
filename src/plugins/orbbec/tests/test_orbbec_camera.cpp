@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 #include <orbbec_camera/orbbec_camera.hpp>
 
 #include <filesystem>
@@ -84,6 +85,24 @@ TEST_CASE("Orbbec FrameSink preserves H264 and H265 elementary stream bytes", "[
         CHECK(bytes[3] == 1);
         std::filesystem::remove(output);
     }
+}
+
+TEST_CASE("Orbbec rejects uncertified encoded 60 FPS without fallback", "[orbbec][profile]")
+{
+    plugins::orbbec::CaptureConfig capture;
+    plugins::orbbec::StreamConfig h264{ core::OrbbecCameraStream_ColorLeft, "unused.h264" };
+    h264.pixel_format = core::OrbbecPixelFormat_H264;
+    h264.fps = 60;
+    REQUIRE_THROWS_WITH(
+        plugins::orbbec::validate_stream_config(h264, capture), Catch::Matchers::ContainsSubstring("use fps=30"));
+
+    plugins::orbbec::StreamConfig h265{ core::OrbbecCameraStream_ColorRight, "unused.h265" };
+    h265.pixel_format = core::OrbbecPixelFormat_H265;
+    capture.fps = 60;
+    REQUIRE_THROWS(plugins::orbbec::validate_stream_config(h265, capture));
+
+    h265.fps = 30;
+    REQUIRE_NOTHROW(plugins::orbbec::validate_stream_config(h265, capture));
 }
 
 TEST_CASE("Orbbec FrameSink resumes compressed recording at an IDR after a sequence gap", "[orbbec][writer]")

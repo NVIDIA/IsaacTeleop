@@ -166,6 +166,9 @@ private:
     PFN_xrCreatePushTensorCollectionNV m_create_fn{ nullptr };
     PFN_xrPushTensorCollectionDataNV m_push_fn{ nullptr };
     PFN_xrDestroyPushTensorCollectionNV m_destroy_fn{ nullptr };
+    // A SchemaPusher is consumed by one serialized publisher. Reusing this
+    // fixed-size DLPack backing store removes a 32 KiB allocation per sample.
+    std::vector<uint8_t> m_padded_buffer;
 };
 
 } // namespace core

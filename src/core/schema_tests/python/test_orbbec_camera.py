@@ -9,6 +9,7 @@ from isaacteleop.schema import (
     OrbbecPixelFormat,
     OrbbecAudioChunk,
     OrbbecCalibration,
+    OrbbecCaptureHealth,
     OrbbecDevicePropertyValue,
     OrbbecDeviceState,
     OrbbecFrameMetadataEntry,
@@ -65,5 +66,9 @@ def test_orbbec_ego_auxiliary_types():
     assert calibration.device_uid == "ego"
 
     state = OrbbecDeviceState()
+    state.capture_health = OrbbecCaptureHealth.Warning
+    state.failure_reason = "queue warning"
+    state.queue_capacity = 4096
     state.properties = [OrbbecDevicePropertyValue(279, 8_000_000)]
     assert state.properties[0].property_id == 279
+    assert state.capture_health == OrbbecCaptureHealth.Warning
