@@ -106,6 +106,7 @@ def _active_head() -> TensorGroup:
     head[HeadInputIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)
     head[HeadInputIndex.ORIENTATION] = np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
     head[HeadInputIndex.IS_VALID] = True
+    head[HeadInputIndex.IS_TRACKED] = True
     return head
 
 

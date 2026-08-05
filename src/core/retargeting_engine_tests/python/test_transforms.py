@@ -291,11 +291,12 @@ class TestTransformOrientationsBatch:
 
 
 class TestHeadTransform:
-    def _make_head_input(self, position, orientation, is_valid=True):
+    def _make_head_input(self, position, orientation, is_valid=True, is_tracked=True):
         tg = TensorGroup(HeadInput())
         tg[HeadInputIndex.POSITION] = np.array(position, dtype=np.float32)
         tg[HeadInputIndex.ORIENTATION] = np.array(orientation, dtype=np.float32)
         tg[HeadInputIndex.IS_VALID] = is_valid
+        tg[HeadInputIndex.IS_TRACKED] = is_tracked
         return tg
 
     def test_identity_transform(self):
@@ -338,11 +339,14 @@ class TestHeadTransform:
 
     def test_passthrough_fields_preserved(self):
         node = HeadTransform("head_xform")
-        head_in = self._make_head_input([0, 0, 0], [0, 0, 0, 1], is_valid=False)
+        head_in = self._make_head_input(
+            [0, 0, 0], [0, 0, 0, 1], is_valid=False, is_tracked=False
+        )
         xform_in = _make_transform_input(_rotation_z_90_with_translation())
         result = _run_retargeter(node, {"head": head_in, "transform": xform_in})
         out = result["head"]
         assert out[HeadInputIndex.IS_VALID] is False
+        assert out[HeadInputIndex.IS_TRACKED] is False
 
 
 # ============================================================================
@@ -620,6 +624,7 @@ class TestHeadTransformNoAliasing:
             [0.0, 0.0, 0.0, 1.0], dtype=np.float32
         )
         head_in[HeadInputIndex.IS_VALID] = True
+        head_in[HeadInputIndex.IS_TRACKED] = True
         xform_in = _make_transform_input(_identity_4x4())
 
         # Save a copy of the original input values
@@ -917,6 +922,7 @@ class TestHeadTransformOptionalPropagation:
         tg[HeadInputIndex.POSITION] = np.array([1, 2, 3], dtype=np.float32)
         tg[HeadInputIndex.ORIENTATION] = np.array([0, 0, 0, 1], dtype=np.float32)
         tg[HeadInputIndex.IS_VALID] = True
+        tg[HeadInputIndex.IS_TRACKED] = True
         return tg
 
     def test_output_spec_is_optional(self):
@@ -981,6 +987,7 @@ class TestTransformOptionalNoneToggle:
             [0.0, 0.0, 0.0, 1.0], dtype=np.float32
         )
         active[HeadInputIndex.IS_VALID] = True
+        active[HeadInputIndex.IS_TRACKED] = True
 
         r2 = _run_retargeter(node, {"head": active, "transform": xform_90})
         assert not r2["head"].is_none

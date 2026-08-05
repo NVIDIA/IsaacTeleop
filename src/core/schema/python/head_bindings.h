@@ -1,8 +1,8 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the HeadPose FlatBuffer schema.
-// HeadPoseT is a table type (mutable object-API) with pose and is_valid fields.
+// HeadPoseT is a table type (mutable object-API) with pose, is_valid, and is_tracked.
 
 #pragma once
 
@@ -29,18 +29,20 @@ inline void bind_head(py::module& m)
                 return obj;
             }))
         .def(py::init(
-                 [](const Pose& pose, bool is_valid)
+                 [](const Pose& pose, bool is_valid, bool is_tracked)
                  {
                      auto obj = std::make_shared<HeadPoseT>();
                      obj->pose = std::make_shared<Pose>(pose);
                      obj->is_valid = is_valid;
+                     obj->is_tracked = is_tracked;
                      return obj;
                  }),
-             py::arg("pose"), py::arg("is_valid"))
+             py::arg("pose"), py::arg("is_valid"), py::arg("is_tracked") = false)
         .def_property_readonly(
             "pose", [](const HeadPoseT& self) -> const Pose* { return self.pose.get(); },
             py::return_value_policy::reference_internal)
         .def_readonly("is_valid", &HeadPoseT::is_valid)
+        .def_readonly("is_tracked", &HeadPoseT::is_tracked)
         .def("__repr__",
              [](const HeadPoseT& self)
              {
@@ -55,7 +57,8 @@ inline void bind_head(py::module& m)
                                 ", z=" + std::to_string(self.pose->orientation().z()) +
                                 ", w=" + std::to_string(self.pose->orientation().w()) + "))";
                  }
-                 return "HeadPoseT(pose=" + pose_str + ", is_valid=" + (self.is_valid ? "True" : "False") + ")";
+                 return "HeadPoseT(pose=" + pose_str + ", is_valid=" + (self.is_valid ? "True" : "False") +
+                        ", is_tracked=" + (self.is_tracked ? "True" : "False") + ")";
              });
 
     py::class_<HeadPoseRecordT, std::shared_ptr<HeadPoseRecordT>>(m, "HeadPoseRecord")

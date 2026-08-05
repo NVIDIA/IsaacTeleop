@@ -12,8 +12,11 @@ table HeadPose {
     // The concrete pose data
     pose: Pose (id: 0);
 
-    // Whether the head pose data is valid
+    // Whether the pose value is valid to read (OpenXR VALID bits)
     is_valid: bool (id: 1);
+
+    // Whether the pose is actively tracked (OpenXR TRACKED bits)
+    is_tracked: bool (id: 2);
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when head is inactive).

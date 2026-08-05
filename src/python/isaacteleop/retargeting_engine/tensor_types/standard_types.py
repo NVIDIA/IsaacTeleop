@@ -99,7 +99,8 @@ def HeadInput() -> TensorGroupType:
     Fields:
         - head_position: (3,) float32 array - XYZ position
         - head_orientation: (4,) float32 array - XYZW quaternion
-        - head_is_valid: bool - Whether head tracking data is valid
+        - head_is_valid: bool - Whether the pose value is valid to read (OpenXR VALID)
+        - head_is_tracked: bool - Whether the pose is actively tracked (OpenXR TRACKED)
 
     Returns:
         TensorGroupType for head tracking data
@@ -116,6 +117,7 @@ def HeadInput() -> TensorGroupType:
                 "head_orientation", shape=(4,), dtype=DLDataType.FLOAT, dtype_bits=32
             ),
             BoolType("head_is_valid"),
+            BoolType("head_is_tracked"),
         ],
     )
 

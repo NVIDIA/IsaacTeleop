@@ -249,6 +249,7 @@ class TestHeadSource:
         head_data = HeadPoseT(
             Pose(Point(1.0, 2.0, 3.0), Quaternion(0.0, 0.0, 0.0, 1.0)),
             True,
+            True,
         )
 
         inputs = _make_inputs(source, {"deviceio_head": [HeadPoseTrackedT(head_data)]})
@@ -266,6 +267,39 @@ class TestHeadSource:
             head[HeadInputIndex.ORIENTATION], [0.0, 0.0, 0.0, 1.0]
         )
         assert head[HeadInputIndex.IS_VALID] is True
+        assert head[HeadInputIndex.IS_TRACKED] is True
+
+    def test_head_source_compute_valid_but_untracked(self):
+        """VALID pose with is_tracked=False still emits Optional with both flags.
+
+        Matches post-disconnect head samples: Tracked.data stays non-null with a
+        readable placeholder pose (is_valid=True) while is_tracked is false so
+        consumers can freeze without violating OpenXR 'do not read if !valid'.
+        """
+        source = HeadSource(name="head")
+
+        head_data = HeadPoseT(
+            Pose(Point(0.1, 0.2, 0.3), Quaternion(0.0, 0.0, 0.0, 1.0)),
+            True,
+            False,
+        )
+
+        inputs = _make_inputs(source, {"deviceio_head": [HeadPoseTrackedT(head_data)]})
+        outputs = {
+            name: _make_output_group(gt) for name, gt in source.output_spec().items()
+        }
+        source.compute(inputs, outputs)
+
+        head = outputs["head"]
+        assert not head.is_none
+        np.testing.assert_array_almost_equal(
+            head[HeadInputIndex.POSITION], [0.1, 0.2, 0.3]
+        )
+        np.testing.assert_array_almost_equal(
+            head[HeadInputIndex.ORIENTATION], [0.0, 0.0, 0.0, 1.0]
+        )
+        assert head[HeadInputIndex.IS_VALID] is True
+        assert head[HeadInputIndex.IS_TRACKED] is False
 
     def test_head_source_compute_inactive(self):
         """Test that inactive head (TrackedT.data is None) produces absent output."""

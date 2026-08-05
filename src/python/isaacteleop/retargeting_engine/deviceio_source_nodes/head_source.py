@@ -31,10 +31,14 @@ class HeadSource(IDeviceIOSource):
     Stateless converter: DeviceIO HeadPoseT → HeadInput tensor.
 
     Inputs:
-        - "deviceio_head": Raw HeadPoseT flatbuffer object from DeviceIO
+        - "deviceio_head": Raw HeadPoseTrackedT wrapper from DeviceIO
 
-    Outputs (Optional — absent when head tracking is invalid):
-        - "head": OptionalTensorGroup (check ``.is_none`` before access)
+    Outputs (Optional — absent only when ``tracked.data is None``):
+        - "head": OptionalTensorGroup. When present, consumers must check
+          ``HeadInputIndex.IS_VALID`` before reading the pose, and
+          ``HeadInputIndex.IS_TRACKED`` before treating it as live tracking.
+          A present sample may carry a readable but untracked placeholder
+          (``is_valid=True``, ``is_tracked=False``), e.g. after CloudXR disconnect.
 
     Usage:
         # In TeleopSession, manually poll tracker and pass tracked object
@@ -86,14 +90,16 @@ class HeadSource(IDeviceIOSource):
         return {"deviceio_head": DeviceIOHeadPoseTracked()}
 
     def output_spec(self) -> RetargeterIOType:
-        """Declare standard head pose output (Optional — may be absent)."""
+        """Declare standard head pose output (Optional — absent iff data is None)."""
         return {"head": OptionalType(HeadInput())}
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
         Convert DeviceIO HeadPoseTrackedT to standard HeadInput tensor.
 
-        Calls ``set_none()`` on the output when head tracking is inactive.
+        Calls ``set_none()`` on the output only when ``tracked.data is None``.
+        When data is present, pose/is_valid/is_tracked are always emitted —
+        consumers must gate on ``IS_VALID`` / ``IS_TRACKED`` before use.
 
         Args:
             inputs: Dict with "deviceio_head" containing HeadPoseTrackedT wrapper
@@ -130,6 +136,7 @@ class HeadSource(IDeviceIOSource):
         output[HeadInputIndex.POSITION] = position
         output[HeadInputIndex.ORIENTATION] = orientation
         output[HeadInputIndex.IS_VALID] = head_pose.is_valid
+        output[HeadInputIndex.IS_TRACKED] = head_pose.is_tracked
 
     def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
         """
