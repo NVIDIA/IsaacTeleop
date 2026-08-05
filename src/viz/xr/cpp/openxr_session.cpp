@@ -185,8 +185,12 @@ void OpenXrSession::wait_for_system(int system_wait_seconds)
         {
             throw std::runtime_error(
                 "OpenXrSession: xrGetSystem timed out waiting for HMD "
-                "(XR_ERROR_FORM_FACTOR_UNAVAILABLE) after " +
-                std::to_string(system_wait_seconds) + "s");
+                "(XR_ERROR_FORM_FACTOR_UNAVAILABLE, -35) after " +
+                std::to_string(system_wait_seconds) +
+                "s. The OpenXR runtime is up but no headset is connected to it. "
+                "Connect the headset, check NV_DEVICE_PROFILE matches it, or raise "
+                "xr_system_wait_seconds to block until it connects. "
+                "See docs/source/references/cloudxr.rst, Troubleshooting.");
         }
         if (!announced || (now - last_log) >= kLogEvery)
         {

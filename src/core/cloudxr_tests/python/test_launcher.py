@@ -4,8 +4,11 @@
 """Tests for isaacteleop.cloudxr.launcher — CloudXRLauncher lifecycle."""
 
 import argparse
+import contextlib
+import logging
 import os
 import signal
+import socket
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -49,6 +52,30 @@ class _FakeEnvConfig:
     def ensure_logs_dir(self) -> Path:
         self._logs_dir.mkdir(parents=True, exist_ok=True)
         return self._logs_dir
+
+    def env_filepath(self) -> str:
+        return os.path.join(self._run_dir, "cloudxr.env")
+
+
+@contextmanager
+def _live_ipc_socket(run_dir: str):
+    """Serve ``run_dir``'s IPC socket for the duration of the block.
+
+    Binds relative from a chdir: AF_UNIX ``sun_path`` caps at 108 bytes,
+    which pytest's tmp_path can exceed.
+    """
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    cwd = os.getcwd()
+    try:
+        os.chdir(run_dir)
+        with contextlib.suppress(FileNotFoundError):
+            os.remove("ipc_cloudxr")
+        sock.bind("ipc_cloudxr")
+        sock.listen(1)
+        yield sock
+    finally:
+        os.chdir(cwd)
+        sock.close()
 
 
 def _make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> MagicMock:
@@ -289,31 +316,33 @@ class TestLauncherContextManager:
 # ============================================================================
 
 
+@_posix_only
 class TestCleanupStaleRuntime:
     """Tests for CloudXRLauncher._cleanup_stale_runtime."""
 
-    def test_removes_stale_sentinel_files(self, tmp_path):
-        """Stale ipc_cloudxr, runtime_started, and pidfiles are removed."""
+    @staticmethod
+    def _stale_run_dir(tmp_path) -> tuple[str, list[str]]:
+        """Create a run dir holding every sentinel file; return it and their paths."""
         run_dir = str(tmp_path / "run")
         os.makedirs(run_dir)
-        ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
-        sentinel = os.path.join(run_dir, "runtime_started")
-        cloudxr_pid = os.path.join(run_dir, "cloudxr.pid")
-        Path(ipc_socket).touch()
-        Path(sentinel).touch()
-        Path(cloudxr_pid).touch()
+        paths = [
+            os.path.join(run_dir, name)
+            for name in ("ipc_cloudxr", "runtime_started", "cloudxr.pid")
+        ]
+        for path in paths:
+            Path(path).touch()
+        return run_dir, paths
 
+    def test_removes_stale_sentinel_files(self, tmp_path, caplog):
+        """A socket file nobody is serving is stale: removed, at WARNING."""
+        run_dir, paths = self._stale_run_dir(tmp_path)
         fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
 
-        with patch(
-            "isaacteleop.cloudxr.launcher.subprocess.run",
-            return_value=MagicMock(returncode=1),
-        ):
+        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
             CloudXRLauncher._cleanup_stale_runtime(fake_cfg)
 
-        assert not os.path.exists(ipc_socket)
-        assert not os.path.exists(sentinel)
-        assert not os.path.exists(cloudxr_pid)
+        assert not any(os.path.exists(p) for p in paths)
+        assert len(caplog.records) == len(paths)
 
     def test_noop_when_no_stale_files(self, tmp_path):
         """No errors when the run directory has no stale files."""
@@ -323,28 +352,19 @@ class TestCleanupStaleRuntime:
         fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
         CloudXRLauncher._cleanup_stale_runtime(fake_cfg)
 
-    def test_handles_missing_fuser(self, tmp_path):
-        """Sentinel files are still cleaned up when fuser is not found."""
-        run_dir = str(tmp_path / "run")
-        os.makedirs(run_dir)
-        ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
-        sentinel = os.path.join(run_dir, "runtime_started")
-        cloudxr_pid = os.path.join(run_dir, "cloudxr.pid")
-        Path(ipc_socket).touch()
-        Path(sentinel).touch()
-        Path(cloudxr_pid).touch()
-
+    def test_refuses_when_runtime_is_live(self, tmp_path):
+        """A served socket is a live runtime: refuse, and keep its files."""
+        run_dir, paths = self._stale_run_dir(tmp_path)
         fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
 
-        with patch(
-            "isaacteleop.cloudxr.launcher.subprocess.run",
-            side_effect=FileNotFoundError("fuser not found"),
-        ):
-            CloudXRLauncher._cleanup_stale_runtime(fake_cfg)
+        with _live_ipc_socket(run_dir):
+            with pytest.raises(RuntimeError, match="already serving") as exc_info:
+                CloudXRLauncher._cleanup_stale_runtime(fake_cfg)
+            assert all(os.path.exists(p) for p in paths)
 
-        assert not os.path.exists(ipc_socket)
-        assert not os.path.exists(sentinel)
-        assert not os.path.exists(cloudxr_pid)
+        message = str(exc_info.value)
+        assert fake_cfg.env_filepath() in message
+        assert "--no-launch-cloudxr-runtime" in message
 
 
 class TestLaunchArgumentHelpers:
@@ -500,6 +520,22 @@ class TestEnvConfigLauncherDefaults:
 
         assert cfg._resolved_env is not None
         assert cfg._resolved_env["NV_DEVICE_PROFILE"] == "Quest3"
+
+    def test_resolved_reads_back_the_applied_value(self, tmp_path, monkeypatch):
+        """resolved() is what the startup banner prints the device profile from."""
+        monkeypatch.delenv("NV_DEVICE_PROFILE", raising=False)
+
+        from isaacteleop.cloudxr.env_config import EnvConfig
+
+        assert EnvConfig().resolved("NV_DEVICE_PROFILE") is None
+
+        cfg = EnvConfig.from_args(
+            str(tmp_path),
+            launcher_defaults={"NV_DEVICE_PROFILE": "auto-native"},
+        )
+
+        assert cfg.resolved("NV_DEVICE_PROFILE") == "auto-native"
+        assert cfg.resolved("NOT_A_KEY") is None
 
     def test_env_file_overrides_launcher_defaults(self, tmp_path, monkeypatch):
         monkeypatch.delenv("NV_DEVICE_PROFILE", raising=False)
