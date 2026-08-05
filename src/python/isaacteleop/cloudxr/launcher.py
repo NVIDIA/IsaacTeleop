@@ -20,24 +20,22 @@ import signal
 import subprocess
 import sys
 import threading
-import time
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .env_config import EnvConfig
+from .env_config import DEFAULT_DEVICE_PROFILE, EnvConfig
 from .runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
     get_sdk_path,
+    is_runtime_live,
     resolve_cloudxr_runtime_module,
     check_eula,
     wait_for_runtime_ready_sync,
 )
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_DEVICE_PROFILE = "Quest3"
 
 _RUNTIME_WORKER_CODE = """\
 import sys, os
@@ -119,8 +117,9 @@ class CloudXRLauncher:
                 the runtime.  Any value emits a deprecation notice.
 
         Raises:
-            RuntimeError: If the EULA is not accepted or the runtime
-                fails to start within the timeout.
+            RuntimeError: If the EULA is not accepted, another runtime is
+                already serving *install_dir*, or the runtime fails to
+                start within the timeout.
         """
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
@@ -555,43 +554,33 @@ class CloudXRLauncher:
 
     @staticmethod
     def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:
-        """Remove stale sentinel files from a previous runtime that wasn't cleaned up.
+        """Refuse to start over a live runtime; otherwise clear stale sentinels.
 
-        If the ``ipc_cloudxr`` socket still exists in the run directory, a
-        previous Monado/CloudXR process is likely still alive.  We send
-        SIGTERM to the process group that owns the socket, giving it a
-        chance to exit cleanly before we start a fresh runtime.
+        A run directory holds one runtime.  Liveness is decided by
+        connecting to the IPC socket, not by its existence — the file
+        routinely outlives the process that made it.
+
+        Raises:
+            RuntimeError: If a runtime is already serving the run directory.
         """
         run_dir = env_cfg.openxr_run_dir()
-        ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
 
-        if os.path.exists(ipc_socket):
-            logger.warning(
-                "Stale CloudXR IPC socket found at %s; attempting cleanup of previous runtime",
-                ipc_socket,
+        if is_runtime_live(run_dir):
+            raise RuntimeError(
+                f"A CloudXR runtime is already serving {run_dir}; starting a "
+                "second one would drop the live session.  To use the running "
+                f"runtime: source {env_cfg.env_filepath()} and pass "
+                "--no-launch-cloudxr-runtime.  To replace it, stop that runtime "
+                "first (Ctrl+C in its terminal)."
             )
-            try:
-                result = subprocess.run(
-                    ["fuser", "-k", "-TERM", ipc_socket],
-                    capture_output=True,
-                    timeout=5,
-                )
-                if result.returncode == 0:
-                    time.sleep(1)
-                    logger.info("Sent SIGTERM to processes holding stale IPC socket")
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
 
+        for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
+            path = os.path.join(run_dir, name)
             try:
-                os.remove(ipc_socket)
+                os.remove(path)
             except FileNotFoundError:
-                pass
-
-        for name in ("runtime_started", "monado.pid", "cloudxr.pid"):
-            try:
-                os.remove(os.path.join(run_dir, name))
-            except FileNotFoundError:
-                pass
+                continue
+            logger.warning("Removed stale CloudXR runtime file %s", path)
 
     def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
         """Build a diagnostic string after a failed runtime startup.

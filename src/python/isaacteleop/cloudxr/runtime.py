@@ -8,6 +8,7 @@ import multiprocessing
 import os
 import shutil
 import signal
+import socket
 import sys
 import threading
 import time
@@ -29,6 +30,9 @@ RUNTIME_TERMINATE_TIMEOUT_SEC: float = 10
 
 RUNTIME_POLL_INTERVAL_SEC: float = 0.5
 """Polling interval [s] used by :func:`wait_for_runtime_ready_sync`."""
+
+IPC_PROBE_TIMEOUT_SEC: float = 0.5
+"""Connect timeout [s] for :func:`is_runtime_live`."""
 
 _CLOUDXR_EXP_ENV = "ISAAC_TELEOP_CLOUDXR_EXP"
 _CLOUDXR_JOIN_MAIN_ENV = "ISAAC_TELEOP_CLOUDXR_JOIN_MAIN"
@@ -252,6 +256,30 @@ def wait_for_runtime_ready_sync(
         time.sleep(poll_interval_sec)
 
     return False
+
+
+def is_runtime_live(run_dir: str) -> bool:
+    """Return whether a CloudXR runtime is currently serving ``run_dir``.
+
+    The socket file outliving its process is the common case, so existence
+    proves nothing; only a successful ``connect()`` does. Ambiguous errors
+    (permissions, timeout) count as live: refusing to start is recoverable,
+    tearing down someone else's session is not.
+    """
+    path = os.path.join(run_dir, "ipc_cloudxr")
+    if not os.path.exists(path):
+        return False
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.settimeout(IPC_PROBE_TIMEOUT_SEC)
+        sock.connect(path)
+        return True
+    except (ConnectionRefusedError, FileNotFoundError):
+        return False
+    except OSError:
+        return True
+    finally:
+        sock.close()
 
 
 def _load_libcloudxr(sdk_path: str) -> ctypes.CDLL:
