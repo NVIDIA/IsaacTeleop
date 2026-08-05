@@ -94,7 +94,7 @@ The guides below are still being written:
 | ☑ Implement teleop devices: XR controller and SO-101 Leader
 | ☑ Data collection in real
 | ☑ Data collection in sim (XR controller)
-| ☐ Data collection in sim (SO-101 Leader)
+| ☑ Data collection in sim (SO-101 Leader)
 | ☐ Export sim demos to the LeRobot dataset format
 | ☐ Model training with GR00T N1.7
 | ☐ Sim-to-Real — update the `Sim-to-Real SO-101 learning path`_ to use Isaac Teleop
