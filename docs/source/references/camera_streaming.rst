@@ -51,13 +51,32 @@ run the sample's one-time setup:
    source examples/camera_viz/.venv/bin/activate
 
 There is no need to install the ``isaacteleop`` pip package yourself — ``setup`` creates the
-sample's own environment: it installs ``isaacteleop>=1.4`` (which bundles Televiz) and
-every other Python dependency from PyPI into ``.venv/`` via ``uv``, builds the native NVENC/NVDEC
-codec, and probes system packages (GStreamer plugins, cairo / girepository headers, JetPack
-``cuda-nvrtc`` + ``ld.so`` wiring). When something is missing it prints the exact ``apt-get`` line
-and prompts ``[y/N]`` — answering ``n`` or running non-interactively aborts.
+sample's own environment: it installs ``isaacteleop[cloudxr]`` (which bundles Televiz) and every
+other Python dependency into ``.venv/`` via ``uv``, then probes the system packages it needs
+(cairo / girepository headers, GStreamer plugins and the native NVENC/NVDEC codec under
+``--with-rtp``, JetPack ``cuda-nvrtc`` + ``ld.so`` wiring). When something is missing it prints
+the exact ``apt-get`` line and prompts ``[y/N]`` — answering ``n`` or running non-interactively
+aborts. The ``cloudxr`` extra is not optional for this sample: XR is the default display mode
+and the viewer launches the CloudXR runtime itself.
 
-By default ``setup`` provisions everything except ZED support; flags trim or extend that:
+camera_viz needs an ``isaacteleop`` new enough to carry the features it uses, so ``setup`` works
+down a ladder to get one:
+
+#. the newest **final release** on the package index, if one meets that minimum;
+#. otherwise the newest **release candidate** — Isaac Teleop publishes an rc from every
+   release-branch commit, and PEP 440 keeps pre-releases out of a plain minimum-version
+   specifier;
+#. otherwise a **source build** of the surrounding checkout, after asking. This is a full
+   C++ / CUDA / Vulkan build and needs CMake, the CUDA toolkit, Vulkan headers,
+   ``glslangValidator``, and ``clang-format-14``.
+
+The ladder is automatic, so ``setup`` starts preferring final releases the moment one qualifies.
+Override it with ``--wheel PATH`` or ``--build-from-source``. The minimum version itself lives in
+:code-file:`scripts/_install_deps.sh <examples/camera_viz/scripts/_install_deps.sh>`.
+
+By default ``setup`` provisions the direct-mode path — USB / UVC and OAK-D camera support. Split
+mode (RTP) and ZED support are opt-in, since both pull in dependencies the direct path never
+needs. Flags trim or extend that:
 
 .. list-table::
    :header-rows: 1
@@ -69,9 +88,10 @@ By default ``setup`` provisions everything except ZED support; flags trim or ext
      - Skip USB / UVC webcam support (``opencv-python``).
    * - ``--no-oakd``
      - Skip OAK-D support (``depthai``).
-   * - ``--no-rtp``
-     - Skip split-mode dependencies: the GStreamer system packages and the native NVENC/NVDEC
-       codec build. Direct mode still works.
+   * - ``--with-rtp``
+     - Also install the split-mode dependencies: the GStreamer system packages, PyGObject, and the
+       native NVENC/NVDEC codec build. Required for ``loopback`` and for any config with
+       ``source: rtp``; implied by ``--sender-only``. Direct mode does not need it.
    * - ``--with-zed``
      - Also build + install the ZED SDK's Python API (``pyzed``). Requires the ZED SDK on the
        machine (default ``/usr/local/zed``; override with ``--zed-sdk PATH``).
@@ -82,8 +102,11 @@ By default ``setup`` provisions everything except ZED support; flags trim or ext
    * - ``--venv PATH``
      - Install into an existing virtual environment instead of creating ``.venv/``.
    * - ``--wheel PATH``
-     - Install a locally built ``isaacteleop`` wheel instead of the PyPI release — for developing
-       Isaac Teleop itself (see :doc:`/getting_started/build_from_source/index`).
+     - Install a locally built ``isaacteleop`` wheel instead of resolving one from the index — for
+       developing Isaac Teleop itself (see :doc:`/getting_started/build_from_source/index`).
+   * - ``--build-from-source``
+     - Skip the index entirely and build ``isaacteleop`` from the surrounding checkout, and
+       answer step 3's prompt without asking.
 
 First run — no camera required
 ------------------------------
@@ -130,7 +153,8 @@ The source kind is selected by the ``type`` field of each entry in the YAML ``ca
    * - ``v4l2``
      - USB / UVC cameras — anything ``v4l2-ctl --list-formats-ext`` reports.
    * - ``oakd``
-     - OAK-D mono RGB / LEFT / RIGHT (stereo not yet wired).
+     - OAK-D RGB / LEFT / RIGHT; mono or ``stereo: true``. Stereo ships GRAY8 over USB to halve
+       bandwidth and is broadcast to RGBA on the GPU; ``stereo_rgb`` keeps color.
    * - ``zed``
      - ZED 2 / Mini / X One; mono or ``stereo: true`` (per-eye SDK retrieve, zero-copy on the GPU).
    * - ``video``
@@ -247,6 +271,10 @@ the viewer on the workstation (``source: rtp``).
 
 In split mode every camera entry must pin ``width``, ``height``, and ``fps`` in the YAML — the
 receiver sizes its decoder from the config, not from the wire.
+
+The workstation needs the RTP dependencies, which ``setup`` does not install by default — re-run
+it with ``--with-rtp`` if you provisioned for direct mode first. The robot side is handled by
+``deploy``, which implies the flag.
 
 Set ``source: rtp`` in the config, export the robot/streaming credentials once per shell, then
 deploy the sender and run the viewer:

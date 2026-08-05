@@ -6,14 +6,32 @@
 # ``camera_viz.sh setup`` (local) and ``camera_viz.sh deploy`` (over SSH).
 #
 # Modes:
-#   --full         viewer + sender (workstation). Installs isaacteleop from PyPI
+#   --full         viewer + sender (workstation). Obtains isaacteleop from the
+#                  package index, preferring a final release over a release
+#                  candidate, and offers a source build if neither is available
 #                  (or a local --wheel).
 #   --sender-only  sender path only. No isaacteleop, no vulkan deps.
 #
-# Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --no-rtp,
-#        --with-zed, --zed-sdk.
+# Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --with-rtp,
+#        --with-zed, --zed-sdk, --build-from-source.
 
 set -euo pipefail
+
+# Output helpers. Same palette as camera_viz.sh so ``setup`` reads as one tool
+# whether it runs locally or over ssh during ``deploy``. Color is dropped when
+# stdout isn't a terminal, so piped logs and systemd journals stay clean.
+if [[ -t 1 ]]; then
+    _C_STEP=$'\033[1m'; _C_DIM=$'\033[2m'; _C_WARN=$'\033[33m'; _C_ERR=$'\033[31m'; _C_RESET=$'\033[0m'
+else
+    _C_STEP=""; _C_DIM=""; _C_WARN=""; _C_ERR=""; _C_RESET=""
+fi
+# step: one line per unit of work. note: indented detail under a step.
+# Errors say "error:", not the script's filename — callers run camera_viz.sh,
+# and _install_deps.sh is an implementation detail to them.
+step() { echo "${_C_STEP}▸ $*${_C_RESET}"; }
+note() { echo "${_C_DIM}  $*${_C_RESET}"; }
+warn() { echo "${_C_WARN}warning:${_C_RESET} $*" >&2; }
+die()  { echo "${_C_ERR}error:${_C_RESET} $*" >&2; exit 1; }
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 CAMERA_VIZ_DIR="$(cd "$HERE/.." && pwd)"
@@ -32,9 +50,15 @@ PYTHON_VERSION=3.12
 WHEEL=
 WITH_V4L2=true
 WITH_OAKD=true
-WITH_RTP=true
+# Opt-in: the RTP path pulls GStreamer system packages, a PyGObject source
+# build, and the native codec — none of which direct mode needs.
+# --sender-only forces it on below (streaming is the sender's whole job).
+WITH_RTP=false
 WITH_ZED=false
 ZED_SDK_DIR=/usr/local/zed
+# Skip the index probes and build isaacteleop from this checkout. Also the
+# non-interactive answer to the tier-3 prompt below.
+BUILD_FROM_SOURCE=false
 # Jetson-specific provisioning: apt-install cuda-nvrtc and create the
 # unversioned CUDA lib symlinks + ld.so cache entry that JetPack skips.
 # Off on desktop where the normal CUDA installer covers both.
@@ -50,12 +74,19 @@ while (( $# )); do
         --python)       PYTHON_VERSION=$2; shift 2;;
         --no-v4l2)      WITH_V4L2=false; shift;;
         --no-oakd)      WITH_OAKD=false; shift;;
-        --no-rtp)       WITH_RTP=false; shift;;
+        --with-rtp)     WITH_RTP=true; shift;;
         --with-zed)     WITH_ZED=true; shift;;
         --zed-sdk)      ZED_SDK_DIR=$2; shift 2;;
-        *) echo "_install_deps.sh: unknown arg: $1" >&2; exit 1;;
+        --build-from-source) BUILD_FROM_SOURCE=true; shift;;
+        *) die "unknown arg: $1";;
     esac
 done
+
+# A sender-only host exists to stream RTP, so --with-rtp is implied there.
+# Without this a bare ``--sender-only`` would install a sender that can't send.
+if [[ "$MODE" == sender ]]; then
+    WITH_RTP=true
+fi
 
 # major picks the cupy wheel (cupy-cuda12x / cupy-cuda13x).
 # major.minor picks the apt nvrtc package (cuda-nvrtc-12-6 on Orin/JP6,
@@ -147,14 +178,15 @@ check_system_deps() {
     fi
 
     cat >&2 <<EOF
-_install_deps.sh: missing system packages required by camera_viz (RTP path):
+Missing system packages for the RTP path:
   ${pkgs[*]}
 
 The exact command:
   sudo apt-get update
   sudo apt-get install -y --no-install-recommends ${pkgs[*]}
 
-(--no-rtp skips the GStreamer-based RTP path entirely.)
+(Only the RTP path needs these — it is opt-in via --with-rtp, and always on
+for --sender-only. Direct mode works without them.)
 EOF
 
     local ans=""
@@ -172,7 +204,7 @@ EOF
             sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${pkgs[@]}"
             ;;
         *)
-            echo "_install_deps.sh: aborted. Install the listed packages and re-run." >&2
+            die "aborted — install the packages above and re-run"
             exit 1
             ;;
     esac
@@ -210,9 +242,8 @@ check_cuda_symlinks() {
     fi
 
     {
-        echo "_install_deps.sh: Jetson CUDA libs aren't wired into ld.so / unversioned"
-        echo "symlinks are missing. cupy will fail to dlopen libnvrtc.so without these."
-        echo "Exact commands:"
+        echo "Jetson CUDA libs aren't wired into ld.so and the unversioned symlinks"
+        echo "are missing; cupy cannot dlopen libnvrtc.so without them. Exact commands:"
         for c in "${cmds[@]}"; do
             echo "  $c"
         done
@@ -244,26 +275,80 @@ check_cuda_symlinks() {
             fi
             ;;
         *)
-            echo "_install_deps.sh: aborted. Run the listed commands and re-run setup." >&2
+            die "aborted — run the commands above and re-run setup"
             exit 1
             ;;
     esac
 }
 check_cuda_symlinks
 
+# An OAK-D enumerates as a Movidius USB device (vendor 03e7) that udev leaves
+# root-only, so depthai fails with "Insufficient permissions to communicate with
+# X_LINK_UNBOOTED device". Only prompt when one is actually attached and nothing
+# already grants access. Existing rules are matched by content, not file name:
+# the vendor rule ships as 50-movidius.rules, 80-movidius.rules and others
+# depending on who installed it, and writing our own would just duplicate it.
+OAKD_UDEV_RULE='SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"'
+OAKD_UDEV_PATH=/etc/udev/rules.d/80-movidius.rules
+
+check_oakd_udev() {
+    $WITH_OAKD || return 0
+    command -v udevadm >/dev/null 2>&1 || return 0
+    # shellcheck disable=SC2144  # the glob is the point: any attached 03e7 device
+    grep -l '^03e7$' /sys/bus/usb/devices/*/idVendor >/dev/null 2>&1 || return 0
+    if grep -rlq '03e7' /etc/udev/rules.d/ /lib/udev/rules.d/ 2>/dev/null; then
+        return 0
+    fi
+
+    cat >&2 <<EOF
+An OAK-D is attached but no udev rule grants access to it, so depthai will fail
+with "Insufficient permissions to communicate with X_LINK_UNBOOTED device".
+
+The exact commands:
+  echo '$OAKD_UDEV_RULE' | sudo tee $OAKD_UDEV_PATH
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+EOF
+
+    local ans=""
+    if [[ -e /dev/tty ]]; then
+        read -r -p "Install the OAK-D udev rule now? [y/N] " ans </dev/tty || ans=""
+    fi
+    case "${ans,,}" in
+        y|yes)
+            step "installing the OAK-D udev rule"
+            if ! sudo -n true 2>/dev/null; then
+                echo "    sudo password required (one-time)"
+            fi
+            echo "$OAKD_UDEV_RULE" | sudo tee "$OAKD_UDEV_PATH" >/dev/null
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger
+            note "installed $OAKD_UDEV_PATH — replug the camera for it to take effect"
+            ;;
+        *)
+            # Unlike the apt deps, this doesn't block the install: the venv is
+            # still valid and the rule can be added later.
+            warn "skipped the OAK-D udev rule; the camera will not be detected until it is installed"
+            ;;
+    esac
+}
+check_oakd_udev
+
 # Bootstrap uv from astral.sh if missing (Jetson images don't ship it).
+# The PATH export below only reaches this process, so record when the caller's
+# shell will still be missing uv and say so at the end.
+UV_OFF_PATH=false
 if ! command -v uv >/dev/null 2>&1; then
+    UV_OFF_PATH=true
     if [[ -x "$HOME/.local/bin/uv" ]]; then
         export PATH="$HOME/.local/bin:$PATH"
     else
-        echo "==> installing uv (no system uv found)"
+        step "installing uv (none found on PATH)"
         if ! command -v curl >/dev/null 2>&1; then
             if ! command -v apt-get >/dev/null 2>&1; then
-                echo "_install_deps.sh: 'curl' required to bootstrap uv. Install curl and re-run setup." >&2
-                exit 1
+                die "curl is required to bootstrap uv — install it and re-run setup"
             fi
             cat >&2 <<EOF
-_install_deps.sh: 'curl' required to bootstrap uv.
+curl is required to bootstrap uv.
 
 The exact command:
   sudo apt-get update
@@ -275,7 +360,7 @@ EOF
             fi
             case "${curl_ans,,}" in
                 y|yes)
-                    echo "==> installing curl (required to bootstrap uv)"
+                    step "installing curl (needed to bootstrap uv)"
                     if ! sudo -n true 2>/dev/null; then
                         echo "    sudo password required (one-time)"
                     fi
@@ -283,41 +368,130 @@ EOF
                     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends curl
                     ;;
                 *)
-                    echo "_install_deps.sh: 'curl' required to bootstrap uv. Install curl and re-run setup." >&2
-                    exit 1
+                    die "curl is required to bootstrap uv — install it and re-run setup"
                     ;;
             esac
         fi
         curl -LsSf https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.local/bin:$PATH"
         command -v uv >/dev/null || {
-            echo "_install_deps.sh: uv install failed — check ~/.local/bin/uv." >&2
-            exit 1
+            die "uv install failed — check ~/.local/bin/uv"
         }
     fi
 fi
 
-# isaacteleop comes from PyPI by default. camera_viz needs >= 1.4 (shaped
-# composition layers, compositor choice, CloudXR launcher helpers).
-# --wheel <path> installs a locally built wheel instead — only needed when
-# developing against an unreleased build (see the build-from-source docs).
-# Sender-only deploys don't install isaacteleop at all. Python extras are
-# additive, so this includes the base package and its dependencies.
-ISAACTELEOP_PKG="isaacteleop[cloudxr]>=1.4"
-if [[ "$MODE" == full && -n "$WHEEL" ]]; then
-    [[ -f "$WHEEL" ]] || {
-        echo "_install_deps.sh: --wheel '$WHEEL' not found." >&2
+# isaacteleop: newest final release meeting the floor below, else newest
+# release candidate, else a source build of this checkout. --wheel skips the
+# ladder; sender-only deploys skip isaacteleop entirely (README has the detail).
+#
+# Bump the floor in both specifiers. The rc one has to name a pre-release --
+# PEP 440 excludes them from a plain >=X.Y, and release/X.Y.x publishes an rc
+# per commit while a final can lag. The cloudxr extra is required, not
+# optional: XR is the default mode. uv accepts <path>[extra], so the extra
+# rides along on the wheel and source-build tiers.
+ISAACTELEOP_EXTRAS="[cloudxr]"
+ISAACTELEOP_STABLE="isaacteleop${ISAACTELEOP_EXTRAS}>=1.4"
+ISAACTELEOP_PRE="isaacteleop${ISAACTELEOP_EXTRAS}>=1.4.0rc1"
+ISAACTELEOP_PKG="$ISAACTELEOP_STABLE"
+
+# Resolves against the index without consulting the venv, so an already-installed
+# copy cannot make a tier look satisfiable. --no-deps keeps it to one fetch.
+isaacteleop_available() {
+    echo "$1" | uv pip compile - --no-deps --quiet \
+        --python-version "$PYTHON_VERSION" >/dev/null 2>&1
+}
+
+resolve_isaacteleop_pkg() {
+    if [[ -n "$WHEEL" ]]; then
+        [[ -f "$WHEEL" ]] || die "--wheel '$WHEEL' not found"
+        ISAACTELEOP_PKG="${WHEEL}${ISAACTELEOP_EXTRAS}"
+        step "isaacteleop: local wheel"
+        note "$WHEEL"
+        return 0
+    fi
+
+    if ! $BUILD_FROM_SOURCE; then
+        step "isaacteleop: resolving from the package index"
+        if isaacteleop_available "$ISAACTELEOP_STABLE"; then
+            ISAACTELEOP_PKG="$ISAACTELEOP_STABLE"
+            note "final release ($ISAACTELEOP_STABLE)"
+            return 0
+        fi
+        if isaacteleop_available "$ISAACTELEOP_PRE"; then
+            ISAACTELEOP_PKG="$ISAACTELEOP_PRE"
+            note "no final release for $ISAACTELEOP_STABLE — using a release candidate ($ISAACTELEOP_PRE)"
+            return 0
+        fi
+        note "nothing matching $ISAACTELEOP_STABLE is installable from the index"
+    fi
+
+    # An rsync'd robot tree and a standalone copy of examples/camera_viz/ have
+    # no repo root to build from.
+    if [[ -z "$REPO_ROOT" || ! -f "$REPO_ROOT/pyproject.toml" ]]; then
+        cat >&2 <<EOF
+No way to obtain $ISAACTELEOP_STABLE.
+
+Nothing suitable is published to the configured package index, and this copy
+of camera_viz is not inside an IsaacTeleop checkout, so there is nothing to
+build from either. Either:
+  * clone https://github.com/NVIDIA/IsaacTeleop and re-run setup from its
+    examples/camera_viz/ directory, or
+  * build a wheel elsewhere and pass --wheel <path>.
+EOF
         exit 1
-    }
-    ISAACTELEOP_PKG="$WHEEL"
+    fi
+
+    cat >&2 <<EOF
+
+isaacteleop can be built from this checkout instead:
+  $REPO_ROOT
+
+That is a full C++ / CUDA / Vulkan build and takes a while. It needs CMake,
+the CUDA toolkit, Vulkan headers, glslangValidator, and clang-format-14 (the
+format gate runs as part of the build).
+EOF
+
+    if ! $BUILD_FROM_SOURCE; then
+        local ans=""
+        if [[ -e /dev/tty ]]; then
+            # As with the apt prompt: do NOT redirect stderr, ``read -p`` writes
+            # the prompt there.
+            read -r -p "Build isaacteleop from source now? [y/N] " ans </dev/tty || ans=""
+        fi
+        case "${ans,,}" in
+            y|yes) ;;
+            *)
+                die "aborted — pass --build-from-source to skip this prompt";;
+        esac
+    fi
+
+    # Same mechanism as --wheel: uv builds the sdist/tree and installs the result.
+    ISAACTELEOP_PKG="${REPO_ROOT}${ISAACTELEOP_EXTRAS}"
+}
+
+# The configuration banner: what this run is going to do, before it does any
+# of it. Everything below is one ``step`` per unit of work.
+EXTRAS=()
+$WITH_V4L2 && EXTRAS+=(v4l2)
+$WITH_OAKD && EXTRAS+=(oakd)
+$WITH_RTP  && EXTRAS+=(rtp)
+$WITH_ZED  && EXTRAS+=(zed)
+step "camera_viz setup — ${MODE} mode"
+note "venv    $VENV_DIR"
+note "python  $PYTHON_VERSION"
+note "cuda    ${cuda_major}.${cuda_minor} → cupy-cuda${cuda_major}x"
+EXTRAS_LIST=none
+if (( ${#EXTRAS[@]} )); then
+    EXTRAS_LIST=$(printf '%s, ' "${EXTRAS[@]}"); EXTRAS_LIST=${EXTRAS_LIST%, }
+fi
+note "extras  $EXTRAS_LIST"
+
+if [[ "$MODE" == full ]]; then
+    resolve_isaacteleop_pkg
 fi
 
-echo "==> mode:   $MODE"
-echo "==> venv:   $VENV_DIR"
-echo "==> python: $PYTHON_VERSION"
-[[ "$MODE" == full ]] && echo "==> isaacteleop: $ISAACTELEOP_PKG"
-
 if [[ ! -d "$VENV_DIR" ]]; then
+    step "creating venv"
     # Strict venv isolation: no --system-site-packages. PyGObject + every
     # other Python dep is installed into the venv via uv below. Sender mode
     # still defaults to system python3 because Jetson images sometimes
@@ -325,10 +499,7 @@ if [[ ! -d "$VENV_DIR" ]]; then
     # — but the venv itself stays isolated.
     if [[ "$MODE" == sender ]]; then
         sys_py="$(command -v python3 || true)"
-        [[ -x "$sys_py" ]] || {
-            echo "_install_deps.sh: system python3 required in --sender-only mode" >&2
-            exit 1
-        }
+        [[ -x "$sys_py" ]] || die "system python3 required in --sender-only mode"
         uv venv "$VENV_DIR" --python "$sys_py"
     else
         uv venv "$VENV_DIR" --python "$PYTHON_VERSION"
@@ -336,25 +507,25 @@ if [[ ! -d "$VENV_DIR" ]]; then
 fi
 PY="$VENV_DIR/bin/python"
 
-echo "==> cuda:   ${cuda_major}.${cuda_minor} (cupy-cuda${cuda_major}x, cuda-nvrtc-${cuda_major}-${cuda_minor})"
-
 # cupy ships separate packages per CUDA major (cupy-cuda12x, cupy-cuda13x...);
 # they coexist on disk and CuPy warns about "multiple CuPy packages installed."
 # If a prior setup picked a different major, uninstall the stale variant now.
 target_cupy="cupy-cuda${cuda_major}x"
 for v in cupy-cuda11x cupy-cuda12x cupy-cuda13x; do
     if [[ "$v" != "$target_cupy" ]] && uv pip show --python "$PY" "$v" >/dev/null 2>&1; then
-        echo "==> removing stale $v (target is $target_cupy)"
+        step "removing stale $v (target is $target_cupy)"
         uv pip uninstall --python "$PY" "$v" >/dev/null
     fi
 done
 
-# Broken-install guard: if dist-info is present but `import cupy` fails
-# (interrupted setup, manual `rm -rf cupy/`), uv treats the package as
-# installed and won't reinstall on the regular install line.
+# Broken-install guard: dist-info present but the package unusable (interrupted
+# setup, manual `rm -rf cupy/`) reads as installed to uv, so it never reinstalls.
+# Probe an attribute, not just the import: a directory left without __init__.py
+# imports as an empty namespace package, where `import cupy` succeeds and
+# `cupy.zeros` does not.
 if uv pip show --python "$PY" "$target_cupy" >/dev/null 2>&1 \
-        && ! "$PY" -c "import cupy" >/dev/null 2>&1; then
-    echo "==> $target_cupy metadata present but import fails — reinstalling"
+        && ! "$PY" -c "import cupy; cupy.zeros" >/dev/null 2>&1; then
+    step "reinstalling $target_cupy (installed but not usable)"
     uv pip uninstall --python "$PY" "$target_cupy" >/dev/null
 fi
 
@@ -378,36 +549,28 @@ if [[ "$MODE" == full && -f "$WHEEL" ]]; then
     if [[ -n "$installed_dist" ]]; then
         installed_mtime=$(stat -c %Y "$installed_dist" 2>/dev/null || echo 0)
         if (( wheel_mtime > installed_mtime )); then
-            echo "==> wheel newer than installed copy — forcing reinstall of isaacteleop"
+            note "wheel is newer than the installed copy — forcing reinstall"
             EXTRA_UV+=(--reinstall-package isaacteleop)
         fi
     fi
 fi
 
-echo "==> installing: ${PKGS[*]}"
+step "installing ${#PKGS[@]} packages"
+note "${PKGS[*]}"
 if (( ${#EXTRA_UV[@]} > 0 )); then
     uv pip install --python "$PY" --upgrade "${EXTRA_UV[@]}" "${PKGS[@]}"
 else
     uv pip install --python "$PY" --upgrade "${PKGS[@]}"
 fi
 
-# A direct wheel requirement does not activate optional dependencies. Install
-# the CloudXR extra after the local wheel is present; without --upgrade, uv
-# reuses that wheel and adds only its missing optional dependencies.
-if [[ "$MODE" == full && -n "$WHEEL" ]]; then
-    uv pip install --python "$PY" "isaacteleop[cloudxr]"
-fi
-
 # ZED SDK ships get_python_api.py which downloads a matching pyzed wheel
 # and then tries ``pip install`` it (which fails in uv venvs, no pip).
 # We let that fail and install the wheel ourselves.
 if $WITH_ZED; then
-    [[ -f "$ZED_SDK_DIR/get_python_api.py" ]] || {
-        echo "_install_deps.sh: --with-zed but no $ZED_SDK_DIR/get_python_api.py." >&2
-        echo "  Install the ZED SDK first or pass --zed-sdk <dir>." >&2
-        exit 1
-    }
-    echo "==> fetching pyzed via $ZED_SDK_DIR/get_python_api.py"
+    [[ -f "$ZED_SDK_DIR/get_python_api.py" ]] || die \
+        "--with-zed given but $ZED_SDK_DIR/get_python_api.py is missing.
+       Install the ZED SDK, or point at it with --zed-sdk <dir>."
+    step "fetching pyzed from $ZED_SDK_DIR"
     uv pip install --python "$PY" --quiet requests
     tmp=$(mktemp -d)
     pushd "$tmp" >/dev/null
@@ -416,8 +579,7 @@ if $WITH_ZED; then
     if [[ -z "$pyzed_whl" ]]; then
         popd >/dev/null
         rm -rf "$tmp"
-        echo "_install_deps.sh: get_python_api.py did not produce a wheel." >&2
-        exit 1
+        die "get_python_api.py did not produce a wheel"
     fi
     uv pip install --python "$PY" --upgrade "$tmp/$pyzed_whl"
     popd >/dev/null
@@ -429,11 +591,11 @@ fi
 if $WITH_RTP; then
     CODEC_DIR="$CAMERA_VIZ_DIR/codec"
     if [[ -d "$CODEC_DIR" ]]; then
-        echo "==> building native codec"
+        step "building native NVENC/NVDEC codec"
         # shellcheck disable=SC1091
         source "$VENV_DIR/bin/activate"
         if ! "$CODEC_DIR/build.sh"; then
-            echo "_install_deps.sh: codec build failed — GStreamer encoder will be used at runtime" >&2
+            warn "codec build failed — falling back to the GStreamer encoder at runtime"
         fi
         deactivate
     fi
@@ -441,23 +603,51 @@ fi
 
 # Smoke imports. ``gi`` is in the list under RTP to confirm PyGObject
 # built and installed cleanly into the venv.
-echo "==> import smoke"
 SMOKE_MODS="cupy yaml scipy.spatial.transform"
-[[ "$MODE" == full ]] && SMOKE_MODS="isaacteleop.viz $SMOKE_MODS"
+# ``websockets`` comes from the cloudxr extra and is what the XR default mode
+# needs to launch the runtime; check it here so a missing extra fails setup
+# rather than the first ``run --mode xr``.
+[[ "$MODE" == full ]] && SMOKE_MODS="isaacteleop.viz websockets $SMOKE_MODS"
 $WITH_RTP && SMOKE_MODS="$SMOKE_MODS gi"
-"$PY" - <<PY
-import sys
+step "verifying imports"
+note "$SMOKE_MODS"
+# Prints only failures; the step line above already said what is being checked.
+"$PY" - <<PY || die "the venv is incomplete — see the failed imports above"
+import importlib, sys
 mods = "$SMOKE_MODS".split()
 fail = []
 for m in mods:
     try:
-        __import__(m)
+        mod = importlib.import_module(m)
     except Exception as e:
-        fail.append((m, e))
-for m, e in fail:
-    print(f"  FAIL {m}: {e}", file=sys.stderr)
-print("  OK" if not fail else "  some imports failed (see above)")
+        fail.append((m, f"{type(e).__name__}: {e}"))
+        continue
+    # A partially-installed package leaves its directory without __init__.py,
+    # and Python imports that as an empty namespace package: the import
+    # succeeds and every attribute is missing. __file__ is None only for
+    # namespace packages, and none of these are one, so it flags exactly that.
+    if getattr(mod, "__file__", None) is None:
+        fail.append((m, "imported as an empty namespace package — install is incomplete"))
+for m, why in fail:
+    print(f"  {m}: {why}", file=sys.stderr)
 sys.exit(0 if not fail else 1)
 PY
 
-echo "_install_deps.sh: done."
+# Close on what the user can do next, not on the fact that the script ended.
+step "setup complete"
+if [[ "$MODE" == full ]]; then
+    # Absolute paths: setup may be invoked from anywhere (repo root, the sample
+    # dir, or over ssh), and a bare ``./camera_viz.sh`` only resolves in the
+    # sample dir. Don't hand out a command that depends on the reader's cwd.
+    note "cd $CAMERA_VIZ_DIR"
+    note "./camera_viz.sh run configs/synthetic.yaml --mode window"
+else
+    note "sender ready — start it with camera_streamer.py <config>"
+fi
+
+# camera_viz itself calls .venv/bin/python directly, but the docs' uv commands
+# won't work until the caller's shell can see the uv we bootstrapped.
+if $UV_OFF_PATH; then
+    warn "uv is at ~/.local/bin/uv, which is not on your PATH. To use it directly:"
+    echo '         export PATH="$HOME/.local/bin:$PATH"   # add to ~/.bashrc to persist' >&2
+fi

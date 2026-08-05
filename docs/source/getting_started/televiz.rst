@@ -4,10 +4,10 @@
 Televiz
 =======
 
-Televiz (``isaacteleop.viz``) is a lightweight compositor for Isaac Teleop. It composites camera and
-sensor feeds, plus 3D rendered content (gsplat, nvblox, neural reconstruction), into an XR headset, a
-desktop window, or an offscreen buffer, integrating directly with the device-tracking and retargeting
-pipeline.
+Televiz (``isaacteleop.viz``) is the visualization module for Isaac Teleop. It composites what the
+operator sees — camera and sensor feeds, plus 3D rendered content such as gsplat or nvblox — and
+presents it in stereo to an XR headset over :doc:`CloudXR </references/cloudxr>`. Desktop-window and
+offscreen output are also available, mainly for development and debugging.
 
 It is a **compositor**, not a capture or streaming layer: it consumes GPU frames and assembles them
 into a final image. Camera capture, decode, and network transport live in the application (see
@@ -15,8 +15,7 @@ into a final image. Camera capture, decode, and network transport live in the ap
 
 The compositor is implemented in C++ (``namespace viz``, built on Vulkan + OpenXR + CUDA with no
 external rendering-framework dependency) and exposed through a pybind11 binding. This page uses the
-Python API, which mirrors the C++ names one-to-one — see `C++ API`_ to link against the library
-directly.
+Python API, which mirrors the C++ names one-to-one — see `C++ API`_.
 
 .. contents:: On this page
    :local:
