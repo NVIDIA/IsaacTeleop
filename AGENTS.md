@@ -71,6 +71,31 @@ only point here — edit the rules in the doc, not the shims.
   must keep `[ ... ]`. Check the shebang (and, for sourced files, who sources
   them) first.
 
+## Comments and docstrings — say it once, briefly
+
+Comments earn their place by recording what the code cannot: a constraint, a
+measurement, a trap someone already paid for. They are not a place to narrate.
+
+- **Default to a few lines.** A block comment over ~8 lines, or a docstring
+  over ~6, needs a reason. If the explanation is genuinely long, it belongs in
+  a `README.md` / design doc that a reader can skip, not inline where they
+  cannot.
+- **State the fact, drop the argument.** "MuJoCo rewrites meshes into their
+  inertial frame, so STL axes need `mesh_pos`/`mesh_quat`" beats three
+  paragraphs re-deriving why. Keep measured numbers and file/line references;
+  cut the prose around them.
+- **Do not narrate history.** "An earlier revision did X and it was wrong" is
+  what `git log` is for. If the wrong approach is tempting enough to warn
+  about, write the warning as a rule — "do not derive this from the mesh" —
+  not as a changelog.
+- **No emphasis-by-shouting.** Occasional caps for a single load-bearing word
+  is fine; whole sentences in caps are noise once every third comment has them.
+- **One statement of a fact, in one place.** If a constraint is already in the
+  code, the test name, or an adjacent doc, do not restate it.
+
+This applies to `#`/`//` comments, docstrings, and comment blocks in
+`CMakeLists.txt`, `pyproject.toml` and scene XML.
+
 ## Commits — DCO sign-off for AI-drafted commits
 
 Any commit whose message is drafted or edited by an AI agent **must** include
