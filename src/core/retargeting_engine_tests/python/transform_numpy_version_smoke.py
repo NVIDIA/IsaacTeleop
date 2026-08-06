@@ -48,6 +48,7 @@ def main() -> None:
         [0.0, 0.0, 0.0, 1.0], dtype=np.float32
     )
     head_in[HeadInputIndex.IS_VALID] = True
+    head_in[HeadInputIndex.IS_TRACKED] = True
 
     xform_in = TensorGroup(TransformMatrix())
     xform_in[0] = np.eye(4, dtype=np.float32)
