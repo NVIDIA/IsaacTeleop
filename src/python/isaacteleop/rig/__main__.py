@@ -4,7 +4,7 @@
 """Entry point for ``python -m isaacteleop.rig``.
 
 Launches a teleop rig (CloudXR runtime + producer plugins + consumer apps)
-in a tmux session from a YAML rig file.
+in a tmux window from a YAML rig file.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--kill",
         action="store_true",
         help=(
-            "Kill the rig's tmux session (and every process in it) instead "
+            "Kill the rig's tmux window (and every process in it) instead "
             "of launching, e.g. to relaunch after editing the rig file."
         ),
     )

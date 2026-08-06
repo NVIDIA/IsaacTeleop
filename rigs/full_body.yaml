@@ -24,6 +24,6 @@ description: CloudXR runtime + full-body joint printer + MCAP recorder (PICO 4 U
 cwd: ..                        # -> Teleop repo root
 consumers:
   - name: full body printer (requires headset + motion trackers)
-    command: "install/examples/schemaio/full_body_printer"
+    command: "{install}/examples/schemaio/full_body_printer"
   - name: full body recorder (check printer pane first; Enter = new timestamped take)
-    command: "install/examples/mcap_record_replay/cpp/record_full_body 5 examples/mcap_record_replay/recordings/"
+    command: "{install}/examples/mcap_record_replay/cpp/record_full_body 5 examples/mcap_record_replay/recordings/"

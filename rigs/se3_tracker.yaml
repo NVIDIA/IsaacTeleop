@@ -7,9 +7,11 @@
 # runtime, load its CloudXR env, then run their commands automatically. An
 # app that started before the headset connected exits with 'Failed to get
 # OpenXR system' — press Enter in its pane to rerun it once the headset is in.
-# Relative command paths and the pane working dir resolve against `cwd`
-# (relative to this file; default: this file's directory).
-name: se3_tracker              # rig id AND tmux session name (letters/digits/-/_ only)
+# {install} expands to the install prefix — $ISAAC_TELEOP_INSTALL_DIR if set,
+# else <cwd>/install (CMake's default prefix for this project). Other relative
+# command paths and the pane working dir resolve against `cwd` (relative to
+# this file; default: this file's directory).
+name: se3_tracker              # rig id AND tmux window name (letters/digits/-/_ only)
 description: CloudXR runtime + SE3 controller tracker plugin + pose printer
 cwd: ..                        # -> Teleop repo root
 params:                        # shared values, substituted into the commands below
@@ -21,10 +23,10 @@ params:                        # shared values, substituted into the commands be
 #   {python} -m isaacteleop.cloudxr --accept-eula
 producers:                     # publish device data into the runtime
   - name: se3 tracker plugin (requires headset + controller)
-    command: "install/plugins/controller_se3_tracker/controller_se3_tracker_plugin {hand} {collection_id}"
+    command: "{install}/plugins/controller_se3_tracker/controller_se3_tracker_plugin {hand} {collection_id}"
 consumers:                     # read the streams — a TeleopSession script or a C++ binary
   - name: se3 printer (requires headset)
-    command: "install/examples/schemaio/se3_printer {collection_id}"
+    command: "{install}/examples/schemaio/se3_printer {collection_id}"
 # NOTE: Python TeleopSession consumers self-launch a CloudXR runtime by default.
 # Add --no-launch-cloudxr-runtime to their command or they will KILL the runtime
 # pane (the runtime is a host singleton on WSS port 48322).

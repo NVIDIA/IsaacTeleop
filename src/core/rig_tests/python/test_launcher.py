@@ -15,23 +15,44 @@ from rig_py_test_ns.config import RigConfig, ProcessConfig
 from rig_py_test_ns.launcher import PreflightError, kill_rig, launch_rig
 
 
-class FakeTmux:
-    """Recording fake for the ``run_tmux`` seam; hands out canned pane ids."""
+#: Session the fake reports for windows created without -s, i.e. the session
+#: a launch from inside tmux joins.
+CURRENT_SESSION = "dev"
 
-    def __init__(self, existing_sessions: set[str] | None = None):
+
+class FakeTmux:
+    """Recording fake for the ``run_tmux`` seam; hands out canned ids.
+
+    *windows* is the tmux server's existing windows as ``{name: session}``;
+    ``None`` means no server at all, so the rig lookup fails like real tmux.
+    """
+
+    def __init__(self, windows: dict[str, str] | None = None):
         self.calls: list[list[str]] = []
-        self.sessions = existing_sessions or set()
+        self.windows = dict(windows or {})
+        self.server = windows is not None
         self._pane_counter = 0
+        self._window_counter = len(self.windows)
 
     def __call__(self, args):
         args = list(args)
         self.calls.append(args)
-        if args[0] == "has-session":
-            session = args[args.index("-t") + 1]
-            if session not in self.sessions:
+        if args[0] == "list-windows":
+            if not self.server:
                 raise subprocess.CalledProcessError(1, ["tmux", *args])
-            return ""
-        if args[0] in ("new-session", "split-window"):
+            return "\n".join(
+                f"@{i}\t{session}\t{name}"
+                for i, (name, session) in enumerate(self.windows.items(), start=1)
+            )
+        if args[0] in ("new-session", "new-window"):
+            self.server = True
+            self._pane_counter += 1
+            self._window_counter += 1
+            name = args[args.index("-n") + 1]
+            session = args[args.index("-s") + 1] if "-s" in args else CURRENT_SESSION
+            self.windows[name] = session
+            return f"%{self._pane_counter}\t@{self._window_counter}\t{session}"
+        if args[0] == "split-window":
             self._pane_counter += 1
             return f"%{self._pane_counter}"
         return ""
@@ -41,7 +62,8 @@ class FakeTmux:
 
     def pane_commands(self) -> list[str]:
         """The wrapper shell-command each pane was spawned running, plan order."""
-        return [c[-1] for c in self.calls if c[0] in ("new-session", "split-window")]
+        creators = ("new-session", "new-window", "split-window")
+        return [c[-1] for c in self.calls if c[0] in creators]
 
 
 def pretype_line(wrapper: str) -> str:
@@ -104,6 +126,8 @@ def clean_env(monkeypatch, tmp_path):
     # suite must never resolve to — and unlink in — a developer's real HOME.
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("CXR_INSTALL_DIR", raising=False)
+    # A developer's own install-prefix override must not leak into the suite.
+    monkeypatch.delenv("ISAAC_TELEOP_INSTALL_DIR", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -115,33 +139,36 @@ def test_fresh_launch_call_plan(tmp_path):
     tmux = FakeTmux()
     launch_rig(make_config(tmp_path), run_tmux=tmux)
 
-    # Session created detached, addressed by pane id, in the rig cwd; the
-    # first pane is SPAWNED RUNNING the runtime wrapper (trailing
-    # shell-command), never a bare shell the launcher types into.
+    # Outside tmux the rig gets its own session, created detached, its
+    # window named after the rig, in the rig cwd; the first pane is SPAWNED
+    # RUNNING the runtime wrapper (trailing shell-command), never a bare
+    # shell the launcher types into.
     (new_session,) = tmux.named("new-session")
     assert new_session[:-1] == [
         "new-session",
         "-d",
         "-P",
         "-F",
-        "#{pane_id}",
+        "#{pane_id}\t#{window_id}\t#{session_name}",
         "-s",
         "test_rig",
         "-n",
-        "rig",
+        "test_rig",
         "-c",
         str(tmp_path),
     ]
     runtime_wrapper = new_session[-1]
 
-    # Session-scoped options only (-t <session>), never global (-g):
-    # pane-border-status plus the runtime strip height for main-horizontal.
+    # Window-scoped options only (-w -t <window id>), never global (-g) and
+    # never session-wide: the rig window may share a session with the user's
+    # own windows. pane-border-status plus the main-horizontal strip height.
     set_options = tmux.named("set-option")
-    assert ["set-option", "-t", "test_rig", "pane-border-status", "top"] in set_options
+    assert ["set-option", "-w", "-t", "@1", "pane-border-status", "top"] in set_options
     assert [
         "set-option",
+        "-w",
         "-t",
-        "test_rig",
+        "@1",
         "main-pane-height",
         "25%",
     ] in set_options
@@ -156,10 +183,11 @@ def test_fresh_launch_call_plan(tmp_path):
 
     # Interleaved tiled re-layouts keep splits from running out of space;
     # the final layout is main-horizontal: runtime = slim top strip,
-    # workers tiled below.
+    # workers tiled below. Targeted at the rig's own first pane — a session
+    # target would lay out whatever window is current in a shared session.
     layouts = [c[-1] for c in tmux.named("select-layout")]
     assert layouts == ["tiled", "tiled", "main-horizontal"]
-    assert all(c[c.index("-t") + 1] == "test_rig" for c in tmux.named("select-layout"))
+    assert all(c[c.index("-t") + 1] == "%1" for c in tmux.named("select-layout"))
 
     # The launcher never send-keys into a pane: keystrokes racing shell
     # startup are echoed raw by the tty and again by the line editor.
@@ -213,11 +241,14 @@ def test_fresh_launch_call_plan(tmp_path):
     assert "auto-runs once the runtime is up" in title_texts[1]
     assert "consumer: bar printer" in title_texts[2]
 
-    # Runtime pane focused; garnish message; attach last (TMUX unset).
+    # Runtime pane focused; garnish message; the rig window is selected and
+    # then attached to last (TMUX unset).
     assert tmux.named("select-pane")[-1] == ["select-pane", "-t", "%1"]
     assert tmux.named("display-message")
-    assert tmux.calls[-1][0] == "attach-session"
-    assert tmux.calls[-1][-1] == "test_rig"
+    assert tmux.calls[-2:] == [
+        ["select-window", "-t", "@1"],
+        ["attach-session", "-t", "test_rig"],
+    ]
 
 
 def test_instructions_printed_before_attach(tmp_path, capsys):
@@ -226,7 +257,7 @@ def test_instructions_printed_before_attach(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "runs automatically once the runtime is up" in out
     assert "press Enter in its pane to rerun" in out
-    assert "tmux kill-session -t test_rig" in out
+    assert "tmux kill-window -t test_rig:test_rig" in out
     assert "test rig" in out  # the rig description is shown
 
 
@@ -256,40 +287,89 @@ def test_no_runtime_stays_tiled_without_main_pane(tmp_path):
     assert not any("main-pane-height" in c for c in tmux.named("set-option"))
 
 
-def test_switch_client_when_inside_tmux(tmp_path, monkeypatch):
+def test_inside_tmux_the_rig_joins_the_current_session(tmp_path, monkeypatch):
+    """Launched from inside tmux the rig is a window in the session the
+    client is already in — never a second session it has to be switched to.
+    """
     monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1234,0")
-    tmux = FakeTmux()
+    tmux = FakeTmux({"editor": CURRENT_SESSION})
     launch_rig(make_config(tmp_path), run_tmux=tmux)
-    assert tmux.calls[-1] == ["switch-client", "-t", "test_rig"]
+
+    assert not tmux.named("new-session")
+    (new_window,) = tmux.named("new-window")
+    assert new_window[:-1] == [
+        "new-window",
+        "-d",  # built out of sight, switched to only once laid out
+        "-P",
+        "-F",
+        "#{pane_id}\t#{window_id}\t#{session_name}",
+        "-n",
+        "test_rig",
+        "-c",
+        str(tmp_path),
+    ]
+    # The user's own window is untouched: options and layouts target the
+    # rig's window/pane ids, not the session.
+    assert all("test_rig" not in c[3:] for c in tmux.named("set-option"))
+    assert tmux.calls[-2:] == [
+        ["select-window", "-t", "@2"],
+        ["switch-client", "-t", CURRENT_SESSION],
+    ]
     assert not tmux.named("attach-session")
 
 
 # ---------------------------------------------------------------------------
-# Idempotent session reuse
+# Idempotent rig reuse
 # ---------------------------------------------------------------------------
 
 
-def test_existing_session_is_reused(tmp_path, capsys):
-    tmux = FakeTmux(existing_sessions={"test_rig"})
+def test_running_rig_is_switched_to(tmp_path, capsys):
+    tmux = FakeTmux({"test_rig": "test_rig"})
     launch_rig(make_config(tmp_path), run_tmux=tmux)
-    assert [c[0] for c in tmux.calls] == ["has-session", "attach-session"]
+    assert [c[0] for c in tmux.calls] == [
+        "list-windows",
+        "select-window",
+        "attach-session",
+    ]
     out = capsys.readouterr().out
     assert "--kill" in out  # points at the built-in kill, not raw tmux
-    assert "ignored for an existing session" not in out  # nothing was ignored
+    assert "ignored for a running rig" not in out  # nothing was ignored
 
 
-def test_existing_session_notes_ignored_settings(tmp_path, capsys):
-    tmux = FakeTmux(existing_sessions={"test_rig"})
+def test_running_rig_is_found_in_any_session(tmp_path, capsys, monkeypatch):
+    """A rig launched from another session is switched to, not duplicated."""
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1234,0")
+    tmux = FakeTmux({"editor": "dev", "test_rig": "other"})
+    launch_rig(make_config(tmp_path), run_tmux=tmux)
+    assert not tmux.named("new-window")
+    assert tmux.calls[-2:] == [
+        ["select-window", "-t", "@2"],
+        ["switch-client", "-t", "other"],
+    ]
+    assert "already running in session 'other'" in capsys.readouterr().out
+
+
+def test_rig_lookup_matches_the_window_name_exactly(tmp_path):
+    """Never a tmux ``-t`` target: its prefix/fnmatch fallback would make a
+    window named ``test_rig_2`` count as the ``test_rig`` rig.
+    """
+    tmux = FakeTmux({"test_rig_2": "dev"})
+    launch_rig(make_config(tmp_path), run_tmux=tmux)
+    assert tmux.named("new-session")  # launched, not mistaken for running
+
+
+def test_running_rig_notes_ignored_settings(tmp_path, capsys):
+    tmux = FakeTmux({"test_rig": "test_rig"})
     launch_rig(make_config(tmp_path), no_runtime=True, run_tmux=tmux)
     out = capsys.readouterr().out
-    assert "--no-runtime ignored for an existing session" in out
+    assert "--no-runtime ignored for a running rig" in out
     assert "kill it first" in out
 
 
-def test_existing_session_reattaches_despite_launch_preflight_failures(tmp_path):
-    """Reattach must win before any launch-only preflight: edits to a
-    running rig's YAML (ghost binary, missing cwd, undeclared placeholder)
-    must never block getting back into the live session.
+def test_running_rig_is_switched_to_despite_launch_preflight_failures(tmp_path):
+    """Switching to a live rig must win before any launch-only preflight:
+    edits to a running rig's YAML (ghost binary, missing cwd, undeclared
+    placeholder) must never block getting back into the live window.
     """
     config = make_config(
         tmp_path,
@@ -298,9 +378,13 @@ def test_existing_session_reattaches_despite_launch_preflight_failures(tmp_path)
             ProcessConfig("ghost", "install/plugins/ghost/ghost_plugin {undeclared}"),
         ),
     )
-    tmux = FakeTmux(existing_sessions={"test_rig"})
+    tmux = FakeTmux({"test_rig": "test_rig"})
     launch_rig(config, run_tmux=tmux)  # must not raise
-    assert [c[0] for c in tmux.calls] == ["has-session", "attach-session"]
+    assert [c[0] for c in tmux.calls] == [
+        "list-windows",
+        "select-window",
+        "attach-session",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -308,21 +392,25 @@ def test_existing_session_reattaches_despite_launch_preflight_failures(tmp_path)
 # ---------------------------------------------------------------------------
 
 
-def test_kill_rig_kills_the_existing_session(tmp_path, capsys):
-    tmux = FakeTmux(existing_sessions={"test_rig"})
+def test_kill_rig_kills_only_the_rig_window(tmp_path, capsys):
+    """The rig's session may be the user's, full of unrelated work: kill the
+    rig's window (which ends the session only when it was its last window).
+    """
+    tmux = FakeTmux({"editor": "dev", "test_rig": "dev"})
     kill_rig(make_config(tmp_path), run_tmux=tmux)
     assert tmux.calls == [
-        ["has-session", "-t", "test_rig"],
-        ["kill-session", "-t", "test_rig"],
+        ["list-windows", "-a", "-F", "#{window_id}\t#{session_name}\t#{window_name}"],
+        ["kill-window", "-t", "@2"],
     ]
-    assert "killed session 'test_rig'" in capsys.readouterr().out
-
-
-def test_kill_rig_is_idempotent_when_no_session(tmp_path, capsys):
-    tmux = FakeTmux()  # no sessions
-    kill_rig(make_config(tmp_path), run_tmux=tmux)
     assert not tmux.named("kill-session")
-    assert "no session 'test_rig' to kill" in capsys.readouterr().out
+    assert "killed rig 'test_rig' in session 'dev'" in capsys.readouterr().out
+
+
+def test_kill_rig_is_idempotent_when_not_running(tmp_path, capsys):
+    tmux = FakeTmux()  # no tmux server at all
+    kill_rig(make_config(tmp_path), run_tmux=tmux)
+    assert not tmux.named("kill-window")
+    assert "no rig 'test_rig' to kill" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------
@@ -529,12 +617,12 @@ def test_no_runtime_preserves_external_sentinel(tmp_path):
 
 
 def test_reattach_preserves_live_sentinel(tmp_path):
-    # Reattaching to an existing session must not clear the sentinel its
-    # (live) runtime owns — the delete sits after the reattach early-return.
+    # Switching to a running rig must not clear the sentinel its (live)
+    # runtime owns — the delete sits after that early-return.
     sentinel = _default_sentinel(tmp_path)
     sentinel.parent.mkdir(parents=True)
     sentinel.touch()
-    tmux = FakeTmux(existing_sessions={"test_rig"})
+    tmux = FakeTmux({"test_rig": "test_rig"})
     launch_rig(make_config(tmp_path), run_tmux=tmux)
     assert sentinel.exists()
 
@@ -743,3 +831,41 @@ def test_footgun_warning_suppressed_with_no_runtime(tmp_path, capsys):
     )
     launch_rig(config, no_runtime=True, run_tmux=FakeTmux())
     assert "--no-launch-cloudxr-runtime" not in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Install-prefix resolution ({install})
+# ---------------------------------------------------------------------------
+
+
+def make_install_config(tmp_path: Path, prefix: Path, **kwargs) -> RigConfig:
+    """A rig whose panes reach their binaries through ``{install}``."""
+    make_exe(prefix, "plugins/foo/foo_plugin")
+    return make_config(
+        tmp_path,
+        producers=(ProcessConfig("foo plugin", "{install}/plugins/foo/foo_plugin"),),
+        consumers=(),
+        **kwargs,
+    )
+
+
+def test_install_placeholder_expands_to_the_default_prefix(tmp_path):
+    tmux = FakeTmux()
+    launch_rig(make_install_config(tmp_path, tmp_path / "install"), run_tmux=tmux)
+    assert (
+        pretyped_command(tmux.pane_commands()[1])
+        == f"{tmp_path}/install/plugins/foo/foo_plugin"
+    )
+
+
+def test_install_placeholder_follows_the_env_override(tmp_path, monkeypatch):
+    """A tree installed with a non-default CMAKE_INSTALL_PREFIX is reachable
+    without editing the rig file.
+    """
+    prefix = tmp_path / "opt" / "isaacteleop" / "install"
+    monkeypatch.setenv("ISAAC_TELEOP_INSTALL_DIR", str(prefix))
+    tmux = FakeTmux()
+    launch_rig(make_install_config(tmp_path, prefix), run_tmux=tmux)
+    assert (
+        pretyped_command(tmux.pane_commands()[1]) == f"{prefix}/plugins/foo/foo_plugin"
+    )
