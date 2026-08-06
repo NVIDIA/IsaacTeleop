@@ -30,11 +30,17 @@ from .oob_teleop_env import (
 )
 from .oob_teleop_hub import OOB_WS_PATH
 
-import websockets
-from websockets.asyncio.client import connect as ws_connect
-from websockets.asyncio.server import serve as ws_serve
-from websockets.datastructures import Headers
-from websockets.http11 import Response
+try:
+    import websockets
+    from websockets.asyncio.client import connect as ws_connect
+    from websockets.asyncio.server import serve as ws_serve
+    from websockets.datastructures import Headers
+    from websockets.http11 import Response
+except ImportError:
+    sys.exit(
+        "Missing dependency: websockets >= 14\n"
+        "Install with: uv pip install --find-links=install/wheels 'isaacteleop[cloudxr]'"
+    )
 
 
 def _patch_request_parser_for_cors():
