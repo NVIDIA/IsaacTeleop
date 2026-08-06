@@ -19,7 +19,8 @@ examples. The instructions align with the project's CMake configuration and the 
 Prerequisites
 -------------
 
-- **CMake** 3.20 or higher
+- **CMake** 3.24 or higher (Ubuntu 22.04's apt ``cmake`` is 3.22 — install a newer one
+  from `Kitware's APT repository <https://apt.kitware.com/>`_ or with ``pip install cmake``)
 - **C++20** compatible compiler
 - **Python** 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
 - **uv** for Python dependency management and managed Python

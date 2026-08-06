@@ -85,10 +85,11 @@ result = "{major}.{minor}+local"
 package = false
 
 [tool.scikit-build]
-# Floor matches CMakeLists' cmake_minimum_required; the <4 cap keeps the build on
-# a 3.x CMake like Ubuntu 22.04 (3.22) / 24.04 (3.28) ship, so pip/isolated builds
-# (and CI) don't silently pull the latest 4.x line from PyPI and drift from the OS.
-cmake.version = ">=3.20,<4"
+# Floor matches CMakeLists' cmake_minimum_required (3.24, for `cmake --fresh`).
+# Ubuntu 22.04's apt CMake is 3.22 and no longer satisfies it, so scikit-build-core
+# fetches CMake from PyPI there; the <4 cap keeps that fetch on the 3.x line rather
+# than silently jumping to 4.x.
+cmake.version = ">=3.24,<4"
 cmake.build-type = "Release"
 
 # Keep the CMake build tree under build-wheel/<cache-tag>/ (e.g.
