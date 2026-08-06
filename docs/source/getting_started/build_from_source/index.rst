@@ -54,6 +54,14 @@ Our build system uses `uv`_ for Python version and dependency management. Instal
 
    curl -LsSf https://astral.sh/uv/install.sh | sh
 
+The installer drops ``uv`` in ``~/.local/bin``, which is not on ``PATH`` in most shells. Add it for
+the current shell — and to your ``~/.bashrc`` to make it stick — or every ``uv`` command below
+fails with ``uv: command not found``:
+
+.. code-block:: bash
+
+   export PATH="$HOME/.local/bin:$PATH"
+
 .. note::
    While the build system uses `uv`_, the final Python packages can be installed via any Python package manager
    such as `pip <https://pip.pypa.io/>`_ or `conda <https://conda.io/>`_.
