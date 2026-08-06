@@ -168,6 +168,7 @@ TEST_CASE("HeadPoseRecord serialization with DeviceDataTimestamp", "[head][flatb
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     record->data->pose = std::make_unique<core::Pose>(position, orientation);
     record->data->is_valid = true;
+    record->data->is_tracked = true;
     record->timestamp = std::make_shared<core::DeviceDataTimestamp>(1000000000LL, 2000000000LL, 3000000000LL);
 
     auto offset = core::HeadPoseRecord::Pack(builder, record.get());
