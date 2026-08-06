@@ -69,7 +69,7 @@ After building, install the wheel with ``uv`` or ``pip``:
 Installing from source with pip (scikit-build-core)
 ---------------------------------------------------
 
-In addition to the CMake ``--preset`` flow above (which stages the package
+In addition to the classic CMake flow above (which stages the package
 and produces a wheel under ``install/wheels/``), the repository ships a root
 :code-file:`pyproject.toml` that exposes ``isaacteleop`` through the
 `scikit-build-core <https://scikit-build-core.readthedocs.io/>`_ build backend,
@@ -88,38 +88,40 @@ subpackages under an editable install — see
 Build directory layout and per-Python-version builds
 ----------------------------------------------------
 
-A CMake binary directory holds exactly one configured Python version (the
-interpreter and ABI are baked into ``CMakeCache.txt``), so the two build paths use
-distinct, per-version directories under ``build/`` — never a shared one. Both key
-the directory off the interpreter's ``cache_tag`` (``sys.implementation.cache_tag``,
-e.g. ``cpython-312``) so the per-version tag is consistent between them:
+A CMake binary directory holds exactly one configured Python version — the
+interpreter and ABI are baked into ``CMakeCache.txt`` and into the build venv. The
+two build paths therefore never share a directory:
 
-- **pip / scikit-build-core** → ``build/wheel-<cache-tag>/`` (e.g.
-  ``build/wheel-cpython-312/``), set by ``build-dir`` in
-  :code-file:`pyproject.toml` and chosen automatically per interpreter.
-- **classic CMake** → ``build/cmake-<cache-tag>/``, via the presets in
-  :code-file:`CMakePresets.json` (``py3.11`` … ``py3.13``). Each preset sets
-  ``ISAAC_TELEOP_PYTHON_VERSION`` and its own ``binaryDir``:
+- **classic CMake** → whatever you pass to ``-B``, ``build/`` by convention.
+  ``ISAAC_TELEOP_PYTHON_VERSION`` selects the interpreter (default ``3.11``), and
+  changing it on an existing tree is rejected with an error rather than silently
+  reusing the old one — give each version its own directory.
 
   .. code-block:: bash
 
-     cmake --preset py3.12                     # configures build/cmake-cpython-312
-     cmake --build --preset py3.12 --parallel
-     cmake --install build/cmake-cpython-312
+     cmake -B build
+     cmake --build build --parallel
+     cmake --install build
 
-The wheel/ABI tag (``cp312-cp312-linux_aarch64``) can't be expressed as a CMake
-preset, so ``cache_tag`` is the common tag both paths share. Because each Python
-version gets its own directory, switching versions never reuses a stale configured
-cache. ``build/`` is gitignored.
+     cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12   # a second version
+
+- **pip / scikit-build-core** → ``build-wheel/<cache-tag>/`` (e.g.
+  ``build-wheel/cpython-312/``), set by ``build-dir`` in
+  :code-file:`pyproject.toml` and chosen automatically per interpreter, keyed off
+  ``sys.implementation.cache_tag``. It lives outside ``build/`` so ``pip install``
+  and a classic ``cmake -B build`` never collide, and ``rm -rf build`` leaves the
+  incremental wheel tree intact.
+
+``build/`` and ``build-wheel/`` are gitignored.
 
 Output locations
 ----------------
 
-After a successful build and install:
+After a successful build and install, relative to your build directory:
 
-- **C++ libraries:** ``build/src/core/`` (and under each module)
-- **Python wheel:** ``build/wheels/isaacteleop-*.whl``
-- **Examples (binaries):** under ``build/examples/`` (e.g. ``build/examples/oxr/cpp/``)
+- **C++ libraries:** ``src/core/`` (and under each module)
+- **Python wheel:** ``wheels/isaacteleop-*.whl``
+- **Examples (binaries):** under ``examples/`` (e.g. ``examples/oxr/cpp/``)
 - **Installed files:** ``install/`` (or your ``CMAKE_INSTALL_PREFIX``)
   - Libraries: ``install/lib/``
   - Headers: ``install/include/``
@@ -145,18 +147,18 @@ CMake can't find OpenXR
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 OpenXR is fetched automatically; it is not a system package. If configuration fails, try a clean configure
-(``--fresh`` wipes the preset's CMake cache and reconfigures):
+(``--fresh`` wipes the CMake cache and reconfigures):
 
 .. code-block:: bash
 
-   cmake --preset py3.12 --fresh
+   cmake -B build --fresh
 
 Examples or tests can't find the library
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When building from the top-level, examples and tests use the build tree. Ensure you run
-``cmake --build --preset py3.12`` from the project root and run executables from the build directory
-(``build/cmake-cpython-312/``, or use ``cmake --install build/cmake-cpython-312`` and run from ``install/``).
+``cmake --build build`` from the project root and run executables from the build directory
+(or use ``cmake --install build`` and run from ``install/``).
 
 uv or Python version
 ~~~~~~~~~~~~~~~~~~~~

@@ -107,30 +107,28 @@ See :ref:`dedicated-cloudxr-runtime`.
 2. CMake: Configure and build
 -----------------------------
 
-From the project root, configure with a **preset** — there is one per supported
-Python version (``py3.11`` … ``py3.13``; see :code-file:`CMakePresets.json`). A
-preset selects the Python version and an isolated per-version build directory, so
-different versions never share (and clobber) one configured CMake cache:
+From the project root:
 
 .. code-block:: bash
 
-   cmake --preset py3.12                       # configure
-   cmake --build --preset py3.12 --parallel    # build
-   cmake --install build/cmake-cpython-312     # install
+   cmake -B build                       # configure
+   cmake --build build --parallel       # build
+   cmake --install build                # install
 
-``cmake --preset py3.12`` is shorthand for the explicit configure it expands to —
-an isolated build directory plus the Python version:
+Add any other options as ``-D`` flags on the configure line, for example
+``cmake -B build -DCMAKE_BUILD_TYPE=Debug``.
 
-.. code-block:: bash
+.. important::
 
-   cmake -B build/cmake-cpython-312 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+   The Python version is baked into a build directory's CMake cache and its build
+   venv, so ``ISAAC_TELEOP_PYTHON_VERSION`` cannot be changed on an existing tree —
+   configuring again with a different value fails with an explanatory error. Give
+   each version its own directory:
 
-Add any other options as ``-D`` flags on the same line; a command-line ``-D``
-overrides the preset (e.g. ``cmake --preset py3.12 -DCMAKE_BUILD_TYPE=Debug``).
-Pick the preset that matches your interpreter rather than overriding
-``ISAAC_TELEOP_PYTHON_VERSION`` by hand. (A bare ``cmake -B build`` still works
-for a quick default build — Python 3.11 into ``./build`` — but the presets are
-the recommended path.)
+   .. code-block:: bash
+
+      cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+      cmake --build build-py3.12 --parallel
 
 This will:
 
@@ -151,7 +149,7 @@ To disable enforcement, set ``ENABLE_CLANG_FORMAT_CHECK`` to ``OFF``:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DENABLE_CLANG_FORMAT_CHECK=OFF
+   cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
 
 Useful targets:
 
@@ -160,8 +158,8 @@ Useful targets:
 
 .. code-block:: bash
 
-   cmake --build --preset py3.12 --target clang_format_check
-   cmake --build --preset py3.12 --target clang_format_fix
+   cmake --build build --target clang_format_check
+   cmake --build build --target clang_format_fix
 
 Other Build options
 ~~~~~~~~~~~~~~~~~~~
@@ -228,55 +226,55 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
 Examples
 ~~~~~~~~
 
-Build for a different Python version — use the matching preset (``py3.11``,
-``py3.12``, ``py3.13``):
+Build for a different Python version — each needs its own build directory
+(``3.11``, ``3.12``, ``3.13`` are supported):
 
 .. code-block:: bash
 
-   cmake --preset py3.12
-   cmake --build --preset py3.12 --parallel
+   cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+   cmake --build build-py3.12 --parallel
 
 Debug build:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DCMAKE_BUILD_TYPE=Debug
-   cmake --build --preset py3.12
+   cmake -B build -DCMAKE_BUILD_TYPE=Debug
+   cmake --build build
 
 Build without examples:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_EXAMPLES=OFF
-   cmake --build --preset py3.12
+   cmake -B build -DBUILD_EXAMPLES=OFF
+   cmake --build build
 
 Build without Python bindings:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_PYTHON_BINDINGS=OFF
-   cmake --build --preset py3.12
+   cmake -B build -DBUILD_PYTHON_BINDINGS=OFF
+   cmake --build build
 
 Build with OAK camera plugin (pulls Hunter/DepthAI):
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_PLUGIN_OAK_CAMERA=ON
-   cmake --build --preset py3.12
+   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
+   cmake --build build
 
 Build only the teleop_ros2 example (e.g. for Docker, as in :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` teleop-ros2-docker job):
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_EXAMPLES=OFF -DBUILD_EXAMPLE_TELEOP_ROS2=ON
-   cmake --build --preset py3.12
+   cmake -B build -DBUILD_EXAMPLES=OFF -DBUILD_EXAMPLE_TELEOP_ROS2=ON
+   cmake --build build
 
-Clean rebuild (``--fresh`` wipes the preset's CMake cache and reconfigures):
+Clean rebuild (``--fresh`` wipes the CMake cache and reconfigures):
 
 .. code-block:: bash
 
-   cmake --preset py3.12 --fresh
-   cmake --build --preset py3.12
+   cmake -B build --fresh
+   cmake --build build
 
 3. Running tests
 ----------------
@@ -285,10 +283,10 @@ When ``BUILD_TESTING`` is ``ON``, CTest is enabled at the top level. Run all tes
 
 .. code-block:: bash
 
-   cmake --build --preset py3.12 --target test
+   cmake --build build --target test
 
    # Or with ctest (e.g. parallel, output on failure)
-   ctest --test-dir build/cmake-cpython-312 --output-on-failure --parallel
+   ctest --test-dir build --output-on-failure --parallel
 
 The CI uses ``ctest`` (see :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>`).
 
@@ -327,12 +325,11 @@ the released wheels) is unchanged, so the two coexist.
 
 .. note::
 
-   The CMake build tree is kept under ``build/wheel-<cache-tag>/`` (e.g.
-   ``build/wheel-cpython-311/``) — one per Python version, so different
+   The CMake build tree is kept under ``build-wheel/<cache-tag>/`` (e.g.
+   ``build-wheel/cpython-311/``) — one per Python version, so different
    interpreters never share a configured CMake cache — instead of a temporary
-   directory. Re-installs are therefore incremental. The classic CMake path uses
-   sibling ``build/cmake-<cache-tag>/`` trees (via the presets below) with the same
-   per-version tag, so the two never collide; ``build/`` is gitignored.
+   directory. Re-installs are therefore incremental. It sits outside ``build/``, so
+   it never collides with a classic ``cmake -B build`` tree. Both are gitignored.
 
 What this path does and how it differs from the classic flow:
 

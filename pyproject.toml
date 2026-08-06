@@ -91,15 +91,12 @@ package = false
 cmake.version = ">=3.20,<4"
 cmake.build-type = "Release"
 
-# Keep the CMake build tree under build/wheel-<cache-tag>/ (e.g.
-# build/wheel-cpython-312/) rather than a temp dir: re-installs are incremental,
+# Keep the CMake build tree under build-wheel/<cache-tag>/ (e.g.
+# build-wheel/cpython-312/) rather than a temp dir: re-installs are incremental,
 # and different Python versions never share one configured CMake cache (which
-# would silently reuse the wrong interpreter). {cache_tag} (sys.implementation.
-# cache_tag) is used so the tag matches the classic CMake path's
-# build/cmake-<cache-tag>/ trees (see CMakePresets.json) — the wheel/ABI tag can't
-# be expressed as a CMake preset, so cache_tag is the common per-version tag.
-# build/ is gitignored.
-build-dir = "build/wheel-{cache_tag}"
+# would silently reuse the wrong interpreter). It sits outside build/ so it never
+# collides with a classic `cmake -B build` tree. Both are gitignored.
+build-dir = "build-wheel/{cache_tag}"
 
 # No cmake.define overrides: BUILD_EXAMPLES, BUILD_TESTING, BUILD_PLUGINS and the
 # Linux clang-format gate all stay at their CMake defaults. So a `pip install`

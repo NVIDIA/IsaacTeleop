@@ -45,15 +45,10 @@ jobs:
       with:
         fetch-depth: 0 # Full history for accurate git describe
 
-    # CMakePresets.json defines one preset per supported Python (py3.11 … py3.13),
-    # each configuring an isolated build/cmake-cpython-3XX directory. Derive the
-    # preset name and its build directory once here; later steps (ctest, coverage,
-    # test packaging, install) need the directory the preset chose.
-    - name: Resolve CMake preset
-      run: |
-        py="${{ matrix.python_version }}"
-        echo "CMAKE_PRESET=py${py}" >> "$GITHUB_ENV"
-        echo "BUILD_DIR=build/cmake-cpython-${py//./}" >> "$GITHUB_ENV"
+    # One build directory per job; later steps (ctest, coverage, test packaging,
+    # install) all refer to it through BUILD_DIR.
+    - name: Resolve build directory
+      run: echo "BUILD_DIR=build" >> "$GITHUB_ENV"
 
     - name: Install uv
       uses: ./.github/actions/setup-uv
@@ -113,9 +108,9 @@ jobs:
         path: |
           ~/vcpkg
           ${{ env.BUILD_DIR }}/vcpkg_installed
-        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.CMAKE_PRESET }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python_version }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.CMAKE_PRESET }}-${{ env.VCPKG_COMMIT }}-
+          vcpkg-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python_version }}-${{ env.VCPKG_COMMIT }}-
 
     - name: Setup vcpkg
       run: |
@@ -152,9 +147,8 @@ jobs:
           )
         fi
 
-        # The preset supplies ISAAC_TELEOP_PYTHON_VERSION and the per-Python
-        # build directory; everything else is a command-line -D override.
-        cmake --preset "${CMAKE_PRESET}" \
+        cmake -B "${BUILD_DIR}" \
+          -DISAAC_TELEOP_PYTHON_VERSION=${{ matrix.python_version }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -167,7 +161,7 @@ jobs:
           "${coverage_args[@]}"
 
     - name: Build
-      run: cmake --build --preset "${CMAKE_PRESET}" --parallel 4
+      run: cmake --build "${BUILD_DIR}" --parallel 4
 
     - name: ccache stats
       run: ccache --show-stats
