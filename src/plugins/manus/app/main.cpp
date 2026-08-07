@@ -3,7 +3,9 @@
 
 #include <manus/manus_hand_tracking_plugin.hpp>
 
+#include <atomic>
 #include <chrono>
+#include <csignal>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -15,6 +17,18 @@ using namespace plugins::manus;
 
 namespace
 {
+
+static_assert(ATOMIC_BOOL_LOCK_FREE == 2, "lock-free atomic bool is required for signal safety");
+
+std::atomic<bool> g_stop_requested{ false };
+
+void signal_handler(int signal)
+{
+    if (signal == SIGINT || signal == SIGTERM)
+    {
+        g_stop_requested.store(true, std::memory_order_relaxed);
+    }
+}
 
 bool starts_with(const std::string& value, const std::string& prefix)
 {
@@ -101,6 +115,10 @@ try
     std::cout << "Manus Hand Plugin starting..." << std::endl;
 
     const ManusPluginConfig config = parse_args(argc, argv);
+
+    std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+
     auto& tracker = ManusTracker::instance(config);
 
     std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
@@ -108,7 +126,7 @@ try
     // Target 90Hz frequency (~11.1ms period)
     const auto target_frame_duration = std::chrono::nanoseconds(1000000000 / 90);
 
-    while (true)
+    while (!g_stop_requested.load(std::memory_order_relaxed))
     {
         auto frame_start = std::chrono::steady_clock::now();
 
@@ -117,6 +135,7 @@ try
         std::this_thread::sleep_until(frame_start + target_frame_duration);
     }
 
+    // Normal exit runs the singleton tracker's destructor and shuts down the SDK.
     return 0;
 }
 catch (const std::exception& e)
