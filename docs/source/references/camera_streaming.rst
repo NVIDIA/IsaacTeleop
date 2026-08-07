@@ -243,6 +243,38 @@ CloudXR stream them efficiently (see
 :ref:`OpenXR composition layers <openxr-composition-layers>`). For flat planes only,
 ``compositor: televiz`` opts a camera back into Televiz's built-in compositor.
 
+Lens undistortion
+-----------------
+
+Give a camera its calibration and the feed is undistorted on the GPU before display —
+one precomputed sampling LUT per eye, one bilinear remap per frame:
+
+.. code-block:: yaml
+
+   cameras:
+     - name: head
+       type: zed
+       stereo: true
+       calib: calib/head_fisheye.json   # relative to this YAML
+       # undistort:                     # optional overrides (defaults from the calibration)
+       #   hfov_deg: 120                #   crop the output field of view
+       #   vfov_deg: 90
+       #   out_width: 1920              #   output resolution (default: source size)
+       #   out_height: 1080
+
+The calibration JSON carries ``model`` (``fisheye`` for Kannala-Brandt, ``brown``/``pinhole``
+for Brown-Conrady), ``image_size``, and per-eye ``K``/``D`` (plus optional stereo-rectification
+``R_rect``/``R_rect_inv``, folded into the LUT so stereo pairs come out row-aligned) — the
+gr00t shw5g ChArUco format is accepted verbatim; top-level ``K``/``D`` works for mono.
+
+The remap targets the projection that matches the display shape, so the shown image is
+angle-correct end to end: ``quad`` → rectilinear, ``cylinder`` → cylindrical, ``equirect`` →
+equirectangular. A calibrated camera defaults to ``shape: cylinder`` — rectilinear output
+stretches badly at wide FOV (and is refused beyond 160°), while the cylinder shows the full
+FOV at uniform angular resolution. Layer geometry is derived from the calibration
+automatically (arc = the camera's true FOV, quads sized to the FOV at the configured
+distance), so calibrated feeds render at a 1:1 visual angle with no manual tuning.
+
 CloudXR runtime flags
 ---------------------
 

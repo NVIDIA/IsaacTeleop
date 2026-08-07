@@ -9,10 +9,25 @@ internal mailbox).
 """
 
 from .interface import Frame, FrameSource, SourceSpec
+from .undistort import (
+    LensCalibration,
+    UndistortSettings,
+    UndistortSource,
+    resolve_settings,
+)
 
 # VizRunner is exposed via a lazy attribute so importing ``pipeline``
 # doesn't drag in ``isaacteleop.viz`` for sender-side code paths.
-__all__ = ["Frame", "FrameSource", "SourceSpec", "VizRunner"]
+__all__ = [
+    "Frame",
+    "FrameSource",
+    "LensCalibration",
+    "SourceSpec",
+    "UndistortSettings",
+    "UndistortSource",
+    "VizRunner",
+    "resolve_settings",
+]
 
 
 def __getattr__(name: str):

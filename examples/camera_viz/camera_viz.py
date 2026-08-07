@@ -31,7 +31,14 @@ import yaml
 import isaacteleop.viz as viz
 from isaacteleop.cloudxr import CloudXRLauncher
 
-from pipeline import FrameSource, VizRunner
+from pipeline import (
+    FrameSource,
+    LensCalibration,
+    UndistortSettings,
+    UndistortSource,
+    VizRunner,
+    resolve_settings,
+)
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
 from sources import (
     PairedFrameSource,
@@ -59,6 +66,10 @@ class SourceEntry:
     # Cylinder shape parameters (display.placements.<name>).
     cylinder_radius_m: float = 2.0
     cylinder_angle_deg: float = 90.0
+    # Lens undistortion (cameras.<n>.calib) — when set, the source is
+    # wrapped in an UndistortSource and the layer geometry is derived
+    # from the calibrated FOV.
+    undistort: Optional[UndistortSettings] = None
 
 
 _VALID_SHAPES = ("quad", "cylinder", "equirect")
@@ -104,14 +115,18 @@ def _warn_unknown_placement_keys(cam_name: str, pspec: dict) -> None:
         )
 
 
-def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, float]:
+def _shape_for(
+    cam_name: str, placements_cfg: dict, has_calib: bool = False
+) -> Tuple[str, str, float, float]:
     """Per-camera surface config from ``display.placements.<name>``:
-    ``shape`` (quad | cylinder | equirect, default quad), ``compositor``
-    (openxr — the default — or televiz; quads only), ``cylinder_radius_m``
-    / ``cylinder_angle_deg`` (cylinder only)."""
+    ``shape`` (quad | cylinder | equirect; default quad, or cylinder when
+    the camera has a ``calib:`` — the wide-FOV-correct pairing),
+    ``compositor`` (openxr — the default — or televiz; quads only),
+    ``cylinder_radius_m`` / ``cylinder_angle_deg`` (cylinder only)."""
     pspec = placements_cfg.get(cam_name) or {}
     _warn_unknown_placement_keys(cam_name, pspec)
-    shape = str(pspec.get("shape", "quad")).lower()
+    default_shape = "cylinder" if has_calib else "quad"
+    shape = str(pspec.get("shape", default_shape)).lower()
     if shape not in _VALID_SHAPES:
         raise ValueError(
             f"camera_viz: placements.{cam_name}.shape must be one of "
@@ -132,6 +147,53 @@ def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, f
     radius_m = float(pspec.get("cylinder_radius_m", 2.0))
     angle_deg = float(pspec.get("cylinder_angle_deg", 90.0))
     return shape, compositor, radius_m, angle_deg
+
+
+def _resolve_calib_paths(cfg: dict, base_dir: Path) -> None:
+    """Anchor relative ``calib:`` values to the YAML's directory (in
+    place), mirroring resolve_video_paths."""
+    for cam in cfg.get("cameras", []):
+        if "calib" in cam:
+            p = Path(str(cam["calib"])).expanduser()
+            if not p.is_absolute():
+                p = base_dir / p
+            cam["calib"] = str(p)
+
+
+# shape -> remap target projection: the pairing that keeps the displayed
+# image angle-correct (see pipeline/undistort.py).
+_SHAPE_PROJECTION = {
+    "quad": "rectilinear",
+    "cylinder": "cylindrical",
+    "equirect": "equirect",
+}
+
+
+def _undistort_for(
+    cam: dict, shape: str, stereo: bool
+) -> Optional[Tuple[LensCalibration, UndistortSettings]]:
+    """Load ``cameras.<n>.calib`` and resolve the remap settings for the
+    chosen display shape. Returns None when the camera has no calib."""
+    if "calib" not in cam:
+        return None
+    calib = LensCalibration.load(cam["calib"])
+    if stereo and calib.right is None:
+        print(
+            f"camera_viz: warning: {cam['name']}: stereo camera but calibration "
+            f"{cam['calib']} has no right eye — applying the left model to both eyes",
+            file=sys.stderr,
+            flush=True,
+        )
+    overrides = dict(cam.get("undistort") or {})
+    settings = resolve_settings(calib, _SHAPE_PROJECTION[shape], overrides)
+    print(
+        f"camera_viz: {cam['name']}: undistort {calib.model} -> {settings.projection} "
+        f"{settings.out_width}x{settings.out_height}, "
+        f"fov {math.degrees(settings.hfov_rad):.1f}° x "
+        f"{math.degrees(settings.vfov_rad):.1f}°",
+        flush=True,
+    )
+    return calib, settings
 
 
 _VALID_LOCK_MODES = ("world", "head", "lazy", "gimbal")
@@ -178,16 +240,28 @@ _DEFAULT_PLANE_WIDTH_M = 1.0
 
 
 def _placement_with_aspect(
-    spec: Optional[dict], width: int, height: int, is_xr: bool
+    spec: Optional[dict],
+    width: int,
+    height: int,
+    is_xr: bool,
+    undistort: Optional[UndistortSettings] = None,
 ) -> Optional[PlacementStrategy]:
     """Build the placement, filling in ``size`` from the source's aspect
     ratio when the YAML doesn't pin it. Width defaults to 1.0 m so a
-    16:9 source lands at 1.0 x 0.5625, a 3.55:1 SBS at 1.0 x 0.281."""
+    16:9 source lands at 1.0 x 0.5625, a 3.55:1 SBS at 1.0 x 0.281.
+    Calibrated quads instead get the ANGULAR size at the configured
+    distance (width = 2 d tan(hfov/2)), so the rectilinear image spans
+    exactly the field of view the camera captured."""
     if spec is not None and "size" not in spec:
-        spec = {
-            **spec,
-            "size": [_DEFAULT_PLANE_WIDTH_M, _DEFAULT_PLANE_WIDTH_M * height / width],
-        }
+        if undistort is not None:
+            d = float(spec.get("distance", PlacementConfig.distance))
+            size = [
+                2.0 * d * math.tan(undistort.hfov_rad / 2.0),
+                2.0 * d * math.tan(undistort.vfov_rad / 2.0),
+            ]
+        else:
+            size = [_DEFAULT_PLANE_WIDTH_M, _DEFAULT_PLANE_WIDTH_M * height / width]
+        spec = {**spec, "size": size}
     return _build_placement(spec, is_xr)
 
 
@@ -205,14 +279,26 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
     entries: List[SourceEntry] = []
     for cam in _enabled_cameras(cfg):
         cam_sources = build_local_camera(cam)
+        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
+        shape, compositor, radius_m, angle_deg = _shape_for(
+            cam["name"], placements_cfg, has_calib="calib" in cam
+        )
+        und = _undistort_for(cam, shape, stereo)
+        settings = None
+        if und is not None:
+            calib, settings = und
+            cam_sources = [UndistortSource(src, calib, settings) for src in cam_sources]
         # Aspect comes from the built source's spec, not the YAML — video
-        # sources may omit width/height and size themselves from the file.
+        # sources may omit width/height and size themselves from the file,
+        # and undistortion may change the output dimensions.
         first = cam_sources[0].spec
         placement = _placement_with_aspect(
-            placements_cfg.get(cam["name"]), first.width, first.height, is_xr
+            placements_cfg.get(cam["name"]),
+            first.width,
+            first.height,
+            is_xr,
+            undistort=settings,
         )
-        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
-        shape, compositor, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
         for source in cam_sources:
             entries.append(
                 SourceEntry(
@@ -224,6 +310,7 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                     compositor=compositor,
                     cylinder_radius_m=radius_m,
                     cylinder_angle_deg=angle_deg,
+                    undistort=settings,
                 )
             )
     return entries
@@ -247,12 +334,6 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 "width/height when source: rtp — the receiver sizes its "
                 "decoder from the YAML, not from the wire"
             )
-        placement = _placement_with_aspect(
-            placements_cfg.get(cam["name"]),
-            int(cam["width"]),
-            int(cam["height"]),
-            is_xr,
-        )
         stereo, baseline_mm = _stereo_for(cam, placements_cfg)
 
         if stereo:
@@ -290,7 +371,21 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 gpu_id=int(rtp.get("gpu_id", 0)),
             )
 
-        shape, compositor, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
+        shape, compositor, radius_m, angle_deg = _shape_for(
+            cam["name"], placements_cfg, has_calib="calib" in cam
+        )
+        und = _undistort_for(cam, shape, stereo)
+        settings = None
+        if und is not None:
+            calib, settings = und
+            source = UndistortSource(source, calib, settings)
+        placement = _placement_with_aspect(
+            placements_cfg.get(cam["name"]),
+            source.spec.width,
+            source.spec.height,
+            is_xr,
+            undistort=settings,
+        )
         entries.append(
             SourceEntry(
                 source=source,
@@ -301,6 +396,7 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 compositor=compositor,
                 cylinder_radius_m=radius_m,
                 cylinder_angle_deg=angle_deg,
+                undistort=settings,
             )
         )
     return entries
@@ -345,17 +441,29 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry):
                to be an equirect panorama). Runtime-composited always.
     """
     spec = entry.source.spec
+    und = entry.undistort
     if entry.shape == "cylinder":
         layer_cfg = viz.CylinderLayerConfig()
         layer_cfg.name = spec.name
         layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
         layer_cfg.stereo = entry.stereo
         layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
-        # aspect_ratio 0 = derived from the source resolution (square texels).
-        layer_cfg.placement = viz.CylinderLayerPlacement(
-            radius_m=entry.cylinder_radius_m,
-            central_angle_rad=math.radians(entry.cylinder_angle_deg),
-        )
+        if und is not None:
+            # Calibrated: the remapped image is equal-angle horizontally
+            # over hfov and planar vertically over 2 tan(vfov/2) — set the
+            # arc and its aspect so every texel lands at the exact visual
+            # angle the camera captured (1:1 angular mapping).
+            layer_cfg.placement = viz.CylinderLayerPlacement(
+                radius_m=entry.cylinder_radius_m,
+                central_angle_rad=und.hfov_rad,
+                aspect_ratio=und.hfov_rad / (2.0 * math.tan(und.vfov_rad / 2.0)),
+            )
+        else:
+            # aspect_ratio 0 = derived from the source resolution.
+            layer_cfg.placement = viz.CylinderLayerPlacement(
+                radius_m=entry.cylinder_radius_m,
+                central_angle_rad=math.radians(entry.cylinder_angle_deg),
+            )
         return session.add_cylinder_layer(layer_cfg)
     if entry.shape == "equirect":
         layer_cfg = viz.EquirectLayerConfig()
@@ -365,6 +473,14 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry):
         # Baseline only matters at finite sphere radius; harmless at the
         # default infinite-radius placement (full 360x180 sphere).
         layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
+        if und is not None:
+            # Calibrated: span exactly the remapped FOV instead of a full
+            # sphere, centered on the horizon.
+            layer_cfg.placement = viz.EquirectLayerPlacement(
+                central_horizontal_angle_rad=und.hfov_rad,
+                upper_vertical_angle_rad=und.vfov_rad / 2.0,
+                lower_vertical_angle_rad=-und.vfov_rad / 2.0,
+            )
         return session.add_equirect_layer(layer_cfg)
 
     layer_cfg = viz.QuadLayerConfig()
@@ -405,6 +521,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     # Top-level ``verbose:`` enables per-source periodic breadcrumbs.
     set_verbose(bool(cfg.get("verbose", False)))
     resolve_video_paths(cfg, args.config.parent)
+    _resolve_calib_paths(cfg, args.config.parent)
 
     source_mode = cfg.get("source", "local").lower()
     if source_mode not in ("local", "rtp"):
