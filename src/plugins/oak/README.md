@@ -34,9 +34,13 @@ echo 'export VCPKG_ROOT=~/.vcpkg' >> ~/.bashrc && source ~/.bashrc
 
 ### Configure and Build
 
+CMake reads `CMAKE_TOOLCHAIN_FILE` only on a build tree's **first** configure, so an
+existing `build/` has to go — otherwise vcpkg is never picked up and configure fails.
+
 ```bash
 cd IsaacTeleop
 
+rm -rf build   # required if build/ was configured without CMAKE_TOOLCHAIN_FILE
 cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
     -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
 cmake --build build --target camera_plugin_oak --parallel

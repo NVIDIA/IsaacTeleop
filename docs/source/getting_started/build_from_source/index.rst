@@ -227,7 +227,9 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
      - ``ON``
    * - **OAK camera plugin**
      - ``BUILD_PLUGIN_OAK_CAMERA``
-     - ``OFF``; requires Hunter/DepthAI when ``ON``
+     - ``OFF``; when ``ON``, builds DepthAI v3.x and pulls its dependencies through
+       vcpkg, so it also needs ``CMAKE_TOOLCHAIN_FILE`` on a fresh build directory.
+       See :doc:`/device/oak`.
    * - **Teleop ROS2 example only**
      - ``BUILD_EXAMPLE_TELEOP_ROS2``
      - ``OFF``; when ``ON``, only ``examples/teleop_ros2`` (e.g. Docker)
@@ -264,12 +266,16 @@ Build without Python bindings:
    cmake -B build -DBUILD_PYTHON_BINDINGS=OFF
    cmake --build build
 
-Build with OAK camera plugin (pulls Hunter/DepthAI):
+Build with the OAK camera plugin. It needs the vcpkg toolchain, and CMake only
+reads ``CMAKE_TOOLCHAIN_FILE`` on a build tree's **first** configure, so delete
+``build/`` first if it already exists (see :doc:`/device/oak`):
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
-   cmake --build build
+   rm -rf build
+   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
+       -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+   cmake --build build --target camera_plugin_oak --parallel
 
 Build only the teleop_ros2 example (e.g. for Docker, as in :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` teleop-ros2-docker job):
 
