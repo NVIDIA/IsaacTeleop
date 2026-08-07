@@ -430,8 +430,8 @@ class CloudXRLauncher:
     def health_check(self) -> None:
         """Verify that the runtime process and WSS proxy are healthy.
 
-        Returns immediately when the runtime is running and the WSS proxy's
-        background thread is alive.  Raises :class:`RuntimeError` with
+        Returns immediately when the runtime is running and the WSS proxy
+        thread, once started, is alive.  Raises :class:`RuntimeError` with
         diagnostic details when any monitored component has stopped
         unexpectedly, allowing embedding applications to perform a
         controlled teardown.
