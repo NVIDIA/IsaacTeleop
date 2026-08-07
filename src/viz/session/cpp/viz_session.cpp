@@ -56,6 +56,25 @@ std::unique_ptr<VizSession> VizSession::create(const Config& config)
     {
         throw std::invalid_argument("VizSession: window dimensions must be non-zero");
     }
+    // Reject rather than silently ignore: in both of these cases the
+    // device is already decided by someone else, and quietly dropping the
+    // request would leave the caller believing it landed on the GPU it
+    // asked for (see the header).
+    if (config.physical_device_index >= 0)
+    {
+        if (config.mode == DisplayMode::kXr)
+        {
+            throw std::invalid_argument(
+                "VizSession: physical_device_index is not supported in kXr — the OpenXR "
+                "runtime dictates the Vulkan device");
+        }
+        if (config.external_context != nullptr)
+        {
+            throw std::invalid_argument(
+                "VizSession: physical_device_index conflicts with external_context — the "
+                "context already has a device");
+        }
+    }
     std::unique_ptr<VizSession> s(new VizSession(config));
     s->init();
     return s;
@@ -82,6 +101,7 @@ void VizSession::init()
         vk_cfg.instance_extensions = backend_->required_instance_extensions();
         vk_cfg.device_extensions = backend_->required_device_extensions();
         vk_cfg.optional_device_extensions = backend_->optional_device_extensions();
+        vk_cfg.physical_device_index = config_.physical_device_index;
 
         // kXr: hand XrInstance + systemId to VkContext so it takes the
         // xrCreateVulkan*KHR path — lets the runtime interpose on
@@ -500,6 +520,11 @@ VkPhysicalDevice VizSession::get_vk_physical_device() const noexcept
 uint32_t VizSession::get_vk_queue_family_index() const noexcept
 {
     return ctx_ptr_ ? ctx_ptr_->queue_family_index() : UINT32_MAX;
+}
+
+int VizSession::get_cuda_device_id() const noexcept
+{
+    return ctx_ptr_ ? ctx_ptr_->cuda_device_id() : -1;
 }
 
 VkRenderPass VizSession::get_render_pass() const noexcept

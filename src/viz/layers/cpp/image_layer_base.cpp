@@ -3,6 +3,7 @@
 
 #include "inc/viz/layers/image_layer_base.hpp"
 
+#include <viz/core/cuda_error.hpp>
 #include <viz/core/vk_context.hpp>
 
 #include <cuda_runtime.h>
@@ -15,17 +16,17 @@ namespace viz
 namespace
 {
 
-void check_cuda(cudaError_t result, const char* layer_type, const char* what)
+// viz_device: the device the layer's interop images live on — lets a
+// cross-device failure say so instead of just "invalid argument"
+// (viz/core/cuda_error.hpp).
+void check_cuda(cudaError_t result, const char* layer_type, const char* what, int viz_device)
 {
-    if (result != cudaSuccess)
-    {
-        throw std::runtime_error(std::string(layer_type) + ": " + what + " failed: " + cudaGetErrorString(result));
-    }
+    viz::check_cuda(result, layer_type, what, viz_device);
 }
 
 // Queue an async D2D copy of ``buf`` → ``image.cuda_array()`` on
 // ``stream``. Shared between the mono and stereo submit paths.
-void enqueue_copy(const VizBuffer& buf, DeviceImage& image, cudaStream_t stream, const std::string& layer_type)
+void enqueue_copy(const VizBuffer& buf, DeviceImage& image, cudaStream_t stream, const std::string& layer_type, int viz_device)
 {
     const size_t row_bytes = static_cast<size_t>(buf.width) * bytes_per_pixel(buf.format);
     const size_t src_pitch = (buf.pitch == 0) ? row_bytes : buf.pitch;
@@ -33,7 +34,7 @@ void enqueue_copy(const VizBuffer& buf, DeviceImage& image, cudaStream_t stream,
         image.cuda_array(), 0, 0, buf.data, src_pitch, row_bytes, buf.height, cudaMemcpyDeviceToDevice, stream);
     if (err != cudaSuccess)
     {
-        throw std::runtime_error(layer_type + "::submit: cudaMemcpy2DToArrayAsync failed: " + cudaGetErrorString(err));
+        throw std::runtime_error(cuda_error_message(layer_type, "submit: cudaMemcpy2DToArrayAsync", err, viz_device));
     }
 }
 
@@ -211,8 +212,8 @@ void ImageLayerBase::submit(const VizBuffer& src, cudaStream_t stream)
     }
     DeviceImage& image = *slots_[slot];
 
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), layer_type_.c_str(), "cudaSetDevice");
-    enqueue_copy(src, image, stream, layer_type_);
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), layer_type_.c_str(), "cudaSetDevice", ctx_->cuda_device_id());
+    enqueue_copy(src, image, stream, layer_type_, ctx_->cuda_device_id());
     image.cuda_signal_write_done(stream);
 
     // Wait for the D2D copy to complete before returning. Sources publish
@@ -221,7 +222,8 @@ void ImageLayerBase::submit(const VizBuffer& src, cudaStream_t stream)
     // mailbox and overwrite src.data while our async memcpy is still
     // reading from it. Cost is ~0.5 ms per 1080p submit on the caller's
     // thread; the render path is unaffected.
-    check_cuda(cudaStreamSynchronize(stream), layer_type_.c_str(), "cudaStreamSynchronize(submit)");
+    check_cuda(
+        cudaStreamSynchronize(stream), layer_type_.c_str(), "cudaStreamSynchronize(submit)", ctx_->cuda_device_id());
 
     // memory_order_release pairs with the renderer's acquire load.
     latest_.store(slot, std::memory_order_release);
@@ -246,7 +248,7 @@ void ImageLayerBase::submit(const VizBuffer& left, const VizBuffer& right, cudaS
     DeviceImage& image_l = *slots_[slot];
     DeviceImage& image_r = *slots_right_[slot];
 
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), layer_type_.c_str(), "cudaSetDevice");
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), layer_type_.c_str(), "cudaSetDevice", ctx_->cuda_device_id());
     // Both copies on the same stream + a single signal on the left's
     // semaphore. Stream ordering guarantees the right copy completes
     // before the signal fires, so the renderer waiting on the left's
@@ -258,11 +260,12 @@ void ImageLayerBase::submit(const VizBuffer& left, const VizBuffer& right, cudaS
     // here. If a producer wrote either buffer on a different stream, the
     // caller is responsible for syncing it before submit; otherwise the
     // memcpy below may read pre-write state on that eye.
-    enqueue_copy(left, image_l, stream, layer_type_);
-    enqueue_copy(right, image_r, stream, layer_type_);
+    enqueue_copy(left, image_l, stream, layer_type_, ctx_->cuda_device_id());
+    enqueue_copy(right, image_r, stream, layer_type_, ctx_->cuda_device_id());
     image_l.cuda_signal_write_done(stream);
 
-    check_cuda(cudaStreamSynchronize(stream), layer_type_.c_str(), "cudaStreamSynchronize(submit-stereo)");
+    check_cuda(cudaStreamSynchronize(stream), layer_type_.c_str(), "cudaStreamSynchronize(submit-stereo)",
+               ctx_->cuda_device_id());
 
     latest_.store(slot, std::memory_order_release);
 }

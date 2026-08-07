@@ -71,6 +71,10 @@ void bind_session(py::module_& m)
         .def_readwrite("xr_far_z", &viz::VizSession::Config::xr_far_z)
         .def_readwrite("required_extensions", &viz::VizSession::Config::required_extensions)
         .def_readwrite("gpu_timing", &viz::VizSession::Config::gpu_timing)
+        .def_readwrite("physical_device_index", &viz::VizSession::Config::physical_device_index,
+                       "Vulkan physical device index to render on; -1 (default) auto-picks. Set it to keep viz on "
+                       "the same GPU as the app's CUDA work — check the result with VizSession.cuda_device_id. "
+                       "Raises for kXr (the runtime picks) or alongside an external context.")
         .def_property(
             "clear_color",
             [](const viz::VizSession::Config& c)
@@ -206,7 +210,12 @@ Construct via ``VizSession.create(config)``. Add layers with
             "vk_device", [](const viz::VizSession& s) { return reinterpret_cast<uintptr_t>(s.get_vk_device()); })
         .def_property_readonly("vk_physical_device", [](const viz::VizSession& s)
                                { return reinterpret_cast<uintptr_t>(s.get_vk_physical_device()); })
-        .def_property_readonly("vk_queue_family_index", &viz::VizSession::get_vk_queue_family_index);
+        .def_property_readonly("vk_queue_family_index", &viz::VizSession::get_vk_queue_family_index)
+        .def_property_readonly("cuda_device_id", &viz::VizSession::get_cuda_device_id,
+                               "CUDA device index this session's Vulkan device lives on (matched by UUID). NOT "
+                               "necessarily 0 — Vulkan and CUDA order GPUs differently. Allocate the buffers you "
+                               "submit on THIS device: interop is same-device only, and a mismatch costs a peer "
+                               "copy per submit. -1 after destroy().");
 }
 
 } // namespace viz_py
