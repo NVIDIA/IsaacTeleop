@@ -51,6 +51,17 @@ See the [Ecosystem](https://nvidia.github.io/IsaacTeleop/main/overview/ecosystem
 
 ## Quick Start
 
+### WebXR client settings for world-locked content
+
+The CloudXR WebXR client ships two defaults that do not agree with each other, and the combination makes world-locked content sit at a fixed offset from your head instead of staying anchored to the room. Before running anything that draws content at a known height above the floor, set these in the client's config panel:
+
+| Setting | Default | Use |
+|---|---|---|
+| Reference Space | `auto` | `local-floor` |
+| Y Offset (centimeters): Vertical | `-155` | `0` |
+
+`auto` walks `local-floor → local → viewer → unbounded` and the −155 cm offset is applied whichever one it lands on. That offset is a hand-rolled floor estimate for a head-height origin, so it double-corrects a `local-floor` space that is already floor-referenced — and if the chain reaches `viewer`, which is head-locked by definition, the scene attaches to your face. Selecting `local-floor` with a zero offset makes the origin a measured floor and applies no second correction. Tracked as [NVIDIA/IsaacTeleop#871](https://github.com/NVIDIA/IsaacTeleop/issues/871).
+
 ### Documentation
 
 Our [documentation page](https://nvidia.github.io/IsaacTeleop) provides everything you need to get started, including detailed tutorials and step-by-step guides. Follow these links to learn more:

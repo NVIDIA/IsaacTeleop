@@ -12,8 +12,10 @@
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <unordered_set>
+#include <vector>
 
 namespace viz
 {
@@ -26,6 +28,27 @@ void check_xr(XrResult r, const char* what)
     if (XR_FAILED(r))
     {
         throw std::runtime_error(std::string("OpenXrSession: ") + what + " failed: XrResult=" + std::to_string(r));
+    }
+}
+
+// Names for the log line in create_reference_space. Only the four this
+// codebase can ask for or be offered; anything else is a runtime extension
+// nothing here interprets, so it prints as "other" rather than a raw number
+// that would still need looking up.
+const char* reference_space_name(XrReferenceSpaceType type)
+{
+    switch (type)
+    {
+    case XR_REFERENCE_SPACE_TYPE_VIEW:
+        return "VIEW";
+    case XR_REFERENCE_SPACE_TYPE_LOCAL:
+        return "LOCAL";
+    case XR_REFERENCE_SPACE_TYPE_STAGE:
+        return "STAGE";
+    case XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR:
+        return "LOCAL_FLOOR";
+    default:
+        return "other";
     }
 }
 
@@ -305,6 +328,27 @@ void OpenXrSession::create_session(const VkContext& vk)
 
 void OpenXrSession::create_reference_space(XrReferenceSpaceType type)
 {
+    // What the runtime offers, logged beside what was asked for. There is no
+    // fallback on purpose: check_xr throws and names the space, where quietly
+    // substituting a different origin would render every world-locked thing at
+    // the wrong height with nothing in the log.
+    uint32_t space_count = 0;
+    if (XR_SUCCEEDED(xrEnumerateReferenceSpaces(session_.get(), 0, &space_count, nullptr)) && space_count > 0)
+    {
+        std::vector<XrReferenceSpaceType> offered(space_count);
+        if (XR_SUCCEEDED(xrEnumerateReferenceSpaces(session_.get(), space_count, &space_count, offered.data())))
+        {
+            std::string list;
+            for (const XrReferenceSpaceType t : offered)
+            {
+                list += (list.empty() ? "" : " ");
+                list += reference_space_name(t);
+            }
+            std::fprintf(stderr, "OpenXrSession: reference space = %s (runtime offers: %s)\n",
+                         reference_space_name(type), list.c_str());
+        }
+    }
+
     XrReferenceSpaceCreateInfo info{ XR_TYPE_REFERENCE_SPACE_CREATE_INFO };
     info.referenceSpaceType = type;
     info.poseInReferenceSpace.orientation = XrQuaternionf{ 0.0f, 0.0f, 0.0f, 1.0f };
