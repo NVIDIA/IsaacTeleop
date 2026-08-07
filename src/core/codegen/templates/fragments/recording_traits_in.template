@@ -1,0 +1,6 @@
+struct @TRAITS@
+{
+    static constexpr std::string_view schema_name = "@SCHEMA_NAME@";
+    static constexpr std::array recording_channels = { @RECORDING_CHANNELS@ };
+    static constexpr std::array replay_channels = { @REPLAY_CHANNELS@ };
+};

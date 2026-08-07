@@ -26,3 +26,4 @@ SPDX-License-Identifier: Apache-2.0
 
 - Tracker interface contract: [`../deviceio_base/AGENTS.md`](../deviceio_base/AGENTS.md)
 - Live factory + impls: [`../live_trackers/AGENTS.md`](../live_trackers/AGENTS.md)
+- Replay factory + impls: [`../replay_trackers/AGENTS.md`](../replay_trackers/AGENTS.md)

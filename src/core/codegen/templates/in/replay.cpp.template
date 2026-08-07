@@ -1,0 +1,46 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "@REPLAY_IMPL_FILE@.hpp"
+
+#include <mcap/recording_traits.hpp>
+#include <schema/@SCHEMA@_bfbs_generated.h>
+
+#include <iostream>
+#include <utility>
+#include <vector>
+
+namespace core
+{
+@REPLAY_IMPL@::@REPLAY_IMPL@(std::unique_ptr<mcap::McapReader> reader, std::string_view base_name)
+    : mcap_viewers_(std::make_unique<@MCAP_VIEWERS_TYPE@>(
+          std::move(reader),
+          base_name,
+          std::vector<std::string>(@TRAITS@::replay_channels.begin(), @TRAITS@::replay_channels.end()))),
+      no_data_message_("@REPLAY_IMPL@[" + std::string(base_name) + "]: no data (EOF or gap)")
+{
+    // No-op: members set in the initializer list.
+}
+const @TRACKED_TYPE@& @REPLAY_IMPL@::get_data() const
+{
+    return tracked_;
+}
+void @REPLAY_IMPL@::update(int64_t /*monotonic_time_ns*/)
+{
+    auto record = mcap_viewers_->read(0);
+    if (record)
+    {
+        tracked_.data = std::move(record->data);
+        warned_no_data_ = false;
+    }
+    else
+    {
+        if (!warned_no_data_)
+        {
+            std::cerr << no_data_message_ << std::endl;
+            warned_no_data_ = true;
+        }
+        tracked_.data.reset();
+    }
+}
+} // namespace core

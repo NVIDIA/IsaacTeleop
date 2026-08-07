@@ -31,23 +31,19 @@ class MessageChannelTracker;
 class IMessageChannelTrackerImpl;
 class FullBodyTracker;
 class IFullBodyTrackerImpl;
-class Generic3AxisPedalTracker;
-class IGeneric3AxisPedalTrackerImpl;
-class OgloTactileTracker;
-class IOgloTactileTrackerImpl;
 class TensorPushTracker;
 class ITensorPushTrackerImpl;
-class HapticCommandReaderTracker;
-class IHapticCommandReaderTrackerImpl;
-class JointStateTracker;
-class IJointStateTrackerImpl;
-class Se3Tracker;
-class ISe3TrackerImpl;
 class HandTracker;
 class IHandTrackerImpl;
 class HeadTracker;
 class IHeadTrackerImpl;
+class HapticCommandReaderTracker;
+class IHapticCommandReaderTrackerImpl;
 struct OpenXRSessionHandles;
+
+// Forward decls for trackers declared in deviceio_trackers/trackers.toml. Generated at
+// configure time; do not add a row here for a manifest tracker.
+#include "generated_tracker_forward_decls.inc"
 
 /**
  * @brief Factory for live OpenXR tracker implementations.
@@ -59,26 +55,12 @@ struct OpenXRSessionHandles;
 class LiveDeviceIOFactory
 {
 public:
-    /**
-     * @brief Aggregate OpenXR extensions required by the given trackers for a live session.
-     *
-     * Each tracker resolves its required extensions through the dispatch table using the vendor
-     * id selected in @p tracker_vendors (or its default vendor when unlisted).
-     *
-     * @pre @p tracker_vendors is a validated vendor config (see validate_vendor_selections()).
-     *      Passing an invalid config is undefined behavior; DeviceIOSession validates before
-     *      calling this.
-     */
     static std::vector<std::string> get_required_extensions(
         const std::vector<std::shared_ptr<ITracker>>& trackers,
         const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors = {});
 
-    /** Create tracker impl from a tracker instance using the same dispatch as extension discovery. */
     std::unique_ptr<ITrackerImpl> create_tracker_impl(const ITracker& tracker);
 
-    // @pre @p tracker_vendors is a validated vendor config (see validate_vendor_selections()).
-    // The factory assumes validity; passing an invalid config is undefined behavior.
-    // DeviceIOSession validates before constructing the factory.
     LiveDeviceIOFactory(const OpenXRSessionHandles& handles,
                         mcap::McapWriter* writer,
                         const std::vector<std::pair<const ITracker*, std::string>>& tracker_names,
@@ -90,24 +72,19 @@ public:
     std::unique_ptr<IMessageChannelTrackerImpl> create_message_channel_tracker_impl(const MessageChannelTracker* tracker);
     std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_pico_impl(const FullBodyTracker* tracker);
     std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_noitom_impl(const FullBodyTracker* tracker);
-    std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
-        const Generic3AxisPedalTracker* tracker);
-    std::unique_ptr<IOgloTactileTrackerImpl> create_oglo_tactile_tracker_impl(const OgloTactileTracker* tracker);
     std::unique_ptr<ITensorPushTrackerImpl> create_tensor_push_tracker_impl(const TensorPushTracker* tracker);
-    std::unique_ptr<IHapticCommandReaderTrackerImpl> create_haptic_command_reader_tracker_impl(
-        const HapticCommandReaderTracker* tracker);
-    std::unique_ptr<IJointStateTrackerImpl> create_joint_state_tracker_impl(const JointStateTracker* tracker);
-    std::unique_ptr<ISe3TrackerImpl> create_se3_tracker_impl(const Se3Tracker* tracker);
     std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
         const FrameMetadataTrackerOak* tracker);
+    std::unique_ptr<IHapticCommandReaderTrackerImpl> create_haptic_command_reader_tracker_impl(
+        const HapticCommandReaderTracker* tracker);
+    // create_<name>_tracker_impl for every manifest tracker.
+#include "generated_live_factory_declarations.inc"
 
 private:
-    // Per-tracker data resolved from the session config: MCAP channel base name (recording) and
-    // vendor selection. A tracker appears only when it has one or the other.
     struct TrackerData
     {
-        std::optional<std::string> name; // MCAP channel base name; absent -> not recorded.
-        std::optional<TrackerVendor> vendor; // vendor selection; absent -> default vendor id.
+        std::optional<std::string> name;
+        std::optional<TrackerVendor> vendor;
     };
 
     bool should_record(const ITracker* tracker) const;

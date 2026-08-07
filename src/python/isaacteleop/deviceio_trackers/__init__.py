@@ -13,11 +13,8 @@ from ._deviceio_trackers import (
     MessageChannelStatus,
     MessageChannelTracker,
     FrameMetadataTrackerOak,
-    Generic3AxisPedalTracker,
-    OgloTactileTracker,
+    HapticCommandReaderTracker,
     TensorPushTracker,
-    JointStateTracker,
-    Se3Tracker,
     FullBodyTracker,
     ITrackerSession,
     NUM_JOINTS,
@@ -26,6 +23,11 @@ from ._deviceio_trackers import (
     JOINT_THUMB_TIP,
     JOINT_INDEX_TIP,
 )
+
+# Tracker classes declared in trackers.toml. Star-imported (and appended to __all__ below)
+# so a new manifest entry needs no edit here.
+from ._generated_tracker_exports import *  # noqa: F403
+from ._generated_tracker_exports import __all__ as _GENERATED_TRACKERS
 
 # Deprecated aliases resolved lazily via __getattr__ so that accessing them emits a
 # DeprecationWarning. Intentionally omitted from __all__ so `import *` no longer pulls
@@ -51,10 +53,8 @@ __all__ = [
     "MessageChannelTracker",
     "FrameMetadataTrackerOak",
     "FullBodyTracker",
-    "Generic3AxisPedalTracker",
-    "OgloTactileTracker",
+    "HapticCommandReaderTracker",
     "TensorPushTracker",
-    "JointStateTracker",
     "HandTracker",
     "HeadTracker",
     "ITracker",
@@ -63,6 +63,6 @@ __all__ = [
     "JOINT_THUMB_TIP",
     "JOINT_WRIST",
     "NUM_JOINTS",
-    "Se3Tracker",
     "ITrackerSession",
+    *_GENERATED_TRACKERS,
 ]

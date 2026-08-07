@@ -1,0 +1,9 @@
+    py::class_<core::@CLASS@, core::ITracker, std::shared_ptr<core::@CLASS@>>(m, "@CLASS@")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::@CLASS@::DEFAULT_MAX_FLATBUFFER_SIZE)
+        .def(
+            "@PYTHON_ACCESSOR@",
+            [](const core::@CLASS@& self, const core::ITrackerSession& session)
+            { return share_tracked(self.get_data(session)); },
+            py::arg("session"),
+            "Get the current tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);

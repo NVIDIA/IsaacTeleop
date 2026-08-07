@@ -1,0 +1,16 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "@REPLAY_IMPL_FILE@.hpp"
+
+namespace core
+{
+void @REPLAY_IMPL@::update(int64_t /*monotonic_time_ns*/)
+{
+    // No-op: out-direction trackers have no replay stream.
+}
+void @REPLAY_IMPL@::push(const @DATA_TYPE@&) const
+{
+    // No-op: out-direction trackers have no replay stream.
+}
+} // namespace core

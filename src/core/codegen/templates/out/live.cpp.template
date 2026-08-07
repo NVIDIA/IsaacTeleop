@@ -1,0 +1,40 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "@LIVE_IMPL_FILE@.hpp"
+
+#include <flatbuffers/flatbuffers.h>
+#include <oxr_utils/os_time.hpp>
+
+namespace core
+{
+namespace
+{
+SchemaPusherConfig make_@NAME@_push_config(const @CLASS@* tracker)
+{
+    SchemaPusherConfig cfg;
+    cfg.collection_id = tracker->collection_id();
+    cfg.max_flatbuffer_size = tracker->max_payload_size();
+    cfg.tensor_identifier = tracker->tensor_identifier();
+    cfg.localized_name = tracker->tensor_identifier();
+    return cfg;
+}
+} // namespace
+@LIVE_IMPL@::@LIVE_IMPL@(const OpenXRSessionHandles& handles, const @CLASS@* tracker)
+    : pusher_(handles, make_@NAME@_push_config(tracker))
+{
+    // No-op: members set in the initializer list.
+}
+void @LIVE_IMPL@::update(int64_t monotonic_time_ns)
+{
+    last_update_time_ns_ = monotonic_time_ns;
+}
+void @LIVE_IMPL@::push(const @DATA_TYPE@& data) const
+{
+    flatbuffers::FlatBufferBuilder builder(pusher_.config().max_flatbuffer_size);
+    auto offset = @FB_TABLE@::Pack(builder, &data);
+    builder.Finish(offset);
+    const int64_t now_ns = last_update_time_ns_ > 0 ? last_update_time_ns_ : core::os_monotonic_now_ns();
+    pusher_.push_buffer(builder.GetBufferPointer(), builder.GetSize(), now_ns, now_ns);
+}
+} // namespace core

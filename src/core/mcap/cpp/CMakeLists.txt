@@ -13,6 +13,7 @@ add_library(mcap_core INTERFACE)
 target_include_directories(mcap_core
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
+        $<BUILD_INTERFACE:${GENERATED_TRACKER_INC_DIR}>
 )
 
 # Transitively expose mcap::mcap so consumers get <mcap/writer.hpp>
