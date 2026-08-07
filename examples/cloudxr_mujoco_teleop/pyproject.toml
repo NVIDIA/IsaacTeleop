@@ -11,4 +11,5 @@ dependencies = [
     "mujoco>=3.0",
     "numpy>=1.22.2",
     "scipy>=1.10",
+    "websockets>=14",
 ]

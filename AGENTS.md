@@ -125,6 +125,15 @@ pre-commit install --hook-type commit-msg
   SKIP=check-copyright-year pre-commit run --all-files
   ```
 
+- On Windows, verify `git submodule` and `python` resolve before running
+  pre-commit. Pre-commit updates submodules while cloning hook repositories,
+  and repository hooks invoke Python directly. For sparse checkouts, also
+  include `.reuse/` and `LICENSES/` so REUSE can resolve declared licenses.
+- During a manual merge, `check-merge-conflict` can mistake an exact
+  seven-character reStructuredText title underline for `=======`. Resolve all
+  unmerged paths, verify the index with `git diff --check`, commit the merge,
+  and rerun `--all-files` from the clean state instead of editing an unrelated
+  heading.
 - **REUSE:** files covered by the REUSE hook need **`SPDX-FileCopyrightText`** and **`SPDX-License-Identifier`** in the form the repo already uses (for example the HTML comment block at the top of `README.md` also applies to **`AGENTS.md`** and similar docs).
 - **C++ formatting is enforced by CI, not pre-commit.** The hook set runs `ruff` for Python but does **not** run `clang-format`; CI (`build-ubuntu.yml`) installs **`clang-format-14`** and rejects unformatted C++ as `-Wclang-format-violations`. Before pushing, format touched C++ with the system `clang-format` (match CI's version 14) and verify:
 
