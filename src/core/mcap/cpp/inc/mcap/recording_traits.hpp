@@ -102,6 +102,16 @@ struct OrbbecAudioRecordingTraits
     static constexpr std::string_view schema_name = "core.OrbbecAudioChunkRecord";
 };
 
+struct OrbbecVideoMediaRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.OrbbecEncodedVideoFrameRecord";
+};
+
+struct OrbbecAudioMediaRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.OrbbecPcmAudioChunkRecord";
+};
+
 struct OrbbecCalibrationRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.OrbbecCalibrationRecord";

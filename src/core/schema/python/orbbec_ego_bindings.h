@@ -82,6 +82,16 @@ inline void bind_orbbec_ego(py::module& m)
         .def_readwrite("byte_count", &OrbbecAudioChunkT::byte_count);
     bind_orbbec_tracked<OrbbecAudioChunkTrackedT, OrbbecAudioChunkT>(m, "OrbbecAudioChunkTrackedT");
     bind_orbbec_record<OrbbecAudioChunkRecordT, OrbbecAudioChunkT>(m, "OrbbecAudioChunkRecord");
+    py::class_<OrbbecPcmAudioChunkT, std::shared_ptr<OrbbecPcmAudioChunkT>>(m, "OrbbecPcmAudioChunk")
+        .def(py::init<>())
+        .def_readwrite("sequence_number", &OrbbecPcmAudioChunkT::sequence_number)
+        .def_readwrite("sample_rate_hz", &OrbbecPcmAudioChunkT::sample_rate_hz)
+        .def_readwrite("channel_count", &OrbbecPcmAudioChunkT::channel_count)
+        .def_readwrite("bits_per_sample", &OrbbecPcmAudioChunkT::bits_per_sample)
+        .def_readwrite("sample_format", &OrbbecPcmAudioChunkT::sample_format)
+        .def_readwrite("sample_count", &OrbbecPcmAudioChunkT::sample_count)
+        .def_readwrite("pcm_data", &OrbbecPcmAudioChunkT::pcm_data);
+    bind_orbbec_record<OrbbecPcmAudioChunkRecordT, OrbbecPcmAudioChunkT>(m, "OrbbecPcmAudioChunkRecord");
 
     py::class_<OrbbecCameraIntrinsicsT, std::shared_ptr<OrbbecCameraIntrinsicsT>>(m, "OrbbecCameraIntrinsics")
         .def(py::init<>())

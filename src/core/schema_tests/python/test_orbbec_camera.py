@@ -8,6 +8,7 @@ from isaacteleop.schema import (
     OrbbecCameraStream,
     OrbbecPixelFormat,
     OrbbecAudioChunk,
+    OrbbecPcmAudioChunk,
     OrbbecCalibration,
     OrbbecCaptureHealth,
     OrbbecDevicePropertyValue,
@@ -16,6 +17,7 @@ from isaacteleop.schema import (
     OrbbecImuBatch,
     OrbbecImuSample,
     OrbbecImuSensor,
+    OrbbecEncodedVideoFrame,
 )
 
 
@@ -72,3 +74,16 @@ def test_orbbec_ego_auxiliary_types():
     state.properties = [OrbbecDevicePropertyValue(279, 8_000_000)]
     assert state.properties[0].property_id == 279
     assert state.capture_health == OrbbecCaptureHealth.Warning
+
+
+def test_orbbec_embedded_media_types():
+    video = OrbbecEncodedVideoFrame()
+    video.stream = OrbbecCameraStream.ColorRight
+    video.encoded_data = [0, 0, 0, 1, 0x65]
+    assert video.stream == OrbbecCameraStream.ColorRight
+    assert video.encoded_data[-1] == 0x65
+
+    audio = OrbbecPcmAudioChunk()
+    audio.sample_rate_hz = 48000
+    audio.pcm_data = [1, 0, 2, 0]
+    assert audio.pcm_data == [1, 0, 2, 0]

@@ -67,6 +67,30 @@ inline void bind_orbbec_camera(py::module& m)
     py::class_<FrameMetadataOrbbecTrackedT, std::shared_ptr<FrameMetadataOrbbecTrackedT>>(m, "FrameMetadataOrbbecTrackedT")
         .def(py::init<>())
         .def_readonly("data", &FrameMetadataOrbbecTrackedT::data);
+
+    py::class_<OrbbecEncodedVideoFrameT, std::shared_ptr<OrbbecEncodedVideoFrameT>>(m, "OrbbecEncodedVideoFrame")
+        .def(py::init<>())
+        .def_readwrite("stream", &OrbbecEncodedVideoFrameT::stream)
+        .def_readwrite("sequence_number", &OrbbecEncodedVideoFrameT::sequence_number)
+        .def_readwrite("width", &OrbbecEncodedVideoFrameT::width)
+        .def_readwrite("height", &OrbbecEncodedVideoFrameT::height)
+        .def_readwrite("fps", &OrbbecEncodedVideoFrameT::fps)
+        .def_readwrite("pixel_format", &OrbbecEncodedVideoFrameT::pixel_format)
+        .def_readwrite("encoded_data", &OrbbecEncodedVideoFrameT::encoded_data);
+    py::class_<OrbbecEncodedVideoFrameRecordT, std::shared_ptr<OrbbecEncodedVideoFrameRecordT>>(
+        m, "OrbbecEncodedVideoFrameRecord")
+        .def(py::init<>())
+        .def(py::init(
+                 [](const OrbbecEncodedVideoFrameT& data, const DeviceDataTimestamp& timestamp)
+                 {
+                     auto record = std::make_shared<OrbbecEncodedVideoFrameRecordT>();
+                     record->data = std::make_shared<OrbbecEncodedVideoFrameT>(data);
+                     record->timestamp = std::make_shared<DeviceDataTimestamp>(timestamp);
+                     return record;
+                 }),
+             py::arg("data"), py::arg("timestamp"))
+        .def_readonly("data", &OrbbecEncodedVideoFrameRecordT::data)
+        .def_readonly("timestamp", &OrbbecEncodedVideoFrameRecordT::timestamp);
 }
 
 } // namespace core

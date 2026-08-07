@@ -25,4 +25,22 @@ table OrbbecAudioChunkRecord {
   timestamp: DeviceDataTimestamp (id: 1);
 }
 
+// PCM block retained verbatim in an embedded-media MCAP.  The existing
+// OrbbecAudioChunk remains the lightweight WAV-sidecar index used by the
+// metadata-only and SchemaPusher paths.
+table OrbbecPcmAudioChunk {
+  sequence_number: uint64 (id: 0);
+  sample_rate_hz: uint32 (id: 1);
+  channel_count: uint16 (id: 2);
+  bits_per_sample: uint16 (id: 3);
+  sample_format: OrbbecAudioSampleFormat (id: 4);
+  sample_count: uint32 (id: 5);
+  pcm_data: [ubyte] (id: 6);
+}
+
+table OrbbecPcmAudioChunkRecord {
+  data: OrbbecPcmAudioChunk (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
 root_type OrbbecAudioChunkRecord;

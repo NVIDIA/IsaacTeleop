@@ -172,6 +172,7 @@ Each run has this layout when the corresponding options are used:
 <RUN>/calibration.json             structured calibration export (optional)
 <RUN>/local.mcap                   metadata MCAP in local mode (optional)
 <RUN>/teleop.mcap                  metadata plus other trackers in TeleopSession mode (optional)
+<RUN>/teleop_media.mcap            short-lived embedded-media fragment in TeleopSession mode
 <RUN>/logs/capture.log             terminal output and final counters
 ```
 
@@ -182,10 +183,11 @@ on shutdown. Every capture needs at least one `--add-stream` argument.
 
 ### Recording-mode decision
 
-Choose exactly one of these modes. In all three modes, video is always written
-as separate `.mjpg`, `.h264`, or `.h265` files and optional audio is a separate
-`.wav` file. MCAP intentionally stores time-synchronised structured data, **not**
-the high-throughput video or PCM bytes.
+Choose exactly one MCAP writer mode. `--mcap-media=metadata-only` is the default:
+video remains in elementary `.mjpg`, `.h264`, or `.h265` files and optional audio
+in a WAV. `--mcap-media=embedded` is an archival mode: it stores the validated
+encoded video access units and PCM audio blocks in `orbbec_media/*` channels in
+the MCAP itself. It does not transcode either medium.
 
 | Mode | Plugin option | MCAP writer | Use it when |
 |---|---|---|---|
@@ -195,6 +197,183 @@ the high-throughput video or PCM bytes.
 
 `--mcap-filename` and `--collection-prefix` are mutually exclusive. Supplying
 both is an intentional startup error, not a way to obtain two MCAP files.
+
+### Embedded-media local MCAP
+
+Use this mode when one MCAP must contain the video bytes, PCM audio, frame
+metadata, IMU, calibration, and device state. `output=` is intentionally omitted:
+there are no sidecar media files unless `--keep-media-sidecars` is supplied.
+
+```bash
+RUN="recordings/ego_embedded_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/logs"
+timeout -s INT 30 "$ORBBEC_PLUGIN" \
+  --add-stream=camera=ColorLeft,format=h264,width=1600,height=1300,fps=30 \
+  --add-stream=camera=ColorRight,format=h264,width=1600,height=1300,fps=30 \
+  --enable-imu --imu-rate=1000 --enable-audio \
+  --mcap-filename="$RUN/ego.mcap" --mcap-media=embedded \
+  2>&1 | tee "$RUN/logs/capture.log"
+```
+
+Stop normally with `Ctrl-C` (or use `timeout -s INT` as above) and wait for the
+shell prompt. The plugin writes `<RUN>/ego.mcap.partial` while recording and
+atomically renames it to `ego.mcap` only after the MCAP Footer is written. A
+left-over `.partial` file therefore indicates an interrupted or failed capture;
+do not treat it as an accepted archive.
+
+To retain conventional video/WAV copies as well, add
+`--keep-media-sidecars`, add `output=<path>` to **every** `--add-stream`, and
+add `--audio-output=<path>.wav`. In embedded mode `--audio-output` is rejected
+without `--keep-media-sidecars`; use `--enable-audio` to request audio in MCAP.
+
+Export a self-contained MCAP after it has closed:
+
+```bash
+EXPORTER="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/orbbec_mcap_export_media"
+# The plugin-manager copy is also valid:
+# EXPORTER="$PWD/build/cmake-cpython-311/src/plugins/orbbec_camera/orbbec_mcap_export_media"
+"$EXPORTER" "$RUN/ego.mcap" "$RUN/exported"
+
+ffmpeg -v error -i "$RUN/exported/ColorLeft.h264" -f null -
+ffmpeg -v error -i "$RUN/exported/ColorRight.h264" -f null -
+ffprobe -v error -show_entries stream=codec_name,sample_rate,channels \
+  -of default=noprint_wrappers=1 "$RUN/exported/Audio.wav"
+```
+
+No output from either `ffmpeg -v error` command is success. The WAV report must
+contain `pcm_s16le`, `48000`, and `1`. Use `.mjpg` or `.h265` in the export
+commands when that is the requested stream format.
+
+### Two-minute self-contained MCAP handoff
+
+This is the recommended workflow when handing one complete Ego recording to
+another person. It produces a single MCAP containing both encoded stereo video
+and PCM audio; exported media is only a local verification aid and does not
+need to be sent with the MCAP.
+
+In a fresh terminal, first enter the repository and recreate the plugin path:
+
+```bash
+cd /absolute/path/to/IsaacTeleop
+export ORBBEC_PLUGIN="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/camera_plugin_orbbec"
+export ORBBEC_EXPORTER="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/orbbec_mcap_export_media"
+test -x "$ORBBEC_PLUGIN" && test -x "$ORBBEC_EXPORTER" || {
+  echo "Build the Orbbec plugin and exporter first" >&2; exit 1;
+}
+
+RUN="recordings/deliverables/ego_embedded_2min_$(date +%Y%m%d_%H%M%S)"
+mkdir -p "$RUN/logs"
+```
+
+Check that the intended device is visible before recording. This command must
+print ColorLeft/ColorRight, and any requested optional sensors:
+
+```bash
+"$ORBBEC_PLUGIN" --list-capabilities | tee "$RUN/capabilities.txt"
+```
+
+Record for two minutes. `timeout` deliberately returns `124` after it sends
+SIGINT; that is expected as long as the final MCAP exists, no `.partial` file
+remains, and the final log counters are healthy.
+
+```bash
+timeout -s INT 120 "$ORBBEC_PLUGIN" \
+  --add-stream=camera=ColorLeft,format=h264,width=1600,height=1300,fps=30 \
+  --add-stream=camera=ColorRight,format=h264,width=1600,height=1300,fps=30 \
+  --enable-imu --imu-rate=1000 --enable-audio \
+  --mcap-filename="$RUN/orbbec_ego_embedded.mcap" --mcap-media=embedded \
+  2>&1 | tee "$RUN/logs/capture.log"
+
+test -s "$RUN/orbbec_ego_embedded.mcap" || {
+  echo "MCAP is missing or empty" >&2; exit 1;
+}
+test ! -e "$RUN/orbbec_ego_embedded.mcap.partial" || {
+  echo "MCAP was interrupted; do not hand it off" >&2; exit 1;
+}
+```
+
+Read the MCAP directly with the standard Python MCAP reader. This only inspects
+the file; it does not extract media or require a connected camera. Each topic
+below must have a nonzero message count; calibration is normally exactly one
+record.
+
+```bash
+examples/oxr/python/.venv/bin/python - "$RUN/orbbec_ego_embedded.mcap" <<'PY'
+from collections import Counter
+import sys
+from mcap.reader import make_reader
+
+counts = Counter()
+with open(sys.argv[1], "rb") as stream:
+    for _schema, channel, _message in make_reader(stream).iter_messages():
+        counts[channel.topic] += 1
+
+required = (
+    "orbbec_media/ColorLeft", "orbbec_media/ColorRight", "orbbec_media/Audio",
+    "orbbec_metadata/ColorLeft", "orbbec_metadata/ColorRight",
+    "orbbec_imu/Accel", "orbbec_imu/Gyro", "orbbec_audio/Audio",
+    "orbbec_calibration/Calibration", "orbbec_device/DeviceState",
+)
+for topic in required:
+    print(f"{topic}: {counts[topic]}")
+missing = [topic for topic in required if counts[topic] == 0]
+if missing:
+    raise SystemExit(f"Missing or empty MCAP topics: {missing}")
+print("MCAP topic validation passed")
+PY
+```
+
+Finally, prove that the media can be recovered and decoded, then create a
+checksum for the recipient:
+
+```bash
+mkdir -p "$RUN/exported"
+"$ORBBEC_EXPORTER" "$RUN/orbbec_ego_embedded.mcap" "$RUN/exported"
+ffmpeg -v error -i "$RUN/exported/ColorLeft.h264" -f null -
+ffmpeg -v error -i "$RUN/exported/ColorRight.h264" -f null -
+ffprobe -v error -select_streams a:0 \
+  -show_entries stream=codec_name,sample_rate,channels,bits_per_sample \
+  -of default=nw=1 "$RUN/exported/Audio.wav"
+sha256sum "$RUN/orbbec_ego_embedded.mcap" | tee "$RUN/orbbec_ego_embedded.mcap.sha256"
+```
+
+`ffmpeg -v error` is successful when it produces no output. The WAV report must
+show `pcm_s16le`, `48000`, `1`, and `16`. The main delivery is
+`orbbec_ego_embedded.mcap`; also send its `.sha256` file so the recipient can
+verify the transfer with `sha256sum -c orbbec_ego_embedded.mcap.sha256`. Include
+`capabilities.txt` and `logs/capture.log` only when the recipient needs test
+evidence or troubleshooting context. Do not send `exported/` unless the
+recipient specifically asks for immediately playable sidecar media: all of its
+video and audio content is already embedded in the MCAP.
+
+### Embedded media with TeleopSession
+
+Large video frames and PCM never traverse SchemaPusher/OpenXR. The plugin writes
+a temporary media-only MCAP while SchemaPusher continues to publish the five
+small structured tracker classes. Give the same temporary path to the plugin
+and `McapRecordingConfig.embedded_media_filename`; when `DeviceIOSession` closes
+cleanly it merges the fragment into the final MCAP and removes the fragment.
+
+```python
+media_fragment = run_dir / "teleop_media.mcap"
+recording = deviceio.McapRecordingConfig(str(run_dir / "teleop.mcap"), tracker_channels)
+recording.embedded_media_filename = str(media_fragment)
+
+# In PluginConfig.plugin_args, use embedded capture without sidecars:
+plugin_args = [
+    "--add-stream=camera=ColorLeft,format=h264,width=1600,height=1300,fps=30",
+    "--add-stream=camera=ColorRight,format=h264,width=1600,height=1300,fps=30",
+    "--enable-imu", "--imu-rate=1000", "--enable-audio",
+    f"--collection-prefix={prefix}", "--mcap-media=embedded",
+    f"--mcap-media-spool={media_fragment}",
+]
+```
+
+After the session exits, only `teleop.mcap` should remain; it contains the
+existing `hands`, `head`, and `controllers` channels (when configured), the five
+Orbbec structured channel groups, and `orbbec_media/ColorLeft`,
+`orbbec_media/ColorRight`, and `orbbec_media/Audio`. If session finalization
+fails, the media fragment is deliberately retained for recovery and diagnostics.
 
 ### 1. Record raw video only
 
@@ -671,10 +850,14 @@ alignment YAML rather than discarding usable stereo calibration.
 | `--enable-imu` | off | Enable both accelerometer and gyro. |
 | `--imu-rate=400|1000` | `400` | Requested IMU ODR. |
 | `--accel-full-scale`, `--gyro-full-scale` | 24 g / 2000 dps | Requested IMU range; must match the device profile. |
+| `--enable-audio` | off | Capture PCM audio without requiring a WAV sidecar. |
 | `--audio-output=PATH.wav` | off | Enable PCM WAV recording. |
 | `--calibration-output=PATH.json` | off | Export calibration JSON/YAML. |
-| `--mcap-filename=PATH` | off | Plugin-local metadata MCAP. |
+| `--mcap-filename=PATH` | off | Plugin-local MCAP; payload policy is selected by `--mcap-media`. |
 | `--collection-prefix=PREFIX` | off | OpenXR/TeleopSession metadata mode. |
+| `--mcap-media=metadata-only\|embedded` | `metadata-only` | Keep sidecars plus lightweight metadata, or embed encoded video and PCM in MCAP. |
+| `--keep-media-sidecars` | off | In embedded mode, also write explicit raw-video/WAV sidecars. |
+| `--mcap-media-spool=PATH` | off | Required with embedded TeleopSession mode; plugin-local media fragment merged by DeviceIOSession. |
 | `--list-capabilities` | off | Print sensors, profiles, and properties then exit. |
 
 ## Media inspection and conversion

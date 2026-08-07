@@ -41,4 +41,22 @@ table FrameMetadataOrbbecRecord {
   timestamp: DeviceDataTimestamp (id: 1);
 }
 
+// Encoded access unit retained verbatim in an embedded-media MCAP.  This is
+// deliberately separate from FrameMetadataOrbbec: metadata-only recordings
+// stay small, while an archive can opt in to the high-throughput payload.
+table OrbbecEncodedVideoFrame {
+  stream: OrbbecCameraStream (id: 0);
+  sequence_number: uint64 (id: 1);
+  width: uint32 (id: 2);
+  height: uint32 (id: 3);
+  fps: uint32 (id: 4);
+  pixel_format: OrbbecPixelFormat (id: 5);
+  encoded_data: [ubyte] (id: 6);
+}
+
+table OrbbecEncodedVideoFrameRecord {
+  data: OrbbecEncodedVideoFrame (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
 root_type FrameMetadataOrbbecRecord;

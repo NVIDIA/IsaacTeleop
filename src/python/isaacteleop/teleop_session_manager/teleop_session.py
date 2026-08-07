@@ -1000,6 +1000,9 @@ class TeleopSession:
                     self.config.mcap_config.filename,
                     mcap_tracker_names,
                 )
+                mcap_config.embedded_media_filename = (
+                    self.config.mcap_config.embedded_media_filename
+                )
 
         if self.config.mode == SessionMode.REPLAY:
             self.deviceio_session = stack.enter_context(

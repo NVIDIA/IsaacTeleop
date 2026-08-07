@@ -123,3 +123,34 @@ TEST_CASE("Orbbec camera record retains timestamp", "[orbbec][schema]")
     CHECK(restored->timestamp()->sample_time_local_common_clock() == 2);
     CHECK(restored->timestamp()->sample_time_raw_device_clock() == 3);
 }
+
+TEST_CASE("Orbbec embedded media schemas round trip", "[orbbec][schema]")
+{
+    core::OrbbecEncodedVideoFrameT video;
+    video.stream = core::OrbbecCameraStream_ColorRight;
+    video.sequence_number = 42;
+    video.width = 1600;
+    video.height = 1300;
+    video.fps = 30;
+    video.pixel_format = core::OrbbecPixelFormat_H264;
+    video.encoded_data = { 0, 0, 0, 1, 0x65, 1 };
+    flatbuffers::FlatBufferBuilder video_builder;
+    video_builder.Finish(core::OrbbecEncodedVideoFrame::Pack(video_builder, &video));
+    core::OrbbecEncodedVideoFrameT restored_video;
+    flatbuffers::GetRoot<core::OrbbecEncodedVideoFrame>(video_builder.GetBufferPointer())->UnPackTo(&restored_video);
+    CHECK(restored_video.stream == core::OrbbecCameraStream_ColorRight);
+    CHECK(restored_video.encoded_data == video.encoded_data);
+
+    core::OrbbecPcmAudioChunkT audio;
+    audio.sequence_number = 7;
+    audio.sample_rate_hz = 48000;
+    audio.channel_count = 1;
+    audio.bits_per_sample = 16;
+    audio.sample_count = 2;
+    audio.pcm_data = { 1, 0, 2, 0 };
+    flatbuffers::FlatBufferBuilder audio_builder;
+    audio_builder.Finish(core::OrbbecPcmAudioChunk::Pack(audio_builder, &audio));
+    core::OrbbecPcmAudioChunkT restored_audio;
+    flatbuffers::GetRoot<core::OrbbecPcmAudioChunk>(audio_builder.GetBufferPointer())->UnPackTo(&restored_audio);
+    CHECK(restored_audio.pcm_data == audio.pcm_data);
+}

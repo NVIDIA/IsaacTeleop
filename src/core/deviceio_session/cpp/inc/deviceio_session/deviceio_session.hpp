@@ -38,6 +38,11 @@ struct McapRecordingConfig
 {
     std::string filename;
     std::vector<std::pair<const ITracker*, std::string>> tracker_names;
+    // Optional MCAP fragment written directly by a high-throughput plugin.
+    // DeviceIOSession closes its own tracker writer and merges this fragment
+    // into filename on clean session shutdown.  It is intentionally not an
+    // OpenXR tensor path: encoded video and PCM can exceed its 32 KiB limit.
+    std::string embedded_media_filename;
 };
 
 /**
@@ -78,6 +83,11 @@ public:
     // Destructor defined in .cpp where mcap::McapWriter is fully defined
     ~DeviceIOSession();
 
+    // Finalize tracker channels and, when configured, merge the plugin-written
+    // embedded-media fragment. This may throw so callers can reject an
+    // incomplete final MCAP instead of silently accepting it.
+    void close();
+
     /**
      * @brief Updates the session and all registered trackers.
      *
@@ -111,6 +121,9 @@ private:
 
     // Owned MCAP writer; null when recording is not configured.
     std::unique_ptr<mcap::McapWriter> mcap_writer_;
+    std::string recording_filename_;
+    std::string embedded_media_filename_;
+    bool closed_ = false;
 };
 
 } // namespace core

@@ -4,7 +4,7 @@
 Orbbec Ego camera
 ==================
 
-The Orbbec Ego plugin supports its two color sensors, accelerometer, gyroscope, microphone, calibration, controls, device state, local MCAP, and TeleopSession synchronized MCAP. Video is recorded as raw MJPEG/H.264/H.265 and audio as 48 kHz mono S16_LE WAV; MCAP stores their synchronization metadata. Ego PID ``0x1201`` exposes no Depth/IR sensors, so depth, D2C, IR, and point-cloud functions are not offered.
+The Orbbec Ego plugin supports its two color sensors, accelerometer, gyroscope, microphone, calibration, controls, device state, local MCAP, and TeleopSession synchronized MCAP. The default ``metadata-only`` MCAP mode keeps raw MJPEG/H.264/H.265 and 48 kHz mono S16_LE WAV as sidecars and stores their synchronization metadata. Optional ``--mcap-media=embedded`` stores the validated encoded video access units and PCM audio blocks in the MCAP itself; it does not transcode them. Ego PID ``0x1201`` exposes no Depth/IR sensors, so depth, D2C, IR, and point-cloud functions are not offered.
 
 Build with ``-DBUILD_PLUGIN_ORBBEC_CAMERA=ON`` and ``-DORBBEC_SDK_ROOT=/path/to/OrbbecSDK``. Install the SDK udev rules and use a direct, reliable USB data connection. Ego PID ``0x1201`` enumerates as USB 2.0 (``bcdUSB 2.00`` / ``480M``) by design, even on a USB 3.x host port; use ``camera_plugin_orbbec --list-capabilities`` for the connected device's exact profiles and property ranges.
 

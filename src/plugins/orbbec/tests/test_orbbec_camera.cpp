@@ -24,6 +24,19 @@ public:
     std::vector<plugins::orbbec::CapturedFrame> frames;
 };
 
+class RecordingMediaSink final : public plugins::orbbec::IMetadataSink
+{
+public:
+    void on_frame_metadata(const plugins::orbbec::CapturedFrame&) override
+    {
+    }
+    void on_encoded_video_frame(const plugins::orbbec::CapturedFrame& frame) override
+    {
+        frames.push_back(frame);
+    }
+    std::vector<plugins::orbbec::CapturedFrame> frames;
+};
+
 } // namespace
 
 TEST_CASE("Orbbec FrameSink writes raw MJPEG and forwards metadata", "[orbbec][writer][metadata]")
@@ -85,6 +98,23 @@ TEST_CASE("Orbbec FrameSink preserves H264 and H265 elementary stream bytes", "[
         CHECK(bytes[3] == 1);
         std::filesystem::remove(output);
     }
+}
+
+TEST_CASE("Orbbec embedded FrameSink does not require sidecar paths", "[orbbec][writer][mcap]")
+{
+    auto media_sink = std::make_unique<RecordingMediaSink>();
+    auto* media_sink_ptr = media_sink.get();
+    plugins::orbbec::StreamConfig stream{ core::OrbbecCameraStream_ColorLeft, "" };
+    stream.pixel_format = core::OrbbecPixelFormat_H264;
+    plugins::orbbec::FrameSink sink({ stream }, std::move(media_sink), false);
+    plugins::orbbec::CapturedFrame frame;
+    frame.metadata.stream = stream.camera;
+    frame.metadata.pixel_format = stream.pixel_format;
+    frame.metadata.sequence_number = 1;
+    frame.encoded_data = { 0, 0, 0, 1, 0x67, 1, 0, 0, 0, 1, 0x68, 1, 0, 0, 0, 1, 0x65, 1 };
+    sink.on_frame(frame);
+    REQUIRE(media_sink_ptr->frames.size() == 1);
+    CHECK(media_sink_ptr->frames.front().metadata.encoded_bytes == frame.encoded_data.size());
 }
 
 TEST_CASE("Orbbec rejects uncertified encoded 60 FPS without fallback", "[orbbec][profile]")

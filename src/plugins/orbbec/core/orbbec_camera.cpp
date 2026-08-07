@@ -817,32 +817,57 @@ private:
 class McapMetadataSink final : public IMetadataSink
 {
 public:
-    McapMetadataSink(const std::vector<StreamConfig>& streams, const std::string& filename)
+    McapMetadataSink(const std::vector<StreamConfig>& streams,
+                     const std::string& filename,
+                     bool include_media,
+                     bool include_structured = true)
+        : final_filename_(filename), temporary_filename_(filename + ".partial")
     {
         mcap::McapWriterOptions options("orbbec_ego");
         options.compression = mcap::Compression::None;
-        output_.open(filename);
+        const std::filesystem::path output_path(filename);
+        if (!output_path.parent_path().empty())
+            std::filesystem::create_directories(output_path.parent_path());
+        output_.open(temporary_filename_);
         writer_.open(output_, options);
         std::vector<std::string> video_names;
         for (const auto& stream : streams)
             video_names.emplace_back(core::EnumNameOrbbecCameraStream(stream.camera));
-        video_ = std::make_unique<core::McapTrackerChannels<core::FrameMetadataOrbbecRecord, core::FrameMetadataOrbbec>>(
-            writer_, "orbbec_metadata", core::OrbbecRecordingTraits::schema_name, video_names);
+        if (include_structured)
+        {
+            video_ =
+                std::make_unique<core::McapTrackerChannels<core::FrameMetadataOrbbecRecord, core::FrameMetadataOrbbec>>(
+                    writer_, "orbbec_metadata", core::OrbbecRecordingTraits::schema_name, video_names);
+        }
         for (size_t index = 0; index < streams.size(); ++index)
             video_indices_.emplace(streams[index].camera, index);
-        imu_ = std::make_unique<core::McapTrackerChannels<core::OrbbecImuBatchRecord, core::OrbbecImuBatch>>(
-            writer_, "orbbec_imu", core::OrbbecImuRecordingTraits::schema_name,
-            std::vector<std::string>{ "Accel", "Gyro" });
-        audio_ = std::make_unique<core::McapTrackerChannels<core::OrbbecAudioChunkRecord, core::OrbbecAudioChunk>>(
-            writer_, "orbbec_audio", core::OrbbecAudioRecordingTraits::schema_name, std::vector<std::string>{ "Audio" });
-        calibration_ =
-            std::make_unique<core::McapTrackerChannels<core::OrbbecCalibrationRecord, core::OrbbecCalibration>>(
-                writer_, "orbbec_calibration", core::OrbbecCalibrationRecordingTraits::schema_name,
-                std::vector<std::string>{ "Calibration" });
-        device_state_ =
-            std::make_unique<core::McapTrackerChannels<core::OrbbecDeviceStateRecord, core::OrbbecDeviceState>>(
-                writer_, "orbbec_device", core::OrbbecDeviceStateRecordingTraits::schema_name,
-                std::vector<std::string>{ "DeviceState" });
+        if (include_structured)
+        {
+            imu_ = std::make_unique<core::McapTrackerChannels<core::OrbbecImuBatchRecord, core::OrbbecImuBatch>>(
+                writer_, "orbbec_imu", core::OrbbecImuRecordingTraits::schema_name,
+                std::vector<std::string>{ "Accel", "Gyro" });
+            audio_ = std::make_unique<core::McapTrackerChannels<core::OrbbecAudioChunkRecord, core::OrbbecAudioChunk>>(
+                writer_, "orbbec_audio", core::OrbbecAudioRecordingTraits::schema_name,
+                std::vector<std::string>{ "Audio" });
+            calibration_ =
+                std::make_unique<core::McapTrackerChannels<core::OrbbecCalibrationRecord, core::OrbbecCalibration>>(
+                    writer_, "orbbec_calibration", core::OrbbecCalibrationRecordingTraits::schema_name,
+                    std::vector<std::string>{ "Calibration" });
+            device_state_ =
+                std::make_unique<core::McapTrackerChannels<core::OrbbecDeviceStateRecord, core::OrbbecDeviceState>>(
+                    writer_, "orbbec_device", core::OrbbecDeviceStateRecordingTraits::schema_name,
+                    std::vector<std::string>{ "DeviceState" });
+        }
+        if (include_media)
+        {
+            media_video_ =
+                std::make_unique<core::McapTrackerChannels<core::OrbbecEncodedVideoFrameRecord, core::OrbbecEncodedVideoFrame>>(
+                    writer_, "orbbec_media", core::OrbbecVideoMediaRecordingTraits::schema_name, video_names);
+            media_audio_ =
+                std::make_unique<core::McapTrackerChannels<core::OrbbecPcmAudioChunkRecord, core::OrbbecPcmAudioChunk>>(
+                    writer_, "orbbec_media", core::OrbbecAudioMediaRecordingTraits::schema_name,
+                    std::vector<std::string>{ "Audio" });
+        }
     }
 
     ~McapMetadataSink() override
@@ -866,6 +891,8 @@ public:
         try
         {
             writer_.close();
+            output_.end();
+            std::filesystem::rename(temporary_filename_, final_filename_);
             closed_ = true;
         }
         catch (...)
@@ -880,26 +907,53 @@ public:
 
     void on_frame_metadata(const CapturedFrame& frame) override
     {
-        video_->write(video_indices_.at(frame.metadata.stream),
-                      timestamp(frame.sample_time_local_common_clock_ns, frame.sample_time_raw_device_clock_ns),
-                      std::make_shared<core::FrameMetadataOrbbecT>(frame.metadata));
+        if (video_)
+            video_->write(video_indices_.at(frame.metadata.stream),
+                          timestamp(frame.sample_time_local_common_clock_ns, frame.sample_time_raw_device_clock_ns),
+                          std::make_shared<core::FrameMetadataOrbbecT>(frame.metadata));
     }
     void on_imu_batch(const core::OrbbecImuBatchT& batch, int64_t local_ns, int64_t device_ns) override
     {
-        imu_->write(static_cast<size_t>(batch.sensor), timestamp(local_ns, device_ns),
-                    std::make_shared<core::OrbbecImuBatchT>(batch));
+        if (imu_)
+            imu_->write(static_cast<size_t>(batch.sensor), timestamp(local_ns, device_ns),
+                        std::make_shared<core::OrbbecImuBatchT>(batch));
     }
     void on_audio_chunk(const core::OrbbecAudioChunkT& chunk, int64_t local_ns, int64_t device_ns) override
     {
-        audio_->write(0, timestamp(local_ns, device_ns), std::make_shared<core::OrbbecAudioChunkT>(chunk));
+        if (audio_)
+            audio_->write(0, timestamp(local_ns, device_ns), std::make_shared<core::OrbbecAudioChunkT>(chunk));
     }
     void on_calibration(const core::OrbbecCalibrationT& calibration, int64_t local_ns, int64_t device_ns) override
     {
-        calibration_->write(0, timestamp(local_ns, device_ns), std::make_shared<core::OrbbecCalibrationT>(calibration));
+        if (calibration_)
+            calibration_->write(
+                0, timestamp(local_ns, device_ns), std::make_shared<core::OrbbecCalibrationT>(calibration));
     }
     void on_device_state(const core::OrbbecDeviceStateT& state, int64_t local_ns, int64_t device_ns) override
     {
-        device_state_->write(0, timestamp(local_ns, device_ns), std::make_shared<core::OrbbecDeviceStateT>(state));
+        if (device_state_)
+            device_state_->write(0, timestamp(local_ns, device_ns), std::make_shared<core::OrbbecDeviceStateT>(state));
+    }
+    void on_encoded_video_frame(const CapturedFrame& frame) override
+    {
+        if (!media_video_)
+            return;
+        auto data = std::make_shared<core::OrbbecEncodedVideoFrameT>();
+        data->stream = frame.metadata.stream;
+        data->sequence_number = frame.metadata.sequence_number;
+        data->width = frame.metadata.width;
+        data->height = frame.metadata.height;
+        data->fps = frame.metadata.fps;
+        data->pixel_format = frame.metadata.pixel_format;
+        data->encoded_data = frame.encoded_data;
+        media_video_->write(video_indices_.at(data->stream),
+                            timestamp(frame.sample_time_local_common_clock_ns, frame.sample_time_raw_device_clock_ns),
+                            std::move(data));
+    }
+    void on_pcm_audio_chunk(const core::OrbbecPcmAudioChunkT& chunk, int64_t local_ns, int64_t device_ns) override
+    {
+        if (media_audio_)
+            media_audio_->write(0, timestamp(local_ns, device_ns), std::make_shared<core::OrbbecPcmAudioChunkT>(chunk));
     }
 
 private:
@@ -964,13 +1018,73 @@ private:
 
     CheckedMcapFileWriter output_;
     mcap::McapWriter writer_;
+    std::string final_filename_;
+    std::string temporary_filename_;
     std::unique_ptr<core::McapTrackerChannels<core::FrameMetadataOrbbecRecord, core::FrameMetadataOrbbec>> video_;
     std::unique_ptr<core::McapTrackerChannels<core::OrbbecImuBatchRecord, core::OrbbecImuBatch>> imu_;
     std::unique_ptr<core::McapTrackerChannels<core::OrbbecAudioChunkRecord, core::OrbbecAudioChunk>> audio_;
     std::unique_ptr<core::McapTrackerChannels<core::OrbbecCalibrationRecord, core::OrbbecCalibration>> calibration_;
     std::unique_ptr<core::McapTrackerChannels<core::OrbbecDeviceStateRecord, core::OrbbecDeviceState>> device_state_;
+    std::unique_ptr<core::McapTrackerChannels<core::OrbbecEncodedVideoFrameRecord, core::OrbbecEncodedVideoFrame>> media_video_;
+    std::unique_ptr<core::McapTrackerChannels<core::OrbbecPcmAudioChunkRecord, core::OrbbecPcmAudioChunk>> media_audio_;
     std::map<core::OrbbecCameraStream, size_t> video_indices_;
     bool closed_ = false;
+};
+
+class CompositeMetadataSink final : public IMetadataSink
+{
+public:
+    explicit CompositeMetadataSink(std::vector<std::unique_ptr<IMetadataSink>> sinks) : sinks_(std::move(sinks))
+    {
+    }
+    void on_frame_metadata(const CapturedFrame& frame) override
+    {
+        for_each([&](auto& sink) { sink.on_frame_metadata(frame); });
+    }
+    void on_imu_batch(const core::OrbbecImuBatchT& value, int64_t local, int64_t device) override
+    {
+        for_each([&](auto& sink) { sink.on_imu_batch(value, local, device); });
+    }
+    void on_audio_chunk(const core::OrbbecAudioChunkT& value, int64_t local, int64_t device) override
+    {
+        for_each([&](auto& sink) { sink.on_audio_chunk(value, local, device); });
+    }
+    void on_calibration(const core::OrbbecCalibrationT& value, int64_t local, int64_t device) override
+    {
+        for_each([&](auto& sink) { sink.on_calibration(value, local, device); });
+    }
+    void on_device_state(const core::OrbbecDeviceStateT& value, int64_t local, int64_t device) override
+    {
+        for_each([&](auto& sink) { sink.on_device_state(value, local, device); });
+    }
+    void on_encoded_video_frame(const CapturedFrame& frame) override
+    {
+        for_each([&](auto& sink) { sink.on_encoded_video_frame(frame); });
+    }
+    void on_pcm_audio_chunk(const core::OrbbecPcmAudioChunkT& value, int64_t local, int64_t device) override
+    {
+        for_each([&](auto& sink) { sink.on_pcm_audio_chunk(value, local, device); });
+    }
+    void close() override
+    {
+        for_each([](auto& sink) { sink.close(); });
+    }
+    std::string error() const override
+    {
+        for (const auto& sink : sinks_)
+            if (!sink->error().empty())
+                return sink->error();
+        return {};
+    }
+
+private:
+    template <typename Function>
+    void for_each(Function&& function)
+    {
+        for (auto& sink : sinks_)
+            function(*sink);
+    }
+    std::vector<std::unique_ptr<IMetadataSink>> sinks_;
 };
 
 } // namespace
@@ -990,21 +1104,24 @@ void validate_stream_config(const StreamConfig& stream, const CaptureConfig& con
 class FrameSink::Impl
 {
 public:
-    Impl(const std::vector<StreamConfig>& streams, std::unique_ptr<IMetadataSink> metadata_sink)
+    Impl(const std::vector<StreamConfig>& streams, std::unique_ptr<IMetadataSink> metadata_sink, bool write_media_sidecars)
         : metadata_sink_(std::move(metadata_sink))
     {
         for (const auto& stream : streams)
         {
-            const std::filesystem::path output(stream.output_path);
-            if (!output.parent_path().empty())
-                std::filesystem::create_directories(output.parent_path());
-
-            auto file = std::make_unique<std::ofstream>(stream.output_path, std::ios::binary | std::ios::trunc);
-            if (!*file)
-                throw std::runtime_error("Unable to open encoded output: " + stream.output_path);
+            std::unique_ptr<std::ofstream> file;
+            if (write_media_sidecars)
+            {
+                const std::filesystem::path output(stream.output_path);
+                if (!output.parent_path().empty())
+                    std::filesystem::create_directories(output.parent_path());
+                file = std::make_unique<std::ofstream>(stream.output_path, std::ios::binary | std::ios::trunc);
+                if (!*file)
+                    throw std::runtime_error("Unable to open encoded output: " + stream.output_path);
+                std::cout << "Add stream: " << core::EnumNameOrbbecCameraStream(stream.camera) << " -> "
+                          << stream.output_path << std::endl;
+            }
             writers_.emplace(stream.camera, Writer{ std::move(file), stream.pixel_format });
-            std::cout << "Add stream: " << core::EnumNameOrbbecCameraStream(stream.camera) << " -> "
-                      << stream.output_path << std::endl;
         }
     }
 
@@ -1022,13 +1139,22 @@ public:
         if (encoded_data.empty() || !it->second.accept(encoded_data, sequence_gap))
             return;
 
-        it->second.file->write(
-            reinterpret_cast<const char*>(encoded_data.data()), static_cast<std::streamsize>(encoded_data.size()));
-        if (!*it->second.file)
-            throw std::runtime_error("Failed while writing Orbbec encoded data");
+        if (it->second.file)
+        {
+            it->second.file->write(
+                reinterpret_cast<const char*>(encoded_data.data()), static_cast<std::streamsize>(encoded_data.size()));
+            if (!*it->second.file)
+                throw std::runtime_error("Failed while writing Orbbec encoded data");
+        }
 
         if (metadata_sink_)
-            metadata_sink_->on_frame_metadata(frame);
+        {
+            CapturedFrame recorded = frame;
+            recorded.encoded_data = encoded_data;
+            recorded.metadata.encoded_bytes = encoded_data.size();
+            metadata_sink_->on_frame_metadata(recorded);
+            metadata_sink_->on_encoded_video_frame(recorded);
+        }
     }
 
     IMetadataSink* metadata_sink()
@@ -1158,8 +1284,10 @@ private:
     std::unique_ptr<IMetadataSink> metadata_sink_;
 };
 
-FrameSink::FrameSink(const std::vector<StreamConfig>& streams, std::unique_ptr<IMetadataSink> metadata_sink)
-    : impl_(std::make_unique<Impl>(streams, std::move(metadata_sink)))
+FrameSink::FrameSink(const std::vector<StreamConfig>& streams,
+                     std::unique_ptr<IMetadataSink> metadata_sink,
+                     bool write_media_sidecars)
+    : impl_(std::make_unique<Impl>(streams, std::move(metadata_sink), write_media_sidecars))
 {
 }
 
@@ -1201,12 +1329,32 @@ std::unique_ptr<FrameSink> create_frame_sink(const std::vector<StreamConfig>& st
 {
     if (!config.collection_prefix.empty() && !config.mcap_filename.empty())
         throw std::invalid_argument("--collection-prefix and --mcap-filename are mutually exclusive");
+    if (config.mcap_media_mode == McapMediaMode::Embedded && config.collection_prefix.empty() &&
+        config.mcap_filename.empty())
+        throw std::invalid_argument("--mcap-media=embedded requires --mcap-filename or --collection-prefix");
+    if (config.mcap_media_mode == McapMediaMode::Embedded && !config.collection_prefix.empty() &&
+        config.mcap_media_spool.empty())
+    {
+        throw std::invalid_argument(
+            "--mcap-media=embedded with --collection-prefix requires --mcap-media-spool=PATH; "
+            "the TeleopSession merger consumes this media fragment after the session closes");
+    }
     std::unique_ptr<IMetadataSink> metadata_sink;
     if (!config.collection_prefix.empty())
         metadata_sink = std::make_unique<SchemaMetadataSink>(streams, config.collection_prefix);
     else if (!config.mcap_filename.empty())
-        metadata_sink = std::make_unique<McapMetadataSink>(streams, config.mcap_filename);
-    return std::make_unique<FrameSink>(streams, std::move(metadata_sink));
+        metadata_sink = std::make_unique<McapMetadataSink>(
+            streams, config.mcap_filename, config.mcap_media_mode == McapMediaMode::Embedded);
+    if (!config.collection_prefix.empty() && config.mcap_media_mode == McapMediaMode::Embedded)
+    {
+        std::vector<std::unique_ptr<IMetadataSink>> sinks;
+        sinks.push_back(std::move(metadata_sink));
+        sinks.push_back(std::make_unique<McapMetadataSink>(streams, config.mcap_media_spool, true, false));
+        metadata_sink = std::make_unique<CompositeMetadataSink>(std::move(sinks));
+    }
+    return std::make_unique<FrameSink>(
+        streams, std::move(metadata_sink),
+        config.mcap_media_mode == McapMediaMode::MetadataOnly || config.keep_media_sidecars);
 }
 
 class OrbbecCamera::Impl
@@ -1311,7 +1459,7 @@ public:
         start_device_state();
         if (config_.enable_imu)
             start_imu();
-        if (!config_.audio_output.empty())
+        if (config_.enable_audio || !config_.audio_output.empty())
             start_audio();
         poll_device_state();
     }
@@ -1620,10 +1768,22 @@ public:
                         chunk.byte_count = static_cast<uint32_t>(value.bytes.size());
                         const uint32_t bytes_per_sample = audio_channels_ * audio_bits_ / 8;
                         chunk.sample_count = bytes_per_sample == 0 ? 0 : chunk.byte_count / bytes_per_sample;
-                        chunk.wav_data_offset = wav_writer_.write(value.bytes);
+                        if (!config_.audio_output.empty())
+                            chunk.wav_data_offset = wav_writer_.write(value.bytes);
                         auxiliary_stats_.audio_samples += chunk.sample_count;
                         if (metadata)
+                        {
                             metadata->on_audio_chunk(chunk, value.local_ns, value.device_ns);
+                            core::OrbbecPcmAudioChunkT pcm;
+                            pcm.sequence_number = chunk.sequence_number;
+                            pcm.sample_rate_hz = chunk.sample_rate_hz;
+                            pcm.channel_count = chunk.channel_count;
+                            pcm.bits_per_sample = chunk.bits_per_sample;
+                            pcm.sample_format = chunk.sample_format;
+                            pcm.sample_count = chunk.sample_count;
+                            pcm.pcm_data = std::move(value.bytes);
+                            metadata->on_pcm_audio_chunk(pcm, value.local_ns, value.device_ns);
+                        }
                     }
                     else if constexpr (std::is_same_v<Event, CalibrationEvent>)
                     {
@@ -1721,7 +1881,8 @@ public:
         audio_bits_ = static_cast<uint16_t>(profile->getBitsPerSample());
         if (audio_rate_ != 48000 || audio_channels_ != 1 || audio_bits_ != 16)
             throw std::runtime_error("Unsupported Ego audio profile; expected PCM 48000 Hz mono S16_LE");
-        wav_writer_.open(config_.audio_output, audio_rate_, audio_channels_, audio_bits_);
+        if (!config_.audio_output.empty())
+            wav_writer_.open(config_.audio_output, audio_rate_, audio_channels_, audio_bits_);
         audio_sensor_->start(profile,
                              [this](std::shared_ptr<ob::Frame> frame)
                              {
@@ -1740,7 +1901,10 @@ public:
                                      set_async_error(std::string("Audio callback failed: ") + error.what());
                                  }
                              });
-        std::cout << "Audio recording to " << config_.audio_output << std::endl;
+        std::cout << "Audio capture started";
+        if (!config_.audio_output.empty())
+            std::cout << "; sidecar WAV: " << config_.audio_output;
+        std::cout << std::endl;
     }
 
     static std::shared_ptr<core::OrbbecCameraIntrinsicsT> camera_intrinsics(const OBCalibrationParam& param,

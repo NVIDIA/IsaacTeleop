@@ -43,6 +43,8 @@ PYBIND11_MODULE(_deviceio_session, m)
              py::arg("filename"),
              py::arg("tracker_names") = std::vector<std::pair<std::shared_ptr<core::ITracker>, std::string>>{})
         .def_readwrite("filename", &core::McapRecordingConfig::filename)
+        .def_readwrite("embedded_media_filename", &core::McapRecordingConfig::embedded_media_filename,
+                       "Optional plugin-written media MCAP fragment merged into filename when the session closes.")
         .def(
             "get_tracker_names",
             [](const core::McapRecordingConfig& c)

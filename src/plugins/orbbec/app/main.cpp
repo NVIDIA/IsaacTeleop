@@ -56,7 +56,6 @@ plugins::orbbec::StreamConfig parse_stream_arg(const std::string& arg)
 {
     plugins::orbbec::StreamConfig config{};
     bool has_camera = false;
-    bool has_output = false;
     std::istringstream input(arg);
     std::string token;
     while (std::getline(input, token, ','))
@@ -74,7 +73,6 @@ plugins::orbbec::StreamConfig parse_stream_arg(const std::string& arg)
         else if (key == "output")
         {
             config.output_path = value;
-            has_output = true;
         }
         else if (key == "format")
             config.pixel_format = parse_pixel_format(value);
@@ -89,17 +87,26 @@ plugins::orbbec::StreamConfig parse_stream_arg(const std::string& arg)
             throw std::runtime_error("Unknown key in --add-stream: '" + key + "'");
         }
     }
-    if (!has_camera || !has_output)
-        throw std::runtime_error("--add-stream requires camera=<name>,output=<path>");
+    if (!has_camera)
+        throw std::runtime_error("--add-stream requires camera=<name>");
     return config;
+}
+
+plugins::orbbec::McapMediaMode parse_mcap_media_mode(const std::string& value)
+{
+    if (value == "metadata-only")
+        return plugins::orbbec::McapMediaMode::MetadataOnly;
+    if (value == "embedded")
+        return plugins::orbbec::McapMediaMode::Embedded;
+    throw std::runtime_error("--mcap-media must be metadata-only or embedded");
 }
 
 void print_usage(const char* program)
 {
-    std::cout << "Usage: " << program << " [options] --add-stream=camera=<name>,output=<path>\n\n"
+    std::cout << "Usage: " << program << " [options] --add-stream=camera=<name>[,output=<path>]\n\n"
               << "Streams (repeatable):\n"
-              << "  --add-stream=camera=ColorLeft,output=<path>[,format=mjpg|h264|h265,width=N,height=N,fps=N]\n"
-              << "  --add-stream=camera=ColorRight,output=<path>[,format=mjpg|h264|h265,width=N,height=N,fps=N]\n\n"
+              << "  --add-stream=camera=ColorLeft[,output=<path>][,format=mjpg|h264|h265,width=N,height=N,fps=N]\n"
+              << "  --add-stream=camera=ColorRight[,output=<path>][,format=mjpg|h264|h265,width=N,height=N,fps=N]\n\n"
               << "Capture:\n"
               << "  --width=N --height=N --fps=N  0 selects the SDK default profile\n"
               << "  --bitrate=N --dynamic-bitrate=on|off\n"
@@ -107,10 +114,14 @@ void print_usage(const char* program)
               << "  --preview                      SDL side-by-side latest-frame preview\n"
               << "  --enable-imu --imu-rate=400|1000\n"
               << "  --accel-full-scale=<g> --gyro-full-scale=<dps>\n"
-              << "  --audio-output=PATH.wav\n"
+              << "  --enable-audio                 Capture PCM audio (embedded MCAP needs no WAV path)\n"
+              << "  --audio-output=PATH.wav        Capture audio and write a WAV sidecar\n"
               << "Metadata (mutually exclusive):\n"
-              << "  --mcap-filename=PATH            Write a local metadata MCAP\n"
+              << "  --mcap-filename=PATH            Write a local MCAP\n"
               << "  --collection-prefix=PREFIX      Publish metadata via OpenXR tensors\n"
+              << "  --mcap-media=metadata-only|embedded (default metadata-only)\n"
+              << "  --keep-media-sidecars           Keep raw video/WAV with embedded MCAP\n"
+              << "  --mcap-media-spool=PATH         Embedded-media fragment for TeleopSession merger\n"
               << "Device controls:\n"
               << "  --exposure=N --gain=N --white-balance=N --brightness=N\n"
               << "  --sharpness=N --saturation=N --contrast=N --power-frequency=N\n"
@@ -161,6 +172,8 @@ try
             capture_config.preview = true;
         else if (argument == "--enable-imu")
             capture_config.enable_imu = true;
+        else if (argument == "--enable-audio")
+            capture_config.enable_audio = true;
         else if (argument.rfind("--imu-rate=", 0) == 0)
             capture_config.imu_rate = std::stoul(argument.substr(11));
         else if (argument.rfind("--accel-full-scale=", 0) == 0)
@@ -168,11 +181,20 @@ try
         else if (argument.rfind("--gyro-full-scale=", 0) == 0)
             capture_config.gyro_full_scale_dps = std::stof(argument.substr(18));
         else if (argument.rfind("--audio-output=", 0) == 0)
+        {
             capture_config.audio_output = argument.substr(15);
+            capture_config.enable_audio = true;
+        }
         else if (argument.rfind("--collection-prefix=", 0) == 0)
             capture_config.collection_prefix = argument.substr(20);
         else if (argument.rfind("--mcap-filename=", 0) == 0)
             capture_config.mcap_filename = argument.substr(16);
+        else if (argument.rfind("--mcap-media=", 0) == 0)
+            capture_config.mcap_media_mode = parse_mcap_media_mode(argument.substr(13));
+        else if (argument == "--keep-media-sidecars")
+            capture_config.keep_media_sidecars = true;
+        else if (argument.rfind("--mcap-media-spool=", 0) == 0)
+            capture_config.mcap_media_spool = argument.substr(19);
         else if (argument.rfind("--calibration-output=", 0) == 0)
             capture_config.calibration_output = argument.substr(21);
         else if (argument == "--persist-controls")
@@ -217,6 +239,16 @@ try
         throw std::runtime_error("--collection-prefix and --mcap-filename are mutually exclusive");
     if (capture_config.imu_rate != 400 && capture_config.imu_rate != 1000)
         throw std::runtime_error("--imu-rate must be 400 or 1000");
+    const bool embedded_media = capture_config.mcap_media_mode == plugins::orbbec::McapMediaMode::Embedded;
+    if (embedded_media && capture_config.collection_prefix.empty() && capture_config.mcap_filename.empty())
+        throw std::runtime_error("--mcap-media=embedded requires --mcap-filename or --collection-prefix");
+    if (embedded_media && !capture_config.collection_prefix.empty() && capture_config.mcap_media_spool.empty())
+        throw std::runtime_error("--mcap-media=embedded with --collection-prefix requires --mcap-media-spool=PATH");
+    if (!embedded_media && capture_config.keep_media_sidecars)
+        throw std::runtime_error("--keep-media-sidecars is only valid with --mcap-media=embedded");
+    if (embedded_media && !capture_config.keep_media_sidecars && !capture_config.audio_output.empty())
+        throw std::runtime_error(
+            "--audio-output requires --keep-media-sidecars with --mcap-media=embedded; use --enable-audio");
     if (list_capabilities)
     {
         plugins::orbbec::OrbbecCamera::list_capabilities(capture_config);
@@ -229,6 +261,12 @@ try
     streams.reserve(stream_map.size());
     for (auto& [_, stream] : stream_map)
     {
+        if ((embedded_media && capture_config.keep_media_sidecars) || !embedded_media)
+        {
+            if (stream.output_path.empty())
+                throw std::runtime_error(
+                    "--add-stream requires output=<path> unless --mcap-media=embedded is used without --keep-media-sidecars");
+        }
         plugins::orbbec::validate_stream_config(stream, capture_config);
         streams.push_back(std::move(stream));
     }

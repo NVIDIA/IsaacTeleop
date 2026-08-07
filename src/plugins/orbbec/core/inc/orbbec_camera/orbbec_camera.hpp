@@ -28,6 +28,12 @@ struct StreamConfig
     uint32_t fps = 0;
 };
 
+enum class McapMediaMode
+{
+    MetadataOnly,
+    Embedded,
+};
+
 struct PropertySetting
 {
     std::string name;
@@ -50,9 +56,13 @@ struct CaptureConfig
     // the profiles enumerated from the selected device.
     float accel_full_scale_g = 24.0f;
     float gyro_full_scale_dps = 2000.0f;
+    bool enable_audio = false;
     std::string audio_output;
     std::string collection_prefix;
     std::string mcap_filename;
+    std::string mcap_media_spool;
+    McapMediaMode mcap_media_mode = McapMediaMode::MetadataOnly;
+    bool keep_media_sidecars = false;
     std::string calibration_output;
     std::vector<PropertySetting> properties;
     bool persist_controls = false;
@@ -82,6 +92,12 @@ public:
     virtual void on_audio_chunk(const core::OrbbecAudioChunkT&, int64_t, int64_t)
     {
     }
+    virtual void on_encoded_video_frame(const CapturedFrame&)
+    {
+    }
+    virtual void on_pcm_audio_chunk(const core::OrbbecPcmAudioChunkT&, int64_t, int64_t)
+    {
+    }
     virtual void on_calibration(const core::OrbbecCalibrationT&, int64_t, int64_t)
     {
     }
@@ -100,7 +116,9 @@ public:
 class FrameSink
 {
 public:
-    FrameSink(const std::vector<StreamConfig>& streams, std::unique_ptr<IMetadataSink> metadata_sink = nullptr);
+    FrameSink(const std::vector<StreamConfig>& streams,
+              std::unique_ptr<IMetadataSink> metadata_sink = nullptr,
+              bool write_media_sidecars = true);
     ~FrameSink();
 
     FrameSink(const FrameSink&) = delete;

@@ -4,13 +4,16 @@
 #include "inc/deviceio_session/deviceio_session.hpp"
 
 #include <live_trackers/live_deviceio_factory.hpp>
+#include <mcap/reader.hpp>
 #include <mcap/writer.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/os_time.hpp>
 
 #include <cassert>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <unordered_map>
 
 namespace core
 {
@@ -36,6 +39,104 @@ bool tracker_in_list(const std::vector<std::shared_ptr<ITracker>>& trackers, con
             return true;
     }
     return false;
+}
+
+using ChannelIdMap = std::unordered_map<mcap::ChannelId, mcap::ChannelId>;
+
+ChannelIdMap register_mcap_channels(mcap::McapReader& input, mcap::McapWriter& output)
+{
+    std::unordered_map<mcap::SchemaId, mcap::SchemaId> schema_ids;
+    for (const auto& [old_id, source] : input.schemas())
+    {
+        mcap::Schema schema(source->name, source->encoding, source->data);
+        output.addSchema(schema);
+        schema_ids.emplace(old_id, schema.id);
+    }
+    ChannelIdMap channel_ids;
+    for (const auto& [old_id, source] : input.channels())
+    {
+        const auto schema_it = schema_ids.find(source->schemaId);
+        const auto new_schema_id = schema_it == schema_ids.end() ? 0 : schema_it->second;
+        mcap::Channel channel(source->topic, source->messageEncoding, new_schema_id, source->metadata);
+        output.addChannel(channel);
+        channel_ids.emplace(old_id, channel.id);
+    }
+    return channel_ids;
+}
+
+void write_merged_message(const mcap::MessageView& view, const ChannelIdMap& channel_ids, mcap::McapWriter& output)
+{
+    mcap::Message message = view.message;
+    message.channelId = channel_ids.at(view.message.channelId);
+    const auto status = output.write(message);
+    if (!status.ok())
+        throw std::runtime_error("DeviceIOSession: failed to merge MCAP media: " + status.message);
+}
+
+std::unique_ptr<mcap::McapReader> open_mcap_reader(const std::string& filename)
+{
+    auto input = std::make_unique<mcap::McapReader>();
+    const auto open_status = input->open(filename);
+    if (!open_status.ok())
+        throw std::runtime_error("DeviceIOSession: cannot read MCAP fragment '" + filename + "': " + open_status.message);
+    return input;
+}
+
+void merge_messages_by_log_time(mcap::McapReader& recording,
+                                const ChannelIdMap& recording_channels,
+                                mcap::McapReader& media,
+                                const ChannelIdMap& media_channels,
+                                mcap::McapWriter& output)
+{
+    const auto on_problem = [](const mcap::Status& status)
+    { throw std::runtime_error("DeviceIOSession: " + status.message); };
+    auto recording_messages = recording.readMessages(on_problem);
+    auto media_messages = media.readMessages(on_problem);
+    auto recording_it = recording_messages.begin();
+    auto media_it = media_messages.begin();
+    while (recording_it != recording_messages.end() || media_it != media_messages.end())
+    {
+        if (media_it == media_messages.end() ||
+            (recording_it != recording_messages.end() && recording_it->message.logTime <= media_it->message.logTime))
+        {
+            write_merged_message(*recording_it, recording_channels, output);
+            ++recording_it;
+        }
+        else
+        {
+            write_merged_message(*media_it, media_channels, output);
+            ++media_it;
+        }
+    }
+}
+
+void merge_embedded_media(const std::string& recording_filename, const std::string& media_filename)
+{
+    if (!std::filesystem::exists(media_filename))
+        throw std::runtime_error("DeviceIOSession: embedded media fragment is missing: " + media_filename);
+    const std::string temporary_filename = recording_filename + ".merge.partial";
+    mcap::McapWriter output;
+    mcap::McapWriterOptions options("teleop");
+    options.compression = mcap::Compression::None;
+    const auto open_status = output.open(temporary_filename, options);
+    if (!open_status.ok())
+        throw std::runtime_error("DeviceIOSession: cannot create merged MCAP: " + open_status.message);
+    try
+    {
+        auto recording = open_mcap_reader(recording_filename);
+        auto media = open_mcap_reader(media_filename);
+        const auto recording_channels = register_mcap_channels(*recording, output);
+        const auto media_channels = register_mcap_channels(*media, output);
+        merge_messages_by_log_time(*recording, recording_channels, *media, media_channels, output);
+        output.close();
+        std::filesystem::rename(temporary_filename, recording_filename);
+        std::filesystem::remove(media_filename);
+    }
+    catch (...)
+    {
+        output.terminate();
+        throw;
+    }
 }
 
 // Fully validate a vendor config against the session's tracker list before anything consumes it.
@@ -95,6 +196,8 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
         std::cout << "DeviceIOSession: recording to " << recording_config->filename << std::endl;
 
         tracker_names = std::move(recording_config->tracker_names);
+        recording_filename_ = recording_config->filename;
+        embedded_media_filename_ = std::move(recording_config->embedded_media_filename);
     }
 
     LiveDeviceIOFactory factory(handles_, mcap_writer_.get(), tracker_names, vendor_config.tracker_vendors);
@@ -109,7 +212,46 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
     }
 }
 
-DeviceIOSession::~DeviceIOSession() = default;
+DeviceIOSession::~DeviceIOSession()
+{
+    try
+    {
+        close();
+    }
+    catch (const std::exception& error)
+    {
+        // A destructor cannot report a recoverable error to the session caller.
+        // Keep both source files for diagnosis rather than deleting evidence.
+        std::cerr << "DeviceIOSession: failed to finalize embedded media MCAP: " << error.what() << std::endl;
+    }
+}
+
+void DeviceIOSession::close()
+{
+    if (closed_)
+        return;
+    // Trackers own channel writers and must be destroyed before the final footer.
+    tracker_impls_.clear();
+    if (!mcap_writer_)
+    {
+        closed_ = true;
+        return;
+    }
+    try
+    {
+        mcap_writer_->close();
+        if (!embedded_media_filename_.empty())
+            merge_embedded_media(recording_filename_, embedded_media_filename_);
+        closed_ = true;
+    }
+    catch (...)
+    {
+        // Preserve source and fragment files for recovery, but do not retry a
+        // partially completed merge from the destructor.
+        closed_ = true;
+        throw;
+    }
+}
 
 std::vector<std::string> DeviceIOSession::get_required_extensions(const std::vector<std::shared_ptr<ITracker>>& trackers,
                                                                   const VendorConfig& vendor_config)

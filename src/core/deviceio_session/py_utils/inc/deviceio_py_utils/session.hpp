@@ -41,6 +41,8 @@ public:
 
     void close()
     {
+        if (impl_)
+            impl_->close();
         impl_.reset();
     }
 
