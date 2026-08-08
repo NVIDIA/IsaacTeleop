@@ -1,14 +1,17 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""SO-101 analog gripper retargeter for the absolute-pose XR teleop pipeline.
+"""Analog (proportional) gripper retargeter for the absolute-pose XR teleop pipeline.
 
 The shared :class:`~isaacteleop.retargeters.GripperRetargeter` thresholds the controller
-trigger into a binary open/close command (and carries hand-pinch fallback logic that the
-SO-101 stacking setup does not use). For proportional grasping we instead want the jaw to
-track the trigger continuously: a half-pressed trigger should leave the jaw half-closed.
+trigger into a binary open/close command (and carries hand-pinch fallback logic that a
+proportional-grasp setup does not use). For proportional grasping we instead want the jaw
+to track the trigger continuously: a half-pressed trigger should leave the jaw half-closed.
 
-:class:`SO101GripperRetargeter` reads one controller's analog trigger value
+The closedness is unitless, so the same node drives an SO-101 leader trigger and a parallel
+jaw; what it means in radians or metres belongs to the consumer.
+
+:class:`AnalogGripperRetargeter` reads one controller's analog trigger value
 (:attr:`~isaacteleop.retargeting_engine.tensor_types.ControllerInputIndex.TRIGGER_VALUE`,
 nominally ``[0, 1]``) and emits a single *closedness* scalar ``c`` in ``[0, 1]`` under
 :data:`GRIPPER_COMMAND_KEY` / :data:`GRIPPER_ELEMENT_LABEL`.
@@ -83,8 +86,8 @@ def _trigger_to_closedness(trigger: float) -> float:
     return c
 
 
-class SO101GripperRetargeter(BaseRetargeter):
-    """Retargets an XR controller's analog trigger to a proportional SO-101 jaw closedness.
+class AnalogGripperRetargeter(BaseRetargeter):
+    """Retargets an XR controller's analog trigger to a proportional jaw closedness.
 
     Reads one controller's trigger value and emits a single closedness scalar ``c`` in
     ``[0, 1]`` (``0`` = open, ``1`` = closed) under :data:`GRIPPER_COMMAND_KEY` /
@@ -92,8 +95,7 @@ class SO101GripperRetargeter(BaseRetargeter):
     deadzone then clamp). The last value is held on a dropped frame, and reset back to open
     (``c = 0``) on a pipeline reset.
 
-    See the module docstring for the full polarity/mapping convention and the downstream affine
-    that converts ``c`` to a ``gripper`` joint target [rad].
+    See the module docstring for the full polarity/mapping convention.
     """
 
     def __init__(self, name: str, input_device: str = ControllersSource.RIGHT) -> None:

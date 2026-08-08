@@ -15,11 +15,11 @@ Available Retargeters:
     - LocomotionFixedRootCmdRetargeter: Fixed root command (standing still)
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
-    - GripperRetargeter: Pinch-based gripper control
+    - GripperRetargeter: Pinch-based gripper control (binary open/close)
+    - AnalogGripperRetargeter: Proportional jaw closedness from a controller's analog trigger
     - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm --
       re-latches BOTH home position and orientation on every engage, base-frame left-composed, no
       fixed offset
-    - SO101GripperRetargeter: Proportional (analog) jaw closedness for the SO-101 gripper
     - WujiHandRetargeter: Retargeting for the Wuji hand via wuji_sdk.retargeting
     - JointStateRetargeter: Generic joint-space device (leader arm, exoskeleton) -> joint or EE action
     - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
@@ -104,15 +104,16 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     # .gripper_retargeter
     "GripperRetargeter": (".gripper_retargeter", "GripperRetargeter", None),
     "GripperRetargeterConfig": (".gripper_retargeter", "GripperRetargeterConfig", None),
-    # .SO101 (SO-101 5-DOF arm: clutch EE-pose, analog gripper)
+    # .analog_gripper_retargeter
+    "AnalogGripperRetargeter": (
+        ".analog_gripper_retargeter",
+        "AnalogGripperRetargeter",
+        None,
+    ),
+    # .SO101 (SO-101 5-DOF arm: clutch EE-pose)
     "SO101ClutchRetargeter": (
         ".SO101.clutch_retargeter",
         "SO101ClutchRetargeter",
-        None,
-    ),
-    "SO101GripperRetargeter": (
-        ".SO101.gripper_retargeter",
-        "SO101GripperRetargeter",
         None,
     ),
     # .wuji_hand_retargeter  (requires wuji extra: wuji-sdk[retarget],
@@ -229,9 +230,9 @@ __all__ = [
     # Manipulator retargeters
     "GripperRetargeter",
     "GripperRetargeterConfig",
+    "AnalogGripperRetargeter",
     # SO-101 5-DOF arm retargeters
     "SO101ClutchRetargeter",
-    "SO101GripperRetargeter",
     # Wuji hand retargeters (require wuji extra: wuji-sdk[retarget])
     "WujiHandRetargeter",
     "WujiHandRetargeterConfig",
