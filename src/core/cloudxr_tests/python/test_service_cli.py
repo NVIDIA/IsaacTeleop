@@ -149,7 +149,23 @@ class TestStopAndStatus:
             patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
         ):
             cli._cmd_status(self._args("status", tmp_path))
-        assert "started in the foreground" in capsys.readouterr().out
+        assert "foreground" in capsys.readouterr().out
+
+    def test_status_reports_the_running_session_not_our_defaults(
+        self, tmp_path, capsys
+    ):
+        """Flags come from the running service's own command line."""
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=7),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=["--host-client"],
+            ),
+        ):
+            cli._cmd_status(self._args("status", tmp_path))
+        # --host-client means the client is served off the WSS proxy, not Pages.
+        assert "/client/" in capsys.readouterr().out
 
 
 class TestRunValidation:

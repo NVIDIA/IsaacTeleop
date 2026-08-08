@@ -63,6 +63,23 @@ def _is_our_service(pid: int) -> bool:
     return _MODULE.encode() in cmdline
 
 
+def read_run_flags(run_dir: str) -> list[str]:
+    """Return the flags the detached service was started with.
+
+    Recovered from its command line, so a later ``status`` reports the session
+    that is actually running rather than the defaults.  Empty when there is no
+    detached service (started in the foreground, or by something else).
+    """
+    pid = read_pid(run_dir)
+    if pid is None:
+        return []
+    try:
+        argv = Path(f"/proc/{pid}/cmdline").read_bytes().decode().split("\0")
+    except OSError:
+        return []
+    return argv[argv.index("run") + 1 :] if "run" in argv else []
+
+
 def spawn(run_args: list[str], run_dir: str, logs_dir: Path) -> tuple[int, Path]:
     """Start a detached ``service run`` and record its pid.
 

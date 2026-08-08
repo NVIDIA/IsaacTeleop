@@ -188,13 +188,42 @@ def _oob_preflight(args: argparse.Namespace) -> str | None:
     return lan_host
 
 
-def _print_startup_banner(
-    args: argparse.Namespace, service: CloudXRService, oob_lan_host: str | None
-) -> None:
-    """Print the operator-facing summary once the service is up."""
-    from isaacteleop import __version__ as isaacteleop_version  # noqa: PLC0415
+def _env_file_value(run_dir: str, key: str) -> str | None:
+    """Read *key* out of the env file the running service wrote.
 
-    from ..env_config import get_env_config  # noqa: PLC0415
+    ``cloudxr.env`` is shell format — ``export KEY='value'`` — so it cannot be
+    fed back through ``EnvConfig``'s reader, and re-resolving it here would
+    overwrite the running service's own file.
+    """
+    import shlex  # noqa: PLC0415
+
+    try:
+        text = Path(run_dir, "cloudxr.env").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        name, _, value = line.removeprefix("export ").partition("=")
+        if name.strip() == key:
+            return next(iter(shlex.split(value)), None)
+    return None
+
+
+def _print_service_summary(
+    args: argparse.Namespace,
+    *,
+    wss_log: object,
+    device_profile: str | None,
+    env_file: str,
+    logs_dir: Path | None = None,
+    oob_lan_host: str | None = None,
+    include_oob: bool = False,
+) -> None:
+    """Print the operator-facing summary of a running service.
+
+    ``include_oob`` prints the full OOB hub block, which only the foreground
+    ``run`` does; ``start`` and ``status`` show the connection URL instead.
+    """
+    from isaacteleop import __version__ as isaacteleop_version  # noqa: PLC0415
     from ..oob_teleop_env import (  # noqa: PLC0415
         USB_HOST,
         guess_lan_ipv4,
@@ -210,21 +239,18 @@ def _print_startup_banner(
         f"CloudXR Runtime \033[36m{runtime_version()}\033[0m"
     )
 
-    env_cfg = get_env_config()
-    logs_dir_path = env_cfg.ensure_logs_dir()
-    cxr_log = latest_runtime_log() or logs_dir_path
+    cxr_log = latest_runtime_log(logs_dir) or "(none yet)"
     print(
         f"CloudXR runtime:   \033[36mrunning\033[0m, log file: \033[90m{cxr_log}\033[0m"
     )
     print(
-        f"CloudXR WSS proxy: \033[36mrunning\033[0m, "
-        f"log file: \033[90m{service.wss_log_path}\033[0m"
+        f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
     )
     # A profile that does not match the connecting device is the usual cause of
     # XR_ERROR_FORM_FACTOR_UNAVAILABLE (-35) in clients.
-    profile = env_cfg.resolved("NV_DEVICE_PROFILE")
     print(
-        f"device profile:    \033[36m{profile}\033[0m  \033[90m(NV_DEVICE_PROFILE)\033[0m"
+        f"device profile:    \033[36m{device_profile}\033[0m  "
+        "\033[90m(NV_DEVICE_PROFILE)\033[0m"
     )
 
     if args.usb_local:
@@ -236,7 +262,7 @@ def _print_startup_banner(
     else:
         hosted_client_url = None
 
-    if args.setup_oob:
+    if include_oob and args.setup_oob:
         if args.usb_local:
             print(
                 "        oob:       \033[32menabled\033[0m  "
@@ -265,9 +291,8 @@ def _print_startup_banner(
 
     print(
         "Activate CloudXR environment in another terminal: "
-        f"\033[1;32msource {env_cfg.env_filepath()}\033[0m"
+        f"\033[1;32msource {env_file}\033[0m"
     )
-    print("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -297,7 +322,16 @@ def _cmd_run(args: argparse.Namespace) -> int:
         _fail(str(exc))
 
     with service:
-        _print_startup_banner(args, service, oob_lan_host)
+        run_dir, _ = _resolve_dirs(args)
+        _print_service_summary(
+            args,
+            wss_log=service.wss_log_path,
+            device_profile=_env_file_value(run_dir, "NV_DEVICE_PROFILE"),
+            env_file=os.path.join(run_dir, "cloudxr.env"),
+            oob_lan_host=oob_lan_host,
+            include_oob=True,
+        )
+        print("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
 
         stop = False
 
@@ -342,6 +376,19 @@ def _require_eula(args: argparse.Namespace, run_dir: str) -> None:
     print(f"Recorded EULA acceptance: {marker}")
 
 
+def _print_summary_for(args: argparse.Namespace, run_dir: str, logs_dir: Path) -> None:
+    """Summarise a service running in another process."""
+    from ..runtime import latest_wss_log  # noqa: PLC0415
+
+    _print_service_summary(
+        args,
+        wss_log=latest_wss_log(logs_dir) or "(none yet)",
+        device_profile=_env_file_value(run_dir, "NV_DEVICE_PROFILE"),
+        env_file=os.path.join(run_dir, "cloudxr.env"),
+        logs_dir=logs_dir,
+    )
+
+
 def _cmd_start(args: argparse.Namespace) -> int:
     """Start the service detached from this terminal."""
     from .. import background  # noqa: PLC0415
@@ -362,9 +409,15 @@ def _cmd_start(args: argparse.Namespace) -> int:
     deadline = time.monotonic() + RUNTIME_STARTUP_TIMEOUT_SEC
     while time.monotonic() < deadline:
         if is_runtime_live(run_dir):
-            print(f"CloudXR service started (pid {pid})")
-            print(f"  logs:  {log}")
-            print("  stop:  python -m isaacteleop.cloudxr.service stop")
+            _print_summary_for(args, run_dir, logs_dir)
+            print(
+                f"CloudXR service: \033[32mdetached\033[0m (pid {pid}), "
+                f"log file: \033[90m{log}\033[0m"
+            )
+            print(
+                "\033[33mStop it with: python -m isaacteleop.cloudxr.service stop"
+                "\033[0m"
+            )
             return 0
         if background.read_pid(run_dir) is None:
             _fail(f"The service exited during startup.  See {log}")
@@ -403,17 +456,30 @@ def _cmd_status(args: argparse.Namespace) -> int:
     from ..runtime import is_runtime_live  # noqa: PLC0415
 
     run_dir, logs_dir = _resolve_dirs(args)
-    live = is_runtime_live(run_dir)
     pid = background.read_pid(run_dir)
 
-    print(f"runtime:  {'running' if live else 'not running'}  ({run_dir})")
+    if not is_runtime_live(run_dir):
+        print(
+            f"CloudXR runtime:   \033[31mnot running\033[0m  \033[90m({run_dir})\033[0m"
+        )
+        return 1
+
+    # Report the session that is actually running, not this command's defaults.
+    running = _build_parser().parse_args(["run", *background.read_run_flags(run_dir)])
+    running.cloudxr_install_dir = args.cloudxr_install_dir
+    _print_summary_for(running, run_dir, logs_dir)
+
     if pid is not None:
-        print(f"detached: pid {pid}")
-    elif live:
-        # A foreground `service run`, or one started by something else.
-        print("detached: no (started in the foreground or by another supervisor)")
-    print(f"logs:     {background.log_path(logs_dir)}")
-    return 0 if live else 1
+        print(
+            f"CloudXR service: \033[32mdetached\033[0m (pid {pid}), "
+            f"log file: \033[90m{background.log_path(logs_dir)}\033[0m"
+        )
+    else:
+        print(
+            "CloudXR service: \033[36mforeground\033[0m  \033[90m(started by "
+            "`service run`, a container entrypoint, or run_embedded)\033[0m"
+        )
+    return 0
 
 
 def _cmd_logs(args: argparse.Namespace) -> int:
