@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run with: python -m isaacteleop.rig rigs/mujoco_xr.yaml
+#
+# Two panes, one declared. With no `runtime:` key, RigConfig.runtime_command
+# falls back to DEFAULT_RUNTIME_COMMAND (rig/config.py:42,89-91), so the runtime
+# pane is implicit. No producers either: the app opens the OpenXR session itself
+# through Televiz and reads controllers straight from the runtime, so there is
+# no rendezvous and deliberately no `params:` / `collection_id:`.
+#
+# Requires both wheels in the environment you launch the rig from: `{python}`
+# expands to the launching interpreter (rig/config.py:249), so
+# isaacteleop-examples-mujoco-xr must be installed beside `isaacteleop` rather
+# than in a private .venv.
+#
+#   uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/ --reinstall
+#   uv pip install ./examples/mujoco_xr        # same environment
+#
+# That is all this rig needs -- the second line compiles the extension itself
+# and never reads the CMake build tree. See examples/mujoco_xr/README.md#build.
+#
+# See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
+name: mujoco_xr
+description: CloudXR runtime + MuJoCo scene in XR with the SO-101 leader gripper
+cwd: ..                        # -> Teleop repo root
+consumers:
+  - name: mujoco xr app (requires headset)
+    # Keep --no-launch-cloudxr-runtime. Without it the app starts a second
+    # CloudXR runtime, and the runtime is a host singleton on WSS port 48322, so
+    # the second one kills this rig's own runtime pane: the headset drops
+    # mid-session and it reads as a runtime crash rather than a config edit.
+    # find_runtime_footguns() warns about this (rig/config.py:264-288) but is
+    # never a gate.
+    command: "{python} -m isaacteleop_examples.mujoco_xr --no-launch-cloudxr-runtime"

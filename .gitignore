@@ -56,6 +56,9 @@ dist/
 # SPDX report
 project.spdx
 
+# MuJoCo writes this to the working directory, not next to the model.
+MUJOCO_LOG.TXT
+
 # robotic_grounding source bundle (cloned locally / in CI from
 # jiwenc-nv/v2d:retargeter; never committed -- repopulated deterministically
 # from deps/v2d/version.txt). The Teleop wheel build copies this subtree
@@ -66,3 +69,14 @@ deps/v2d/wheels/
 
 # Runtime device files injected by MCP server infrastructure
 .mcp.json
+
+# SO-101 leader-gripper assets, fetched by
+# examples/mujoco_xr/scripts/fetch-so-arm.sh into the package's own assets
+# directory (which is what makes them package data), so only the authored
+# wrapper XML beside them is tracked.
+#
+# Keep this rule here, not in examples/mujoco_xr/.gitignore: scikit-build-core
+# resolves .gitignore against the project root, so a rule there would strip the
+# meshes out of the wheel too.
+/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/leader/*
+!/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/leader/leader_gripper.xml

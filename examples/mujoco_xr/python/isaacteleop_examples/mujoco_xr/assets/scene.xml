@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+The shipped scene: the SO-101 leader gripper ghost, and nothing else. No ground
+plane and no static furniture -- this is an AR scene and passthrough is the
+background.
+
+What a ghost-only scene cannot show: the ghost is placed from the controller
+pose through mj_from_xr and rendered back through xr_from_mj, so both
+cpp/frames.hpp constants cancel and it lands on the hand whatever they are. Only
+static content is placed by them, so adding any here puts kTransMjFromXr under
+test -- its z = -0.73 claims MuJoCo z = 0 is a work surface 0.73 m above the
+floor.
+
+The renderer draws mjGEOM_MESH only, so a box, sphere or capsule added here
+renders as nothing.
+-->
+<mujoco model="mujoco_xr_scene">
+  <!-- timestep only. No <visual><headlight>: this scene is not lit by MuJoCo.
+       cpp/shaders/scene.frag has one hardcoded directional light and
+       mjvGLCamera is bypassed, so lighting declared here is silently inert. -->
+  <option timestep="0.002"/>
+
+  <include file="leader/leader_gripper.xml"/>
+</mujoco>

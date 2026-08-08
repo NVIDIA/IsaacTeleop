@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+The leader gripper ghost: an SO-101 leader gripper locked to the operator's
+controller grip pose, and the whole of the shipped scene. It shows the grip
+calibration in app.py -- whether the tool sits in the hand the way a hand holds
+one. It cannot show cpp/frames.hpp: those constants place it and are undone when
+the renderer folds it back into the XR reference space.
+
+Opaque, which makes draw order free (at alpha 1.0 the depth test decides
+everything) and retires two risks: the ghost writing depth into CloudXR's
+reprojection buffer, and back faces blending against front faces under
+VK_CULL_MODE_NONE. A scene that drops the alpha back takes all three on again
+and must include this LAST, since mjv_updateScene emits in geom-id order.
+
+Provenance: all four meshes are TheRobotStudio/SO-ARM100 at commit
+fda892cba81032c46c40976a48c9ceadbf40a9ca, Apache-2.0. Three are leader-specific
+print parts; the fourth is the STS3215 servo, shared with the follower. Fetched,
+not vendored -- scripts/fetch-so-arm.sh pulls them beside this file,
+checksum-verified, with the LICENSE and so101_new_calib.urdf. Only this wrapper
+is tracked; the payload is gitignored at the repository root.
+
+The STLs are not in print orientation -- they sit on a shared CAD datum, which
+is why the transforms below are derived rather than tuned:
+
+    Handle_SO101.stl        z[ 36.703,  96.768]
+    Trigger_SO101.stl       z[-26.000,   6.000]
+    Wrist_Roll_SO101.stl    x[-35.200,  30.000] y[-24.000, 28.000]
+    wrist_roll_follower...  x[-35.000,  30.000] y[-24.000, 28.000]  <- SAME DATUM
+
+scale="0.001": SO-ARM STLs are in MILLIMETRES. Getting it wrong puts the camera
+inside a 65 m solid, which reads as "passthrough broke".
+-->
+<mujoco model="so101 leader gripper ghost">
+  <asset>
+    <!-- Paths are relative to THIS file's directory. MuJoCo resolves an
+         included file's assets against the include-relative directory, which is
+         why these three names carry no prefix and why this fragment lives in
+         the same directory as the STLs it names. -->
+    <mesh name="leader_wrist_roll" file="Wrist_Roll_SO101.stl"
+          scale="0.001 0.001 0.001"/>
+    <mesh name="leader_trigger" file="Trigger_SO101.stl"
+          scale="0.001 0.001 0.001"/>
+    <mesh name="leader_handle" file="Handle_SO101.stl"
+          scale="0.001 0.001 0.001"/>
+    <!-- No `scale`, and that is not an oversight: this is Menagerie's own asset
+         (Simulation/SO101/assets/), authored in metres, where the three leader
+         parts above are SO-ARM print STLs in millimetres. Adding scale="0.001"
+         here shrinks the servo to 45 microns and it vanishes rather than
+         erroring. -->
+    <mesh name="leader_motor" file="STS3215_03a.stl"/>
+    <!-- Opaque; see the header. A scene that puts a robot under the ghost may
+         want the alpha back, and then the include-last ordering above stops
+         being optional. -->
+    <material name="leader_ghost" rgba="0.55 0.80 1.00 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- A MOCAP BODY, so MuJoCo owns the mesh_pos/mesh_quat composition it
+         applies at compile time; hand-placed decor geoms would have to
+         reproduce it from mjModel fields most people do not know exist.
+         `pos` is where the ghost sits until the first valid controller
+         sample, clear of the scene's contents so "not moved yet" reads
+         differently from "broken". -->
+    <body name="leader_ghost" mocap="true" pos="0.12 0.16 0.22"
+          quat="0.5 0.5 -0.5 -0.5">
+      <!-- DERIVED, NOT TUNED. so101.xml puts the follower's fixed-jaw shank at
+           pos="0 -0.000218 0.00095" quat="0 1 0 0" in the `gripper` body, and
+           Wrist_Roll_SO101.stl is that same part on the same datum with the
+           fixed jaw amputated. So this slot is Menagerie's, verbatim. -->
+      <geom name="leader_ghost_wrist_roll" type="mesh" mesh="leader_wrist_roll"
+            material="leader_ghost" pos="0 -0.000218 0.00095" quat="0 1 0 0"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+
+      <!-- The servo, without which the assembly reads as broken: wrist_roll is
+           a C-shaped bracket that wraps it, so the bracket alone leaves an open
+           notch at the trigger. Straight from the URDF's second gripper_link
+           visual: sts3215_03a_v1.stl at xyz="0.0077 0.0001 -0.0234"
+           rpy="-1.5708 0 0". The follower's servo on the leader's gripper is
+           correct -- they share the hardware. -->
+      <geom name="leader_ghost_motor" type="mesh" mesh="leader_motor"
+            material="leader_ghost" pos="0.0077 0.0001 -0.0234"
+            quat="0.70711 -0.70711 0 0"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+
+      <!-- DERIVED, not tuned: the handle is on the same CAD datum as the
+           shank, so it takes the SAME transform. The evidence is the assembled
+           gap -- 0.3 mm shank-to-handle, 2.1 mm to the pivoting trigger --
+           which tests/test_ghost.py asserts, so a mesh refresh that broke the
+           datum fails rather than drifts. -->
+      <geom name="leader_ghost_handle" type="mesh" mesh="leader_handle"
+            material="leader_ghost" pos="0 -0.000218 0.00095" quat="0 1 0 0"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+
+    <!-- The trigger, on its own mocap channel because it articulates:
+         SO101GripperRetargeter turns the analog trigger into a closedness and
+         app.py swings this body about the hinge.
+
+         A second mocap body rather than a hinge joint, because a jointed child
+         of a mocap body compiles and mj_forward honours a written qpos, but
+         mj_step then integrates gravity into it (measured: 0.06 rad over 50
+         steps).
+
+         `pos`/`quat` are identical to leader_ghost above -- app.py rotates this
+         body about a point rather than placing its origin there, so the hinge
+         lives in exactly one place. -->
+    <body name="leader_ghost_jaw" mocap="true" pos="0.12 0.16 0.22"
+          quat="0.5 0.5 -0.5 -0.5">
+      <!-- Straight from upstream. The trigger occupies the follower's
+           `moving_jaw_so101_v1` slot: so101_new_calib.urdf gives the `gripper`
+           joint origin as xyz="0.0202 0.0188 -0.0234" rpy="1.5708 0 0",
+           composed here with that body's own visual geom pos="0 0 0.0189".
+           This is the joint's zero pose; app.py swings it from there. -->
+      <geom name="leader_ghost_trigger" type="mesh" mesh="leader_trigger"
+            material="leader_ghost" pos="0.0202 -0.0001 -0.0234" quat="1 1 0 0"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+  </worldbody>
+</mujoco>
