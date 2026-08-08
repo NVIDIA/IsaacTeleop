@@ -4,5 +4,6 @@
 """CloudXR integration for isaacteleop."""
 
 from .launcher import CloudXRLauncher
+from .service import CloudXRService
 
-__all__ = ["CloudXRLauncher"]
+__all__ = ["CloudXRLauncher", "CloudXRService"]

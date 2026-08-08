@@ -193,3 +193,30 @@ To inspect the active settings after startup:
 .. code-block:: bash
 
    cat ~/.cloudxr/run/cloudxr.env
+
+Troubleshooting
+---------------
+
+.. _cloudxr-form-factor-unavailable:
+
+``xrGetSystem`` fails with ``XR_ERROR_FORM_FACTOR_UNAVAILABLE`` (-35)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+-35 is returned *after* ``xrCreateInstance`` succeeded, so the runtime was
+found and loaded — a missing runtime gives -51 (``XR_ERROR_RUNTIME_UNAVAILABLE``)
+instead. It means the runtime is up but no headset session is attached to it
+yet. Check, in order:
+
+1. A client is connected. The headset must have loaded the web client and
+   clicked CONNECT; until then there is no system to return.
+2. The device profile matches the device: check ``NV_DEVICE_PROFILE`` in
+   ``~/.cloudxr/run/cloudxr.env``, which the launcher also prints at startup.
+3. The application is talking to the runtime you think it is. Applications that
+   do not embed ``CloudXRLauncher`` need ``source ~/.cloudxr/run/cloudxr.env``
+   first, so that ``XR_RUNTIME_JSON`` and ``NV_CXR_RUNTIME_DIR`` point at it.
+
+Library defaults are fail-fast: ``OpenXRSession`` uses ``wait_for_system=false``
+and ``VizSessionConfig`` uses ``xr_system_wait_seconds = 0``, so -35 is raised
+on the first call rather than waited out. Set either one to block until a
+headset connects — that is what the examples do when they let you start the app
+before putting the headset on.

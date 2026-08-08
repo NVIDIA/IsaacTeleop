@@ -14,6 +14,9 @@ import shlex
 import warnings
 from pathlib import Path
 
+DEFAULT_DEVICE_PROFILE = "Quest3"
+"""``NV_DEVICE_PROFILE`` used when no env file, process env, or caller sets one."""
+
 
 class EnvConfig:
     """Singleton holding CloudXR env configuration and resolved state.
@@ -50,7 +53,7 @@ class EnvConfig:
         "NV_CXR_ENABLE_PUSH_DEVICES": "true",
         "NV_CXR_ENABLE_TENSOR_DATA": "true",
         "NV_CXR_FILE_LOGGING": "true",
-        "NV_DEVICE_PROFILE": "auto-webrtc",
+        "NV_DEVICE_PROFILE": DEFAULT_DEVICE_PROFILE,
     }
 
     def __new__(cls) -> "EnvConfig":
@@ -98,6 +101,12 @@ class EnvConfig:
     def env_filepath(self) -> str:
         """Return the path to the env file."""
         return os.path.join(self.openxr_run_dir(), self._env_filename())
+
+    def resolved(self, key: str) -> str | None:
+        """Return the resolved value of ``key``, or ``None`` before resolution."""
+        if self._resolved_env is None:
+            return None
+        return self._resolved_env.get(key)
 
     # -------------------------------------------------------------------------
     # Private instance methods

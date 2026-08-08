@@ -108,9 +108,10 @@ The first launch downloads the CloudXR Web Client SDK and asks you to review and
 accept the EULA on the terminal; answer the prompt once and the acceptance is
 remembered for subsequent runs.
 
-The CloudXR runtime uses the ``auto-webrtc`` device profile by default
-(Pico & Quest). For Apple Vision Pro it defaults to ``auto-native``. To
-override settings, write a ``KEY=value`` env file and pass it to the example
+The CloudXR runtime uses the ``Quest3`` device profile by default; Apple Vision
+Pro needs ``auto-native``. The profile is set on the *runtime*, so applications
+inherit whatever the runtime they connect to was started with. To override it,
+or any other setting, write a ``KEY=value`` env file and pass it to the example
 with ``--cloudxr-env-config``:
 
 .. code-block:: bash
@@ -145,7 +146,7 @@ To inspect the resolved settings after startup:
      - Description
      - Values
    * - ``NV_DEVICE_PROFILE``
-     - ``auto-webrtc``
+     - ``Quest3``
      - Device profile
      - ``auto-webrtc``, ``auto-native``, ``Quest3``, ``AppleVisionPro``
    * - ``NV_CXR_ENABLE_PUSH_DEVICES``
