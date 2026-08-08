@@ -113,9 +113,9 @@ class TestServiceStop:
 
             with (
                 patch(
-                    "isaacteleop.cloudxr.service.os.getpgid", return_value=99
+                    "isaacteleop.cloudxr.service._service.os.getpgid", return_value=99
                 ) as m_getpgid,
-                patch("isaacteleop.cloudxr.service.os.killpg") as m_killpg,
+                patch("isaacteleop.cloudxr.service._service.os.killpg") as m_killpg,
             ):
                 service.stop()
 
@@ -146,8 +146,10 @@ class TestServiceStop:
             proc.wait = MagicMock(side_effect=subprocess.TimeoutExpired("cmd", 10))
 
             with (
-                patch("isaacteleop.cloudxr.service.os.getpgid", return_value=99),
-                patch("isaacteleop.cloudxr.service.os.killpg") as m_killpg,
+                patch(
+                    "isaacteleop.cloudxr.service._service.os.getpgid", return_value=99
+                ),
+                patch("isaacteleop.cloudxr.service._service.os.killpg") as m_killpg,
             ):
                 service.stop()
 
@@ -162,7 +164,7 @@ class TestServiceStop:
             service = CloudXRService()
             mocks["proc"].poll.return_value = None
 
-            with patch("isaacteleop.cloudxr.service.sys.platform", "win32"):
+            with patch("isaacteleop.cloudxr.service._service.sys.platform", "win32"):
                 with pytest.raises(RuntimeError, match="not supported on Windows"):
                     service.stop()
 
@@ -213,7 +215,9 @@ class TestCleanupStaleRuntime:
         run_dir, paths = self._stale_run_dir(tmp_path)
         fake_cfg = FakeEnvConfig(run_dir, tmp_path / "logs")
 
-        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.service"):
+        with caplog.at_level(
+            logging.WARNING, logger="isaacteleop.cloudxr.service._service"
+        ):
             CloudXRService._cleanup_stale_runtime(fake_cfg)
 
         assert not any(os.path.exists(p) for p in paths)

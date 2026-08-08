@@ -141,18 +141,18 @@ def mock_service_deps(tmp_path, ready=True):
     mocks = {}
     with (
         patch(
-            "isaacteleop.cloudxr.service.EnvConfig.from_args",
+            "isaacteleop.cloudxr.service._service.EnvConfig.from_args",
             return_value=fake_cfg,
         ) as m_from_args,
         patch(
-            "isaacteleop.cloudxr.service.check_eula",
+            "isaacteleop.cloudxr.service._service.check_eula",
         ) as m_eula,
         patch(
-            "isaacteleop.cloudxr.service.wait_for_runtime_ready_sync",
+            "isaacteleop.cloudxr.service._service.wait_for_runtime_ready_sync",
             return_value=ready,
         ) as m_wait,
         patch(
-            "isaacteleop.cloudxr.service.subprocess.Popen",
+            "isaacteleop.cloudxr.service._service.subprocess.Popen",
             return_value=mock_proc,
         ) as m_popen,
         patch.object(
@@ -164,7 +164,7 @@ def mock_service_deps(tmp_path, ready=True):
             "_cleanup_stale_runtime",
         ) as m_cleanup,
         patch(
-            "isaacteleop.cloudxr.service.atexit",
+            "isaacteleop.cloudxr.service._service.atexit",
         ) as m_atexit,
     ):
         mocks["from_args"] = m_from_args

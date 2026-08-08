@@ -160,13 +160,18 @@ def _write_eula_marker(marker: str) -> None:
         f.write("accepted\n")
 
 
+def eula_marker(run_dir: str) -> str:
+    """Path of the EULA acceptance marker under *run_dir*."""
+    return os.path.join(run_dir, "eula_accepted")
+
+
 def check_eula(*, accept_eula: bool | None = None) -> None:
     """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime.
 
     Args:
         accept_eula: If True, accept and write marker. If None, check marker then prompt interactively.
     """
-    marker = os.path.join(get_env_config().openxr_run_dir(), "eula_accepted")
+    marker = eula_marker(get_env_config().openxr_run_dir())
     if os.path.isfile(marker):
         return
 

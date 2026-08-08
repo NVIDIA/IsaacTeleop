@@ -1,13 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The CloudXR service: sole owner of the runtime process and the WSS proxy.
-
-A host runs one service.  Whatever supervises it — a systemd user service,
-a container entrypoint, or a calling process via
-``CloudXRLauncher(run_embedded=True)`` — everything else attaches to what it
-started rather than starting its own.
-"""
+"""Owner of the CloudXR runtime process and the WSS TLS proxy."""
 
 from __future__ import annotations
 
@@ -22,8 +16,8 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .env_config import DEFAULT_DEVICE_PROFILE, EnvConfig
-from .runtime import (
+from ..env_config import DEFAULT_DEVICE_PROFILE, EnvConfig
+from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
     get_sdk_path,
@@ -111,7 +105,7 @@ class CloudXRService:
         self._host_client = host_client
 
         if self._usb_local or self._host_client:
-            from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
+            from ..oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
 
             require_web_client_static_dir()
 
@@ -463,7 +457,7 @@ class CloudXRService:
 
     def _start_wss_proxy_thread(self, log_path: Path) -> None:
         """Launch the WSS proxy in a daemon thread."""
-        from .wss import run as wss_run  # noqa: PLC0415
+        from ..wss import run as wss_run  # noqa: PLC0415
 
         loop = asyncio.new_event_loop()
         self._wss_loop = loop
