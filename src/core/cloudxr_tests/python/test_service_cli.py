@@ -44,89 +44,112 @@ class TestRunFlags:
         assert "--accept-eula" not in cli._run_flags(_run_args(accept_eula=True))
 
 
-class TestSystemdGuard:
-    """Every unit-managing command refuses when there is no user systemd."""
+class TestStartEula:
+    """The EULA gate on start."""
 
-    @pytest.mark.parametrize("command", ["install", "uninstall", "status", "logs"])
-    def test_refuses_without_systemd(self, command, capsys):
-        with patch("isaacteleop.cloudxr.systemd.is_available", return_value=False):
-            with pytest.raises(SystemExit) as exc:
-                cli.main([command])
-
-        assert exc.value.code == 1
-        err = capsys.readouterr().err
-        assert "no reachable `systemd --user`" in err
-        # The remedy has to name both escapes, or a container user is stuck.
-        assert "isaacteleop.cloudxr.service run" in err
-        assert "run_embedded=True" in err
-
-
-class TestInstallEula:
-    """The EULA gate on install."""
-
-    def _install_args(self, tmp_path, accept: bool):
+    def _start_args(self, tmp_path, accept: bool):
         parser = cli._build_parser()
         return parser.parse_args(
-            ["install", "--cloudxr-install-dir", str(tmp_path)]
+            ["start", "--cloudxr-install-dir", str(tmp_path)]
             + (["--accept-eula"] if accept else [])
         )
 
     def test_refuses_when_not_accepted(self, tmp_path, capsys):
-        """A systemd-started service has no stdin, so it cannot be prompted later."""
-        with patch("isaacteleop.cloudxr.systemd.is_available", return_value=True):
+        """A detached service has no terminal, so it cannot be prompted later."""
+        with patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False):
             with pytest.raises(SystemExit) as exc:
-                cli._cmd_install(self._install_args(tmp_path, accept=False))
+                cli._cmd_start(self._start_args(tmp_path, accept=False))
 
         assert exc.value.code == 1
         assert "EULA has not been accepted" in capsys.readouterr().err
 
-    def test_accept_writes_the_marker_and_installs(self, tmp_path):
+    def test_accept_writes_the_marker(self, tmp_path):
         with (
-            patch("isaacteleop.cloudxr.systemd.is_available", return_value=True),
-            patch("isaacteleop.cloudxr.systemd.write_unit") as m_write,
-            patch("isaacteleop.cloudxr.systemd.enable_now") as m_enable,
+            patch(
+                "isaacteleop.cloudxr.runtime.is_runtime_live", side_effect=[False, True]
+            ),
+            patch("isaacteleop.cloudxr.background.spawn") as m_spawn,
         ):
-            m_write.return_value = tmp_path / "unit"
-            rc = cli._cmd_install(self._install_args(tmp_path, accept=True))
+            m_spawn.return_value = (4242, tmp_path / "logs" / "service.log")
+            rc = cli._cmd_start(self._start_args(tmp_path, accept=True))
 
         assert rc == 0
         assert (tmp_path / "run" / "eula_accepted").is_file()
-        m_write.assert_called_once_with(["--cloudxr-install-dir", str(tmp_path)])
-        m_enable.assert_called_once()
+        m_spawn.assert_called_once()
 
-    def test_existing_marker_needs_no_flag(self, tmp_path):
-        run_dir = tmp_path / "run"
-        run_dir.mkdir(parents=True)
-        (run_dir / "eula_accepted").write_text("accepted\n")
 
-        with (
-            patch("isaacteleop.cloudxr.systemd.is_available", return_value=True),
-            patch("isaacteleop.cloudxr.systemd.write_unit") as m_write,
-            patch("isaacteleop.cloudxr.systemd.enable_now"),
-        ):
-            m_write.return_value = tmp_path / "unit"
-            assert cli._cmd_install(self._install_args(tmp_path, accept=False)) == 0
+class TestStart:
+    """Tests for `service start`."""
 
-    def test_no_now_skips_the_start(self, tmp_path):
-        parser = cli._build_parser()
-        args = parser.parse_args(
-            [
-                "install",
-                "--cloudxr-install-dir",
-                str(tmp_path),
-                "--accept-eula",
-                "--no-now",
-            ]
+    def _args(self, tmp_path):
+        return cli._build_parser().parse_args(
+            ["start", "--cloudxr-install-dir", str(tmp_path), "--accept-eula"]
         )
-        with (
-            patch("isaacteleop.cloudxr.systemd.is_available", return_value=True),
-            patch("isaacteleop.cloudxr.systemd.write_unit") as m_write,
-            patch("isaacteleop.cloudxr.systemd.enable_now") as m_enable,
-        ):
-            m_write.return_value = tmp_path / "unit"
-            cli._cmd_install(args)
 
-        m_enable.assert_not_called()
+    def test_refuses_when_one_is_already_running(self, tmp_path, capsys):
+        with patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True):
+            with pytest.raises(SystemExit):
+                cli._cmd_start(self._args(tmp_path))
+        assert "already serving" in capsys.readouterr().err
+
+    def test_reports_when_the_child_dies_during_startup(self, tmp_path, capsys):
+        """A crash on startup must not look like a slow start."""
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False),
+            patch("isaacteleop.cloudxr.background.spawn") as m_spawn,
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+        ):
+            m_spawn.return_value = (4242, tmp_path / "service.log")
+            (tmp_path / "run").mkdir(parents=True)
+            (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+            with pytest.raises(SystemExit):
+                cli._cmd_start(self._args(tmp_path))
+
+        assert "exited during startup" in capsys.readouterr().err
+
+
+class TestStopAndStatus:
+    """Tests for `service stop` and `service status`."""
+
+    def _args(self, command, tmp_path):
+        return cli._build_parser().parse_args(
+            [command, "--cloudxr-install-dir", str(tmp_path)]
+        )
+
+    def test_stop_is_a_noop_when_nothing_runs(self, tmp_path, capsys):
+        with patch("isaacteleop.cloudxr.background.read_pid", return_value=None):
+            assert cli._cmd_stop(self._args("stop", tmp_path)) == 0
+        assert "No detached CloudXR service" in capsys.readouterr().out
+
+    def test_stop_reports_a_wedged_service(self, tmp_path, capsys):
+        with (
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
+            patch("isaacteleop.cloudxr.background.terminate", return_value=False),
+        ):
+            with pytest.raises(SystemExit):
+                cli._cmd_stop(self._args("stop", tmp_path))
+        assert "would orphan the runtime" in capsys.readouterr().err
+
+    def test_status_exit_code_tracks_liveness(self, tmp_path):
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=7),
+        ):
+            assert cli._cmd_status(self._args("status", tmp_path)) == 0
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+        ):
+            assert cli._cmd_status(self._args("status", tmp_path)) == 1
+
+    def test_status_distinguishes_foreground_from_detached(self, tmp_path, capsys):
+        """A runtime with no pid file was started by hand or another supervisor."""
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+        ):
+            cli._cmd_status(self._args("status", tmp_path))
+        assert "started in the foreground" in capsys.readouterr().out
 
 
 class TestRunValidation:
@@ -153,5 +176,5 @@ class TestParser:
 
     def test_commands_are_registered(self):
         parser = cli._build_parser()
-        for command in ("run", "install", "uninstall", "status", "logs"):
+        for command in ("run", "start", "stop", "status", "logs"):
             assert parser.parse_args([command]).func is not None

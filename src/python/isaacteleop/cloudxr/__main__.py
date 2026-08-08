@@ -9,8 +9,8 @@ from isaacteleop.cloudxr.service.__main__ import main as service_main
 
 # TODO(1.7): remove this module.
 _DEPRECATION = (
-    "python -m isaacteleop.cloudxr is deprecated and is removed in 1.7; "
-    "use python -m isaacteleop.cloudxr.service run"
+    "python -m isaacteleop.cloudxr is deprecated and will be removed in "
+    "Isaac Teleop 1.7; use python -m isaacteleop.cloudxr.service run"
 )
 
 

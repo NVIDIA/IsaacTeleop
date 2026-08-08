@@ -339,7 +339,7 @@ class CloudXRService:
                 os.remove(path)
             except FileNotFoundError:
                 continue
-            logger.warning("Removed stale CloudXR runtime file %s", path)
+            logger.warning("Removed stale CloudXR runtime file \033[90m%s\033[0m", path)
 
     def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
         """Build a diagnostic string after a failed runtime startup.

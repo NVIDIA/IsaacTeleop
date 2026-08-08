@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""CLI for the CloudXR service: run it, or manage its systemd user service."""
+"""CLI for the CloudXR service: run it in the foreground, or detached."""
 
 from __future__ import annotations
 
@@ -11,16 +11,13 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from ._service import CloudXRService
 
 
-def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
-    """Register the flags that shape a running service.
-
-    Shared by ``run`` and ``install``: whatever ``install`` accepts here it
-    renders into the unit's ``ExecStart``.
-    """
+def _add_install_dir_argument(parser: argparse.ArgumentParser) -> None:
+    """Register ``--cloudxr-install-dir``, which every command needs."""
     parser.add_argument(
         "--cloudxr-install-dir",
         type=str,
@@ -28,6 +25,15 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         metavar="PATH",
         help="CloudXR install directory (default: ~/.cloudxr)",
     )
+
+
+def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
+    """Register the flags that shape a running service.
+
+    Shared by ``run`` and ``start``: whatever ``start`` accepts here it passes
+    through to the detached ``run``.
+    """
+    _add_install_dir_argument(parser)
     parser.add_argument(
         "--cloudxr-env-config",
         type=str,
@@ -76,9 +82,9 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
 def _run_flags(args: argparse.Namespace) -> list[str]:
     """Re-serialise the run flags in *args* that differ from their defaults.
 
-    ``install`` bakes these into ``ExecStart``.  ``--accept-eula`` is not among
-    them: acceptance is recorded as a marker file at install time, in the
-    process where the operator actually consented.
+    ``start`` passes these through to the detached ``run``.  ``--accept-eula``
+    is not among them: acceptance is recorded as a marker file by ``start``
+    itself, in the process where the operator actually consented.
     """
     flags: list[str] = []
     if args.cloudxr_install_dir != os.path.expanduser("~/.cloudxr"):
@@ -311,85 +317,115 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def _require_systemd(action: str) -> None:
-    """Exit with instructions when there is no user systemd to talk to."""
-    from .. import systemd  # noqa: PLC0415
-
-    if not systemd.is_available():
-        _fail(systemd.unavailable_message(f"Cannot {action}."))
+def _resolve_dirs(args: argparse.Namespace) -> tuple[str, Path]:
+    """Return the run and logs directories for *args*' install dir."""
+    install_dir = Path(os.path.expanduser(args.cloudxr_install_dir))
+    return str(install_dir / "run"), install_dir / "logs"
 
 
-def _cmd_install(args: argparse.Namespace) -> int:
-    """Render the systemd user service, then enable and start it."""
-    from .. import systemd  # noqa: PLC0415
+def _require_eula(args: argparse.Namespace, run_dir: str) -> None:
+    """Record EULA acceptance, or explain why the detached service cannot ask."""
     from ..runtime import _EULA_URL, _write_eula_marker, eula_marker  # noqa: PLC0415
 
-    _require_systemd("install the service")
-
-    run_dir = os.path.join(os.path.expanduser(args.cloudxr_install_dir), "run")
     marker = eula_marker(run_dir)
-    if not os.path.isfile(marker):
-        if not args.accept_eula:
-            _fail(
-                "The NVIDIA CloudXR EULA has not been accepted.  A service "
-                "started by systemd has no stdin to prompt on, so accept it "
-                "here:\n  python -m isaacteleop.cloudxr.service install "
-                "--accept-eula\nReview it first: " + _EULA_URL
-            )
-        os.makedirs(run_dir, mode=0o700, exist_ok=True)
-        _write_eula_marker(marker)
-        print(f"Recorded EULA acceptance: {marker}")
+    if os.path.isfile(marker):
+        return
+    if not args.accept_eula:
+        _fail(
+            "The NVIDIA CloudXR EULA has not been accepted.  A detached "
+            "service has no terminal to prompt on, so accept it here:\n"
+            "  python -m isaacteleop.cloudxr.service start --accept-eula\n"
+            "Review it first: " + _EULA_URL
+        )
+    os.makedirs(run_dir, mode=0o700, exist_ok=True)
+    _write_eula_marker(marker)
+    print(f"Recorded EULA acceptance: {marker}")
 
-    path = systemd.write_unit(_run_flags(args))
-    print(f"Wrote {path}")
 
-    if args.now:
-        systemd.enable_now()
-        print(f"Started {systemd.UNIT_NAME}")
-    else:
-        print(
-            f"Not started (--no-now).  Start it with: systemctl --user start {systemd.UNIT_NAME}"
+def _cmd_start(args: argparse.Namespace) -> int:
+    """Start the service detached from this terminal."""
+    from .. import background  # noqa: PLC0415
+    from ..runtime import RUNTIME_STARTUP_TIMEOUT_SEC, is_runtime_live  # noqa: PLC0415
+
+    run_dir, logs_dir = _resolve_dirs(args)
+
+    if is_runtime_live(run_dir):
+        _fail(
+            f"A CloudXR runtime is already serving {run_dir}.  "
+            "Use `service status`, or stop it with `service stop`."
         )
 
-    print(
-        "The service stops at logout unless lingering is enabled:\n  "
-        + systemd.linger_hint()
+    _require_eula(args, run_dir)
+
+    pid, log = background.spawn(_run_flags(args), run_dir, logs_dir)
+
+    deadline = time.monotonic() + RUNTIME_STARTUP_TIMEOUT_SEC
+    while time.monotonic() < deadline:
+        if is_runtime_live(run_dir):
+            print(f"CloudXR service started (pid {pid})")
+            print(f"  logs:  {log}")
+            print("  stop:  python -m isaacteleop.cloudxr.service stop")
+            return 0
+        if background.read_pid(run_dir) is None:
+            _fail(f"The service exited during startup.  See {log}")
+        time.sleep(0.2)
+
+    _fail(
+        f"The service did not come up within {RUNTIME_STARTUP_TIMEOUT_SEC}s "
+        f"(pid {pid} is still running).  See {log}"
     )
-    return 0
+    return 1
 
 
-def _cmd_uninstall(_args: argparse.Namespace) -> int:
-    """Stop, disable, and remove the systemd user service."""
-    from .. import systemd  # noqa: PLC0415
+def _cmd_stop(args: argparse.Namespace) -> int:
+    """Stop the detached service."""
+    from .. import background  # noqa: PLC0415
 
-    _require_systemd("uninstall the service")
-    systemd.disable_now()
-    if systemd.remove_unit():
-        print(f"Removed {systemd.unit_path()}")
-    else:
-        print(f"Nothing to remove at {systemd.unit_path()}")
-    return 0
+    run_dir, _ = _resolve_dirs(args)
+    if background.read_pid(run_dir) is None:
+        print("No detached CloudXR service is running.")
+        return 0
+    if background.terminate(run_dir):
+        print("CloudXR service stopped.")
+        return 0
+    _fail(
+        "The service did not stop within "
+        f"{background.STOP_TIMEOUT_SEC:.0f}s.  It is not killed outright "
+        "because that would orphan the runtime process holding the GPU; "
+        "check the log and signal it yourself if it is wedged."
+    )
+    return 1
 
 
-def _cmd_status(_args: argparse.Namespace) -> int:
-    """Show ``systemctl --user status`` for the service."""
-    from .. import systemd  # noqa: PLC0415
+def _cmd_status(args: argparse.Namespace) -> int:
+    """Report whether a runtime is serving this install dir."""
+    from .. import background  # noqa: PLC0415
+    from ..runtime import is_runtime_live  # noqa: PLC0415
 
-    _require_systemd("query the service")
-    result = systemd.systemctl("status", systemd.UNIT_NAME, "--no-pager", check=False)
-    print(result.stdout, end="")
-    print(result.stderr, end="", file=sys.stderr)
-    return result.returncode
+    run_dir, logs_dir = _resolve_dirs(args)
+    live = is_runtime_live(run_dir)
+    pid = background.read_pid(run_dir)
+
+    print(f"runtime:  {'running' if live else 'not running'}  ({run_dir})")
+    if pid is not None:
+        print(f"detached: pid {pid}")
+    elif live:
+        # A foreground `service run`, or one started by something else.
+        print("detached: no (started in the foreground or by another supervisor)")
+    print(f"logs:     {background.log_path(logs_dir)}")
+    return 0 if live else 1
 
 
 def _cmd_logs(args: argparse.Namespace) -> int:
-    """Tail the service's journal."""
-    from .. import systemd  # noqa: PLC0415
+    """Show the detached service's log."""
+    from .. import background  # noqa: PLC0415
 
-    _require_systemd("read the service journal")
-    cmd = ["journalctl", "--user", "-u", systemd.UNIT_NAME, "-n", str(args.lines)]
-    if args.follow:
-        cmd.append("-f")
+    _, logs_dir = _resolve_dirs(args)
+    log = background.log_path(logs_dir)
+    if not log.is_file():
+        print(f"No log yet at {log}", file=sys.stderr)
+        return 1
+    cmd = ["tail", "-n", str(args.lines)] + (["-f"] if args.follow else []) + [str(log)]
     return subprocess.call(cmd)
 
 
@@ -397,7 +433,7 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build the ``isaacteleop.cloudxr.service`` argument parser."""
     parser = argparse.ArgumentParser(
         prog="python -m isaacteleop.cloudxr.service",
-        description="Run the CloudXR service, or manage it as a systemd user service.",
+        description="Run the CloudXR service in the foreground, or detached.",
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
 
@@ -405,27 +441,24 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_run_arguments(run)
     run.set_defaults(func=_cmd_run)
 
-    install = sub.add_parser(
-        "install", help="render, enable and start the systemd user service"
+    start = sub.add_parser(
+        "start", help="start the service detached from this terminal"
     )
-    _add_run_arguments(install)
-    install.add_argument(
-        "--now",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Start the service after installing it (default: true).",
-    )
-    install.set_defaults(func=_cmd_install)
+    _add_run_arguments(start)
+    start.set_defaults(func=_cmd_start)
 
-    uninstall = sub.add_parser("uninstall", help="stop and remove the service")
-    uninstall.set_defaults(func=_cmd_uninstall)
+    stop = sub.add_parser("stop", help="stop the detached service")
+    _add_install_dir_argument(stop)
+    stop.set_defaults(func=_cmd_stop)
 
-    status = sub.add_parser("status", help="show systemctl status for the service")
+    status = sub.add_parser("status", help="report whether a runtime is running")
+    _add_install_dir_argument(status)
     status.set_defaults(func=_cmd_status)
 
-    logs = sub.add_parser("logs", help="show the service journal")
+    logs = sub.add_parser("logs", help="show the detached service's log")
+    _add_install_dir_argument(logs)
     logs.add_argument("-n", "--lines", type=int, default=50, help="lines to show")
-    logs.add_argument("-f", "--follow", action="store_true", help="follow the journal")
+    logs.add_argument("-f", "--follow", action="store_true", help="follow the log")
     logs.set_defaults(func=_cmd_logs)
 
     return parser
