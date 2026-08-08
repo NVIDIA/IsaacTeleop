@@ -7,6 +7,10 @@ One OpenXR session shared between VizSession (rendering) and TeleopSession
 (input); the scene is drawn by Vulkan into images viz owns and reaches
 ProjectionLayer.submit() by CUDA pointer, never through host memory.
 
+`--robot` picks which gripper ghost is drawn. This file holds only the machinery;
+everything that differs between them -- scene, meshes, mocap bodies, how each
+moving part is driven, where it sits on the hand -- is in robots.py.
+
     VizSession(kXr)  ──get_oxr_handles()──▶  TeleopSession
          │                                        │
          │ vk_device / vk_physical_device         │ controller grip poses
@@ -27,7 +31,6 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import logging
-import math
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -52,6 +55,7 @@ from isaacteleop.teleop_session_manager import (
 )
 
 from . import _mujoco_xr
+from .robots import DEFAULT_ROBOT, ROBOTS, PartKind, Robot
 
 LOG = logging.getLogger("mujoco_xr")
 
@@ -79,94 +83,9 @@ _CLOCK_SOURCE = (
     "not sampled as 0"
 )
 
-# Package data, so it resolves identically from the wheel and the source tree.
-# Must stay absolute: scene.xml <include>s a fragment in a subdirectory, and on
-# mujoco 3.11.0 a relative model path mis-composes that fragment's mesh paths
-# and fails naming a file that is right there on disk.
-DEFAULT_SCENE = Path(__file__).parent / "assets" / "scene.xml"
-
-# The meshes scene.xml <include>s, fetched rather than vendored (see
-# scripts/fetch-so-arm.sh). Checked by name before MuJoCo sees the scene, because
-# MjModel.from_xml_path's failure for a missing <include> target is a bare
-# "Error opening file <mesh>.stl" naming a file nobody asked for.
-FETCH_SCRIPT = "examples/mujoco_xr/scripts/fetch-so-arm.sh"
-_LEADER_ASSETS = Path(__file__).parent / "assets" / "leader"
-_LEADER_MESHES = (
-    "Wrist_Roll_SO101.stl",
-    "Trigger_SO101.stl",
-    "Handle_SO101.stl",
-    "STS3215_03a.stl",
-)
-
-
-def _missing_leader_assets() -> list[str]:
-    """Names of the fetched meshes that are not on disk. Empty when fetched."""
-    return [n for n in _LEADER_MESHES if not (_LEADER_ASSETS / n).is_file()]
-
-
-# One hand and no flag: the ghost is a right-handed leader gripper, and the left
-# controller draws nothing.
+# One hand and no flag: every ghost is right-handed, and the left controller
+# draws nothing.
 GHOST_HAND = ControllersSource.RIGHT
-
-# The two mocap bodies leader_gripper.xml declares.
-GHOST_BODY = "leader_ghost"
-GHOST_JAW_BODY = "leader_ghost_jaw"
-
-# ── Where the ghost sits on the hand ───────────────────────────────────────
-# Measured on a headset, not derived: this is a claim about a hand holding a
-# CONTROLLER, so do not re-derive it from the mesh -- a model assuming the hand
-# passes through the handle loop puts the loop centroid 56 mm from the palm.
-#
-# Euler degrees, intrinsic XYZ, i.e. MuJoCo's `euler=` (pinned by a test). To
-# re-tune, change one angle and reinstall: Rz spins the gripper about its long
-# axis, Rx/Ry tilt it, _POS_GRIP_FROM_GHOST slides it along the grip axes
-# (-Z little finger -> thumb, +X into the palm, +Y through the knuckles). No
-# test asserts a posture, so re-tuning cannot turn them red.
-_EULER_GRIP_FROM_GHOST_DEG = (60, 180, 270)
-_POS_GRIP_FROM_GHOST = np.array((0, 0.02, -0.025))
-
-# ── The trigger hinge ──────────────────────────────────────────────────────
-# The follower's `gripper` revolute joint, from SO-ARM100's
-# so101_new_calib.urdf: origin xyz="0.0202 0.0188 -0.0234" rpy="1.5708 0 0",
-# axis "0 0 1". The right source even for the LEADER's trigger, which is
-# mounted in the follower's moving-jaw slot and shares the hinge. The axis
-# below is that "0 0 1" carried through the joint frame's 90-degree roll.
-#
-# Do not re-derive either from the meshes: a pivot from the nearest
-# trigger-to-shank vertex pair and an axis from the grip frame both look right
-# at the joint's zero and are wrong by the far end of its travel.
-_TRIGGER_HINGE_POS = np.array((0.0202, 0.0188, -0.0234))  # metres, ghost frame
-_TRIGGER_HINGE_AXIS = np.array((0.0, -1.0, 0.0))  # unit, ghost frame
-
-# The travel is the URDF joint's own: `upper="1.74533"` is 100.0 degrees, and
-# squeezed is its authored zero. A released end short of that does not read as
-# an OPEN gripper on a headset, which is the only place this can be judged.
-# Do not extend to the joint's lower limit (-10 deg): that end swings the lever
-# 0.4 mm into the servo. The tightest pass across 0..100 is 2.1 mm, at the
-# squeezed end.
-_TRIGGER_RELEASED_RAD = math.radians(100.0)  # closedness 0, jaw wide open
-_TRIGGER_SQUEEZED_RAD = 0.0  # closedness 1, tucked to the authored pose
-
-
-def _quat_from_euler_deg(angles_deg) -> np.ndarray:
-    """Intrinsic X-then-Y-then-Z degrees -> a wxyz quaternion.
-
-    Right-multiplication is what makes it intrinsic, and is the convention
-    MuJoCo's `euler=` uses. Spelled out rather than calling mju_euler2Quat so
-    the sequence is visible at the point of use.
-    """
-    quat = np.array((1.0, 0.0, 0.0, 0.0))
-    for axis, angle in zip(np.eye(3), angles_deg):
-        step = np.empty(4)
-        mujoco.mju_axisAngle2Quat(step, axis, math.radians(angle))
-        composed = np.empty(4)
-        mujoco.mju_mulQuat(composed, quat, step)
-        quat = composed
-    return quat
-
-
-# ── Derived below; nothing from here on is authored ────────────────────────
-_QUAT_GRIP_FROM_GHOST = _quat_from_euler_deg(_EULER_GRIP_FROM_GHOST_DEG)
 
 
 def _clamp_dt(dt: float) -> float:
@@ -181,12 +100,13 @@ def _clamp_dt(dt: float) -> float:
 
 
 def _build_pipeline() -> OutputCombiner:
-    """Controllers, plus the shipped SO-101 jaw retargeter as a graph edge.
+    """Controllers, plus the shipped jaw retargeter as a graph edge.
 
     The retargeter is a BaseRetargeter node in the pipeline rather than a
-    library call beside it. The shipped scene has no robot, so the jaw it drives
-    is the operator's own trigger; the SO-101 arrives with the scene catalogue and
-    reads the same output.
+    library call beside it. It is the repository's only proportional
+    trigger-to-closedness node; the SO-101 in its name is where it came from, not
+    a claim about which gripper reads it, and both ghosts do. The shipped scenes
+    have no robot, so the jaw it drives is the operator's own trigger.
     """
     controllers = ControllersSource(name="controllers")
     jaw = SO101GripperRetargeter(name="ghost_jaw", input_device=GHOST_HAND).connect(
@@ -254,7 +174,7 @@ def _assert_projection(p: list[float], near: float, far: float) -> None:
         )
 
 
-def _log_startup(resolution) -> None:
+def _log_startup(robot: Robot, resolution) -> None:
     """One block naming every assumption that is invisible at runtime."""
     try:
         version = importlib.metadata.version("isaacteleop")
@@ -262,7 +182,8 @@ def _log_startup(resolution) -> None:
         version = "<not installed as a distribution>"
     trans = _mujoco_xr.TRANS_MJ_FROM_XR
 
-    LOG.info("scene:      %s", DEFAULT_SCENE)
+    LOG.info("robot:      %s (%s)", robot.key, robot.description)
+    LOG.info("scene:      %s", robot.scene)
     # Cross-example venv collisions are real: several examples here ship their
     # own .venv, and picking up the wrong isaacteleop is invisible otherwise.
     LOG.info(
@@ -301,37 +222,40 @@ def _log_startup(resolution) -> None:
 
 
 class _GhostChannels(NamedTuple):
-    """The two mocap rows the ghost writes, resolved once at startup.
+    """The mocap rows the ghost writes, resolved once at startup.
 
     Mocap indices, not body ids: mocap_pos/mocap_quat are indexed by
-    body_mocapid, and a body id there writes into another body's row.
+    body_mocapid, and a body id there writes into another body's row. `parts` is
+    parallel to Robot.parts.
     """
 
     body: int
-    jaw: int
+    parts: tuple[int, ...]
 
 
-def _resolve_ghost(model) -> _GhostChannels:
-    """Both ghost mocap rows. The shipped scene always declares them."""
-    body = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, GHOST_BODY)
-    jaw = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, GHOST_JAW_BODY)
-    if body < 0 or jaw < 0:
+def _resolve_ghost(model, robot: Robot) -> _GhostChannels:
+    """Every ghost mocap row. The robot's scene always declares them."""
+    names = (robot.body, *(part.body for part in robot.parts))
+    ids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, n) for n in names]
+    missing = [n for n, i in zip(names, ids) if i < 0]
+    if missing:
         raise RuntimeError(
-            f"mujoco_xr: {DEFAULT_SCENE} declares no `{GHOST_BODY}` / "
-            f"`{GHOST_JAW_BODY}` pair; it must <include> assets/leader/leader_gripper.xml."
+            f"mujoco_xr: {robot.scene} declares no `{'` / `'.join(missing)}`; it must "
+            f"<include> the {robot.key} gripper fragment."
         )
-    return _GhostChannels(int(model.body_mocapid[body]), int(model.body_mocapid[jaw]))
+    rows = [int(model.body_mocapid[i]) for i in ids]
+    return _GhostChannels(rows[0], tuple(rows[1:]))
 
 
-def _update_ghost(data, ghost: _GhostChannels, result) -> None:
-    """Lock the leader gripper to the GHOST_HAND grip pose; swing its trigger.
+def _update_ghost(data, ghost: _GhostChannels, robot: Robot, result) -> None:
+    """Lock the gripper to the GHOST_HAND grip pose; drive its moving parts.
 
     Keep the validity gate: an untracked controller leaves the grip pose at
     (0, 0, 0), which is the MuJoCo scene origin and a place a legitimate pose
     could put it. Freezing where it was last seen is the honest rendering of
     "tracking lost", so there is no else branch.
 
-    _QUAT_GRIP_FROM_GHOST right-multiplies because it is fixed in the gripper's
+    quat_grip_from_ghost right-multiplies because it is fixed in the gripper's
     own frame; left-multiplying swings the ghost around the room as the operator
     turns.
     """
@@ -354,36 +278,39 @@ def _update_ghost(data, ghost: _GhostChannels, result) -> None:
     p_grip = np.array(_mujoco_xr.mj_from_xr_pos(p_xr), dtype=float)
 
     q_body = np.empty(4)
-    mujoco.mju_mulQuat(q_body, q_grip, _QUAT_GRIP_FROM_GHOST)
+    mujoco.mju_mulQuat(q_body, q_grip, robot.quat_grip_from_ghost)
     p_offset = np.empty(3)
-    mujoco.mju_rotVecQuat(p_offset, _POS_GRIP_FROM_GHOST, q_grip)
+    mujoco.mju_rotVecQuat(p_offset, robot.pos_grip_from_ghost, q_grip)
     p_body = p_grip + p_offset
 
     data.mocap_pos[ghost.body] = p_body
     data.mocap_quat[ghost.body] = q_body
 
     # Closedness comes through the pipeline output, so the deadzone and clamp
-    # are the retargeter's contract rather than this app's. Rotated ABOUT the
-    # hinge, not placed at it: the jaw body's XML rest pose equals the ghost's,
-    # so the pivot lives in exactly one place.
+    # are the retargeter's contract rather than this app's.
     closedness = float(result[GRIPPER_COMMAND_KEY][0])
-    angle = _TRIGGER_RELEASED_RAD + closedness * (
-        _TRIGGER_SQUEEZED_RAD - _TRIGGER_RELEASED_RAD
-    )
-    q_hinge = np.empty(4)
-    mujoco.mju_axisAngle2Quat(q_hinge, _TRIGGER_HINGE_AXIS, angle)
-    q_jaw = np.empty(4)
-    mujoco.mju_mulQuat(q_jaw, q_body, q_hinge)
+    for part, row in zip(robot.parts, ghost.parts):
+        value = part.released + closedness * (part.squeezed - part.released)
+        if part.kind is PartKind.HINGE:
+            # Rotated ABOUT the pivot, not placed at it: the part's XML rest pose
+            # equals the root's, so the pivot lives in exactly one place. Where
+            # the origin lands: rotating the ghost frame about the pivot maps 0
+            # to (pivot - R . pivot).
+            q_local = np.empty(4)
+            mujoco.mju_axisAngle2Quat(q_local, part.axis, value)
+            swung = np.empty(3)
+            mujoco.mju_rotVecQuat(swung, part.pivot, q_local)
+            local_offset = part.pivot - swung
+            q_part = np.empty(4)
+            mujoco.mju_mulQuat(q_part, q_body, q_local)
+        else:  # PartKind.SLIDE
+            local_offset = part.axis * value
+            q_part = q_body
 
-    # Where the jaw body's origin lands: rotating the ghost frame about the
-    # hinge maps 0 to (pivot - R_hinge . pivot).
-    swung = np.empty(3)
-    mujoco.mju_rotVecQuat(swung, _TRIGGER_HINGE_POS, q_hinge)
-    offset = np.empty(3)
-    mujoco.mju_rotVecQuat(offset, _TRIGGER_HINGE_POS - swung, q_body)
-
-    data.mocap_pos[ghost.jaw] = p_body + offset
-    data.mocap_quat[ghost.jaw] = q_jaw
+        offset = np.empty(3)
+        mujoco.mju_rotVecQuat(offset, local_offset, q_body)
+        data.mocap_pos[row] = p_body + offset
+        data.mocap_quat[row] = q_part
 
 
 def _frame_clock(info) -> float | None:
@@ -399,8 +326,8 @@ def _frame_clock(info) -> float | None:
     return info.predicted_display_time / 1e9
 
 
-def run() -> int:
-    model = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE))
+def run(robot: Robot) -> int:
+    model = mujoco.MjModel.from_xml_path(str(robot.scene))
     data = mujoco.MjData(model)
 
     # Order is load-bearing: build the pipeline, aggregate the OpenXR extensions
@@ -448,17 +375,16 @@ def run() -> int:
             model_address=model._address,
         )
 
-        _log_startup(resolution)
+        _log_startup(robot, resolution)
 
         # After the startup block, so its line reads as part of the same report.
-        ghost = _resolve_ghost(model)
+        ghost = _resolve_ghost(model, robot)
         LOG.info(
-            "leader ghost: bound to mocap %d (body) / %d (trigger); trigger driven by "
-            "SO101GripperRetargeter, %.0f deg released to %.0f deg squeezed",
+            "ghost:      bound to mocap %d (body) / %s (moving); %s, driven by the "
+            "controller trigger through SO101GripperRetargeter",
             ghost.body,
-            ghost.jaw,
-            math.degrees(_TRIGGER_RELEASED_RAD),
-            math.degrees(_TRIGGER_SQUEEZED_RAD),
+            ", ".join(str(row) for row in ghost.parts),
+            robot.drive,
         )
 
         oxr = viz_session.get_oxr_handles()
@@ -474,7 +400,9 @@ def run() -> int:
             oxr_handles=OpenXRSessionHandles(*oxr),
         )
         with TeleopSession(teleop_config) as teleop_session:
-            _loop(viz_session, layer, renderer, model, data, teleop_session, ghost)
+            _loop(
+                viz_session, layer, renderer, model, data, teleop_session, ghost, robot
+            )
     finally:
         # The renderer borrows viz_session's device: it must go first.
         if renderer is not None:
@@ -483,7 +411,9 @@ def run() -> int:
     return 0
 
 
-def _loop(viz_session, layer, renderer, model, data, teleop_session, ghost) -> None:
+def _loop(
+    viz_session, layer, renderer, model, data, teleop_session, ghost, robot
+) -> None:
     view_count = renderer.view_count
     previous_clock: float | None = None
     # Fixed-step accumulator. NOT reset or drained on a non-render frame: the
@@ -511,7 +441,7 @@ def _loop(viz_session, layer, renderer, model, data, teleop_session, ghost) -> N
             will_step = accumulator >= model.opt.timestep
             if will_step or info.should_render:
                 result = teleop_session.step()
-                _update_ghost(data, ghost, result)
+                _update_ghost(data, ghost, robot, result)
 
             steps = 0
             while accumulator >= model.opt.timestep and steps < 64:
@@ -568,6 +498,14 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    parser.add_argument(
+        "--robot",
+        choices=sorted(ROBOTS),
+        default=DEFAULT_ROBOT,
+        help="Which gripper ghost to draw. "
+        + "; ".join(f"{k}: {r.description}" for k, r in sorted(ROBOTS.items()))
+        + f" (default: {DEFAULT_ROBOT})",
+    )
     parser.add_argument("--verbose", action="store_true", help="Debug-level logging.")
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
@@ -577,14 +515,19 @@ def main(argv: list[str]) -> int:
         format="[mujoco_xr] %(message)s",
     )
 
+    robot = ROBOTS[args.robot]
+
     # Before launch_context, which starts a runtime process on entry and tears
     # it down on exit: checked here, an unfetched checkout says so plainly
-    # instead of landing buried in the runtime's own startup logging.
-    missing = _missing_leader_assets()
+    # instead of landing buried in the runtime's own startup logging. Only the
+    # selected robot's meshes are needed, so the other one's absence is not an
+    # error.
+    missing = robot.missing_meshes()
     if missing:
         raise SystemExit(
-            f"mujoco_xr: the leader gripper meshes are not fetched ({', '.join(missing)}).\n"
-            f"  Run {FETCH_SCRIPT} from the repository root, then reinstall:\n"
+            f"mujoco_xr: the {robot.description} meshes are not fetched "
+            f"({', '.join(missing)}).\n"
+            f"  Run {robot.fetch_script} from the repository root, then reinstall:\n"
             "  uv pip install --reinstall-package isaacteleop-examples-mujoco-xr "
             "./examples/mujoco_xr"
         )
@@ -593,7 +536,7 @@ def main(argv: list[str]) -> int:
         if launcher is not None:
             LOG.info("CloudXR runtime started (WSS log: %s)", launcher.wss_log_path)
         try:
-            return run()
+            return run(robot)
         except KeyboardInterrupt:
             LOG.info("interrupted")
             return 0

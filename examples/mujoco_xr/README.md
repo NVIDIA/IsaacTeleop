@@ -6,7 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 # MuJoCo XR
 
 A MuJoCo scene rendered stereoscopically into an Isaac Teleop Televiz XR
-session, with an SO-101 leader gripper locked to the operator's right hand.
+session, with a gripper locked to the operator's right hand — an SO-101 leader
+gripper or a reBot DevArm gripper, picked with `--robot`.
 
 Single process, single thread, **one** OpenXR session:
 
@@ -47,9 +48,9 @@ extension and asserts both report the same version.
 
 | | |
 |---|---|
-| **Covered by tests** | [`ctest -L mujoco_xr`](#tests) — the frame conventions, the projection convention, the clock, the ghost overlay and its jaw channel. All **pure CPU**: no GPU, no headset, no runtime, no window system. |
+| **Covered by tests** | [`ctest -L mujoco_xr`](#tests) — the frame conventions, the projection convention, the clock, both ghost overlays and their jaw channel. All **pure CPU**: no GPU, no headset, no runtime, no window system. |
 | **Never executed anywhere** | **The app itself.** `kXr` is the only display mode and it needs a headset plus a CloudXR runtime, so the frame loop, the renderer, OpenXR session sharing via `oxr_handles`, controllers on a shared session, the Vulkan→CUDA→`submit()` path and whether the runtime accepts the depth layer are run by no test and by no developer here. |
-| **Wrong by construction until calibrated** | The workspace translation, for any scene that adds static content — see [Frames](#frames-cppframeshpp). The shipped ghost-only scene does not show it. |
+| **Wrong by construction until calibrated** | The workspace translation, for any scene that adds static content — see [Frames](#frames-cppframeshpp). Neither ghost-only scene shows it. |
 
 Nothing in `.github/workflows/` installs `mujoco`, so the example is never
 configured and **not one of its tests has ever run in CI**. Green means one
@@ -58,31 +59,42 @@ developer ran it locally. Wiring examples into CI is
 
 ## Scope
 
-Renderer + MuJoCo + rig, and one scene: `assets/scene.xml` — an **SO-101
-leader gripper ghost** locked to the right controller's grip pose, and nothing
-else. No table, no blocks, no ground plane: this is an AR scene and passthrough
-is the background.
+Renderer + MuJoCo + rig, and one **gripper ghost** locked to the right
+controller's grip pose, with nothing else in the scene. No table, no blocks, no
+ground plane: this is an AR scene and passthrough is the background.
 
-The ghost is not decoration. It is a real mesh assembly (4 fetched STLs, so it
-exercises the `mjGEOM_MESH` path), and locking it to the hand makes the *grip*
-calibration visible — whether the tool sits in the hand the way a hand holds
-one. It cannot show a wrong `cpp/frames.hpp`: those constants place it and the
-renderer undoes them folding it back into the XR reference space, so the ghost
-lands in the hand whatever they say. Only static content shows them, and the
-shipped scene has none.
+| `--robot` | ghost | scene | fetch |
+|---|---|---|---|
+| `so101` (default) | SO-101 **leader** gripper — the handheld device itself, so the ghost is the tool the fist is closed around. One trigger on a hinge. | `assets/so101_scene.xml` | `scripts/fetch-so-arm.sh` |
+| `rebot` | reBot DevArm gripper — the **follower's** parallel jaw. The reBot leader is a back-driven arm on a table, so what the controller commands is this. Two jaws on one rack. | `assets/rebot_scene.xml` | `scripts/fetch-rebot-arm.sh` |
 
-**Its trigger is driven by the shipped `SO101GripperRetargeter`, as a graph
-edge** — the retargeter is a `BaseRetargeter` node inside `_build_pipeline()`,
-not a library call beside it, and its closedness output reaches `mjData` and
-therefore the screen. There is no robot in the scene, so the jaw it drives is
-the operator's own trigger; that is enough to show the edge is live, and the
-SO-101 that will read the same output arrives with the scene catalogue.
+Everything that differs between them lives in `robots.py` — scene, meshes,
+mocap bodies, how each moving part is driven, where it sits on the hand — so
+`app.py` holds only the machinery and adding a robot is a new `Robot` plus its
+two authored XML files. A moving part is a **hinge** or a **slide**, and those
+two cases are the whole of `_update_ghost`.
+
+The ghost is not decoration. It is a real mesh assembly (4 fetched STLs for the
+SO-101, 7 for the reBot, so it exercises the `mjGEOM_MESH` path), and locking it
+to the hand makes the *grip* calibration visible — whether the tool sits in the
+hand the way a hand holds one. It cannot show a wrong `cpp/frames.hpp`: those
+constants place it and the renderer undoes them folding it back into the XR
+reference space, so the ghost lands in the hand whatever they say. Only static
+content shows them, and neither shipped scene has any.
+
+**The jaw is driven by the shipped `SO101GripperRetargeter`, as a graph edge** —
+the retargeter is a `BaseRetargeter` node inside `_build_pipeline()`, not a
+library call beside it, and its closedness output reaches `mjData` and therefore
+the screen. It is the repository's only proportional trigger-to-closedness node;
+the SO-101 in its name is where it came from, not a claim about which gripper
+reads it, and both ghosts do. There is no robot in either scene, so the jaw it
+drives is the operator's own trigger.
 
 Two calibrations, and they are different in kind. `cpp/frames.hpp` is a
-*convention* fixed by two specs and cannot be wrong at runtime.
-`_QUAT_GRIP_FROM_GHOST` / `_POS_GRIP_FROM_GHOST` in `app.py` are a *measurement*
-of how a hand holds a tool — where the fist sits on the handle — derived from
-the mesh but only checkable on a headset. See [Frames](#frames-cppframeshpp).
+*convention* fixed by two specs and cannot be wrong at runtime. The
+`quat_grip_from_ghost` / `pos_grip_from_ghost` on each `Robot` place the tool on
+the hand — a *measurement* for the SO-101, a *convention* for the reBot, and the
+difference matters. See [Frames](#frames-cppframeshpp).
 
 ## Build
 
@@ -202,10 +214,20 @@ running and you pass it anyway, the failure comes out of `VizSession.create` as
 an OpenXR error before any of this example's code runs — **no `[mujoco_xr]`
 lines at all** is the tell.
 
-There is one scene and no flag to change it: `assets/scene.xml` is package data
-beside the module, and editing it is how you load something else. There is no
-desktop or headless mode either; without a headset the only verification path is
+`--robot` picks the ghost; each entry's scene is package data beside the module,
+and editing it is how you load something else into that scene. There is no
+desktop or headless mode; without a headset the only verification path is
 [`ctest -L mujoco_xr`](#tests), which exercises no GPU code at all.
+
+```bash
+examples/mujoco_xr/scripts/fetch-rebot-arm.sh                                # once
+uv pip install --reinstall-package isaacteleop-examples-mujoco-xr ./examples/mujoco_xr
+python -m isaacteleop_examples.mujoco_xr --robot=rebot
+```
+
+Only the selected robot's meshes have to be fetched — the app checks that one
+list and names that one script. The `robot:` line in the startup log says which
+ghost it bound.
 
 ## Conventions you can break
 
@@ -229,7 +251,7 @@ scene that puts static content on the work surface owns re-tuning it.
 
 It places static content only. The ghost goes out through `mj_from_xr` and the
 renderer folds it back through `xr_from_mj`, so both constants cancel on it and
-the shipped scene — which is the ghost and nothing else — is blind to a wrong
+each shipped scene — which is a ghost and nothing else — is blind to a wrong
 value. Judging one means a scene with something world-locked in it.
 
 There is no recentre keypress and no runtime override: changing the datum means
@@ -241,14 +263,22 @@ startup log, compare the virtual surface against the real one, and adjust `z`. A
 a Python-side offset would move the gripper and leave the scene put, which is
 precisely the symptom this example exists to disambiguate.
 
-### Where the ghost sits on the hand (`app.py`)
+### Where the ghost sits on the hand (`robots.py`)
 
-A *second* calibration, and a different kind: `_EULER_GRIP_FROM_GHOST_DEG` and
-`_POS_GRIP_FROM_GHOST` place the leader gripper on the operator's hand. Without
-them the gripper's body origin — the follower's `gripper` datum, up at the wrist
-— lands on the grip pose, so the tool hangs off the hand at an arbitrary angle.
+A *second* calibration, and a different kind: each `Robot`'s
+`quat_grip_from_ghost` / `pos_grip_from_ghost` place its gripper on the
+operator's hand. Without them the gripper's body origin — a CAD datum up at the
+wrist, or out at the fingertips — lands on the grip pose, so the tool hangs off
+the hand at an arbitrary angle.
 
-**These are measured on a headset, not derived.** That is the whole provenance:
+**The two robots' values have different provenance, and conflating them is the
+mistake to avoid.** The SO-101's are measured; the reBot's are derived, because
+nobody holds a reBot gripper.
+
+#### SO-101 — measured
+
+`SO101_EULER_GRIP_FROM_GHOST_DEG` and the position beside it are **measured on a
+headset, not derived.** That is the whole provenance:
 it is a claim about how a gripper should look in a hand that is actually holding
 a *controller*, and nothing headless can settle it.
 
@@ -272,8 +302,8 @@ convention as a MuJoCo `euler=` attribute, pinned by a test against a compiled
 model rather than asserted here. Change one angle, `uv pip install
 --reinstall-package isaacteleop-examples-mujoco-xr ./examples/mujoco_xr`,
 relaunch: `Rz` spins the gripper about its own long axis, `Rx` / `Ry` tilt it in
-the hand, and `_POS_GRIP_FROM_GHOST` slides it along the grip axes if the angle
-is right but the placement is not. **No test asserts a posture**, deliberately —
+the hand, and the position slides it along the grip axes if the angle is right
+but the placement is not. **No test asserts an SO-101 posture**, deliberately —
 they cover the machinery, so re-tuning cannot turn them red. The one that
 matters asserts the ghost is *rigidly attached* to the grip frame, which is
 true of any calibration and false if the correction is composed on the wrong
@@ -284,7 +314,27 @@ every mesh into its inertial frame, so recovering an STL's own axes needs
 `mesh_pos` / `mesh_quat`. Skip that and you get the *handle's* axis back instead
 of the jaws', which is self-consistent, passes an axis-only check, and is wrong
 by 60°. The shank's own principal axis is no substitute either — it is a
-near-isotropic blob (σ₀/σ₁ = 1.26), so its principal direction is noise.
+near-isotropic blob (σ₀/σ₁ = 1.26), so its principal direction is noise. The same
+trap bites when checking the reBot jaw frames against their URDF — reading
+`geom_pos` / `geom_quat` raw is off by up to 37 mm and 132° there.
+
+#### reBot — a convention, so a test may pin it
+
+Nobody holds a reBot gripper: it is the follower's jaw drawn at the hand, so
+there is no fist-on-a-handle claim to measure and nothing to tune on a headset.
+`REBOT_EULER_GRIP_FROM_GHOST_DEG` is the OpenXR **grip** frame's own definition
+instead — `+X` into the palm, `−Z` forward through the tube-shaped fist (where a
+pen tip would point), `+Y` out of the fist toward the thumb:
+
+- ghost `+x`, the approach axis with the jaws reaching forward → grip `−Z`
+- ghost `±y`, the jaw opening axis → grip `±X`, so the jaws open the way the
+  index finger squeezes
+
+which is `Rx(90) Ry(0) Rz(270)`. `REBOT_POS_GRIP_FROM_GHOST` then slides the fist
+onto the gripper's **drive motor** rather than onto the link origin, which is out
+at the fingertips — `motor_7` spans x ∈ [−0.1572, −0.0927], so its centre is at
+−0.125 m. Both claims are asserted by `test_ghost.py`, which is the difference
+from the SO-101 above: a change here is a change of convention, not a re-tune.
 
 ### Scene assets
 
@@ -304,33 +354,55 @@ instead area-averaged over the faces round each corner that lie within
 `kCreaseCos`. The measured counts are in `cpp/mesh_buffers.hpp`, and
 `test_ghost.py` fails if anyone reverts to `mjModel`'s.
 
-The ghost's four STLs are **fetched, not vendored** — 2.3 MB of binary in a
+Every ghost's STLs are **fetched, not vendored** — megabytes of binary in a
 source tree is a poor trade when upstream publishes them at a stable commit, and
-Git LFS made every clone pay for them. Run it once, then reinstall, because they
-are package data:
+Git LFS made every clone pay for them. One script per robot; run the one you
+need, then reinstall, because they are package data:
 
 ```bash
 examples/mujoco_xr/scripts/fetch-so-arm.sh          # from the repository root
+examples/mujoco_xr/scripts/fetch-rebot-arm.sh       # --robot=rebot
 uv pip install --reinstall-package isaacteleop-examples-mujoco-xr ./examples/mujoco_xr
 ```
 
 Nothing fetches at build time: an isolated PEP-517 wheel build must not reach
-the network, so the app fails at startup naming the script and `test_ghost.py`
-**skips** with the same reason. Downloads are checksum-verified against a pinned
-commit — a silently substituted mesh renders as a broken gripper rather than an
-error, which has already cost a debugging session.
+the network, so the app fails at startup naming the *selected* robot's script and
+`test_ghost.py` **skips** that robot with the same reason. Downloads are
+checksum-verified against a pinned commit — a silently substituted mesh renders
+as a broken gripper rather than an error, which has already cost a debugging
+session.
 
-The script also pulls `so101_new_calib.urdf`, which is where the trigger's hinge
-and its 0..100° travel come from, so it is on disk to check them against. Three of the four
-meshes are leader-specific print parts; the fourth is the **STS3215 servo**,
-shared with the follower. It is not decoration — `wrist_roll` is a C-shaped
-bracket that wraps the servo, so without it the assembly has an open notch where
-the motor belongs and reads as a broken asset.
+Each script also pulls the URDF the ghost's transforms were read out of, so
+`test_ghost.py` can check them against their source rather than against
+themselves.
 
-It declares **two** mocap bodies — the gripper and its trigger — because the
-trigger articulates; a jointed child of a mocap body would be a dynamic joint
-that `mj_step` integrates gravity into, and a mocap body is kinematic by
-construction.
+| | SO-101 | reBot |
+|---|---|---|
+| upstream | `TheRobotStudio/SO-ARM100`, Apache-2.0 | `Seeed-Projects/reBotArm_control_py`, `urdf/00-arm-rs_asm-v3/` |
+| licence | `LICENSE` fetched beside the meshes | declared MIT in `README.md`, which is fetched in its place — **upstream ships no `LICENSE` file** at the pinned commit. The hardware is `Seeed-Projects/reBot-DevArm`, CERN-OHL-W-2.0. |
+| meshes | 4, 2.3 MB, 45k triangles | 7, 5.8 MB, 115k triangles |
+| units | print STLs in **millimetres** (`scale="0.001"`); the servo in metres and carries none | all metres, no `scale` |
+| checked against the URDF | the trigger hinge and its 0..100° travel | both jaw frames, the slide axes, and the travel |
+
+Three of the SO-101's four meshes are leader-specific print parts; the fourth is
+the **STS3215 servo**, shared with the follower. It is not decoration —
+`wrist_roll` is a C-shaped bracket that wraps the servo, so without it the
+assembly has an open notch where the motor belongs and reads as a broken asset.
+
+**The reBot travel is derived, because upstream disagrees with itself.**
+`joint_left` says `upper="0.05"` and `joint_right` says `0.0715` for the same
+rack-driven pair. The tie-breaker is the `cnc7` rail plate: at `0.05` the
+carriage's outer edge stops 3.4 mm inside its end, and at `0.0715` it hangs
+18.1 mm past it. 0.05 per
+jaw is a 100 mm opening, and both upstream numbers are read out of the fetched
+URDF by a test, so a corrected export fails rather than drifting. The joints'
+authored zero is the **closed** end — the opposite polarity to the SO-101
+trigger, whose zero is squeezed only by coincidence of sign.
+
+Each fragment declares one mocap body per moving part — the SO-101's trigger,
+the reBot's two jaws — because they articulate; a jointed child of a mocap body
+would be a dynamic joint that `mj_step` integrates gravity into, and a mocap body
+is kinematic by construction.
 
 The ghost is **opaque**, and `test_ghost.py` asserts it. That removes the
 draw-order constraint (at alpha 1.0 the depth test decides everything), the
@@ -343,8 +415,8 @@ the scene that needs it.
 
 **Pass MuJoCo an absolute scene path.** Measured on mujoco 3.11.0, a *relative*
 model path mis-composes the mesh paths of an `<include>`d file in a
-subdirectory and fails with `Error opening file '<a path that exists>'`.
-`DEFAULT_SCENE` in `app.py` is absolute for this reason.
+subdirectory and fails with `Error opening file '<a path that exists>'`. Every
+`Robot.scene` in `robots.py` is absolute for this reason.
 
 ### Culling
 
@@ -364,8 +436,8 @@ ctest --test-dir build/cmake-cpython-312 -L mujoco_xr --output-on-failure
 |---|---|
 | `test_frames.py` | the XR→MuJoCo axis map and quaternion order |
 | `test_projection.py` | the clip-space convention (Y flip, standard Z, degenerate-fov rejection) |
-| `test_app_helpers.py` | the NaN-safe `dt` clamp, the zeroed-`predicted_display_time` guard, the single near/far pair, and that the first-frame projection assertion actually fires |
-| `test_ghost.py` | the overlay: that the ghost is opaque, collision-free and carries no mass, that both its bodies are kinematic mocap bodies with no joint anywhere, that the four leader parts form one assembly with sub-mm gaps at the bolted joints and the servo seated in its bracket, that the print STLs are scaled from millimetres and the servo is not, that every corner normal the renderer builds faces the same way as its own triangle (mjModel's do not, and that is what made the ghost render as shattered facets), that the ghost is *rigidly attached* to the grip frame whatever the calibration, that squeezing swings the trigger monotonically from the URDF joint's upper limit to its authored zero without driving the lever through the body, that the shipped `SO101GripperRetargeter` really is the thing driving that channel (built as a real pipeline and fed synthetic DeviceIO snapshots), and that an untracked controller freezes the whole gripper rather than parking it at the scene origin |
+| `test_app_helpers.py` | the NaN-safe `dt` clamp, the zeroed-`predicted_display_time` guard, the single near/far pair, that the first-frame projection assertion actually fires, and that `--robot` rejects an unknown value and reports the *selected* robot's fetch script |
+| `test_ghost.py` | the overlay. **Every robot**: that the ghost is opaque, collision-free and carries no mass, that every one of its bodies is a kinematic mocap body with no joint anywhere, that every mesh is hand-sized (the units trap, from both directions), that every corner normal the renderer builds faces the same way as its own triangle (mjModel's do not, and that is what made the ghost render as shattered facets), that the ghost is *rigidly attached* to the grip frame whatever the calibration, that closedness drives every part monotonically from the catalogue's released end to its squeezed end, and that an untracked controller freezes the whole gripper rather than parking it at the scene origin. **SO-101**: that the four leader parts form one assembly with sub-mm gaps at the bolted joints and the servo seated in its bracket, and that the trigger swings from the URDF joint's upper limit to its authored zero without driving the lever through the body. **reBot**: that both jaw frames and slide axes are Seeed's URDF (undoing MuJoCo's rewrite of the mesh into its inertial frame), that the travel is the limit the rail plate supports and upstream still disagrees with itself, that squeezing brings the fingertips together symmetrically from a 100 mm opening without pushing a carriage into the body, and that the placement follows the OpenXR grip convention with the fist on the drive motor. Plus the shipped `SO101GripperRetargeter` really is the thing driving that channel (built as a real pipeline and fed synthetic DeviceIO snapshots) |
 
 Every one runs on a CPU with no GPU, no headset, no CloudXR runtime and no
 window system. Keep it that way: a permanently-skipping test reports green while
@@ -377,11 +449,17 @@ covering nothing.
 `ProjectionLayer.submit()`, the frame loop that sequences them, OpenXR session
 sharing via `oxr_handles`, whether the runtime accepts the depth layer, and
 **controllers on a shared session** — none of it is executed by any test or on
-any machine here. The grip-to-gripper calibration is a headset-only judgement
-by construction: it is a claim about how a hand holds a tool, and no headless
-test can confirm it — `tests/test_ghost.py` pins the *machinery* against a
-reference calibration and deliberately leaves the shipped constants free to be
-tuned.
+any machine here. The SO-101 grip-to-gripper calibration is a headset-only
+judgement by construction: it is a claim about how a hand holds a tool, and no
+headless test can confirm it — `tests/test_ghost.py` pins the *machinery* against
+a reference calibration and deliberately leaves those constants free to be tuned.
+
+**Neither ghost has been seen through a headset since `--robot` was added, and
+the reBot one never has.** Its placement is derived rather than measured (see
+[reBot — a convention](#rebot--a-convention-so-a-test-may-pin-it)), so what is
+untested is whether a 190 mm gripper reaching 250 mm out of the fist is *usable*,
+not whether it is where the convention says. That is the judgement to make first
+on a headset.
 
 Controllers on a shared session have no precedent elsewhere in this repository:
 `xrAttachSessionActionSets` is legal once per `XrSession`, Teleop sidesteps it

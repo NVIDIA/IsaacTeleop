@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 
 The leader gripper ghost: an SO-101 leader gripper locked to the operator's
-controller grip pose, and the whole of the shipped scene. It shows the grip
+controller grip pose, and the whole of `--robot=so101`. It shows the grip
 calibration in app.py -- whether the tool sits in the hand the way a hand holds
 one. It cannot show cpp/frames.hpp: those constants place it and are undone when
 the renderer folds it back into the XR reference space.

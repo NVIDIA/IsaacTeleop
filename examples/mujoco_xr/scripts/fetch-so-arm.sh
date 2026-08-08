@@ -12,6 +12,9 @@
 # Fetch, then install. The files land in package data, so they only reach
 # site-packages on the next `uv pip install ./examples/mujoco_xr` -- skip the
 # reinstall and the ghost works from the source tree and fails from the wheel.
+#
+# TODO: the download loop below is a copy of the one in fetch-rebot-arm.sh --
+# extract it into a shared helper once a third robot or asset set needs it.
 set -euo pipefail
 
 # The pin. Everything below is reproducible from this one line; bump it and the
