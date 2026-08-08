@@ -74,9 +74,12 @@ def read_run_flags(run_dir: str) -> list[str]:
     if pid is None:
         return []
     try:
-        argv = Path(f"/proc/{pid}/cmdline").read_bytes().decode().split("\0")
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes().decode()
     except OSError:
         return []
+    # cmdline NUL-*terminates* every argument, so a plain split leaves a
+    # trailing empty string that argparse rejects as an unknown argument.
+    argv = [arg for arg in raw.split("\0") if arg]
     return argv[argv.index("run") + 1 :] if "run" in argv else []
 
 

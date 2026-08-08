@@ -465,7 +465,14 @@ def _cmd_status(args: argparse.Namespace) -> int:
         return 1
 
     # Report the session that is actually running, not this command's defaults.
-    running = _build_parser().parse_args(["run", *background.read_run_flags(run_dir)])
+    # Its flags come from another process, so they may be from a build that
+    # knows options this one does not; status must still say what it can.
+    try:
+        running = _build_parser().parse_args(
+            ["run", *background.read_run_flags(run_dir)]
+        )
+    except SystemExit:
+        running = _build_parser().parse_args(["run"])
     running.cloudxr_install_dir = args.cloudxr_install_dir
     _print_summary_for(running, run_dir, logs_dir)
 

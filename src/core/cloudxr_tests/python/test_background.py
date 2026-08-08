@@ -96,6 +96,40 @@ class TestSpawn:
 
 
 @_posix_only
+class TestReadRunFlags:
+    """Recovering a running service's flags from its own command line."""
+
+    def test_empty_without_a_detached_service(self, tmp_path):
+        assert background.read_run_flags(str(tmp_path)) == []
+
+    def test_reads_real_cmdline_without_a_trailing_empty(self, tmp_path):
+        """/proc/<pid>/cmdline NUL-terminates each arg, so a plain split trails ''.
+
+        Exercised against a real process rather than a fake argv list: a mocked
+        list cannot reproduce the terminator, which is what made this reach a
+        user as `status: error: unrecognized arguments`.
+        """
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import time; time.sleep(30)",
+                "isaacteleop.cloudxr.service",
+                "run",
+                "--host-client",
+            ]
+        )
+        try:
+            background.pid_path(str(tmp_path)).write_text(f"{proc.pid}\n")
+            flags = background.read_run_flags(str(tmp_path))
+            assert flags == ["--host-client"]
+            assert "" not in flags
+        finally:
+            proc.kill()
+            proc.wait()
+
+
+@_posix_only
 class TestTerminate:
     """Tests for stopping the detached service."""
 
