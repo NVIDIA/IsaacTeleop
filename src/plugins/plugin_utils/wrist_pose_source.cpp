@@ -7,6 +7,7 @@
 #include <oxr_utils/pose_conversions.hpp>
 
 #include <algorithm>
+#include <cstring>
 #include <iostream>
 #include <string>
 
@@ -197,7 +198,10 @@ void WristPoseSource::initialize_xdev_hand_trackers()
             continue;
         }
 
-        std::string serial_str = properties.serial ? properties.serial : "";
+        // serial is a fixed char[256], never a pointer, so a null check would always be true.
+        // Bound the length so a runtime that fills the array without a terminator cannot
+        // walk past it.
+        std::string serial_str(properties.serial, ::strnlen(properties.serial, sizeof(properties.serial)));
         seen_serials.push_back(serial_str);
 
         if (serial_str == "Head Device (0)")
