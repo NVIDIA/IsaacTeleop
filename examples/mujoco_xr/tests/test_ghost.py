@@ -80,9 +80,11 @@ def _nearest_gap(a, b, stride=7, block=200):
 
 
 # ---------------------------------------------------------------------------
-# A pipeline step result, stubbed. ``app._update_ghost`` reads exactly three
-# fields through the mapping protocol, and supplying them here rather than
-# standing up a TeleopSession is what keeps this file headless.
+# A pipeline step result, stubbed -- supplying it here rather than standing up a
+# TeleopSession is what keeps this file headless.
+#
+# The harness is a pass-through in this file: these tests are about where the
+# ghost lands for a given pose, and test_harness.py owns the governing.
 # ---------------------------------------------------------------------------
 
 
@@ -121,6 +123,27 @@ def _result(controller, closedness=0.0):
         other: _NoController(),
         app.GRIPPER_COMMAND_KEY: [closedness],
     }
+
+
+def _grip_pose(controller):
+    """The 7-D pose GripPoseSource would emit, or None for an untracked grip."""
+    if controller.is_none or not controller[ControllerInputIndex.GRIP_IS_VALID]:
+        return None
+    return np.array(
+        [
+            *controller[ControllerInputIndex.GRIP_POSITION],
+            *controller[ControllerInputIndex.GRIP_ORIENTATION],
+        ],
+        dtype=float,
+    )
+
+
+def _place(data, ghost, controller, closedness=0.0):
+    """One frame of the loop: place the ghost only when the harness has a pose."""
+    pose = _grip_pose(controller)
+    if pose is None:
+        return
+    app._update_ghost(data, ghost, pose, _result(controller, closedness))
 
 
 # ---------------------------------------------------------------------------
@@ -298,9 +321,7 @@ def test_the_ghost_is_rigidly_attached_to_the_grip_frame():
         ((0.31, 1.24, -0.42), (0.0, 0.3826834, 0.0, 0.9238795)),
         ((-0.2, 0.9, -0.8), (0.5, 0.5, 0.5, 0.5)),
     ):
-        app._update_ghost(
-            data, ghost, _result(_Controller(True, grip_pos, grip_quat_xyzw))
-        )
+        _place(data, ghost, _Controller(True, grip_pos, grip_quat_xyzw))
         q_world_from_grip = np.array(_mujoco_xr.mj_from_xr_quat(list(grip_quat_xyzw)))
         inverse, relative = np.empty(4), np.empty(4)
         mujoco.mju_negQuat(inverse, q_world_from_grip)
@@ -341,7 +362,7 @@ def test_squeezing_drives_the_jaw_from_released_to_squeezed():
     controller = _Controller(True, (0.0, 1.2, -0.5))
 
     def hinge_angle_at(closedness):
-        app._update_ghost(data, ghost, _result(controller, closedness))
+        _place(data, ghost, controller, closedness)
         mujoco.mj_forward(model, data)
         inverse, hinge = np.empty(4), np.empty(4)
         mujoco.mju_negQuat(inverse, np.array(data.mocap_quat[ghost.body]))
@@ -362,7 +383,7 @@ def test_squeezing_drives_the_jaw_from_released_to_squeezed():
 
     # And it is big enough to see: the far end of the lever sweeps ~90 mm.
     def trigger_at(closedness):
-        app._update_ghost(data, ghost, _result(controller, closedness))
+        _place(data, ghost, controller, closedness)
         mujoco.mj_forward(model, data)
         return _geom_verts_world(model, data, "leader_ghost_trigger")
 
@@ -421,9 +442,7 @@ def test_the_trigger_clears_the_whole_gripper_across_its_driven_range():
     worst = (0.0, "", 1e9)
     for step in range(9):
         closedness = step / 8
-        app._update_ghost(
-            data, ghost, _result(_Controller(True, (0.0, 1.2, -0.5)), closedness)
-        )
+        _place(data, ghost, _Controller(True, (0.0, 1.2, -0.5)), closedness)
         mujoco.mj_forward(model, data)
         trigger = _geom_verts_world(model, data, "leader_ghost_trigger")
         for part in others:
@@ -493,22 +512,85 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
 def test_an_untracked_controller_freezes_the_whole_gripper():
     """(0, 0, 0) in MuJoCo world is the scene origin -- a legitimate pose.
 
-    Freezing where it was last seen is the honest rendering of "tracking
-    lost", and the jaw freezes with the body rather than articulating on a
-    stale pose.
+    Freezing where it was last seen is the honest rendering of "tracking lost",
+    and the jaw freezes with the body rather than articulating on a stale pose.
+
+    Driven through the real GripPoseSource -> EePoseRateLimiter chain, because
+    the gate is no longer one `if` inside _update_ghost: the source goes absent,
+    the limiter holds its last emitted pose, and _loop places that. Stubbing any
+    of the three would assert that a function nobody called wrote nothing.
     """
+    from isaacteleop.retargeting_engine.interface import (
+        ComputeContext,
+        ExecutionEvents,
+        ExecutionState,
+        OptionalTensorGroup,
+        TensorGroup,
+    )
+    from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
+    from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+        OptionalTensorGroupType,
+    )
+    from isaacteleop.retargeters.rate_limiter import EE_POSE_KEY, EePoseRateLimiter
+    from isaacteleop.retargeting_engine.tensor_types import ControllerInput
+
+    from isaacteleop_examples.mujoco_xr.harness import GripPoseSource
+
     model = _default_scene()
     data = mujoco.MjData(model)
     ghost = app._resolve_ghost(model)
-    app._update_ghost(
-        data, ghost, _result(_Controller(True, (0.2, 1.3, -0.5)), closedness=0.0)
-    )
+
+    source = GripPoseSource(name="grip", input_device=app.GHOST_HAND)
+    limiter = EePoseRateLimiter(name="harness", config=app._HARNESS)
+
+    def io(node):
+        def make(spec):
+            return {
+                k: OptionalTensorGroup(v)
+                if isinstance(v, OptionalTensorGroupType)
+                else TensorGroup(v)
+                for k, v in spec.items()
+            }
+
+        return make(node.input_spec()), make(node.output_spec())
+
+    src_in, src_out = io(source)
+    lim_in, lim_out = io(limiter)
+    time_ns = 0
+
+    def frame(pos, valid, closedness):
+        """One _loop frame: sample, govern, place only if a pose exists."""
+        nonlocal time_ns
+        time_ns += 10_000_000
+        context = ComputeContext(
+            graph_time=GraphTime(sim_time_ns=time_ns, real_time_ns=time_ns),
+            execution_events=ExecutionEvents(
+                reset=False, execution_state=ExecutionState.RUNNING
+            ),
+        )
+        group = TensorGroup(ControllerInput())
+        group[ControllerInputIndex.GRIP_POSITION] = np.asarray(pos, dtype=np.float32)
+        group[ControllerInputIndex.GRIP_ORIENTATION] = np.asarray(
+            (0.0, 0.0, 0.0, 1.0), dtype=np.float32
+        )
+        group[ControllerInputIndex.GRIP_IS_VALID] = valid
+        src_in[app.GHOST_HAND] = group
+        source._compute_fn(src_in, src_out, context)
+        lim_in[EE_POSE_KEY] = src_out[EE_POSE_KEY]
+        limiter._compute_fn(lim_in, lim_out, context)
+        if src_out[EE_POSE_KEY].is_none or lim_out[EE_POSE_KEY].is_none:
+            return
+        pose = np.asarray(np.from_dlpack(lim_out[EE_POSE_KEY][0]), dtype=float)
+        app._update_ghost(data, ghost, pose, {app.GRIPPER_COMMAND_KEY: [closedness]})
+
+    frame((0.2, 1.3, -0.5), True, 0.0)
     seen_body = data.mocap_pos[ghost.body].copy()
     seen_jaw = data.mocap_quat[ghost.jaw].copy()
 
-    for controller in (_Controller(False, (9.0, 9.0, 9.0)), _NoController()):
-        for _ in range(3):
-            app._update_ghost(data, ghost, _result(controller, closedness=1.0))
+    # A squeezed trigger too: the jaw must freeze with the body rather than
+    # articulate on a stale pose.
+    for _ in range(3):
+        frame((9.0, 9.0, 9.0), False, 1.0)
     assert np.array_equal(data.mocap_pos[ghost.body], seen_body)
     assert np.array_equal(data.mocap_quat[ghost.jaw], seen_jaw)
 

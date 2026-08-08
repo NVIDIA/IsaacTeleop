@@ -13,7 +13,7 @@ Single process, single thread, **one** OpenXR session:
 ```
 VizSession(kXr)  ──get_oxr_handles()──▶  TeleopSession
      │                                        │
-     │ vk_device / vk_physical_device         │ controller grip poses
+     │ vk_device / vk_physical_device         │ EePoseRateLimiter output
      ▼                                        ▼
 _mujoco_xr.Renderer  ──__cuda_array_interface__──▶  ProjectionLayer.submit()
 ```
@@ -47,7 +47,7 @@ extension and asserts both report the same version.
 
 | | |
 |---|---|
-| **Covered by tests** | [`ctest -L mujoco_xr`](#tests) — the frame conventions, the projection convention, the clock, the ghost overlay and its jaw channel. All **pure CPU**: no GPU, no headset, no runtime, no window system. |
+| **Covered by tests** | [`ctest -L mujoco_xr`](#tests) — the frame conventions, the projection convention, the clock, the ghost overlay and its jaw channel, and the safety harness the ghost renders: the graph `_build_pipeline()` builds, the three bands, and the colour reaching the geometry the renderer draws. All **pure CPU**: no GPU, no headset, no runtime, no window system. |
 | **Never executed anywhere** | **The app itself.** `kXr` is the only display mode and it needs a headset plus a CloudXR runtime, so the frame loop, the renderer, OpenXR session sharing via `oxr_handles`, controllers on a shared session, the Vulkan→CUDA→`submit()` path and whether the runtime accepts the depth layer are run by no test and by no developer here. |
 | **Wrong by construction until calibrated** | The workspace translation, for any scene that adds static content — see [Frames](#frames-cppframeshpp). The shipped ghost-only scene does not show it. |
 
@@ -77,6 +77,9 @@ not a library call beside it, and its closedness output reaches `mjData` and
 therefore the screen. There is no robot in the scene, so the jaw it drives is
 the operator's own trigger; that is enough to show the edge is live, and the
 SO-101 that will read the same output arrives with the scene catalogue.
+
+**And its pose is the safety harness's output, not the controller's** — see
+[The harness the ghost renders](#the-harness-the-ghost-renders).
 
 Two calibrations, and they are different in kind. `cpp/frames.hpp` is a
 *convention* fixed by two specs and cannot be wrong at runtime.
@@ -206,6 +209,61 @@ There is one scene and no flag to change it: `assets/scene.xml` is package data
 beside the module, and editing it is how you load something else. There is no
 desktop or headless mode either; without a headset the only verification path is
 [`ctest -L mujoco_xr`](#tests), which exercises no GPU code at all.
+
+## The harness the ghost renders
+
+The ghost's pose comes from an `EePoseRateLimiter` (`harness.py`,
+`_build_pipeline()`), so what the operator sees is **the command a follower
+would execute**, not where their hand is. That is the point:
+[#738](https://github.com/NVIDIA/IsaacTeleop/issues/738) reports operators
+losing minutes to harness interventions they could not perceive — the arm "stops
+following", and the instinct that produces (push harder, move faster) is exactly
+wrong.
+
+The limiter is a three-band governor: motion under the limits passes through
+untouched, motion over them is clamped to the limit, and a frame whose input
+velocity breaks the reject envelope is refused outright. Two things report which
+band is live:
+
+- **The ghost lags the hand.** Proprioceptive, and free — you feel where your
+  hand is and see the tool is not there.
+- **The ghost changes colour.** Amber while clamping, red while rejecting,
+  authored blue while passing through. Categorical, which the lag alone is not:
+  a clamp and a refusal both read as "behind my hand".
+
+Colour is written to the shared `leader_ghost` **material**, so one write
+recolours the whole tool. Do not switch it to `geom_rgba`: that silently wins
+over the material, and the four geoms would then have to be kept in step by
+hand. Alpha stays 1.0 in every band —
+`assets/leader/leader_gripper.xml` explains what opacity buys, and a translucent
+"intervening" state would quietly take those risks back.
+
+`InterventionMonitor` recovers the band by comparing what the limiter was handed
+against what it emitted, rather than by asking the limiter. That keeps the
+shipped node unmodified and works for any governor with the same contract; the
+cost is one extra `OutputCombiner` key (`RAW_POSE_KEY`) carrying the limiter's
+own input, which nothing draws.
+
+**The limits are chosen for this demo, not measured against an SO-101.** 0.5 m/s
+and 2.5 rad/s clamp, 2.0 m/s and 10 rad/s reject — set so ordinary reaching is
+pass-through and a deliberate flick trips both bands on demand.
+`RateLimiterConfig` itself defaults to 0.25 m/s, which is the more conservative
+bring-up value and would clamp during ordinary reaching. `tests/test_harness.py`
+drives the real chain at these numbers, so retuning `_HARNESS` past what a hand
+can reach turns those three tests red rather than silently producing a demo that
+never intervenes.
+
+Two deliberate omissions. `SO101ClutchRetargeter` is the shipped producer of
+this `ee_pose` contract and is **not** used: it re-bases the pose onto a
+follower's base frame at every engage, and this ghost is a leader in the
+operator's hand, which has no home to clutch to. And **the jaw is ungoverned** —
+a `JointRateLimiter` would bound it, but the trigger is one scalar the operator
+drives directly, not an IK output that can diverge.
+
+`rate_limiter.py` is
+[#727](https://github.com/NVIDIA/IsaacTeleop/pull/727) rehomed from
+`src/retargeters/` to `src/python/isaacteleop/retargeters/`, which is where that
+package now lives.
 
 ## Conventions you can break
 
@@ -366,6 +424,7 @@ ctest --test-dir build/cmake-cpython-312 -L mujoco_xr --output-on-failure
 | `test_projection.py` | the clip-space convention (Y flip, standard Z, degenerate-fov rejection) |
 | `test_app_helpers.py` | the NaN-safe `dt` clamp, the zeroed-`predicted_display_time` guard, the single near/far pair, and that the first-frame projection assertion actually fires |
 | `test_ghost.py` | the overlay: that the ghost is opaque, collision-free and carries no mass, that both its bodies are kinematic mocap bodies with no joint anywhere, that the four leader parts form one assembly with sub-mm gaps at the bolted joints and the servo seated in its bracket, that the print STLs are scaled from millimetres and the servo is not, that every corner normal the renderer builds faces the same way as its own triangle (mjModel's do not, and that is what made the ghost render as shattered facets), that the ghost is *rigidly attached* to the grip frame whatever the calibration, that squeezing swings the trigger monotonically from the URDF joint's upper limit to its authored zero without driving the lever through the body, that the shipped `SO101GripperRetargeter` really is the thing driving that channel (built as a real pipeline and fed synthetic DeviceIO snapshots), and that an untracked controller freezes the whole gripper rather than parking it at the scene origin |
+| `test_harness.py` | the governed pose and the colour that reports it: that `GripPoseSource` repacks the grip pose xyzw-in-xyzw-out and goes *absent* rather than emitting the scene origin for an untracked grip, that the three bands are told apart correctly — including the two ways to get this wrong, a still hand reading as a rejection and a quaternion sign flip reading as motion — that the band reaches the `mjvGeom` rgba the Vulkan draw loop actually memcpys (not just `mat_rgba`, since `geom_rgba` would win over it), that the ghost stays opaque in every band, and that the real `GripPoseSource → EePoseRateLimiter` chain at the app's own limits passes an unhurried reach through untouched, clamps a fast sweep and refuses a teleport, and that the governed channel reads as *absent* before the first valid grip — the state every session starts in, and the one that is invisible to an `is_none` check because the limiter's output group is **required** (`TensorGroup.is_none` is hardcoded `False`) while the tensor inside it is unset until the limiter latches |
 
 Every one runs on a CPU with no GPU, no headset, no CloudXR runtime and no
 window system. Keep it that way: a permanently-skipping test reports green while

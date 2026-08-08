@@ -9,7 +9,7 @@ ProjectionLayer.submit() by CUDA pointer, never through host memory.
 
     VizSession(kXr)  ──get_oxr_handles()──▶  TeleopSession
          │                                        │
-         │ vk_device / vk_physical_device         │ controller grip poses
+         │ vk_device / vk_physical_device         │ EePoseRateLimiter output
          ▼                                        ▼                      │
     _mujoco_xr.Renderer  ──__cuda_array_interface__──▶  ProjectionLayer  │
          ▲                                                               │
@@ -17,6 +17,10 @@ ProjectionLayer.submit() by CUDA pointer, never through host memory.
 
 C++ owns mjvScene/mjvOption/mjvCamera; Python owns mjModel/mjData/mj_step, so
 everything reading a controller and writing mjData is testable without a GPU.
+
+The ghost renders the safety harness's output rather than the controller, so
+what the operator sees is the command a follower would execute. It lags the hand
+and changes colour while the harness intervenes -- see harness.py.
 
 Frame order is load-bearing: input is sampled before the physics it feeds, on
 every frame that will step or draw.
@@ -40,7 +44,11 @@ from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.oxr import OpenXRSessionHandles
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeting_engine.interface import OutputCombiner
-from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
+from isaacteleop.retargeters.rate_limiter import (
+    EE_POSE_KEY,
+    EePoseRateLimiter,
+    RateLimiterConfig,
+)
 from isaacteleop.retargeters.SO101.gripper_retargeter import (
     GRIPPER_COMMAND_KEY,
     SO101GripperRetargeter,
@@ -52,6 +60,7 @@ from isaacteleop.teleop_session_manager import (
 )
 
 from . import _mujoco_xr
+from .harness import GripPoseSource, InterventionMonitor
 
 LOG = logging.getLogger("mujoco_xr")
 
@@ -111,6 +120,10 @@ GHOST_HAND = ControllersSource.RIGHT
 # The two mocap bodies leader_gripper.xml declares.
 GHOST_BODY = "leader_ghost"
 GHOST_JAW_BODY = "leader_ghost_jaw"
+
+# The limiter's input, carried alongside its output under a name of this app's
+# choosing. Nothing draws it; it is the reference the band is measured against.
+RAW_POSE_KEY = "raw_ee_pose"
 
 # ── Where the ghost sits on the hand ───────────────────────────────────────
 # Measured on a headset, not derived: this is a claim about a hand holding a
@@ -180,23 +193,61 @@ def _clamp_dt(dt: float) -> float:
     return 0.0
 
 
-def _build_pipeline() -> OutputCombiner:
-    """Controllers, plus the shipped SO-101 jaw retargeter as a graph edge.
+# ── What the harness lets through ──────────────────────────────────────────
+# Chosen for this demo, not measured against a follower: ordinary reaching
+# should pass through untouched, and a deliberate flick should trip the clamp
+# and then the reject band, so both interventions can be provoked on demand.
+# An SO-101's own envelope is lower -- RateLimiterConfig defaults to 0.25 m/s.
+#
+# max_dt is left at the config default, which is MAX_DT_S: a stalled frame
+# authorizes the same bounded step here as it does in the physics.
+_HARNESS = RateLimiterConfig(
+    max_linear_velocity=0.5,  # m/s
+    max_angular_velocity=2.5,  # rad/s, ~143 deg/s
+    reject_linear_velocity=2.0,  # m/s
+    reject_angular_velocity=10.0,  # rad/s
+)
 
-    The retargeter is a BaseRetargeter node in the pipeline rather than a
-    library call beside it. The shipped scene has no robot, so the jaw it drives
-    is the operator's own trigger; the SO-101 arrives with the scene catalogue and
-    reads the same output.
+
+def _build_pipeline() -> OutputCombiner:
+    """Controllers, the shipped SO-101 jaw retargeter, and the pose harness.
+
+    Both retargeters are BaseRetargeter nodes in the pipeline rather than library
+    calls beside it. The shipped scene has no robot, so the jaw the retargeter
+    drives is the operator's own trigger; the SO-101 arrives with the scene
+    catalogue and reads the same outputs.
+
+    The ghost renders the limiter's output, so what the operator sees is the
+    command a follower would execute rather than where their hand is. The raw
+    controller stays in the combiner beside it -- not to be drawn, but because
+    comparing the two is how harness.InterventionMonitor recovers which band the
+    limiter is in.
+
+    SO101ClutchRetargeter is the shipped producer of this `ee_pose` contract and
+    is deliberately not used: it re-bases the pose onto a follower's base frame
+    at every engage, and this ghost is a leader in the operator's hand, which has
+    no home to clutch to.
+
+    The jaw is ungoverned. A JointRateLimiter would bound it, but the trigger is
+    one scalar the operator drives directly, not an IK output that can diverge.
     """
     controllers = ControllersSource(name="controllers")
     jaw = SO101GripperRetargeter(name="ghost_jaw", input_device=GHOST_HAND).connect(
         {GHOST_HAND: controllers.output(GHOST_HAND)}
+    )
+    grip = GripPoseSource(name="ghost_grip", input_device=GHOST_HAND).connect(
+        {GHOST_HAND: controllers.output(GHOST_HAND)}
+    )
+    governed = EePoseRateLimiter(name="ghost_harness", config=_HARNESS).connect(
+        {EE_POSE_KEY: grip.output(EE_POSE_KEY)}
     )
     return OutputCombiner(
         {
             ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
             ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT),
             GRIPPER_COMMAND_KEY: jaw.output(GRIPPER_COMMAND_KEY),
+            RAW_POSE_KEY: grip.output(EE_POSE_KEY),
+            EE_POSE_KEY: governed.output(EE_POSE_KEY),
         }
     )
 
@@ -323,32 +374,47 @@ def _resolve_ghost(model) -> _GhostChannels:
     return _GhostChannels(int(model.body_mocapid[body]), int(model.body_mocapid[jaw]))
 
 
-def _update_ghost(data, ghost: _GhostChannels, result) -> None:
-    """Lock the leader gripper to the GHOST_HAND grip pose; swing its trigger.
+def _pose(result, key: str) -> np.ndarray | None:
+    """One of the pipeline's 7-D pose channels, or None when it carries nothing.
 
-    Keep the validity gate: an untracked controller leaves the grip pose at
-    (0, 0, 0), which is the MuJoCo scene origin and a place a legitimate pose
-    could put it. Freezing where it was last seen is the honest rendering of
-    "tracking lost", so there is no else branch.
+    Carrying nothing has two spellings here and `is_none` is only one of them.
+    RAW_POSE_KEY is an Optional group, so it goes absent on every untracked
+    frame and `is_none` says so. EE_POSE_KEY is NOT optional -- the limiter
+    declares it required, TensorGroup.is_none is therefore hardcoded False, and
+    the group reads as present from the very first frame while the tensor inside
+    it stays UNSET until the limiter has had a valid grip to latch. Every
+    session starts there: the grip pose is not localizable for the first frames,
+    so the limiter is handed nothing and writes nothing.
+
+    Reading an unset tensor raises, and Tensor exposes no "has it been set"
+    predicate, so that raise is the only signal available.
+    """
+    pose = result[key]
+    if pose.is_none:
+        return None
+    try:
+        tensor = pose[0]
+    except ValueError:
+        return None
+    return np.asarray(np.from_dlpack(tensor), dtype=float)
+
+
+def _update_ghost(data, ghost: _GhostChannels, pose: np.ndarray, result) -> None:
+    """Lock the leader gripper to the governed pose; swing its trigger.
+
+    `pose` is the harness output, not the controller: what the ghost shows is the
+    command a follower would execute. The caller's None gate is the same one that
+    used to live here -- an untracked controller leaves the grip pose at (0, 0, 0),
+    which is the MuJoCo scene origin and a place a legitimate pose could put it.
+    Freezing where it was last seen is the honest rendering of "tracking lost", so
+    there is no else branch.
 
     _QUAT_GRIP_FROM_GHOST right-multiplies because it is fixed in the gripper's
     own frame; left-multiplying swings the ghost around the room as the operator
     turns.
     """
-    controller = result[GHOST_HAND]
-    if controller.is_none:
-        return
-    if not bool(controller[ControllerInputIndex.GRIP_IS_VALID]):
-        return
-    position = controller[ControllerInputIndex.GRIP_POSITION]
-    orientation = controller[ControllerInputIndex.GRIP_ORIENTATION]
-    p_xr = [float(position[0]), float(position[1]), float(position[2])]
-    q_xyzw = [
-        float(orientation[0]),
-        float(orientation[1]),
-        float(orientation[2]),
-        float(orientation[3]),
-    ]
+    p_xr = [float(pose[0]), float(pose[1]), float(pose[2])]
+    q_xyzw = [float(pose[3]), float(pose[4]), float(pose[5]), float(pose[6])]
 
     q_grip = np.array(_mujoco_xr.mj_from_xr_quat(q_xyzw), dtype=float)
     p_grip = np.array(_mujoco_xr.mj_from_xr_pos(p_xr), dtype=float)
@@ -461,6 +527,18 @@ def run() -> int:
             math.degrees(_TRIGGER_SQUEEZED_RAD),
         )
 
+        monitor = InterventionMonitor(model)
+        LOG.info(
+            "harness:    the ghost renders the EePoseRateLimiter output, clamped at "
+            "%.2f m/s / %.0f deg/s and rejecting above %.2f m/s / %.0f deg/s. It turns "
+            "amber while clamping and red while rejecting; below the clamp it passes "
+            "through untouched and the colour does not change.",
+            _HARNESS.max_linear_velocity,
+            math.degrees(_HARNESS.max_angular_velocity),
+            _HARNESS.reject_linear_velocity,
+            math.degrees(_HARNESS.reject_angular_velocity),
+        )
+
         oxr = viz_session.get_oxr_handles()
         if oxr is None:
             raise RuntimeError(
@@ -474,7 +552,19 @@ def run() -> int:
             oxr_handles=OpenXRSessionHandles(*oxr),
         )
         with TeleopSession(teleop_config) as teleop_session:
-            _loop(viz_session, layer, renderer, model, data, teleop_session, ghost)
+            try:
+                _loop(
+                    viz_session,
+                    layer,
+                    renderer,
+                    model,
+                    data,
+                    teleop_session,
+                    ghost,
+                    monitor,
+                )
+            finally:
+                LOG.info(monitor.summary())
     finally:
         # The renderer borrows viz_session's device: it must go first.
         if renderer is not None:
@@ -483,7 +573,9 @@ def run() -> int:
     return 0
 
 
-def _loop(viz_session, layer, renderer, model, data, teleop_session, ghost) -> None:
+def _loop(
+    viz_session, layer, renderer, model, data, teleop_session, ghost, monitor
+) -> None:
     view_count = renderer.view_count
     previous_clock: float | None = None
     # Fixed-step accumulator. NOT reset or drained on a non-render frame: the
@@ -511,7 +603,20 @@ def _loop(viz_session, layer, renderer, model, data, teleop_session, ghost) -> N
             will_step = accumulator >= model.opt.timestep
             if will_step or info.should_render:
                 result = teleop_session.step()
-                _update_ghost(data, ghost, result)
+                # Both, and both gates are load-bearing. An absent RAW_POSE_KEY
+                # is tracking loss, and then the WHOLE gripper freezes -- the
+                # limiter would happily hold a pose for the body while the jaw
+                # kept following the trigger, which articulates the ghost on a
+                # stale pose. An absent EE_POSE_KEY is the limiter with nothing
+                # to emit yet.
+                raw = _pose(result, RAW_POSE_KEY)
+                governed = _pose(result, EE_POSE_KEY)
+                if raw is not None and governed is not None:
+                    _update_ghost(data, ghost, governed, result)
+                    # After the ghost is placed, so the colour and the pose
+                    # describe the same frame. Recolouring writes mjModel,
+                    # which update_scene below picks up.
+                    monitor.update(model, raw, governed)
 
             steps = 0
             while accumulator >= model.opt.timestep and steps < 64:
