@@ -195,14 +195,22 @@ def main() -> None:
             raise SystemExit(1) from exc
         oob_progress("setup-oob", "preflight OK")
 
-    with CloudXRLauncher(
-        install_dir=args.cloudxr_install_dir,
-        env_config=args.cloudxr_env_config,
-        accept_eula=args.accept_eula,
-        setup_oob=args.setup_oob,
-        usb_local=args.usb_local,
-        host_client=args.host_client,
-    ) as launcher:
+    try:
+        launcher_ctx = CloudXRLauncher(
+            install_dir=args.cloudxr_install_dir,
+            env_config=args.cloudxr_env_config,
+            accept_eula=args.accept_eula,
+            setup_oob=args.setup_oob,
+            usb_local=args.usb_local,
+            host_client=args.host_client,
+        )
+    except RuntimeError as exc:
+        # Operator-facing conditions (a live runtime, a rejected EULA); the
+        # message is the whole point, so don't bury it in a traceback.
+        print(f"\n\033[31m{exc}\033[0m\n", file=sys.stderr)
+        raise SystemExit(1) from None
+
+    with launcher_ctx as launcher:
         cxr_ver = runtime_version()
         print(
             f"Running Isaac Teleop \033[36m{isaacteleop_version}\033[0m, CloudXR Runtime \033[36m{cxr_ver}\033[0m"
@@ -217,6 +225,13 @@ def main() -> None:
         wss_log = launcher.wss_log_path
         print(
             f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
+        )
+        # A profile that does not match the connecting device is the usual
+        # cause of XR_ERROR_FORM_FACTOR_UNAVAILABLE (-35) in clients.
+        profile = env_cfg.resolved("NV_DEVICE_PROFILE")
+        print(
+            f"device profile:    \033[36m{profile}\033[0m  "
+            "\033[90m(NV_DEVICE_PROFILE)\033[0m"
         )
 
         if args.usb_local:

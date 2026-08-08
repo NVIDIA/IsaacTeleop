@@ -6,6 +6,7 @@ terminate_or_kill_runtime."""
 
 import importlib.util
 import os
+import socket
 import threading
 import time
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ from isaacteleop.cloudxr.runtime import (
     _should_join_main,
     _should_use_exp,
     get_sdk_path,
+    is_runtime_live,
     resolve_cloudxr_runtime_module,
     terminate_or_kill_runtime,
     wait_for_runtime_ready_sync,
@@ -440,6 +442,56 @@ class TestTerminateOrKillRuntime:
 
         proc.terminate.assert_not_called()
         proc.kill.assert_not_called()
+
+
+@pytest.mark.skipif(
+    not hasattr(socket, "AF_UNIX"), reason="AF_UNIX sockets are POSIX-only"
+)
+class TestIsRuntimeLive:
+    """Tests for the IPC-socket liveness probe."""
+
+    def test_false_when_socket_missing(self, tmp_path):
+        """An empty run directory has no runtime."""
+        run_dir = str(tmp_path)
+        assert is_runtime_live(run_dir) is False
+
+    def test_false_for_leftover_socket_file(self, tmp_path):
+        """A socket file nobody listens on is the post-crash case: not live."""
+        run_dir = str(tmp_path)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        cwd = os.getcwd()
+        try:
+            os.chdir(run_dir)
+            sock.bind("ipc_cloudxr")
+        finally:
+            os.chdir(cwd)
+            sock.close()
+
+        assert os.path.exists(os.path.join(run_dir, "ipc_cloudxr"))
+        assert is_runtime_live(run_dir) is False
+
+    def test_true_while_socket_is_served(self, tmp_path):
+        """A listening peer means a runtime owns the run directory."""
+        run_dir = str(tmp_path)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        cwd = os.getcwd()
+        try:
+            os.chdir(run_dir)
+            sock.bind("ipc_cloudxr")
+            sock.listen(1)
+            os.chdir(cwd)
+            assert is_runtime_live(run_dir) is True
+        finally:
+            os.chdir(cwd)
+            sock.close()
+
+    def test_ambiguous_errors_count_as_live(self, tmp_path):
+        """Errors that do not prove absence must not license a takeover."""
+        run_dir = str(tmp_path)
+        (tmp_path / "ipc_cloudxr").touch()
+        with patch("socket.socket") as mock_socket:
+            mock_socket.return_value.connect.side_effect = PermissionError
+            assert is_runtime_live(run_dir) is True
 
 
 if __name__ == "__main__":
