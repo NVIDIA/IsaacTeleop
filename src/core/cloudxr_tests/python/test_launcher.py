@@ -188,6 +188,14 @@ class TestLauncherConstruction:
             assert isinstance(launcher.wss_log_path, Path)
             assert "wss." in str(launcher.wss_log_path)
 
+    def test_construction_start_wss_proxy_is_a_noop(self, tmp_path):
+        """The deprecated knob is still accepted, warns, and starts the proxy."""
+        with mock_launcher_deps(tmp_path, ready=True) as mocks:
+            with pytest.warns(DeprecationWarning, match="start_wss_proxy"):
+                CloudXRLauncher(start_wss_proxy=False)
+
+            mocks["wss"].assert_called_once()
+
 
 # ============================================================================
 # TestLauncherStop
@@ -367,6 +375,7 @@ class TestLaunchArgumentHelpers:
                 "/etc/cloudxr.env",
                 "--accept-eula",
                 "--no-launch-cloudxr-runtime",
+                "--no-launch-wss-proxy",
             ]
         )
         assert args.cloudxr_install_dir == "/opt/cloudxr"
@@ -374,6 +383,7 @@ class TestLaunchArgumentHelpers:
         assert args.cloudxr_env_config == "/etc/cloudxr.env"
         assert args.accept_eula is True
         assert args.launch_cloudxr_runtime is False
+        assert args.launch_wss_proxy is False
 
     def test_add_launcher_arguments_defaults(self) -> None:
         parser = argparse.ArgumentParser()
@@ -382,6 +392,7 @@ class TestLaunchArgumentHelpers:
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
         assert args.launch_cloudxr_runtime is True
+        assert args.launch_wss_proxy is None
 
     def test_add_cloudxr_device_profile_argument_default(self) -> None:
         parser = argparse.ArgumentParser()

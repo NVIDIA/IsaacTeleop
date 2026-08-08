@@ -21,6 +21,7 @@ import subprocess
 import sys
 import threading
 import time
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -83,6 +84,7 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
+        start_wss_proxy: bool | None = None,
     ) -> None:
         """Launch the CloudXR runtime and the WSS proxy.
 
@@ -112,6 +114,9 @@ class CloudXRLauncher:
             host_client: Serve the web client at ``/client/`` on the WSS
                 proxy port.  Assets are fetched once from GitHub Pages into
                 ``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``.
+            start_wss_proxy: Deprecated no-op kept so existing callers do
+                not hit a :class:`TypeError`; the proxy always starts with
+                the runtime.  Any value emits a deprecation notice.
 
         Raises:
             RuntimeError: If the EULA is not accepted or the runtime
@@ -124,6 +129,8 @@ class CloudXRLauncher:
         self._setup_oob = setup_oob
         self._usb_local = usb_local
         self._host_client = host_client
+        if start_wss_proxy is not None:
+            self._warn_start_wss_proxy_deprecated()
 
         if self._usb_local or self._host_client:
             from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
@@ -206,6 +213,19 @@ class CloudXRLauncher:
         self._wss_log_path = wss_log_path
         self._start_wss_proxy_thread(wss_log_path)
         logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
+
+    # TODO(1.6): drop start_wss_proxy, --launch-wss-proxy and this helper.
+    @staticmethod
+    def _warn_start_wss_proxy_deprecated() -> None:
+        """Announce that the ``start_wss_proxy`` no-op is on its way out."""
+        message = (
+            "start_wss_proxy is deprecated and does nothing; the WSS proxy "
+            "always starts with the runtime.  It is removed in 1.6."
+        )
+        warnings.warn(message, DeprecationWarning, stacklevel=3)
+        # Python drops DeprecationWarning raised outside __main__, which is
+        # every --launch-wss-proxy run, so log it as well.
+        logger.warning(message)
 
     # ------------------------------------------------------------------
     # CLI helpers for embedding applications and examples
@@ -293,6 +313,23 @@ class CloudXRLauncher:
         )
 
     @staticmethod
+    def add_launch_wss_proxy_argument(parser: argparse.ArgumentParser) -> None:
+        """Register the deprecated no-op ``--launch-wss-proxy`` on ``parser``.
+
+        Defaults to ``None`` so an explicit flag is distinguishable from an
+        absent one and only the former warns.
+        """
+        parser.add_argument(
+            "--launch-wss-proxy",
+            action=argparse.BooleanOptionalAction,
+            default=None,
+            help=(
+                "Deprecated no-op, removed in 1.6: the WSS TLS proxy always "
+                "starts with the runtime."
+            ),
+        )
+
+    @staticmethod
     def add_launcher_arguments(parser: argparse.ArgumentParser) -> None:
         """Register CloudXR launcher CLI arguments on ``parser``."""
         CloudXRLauncher.add_cloudxr_install_dir_argument(parser)
@@ -300,6 +337,7 @@ class CloudXRLauncher:
         CloudXRLauncher.add_cloudxr_env_config_argument(parser)
         CloudXRLauncher.add_accept_eula_argument(parser)
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
+        CloudXRLauncher.add_launch_wss_proxy_argument(parser)
 
     @staticmethod
     def _resolve_install_dir(
@@ -356,6 +394,7 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
+        start_wss_proxy: bool | None = None,
     ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
         """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
 
@@ -367,7 +406,13 @@ class CloudXRLauncher:
         (``args.cloudxr_install_dir`` etc.); pass an explicit keyword only to
         override what came in on the command line. For ``accept_eula``, pass
         ``False`` to force-disable even when the CLI flag is set.
+        ``start_wss_proxy`` is a deprecated no-op removed in 1.6.
         """
+        if (
+            start_wss_proxy is not None
+            or getattr(args, "launch_wss_proxy", None) is not None
+        ):
+            CloudXRLauncher._warn_start_wss_proxy_deprecated()
         if not args.launch_cloudxr_runtime:
             return contextlib.nullcontext(None)
         return CloudXRLauncher(
