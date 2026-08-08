@@ -637,7 +637,9 @@ def open_url_on_headset(url: str) -> tuple[int, str]:
         redact_control_token(" ".join(shlex.quote(c) for c in full)),
     )
     try:
-        proc = subprocess.run(full, capture_output=True, text=True, timeout=30)
+        proc = subprocess.run(
+            full, capture_output=True, text=True, timeout=30, check=False
+        )
     except subprocess.TimeoutExpired as e:
         partial = (
             (e.stderr or e.stdout or b"")
