@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+The reBot DevArm gripper ghost, locked to the operator's controller grip pose.
+The counterpart of leader/leader_gripper.xml, and the same three rules apply:
+opaque (so draw order is free), collision-free, mocap-only. Read that file's
+header for why.
+
+What differs is what the ghost IS. The SO-101 one is the leader device the
+operator's fist is closed around; the reBot leader is a back-driven arm on a
+table, so this is the FOLLOWER's parallel jaw -- the thing the controller
+commands. Its placement on the hand is therefore a convention rather than a
+measurement (robots.py:REBOT_EULER_GRIP_FROM_GHOST_DEG).
+
+Provenance: all seven meshes are Seeed-Projects/reBotArm_control_py at commit
+e56b035e335b2e8b8b333ed94860ac9e936b67ba, urdf/00-arm-rs_asm-v3/. Upstream
+declares MIT in its README.md and ships no LICENSE file; the hardware itself is
+Seeed-Projects/reBot-DevArm, CERN-OHL-W-2.0. Fetched, not vendored --
+scripts/fetch-rebot-arm.sh pulls them beside this file, checksum-verified, with
+the URDF and that README. Only this wrapper is tracked; the payload is
+gitignored at the repository root.
+
+No `scale`: these STLs are in METRES, unlike the SO-101 print parts beside them
+(a jaw measures 38 x 79 x 35 mm as authored). The whole assembly is 115k
+triangles, dominated by motor_7.
+
+Two mocap bodies for the jaws rather than one, even though a single rack drives
+both: they translate in opposite directions, so one rigid body cannot carry
+them.
+-->
+<mujoco model="rebot devarm gripper ghost">
+  <asset>
+    <!-- Paths are relative to THIS file's directory; see leader_gripper.xml. -->
+    <mesh name="rebot_cover" file="pla7_green.STL"/>
+    <mesh name="rebot_rail" file="cnc7.STL"/>
+    <mesh name="rebot_motor" file="motor_7.STL"/>
+    <mesh name="rebot_jaw_left" file="pla_left.STL"/>
+    <mesh name="rebot_finger_left" file="cnc_left.STL"/>
+    <mesh name="rebot_jaw_right" file="pla_right.STL"/>
+    <mesh name="rebot_finger_right" file="cnc_right.STL"/>
+    <material name="rebot_ghost" rgba="0.55 0.80 1.00 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- The gripper_end link. Its three visuals are at the URDF's identity
+         origin, so they carry no pos/quat here.
+
+         `pos` is where the ghost sits until the first valid controller sample,
+         and is shared by all three bodies below: app.py rotates and slides them
+         about the root's frame rather than placing their origins, so the joint
+         offsets live in exactly one place (the geoms). -->
+    <body name="rebot_ghost" mocap="true" pos="0.12 0.16 0.22">
+      <geom name="rebot_ghost_cover" type="mesh" mesh="rebot_cover"
+            material="rebot_ghost" contype="0" conaffinity="0" mass="0" group="2"/>
+      <geom name="rebot_ghost_rail" type="mesh" mesh="rebot_rail"
+            material="rebot_ghost" contype="0" conaffinity="0" mass="0" group="2"/>
+      <!-- The drive motor, and the part the operator's fist is placed on. -->
+      <geom name="rebot_ghost_motor" type="mesh" mesh="rebot_motor"
+            material="rebot_ghost" contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+
+    <!-- The two jaws. `quat` is joint_left's / joint_right's URDF rpy converted,
+         NOT copied: URDF rpy is fixed-axis Rz*Ry*Rx while MuJoCo `euler=` is
+         intrinsic Rx*Ry*Rz, and these origins have two non-zero angles, so the
+         same three numbers in `euler=` are a different rotation. Written exact
+         (+-0.5) where upstream's 1.5708 is pi/2 rounded; tests/test_ghost.py
+         checks these against the fetched URDF to 4 microradians.
+
+         app.py slides them along -+y of the root frame, which is where
+         joint_left's / joint_right's "0 0 1" axis lands. -->
+    <body name="rebot_ghost_left" mocap="true" pos="0.12 0.16 0.22">
+      <geom name="rebot_ghost_jaw_left" type="mesh" mesh="rebot_jaw_left"
+            material="rebot_ghost" pos="-0.041939 -0.000073385 0"
+            quat="0.5 0.5 -0.5 0.5" contype="0" conaffinity="0" mass="0" group="2"/>
+      <geom name="rebot_ghost_finger_left" type="mesh" mesh="rebot_finger_left"
+            material="rebot_ghost" pos="-0.041939 -0.000073385 0"
+            quat="0.5 0.5 -0.5 0.5" contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+
+    <body name="rebot_ghost_right" mocap="true" pos="0.12 0.16 0.22">
+      <geom name="rebot_ghost_jaw_right" type="mesh" mesh="rebot_jaw_right"
+            material="rebot_ghost" pos="-0.041939 0.000073385 0"
+            quat="-0.5 0.5 0.5 0.5" contype="0" conaffinity="0" mass="0" group="2"/>
+      <geom name="rebot_ghost_finger_right" type="mesh" mesh="rebot_finger_right"
+            material="rebot_ghost" pos="-0.041939 0.000073385 0"
+            quat="-0.5 0.5 0.5 0.5" contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+  </worldbody>
+</mujoco>

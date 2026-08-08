@@ -3,11 +3,14 @@
 
 """Pure helpers from the app that guard against silent-corruption bugs."""
 
+import dataclasses
+
 import pytest
 
 app = pytest.importorskip(
     "isaacteleop_examples.mujoco_xr.app", reason="isaacteleop is not on PYTHONPATH"
 )
+robots = pytest.importorskip("isaacteleop_examples.mujoco_xr.robots")
 
 
 @pytest.mark.parametrize(
@@ -72,6 +75,33 @@ def test_assert_projection_rejects_a_lost_y_flip():
     flipped[5] = -flipped[5]  # P[1][1] positive: the angleUp->bottom swap is gone
     with pytest.raises(AssertionError, match=r"P\[1\]\[1\]"):
         app._assert_projection(flipped, app.NEAR_Z, app.FAR_Z)
+
+
+def test_an_unknown_robot_is_rejected_before_anything_starts():
+    """argparse's own gate, and it has to fire before the CloudXR runtime does."""
+    with pytest.raises(SystemExit) as exit_info:
+        app.main(["mujoco_xr", "--robot", "not-a-robot"])
+    assert exit_info.value.code == 2
+
+
+def test_the_unfetched_message_names_the_SELECTED_robots_script(monkeypatch, tmp_path):
+    """One robot's meshes must not satisfy the check for the other's.
+
+    The check runs before CloudXRLauncher.launch_context, so getting it wrong
+    means the failure lands buried in a started runtime's own logging instead.
+    """
+    unfetched = dataclasses.replace(
+        robots.SO101,
+        key="unfetched",
+        assets=tmp_path,
+        fetch_script="scripts/fetch-nothing.sh",
+    )
+    monkeypatch.setattr(app, "ROBOTS", {**app.ROBOTS, "unfetched": unfetched})
+    with pytest.raises(SystemExit) as exit_info:
+        app.main(["mujoco_xr", "--robot", "unfetched"])
+    message = str(exit_info.value)
+    assert "fetch-nothing.sh" in message
+    assert robots.SO101.meshes[0] in message
 
 
 def test_assert_projection_rejects_reverse_z():

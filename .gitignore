@@ -69,13 +69,14 @@ deps/v2d/wheels/
 # Runtime device files injected by MCP server infrastructure
 .mcp.json
 
-# SO-101 leader-gripper assets, fetched by
-# examples/mujoco_xr/scripts/fetch-so-arm.sh into the package's own assets
-# directory (which is what makes them package data), so only the authored
-# wrapper XML beside them is tracked.
+# Gripper-ghost assets, fetched by examples/mujoco_xr/scripts/fetch-*.sh into the
+# package's own assets directory (which is what makes them package data), so only
+# the authored wrapper XML beside them is tracked.
 #
-# Keep this rule here, not in examples/mujoco_xr/.gitignore: scikit-build-core
+# Keep these rules here, not in examples/mujoco_xr/.gitignore: scikit-build-core
 # resolves .gitignore against the project root, so a rule there would strip the
 # meshes out of the wheel too.
 /examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/leader/*
 !/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/leader/leader_gripper.xml
+/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/rebot/*
+!/examples/mujoco_xr/python/isaacteleop_examples/mujoco_xr/assets/rebot/rebot_gripper.xml

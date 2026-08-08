@@ -9,7 +9,7 @@
 // Normals are computed here, not taken from mjModel: MuJoCo welds an STL's
 // vertices and stores one averaged normal per welded vertex (mesh_normalnum ==
 // mesh_vertnum, mesh_facenormal == mesh_face), so on a CAD part every crease
-// gets a normal smeared across it. Measured on the shipped scene under
+// gets a normal smeared across it. Measured on the SO-101 scene under
 // test_ghost.py's own predicate (dot(corner normal, own face normal) <= 0):
 // 2138 of Wrist_Roll_SO101's 18474 face corners point away from their own
 // face, and 9489 of the STS3215's 57240. Lit one-sided those corners drop to
