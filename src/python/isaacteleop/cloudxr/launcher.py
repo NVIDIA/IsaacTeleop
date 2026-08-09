@@ -12,13 +12,28 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import os
+import select
 import sys
+import time
 import warnings
 from pathlib import Path
 
+try:  # POSIX only; without it the mismatch notice does not pause.
+    import termios
+    import tty
+except ImportError:  # pragma: no cover - Windows
+    termios = None
+    tty = None
+
 from . import background
-from .env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, read_exported_env
+from .env_config import (
+    DEFAULT_DEVICE_PROFILE,
+    ENV_FILE_NAME,
+    EnvConfig,
+    read_exported_env,
+)
 from .runtime import check_eula, is_runtime_live, latest_wss_log
 from .service import CloudXRService
 
@@ -29,6 +44,42 @@ _STARTED_SERVICE = """\
   logs: \033[90m{log}\033[0m
   It outlives this script.  Stop it with:
     \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m"""
+
+_ENV_CONFIG_IGNORED = """\
+\033[33m{path} is ignored: the CloudXR runtime already serving this host was \
+started with its own configuration.\033[0m
+{rows}
+  Restart the service to apply it:
+    \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m
+    \033[1;32mpython -m isaacteleop.cloudxr.service start --cloudxr-env-config \
+{path}\033[0m"""
+
+_ENV_CONFIG_ROW = (
+    "  {key}: \033[33m{requested}\033[0m requested, \033[36m{running}\033[0m in effect"
+)
+
+#: How long the mismatch notice holds the terminal before the caller continues.
+ENV_CONFIG_PAUSE_SEC = 5.0
+
+#: Redraw interval of the countdown, and so how fast the dots move.
+_PAUSE_TICK_SEC = 0.25
+
+_ENV_CONFIG_PAUSE = (
+    "  \033[33mContinuing with the running configuration in {seconds}s{dots} — "
+    "press any key to abort.\033[0m"
+)
+
+
+def _countdown(remaining: float, *, dots: int, redraw: bool = False) -> None:
+    """Draw one frame of the pause countdown on stderr.
+
+    Dots are padded to a fixed width so the text after them does not jitter
+    from frame to frame.
+    """
+    line = _ENV_CONFIG_PAUSE.format(
+        seconds=math.ceil(remaining), dots=("." * dots).ljust(3)
+    )
+    print(f"\r\033[K{line}" if redraw else line, end="", file=sys.stderr, flush=True)
 
 
 class CloudXRLauncher:
@@ -181,10 +232,98 @@ class CloudXRLauncher:
                 device_profile,
             )
         if env_config is not None:
-            logger.warning(
-                "env_config=%s is ignored: the runtime this attached to was "
-                "started with its own configuration.",
-                env_config,
+            self._warn_env_config_ignored(env_config, env)
+
+    @staticmethod
+    def _warn_env_config_ignored(
+        env_config: str | Path, running: dict[str, str]
+    ) -> None:
+        """Report the settings a requested env config would have changed.
+
+        Only keys whose requested value differs from the runtime's resolved
+        environment are named: passing the same config on every run is how
+        this gets scripted, and warning when nothing conflicts trains people
+        to ignore the one case that matters.
+        """
+        try:
+            requested = EnvConfig._load_env_file(env_config)
+        except (OSError, RuntimeError) as exc:
+            logger.warning("%s is ignored, and could not be read: %s", env_config, exc)
+            return
+
+        rows = [
+            _ENV_CONFIG_ROW.format(
+                key=key,
+                requested=value,
+                running=running.get(key) or "(not set)",
+            )
+            for key, value in requested.items()
+            if running.get(key) != value
+        ]
+        if not rows:
+            return
+        print(
+            _ENV_CONFIG_IGNORED.format(path=env_config, rows="\n".join(rows)),
+            file=sys.stderr,
+        )
+        CloudXRLauncher._pause_for_abort()
+
+    @staticmethod
+    def _pause_for_abort(seconds: float = ENV_CONFIG_PAUSE_SEC) -> None:
+        """Hold the terminal briefly so the notice above is not scrolled past.
+
+        Continues on its own, and is skipped entirely when nobody could be
+        watching: this runs from container entrypoints and CI too, where
+        waiting for a keypress would hang the run instead of warning it.
+
+        Raises:
+            SystemExit: If a key is pressed before the deadline.
+        """
+        if termios is None or os.environ.get("CI") or not sys.stdin.isatty():
+            return
+        try:
+            fd = sys.stdin.fileno()
+            saved = termios.tcgetattr(fd)
+        except (OSError, ValueError):
+            # isatty() can be true for a stdin with no usable descriptor
+            # (notebooks, embedded consoles).  A cosmetic pause is never
+            # worth raising over.
+            return
+
+        # Redraw in place only on a terminal; into a redirected stderr the
+        # carriage returns would just pile up as one unreadable line.
+        animate = sys.stderr.isatty()
+        pressed = False
+        _countdown(seconds, dots=0)
+        try:
+            # cbreak so a bare keypress registers; a newline-terminated read
+            # would make "press any key" a lie.
+            tty.setcbreak(fd)
+            deadline = time.monotonic() + seconds
+            tick = 0
+            while True:
+                # Poll before testing the deadline, so a key already waiting
+                # aborts even when there is no time left to wait.
+                left = deadline - time.monotonic()
+                wait = max(0.0, min(_PAUSE_TICK_SEC, left))
+                if select.select([sys.stdin], [], [], wait)[0]:
+                    sys.stdin.read(1)
+                    pressed = True
+                    break
+                if left <= 0:
+                    break
+                tick += 1
+                if animate:
+                    _countdown(left, dots=1 + tick % 3, redraw=True)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+
+        print("\r\033[K" if animate else "", file=sys.stderr)
+
+        if pressed:
+            raise SystemExit(
+                "Aborted: start the CloudXR service with this configuration, or "
+                "rerun without --cloudxr-env-config to use the running one."
             )
 
     @property

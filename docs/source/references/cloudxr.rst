@@ -239,10 +239,28 @@ an application:
 - ``--cloudxr-install-dir <PATH>`` — CloudXR install directory
   (default: ``~/.cloudxr``).
 
-These configure a runtime as it starts, so they apply to the service that owns
-it. An application that attaches to a running runtime cannot change them; it
-reports the mismatch and uses the running configuration. Restart the service to
-change one.
+These configure a runtime as it starts, so they belong to the service that owns
+it. An application that attaches to a running runtime cannot apply them: it
+compares the requested settings against the runtime's resolved environment,
+reports the ones that would have changed, and uses the running configuration.
+
+.. code-block:: text
+
+   ./custom.env is ignored: the CloudXR runtime already serving this host was started with its own configuration.
+     NV_DEVICE_PROFILE: auto-native requested, Quest3 in effect
+     Restart the service to apply it:
+       python -m isaacteleop.cloudxr.service stop
+       python -m isaacteleop.cloudxr.service start --cloudxr-env-config ./custom.env
+     Continuing with the running configuration in 5s — press any key to abort.
+
+Only settings that actually differ are listed, so passing the same
+``--cloudxr-env-config`` on every run stays quiet. Restart the service as the
+message says to apply a change.
+
+The five-second hold keeps the notice from scrolling away under a chatty
+application; press any key to stop there instead. It is skipped when nothing
+could be watching — a non-interactive stdin, or ``CI`` set — so container
+entrypoints and automated runs continue immediately rather than waiting.
 
 On Jetson Orin the service already selects the experimental runtime package
 and main-thread join. The following are Isaac Teleop launcher overrides only

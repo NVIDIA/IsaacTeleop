@@ -4,6 +4,7 @@
 """Tests for isaacteleop.cloudxr.launcher — attach semantics and CLI plumbing."""
 
 import argparse
+import contextlib
 import logging
 import os
 import sys
@@ -32,6 +33,24 @@ def _env_file(tmp_path, **values) -> str:
 def _live(value=True):
     """Patch the launcher's liveness probe."""
     return patch("isaacteleop.cloudxr.launcher.is_runtime_live", return_value=value)
+
+
+@contextlib.contextmanager
+def _at_a_terminal(*, pressed: bool):
+    """Pretend stdin is a terminal, with or without a keypress waiting."""
+    ready = [sys.stdin] if pressed else []
+    with (
+        patch.object(sys.stdin, "isatty", return_value=True),
+        patch.object(sys.stdin, "fileno", return_value=0),
+        patch.dict(os.environ, {"CI": ""}),
+        patch("isaacteleop.cloudxr.launcher.termios"),
+        patch("isaacteleop.cloudxr.launcher.tty"),
+        patch(
+            "isaacteleop.cloudxr.launcher.select.select", return_value=(ready, [], [])
+        ),
+        patch.object(sys.stdin, "read", return_value="q"),
+    ):
+        yield
 
 
 class TestAttach:
@@ -117,17 +136,62 @@ class TestDivergenceWarnings:
 
         assert caplog.text == ""
 
-    def test_warns_that_env_config_is_ignored(self, tmp_path, caplog):
+    def test_names_the_settings_an_env_config_would_have_changed(
+        self, tmp_path, capsys
+    ):
+        install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
+        requested = tmp_path / "custom.env"
+        requested.write_text("NV_DEVICE_PROFILE=auto-native\n", encoding="utf-8")
+        with _live():
+            CloudXRLauncher(install_dir=install, env_config=requested)
+
+        err = capsys.readouterr().err
+        assert "NV_DEVICE_PROFILE" in err
+        assert "auto-native" in err  # what was asked for
+        assert "Quest3" in err  # what is actually in effect
+        assert "service stop" in err  # how to apply it
+
+    def test_quiet_when_the_env_config_matches_the_running_runtime(
+        self, tmp_path, capsys
+    ):
+        """Passing the same config on every run is the normal way to script it."""
+        install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
+        requested = tmp_path / "same.env"
+        requested.write_text("NV_DEVICE_PROFILE=Quest3\n", encoding="utf-8")
+        with _live():
+            CloudXRLauncher(install_dir=install, env_config=requested)
+
+        assert capsys.readouterr().err == ""
+
+    def test_does_not_pause_when_nobody_could_be_watching(self, tmp_path, capsys):
+        """Container entrypoints and CI attach too; a prompt there would hang."""
+        install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
+        requested = tmp_path / "custom.env"
+        requested.write_text("NV_DEVICE_PROFILE=auto-native\n", encoding="utf-8")
+        with patch.object(sys.stdin, "isatty", return_value=False):
+            with _live():
+                CloudXRLauncher(install_dir=install, env_config=requested)
+
+        assert "press any key" not in capsys.readouterr().err
+
+    def test_aborts_when_a_key_is_pressed(self, capsys):
+        with _at_a_terminal(pressed=True):
+            with pytest.raises(SystemExit):
+                CloudXRLauncher._pause_for_abort(seconds=0)
+
+        assert "press any key to abort" in capsys.readouterr().err
+
+    def test_continues_when_nothing_is_pressed(self):
+        with _at_a_terminal(pressed=False):
+            CloudXRLauncher._pause_for_abort(seconds=0)  # returns, does not raise
+
+    def test_reports_an_env_config_it_cannot_read(self, tmp_path, caplog):
         install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
         with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
             with _live():
-                CloudXRLauncher(
-                    install_dir=install,
-                    device_profile="Quest3",
-                    env_config="/etc/mine.env",
-                )
+                CloudXRLauncher(install_dir=install, env_config=tmp_path / "gone.env")
 
-        assert "/etc/mine.env" in caplog.text
+        assert "gone.env" in caplog.text
 
 
 class TestNothingRunning:

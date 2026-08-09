@@ -118,19 +118,21 @@ remembered for subsequent runs.
 The CloudXR runtime uses the ``Quest3`` device profile by default; Apple Vision
 Pro needs ``auto-native``. The profile is set on the *runtime*, so applications
 inherit whatever the runtime they connect to was started with. To override it,
-or any other setting, write a ``KEY=value`` env file and pass it to the example
-with ``--cloudxr-env-config``:
+or any other setting, write a ``KEY=value`` env file and start the service with
+it:
 
 .. code-block:: bash
 
    echo 'NV_DEVICE_PROFILE=auto-native' > custom.env
-   python examples/teleop/python/gripper_retargeting_example_simple.py \
-         --cloudxr-env-config ./custom.env
+   python -m isaacteleop.cloudxr.service start --cloudxr-env-config ./custom.env
 
-The teleop examples under ``examples/teleop/python/`` all register CloudXR's
-launcher arguments through ``CloudXRLauncher.add_launcher_arguments()``, so
-the same ``--cloudxr-env-config`` flag is available on each of them. (The ROS 2
-example takes the equivalent ``cloudxr_env_config`` ROS parameter instead.)
+The same ``--cloudxr-env-config`` flag is available on the teleop examples under
+``examples/teleop/python/``, which register CloudXR's launcher arguments through
+``CloudXRLauncher.add_launcher_arguments()`` — but it applies only when the
+example is the one starting the runtime. With a service already running the
+example attaches to it instead, and prints which settings it had to ignore (see
+:doc:`/references/cloudxr`). (The ROS 2 example takes the equivalent
+``cloudxr_env_config`` ROS parameter instead.)
 To inspect the resolved settings after startup:
 
 .. code-block:: bash
