@@ -160,13 +160,21 @@ def _write_eula_marker(marker: str) -> None:
         f.write("accepted\n")
 
 
-def check_eula(*, accept_eula: bool | None = None) -> None:
+def eula_marker(run_dir: str) -> str:
+    """Path of the EULA acceptance marker under *run_dir*."""
+    return os.path.join(run_dir, "eula_accepted")
+
+
+def check_eula(*, accept_eula: bool | None = None, run_dir: str | None = None) -> None:
     """Require CloudXR EULA to be accepted; exits the process if not. Call from main process before spawning runtime.
 
     Args:
         accept_eula: If True, accept and write marker. If None, check marker then prompt interactively.
+        run_dir: Where the marker lives.  Pass it to prompt before a service
+            exists — resolving it from :class:`EnvConfig` would rewrite the
+            env file of a runtime that may already be running.
     """
-    marker = os.path.join(get_env_config().openxr_run_dir(), "eula_accepted")
+    marker = eula_marker(run_dir or get_env_config().openxr_run_dir())
     if os.path.isfile(marker):
         return
 
@@ -301,10 +309,25 @@ def runtime_version() -> str:
     return f"{major.value}.{minor.value}.{patch.value}"
 
 
-def latest_runtime_log() -> str | None:
-    """Return the path to the most recent cxr_server log file, or None if not found."""
-    logs_dir = get_env_config().ensure_logs_dir()
+def latest_runtime_log(logs_dir: Path | None = None) -> str | None:
+    """Return the path to the most recent cxr_server log file, or None if not found.
+
+    *logs_dir* is required outside the service's own process: resolving it from
+    :class:`EnvConfig` would rewrite the running service's ``cloudxr.env``.
+    """
+    logs_dir = logs_dir or get_env_config().ensure_logs_dir()
     candidates = sorted(glob.glob(str(logs_dir / "cxr_server.*.log")))
+    return candidates[-1] if candidates else None
+
+
+def latest_wss_log(logs_dir: Path | None = None) -> str | None:
+    """Return the path to the most recent WSS proxy log file, or None.
+
+    The service holds this path while it runs; other processes have to find it,
+    and must pass *logs_dir* rather than re-resolving :class:`EnvConfig`.
+    """
+    logs_dir = logs_dir or get_env_config().ensure_logs_dir()
+    candidates = sorted(glob.glob(str(logs_dir / "wss.*.log")))
     return candidates[-1] if candidates else None
 
 

@@ -258,6 +258,29 @@ class EnvConfig:
         return out
 
 
+def read_exported_env(path: str | Path) -> dict[str, str]:
+    """Parse an env file written by :meth:`EnvConfig._resolve_and_apply`.
+
+    That file is shell format — ``export KEY='value'`` — so it cannot be read
+    back through :meth:`EnvConfig._load_env_file`, which would keep ``export``
+    as part of the name.  It is an output describing a running runtime; use
+    this to adopt its environment without re-resolving and overwriting it.
+
+    Returns an empty dict when the file is missing or unreadable.
+    """
+    result: dict[str, str] = {}
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return result
+    for line in text.splitlines():
+        name, sep, value = line.strip().removeprefix("export ").partition("=")
+        if not sep or not name.strip():
+            continue
+        result[name.strip()] = next(iter(shlex.split(value)), "")
+    return result
+
+
 def get_env_config() -> EnvConfig:
     """Return the singleton EnvConfig instance."""
     return EnvConfig()

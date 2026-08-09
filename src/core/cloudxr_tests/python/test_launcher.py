@@ -1,28 +1,18 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for isaacteleop.cloudxr.launcher — CloudXRLauncher lifecycle."""
+"""Tests for isaacteleop.cloudxr.launcher — attach semantics and CLI plumbing."""
 
 import argparse
-import contextlib
 import logging
 import os
-import signal
-import socket
-import subprocess
 import sys
-from contextlib import contextmanager
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
+from conftest import mock_service_deps
 from isaacteleop.cloudxr.launcher import DEFAULT_DEVICE_PROFILE, CloudXRLauncher
-
-_posix_only = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="Process-group APIs (os.getpgid/os.killpg) are POSIX-only",
-)
 
 _windows_skip = pytest.mark.skipif(
     sys.platform == "win32",
@@ -30,341 +20,216 @@ _windows_skip = pytest.mark.skipif(
 )
 
 
-# ============================================================================
-# Helpers
-# ============================================================================
+def _env_file(tmp_path, **values) -> str:
+    """Write a cloudxr.env the way the service does; return the install dir."""
+    run = tmp_path / "run"
+    run.mkdir(parents=True, exist_ok=True)
+    body = "".join(f"export {k}={v}\n" for k, v in values.items())
+    (run / "cloudxr.env").write_text(body, encoding="utf-8")
+    return str(tmp_path)
 
 
-class _FakeEnvConfig:
-    """Minimal stand-in for EnvConfig."""
-
-    def __init__(self, run_dir: str, logs_dir: Path) -> None:
-        self._run_dir = run_dir
-        self._logs_dir = logs_dir
-
-    @classmethod
-    def from_args(cls, install_dir, env_file=None):
-        raise NotImplementedError("Should be patched")
-
-    def openxr_run_dir(self) -> str:
-        return self._run_dir
-
-    def ensure_logs_dir(self) -> Path:
-        self._logs_dir.mkdir(parents=True, exist_ok=True)
-        return self._logs_dir
-
-    def env_filepath(self) -> str:
-        return os.path.join(self._run_dir, "cloudxr.env")
+def _live(value=True):
+    """Patch the launcher's liveness probe."""
+    return patch("isaacteleop.cloudxr.launcher.is_runtime_live", return_value=value)
 
 
-@contextmanager
-def _live_ipc_socket(run_dir: str):
-    """Serve ``run_dir``'s IPC socket for the duration of the block.
+class TestAttach:
+    """With a runtime already serving the run dir, the launcher owns nothing."""
 
-    Binds relative from a chdir: AF_UNIX ``sun_path`` caps at 108 bytes,
-    which pytest's tmp_path can exceed.
-    """
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    cwd = os.getcwd()
-    try:
-        os.chdir(run_dir)
-        with contextlib.suppress(FileNotFoundError):
-            os.remove("ipc_cloudxr")
-        sock.bind("ipc_cloudxr")
-        sock.listen(1)
-        yield sock
-    finally:
-        os.chdir(cwd)
-        sock.close()
+    def test_attaches_without_starting_a_service(self, tmp_path, monkeypatch):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        monkeypatch.delenv("XR_RUNTIME_JSON", raising=False)
 
+        with _live():
+            launcher = CloudXRLauncher(install_dir=install)
 
-def _make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> MagicMock:
-    """Create a mock subprocess.Popen with configurable poll() behaviour."""
-    proc = MagicMock()
-    proc.pid = pid
-    proc.terminate = MagicMock()
-    proc.kill = MagicMock()
-    proc.wait = MagicMock()
+        assert launcher.owns_runtime is False
+        assert launcher._service is None
 
-    if poll_returns is not None:
-        seq = list(poll_returns)
+    def test_adopts_the_running_environment(self, tmp_path, monkeypatch):
+        """Without XR_RUNTIME_JSON the OpenXR loader cannot find the runtime."""
+        install = _env_file(
+            tmp_path, XR_RUNTIME_JSON="/x/openxr.json", NV_CXR_FILE_LOGGING="true"
+        )
+        monkeypatch.delenv("XR_RUNTIME_JSON", raising=False)
 
-        def _poll():
-            if seq:
-                return seq.pop(0)
-            return 0
+        with _live():
+            CloudXRLauncher(install_dir=install)
 
-        proc.poll = MagicMock(side_effect=_poll)
-    else:
-        proc.poll = MagicMock(return_value=None)
+        assert os.environ["XR_RUNTIME_JSON"] == "/x/openxr.json"
+        assert os.environ["NV_CXR_FILE_LOGGING"] == "true"
 
-    return proc
+    def test_does_not_rewrite_the_env_file(self, tmp_path):
+        """Re-resolving it would overwrite the owning service's own file."""
+        install = _env_file(tmp_path, NV_DEVICE_PROFILE="auto-native")
+        env_path = tmp_path / "run" / "cloudxr.env"
+        before = env_path.read_text()
 
+        with _live():
+            CloudXRLauncher(install_dir=install, device_profile="auto-native")
 
-@contextmanager
-def mock_launcher_deps(tmp_path, ready=True):
-    """Patch all heavy external dependencies so CloudXRLauncher construction runs without I/O.
+        assert env_path.read_text() == before
 
-    Yields a dict of the mock objects for assertion.
-    """
-    run_dir = str(tmp_path / "run")
-    logs_dir = tmp_path / "logs"
-    fake_cfg = _FakeEnvConfig(run_dir, logs_dir)
+    def test_stop_does_not_touch_a_borrowed_runtime(self, tmp_path):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with _live():
+            launcher = CloudXRLauncher(install_dir=install)
+        launcher.stop()  # must not raise, and must tear nothing down
+        assert launcher.owns_runtime is False
 
-    mock_proc = _make_mock_popen()
+    def test_health_check_follows_the_socket(self, tmp_path):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with _live():
+            launcher = CloudXRLauncher(install_dir=install)
 
-    mocks = {}
-    with (
-        patch(
-            "isaacteleop.cloudxr.launcher.EnvConfig.from_args",
-            return_value=fake_cfg,
-        ) as m_from_args,
-        patch(
-            "isaacteleop.cloudxr.launcher.check_eula",
-        ) as m_eula,
-        patch(
-            "isaacteleop.cloudxr.launcher.wait_for_runtime_ready_sync",
-            return_value=ready,
-        ) as m_wait,
-        patch(
-            "isaacteleop.cloudxr.launcher.subprocess.Popen",
-            return_value=mock_proc,
-        ) as m_popen,
-        patch.object(
-            CloudXRLauncher,
-            "_start_wss_proxy_thread",
-        ) as m_wss,
-        patch.object(
-            CloudXRLauncher,
-            "_cleanup_stale_runtime",
-        ) as m_cleanup,
-        patch(
-            "isaacteleop.cloudxr.launcher.atexit",
-        ) as m_atexit,
-    ):
-        mocks["from_args"] = m_from_args
-        mocks["check_eula"] = m_eula
-        mocks["wait"] = m_wait
-        mocks["popen"] = m_popen
-        mocks["proc"] = mock_proc
-        mocks["wss"] = m_wss
-        mocks["cleanup"] = m_cleanup
-        mocks["atexit"] = m_atexit
-        mocks["env_cfg"] = fake_cfg
-        yield mocks
+        with _live():
+            launcher.health_check()
+        with _live(False):
+            with pytest.raises(RuntimeError, match="has stopped"):
+                launcher.health_check()
+
+    def test_raises_when_the_env_file_is_missing(self, tmp_path):
+        """A live runtime we cannot point OpenXR at is worse than no runtime."""
+        (tmp_path / "run").mkdir(parents=True)
+        with _live():
+            with pytest.raises(RuntimeError, match="environment file is missing"):
+                CloudXRLauncher(install_dir=str(tmp_path))
 
 
-# ============================================================================
-# TestLauncherConstruction
-# ============================================================================
+class TestDivergenceWarnings:
+    """Start-up options cannot be applied to a runtime that already exists."""
+
+    def test_warns_on_a_different_device_profile(self, tmp_path, caplog):
+        install = _env_file(tmp_path, NV_DEVICE_PROFILE="auto-native")
+        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+            with _live():
+                CloudXRLauncher(install_dir=install, device_profile="Quest3")
+
+        assert "auto-native" in caplog.text
+        assert "Quest3" in caplog.text
+
+    def test_quiet_when_the_profile_matches(self, tmp_path, caplog):
+        install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
+        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+            with _live():
+                CloudXRLauncher(install_dir=install, device_profile="Quest3")
+
+        assert caplog.text == ""
+
+    def test_warns_that_env_config_is_ignored(self, tmp_path, caplog):
+        install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
+        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+            with _live():
+                CloudXRLauncher(
+                    install_dir=install,
+                    device_profile="Quest3",
+                    env_config="/etc/mine.env",
+                )
+
+        assert "/etc/mine.env" in caplog.text
 
 
-class TestLauncherConstruction:
-    """Tests for CloudXRLauncher construction (which starts the runtime)."""
+class TestNothingRunning:
+    """Without a service, the launcher starts a detached one and says so."""
 
-    def test_construction_stores_parameters(self, tmp_path):
-        """Constructor stores install_dir, env_config, device_profile, and accept_eula."""
-        with mock_launcher_deps(tmp_path, ready=True):
-            launcher = CloudXRLauncher(
-                install_dir="/opt/cloudxr",
-                env_config="/etc/cloudxr.env",
-                device_profile="AppleVisionPro",
-                accept_eula=True,
+    def test_starts_a_detached_service_and_announces_it(self, tmp_path, capsys):
+        """It outlives this process, so it cannot be started silently."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaacteleop.cloudxr.background.start_and_wait",
+                return_value=(4242, tmp_path / "logs" / "service.log"),
+            ) as m_start,
+        ):
+            launcher = CloudXRLauncher(install_dir=install)
+
+        assert launcher.owns_runtime is False  # detached: nobody here owns it
+        m_start.assert_called_once()
+        err = capsys.readouterr().err
+        assert "started one (pid 4242)" in err
+        assert "service stop" in err
+
+    def test_forwards_config_to_the_service_it_starts(self, tmp_path):
+        """A dropped setting here would silently start the wrong runtime.
+
+        The device profile rides in the environment rather than as a flag:
+        EnvConfig reads NV_DEVICE_PROFILE from there, and an env file still
+        overrides it.
+        """
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaacteleop.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ) as m_start,
+        ):
+            CloudXRLauncher(
+                install_dir=install, device_profile="auto-native", host_client=True
             )
-        assert launcher._install_dir == "/opt/cloudxr"
-        assert launcher._env_config == "/etc/cloudxr.env"
-        assert launcher._device_profile == "AppleVisionPro"
-        assert launcher._accept_eula is True
 
-    def test_construction_passes_device_profile_to_env_config(self, tmp_path):
-        """Constructor forwards device_profile to EnvConfig.from_args."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            CloudXRLauncher(device_profile="auto-native")
+        flags, _, _, extra_env = m_start.call_args.args
+        assert "--host-client" in flags
+        assert extra_env == {"NV_DEVICE_PROFILE": "auto-native"}
 
-            mocks["from_args"].assert_called_once_with(
-                "~/.cloudxr",
-                None,
-                launcher_defaults={"NV_DEVICE_PROFILE": "auto-native"},
-            )
+    def test_default_profile_adds_no_environment(self, tmp_path):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
 
-    def test_construction_launches_runtime_and_wss(self, tmp_path):
-        """Successful construction calls Popen and WSS proxy."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            CloudXRLauncher()
+        with (
+            patch(
+                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaacteleop.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ) as m_start,
+        ):
+            CloudXRLauncher(install_dir=install)
 
-            mocks["popen"].assert_called_once()
-            mocks["wss"].assert_called_once()
-            mocks["check_eula"].assert_called_once()
-            mocks["cleanup"].assert_called_once()
+        assert m_start.call_args.args[3] is None
 
-    @_windows_skip
-    def test_construction_raises_on_runtime_failure(self, tmp_path):
-        """RuntimeError when the runtime fails to become ready."""
-        with mock_launcher_deps(tmp_path, ready=False) as mocks:
-            mocks["proc"].poll.return_value = 1
+    def test_run_embedded_owns_a_service(self, tmp_path):
+        with _live(False), mock_service_deps(tmp_path, ready=True) as mocks:
+            launcher = CloudXRLauncher(install_dir=str(tmp_path), run_embedded=True)
 
-            with pytest.raises(RuntimeError, match="failed to start"):
-                CloudXRLauncher()
+        assert launcher.owns_runtime is True
+        mocks["popen"].assert_called_once()
 
-    def test_wss_log_path_set_after_construction(self, tmp_path):
-        """wss_log_path is a Path after successful construction."""
-        with mock_launcher_deps(tmp_path, ready=True):
-            launcher = CloudXRLauncher()
-
-            assert launcher.wss_log_path is not None
-            assert isinstance(launcher.wss_log_path, Path)
-            assert "wss." in str(launcher.wss_log_path)
-
-    def test_construction_start_wss_proxy_is_a_noop(self, tmp_path):
-        """The deprecated knob is still accepted, warns, and starts the proxy."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            with pytest.warns(DeprecationWarning, match="start_wss_proxy"):
-                CloudXRLauncher(start_wss_proxy=False)
-
-            mocks["wss"].assert_called_once()
-
-
-# ============================================================================
-# TestLauncherStop
-# ============================================================================
-
-
-@_windows_skip
-class TestLauncherStop:
-    """Tests for CloudXRLauncher.stop()."""
-
-    @_posix_only
-    def test_stop_terminates_runtime(self, tmp_path):
-        """stop() sends SIGTERM to the runtime process group."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher = CloudXRLauncher()
-
-            proc = mocks["proc"]
-            poll_seq = [None, 0]
-            proc.poll = MagicMock(
-                side_effect=lambda: poll_seq.pop(0) if poll_seq else 0
-            )
-            proc.wait = MagicMock()
-
-            with (
-                patch(
-                    "isaacteleop.cloudxr.launcher.os.getpgid", return_value=99
-                ) as m_getpgid,
-                patch("isaacteleop.cloudxr.launcher.os.killpg") as m_killpg,
-            ):
-                launcher.stop()
-
-                m_getpgid.assert_called_once_with(proc.pid)
-                m_killpg.assert_called_once_with(99, signal.SIGTERM)
-
-    def test_stop_idempotent(self, tmp_path):
-        """Calling stop() twice does not raise."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher = CloudXRLauncher()
-
-            mocks["proc"].poll.return_value = 0
-
-            launcher.stop()
-            launcher.stop()
-
-    @_posix_only
-    def test_stop_escalates_to_sigkill(self, tmp_path):
-        """stop() sends SIGKILL when SIGTERM doesn't work."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher = CloudXRLauncher()
-
-            proc = mocks["proc"]
-            poll_seq = [None, None, 0]
-            proc.poll = MagicMock(
-                side_effect=lambda: poll_seq.pop(0) if poll_seq else 0
-            )
-            proc.wait = MagicMock(side_effect=subprocess.TimeoutExpired("cmd", 10))
-
-            with (
-                patch("isaacteleop.cloudxr.launcher.os.getpgid", return_value=99),
-                patch("isaacteleop.cloudxr.launcher.os.killpg") as m_killpg,
-            ):
-                launcher.stop()
-
-                calls = m_killpg.call_args_list
-                assert len(calls) == 2
-                assert calls[0].args == (99, signal.SIGTERM)
-                assert calls[1].args == (99, signal.SIGKILL)
-
-
-# ============================================================================
-# TestLauncherContextManager
-# ============================================================================
-
-
-@_windows_skip
-class TestLauncherContextManager:
-    """Tests for CloudXRLauncher used as a context manager."""
-
-    def test_context_manager_stops_on_exit(self, tmp_path):
-        """__exit__ calls stop(), cleaning up the runtime."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            with CloudXRLauncher() as launcher:
-                mocks["popen"].assert_called_once()
+    def test_run_embedded_stops_what_it_started(self, tmp_path):
+        with _live(False), mock_service_deps(tmp_path, ready=True) as mocks:
+            with CloudXRLauncher(install_dir=str(tmp_path), run_embedded=True):
                 mocks["proc"].poll.return_value = 0
 
-            assert launcher._runtime_proc is None
+    def test_a_live_runtime_wins_over_run_embedded(self, tmp_path):
+        """run_embedded is a fallback, not an instruction to duplicate."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with _live():
+            launcher = CloudXRLauncher(install_dir=install, run_embedded=True)
+
+        assert launcher.owns_runtime is False
 
 
-# ============================================================================
-# TestCleanupStaleRuntime
-# ============================================================================
-
-
-@_posix_only
-class TestCleanupStaleRuntime:
-    """Tests for CloudXRLauncher._cleanup_stale_runtime."""
-
-    @staticmethod
-    def _stale_run_dir(tmp_path) -> tuple[str, list[str]]:
-        """Create a run dir holding every sentinel file; return it and their paths."""
-        run_dir = str(tmp_path / "run")
-        os.makedirs(run_dir)
-        paths = [
-            os.path.join(run_dir, name)
-            for name in ("ipc_cloudxr", "runtime_started", "cloudxr.pid")
-        ]
-        for path in paths:
-            Path(path).touch()
-        return run_dir, paths
-
-    def test_removes_stale_sentinel_files(self, tmp_path, caplog):
-        """A socket file nobody is serving is stale: removed, at WARNING."""
-        run_dir, paths = self._stale_run_dir(tmp_path)
-        fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
-
-        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
-            CloudXRLauncher._cleanup_stale_runtime(fake_cfg)
-
-        assert not any(os.path.exists(p) for p in paths)
-        assert len(caplog.records) == len(paths)
-
-    def test_noop_when_no_stale_files(self, tmp_path):
-        """No errors when the run directory has no stale files."""
-        run_dir = str(tmp_path / "run")
-        os.makedirs(run_dir)
-
-        fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
-        CloudXRLauncher._cleanup_stale_runtime(fake_cfg)
-
-    def test_refuses_when_runtime_is_live(self, tmp_path):
-        """A served socket is a live runtime: refuse, and keep its files."""
-        run_dir, paths = self._stale_run_dir(tmp_path)
-        fake_cfg = _FakeEnvConfig(run_dir, tmp_path / "logs")
-
-        with _live_ipc_socket(run_dir):
-            with pytest.raises(RuntimeError, match="already serving") as exc_info:
-                CloudXRLauncher._cleanup_stale_runtime(fake_cfg)
-            assert all(os.path.exists(p) for p in paths)
-
-        message = str(exc_info.value)
-        assert fake_cfg.env_filepath() in message
-        assert "--no-launch-cloudxr-runtime" in message
+class TestDeprecatedKnob:
+    def test_start_wss_proxy_still_warns(self, tmp_path):
+        with _live(False), mock_service_deps(tmp_path, ready=True):
+            with pytest.warns(DeprecationWarning, match="start_wss_proxy"):
+                CloudXRLauncher(
+                    install_dir=str(tmp_path), run_embedded=True, start_wss_proxy=False
+                )
 
 
 class TestLaunchArgumentHelpers:
@@ -444,33 +309,31 @@ class TestLaunchArgumentHelpers:
             assert launcher is None
 
     @_windows_skip
-    def test_launch_context_starts_when_enabled(self, tmp_path) -> None:
+    def test_launch_context_attaches_to_a_running_service(self, tmp_path) -> None:
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
         args = argparse.Namespace(
             launch_cloudxr_runtime=True,
-            cloudxr_install_dir="/opt/cloudxr",
+            cloudxr_install_dir=install,
             cloudxr_device_profile="Quest3",
         )
-        with mock_launcher_deps(tmp_path) as mocks:
+        with _live():
             with CloudXRLauncher.launch_context(args) as launcher:
                 assert launcher is not None
-                assert launcher._runtime_proc is mocks["proc"]
-                assert launcher._install_dir == "/opt/cloudxr"
-                assert launcher._device_profile == "Quest3"
-            mocks["proc"].poll.return_value = 0
+                assert launcher.owns_runtime is False
 
     @_windows_skip
     def test_launch_context_passes_device_profile_kwarg(self, tmp_path) -> None:
         args = argparse.Namespace(
             launch_cloudxr_runtime=True,
-            cloudxr_install_dir="/opt/cloudxr",
+            cloudxr_install_dir=str(tmp_path),
             cloudxr_device_profile="Quest3",
         )
-        with mock_launcher_deps(tmp_path) as mocks:
+        with _live(False), mock_service_deps(tmp_path) as mocks:
             with CloudXRLauncher.launch_context(
-                args, device_profile="auto-native"
+                args, device_profile="auto-native", run_embedded=True
             ) as launcher:
                 assert launcher is not None
-                assert launcher._device_profile == "auto-native"
+                assert launcher._service._device_profile == "auto-native"
             mocks["proc"].poll.return_value = 0
 
     def test_resolve_accept_eula_none_falls_back_to_args(self) -> None:
@@ -485,16 +348,6 @@ class TestLaunchArgumentHelpers:
         assert CloudXRLauncher._resolve_accept_eula(args, False) is False
         args.accept_eula = False
         assert CloudXRLauncher._resolve_accept_eula(args, True) is True
-
-    def test_stop_on_windows_raises_unsupported(self, tmp_path) -> None:
-        """Simulated win32 platform raises instead of calling POSIX APIs."""
-        with mock_launcher_deps(tmp_path, ready=True) as mocks:
-            launcher = CloudXRLauncher()
-            mocks["proc"].poll.return_value = None
-
-            with patch("isaacteleop.cloudxr.launcher.sys.platform", "win32"):
-                with pytest.raises(RuntimeError, match="not supported on Windows"):
-                    launcher.stop()
 
 
 class TestEnvConfigLauncherDefaults:

@@ -1,0 +1,205 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Tests for the `python -m isaacteleop.cloudxr.service` CLI."""
+
+import os
+from unittest.mock import patch
+
+import pytest
+
+from isaacteleop.cloudxr.service import __main__ as cli
+
+
+@pytest.fixture(autouse=True)
+def stub_runtime_version():
+    """Keep the summary from dlopening libcloudxr, which needs the GPU driver."""
+    with patch(
+        "isaacteleop.cloudxr.runtime.runtime_version", return_value="0.0.0-test"
+    ):
+        yield
+
+
+def _run_args(**overrides):
+    """Parse a `run`/`install` argument set, applying *overrides* after."""
+    parser = cli._build_parser()
+    args = parser.parse_args(["run"])
+    for key, value in overrides.items():
+        setattr(args, key, value)
+    return args
+
+
+class TestRunFlags:
+    """Tests for re-serialising run flags into ExecStart."""
+
+    def test_defaults_produce_no_flags(self):
+        """A default install renders a bare `service run`."""
+        assert cli._run_flags(_run_args()) == []
+
+    def test_only_non_default_values_are_emitted(self):
+        args = _run_args(setup_oob=True, host_client=True)
+        assert cli._run_flags(args) == ["--setup-oob", "--host-client"]
+
+    def test_install_dir_emitted_only_when_changed(self):
+        assert cli._run_flags(_run_args(cloudxr_install_dir="/opt/x")) == [
+            "--cloudxr-install-dir",
+            "/opt/x",
+        ]
+        default = os.path.expanduser("~/.cloudxr")
+        assert cli._run_flags(_run_args(cloudxr_install_dir=default)) == []
+
+    def test_accept_eula_is_never_baked_into_the_unit(self):
+        """Acceptance is a marker file written at install time, not a unit flag."""
+        assert "--accept-eula" not in cli._run_flags(_run_args(accept_eula=True))
+
+
+class TestStartEula:
+    """The EULA gate on start."""
+
+    def _start_args(self, tmp_path, accept: bool):
+        parser = cli._build_parser()
+        return parser.parse_args(
+            ["start", "--cloudxr-install-dir", str(tmp_path)]
+            + (["--accept-eula"] if accept else [])
+        )
+
+    def test_refuses_when_not_accepted(self, tmp_path, capsys):
+        """A detached service has no terminal, so it cannot be prompted later."""
+        with patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False):
+            with pytest.raises(SystemExit) as exc:
+                cli._cmd_start(self._start_args(tmp_path, accept=False))
+
+        assert exc.value.code == 1
+        assert "EULA has not been accepted" in capsys.readouterr().err
+
+    def test_accept_writes_the_marker(self, tmp_path):
+        with (
+            patch(
+                "isaacteleop.cloudxr.runtime.is_runtime_live", side_effect=[False, True]
+            ),
+            patch("isaacteleop.cloudxr.background.spawn") as m_spawn,
+        ):
+            m_spawn.return_value = (4242, tmp_path / "logs" / "service.log")
+            rc = cli._cmd_start(self._start_args(tmp_path, accept=True))
+
+        assert rc == 0
+        assert (tmp_path / "run" / "eula_accepted").is_file()
+        m_spawn.assert_called_once()
+
+
+class TestStart:
+    """Tests for `service start`."""
+
+    def _args(self, tmp_path):
+        return cli._build_parser().parse_args(
+            ["start", "--cloudxr-install-dir", str(tmp_path), "--accept-eula"]
+        )
+
+    def test_refuses_when_one_is_already_running(self, tmp_path, capsys):
+        with patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True):
+            with pytest.raises(SystemExit):
+                cli._cmd_start(self._args(tmp_path))
+        assert "already serving" in capsys.readouterr().err
+
+    def test_reports_when_the_child_dies_during_startup(self, tmp_path, capsys):
+        """A crash on startup must not look like a slow start."""
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False),
+            patch("isaacteleop.cloudxr.background.spawn") as m_spawn,
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+        ):
+            m_spawn.return_value = (4242, tmp_path / "service.log")
+            (tmp_path / "run").mkdir(parents=True)
+            (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+            with pytest.raises(SystemExit):
+                cli._cmd_start(self._args(tmp_path))
+
+        assert "exited during startup" in capsys.readouterr().err
+
+
+class TestStopAndStatus:
+    """Tests for `service stop` and `service status`."""
+
+    def _args(self, command, tmp_path):
+        return cli._build_parser().parse_args(
+            [command, "--cloudxr-install-dir", str(tmp_path)]
+        )
+
+    def test_stop_is_a_noop_when_nothing_runs(self, tmp_path, capsys):
+        with patch("isaacteleop.cloudxr.background.read_pid", return_value=None):
+            assert cli._cmd_stop(self._args("stop", tmp_path)) == 0
+        assert "No detached CloudXR service" in capsys.readouterr().out
+
+    def test_stop_reports_a_wedged_service(self, tmp_path, capsys):
+        with (
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
+            patch("isaacteleop.cloudxr.background.terminate", return_value=False),
+        ):
+            with pytest.raises(SystemExit):
+                cli._cmd_stop(self._args("stop", tmp_path))
+        assert "would orphan the runtime" in capsys.readouterr().err
+
+    def test_status_exit_code_tracks_liveness(self, tmp_path):
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=7),
+        ):
+            assert cli._cmd_status(self._args("status", tmp_path)) == 0
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+        ):
+            assert cli._cmd_status(self._args("status", tmp_path)) == 1
+
+    def test_status_distinguishes_foreground_from_detached(self, tmp_path, capsys):
+        """A runtime with no pid file was started by hand or another supervisor."""
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+        ):
+            cli._cmd_status(self._args("status", tmp_path))
+        assert "foreground" in capsys.readouterr().out
+
+    def test_status_reports_the_running_session_not_our_defaults(
+        self, tmp_path, capsys
+    ):
+        """Flags come from the running service's own command line."""
+        with (
+            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=7),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=["--host-client"],
+            ),
+        ):
+            cli._cmd_status(self._args("status", tmp_path))
+        # --host-client means the client is served off the WSS proxy, not Pages.
+        assert "/client/" in capsys.readouterr().out
+
+
+class TestRunValidation:
+    """Flag combinations rejected before anything starts."""
+
+    def test_usb_local_requires_setup_oob(self, capsys):
+        with pytest.raises(SystemExit):
+            cli._cmd_run(_run_args(usb_local=True, setup_oob=False))
+        assert "--usb-local requires --setup-oob" in capsys.readouterr().err
+
+    def test_usb_local_rejects_hub_only(self, monkeypatch, capsys):
+        monkeypatch.setenv("TELEOP_OOB_HUB_ONLY", "1")
+        with pytest.raises(SystemExit):
+            cli._cmd_run(_run_args(usb_local=True, setup_oob=True))
+        assert "not compatible with --usb-local" in capsys.readouterr().err
+
+
+class TestParser:
+    """Dispatch-level behaviour."""
+
+    def test_bare_invocation_prints_help(self, capsys):
+        assert cli.main([]) == 0
+        assert "COMMAND" in capsys.readouterr().out
+
+    def test_commands_are_registered(self):
+        parser = cli._build_parser()
+        for command in ("run", "start", "stop", "status", "logs"):
+            assert parser.parse_args([command]).func is not None
