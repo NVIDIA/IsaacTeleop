@@ -328,9 +328,10 @@ class CloudXRService:
             raise RuntimeError(
                 f"A CloudXR runtime is already serving {run_dir}; starting a "
                 "second one would drop the live session.  To use the running "
-                f"runtime: source {env_cfg.env_filepath()} and pass "
-                "--no-launch-cloudxr-runtime.  To replace it, stop that runtime "
-                "first (Ctrl+C in its terminal)."
+                f"runtime: source {env_cfg.env_filepath()} — applications that "
+                "embed CloudXRLauncher attach to it on their own.  To replace "
+                "it: python -m isaacteleop.cloudxr.service stop (Ctrl+C in its "
+                "terminal if it is running in the foreground)."
             )
 
         for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):

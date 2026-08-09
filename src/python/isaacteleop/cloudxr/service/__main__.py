@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -95,6 +96,18 @@ def _run_flags(args: argparse.Namespace) -> list[str]:
         if getattr(args, name):
             flags.append("--" + name.replace("_", "-"))
     return flags
+
+
+_ANSI = re.compile(r"\033\[[0-9;]*m")
+
+
+def _out(text: str = "") -> None:
+    """Print to stdout, dropping colour when it is not a terminal.
+
+    ``service start`` redirects this into ``service.log``, where escape codes
+    are noise rather than emphasis.
+    """
+    print(_ANSI.sub("", text) if not sys.stdout.isatty() else text)
 
 
 def _fail(message: str) -> None:
@@ -234,21 +247,21 @@ def _print_service_summary(
     )
     from ..runtime import latest_runtime_log, runtime_version  # noqa: PLC0415
 
-    print(
+    _out(
         f"Running Isaac Teleop \033[36m{isaacteleop_version}\033[0m, "
         f"CloudXR Runtime \033[36m{runtime_version()}\033[0m"
     )
 
     cxr_log = latest_runtime_log(logs_dir) or "(none yet)"
-    print(
+    _out(
         f"CloudXR runtime:   \033[36mrunning\033[0m, log file: \033[90m{cxr_log}\033[0m"
     )
-    print(
+    _out(
         f"CloudXR WSS proxy: \033[36mrunning\033[0m, log file: \033[90m{wss_log}\033[0m"
     )
     # A profile that does not match the connecting device is the usual cause of
     # XR_ERROR_FORM_FACTOR_UNAVAILABLE (-35) in clients.
-    print(
+    _out(
         f"device profile:    \033[36m{device_profile}\033[0m  "
         "\033[90m(NV_DEVICE_PROFILE)\033[0m"
     )
@@ -264,14 +277,14 @@ def _print_service_summary(
 
     if include_oob and args.setup_oob:
         if args.usb_local:
-            print(
+            _out(
                 "        oob:       \033[32menabled\033[0m  "
                 "(hub + USB-local: adb reverse + coturn)"
             )
             print_oob_hub_startup_banner(lan_host=USB_HOST, usb_local=True)
         else:
             suffix = " + host-client" if args.host_client else ""
-            print(
+            _out(
                 f"        oob:       \033[32menabled\033[0m  (hub + USB adb "
                 f"automation{suffix} — see OOB TELEOP block)"
             )
@@ -280,16 +293,16 @@ def _print_service_summary(
             )
     elif hosted_client_url is not None:
         label = "USB-local" if args.usb_local else "hosted locally"
-        print(
+        _out(
             f"web client:        \033[36m{hosted_client_url}\033[0m  "
             f"\033[90m({label} — open on your headset or browser)\033[0m"
         )
     else:
-        print(
+        _out(
             f"web client:        \033[36m{versioned_web_client_url(isaacteleop_version)}\033[0m"
         )
 
-    print(
+    _out(
         "Activate CloudXR environment in another terminal: "
         f"\033[1;32msource {env_file}\033[0m"
     )
@@ -331,7 +344,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             oob_lan_host=oob_lan_host,
             include_oob=True,
         )
-        print("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
+        _out("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
 
         stop = False
 
@@ -347,7 +360,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             service.health_check()
             time.sleep(0.1)
 
-    print("Stopped.")
+    _out("Stopped.")
     return 0
 
 
@@ -373,7 +386,7 @@ def _require_eula(args: argparse.Namespace, run_dir: str) -> None:
         )
     os.makedirs(run_dir, mode=0o700, exist_ok=True)
     _write_eula_marker(marker)
-    print(f"Recorded EULA acceptance: {marker}")
+    _out(f"Recorded EULA acceptance: {marker}")
 
 
 def _print_summary_for(args: argparse.Namespace, run_dir: str, logs_dir: Path) -> None:

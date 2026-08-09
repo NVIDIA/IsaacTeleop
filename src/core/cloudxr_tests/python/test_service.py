@@ -243,4 +243,4 @@ class TestCleanupStaleRuntime:
 
         message = str(exc_info.value)
         assert fake_cfg.env_filepath() in message
-        assert "--no-launch-cloudxr-runtime" in message
+        assert "isaacteleop.cloudxr.service stop" in message

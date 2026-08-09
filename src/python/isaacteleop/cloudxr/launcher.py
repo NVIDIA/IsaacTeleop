@@ -11,7 +11,6 @@ CLI plumbing the examples share.
 from __future__ import annotations
 
 import argparse
-import contextlib
 import logging
 import os
 import sys
@@ -193,13 +192,13 @@ class CloudXRLauncher:
         """Whether this process started the runtime, and will stop it."""
         return self._service is not None
 
-    # TODO(1.6): drop start_wss_proxy, --launch-wss-proxy and this helper.
+    # TODO(1.7): drop start_wss_proxy, --launch-wss-proxy and this helper.
     @staticmethod
     def _warn_start_wss_proxy_deprecated() -> None:
         """Announce that the ``start_wss_proxy`` no-op is on its way out."""
         message = (
             "start_wss_proxy is deprecated and does nothing; the WSS proxy "
-            "always starts with the runtime.  It is removed in 1.6."
+            "always starts with the runtime.  It is removed in Isaac Teleop 1.7."
         )
         warnings.warn(message, DeprecationWarning, stacklevel=3)
         # Python drops DeprecationWarning raised outside __main__, which is
@@ -221,24 +220,36 @@ class CloudXRLauncher:
             help="CloudXR install directory (default: ~/.cloudxr)",
         )
 
+    # TODO(1.7): drop --launch-cloudxr-runtime and this helper.
     @staticmethod
     def add_launch_cloudxr_runtime_argument(parser: argparse.ArgumentParser) -> None:
-        """Register ``--launch-cloudxr-runtime`` on ``parser``.
+        """Register the deprecated no-op ``--launch-cloudxr-runtime`` on ``parser``.
 
-        Uses :class:`argparse.BooleanOptionalAction`, so callers may pass
-        ``--no-launch-cloudxr-runtime`` when the runtime is already running
-        (for example after sourcing ``~/.cloudxr/run/cloudxr.env``).
+        Defaults to ``None`` so an explicit flag is distinguishable from an
+        absent one and only the former warns.
         """
         parser.add_argument(
             "--launch-cloudxr-runtime",
             action=argparse.BooleanOptionalAction,
-            default=True,
+            default=None,
             help=(
-                "Launch the CloudXR runtime and WSS proxy in-process before running "
-                "(default: true). Pass --no-launch-cloudxr-runtime when the runtime is "
-                "already running (e.g. after sourcing ~/.cloudxr/run/cloudxr.env)."
+                "Deprecated no-op, removed in 1.7: a running runtime is always "
+                "attached to, and one is started only when none is serving the "
+                "install dir."
             ),
         )
+
+    # TODO(1.7): drop this helper with the flag.
+    @staticmethod
+    def _warn_launch_runtime_deprecated() -> None:
+        """Announce that the ``--launch-cloudxr-runtime`` no-op is on its way out."""
+        message = (
+            "--no-launch-cloudxr-runtime is deprecated and does nothing; a "
+            "running runtime is attached to automatically.  It is removed in "
+            "Isaac Teleop 1.7."
+        )
+        warnings.warn(message, DeprecationWarning, stacklevel=3)
+        logger.warning(message)
 
     @staticmethod
     def add_cloudxr_device_profile_argument(parser: argparse.ArgumentParser) -> None:
@@ -304,7 +315,7 @@ class CloudXRLauncher:
             action=argparse.BooleanOptionalAction,
             default=None,
             help=(
-                "Deprecated no-op, removed in 1.6: the WSS TLS proxy always "
+                "Deprecated no-op, removed in 1.7: the WSS TLS proxy always "
                 "starts with the runtime."
             ),
         )
@@ -376,11 +387,8 @@ class CloudXRLauncher:
         host_client: bool = False,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
-    ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
-        """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
-
-        Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
-        false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
+    ) -> CloudXRLauncher:
+        """Build a :class:`CloudXRLauncher` from parsed arguments.
 
         ``install_dir``, ``env_config``, ``device_profile``, and ``accept_eula``
         default to the values registered by :meth:`add_launcher_arguments`
@@ -388,15 +396,15 @@ class CloudXRLauncher:
         override what came in on the command line. For ``accept_eula``, pass
         ``False`` to force-disable even when the CLI flag is set.
         ``run_embedded`` is forwarded to :class:`CloudXRLauncher`.
-        ``start_wss_proxy`` is a deprecated no-op removed in 1.6.
+        ``start_wss_proxy`` is a deprecated no-op removed in 1.7.
         """
         if (
             start_wss_proxy is not None
             or getattr(args, "launch_wss_proxy", None) is not None
         ):
             CloudXRLauncher._warn_start_wss_proxy_deprecated()
-        if not args.launch_cloudxr_runtime:
-            return contextlib.nullcontext(None)
+        if getattr(args, "launch_cloudxr_runtime", None) is not None:
+            CloudXRLauncher._warn_launch_runtime_deprecated()
         return CloudXRLauncher(
             install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
             env_config=CloudXRLauncher._resolve_env_config(args, env_config),

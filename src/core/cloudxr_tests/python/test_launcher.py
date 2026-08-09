@@ -276,7 +276,7 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args([])
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
-        assert args.launch_cloudxr_runtime is True
+        assert args.launch_cloudxr_runtime is None
         assert args.launch_wss_proxy is None
 
     def test_add_cloudxr_device_profile_argument_default(self) -> None:
@@ -291,11 +291,12 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args(["--cloudxr-device-profile", "AppleVisionPro"])
         assert args.cloudxr_device_profile == "AppleVisionPro"
 
-    def test_add_launch_cloudxr_runtime_argument_defaults_true(self) -> None:
+    def test_add_launch_cloudxr_runtime_argument_defaults_to_unset(self) -> None:
+        """None distinguishes "not passed" from "passed", so only the latter warns."""
         parser = argparse.ArgumentParser()
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
         args = parser.parse_args([])
-        assert args.launch_cloudxr_runtime is True
+        assert args.launch_cloudxr_runtime is None
 
     def test_add_launch_cloudxr_runtime_argument_no_launch(self) -> None:
         parser = argparse.ArgumentParser()
@@ -303,16 +304,24 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args(["--no-launch-cloudxr-runtime"])
         assert args.launch_cloudxr_runtime is False
 
-    def test_launch_context_skips_when_disabled(self) -> None:
-        args = argparse.Namespace(launch_cloudxr_runtime=False)
-        with CloudXRLauncher.launch_context(args) as launcher:
-            assert launcher is None
+    def test_no_launch_cloudxr_runtime_is_a_deprecated_noop(self, tmp_path) -> None:
+        """It used to skip the runtime entirely; a live one is now always used."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        args = argparse.Namespace(
+            launch_cloudxr_runtime=False,
+            cloudxr_install_dir=install,
+            cloudxr_device_profile="Quest3",
+        )
+        with _live():
+            with pytest.warns(DeprecationWarning, match="no-launch-cloudxr-runtime"):
+                with CloudXRLauncher.launch_context(args) as launcher:
+                    assert launcher is not None
+                    assert launcher.owns_runtime is False
 
     @_windows_skip
     def test_launch_context_attaches_to_a_running_service(self, tmp_path) -> None:
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
         args = argparse.Namespace(
-            launch_cloudxr_runtime=True,
             cloudxr_install_dir=install,
             cloudxr_device_profile="Quest3",
         )
@@ -324,7 +333,6 @@ class TestLaunchArgumentHelpers:
     @_windows_skip
     def test_launch_context_passes_device_profile_kwarg(self, tmp_path) -> None:
         args = argparse.Namespace(
-            launch_cloudxr_runtime=True,
             cloudxr_install_dir=str(tmp_path),
             cloudxr_device_profile="Quest3",
         )
