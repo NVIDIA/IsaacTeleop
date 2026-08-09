@@ -6,8 +6,8 @@
 Rig Launcher
 ============
 
-A typical Isaac Teleop setup is three processes on one machine: the CloudXR
-runtime, one or more **producer** plugins that publish device data, and one or
+A typical Isaac Teleop setup is one or more **producer** plugins that publish
+device data, and one or
 more **consumer** apps (a Python ``TeleopSession`` script or a C++ example
 binary) that read the streams. Such a configured set is a *rig* — the same
 shape serves demos, production teleop, and data collection.
@@ -49,9 +49,6 @@ Run a rig
    # from the Teleop repository root
    python -m isaacteleop.rig rigs/se3_tracker.yaml
 
-   # a CloudXR runtime is already running elsewhere (skip the runtime pane):
-   python -m isaacteleop.rig rigs/se3_tracker.yaml --no-runtime
-
 What happens:
 
 1. **Preflight** — the launcher verifies tmux is available, the referenced
@@ -89,7 +86,7 @@ What happens:
    its own (named after the rig) and the launcher attaches to it.
 
 Re-running the same rig just switches to the running one — in whichever
-session it lives; it does **not** re-apply ``--no-runtime`` or pick up edits
+session it lives; it does **not** pick up edits
 to the rig file. Start over with:
 
 .. code-block:: bash
@@ -147,8 +144,6 @@ own:
    params:                        # shared values, substituted into the commands below
      hand: right
      collection_id: se3_tracker   # defined ONCE, referenced by both sides below
-   # runtime: optional full-command override for the runtime pane; default:
-   #   {python} -m isaacteleop.cloudxr --accept-eula
    producers:                     # publish device data into the runtime
      - name: se3 tracker plugin (requires headset + controller)
        command: "{install}/plugins/controller_se3_tracker/controller_se3_tracker_plugin {hand} {collection_id}"
@@ -185,11 +180,6 @@ Top-level keys:
      - Flat mapping of ``{placeholder}`` values shared by the commands
        below — the rig file is the single source of configuration; edit it
        (and relaunch with ``--kill``) to change them.
-   * - ``runtime``
-     - no
-     - Full-command override for the runtime pane (e.g. to add
-       ``--host-client`` or a different device profile). Default:
-       ``{python} -m isaacteleop.cloudxr --accept-eula``.
    * - ``producers`` / ``consumers``
      - at least one entry total
      - Lists of ``{name, command}`` entries. ``name`` is free text shown in
@@ -211,15 +201,12 @@ errors — a typo fails loudly at load time instead of misbehaving in a pane.
    Define it once under ``params`` and reference it as ``{collection_id}`` in
    every command — then one edit in one place changes both sides together.
 
-.. warning::
+.. note::
 
-   Python ``TeleopSession`` example scripts launch their **own** CloudXR
-   runtime by default (``--launch-cloudxr-runtime`` defaults to true). The
-   runtime is a host singleton, so auto-running such a consumer kills the
-   runtime pane — the headset drops and every producer stalls. Always add
-   ``--no-launch-cloudxr-runtime`` to Python consumer commands in a rig; the
-   launcher prints a warning (and repeats it in the pane banner) when a
-   command looks like it is missing the flag.
+   The CloudXR runtime is a service, not a rig pane. The rig makes sure one
+   is serving before any pane starts, and every pane sources its environment,
+   so Python consumers attach to that same runtime instead of starting their
+   own.
 
    See :ref:`dedicated-cloudxr-runtime` for more on standalone runtime
    workflows.
@@ -241,8 +228,8 @@ Troubleshooting
        activate the right venv (or ``pip install install/wheels/isaacteleop-*.whl``).
    * - A worker pane sits idle without running its command
      - The pane is still waiting for the runtime's ``runtime_started``
-       sentinel; check the runtime pane. After the (two-minute) wait times
-       out, the pane prints a remedy and leaves the command pre-typed.
+       CloudXR env file. Check that a runtime is serving with
+       ``python -m isaacteleop.cloudxr.service status``.
    * - ``[cloudxr] runtime is up but loading ... failed``
      - The runtime came up but its ``cloudxr.env`` could not be sourced;
        the pane does not run its command. Check the error printed above
@@ -255,7 +242,7 @@ Troubleshooting
        already pre-typed at the prompt.
    * - Runtime pane dies when a consumer starts
      - The consumer self-launched a second runtime; add
-       ``--no-launch-cloudxr-runtime`` to its command in the rig.
+       nothing — consumers attach to the running service automatically.
    * - Edits to the rig file seem ignored
      - The rig was already running; relaunch after
        ``python -m isaacteleop.rig <rig.yaml> --kill``.

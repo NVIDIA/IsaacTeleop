@@ -45,7 +45,6 @@ from .config import (
     INSTALL_DIR_ENV,
     RigConfig,
     RigError,
-    find_runtime_footguns,
     resolve_install_dir,
     substitute_command,
 )
@@ -53,8 +52,7 @@ from .config import (
 #: Signature of the tmux seam: run one tmux subcommand, return its stdout.
 RunTmux = Callable[[Sequence[str]], str]
 
-#: One planned pane: (role, name, raw command, substituted command, footgun).
-#: ``footgun`` marks a Python app missing --no-launch-cloudxr-runtime.
+#: One planned pane: (role, name, raw command, substituted command).
 _Pane = tuple[str, str, str, str, bool]
 
 #: A live rig: (tmux window id, name of the session holding it).
@@ -92,21 +90,6 @@ _CMAKE_CACHE = "CMakeCache.txt"
 #: cpython-311``). Only used to sharpen an error message, so an unknown
 #: layout costs nothing but a less specific remedy.
 _BUILD_DIRS = ("build", "build-cmake", "build-wheel")
-
-#: Maximum time [s] a worker pane waits for the runtime before giving up on
-#: auto-loading the CloudXR env (matches the runtime's own startup timeout
-#: order of magnitude; the pane prints a manual remedy on expiry).
-CLOUDXR_ENV_WAIT_TIMEOUT_SEC = 120
-
-#: Sentinel file the runtime creates in its run dir once it is actually
-#: serving. Worker panes wait on it; the launcher deletes a stale one
-#: before starting a managed runtime (see :func:`launch_rig`).
-_RUNTIME_STARTED_SENTINEL = "runtime_started"
-
-#: Height of the runtime pane in the ``main-horizontal`` layout. The runtime
-#: only prints status lines and the web-client URL, so it gets a slim strip
-#: on top and the worker panes share the rest (tmux accepts a percentage).
-RUNTIME_PANE_HEIGHT = "25%"
 
 
 class PreflightError(RigError):
@@ -231,70 +214,32 @@ def _check_commands_exist(
             )
 
 
-def _cloudxr_run_dir(runtime_command: str | None, env: Mapping[str, str]) -> Path:
-    """Return the CloudXR run dir (holds ``cloudxr.env`` and ``runtime_started``).
+def _cloudxr_env_command(env_file: Path) -> str:
+    """Build the shell line each worker pane runs to load the CloudXR env.
 
-    Resolution mirrors the runtime's own ``EnvConfig``: an explicit
-    ``--cloudxr-install-dir`` in the runtime command wins, else
-    ``$CXR_INSTALL_DIR``, else ``~/.cloudxr``.
+    OpenXR producers and consumers — native binaries included — need the env
+    the service wrote (``XR_RUNTIME_JSON`` and friends). There is nothing to
+    wait for: :func:`launch_rig` only gets here once ``CloudXRLauncher`` has a
+    runtime serving, so the file already exists.
+
+    Sets ``rig_env_ready=1`` only after the file was sourced;
+    :func:`_worker_pane_command` gates the auto-run on it. Both run in the
+    wrapper's top-level shell — never a subshell — so the variable and the
+    exports survive into the rest of the wrapper. The ``[ -r ... ]`` guard is
+    load-bearing: ``.`` is a POSIX special built-in that aborts a
+    non-interactive shell when the file is missing.
     """
-    install: str | None = None
-    if runtime_command:
-        try:
-            tokens = shlex.split(runtime_command)
-        except ValueError:
-            tokens = []
-        for i, token in enumerate(tokens):
-            if token == "--cloudxr-install-dir" and i + 1 < len(tokens):
-                install = tokens[i + 1]
-            elif token.startswith("--cloudxr-install-dir="):
-                install = token.partition("=")[2]
-    if install is None:
-        install = env.get("CXR_INSTALL_DIR") or "~/.cloudxr"
-    return Path(install).expanduser() / "run"
-
-
-def _cloudxr_env_wait_command(run_dir: Path) -> str:
-    """Build the shell line each worker pane RUNS to load the CloudXR env.
-
-    OpenXR producers/consumers need the env the runtime writes to
-    ``<run_dir>/cloudxr.env`` (``XR_RUNTIME_JSON`` etc.). The launcher
-    deletes any stale ``runtime_started`` sentinel before starting a managed
-    runtime, and the runtime recreates it only once it is actually serving,
-    so the sentinel is the "runtime successfully started" signal to wait on.
-    The wait is bounded: a runtime that never comes up leaves an actionable
-    message in the pane, not a stuck loop.
-
-    Sets ``rig_env_ready=1`` only after ``cloudxr.env`` was successfully
-    sourced; :func:`_worker_pane_command` gates the auto-run on that shell
-    variable. Both the ``.`` and the flag assignment run in the wrapper's
-    top-level shell — never a subshell — so the variable AND the sourced
-    exports survive into the rest of the wrapper (and the final exec'd
-    shell). The ``[ -r ... ]`` guard is load-bearing: ``.`` is a POSIX
-    special built-in that aborts a non-interactive shell when the file is
-    missing or unreadable, which would kill the pane wrapper.
-    """
-    sentinel = shlex.quote(str(run_dir / _RUNTIME_STARTED_SENTINEL))
-    env_file = str(run_dir / "cloudxr.env")
-    quoted_env = shlex.quote(env_file)
-    ok_msg = shlex.quote("[cloudxr] runtime is up — env loaded")
-    source_fail_msg = shlex.quote(
-        f"[cloudxr] runtime is up but loading {env_file} failed — see any "
-        f"errors above, then run: source {env_file}"
-    )
-    timeout_msg = shlex.quote(
-        f"[cloudxr] runtime not ready after {CLOUDXR_ENV_WAIT_TIMEOUT_SEC}s — "
-        f"check the runtime pane, then run: source {env_file}"
+    quoted = shlex.quote(str(env_file))
+    ok_msg = shlex.quote("[cloudxr] env loaded")
+    fail_msg = shlex.quote(
+        f"[cloudxr] loading {env_file} failed — see any errors above, "
+        f"then run: source {env_file}"
     )
     return (
         f"rig_env_ready=0; "
-        f"i=0; until [ -e {sentinel} ] || [ $i -ge {CLOUDXR_ENV_WAIT_TIMEOUT_SEC} ]; "
-        f"do sleep 1; i=$((i+1)); done; "
-        f"if [ -e {sentinel} ]; then "
-        f"if [ -r {quoted_env} ] && . {quoted_env}; then "
+        f"if [ -r {quoted} ] && . {quoted}; then "
         f"rig_env_ready=1; echo {ok_msg}; "
-        f"else echo {source_fail_msg}; fi; "
-        f"else echo {timeout_msg}; fi"
+        f"else echo {fail_msg}; fi"
     )
 
 
@@ -314,7 +259,6 @@ def _pythonpath_prefix(command: str, raw_command: str, env: Mapping[str, str]) -
 def launch_rig(
     config: RigConfig,
     *,
-    no_runtime: bool = False,
     run_tmux: RunTmux | None = None,
 ) -> None:
     """Launch (or switch to) the tmux window for a teleop rig.
@@ -329,8 +273,6 @@ def launch_rig(
 
     Args:
         config: The parsed rig (see :func:`~.config.load_rig_config`).
-        no_runtime: Skip the runtime pane (a CloudXR runtime is already
-            running elsewhere, e.g. after ``python -m isaacteleop.cloudxr``).
         run_tmux: Injectable tmux seam for tests. When ``None`` the real
             tmux is used: tmux-on-PATH is checked immediately (the rig-window
             lookup needs it) and the interpreter-can-import-
@@ -357,11 +299,6 @@ def launch_rig(
             f"switching to it "
             f"(kill with: python -m isaacteleop.rig {config.source} --kill)"
         )
-        if no_runtime:
-            message += (
-                "\nnote: --no-runtime ignored for a running rig; "
-                "kill it first to relaunch with new settings"
-            )
         print(message)
         _goto_rig_window(run_tmux, window_id, session, env)
         return
@@ -369,24 +306,9 @@ def launch_rig(
     params = config.params
     install_dir = resolve_install_dir(config.cwd, env)
 
-    # Resolve the pane plan. Runtime first (starts immediately); producers
-    # and consumers auto-run once the runtime env is ready.
+    # No runtime pane: the CloudXR service owns the runtime, and the rig only
+    # makes sure one is serving before any pane starts.
     plan: list[_Pane] = []
-    if not no_runtime:
-        raw = config.runtime_command
-        # Honest title: only claim isaacteleop.cloudxr when it IS the default.
-        runtime_name = (
-            "isaacteleop.cloudxr" if config.runtime is None else "custom runtime"
-        )
-        plan.append(
-            (
-                "runtime",
-                runtime_name,
-                raw,
-                substitute_command(raw, params, config.source, install_dir),
-                False,
-            )
-        )
     for role, procs in (("producer", config.producers), ("consumer", config.consumers)):
         for proc in procs:
             plan.append(
@@ -397,7 +319,6 @@ def launch_rig(
                     substitute_command(
                         proc.command, params, config.source, install_dir
                     ),
-                    bool(find_runtime_footguns([proc], runtime_managed=not no_runtime)),
                 )
             )
 
@@ -406,35 +327,29 @@ def launch_rig(
             f"working directory {config.cwd} (from 'cwd:' in {config.source}) does not exist"
         )
     _check_commands_exist(
-        [(name, resolved) for role, name, _, resolved, _ in plan if role != "runtime"],
+        [(name, resolved) for _, name, _, resolved in plan],
         config.cwd,
         _missing_binary_remedy(config.cwd, install_dir, env),
     )
-    for warning in find_runtime_footguns(
-        [*config.producers, *config.consumers], runtime_managed=not no_runtime
-    ):
-        print(warning, file=sys.stderr)
-    if using_real_tmux and any("{python}" in raw for _, _, raw, _, _ in plan):
+    if using_real_tmux and any("{python}" in raw for _, _, raw, _ in plan):
         _check_python_can_import_cloudxr(env, install_dir)
 
-    runtime_resolved = plan[0][3] if not no_runtime else None
-    cloudxr_run_dir = _cloudxr_run_dir(runtime_resolved, env)
-    if not no_runtime:
-        # A stale sentinel from a prior run must not gate workers open before
-        # THIS runtime is serving: workers spawn (and test the sentinel)
-        # within milliseconds, while the runtime needs seconds to boot and
-        # delete it itself. Under --no-runtime the sentinel belongs to the
-        # external runtime — never touch it.
-        stale = cloudxr_run_dir / _RUNTIME_STARTED_SENTINEL
-        try:
-            stale.unlink(missing_ok=True)
-        except OSError as exc:
-            raise PreflightError(
-                f"cannot remove stale {stale}: {exc} — fix permissions on "
-                f"{cloudxr_run_dir} (was the runtime run with sudo?)"
-            ) from exc
+    # One runtime per host, owned by the CloudXR service. Attach to a running
+    # one, or start a detached service — either way it outlives this rig, and
+    # panes (which may be native binaries) get its env from the file below.
+    from isaacteleop.cloudxr.launcher import CloudXRLauncher  # noqa: PLC0415
+
+    try:
+        cloudxr = CloudXRLauncher(
+            install_dir=env.get("CXR_INSTALL_DIR") or "~/.cloudxr"
+        )
+    except RuntimeError as exc:
+        raise PreflightError(
+            f"no CloudXR runtime for rig '{config.name}': {exc}"
+        ) from exc
+
     window_id, session = _create_rig_window(
-        run_tmux, config.name, config.cwd, plan, env, cloudxr_run_dir
+        run_tmux, config.name, config.cwd, plan, env, cloudxr.env_file
     )
     _print_instructions(config.name, session, config.description, plan)
     _goto_rig_window(run_tmux, window_id, session, env)
@@ -503,21 +418,13 @@ def _goto_rig_window(
         run_tmux(["attach-session", "-t", session])
 
 
-def _autorun_banner(role: str, name: str, command: str, footgun: bool) -> str:
+def _autorun_banner(role: str, name: str, command: str) -> str:
     """Build the echo command a worker pane runs right before its command.
 
     The message is shlex-quoted as a whole so pane names (or commands)
     containing quotes or shell metacharacters cannot break out of the echo.
-    Foot-gun panes get an in-pane WARNING in addition to the stderr print at
-    launch time.
     """
     message = f"[{role}: {name}] running: {command}"
-    if footgun:
-        message += (
-            " — WARNING: this looks like a Python TeleopSession script without "
-            "--no-launch-cloudxr-runtime; it will start a second "
-            "runtime and kill the runtime pane"
-        )
     return "echo " + shlex.quote(message)
 
 
@@ -553,9 +460,7 @@ def _runtime_pane_command(command: str) -> str:
     )
 
 
-def _worker_pane_command(
-    command: str, run_dir: Path, role: str, name: str, footgun: bool
-) -> str:
+def _worker_pane_command(command: str, env_file: Path, role: str, name: str) -> str:
     """Build the tmux shell-command a producer/consumer pane is spawned running.
 
     With tty echo off (so none of this machinery ever appears as typed
@@ -582,9 +487,9 @@ def _worker_pane_command(
     return "\n".join(
         [
             "stty -echo",
-            _cloudxr_env_wait_command(run_dir),
+            _cloudxr_env_command(env_file),
             'if [ "$rig_env_ready" -eq 1 ]; then',
-            _autorun_banner(role, name, command, footgun),
+            _autorun_banner(role, name, command),
             "stty echo",
             "trap : INT",
             f"sh -c {shlex.quote(command)}",
@@ -606,7 +511,7 @@ def _create_rig_window(
     cwd: Path,
     plan: Sequence[_Pane],
     env: Mapping[str, str],
-    cloudxr_run_dir: Path,
+    cloudxr_env_file: Path,
 ) -> _RigWindow:
     """Create the rig window, each pane spawned running its wrapper command.
 
@@ -617,10 +522,8 @@ def _create_rig_window(
     the layout is immune to base-index settings AND to the window sharing a
     session with the user's other windows: every option and layout call
     below must target the rig's own window, not whatever window happens to
-    be current. Layout: ``main-horizontal`` with the runtime as the main
-    pane — a full-width strip of :data:`RUNTIME_PANE_HEIGHT` on top (it only
-    prints status and the web-client URL) — and the workers tiled below.
-    Under ``--no-runtime`` all panes are peers and stay ``tiled``.
+    be current. Layout: ``tiled`` — every pane is a peer worker, since the
+    CloudXR runtime is a service rather than a pane.
 
     Every pane's setup runs as its SPAWN COMMAND (the trailing tmux
     shell-command), never as keystrokes typed by the launcher: keystrokes
@@ -633,7 +536,7 @@ def _create_rig_window(
     with ``-`` must not parse as a tmux option).
     """
     pane_commands = []
-    for role, name, raw, resolved, footgun in plan:
+    for role, name, raw, resolved in plan:
         command = _pythonpath_prefix(resolved, raw, env)
         if role == "runtime":
             # The runtime is a host-level singleton and must be up before
@@ -643,7 +546,7 @@ def _create_rig_window(
             # Producers/consumers wait for the runtime env, then auto-run;
             # an early exit (headset not connected yet) reruns on Enter.
             pane_commands.append(
-                _worker_pane_command(command, cloudxr_run_dir, role, name, footgun)
+                _worker_pane_command(command, cloudxr_env_file, role, name)
             )
 
     if env.get("TMUX"):
@@ -709,23 +612,9 @@ def _create_rig_window(
         # "pane too small" limit, no matter how many panes the rig has.
         # select-layout takes a pane target: any rig pane names the window.
         run_tmux(["select-layout", "-t", pane_ids[0], "tiled"])
-    if len(plan) > 1 and plan[0][0] == "runtime":
-        # Final layout: the runtime (pane 0 → the main pane) as a slim
-        # full-width strip on top, workers tiled in the space below.
-        run_tmux(
-            [
-                "set-option",
-                "-w",
-                "-t",
-                window_id,
-                "main-pane-height",
-                RUNTIME_PANE_HEIGHT,
-            ]
-        )
-        run_tmux(["select-layout", "-t", pane_ids[0], "main-horizontal"])
-    # else (--no-runtime): all panes are peer workers — stay tiled.
+    # Every pane is a peer worker now, so tiled is the final layout.
 
-    for pane_id, (role, name, _, _, _) in zip(pane_ids, plan):
+    for pane_id, (role, name, _, _) in zip(pane_ids, plan):
         title = (
             f"runtime: {name} (running)"
             if role == "runtime"
@@ -754,7 +643,7 @@ def _print_instructions(
     if description:
         header += f": {description}"
     print(header)
-    for role, name, _, _, _ in plan:
+    for role, name, _, _ in plan:
         if role == "runtime":
             print(
                 f"  - {role}: {name} — running; connect the headset to the URL it prints"

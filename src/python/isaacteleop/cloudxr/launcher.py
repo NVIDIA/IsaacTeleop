@@ -18,7 +18,7 @@ import warnings
 from pathlib import Path
 
 from . import background
-from .env_config import DEFAULT_DEVICE_PROFILE, read_exported_env
+from .env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, read_exported_env
 from .runtime import check_eula, is_runtime_live, latest_wss_log
 from .service import CloudXRService
 
@@ -159,7 +159,7 @@ class CloudXRLauncher:
         The env file is applied, never re-resolved: resolving it would rewrite
         the file out from under the service that owns it.
         """
-        env = read_exported_env(os.path.join(self._run_dir, "cloudxr.env"))
+        env = read_exported_env(self.env_file)
         if not env:
             raise RuntimeError(
                 f"A CloudXR runtime is serving {self._run_dir}, but its "
@@ -186,6 +186,20 @@ class CloudXRLauncher:
                 "started with its own configuration.",
                 env_config,
             )
+
+    @property
+    def run_dir(self) -> Path:
+        """The run directory of the runtime this is attached to."""
+        return Path(self._run_dir)
+
+    @property
+    def env_file(self) -> Path:
+        """The env file describing the running runtime.
+
+        Sourcing it points OpenXR at that runtime, which is how processes the
+        launcher cannot reach — native binaries, other shells — attach to it.
+        """
+        return Path(self._run_dir) / ENV_FILE_NAME
 
     @property
     def owns_runtime(self) -> bool:

@@ -37,15 +37,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to a rig file (e.g. rigs/se3_tracker.yaml).",
     )
     parser.add_argument(
-        "--no-runtime",
-        action="store_true",
-        help=(
-            "Skip the runtime pane when a CloudXR runtime is already running "
-            "elsewhere. That external runtime is still a host singleton: "
-            "consumers must connect to it, not self-launch a runtime beside it."
-        ),
-    )
-    parser.add_argument(
         "--kill",
         action="store_true",
         help=(
@@ -69,11 +60,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = load_rig_config(args.rig)
         if args.kill:
-            if args.no_runtime:
-                parser.error("--kill cannot be combined with --no-runtime")
             kill_rig(config)
         else:
-            launch_rig(config, no_runtime=args.no_runtime)
+            launch_rig(config)
     except RigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

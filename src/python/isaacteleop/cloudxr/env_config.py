@@ -18,6 +18,10 @@ DEFAULT_DEVICE_PROFILE = "Quest3"
 """``NV_DEVICE_PROFILE`` used when no env file, process env, or caller sets one."""
 
 
+ENV_FILE_NAME = "cloudxr.env"
+"""Name of the env file the service writes under :meth:`EnvConfig.openxr_run_dir`."""
+
+
 class EnvConfig:
     """Singleton holding CloudXR env configuration and resolved state.
 
@@ -130,7 +134,7 @@ class EnvConfig:
 
     def _env_filename(self) -> str:
         """Filename under openxr_run_dir() where the final env is written."""
-        return "cloudxr.env"
+        return ENV_FILE_NAME
 
     def _resolve_and_apply(self, env: dict[str, str]) -> dict[str, str]:
         """

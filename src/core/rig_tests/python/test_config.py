@@ -11,11 +11,9 @@ from pathlib import Path
 
 import pytest
 from rig_py_test_ns.config import (
-    DEFAULT_RUNTIME_COMMAND,
     INSTALL_DIR_ENV,
     RigConfigError,
     ProcessConfig,
-    find_runtime_footguns,
     load_rig_config,
     resolve_install_dir,
     substitute_command,
@@ -50,8 +48,6 @@ def test_load_se3_rig():
     assert config.name == "se3_tracker"
     assert config.description
     assert config.cwd == REPO_ROOT  # cwd: .. resolves against rigs/
-    assert config.runtime is None
-    assert config.runtime_command == DEFAULT_RUNTIME_COMMAND
     assert config.params == {"hand": "right", "collection_id": "se3_tracker"}
     assert len(config.producers) == 1
     assert len(config.consumers) == 1
@@ -70,38 +66,16 @@ def test_shipped_rigs_never_hard_code_the_install_prefix():
             assert not proc.command.startswith("install/"), (rig, proc.command)
 
 
-def test_se3_rig_has_no_footguns():
-    config = load_rig_config(SE3_RIG)
-    assert (
-        find_runtime_footguns(
-            [*config.producers, *config.consumers], runtime_managed=True
-        )
-        == []
-    )
-
-
 def test_load_full_body_rig():
     config = load_rig_config(FULL_BODY_RIG)
     assert config.name == "full_body"
     assert config.description
     assert config.cwd == REPO_ROOT  # cwd: .. resolves against rigs/
-    assert config.runtime is None
-    assert config.runtime_command == DEFAULT_RUNTIME_COMMAND
     # Consumer-only rig: both panes read the runtime directly, so there are no
     # producers, no params, and no collection_id to rendezvous on.
     assert config.params == {}
     assert len(config.producers) == 0
     assert len(config.consumers) == 2
-
-
-def test_full_body_rig_has_no_footguns():
-    config = load_rig_config(FULL_BODY_RIG)
-    assert (
-        find_runtime_footguns(
-            [*config.producers, *config.consumers], runtime_managed=True
-        )
-        == []
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -246,51 +220,6 @@ def test_escaped_braces_pass_through(tmp_path):
 
 def _proc(command: str) -> ProcessConfig:
     return ProcessConfig(name="app", command=command)
-
-
-def test_footgun_fires_on_python_script_without_flag():
-    warnings = find_runtime_footguns(
-        [_proc("{python} examples/teleop/python/example.py {collection_id}")],
-        runtime_managed=True,
-    )
-    assert len(warnings) == 1
-    assert "--no-launch-cloudxr-runtime" in warnings[0]
-    # Names the symptom, not just the flag.
-    assert "kills the runtime pane" in warnings[0]
-
-
-def test_footgun_fires_on_module_invocation():
-    warnings = find_runtime_footguns(
-        [_proc("{python} -m isaacteleop.examples.foo")], runtime_managed=True
-    )
-    assert len(warnings) == 1
-
-
-def test_footgun_quiet_when_flag_present():
-    assert (
-        find_runtime_footguns(
-            [_proc("{python} example.py --no-launch-cloudxr-runtime")],
-            runtime_managed=True,
-        )
-        == []
-    )
-
-
-def test_footgun_quiet_on_cpp_binary():
-    assert (
-        find_runtime_footguns(
-            [_proc("install/examples/schemaio/se3_printer {collection_id}")],
-            runtime_managed=True,
-        )
-        == []
-    )
-
-
-def test_footgun_quiet_when_runtime_not_managed():
-    assert (
-        find_runtime_footguns([_proc("{python} example.py")], runtime_managed=False)
-        == []
-    )
 
 
 # ---------------------------------------------------------------------------

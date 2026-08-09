@@ -3,8 +3,8 @@
 
 """Schema and loader for teleop-rig YAML files.
 
-A *rig* file describes one tmux teleop rig: the CloudXR runtime pane plus
-producer plugins and consumer apps. See ``rigs/se3_tracker.yaml`` in the
+A *rig* file describes one tmux teleop rig: its producer plugins and
+consumer apps. See ``rigs/se3_tracker.yaml`` in the
 Teleop repository for an annotated exemplar. Top-level keys::
 
     name:         rig id AND tmux window name (required)
@@ -13,8 +13,6 @@ Teleop repository for an annotated exemplar. Top-level keys::
                   directory (optional; default: the YAML's directory)
     params:       flat str->scalar dict of {placeholder} values shared by
                   the commands below; edit the file to change them (optional)
-    runtime:      full-command override for the runtime pane (optional;
-                  default: "{python} -m isaacteleop.cloudxr --accept-eula")
     producers:    list of {name, command} — publish device data (optional)
     consumers:    list of {name, command} — read the streams (optional)
 
@@ -33,7 +31,7 @@ import re
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 import yaml
 
@@ -55,15 +53,9 @@ _RESERVED_PLACEHOLDERS = {
     INSTALL_PLACEHOLDER: f"the install prefix (override: ${INSTALL_DIR_ENV})",
 }
 
-#: Default runtime pane command (used when the rig has no ``runtime:`` key).
-DEFAULT_RUNTIME_COMMAND = "{python} -m isaacteleop.cloudxr --accept-eula"
-
-#: Flag a Python TeleopSession script needs so it does not start a second
-#: (host-singleton) CloudXR runtime next to the managed runtime pane.
-NO_LAUNCH_RUNTIME_FLAG = "--no-launch-cloudxr-runtime"
 
 _TOP_LEVEL_KEYS = frozenset(
-    {"name", "description", "cwd", "params", "runtime", "producers", "consumers"}
+    {"name", "description", "cwd", "params", "producers", "consumers"}
 )
 _ENTRY_KEYS = frozenset({"name", "command"})
 
@@ -96,15 +88,9 @@ class RigConfig:
     description: str
     cwd: Path
     params: dict[str, str]
-    runtime: str | None
     producers: tuple[ProcessConfig, ...]
     consumers: tuple[ProcessConfig, ...]
     source: Path
-
-    @property
-    def runtime_command(self) -> str:
-        """The raw (unsubstituted) runtime pane command."""
-        return self.runtime if self.runtime is not None else DEFAULT_RUNTIME_COMMAND
 
 
 def _require_str(value: Any, what: str, source: Path) -> str:
@@ -222,9 +208,6 @@ def load_rig_config(path: str | Path) -> RigConfig:
     description = ""
     if data.get("description") is not None:
         description = _require_str(data["description"], "'description'", source)
-    runtime = None
-    if data.get("runtime") is not None:
-        runtime = _require_str(data["runtime"], "'runtime'", source)
 
     yaml_dir = source.resolve().parent
     cwd = yaml_dir
@@ -243,7 +226,6 @@ def load_rig_config(path: str | Path) -> RigConfig:
         description=description,
         cwd=cwd,
         params=_parse_params(data.get("params"), source),
-        runtime=runtime,
         producers=producers,
         consumers=consumers,
         source=source,
@@ -299,39 +281,3 @@ def substitute_command(
             f"{source}: malformed placeholder in command {command!r}: {exc} "
             f"(literal braces must be escaped as {{{{ / }}}})"
         ) from exc
-
-
-def find_runtime_footguns(
-    processes: Sequence[ProcessConfig], runtime_managed: bool
-) -> list[str]:
-    """Warn-only lint: pre-typed Python commands that would self-launch a runtime.
-
-    Python TeleopSession scripts launch their own CloudXR runtime by
-    default. The runtime is a host singleton (fixed WSS port), so a second
-    runtime KILLS the managed runtime pane — the headset drops and every
-    producer stalls. Heuristic (narrow, never a gate): the managed runtime
-    pane is enabled AND a pre-typed command contains ``{python}`` and a
-    ``.py`` token or ``-m isaacteleop`` AND lacks ``--no-launch-cloudxr-runtime``.
-
-    Returns:
-        Warning strings to print; empty when nothing looks risky.
-    """
-    if not runtime_managed:
-        return []
-    warnings = []
-    for proc in processes:
-        cmd = proc.command
-        if "{python}" not in cmd or NO_LAUNCH_RUNTIME_FLAG in cmd:
-            continue
-        looks_python_app = "-m isaacteleop" in cmd or any(
-            token.endswith(".py") for token in cmd.split()
-        )
-        if looks_python_app:
-            warnings.append(
-                f"warning: '{proc.name}' looks like a Python TeleopSession script "
-                f"without {NO_LAUNCH_RUNTIME_FLAG}. Such scripts start their own "
-                "CloudXR runtime by default; the runtime is a host singleton, so a "
-                "second runtime kills the runtime pane — the headset drops and "
-                f"producers stall. Add {NO_LAUNCH_RUNTIME_FLAG} to its command."
-            )
-    return warnings
