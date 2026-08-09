@@ -101,9 +101,11 @@ See :doc:`build_from_source/index` for more details.
 3. Configure CloudXR (optional)
 -------------------------------
 
-The teleop examples in this guide auto-launch the CloudXR runtime and its WSS
-proxy for you through ``CloudXRLauncher`` when they connect — you do **not**
-need to start the runtime in a separate terminal or source any environment file.
+The teleop examples in this guide bring CloudXR up for you when they connect —
+you do **not** need to start the runtime in a separate terminal or source any
+environment file. If nothing is serving yet, the example starts a CloudXR
+service in the background and prints how to stop it; that service outlives the
+example, so the headset stays connected from one run to the next.
 The first launch downloads the CloudXR Web Client SDK and asks you to review and
 accept the EULA on the terminal; answer the prompt once and the acceptance is
 remembered for subsequent runs.
@@ -137,9 +139,8 @@ To inspect the resolved settings after startup:
 
 .. note::
 
-   If you prefer to run the runtime yourself in its own terminal — e.g. to keep
-   the headset connection alive across example restarts, or to use launch modes
-   like ``--host-client`` and ``--setup-oob`` — see
+   To manage the service yourself — check what is running, stop it, or use
+   launch modes like ``--host-client`` and ``--setup-oob`` — see
    :doc:`/references/cloudxr`.
 
 .. list-table:: Environment variables

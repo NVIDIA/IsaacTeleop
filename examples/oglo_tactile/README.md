@@ -55,11 +55,11 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
 
 ## B. Demo scenario (run in order)
 
-**Terminal 1 — CloudXR runtime**
+**Start the CloudXR runtime** — a background service, so this shell stays free
 ```bash
 cd ~/Documents/IsaacTeleop
 source scripts/setup_cloudxr_env.sh
-python -m isaacteleop.cloudxr
+python -m isaacteleop.cloudxr.service start
 # Note the printed web-client URL, e.g.  https://<laptop-ip>:48322/
 ```
 
@@ -70,7 +70,7 @@ python -m isaacteleop.cloudxr
   and open `https://<laptop-ip>:48322/client/` instead.)
 - You should now be in the CloudXR view; hand/head tracking is live.
 
-**Terminal 2 — gloves + recording + overlay**
+**Gloves + recording + overlay**
 ```bash
 cd ~/Documents/IsaacTeleop
 source scripts/setup_cloudxr_env.sh
@@ -84,7 +84,8 @@ headset. **Keep hands relaxed for ~1 s** at start so the baseline tares.
 
 Press a glove → the matching finger/taxel lights up (YlOrRd) on the Quest screen.
 
-**Stop**: `Ctrl+C` in Terminal 2 (flushes + closes the MCAP), then `Ctrl+C` in Terminal 1.
+**Stop**: `Ctrl+C` the recording script (flushes + closes the MCAP), then
+`python -m isaacteleop.cloudxr.service stop`.
 
 ---
 

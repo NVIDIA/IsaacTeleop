@@ -89,14 +89,14 @@ Step 4: Run the plugin
 
 The Haptikos plugin connects to the Teleop session through the CloudXR / OpenXR runtime, so the runtime must be running and its environment sourced in the shell that launches the plugin.
 
-In one terminal, start the CloudXR runtime (keep it running for the duration of the session):
+Start the CloudXR runtime. It runs as a background service that outlives this shell, until you stop it with ``python -m isaacteleop.cloudxr.service stop``:
 
 .. code-block:: bash
 
    source isaac_teleop_env/bin/activate
-   python -m isaacteleop.cloudxr
+   python -m isaacteleop.cloudxr.service start
 
-In a second terminal, source the environment file that the runtime writes on startup. This points the OpenXR loader at CloudXR:
+In the shell that runs the plugin, source the environment file that the runtime writes on startup. This points the OpenXR loader at CloudXR:
 
 .. code-block:: bash
 

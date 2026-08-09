@@ -12,9 +12,8 @@ device path on the Isaac Teleop side:
 
 It consumes joint state streamed by the real ``so101_leader`` plugin over the OpenXR tensor
 transport via a ``TeleopSession`` (the ``JointStateSource`` auto-discovers and polls the
-``JointStateTracker``). By default ``CloudXRLauncher`` starts the CloudXR runtime and WSS
-proxy in-process; pass ``--no-launch-cloudxr-runtime`` if you already sourced
-``~/.cloudxr/run/cloudxr.env``. Use ``--launch-plugin`` to spawn the synthetic plugin
+``JointStateTracker``). ``CloudXRLauncher`` attaches to the CloudXR runtime and WSS proxy,
+starting a background service if none is serving. Use ``--launch-plugin`` to spawn the synthetic plugin
 process automatically; otherwise start ``so101_leader`` (or any device pushing the same
 ``collection_id``) separately.
 

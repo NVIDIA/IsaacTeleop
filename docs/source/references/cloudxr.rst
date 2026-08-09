@@ -3,71 +3,108 @@
 
 .. _dedicated-cloudxr-runtime:
 
-Dedicated CloudXR Runtime
-=========================
+CloudXR Service
+===============
 
-The teleop examples auto-launch the CloudXR runtime and its WSS proxy through
-``CloudXRLauncher`` when they connect, so for the common workflow you never
-start the runtime yourself (see :ref:`run-cloudxr-server` in the quick start).
-Sometimes, though, you want the runtime running **standalone in its own
-terminal**:
+A host runs **one** CloudXR runtime, and the CloudXR service owns it, together
+with the WSS proxy the headset connects through. Applications attach to
+whichever runtime is serving rather than starting their own, so the runtime —
+and the headset connection — outlives the application using it.
 
-- keep the runtime — and the headset connection — alive while you restart your
-  teleop application repeatedly during development,
+The teleop examples start a service themselves if none is running (see
+:ref:`run-cloudxr-server` in the quick start), and print a notice when they do,
+because that service keeps running after the example exits. Start it yourself
+when you want to:
+
+- keep the headset connected while you restart a teleop application repeatedly
+  during development,
 - point OpenXR applications that do not embed ``CloudXRLauncher`` at CloudXR,
-- use launch modes that only the standalone launcher exposes, such as serving
-  the web client locally (``--host-client``) or the out-of-band automation
-  flags (``--setup-oob``, ``--usb-local``).
-
-This page describes that dedicated workflow.
+- use launch modes that only the service exposes, such as serving the web
+  client locally (``--host-client``) or the out-of-band automation flags
+  (``--setup-oob``, ``--usb-local``).
 
 .. contents:: Sections
    :local:
    :depth: 1
    :backlinks: none
 
-Start the runtime
+Start the service
 -----------------
 
 With the ``isaacteleop`` package installed (including the ``cloudxr`` extra,
-see :ref:`install-isaacteleop-pip-package`), start the CloudXR runtime and WSS
-proxy. The first run downloads the CloudXR Web Client SDK and asks you to
-review and accept the EULA:
+see :ref:`install-isaacteleop-pip-package`), start the service. The first run
+downloads the CloudXR Web Client SDK and asks you to review and accept the
+EULA:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr
+   python -m isaacteleop.cloudxr.service start
 
-To bypass the interactive EULA prompt (e.g. for CI or headless runs), pass the
-flag:
+``start`` detaches the service from your terminal: it keeps running when the
+shell that started it exits, so you can close the window, and every command in
+the next section finds it again. To bypass the interactive EULA prompt (e.g.
+for CI or headless runs), pass the flag:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr --accept-eula
+   python -m isaacteleop.cloudxr.service start --accept-eula
+
+Use ``run`` in place of ``start`` to keep the service in the foreground, where
+its output goes to the terminal and ``Ctrl+C`` stops it — that is what a
+container entrypoint wants.
 
 You should see output similar to:
 
 .. figure:: ../_static/cloudxr-run-output.png
-   :alt: CloudXR run output
+   :alt: CloudXR service startup output
    :align: center
 
-   **Figure:** CloudXR run output
+   **Figure:** CloudXR service startup output
 
-.. important::
+.. note::
 
-   Keep this terminal open — CloudXR must stay running for the duration of the
-   session (``Ctrl+C`` terminates it). Open a **new terminal** for the
-   remaining steps.
+   ``python -m isaacteleop.cloudxr`` still works and is equivalent to
+   ``python -m isaacteleop.cloudxr.service run``. It warns on startup and is
+   removed in Isaac Teleop 1.7.
 
-   Also take note of the ``source ~/.cloudxr/run/cloudxr.env`` path mentioned
-   in the output. You will need to source it in
-   :ref:`load-cloudxr-environment-variables`.
+Take note of the ``source ~/.cloudxr/run/cloudxr.env`` path in the output. You
+will need it in :ref:`load-cloudxr-environment-variables`.
+
+Manage the service
+------------------
+
+Every command below is a subcommand of
+``python -m isaacteleop.cloudxr.service``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Command
+     - What it does
+   * - ``start``
+     - Start a detached service. Refuses if a runtime is already serving,
+       rather than dropping the live session.
+   * - ``run``
+     - Run in the foreground until ``Ctrl+C``.
+   * - ``stop``
+     - Stop the detached service and tear the runtime down with it. Exits
+       cleanly when there is nothing to stop.
+   * - ``status``
+     - Report the running session — device profile, log files, client URL,
+       and whether it is detached or in the foreground. Exits non-zero when
+       no runtime is serving, so scripts can gate on it.
+   * - ``logs``
+     - Show the detached service's log (``-n`` lines, ``-f`` to follow).
+
+``status`` reports the session that is actually running, recovered from the
+service's own command line — not the defaults of the command you just typed.
 
 Optional launch modes
 ---------------------
 
-The launcher supports optional flags that can be combined to control how the
-headset connects and how the web client is delivered.
+``run`` and ``start`` accept the same optional flags, which can be combined to
+control how the headset connects and how the web client is delivered.
 
 .. list-table::
    :header-rows: 1
@@ -75,30 +112,32 @@ headset connects and how the web client is delivered.
 
    * - Command
      - What it does
-   * - ``python -m isaacteleop.cloudxr``
+   * - ``service start``
      - Plain: headset navigates to GitHub Pages URL over WiFi.
-   * - ``python -m isaacteleop.cloudxr --host-client``
+   * - ``service start --host-client``
      - Serves the web client at ``https://<ip>:48322/client/`` via the WSS
        proxy. No separate port, no USB or TURN relay required. Useful when
        GitHub Pages is unreachable.
-   * - ``python -m isaacteleop.cloudxr --setup-oob``
+   * - ``service start --setup-oob``
      - OOB hub + CDP automation: opens the browser on the headset and
        auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.
-   * - ``python -m isaacteleop.cloudxr --setup-oob --host-client``
+   * - ``service start --setup-oob --host-client``
      - OOB hub + CDP with client at ``/client/`` on the WSS proxy
        (air-gapped / proxy use).
-   * - ``python -m isaacteleop.cloudxr --setup-oob --usb-local``
+   * - ``service start --setup-oob --usb-local``
      - All traffic over USB: adb-reverse + coturn TURN relay + loopback
        HTTPS. Requires ``coturn`` and a WiFi-associated headset.
 
 ``--usb-local`` requires ``--setup-oob``. See
-:doc:`/references/oob_teleop_control` for full OOB documentation.
+:doc:`/references/oob_teleop_control` for full OOB documentation. The OOB hub
+prints a banner as it comes up, so ``run`` is often the more useful command
+while setting those modes up for the first time.
 
 Re-open the client on the headset
 ---------------------------------
 
-If the headset browser is closed or navigated away, re-open the client from a
-second terminal without restarting the runtime:
+If the headset browser is closed or navigated away, re-open the client from
+another terminal without restarting the service:
 
 .. code-block:: bash
 
@@ -107,7 +146,7 @@ second terminal without restarting the runtime:
 This opens the versioned client over USB ``adb`` with this host's ``serverIP``
 and ``port`` pre-filled. Pass a URL to override the target — one already
 containing ``oobEnable=`` is opened verbatim, which is how to restore an OOB or
-USB-local session from the URL the launcher printed. ``--print-only`` resolves
+USB-local session from the URL the service printed. ``--print-only`` resolves
 the URL without touching ``adb``. Run with ``--help`` for the full argument
 handling.
 
@@ -119,11 +158,11 @@ It only *opens* the page; accepting the certificate and clicking CONNECT remain
 Load CloudXR environment variables
 ----------------------------------
 
-On every start the runtime writes its resolved environment to
+On every start the service writes the runtime's resolved environment to
 ``~/.cloudxr/run/cloudxr.env`` (the exact path is printed in the startup
 output). Sourcing it points the OpenXR loader at CloudXR — it sets
 ``XR_RUNTIME_JSON`` along with the ``NV_CXR_*`` variables — so any OpenXR
-application started from that terminal connects to the dedicated runtime.
+application started from that terminal connects to the running runtime.
 
 Open a new terminal and source the setup script:
 
@@ -136,25 +175,62 @@ Open a new terminal and source the setup script:
    Make sure to run the rest of the commands in the same terminal. If you have
    to open a new terminal, source the CloudXR environment variables again.
 
-Run teleop examples against the dedicated runtime
--------------------------------------------------
+Applications that embed ``CloudXRLauncher`` — the teleop examples, the rig
+launcher — do this for themselves and need no sourcing.
 
-The teleop examples under ``examples/teleop/python/`` launch their own runtime
-by default. When a dedicated runtime is already running, source the env file
-(previous section) and pass ``--no-launch-cloudxr-runtime`` so the example
-uses the running runtime instead of starting another one:
+Run teleop examples against the service
+---------------------------------------
+
+Nothing to pass. The examples under ``examples/teleop/python/`` attach to
+whatever runtime is serving, so with a service running they use it:
 
 .. code-block:: bash
 
-   source ~/.cloudxr/run/cloudxr.env
-   python examples/teleop/python/gripper_retargeting_example_simple.py \
-         --no-launch-cloudxr-runtime
+   python -m isaacteleop.cloudxr.service start --accept-eula
+   python examples/teleop/python/gripper_retargeting_example_simple.py
+
+The example leaves the service running when it exits, so the headset stays
+connected and the next run reattaches to the same session.
+
+Run the service in a container or CI
+------------------------------------
+
+Use ``run``, never ``start``. ``start`` detaches and returns, so as a
+container's main process it would exit immediately and take the runtime with
+it; ``run`` stays in the foreground where signals reach it and the runtime's
+lifetime is the container's. This is what ``deps/cloudxr/runtime/entrypoint.sh``
+does:
+
+.. code-block:: bash
+
+   exec python -m isaacteleop.cloudxr.service run
+
+Nothing can answer an EULA prompt without a terminal, so accept it up front —
+either pass ``--accept-eula`` or pre-write the marker, as that image does:
+
+.. code-block:: bash
+
+   mkdir -p ~/.cloudxr/run && printf 'accepted\n' > ~/.cloudxr/run/eula_accepted
+
+When the application *is* the entrypoint, it can own the runtime in-process
+instead of running a second one beside it — construct
+``CloudXRLauncher(run_embedded=True)``, as the ROS 2 example node does. A
+runtime that is already serving still wins, so this stays safe on a host where
+a service is up.
+
+To let other containers attach, share the run directory as a volume and point
+them at it with ``XR_RUNTIME_JSON`` and ``NV_CXR_RUNTIME_DIR``;
+``deps/cloudxr/docker-compose.test.yaml`` mounts it read-only into the test
+container that way.
+
+Setting ``CI`` skips the interactive pause described under `Configuration`_,
+alongside the check for a non-interactive stdin, so automated runs never wait.
 
 Configuration
 -------------
 
-The standalone launcher accepts the same configuration options as the embedded
-one:
+The service accepts the same configuration options as the launcher embedded in
+an application:
 
 - ``--cloudxr-env-config <PATH>`` — a ``KEY=value`` env file of CloudXR
   runtime overrides, e.g. ``NV_DEVICE_PROFILE=auto-native``. See
@@ -163,7 +239,12 @@ one:
 - ``--cloudxr-install-dir <PATH>`` — CloudXR install directory
   (default: ``~/.cloudxr``).
 
-On Jetson Orin the launcher already selects the experimental runtime package
+These configure a runtime as it starts, so they apply to the service that owns
+it. An application that attaches to a running runtime cannot change them; it
+reports the mismatch and uses the running configuration. Restart the service to
+change one.
+
+On Jetson Orin the service already selects the experimental runtime package
 and main-thread join. The following are Isaac Teleop launcher overrides only
 (not CloudXR native settings). Export them in the process environment, or add
 them to ``--cloudxr-env-config`` if you need them:
@@ -209,8 +290,8 @@ yet. Check, in order:
 
 1. A client is connected. The headset must have loaded the web client and
    clicked CONNECT; until then there is no system to return.
-2. The device profile matches the device: check ``NV_DEVICE_PROFILE`` in
-   ``~/.cloudxr/run/cloudxr.env``, which the launcher also prints at startup.
+2. The device profile matches the device. ``python -m isaacteleop.cloudxr.service
+   status`` prints the profile the running service was started with.
 3. The application is talking to the runtime you think it is. Applications that
    do not embed ``CloudXRLauncher`` need ``source ~/.cloudxr/run/cloudxr.env``
    first, so that ``XR_RUNTIME_JSON`` and ``NV_CXR_RUNTIME_DIR`` point at it.

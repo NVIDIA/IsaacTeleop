@@ -197,9 +197,9 @@ For a minimal C++ reader see ``examples/schemaio/full_body_printer.cpp``, which
 creates the tracker, queries the required OpenXR extensions, and prints the
 joint data each frame through ``DeviceIOSession``. The Python equivalent is
 ``examples/oxr/python/test_full_body_tracker.py``. Running
-``python -m isaacteleop.rig rigs/full_body.yaml`` starts the CloudXR runtime,
-this printer, and the C++ MCAP recorder together in one tmux window (see
-:ref:`rig-launcher`).
+``python -m isaacteleop.rig rigs/full_body.yaml`` runs this printer and the C++
+MCAP recorder together in one tmux window, against the CloudXR runtime it makes
+sure is serving first (see :ref:`rig-launcher`).
 
 Troubleshooting
 ~~~~~~~~~~~~~~~

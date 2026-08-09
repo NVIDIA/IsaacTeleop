@@ -203,3 +203,23 @@ class TestParser:
         parser = cli._build_parser()
         for command in ("run", "start", "stop", "status", "logs"):
             assert parser.parse_args([command]).func is not None
+
+
+class TestOutputChannels:
+    """`run` writes to a terminal or to service.log; they want different text."""
+
+    def test_terminal_instructions_stay_out_of_the_log(self, capsys):
+        """A detached service has no terminal and nobody to press Ctrl+C."""
+        with patch("sys.stdout.isatty", return_value=False):
+            cli._out_interactive("Keep this terminal open, Ctrl+C to terminate.")
+        assert capsys.readouterr().out == ""
+
+    def test_terminal_instructions_are_printed_on_a_terminal(self, capsys):
+        with patch("sys.stdout.isatty", return_value=True):
+            cli._out_interactive("Keep this terminal open, Ctrl+C to terminate.")
+        assert "Ctrl+C" in capsys.readouterr().out
+
+    def test_colour_is_dropped_when_output_is_redirected(self, capsys):
+        with patch("sys.stdout.isatty", return_value=False):
+            cli._out("\033[33mplain\033[0m")
+        assert capsys.readouterr().out == "plain\n"

@@ -110,6 +110,16 @@ def _out(text: str = "") -> None:
     print(_ANSI.sub("", text) if not sys.stdout.isatty() else text)
 
 
+def _out_interactive(text: str = "") -> None:
+    """Print only where a person could act on it.
+
+    Instructions about the terminal are false in ``service.log``: a detached
+    service has none, and nobody is there to press Ctrl+C.
+    """
+    if sys.stdout.isatty():
+        _out(text)
+
+
 def _fail(message: str) -> None:
     """Print *message* in red on stderr and exit 1."""
     print(f"\n\033[31m{message}\033[0m\n", file=sys.stderr)
@@ -344,7 +354,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             oob_lan_host=oob_lan_host,
             include_oob=True,
         )
-        _out("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
+        _out_interactive("\033[33mKeep this terminal open, Ctrl+C to terminate.\033[0m")
 
         stop = False
 

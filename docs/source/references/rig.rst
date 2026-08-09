@@ -56,18 +56,17 @@ What happens:
    the exact remedy if not — see `The install prefix`_),
    and the interpreter can import ``isaacteleop.cloudxr``. Nothing is created
    until preflight passes.
-2. **Runtime pane starts immediately** (a slim full-width strip on top —
-   25% of the window; it only prints status lines — with the worker panes
-   tiled below). It runs ``python -m isaacteleop.cloudxr --accept-eula`` by
-   default and prints the web-client URL. The runtime is a **host
-   singleton** — one per machine.
+2. **A CloudXR runtime is ensured.** The runtime is a **host singleton**
+   owned by the CloudXR service, not by a rig pane: the launcher attaches to
+   the one already serving, or starts a detached service when none is (see
+   :ref:`dedicated-cloudxr-runtime`). Either way it outlives the rig, so
+   killing the rig leaves the headset connected.
 3. **Worker panes load the CloudXR environment automatically.** Each
-   producer/consumer pane waits (up to two minutes) for the runtime's
-   ``runtime_started`` sentinel, then runs
-   ``source <install-dir>/run/cloudxr.env`` so ``XR_RUNTIME_JSON`` and
-   friends point at the runtime — you never source it by hand. The install
-   dir follows the runtime command's ``--cloudxr-install-dir`` (default
-   ``~/.cloudxr``).
+   producer/consumer pane runs ``source <install-dir>/run/cloudxr.env`` so
+   ``XR_RUNTIME_JSON`` and friends point at the service's runtime — you never
+   source it by hand. There is nothing to wait for: a pane only starts once
+   the runtime is serving, so the file already exists. The install dir
+   follows ``CXR_INSTALL_DIR`` (default ``~/.cloudxr``).
 4. **Producer/consumer panes then run their commands automatically.** As
    soon as the CloudXR environment is loaded, each pane prints a banner
    (``[producer: ...] running: <command>``) and runs its command — no
@@ -77,9 +76,9 @@ What happens:
    Anything that calls ``xrGetSystem`` before a headset connects exits with
    ``Failed to get OpenXR system`` — so if a pane's app started before you
    connected the headset to the printed URL, connect it and press
-   :kbd:`Enter` in that pane to rerun. If the runtime never comes up (or
-   its environment fails to load), the pane does *not* run the command; it
-   prints a remedy and leaves the command pre-typed instead.
+   :kbd:`Enter` in that pane to rerun. If the CloudXR environment fails to
+   load, the pane does *not* run the command; it prints a remedy and leaves
+   the command pre-typed instead.
 5. The launcher then switches you to the rig window. Run from inside tmux,
    the rig is a **new window in your current session** — your other windows
    stay put and nothing nests. Run from a plain shell, it gets a session of
@@ -208,8 +207,7 @@ errors — a typo fails loudly at load time instead of misbehaving in a pane.
    so Python consumers attach to that same runtime instead of starting their
    own.
 
-   See :ref:`dedicated-cloudxr-runtime` for more on standalone runtime
-   workflows.
+   See :ref:`dedicated-cloudxr-runtime` for managing that service yourself.
 
 Troubleshooting
 ---------------
@@ -226,12 +224,11 @@ Troubleshooting
    * - ``cannot import 'isaacteleop.cloudxr'``
      - You launched from an environment without the ``isaacteleop`` wheel;
        activate the right venv (or ``pip install install/wheels/isaacteleop-*.whl``).
-   * - A worker pane sits idle without running its command
-     - The pane is still waiting for the runtime's ``runtime_started``
-       CloudXR env file. Check that a runtime is serving with
-       ``python -m isaacteleop.cloudxr.service status``.
-   * - ``[cloudxr] runtime is up but loading ... failed``
-     - The runtime came up but its ``cloudxr.env`` could not be sourced;
+   * - ``no CloudXR runtime for rig '...'``
+     - Preflight could not attach to a runtime or start a service. Check
+       what is serving with ``python -m isaacteleop.cloudxr.service status``.
+   * - ``[cloudxr] loading ... failed``
+     - The runtime is serving but its ``cloudxr.env`` could not be sourced;
        the pane does not run its command. Check the error printed above
        the message, ``source`` the file as the message says, then press
        :kbd:`Enter` — the command is already pre-typed.
@@ -240,9 +237,6 @@ Troubleshooting
        ``Failed to get OpenXR system``); connect the headset to the
        runtime's URL, then press :kbd:`Enter` in the pane — the command is
        already pre-typed at the prompt.
-   * - Runtime pane dies when a consumer starts
-     - The consumer self-launched a second runtime; add
-       nothing — consumers attach to the running service automatically.
    * - Edits to the rig file seem ignored
      - The rig was already running; relaunch after
        ``python -m isaacteleop.rig <rig.yaml> --kill``.

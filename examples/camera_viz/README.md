@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
-In XR mode the viewer **launches the CloudXR runtime + WSS proxy itself** — nothing to start separately (`--no-launch-cloudxr-runtime` reuses an external one; `--accept-eula` for the first run; `camera_viz.py --help` for the rest). Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy` / `gimbal`.
+In XR mode the viewer **attaches to the CloudXR runtime + WSS proxy**, starting a background service if none is serving — nothing to start separately (`--accept-eula` for the first run; `camera_viz.py --help` for the rest). Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy` / `gimbal`.
 
 ---
 
