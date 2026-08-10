@@ -61,15 +61,16 @@ COPY . /workspace
 # The CloudXR launcher test requires NVIDIA's separately licensed runtime SDK.
 # The clean-room image intentionally contains no CloudXR SDK; CI covers it separately.
 # CTest 3.22 needs an explicit job count so it does not consume the following -E option.
-RUN cmake --preset py3.11 \
+RUN cmake -S /workspace -B /workspace/build-orbbec-py3.11 \
+      -DISAAC_TELEOP_PYTHON_VERSION=3.11 \
       -DBUILD_VIZ=OFF \
       -DBUILD_PLUGIN_ORBBEC_CAMERA=ON \
       -DORBBEC_SDK_ROOT=/opt/orbbec-sdk && \
-    cmake --build build/cmake-cpython-311 --parallel && \
+    cmake --build /workspace/build-orbbec-py3.11 --parallel && \
     env -u PYTHONPATH -u AMENT_PREFIX_PATH -u COLCON_PREFIX_PATH \
-      ctest --test-dir build/cmake-cpython-311 --output-on-failure -j "$(nproc)" \
+      ctest --test-dir /workspace/build-orbbec-py3.11 --output-on-failure -j "$(nproc)" \
         -E '^cloudxr_test_launcher$' && \
-    cmake --install build/cmake-cpython-311 --prefix /opt/isaacteleop-install && \
+    cmake --install /workspace/build-orbbec-py3.11 --prefix /opt/isaacteleop-install && \
     /opt/isaacteleop-install/plugins/orbbec_camera/camera_plugin_orbbec --help && \
     ldd /opt/isaacteleop-install/plugins/orbbec_camera/camera_plugin_orbbec | \
       grep -E 'libOrbbecSDK.so.2 => /opt/isaacteleop-install/plugins/orbbec_camera/libOrbbecSDK.so.2'

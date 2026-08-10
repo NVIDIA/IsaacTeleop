@@ -461,9 +461,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         else:
             entries = _build_rtp_entries(cfg, is_xr)
 
-        stereo_debug = args.stereo_debug or cfg.get("display", {}).get("window", {}).get(
-            "stereo_debug", "off"
-        )
+        stereo_debug = args.stereo_debug or cfg.get("display", {}).get(
+            "window", {}
+        ).get("stereo_debug", "off")
         if stereo_debug not in ("off", "sbs"):
             raise ValueError("camera_viz: display.window.stereo_debug must be off|sbs")
         if stereo_debug == "sbs":
@@ -473,7 +473,9 @@ def main(argv: Optional[list[str]] = None) -> int:
                 )
             entries = [
                 SourceEntry(
-                    source=StereoSbsDebugSource(entry.source), placement=None, stereo=False
+                    source=StereoSbsDebugSource(entry.source),
+                    placement=None,
+                    stereo=False,
                 )
                 if entry.stereo
                 else entry

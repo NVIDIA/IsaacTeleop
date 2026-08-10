@@ -46,7 +46,7 @@ lib/libOrbbecSDK.so.2
 lib/extensions/
 ```
 
-The standard host tools are CMake, a C++ compiler, Python, `uv`, FFmpeg, and
+The standard host tools are CMake **3.24 or newer**, a C++ compiler, Python, `uv`, FFmpeg, and
 the Isaac Teleop preset dependencies. For the plugin preview also install SDL2
 and FFmpeg development packages:
 
@@ -171,7 +171,7 @@ There are three recording workflows. `--mcap-filename` and
 Use the native plugin directly when no MCAP is needed:
 
 ```bash
-ORBBEC_PLUGIN="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/camera_plugin_orbbec"
+ORBBEC_PLUGIN="$PWD/build-orbbec-py3.11/src/plugins/orbbec/app/camera_plugin_orbbec"
 RUN="recordings/raw_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$RUN/raw"
 
@@ -228,7 +228,7 @@ orbbec_media/Audio
 Export a completed embedded MCAP for ordinary playback:
 
 ```bash
-EXPORTER="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/orbbec_mcap_export_media"
+EXPORTER="$PWD/build-orbbec-py3.11/src/plugins/orbbec/app/orbbec_mcap_export_media"
 "$EXPORTER" "$RUN/metadata.mcap" "$RUN/exported"
 ```
 
@@ -383,7 +383,7 @@ The script covers normal work. Use the executable directly only for custom
 workflows:
 
 ```bash
-ORBBEC_PLUGIN="$PWD/build/cmake-cpython-311/src/plugins/orbbec/app/camera_plugin_orbbec"
+ORBBEC_PLUGIN="$PWD/build-orbbec-py3.11/src/plugins/orbbec/app/camera_plugin_orbbec"
 "$ORBBEC_PLUGIN" --help
 "$ORBBEC_PLUGIN" --list-capabilities
 ```
@@ -409,10 +409,12 @@ The script uses the equivalent CMake commands below. Use them when integrating
 the plugin into an existing build or CI job:
 
 ```bash
-cmake --preset py3.11 -DBUILD_VIZ=OFF \
+cmake -S . -B build-orbbec-py3.11 \
+  -DISAAC_TELEOP_PYTHON_VERSION=3.11 \
+  -DBUILD_VIZ=OFF \
   -DBUILD_PLUGIN_ORBBEC_CAMERA=ON \
   -DORBBEC_SDK_ROOT="$ORBBEC_SDK"
-cmake --build build/cmake-cpython-311 \
+cmake --build build-orbbec-py3.11 \
   --target camera_plugin_orbbec orbbec_mcap_export_media --parallel
 ```
 
@@ -436,7 +438,7 @@ Before a review or release:
 ```bash
 env -u PYTHONPATH -u AMENT_PREFIX_PATH -u COLCON_PREFIX_PATH \
   UV_CACHE_DIR=/tmp/isaacteleop-uv-cache \
-  ctest --test-dir build/cmake-cpython-311 --output-on-failure -R orbbec
+  ctest --test-dir build-orbbec-py3.11 --output-on-failure -R orbbec
 
 SKIP=check-copyright-year pre-commit run --all-files
 git diff --check

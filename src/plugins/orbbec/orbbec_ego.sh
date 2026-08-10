@@ -56,21 +56,17 @@ EOF
 
 preset_python_version() {
     case "$1" in
-        py3.10) echo "3.10" ;;
         py3.11) echo "3.11" ;;
         py3.12) echo "3.12" ;;
         py3.13) echo "3.13" ;;
-        *) die "Unknown preset '$1'. Expected py3.10, py3.11, py3.12, or py3.13." ;;
+        *) die "Unknown preset '$1'. Expected py3.11, py3.12, or py3.13." ;;
     esac
 }
 
 build_dir_for_preset() {
-    local version compact_version
+    local version
     version="$(preset_python_version "$1")"
-    # CMakePresets names build directories with the compact CPython ABI digits:
-    # py3.11 -> cmake-cpython-311, not cmake-cpython-11.
-    compact_version="${version//./}"
-    echo "$SOURCE_ROOT/build/cmake-cpython-$compact_version"
+    echo "$SOURCE_ROOT/build-orbbec-py$version"
 }
 
 validate_sdk_root() {
@@ -120,6 +116,16 @@ require_command() {
     fi
 }
 
+require_cmake_version() {
+    local version
+    require_command cmake "Install CMake 3.24 or newer." || return 1
+    version="$(cmake --version | awk 'NR == 1 { print $3 }')"
+    if [[ "$(printf '%s\n%s\n' "3.24" "$version" | sort -V | head -n 1)" != "3.24" ]]; then
+        warn "CMake $version is too old; Isaac Teleop requires CMake 3.24 or newer."
+        return 1
+    fi
+}
+
 command_doctor() {
     local sdk_root="${ORBBEC_SDK_ROOT:-}"
     local preset="$DEFAULT_PRESET"
@@ -145,7 +151,7 @@ command_doctor() {
         . /etc/os-release
         echo "OS: ${PRETTY_NAME:-unknown}"
     fi
-    require_command cmake "Install it with: sudo apt update && sudo apt install -y cmake" || failed=1
+    require_cmake_version || failed=1
     require_command c++ "Install it with: sudo apt update && sudo apt install -y build-essential" || failed=1
     require_command python3 "Install it with: sudo apt update && sudo apt install -y python3" || failed=1
     require_command uv "Install uv before configuring Isaac Teleop." || failed=1
@@ -233,9 +239,10 @@ command_build() {
             *) die "Unknown build option: $1" ;;
         esac
     done
-    [[ -f "$SOURCE_ROOT/CMakePresets.json" ]] || die "The build command is only available from a source checkout."
+    [[ -f "$SOURCE_ROOT/CMakeLists.txt" ]] || die "The build command is only available from a source checkout."
     preset_python_version "$preset" >/dev/null
     validate_sdk_root "$sdk_root"
+    require_cmake_version || die "Install CMake 3.24 or newer, then rerun build."
     local build_dir
     build_dir="$(build_dir_for_preset "$preset")"
     if (( clean )); then
@@ -244,7 +251,11 @@ command_build() {
     fi
     (
         cd "$SOURCE_ROOT"
-        cmake --preset "$preset" -DBUILD_VIZ=OFF -DBUILD_PLUGIN_ORBBEC_CAMERA=ON -DORBBEC_SDK_ROOT="$sdk_root"
+        cmake -S "$SOURCE_ROOT" -B "$build_dir" \
+            -DISAAC_TELEOP_PYTHON_VERSION="$(preset_python_version "$preset")" \
+            -DBUILD_VIZ=OFF \
+            -DBUILD_PLUGIN_ORBBEC_CAMERA=ON \
+            -DORBBEC_SDK_ROOT="$sdk_root"
         local build_args=(--build "$build_dir" --target camera_plugin_orbbec orbbec_mcap_export_media)
         if [[ -n "$jobs" ]]; then
             [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || die "--jobs must be a positive integer."
@@ -343,7 +354,7 @@ command_record() {
     local plugin
     plugin="$(resolve_plugin "$preset" "$plugin_path")"
     local output_base="$SOURCE_ROOT"
-    [[ -f "$SOURCE_ROOT/CMakePresets.json" ]] || output_base="$PWD"
+    [[ -f "$SOURCE_ROOT/CMakeLists.txt" ]] || output_base="$PWD"
     if [[ -z "$run_dir" ]]; then
         run_dir="$output_base/recordings/orbbec_ego_$(date +%Y%m%d_%H%M%S)"
     elif [[ "$run_dir" != /* ]]; then

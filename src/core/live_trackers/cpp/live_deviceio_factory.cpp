@@ -5,8 +5,8 @@
 
 #include "live_controller_tracker_impl.hpp"
 #include "live_frame_metadata_tracker_oak_impl.hpp"
-#include "live_full_body_tracker_noitom_impl.hpp"
 #include "live_frame_metadata_tracker_orbbec_impl.hpp"
+#include "live_full_body_tracker_noitom_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
