@@ -12,3 +12,8 @@ target_link_libraries(orbbec_camera_tests
 )
 
 catch_discover_tests(orbbec_camera_tests)
+
+add_test(
+    NAME orbbec_ego_script_tests
+    COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/test_orbbec_ego_script.sh"
+)

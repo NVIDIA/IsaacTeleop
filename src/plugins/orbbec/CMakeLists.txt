@@ -49,6 +49,10 @@ install(FILES
     ${ORBBEC_SDK_LIBRARY_FILES}
     DESTINATION plugins/orbbec_camera
 )
+install(PROGRAMS
+    "${CMAKE_CURRENT_SOURCE_DIR}/orbbec_ego.sh"
+    DESTINATION plugins/orbbec_camera
+)
 install(DIRECTORY "${ORBBEC_SDK_ROOT}/lib/extensions"
     DESTINATION plugins/orbbec_camera
 )
