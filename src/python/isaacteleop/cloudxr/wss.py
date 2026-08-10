@@ -14,6 +14,7 @@ import ssl
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -521,8 +522,15 @@ async def run(
     setup_oob: bool = False,
     usb_local: bool = False,
     host_client: bool = False,
+    on_listening: Callable[[], None] | None = None,
 ) -> None:
-    """Start the WSS proxy server and run until *stop_future* is resolved."""
+    """Start the WSS proxy server and run until *stop_future* is resolved.
+
+    *on_listening* is called once the socket is bound and accepting, which is
+    the only point a caller in another thread can distinguish a proxy that is
+    serving from one still generating certificates or about to fail on a
+    taken port.
+    """
     logger = log
     logger.setLevel(logging.INFO)
     logger.propagate = False
@@ -600,6 +608,8 @@ async def run(
             close_timeout=10,
         ):
             log.info("WSS proxy listening on port %d", resolved_port)
+            if on_listening is not None:
+                on_listening()
 
             # ------------------------------------------------------------------
             # USB-local: separate HTTPS static client on 127.0.0.1:<usb_ui_port>

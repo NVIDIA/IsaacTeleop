@@ -25,6 +25,9 @@ _EULA_URL = (
 RUNTIME_STARTUP_TIMEOUT_SEC: float = 30
 """Maximum time [s] to wait for the runtime ``runtime_started`` sentinel."""
 
+WSS_STARTUP_TIMEOUT_SEC: float = 30
+"""Maximum time [s] to wait for the WSS proxy to bind its listening socket."""
+
 RUNTIME_TERMINATE_TIMEOUT_SEC: float = 10
 """Timeout [s] for each escalation step (SIGTERM, then SIGKILL) when stopping the runtime."""
 

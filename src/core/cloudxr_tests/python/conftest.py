@@ -125,10 +125,12 @@ def make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> Magic
 
 
 @contextmanager
-def mock_service_deps(tmp_path, ready=True):
+def mock_service_deps(tmp_path, ready=True, wss=True):
     """Patch the heavy dependencies so CloudXRService construction runs without I/O.
 
-    Yields a dict of the mock objects for assertion.
+    Yields a dict of the mock objects for assertion.  Pass ``wss=False`` to
+    leave ``_start_wss_proxy_thread`` real, for tests about the proxy's own
+    start-up; ``mocks["wss"]`` is then ``None``.
     """
     from isaacteleop.cloudxr.service import CloudXRService  # noqa: PLC0415
 
@@ -137,6 +139,11 @@ def mock_service_deps(tmp_path, ready=True):
     fake_cfg = FakeEnvConfig(run_dir, logs_dir)
 
     mock_proc = make_mock_popen()
+    wss_patch = (
+        patch.object(CloudXRService, "_start_wss_proxy_thread")
+        if wss
+        else contextlib.nullcontext()
+    )
 
     mocks = {}
     with (
@@ -155,10 +162,7 @@ def mock_service_deps(tmp_path, ready=True):
             "isaacteleop.cloudxr.service._service.subprocess.Popen",
             return_value=mock_proc,
         ) as m_popen,
-        patch.object(
-            CloudXRService,
-            "_start_wss_proxy_thread",
-        ) as m_wss,
+        wss_patch as m_wss,
         patch.object(
             CloudXRService,
             "_cleanup_stale_runtime",

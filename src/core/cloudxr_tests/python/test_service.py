@@ -3,11 +3,14 @@
 
 """Tests for isaacteleop.cloudxr.service — CloudXRService lifecycle."""
 
+import asyncio
+import contextlib
 import logging
 import os
 import signal
 import subprocess
 import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -260,3 +263,82 @@ class TestRefusalLeavesTheLiveRuntimeAlone:
                 CloudXRService(install_dir=str(tmp_path))
 
         assert env_file.read_text() == "export NV_DEVICE_PROFILE=Quest3\n"
+
+
+# ============================================================================
+# TestWssProxyStartup
+# ============================================================================
+
+
+@contextlib.contextmanager
+def _stub_wss(run):
+    """Stand in for isaacteleop.cloudxr.wss, whose websockets dependency the
+    unit suite deliberately does not install."""
+    name = "isaacteleop.cloudxr.wss"
+    module = types.ModuleType(name)
+    module.run = run
+    with patch.dict(sys.modules, {name: module}):
+        yield
+
+
+async def _never_listens(*, stop_future, **_kwargs):
+    """A proxy that runs forever without ever binding."""
+    await stop_future
+
+
+async def _fails_to_bind(**_kwargs):
+    """A proxy whose port is taken."""
+    raise OSError("[Errno 98] Address already in use")
+
+
+class TestWssProxyStartup:
+    """Construction reports a proxy that is listening, not one that was launched."""
+
+    def test_construction_waits_for_the_proxy_to_listen(self, tmp_path):
+        """A proxy still binding is not one the caller can be handed."""
+        bound = []
+
+        async def _listens_after_a_beat(*, stop_future, on_listening, **_kwargs):
+            await asyncio.sleep(0.2)
+            bound.append(True)
+            on_listening()
+            await stop_future
+
+        with mock_service_deps(tmp_path, wss=False), _stub_wss(_listens_after_a_beat):
+            service = CloudXRService(install_dir=str(tmp_path))
+
+            assert bound == [True]
+            assert service._wss_thread.is_alive()
+            service._stop_wss_proxy()
+
+    @_posix_only
+    def test_a_proxy_that_cannot_bind_fails_the_service(self, tmp_path):
+        """Reporting success here would defer the failure to a later health_check."""
+        with (
+            mock_service_deps(tmp_path, wss=False) as mocks,
+            _stub_wss(_fails_to_bind),
+            patch("isaacteleop.cloudxr.service._service.os.getpgid", return_value=99),
+            patch("isaacteleop.cloudxr.service._service.os.killpg") as m_killpg,
+        ):
+            poll_seq = [None, 0]
+            mocks["proc"].poll = MagicMock(
+                side_effect=lambda: poll_seq.pop(0) if poll_seq else 0
+            )
+
+            with pytest.raises(RuntimeError, match="Address already in use"):
+                CloudXRService(install_dir=str(tmp_path))
+
+            # The runtime came up before the proxy, so a failed start must not
+            # leave it holding the run directory.
+            m_killpg.assert_called_once_with(99, signal.SIGTERM)
+
+    def test_a_proxy_that_never_listens_times_out(self, tmp_path):
+        with mock_service_deps(tmp_path):
+            service = CloudXRService(install_dir=str(tmp_path))
+
+        with _stub_wss(_never_listens):
+            with pytest.raises(RuntimeError, match="did not start listening"):
+                service._start_wss_proxy_thread(tmp_path / "wss.log", timeout_sec=0.2)
+
+        # The thread outlives the timeout; stop() is what reaps it.
+        service._stop_wss_proxy()

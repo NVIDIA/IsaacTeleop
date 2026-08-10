@@ -7,6 +7,14 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import concurrent.futures
+
+# asyncio resolves the listen address through run_in_executor, which imports
+# concurrent.futures.thread on first use.  That import calls
+# threading._register_atexit, which raises "can't register atexit after
+# shutdown" once interpreter finalization has begun — so import it here, while
+# the main thread still can, rather than from the proxy thread mid-teardown.
+import concurrent.futures.thread  # noqa: F401
 import logging
 import os
 import signal
@@ -20,6 +28,7 @@ from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
+    WSS_STARTUP_TIMEOUT_SEC,
     get_sdk_path,
     is_runtime_live,
     resolve_cloudxr_runtime_module,
@@ -66,8 +75,10 @@ class CloudXRService:
 
         Configures the environment, spawns the runtime subprocess, and starts
         the WSS TLS proxy.  Blocks until the runtime signals readiness (up to
-        :data:`~isaacteleop.cloudxr.runtime.RUNTIME_STARTUP_TIMEOUT_SEC`)
-        or raises :class:`RuntimeError` on failure.
+        :data:`~isaacteleop.cloudxr.runtime.RUNTIME_STARTUP_TIMEOUT_SEC`) and
+        the proxy is listening (up to
+        :data:`~isaacteleop.cloudxr.runtime.WSS_STARTUP_TIMEOUT_SEC`), or
+        raises :class:`RuntimeError` on failure.
 
         Args:
             install_dir: CloudXR install directory.
@@ -93,8 +104,8 @@ class CloudXRService:
 
         Raises:
             RuntimeError: If the EULA is not accepted, another runtime is
-                already serving *install_dir*, or the runtime fails to
-                start within the timeout.
+                already serving *install_dir*, or the runtime or WSS proxy
+                fails to start within its timeout.
         """
         self._install_dir = install_dir
         self._env_config = str(env_config) if env_config is not None else None
@@ -189,8 +200,14 @@ class CloudXRService:
         wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
         wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
         self._wss_log_path = wss_log_path
-        self._start_wss_proxy_thread(wss_log_path)
-        logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
+        try:
+            self._start_wss_proxy_thread(wss_log_path)
+        except RuntimeError:
+            # The runtime is already up by now; a service that cannot serve it
+            # must not leave it behind holding the run directory.
+            self.stop()
+            raise
+        logger.info("CloudXR WSS proxy listening (log=%s)", wss_log_path)
 
     # ------------------------------------------------------------------
     # Context manager
@@ -465,14 +482,32 @@ class CloudXRService:
     # WSS proxy (background thread with its own event loop)
     # ------------------------------------------------------------------
 
-    def _start_wss_proxy_thread(self, log_path: Path) -> None:
-        """Launch the WSS proxy in a daemon thread."""
+    def _start_wss_proxy_thread(
+        self, log_path: Path, timeout_sec: float = WSS_STARTUP_TIMEOUT_SEC
+    ) -> None:
+        """Launch the WSS proxy in a daemon thread and wait for it to listen.
+
+        Returning before the socket is bound would report a proxy that is not
+        yet serving, and would leave a bind failure (a taken port, a bad cert
+        pair) visible only to a later :meth:`health_check`.  A caller that
+        exits straight after construction would also be finalizing the
+        interpreter while the proxy is still starting up.
+
+        The thread stays a daemon: it parks on *stop_future*, which only
+        :meth:`stop` resolves, and that runs from ``atexit`` — after
+        ``threading._shutdown`` would have joined a non-daemon thread.
+
+        Raises:
+            RuntimeError: If the proxy fails or does not listen within
+                *timeout_sec*.
+        """
         from ..wss import run as wss_run  # noqa: PLC0415
 
         loop = asyncio.new_event_loop()
         self._wss_loop = loop
         stop_future = loop.create_future()
         self._wss_stop_future = stop_future
+        listening: concurrent.futures.Future = concurrent.futures.Future()
 
         setup_oob = self._setup_oob
         usb_local = self._usb_local
@@ -488,17 +523,36 @@ class CloudXRService:
                         setup_oob=setup_oob,
                         usb_local=usb_local,
                         host_client=host_client,
+                        on_listening=lambda: listening.set_result(None),
                     )
                 )
-            except Exception:
+            except Exception as exc:
+                if not listening.done():
+                    listening.set_exception(exc)
                 logger.exception("WSS proxy thread exited with error")
             finally:
+                # A thread that ended without listening leaves nobody to wait
+                # for; unblock the caller rather than hold it to the timeout.
+                if not listening.done():
+                    listening.set_result(None)
                 loop.close()
 
         self._wss_thread = threading.Thread(
             target=_run_wss, name="cloudxr-wss-proxy", daemon=True
         )
         self._wss_thread.start()
+
+        try:
+            listening.result(timeout=timeout_sec)
+        except concurrent.futures.TimeoutError as exc:
+            raise RuntimeError(
+                f"CloudXR WSS proxy did not start listening within "
+                f"{timeout_sec}s (log: {log_path})"
+            ) from exc
+        except Exception as exc:
+            raise RuntimeError(
+                f"CloudXR WSS proxy failed to start (log: {log_path}): {exc}"
+            ) from exc
 
     def _stop_wss_proxy(self) -> None:
         """Signal the WSS proxy to shut down and wait for the thread."""
