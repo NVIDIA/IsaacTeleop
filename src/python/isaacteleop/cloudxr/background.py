@@ -14,6 +14,7 @@ starts it again.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
@@ -21,8 +22,14 @@ import sys
 import time
 from pathlib import Path
 
+try:  # POSIX only; without it concurrent starts are not serialised.
+    import fcntl
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None
+
 PID_FILE = "service.pid"
 LOG_FILE = "service.log"
+LOCK_FILE = "service.lock"
 
 #: How long :func:`terminate` waits for a SIGTERM to be honoured.
 STOP_TIMEOUT_SEC = 15.0
@@ -117,6 +124,27 @@ def spawn(
     return proc.pid, log
 
 
+@contextlib.contextmanager
+def _start_lock(run_dir: str):
+    """Serialise service starts for *run_dir*.
+
+    Two callers that both saw no runtime would otherwise spawn one each, and
+    two runtimes racing for the same IPC socket is worse than a wait.  The
+    second caller starts only once the first is serving, so its service
+    refuses on the live runtime instead of duplicating it.
+    """
+    if fcntl is None:
+        yield
+        return
+    os.makedirs(run_dir, mode=0o700, exist_ok=True)
+    with open(os.path.join(run_dir, LOCK_FILE), "w", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
 def start_and_wait(
     run_args: list[str],
     run_dir: str,
@@ -130,14 +158,17 @@ def start_and_wait(
     """
     from .runtime import RUNTIME_STARTUP_TIMEOUT_SEC, is_runtime_live  # noqa: PLC0415
 
-    pid, log = spawn(run_args, run_dir, logs_dir, extra_env)
-    deadline = time.monotonic() + RUNTIME_STARTUP_TIMEOUT_SEC
-    while time.monotonic() < deadline:
-        if is_runtime_live(run_dir):
-            return pid, log
-        if read_pid(run_dir) is None:
-            raise RuntimeError(f"The CloudXR service exited during startup.  See {log}")
-        time.sleep(0.2)
+    with _start_lock(run_dir):
+        pid, log = spawn(run_args, run_dir, logs_dir, extra_env)
+        deadline = time.monotonic() + RUNTIME_STARTUP_TIMEOUT_SEC
+        while time.monotonic() < deadline:
+            if is_runtime_live(run_dir):
+                return pid, log
+            if read_pid(run_dir) is None:
+                raise RuntimeError(
+                    f"The CloudXR service exited during startup.  See {log}"
+                )
+            time.sleep(0.2)
     raise RuntimeError(
         f"The CloudXR service did not come up within {RUNTIME_STARTUP_TIMEOUT_SEC}s "
         f"(pid {pid} is still running).  See {log}"
@@ -156,7 +187,12 @@ def terminate(run_dir: str, timeout_sec: float = STOP_TIMEOUT_SEC) -> bool:
         pid_path(run_dir).unlink(missing_ok=True)
         return False
 
-    os.kill(pid, signal.SIGTERM)
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        # Exited between the pid check and the signal; that is a stop.
+        pid_path(run_dir).unlink(missing_ok=True)
+        return True
     deadline = time.monotonic() + timeout_sec
     while time.monotonic() < deadline:
         if not _is_our_service(pid):

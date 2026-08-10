@@ -30,6 +30,20 @@ def _env_file(tmp_path, **values) -> str:
     return str(tmp_path)
 
 
+@pytest.fixture(autouse=True)
+def _restore_environ():
+    """Undo the process-environment changes attaching makes.
+
+    ``_attach`` calls ``os.environ.update`` with the running runtime's env, so
+    without this a test leaks XR_RUNTIME_JSON and NV_* into every test after
+    it.
+    """
+    saved = os.environ.copy()
+    yield
+    os.environ.clear()
+    os.environ.update(saved)
+
+
 def _live(value=True):
     """Patch the launcher's liveness probe."""
     return patch("isaacteleop.cloudxr.launcher.is_runtime_live", return_value=value)

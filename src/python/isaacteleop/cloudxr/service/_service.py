@@ -16,7 +16,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ..env_config import DEFAULT_DEVICE_PROFILE, EnvConfig
+from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -119,6 +119,14 @@ class CloudXRService:
         # sig -> (previous handler, service-installed wrapper)
         self._prev_signal_handlers: dict[int, tuple[object, object]] = {}
 
+        # Before EnvConfig: resolving rewrites cloudxr.env and mutates
+        # os.environ, which must not happen when the start is about to be
+        # refused because another runtime owns this directory.
+        run_dir = os.path.join(
+            os.path.abspath(os.path.expanduser(self._install_dir)), "run"
+        )
+        self._cleanup_stale_runtime(run_dir)
+
         env_cfg = EnvConfig.from_args(
             self._install_dir,
             self._env_config,
@@ -131,8 +139,6 @@ class CloudXRService:
                 "CloudXR EULA was not accepted; cannot start the runtime"
             ) from exc
         logs_dir_path = env_cfg.ensure_logs_dir()
-
-        self._cleanup_stale_runtime(env_cfg)
 
         # The worker imports asyncio (via isaacteleop.cloudxr.runtime), which imports
         # Python's ssl and loads the SYSTEM OpenSSL before the native stack dlopens the
@@ -312,26 +318,29 @@ class CloudXRService:
             del self._prev_signal_handlers[sig]
 
     @staticmethod
-    def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:
+    def _cleanup_stale_runtime(run_dir: str) -> None:
         """Refuse to start over a live runtime; otherwise clear stale sentinels.
 
         A run directory holds one runtime.  Liveness is decided by
         connecting to the IPC socket, not by its existence — the file
         routinely outlives the process that made it.
 
+        Runs before :class:`EnvConfig` resolves anything: resolving rewrites
+        ``cloudxr.env`` in place, so a refused start would otherwise have
+        already replaced the live runtime's environment with its own.
+
         Raises:
             RuntimeError: If a runtime is already serving the run directory.
         """
-        run_dir = env_cfg.openxr_run_dir()
-
         if is_runtime_live(run_dir):
             raise RuntimeError(
                 f"A CloudXR runtime is already serving {run_dir}; starting a "
                 "second one would drop the live session.  To use the running "
-                f"runtime: source {env_cfg.env_filepath()} — applications that "
-                "embed CloudXRLauncher attach to it on their own.  To replace "
-                "it: python -m isaacteleop.cloudxr.service stop (Ctrl+C in its "
-                "terminal if it is running in the foreground)."
+                f"runtime: source {os.path.join(run_dir, ENV_FILE_NAME)} — "
+                "applications that embed CloudXRLauncher attach to it on their "
+                "own.  To replace it: python -m isaacteleop.cloudxr.service "
+                "stop (Ctrl+C in its terminal if it is running in the "
+                "foreground)."
             )
 
         for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):

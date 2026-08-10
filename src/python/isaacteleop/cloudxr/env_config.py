@@ -281,7 +281,12 @@ def read_exported_env(path: str | Path) -> dict[str, str]:
         name, sep, value = line.strip().removeprefix("export ").partition("=")
         if not sep or not name.strip():
             continue
-        result[name.strip()] = next(iter(shlex.split(value)), "")
+        try:
+            result[name.strip()] = next(iter(shlex.split(value)), "")
+        except ValueError:
+            # Unbalanced quoting.  Skip the entry rather than fail the whole
+            # read: the caller is trying to describe a live runtime.
+            continue
     return result
 
 

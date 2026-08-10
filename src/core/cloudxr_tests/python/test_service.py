@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from conftest import FakeEnvConfig, live_ipc_socket, mock_service_deps
+from conftest import live_ipc_socket, mock_service_deps
 from isaacteleop.cloudxr.service import CloudXRService
 
 _posix_only = pytest.mark.skipif(
@@ -213,12 +213,11 @@ class TestCleanupStaleRuntime:
     def test_removes_stale_sentinel_files(self, tmp_path, caplog):
         """A socket file nobody is serving is stale: removed, at WARNING."""
         run_dir, paths = self._stale_run_dir(tmp_path)
-        fake_cfg = FakeEnvConfig(run_dir, tmp_path / "logs")
 
         with caplog.at_level(
             logging.WARNING, logger="isaacteleop.cloudxr.service._service"
         ):
-            CloudXRService._cleanup_stale_runtime(fake_cfg)
+            CloudXRService._cleanup_stale_runtime(run_dir)
 
         assert not any(os.path.exists(p) for p in paths)
         assert len(caplog.records) == len(paths)
@@ -228,19 +227,36 @@ class TestCleanupStaleRuntime:
         run_dir = str(tmp_path / "run")
         os.makedirs(run_dir)
 
-        fake_cfg = FakeEnvConfig(run_dir, tmp_path / "logs")
-        CloudXRService._cleanup_stale_runtime(fake_cfg)
+        CloudXRService._cleanup_stale_runtime(run_dir)
 
     def test_refuses_when_runtime_is_live(self, tmp_path):
         """A served socket is a live runtime: refuse, and keep its files."""
         run_dir, paths = self._stale_run_dir(tmp_path)
-        fake_cfg = FakeEnvConfig(run_dir, tmp_path / "logs")
 
         with live_ipc_socket(run_dir):
             with pytest.raises(RuntimeError, match="already serving") as exc_info:
-                CloudXRService._cleanup_stale_runtime(fake_cfg)
+                CloudXRService._cleanup_stale_runtime(run_dir)
             assert all(os.path.exists(p) for p in paths)
 
         message = str(exc_info.value)
-        assert fake_cfg.env_filepath() in message
+        assert os.path.join(run_dir, "cloudxr.env") in message
         assert "isaacteleop.cloudxr.service stop" in message
+
+
+class TestRefusalLeavesTheLiveRuntimeAlone:
+    """A refused start must not disturb the runtime it refused to replace."""
+
+    def test_the_live_runtimes_env_file_is_not_rewritten(self, tmp_path):
+        """EnvConfig resolution truncates cloudxr.env, so it must run after."""
+        from isaacteleop.cloudxr.service import CloudXRService
+
+        run_dir = tmp_path / "run"
+        run_dir.mkdir(parents=True)
+        env_file = run_dir / "cloudxr.env"
+        env_file.write_text("export NV_DEVICE_PROFILE=Quest3\n", encoding="utf-8")
+
+        with live_ipc_socket(str(run_dir)):
+            with pytest.raises(RuntimeError, match="already serving"):
+                CloudXRService(install_dir=str(tmp_path))
+
+        assert env_file.read_text() == "export NV_DEVICE_PROFILE=Quest3\n"

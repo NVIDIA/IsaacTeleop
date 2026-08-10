@@ -33,25 +33,25 @@ Start the service
 
 With the ``isaacteleop`` package installed (including the ``cloudxr`` extra,
 see :ref:`install-isaacteleop-pip-package`), start the service. The first run
-downloads the CloudXR Web Client SDK and asks you to review and accept the
-EULA:
-
-.. code-block:: bash
-
-   python -m isaacteleop.cloudxr.service start
-
-``start`` detaches the service from your terminal: it keeps running when the
-shell that started it exits, so you can close the window, and every command in
-the next section finds it again. To bypass the interactive EULA prompt (e.g.
-for CI or headless runs), pass the flag:
+downloads the CloudXR Web Client SDK:
 
 .. code-block:: bash
 
    python -m isaacteleop.cloudxr.service start --accept-eula
 
+``start`` detaches the service from your terminal: it keeps running when the
+shell that started it exits, so you can close the window, and every command in
+the next section finds it again.
+
+A detached service has no terminal to prompt on, so ``start`` never asks about
+the EULA — it requires ``--accept-eula`` until acceptance has been recorded,
+and tells you so. Acceptance is remembered in
+``~/.cloudxr/run/eula_accepted``, so the flag is only needed once per install
+directory. Review the licence before accepting; the error message links it.
+
 Use ``run`` in place of ``start`` to keep the service in the foreground, where
 its output goes to the terminal and ``Ctrl+C`` stops it — that is what a
-container entrypoint wants.
+container entrypoint wants. ``run`` does prompt when it has a terminal.
 
 You should see output similar to:
 

@@ -496,3 +496,18 @@ class TestIsRuntimeLive:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestReadExportedEnvRobustness:
+    """The env file describes a live runtime; a bad line must not fail the read."""
+
+    def test_a_malformed_value_is_skipped_not_raised(self, tmp_path):
+        from isaacteleop.cloudxr.env_config import read_exported_env
+
+        path = tmp_path / "cloudxr.env"
+        path.write_text(
+            "export GOOD=fine\nexport BROKEN='unclosed\nexport ALSO_GOOD=yes\n",
+            encoding="utf-8",
+        )
+        env = read_exported_env(path)
+        assert env == {"GOOD": "fine", "ALSO_GOOD": "yes"}

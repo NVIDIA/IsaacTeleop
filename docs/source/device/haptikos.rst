@@ -94,7 +94,7 @@ Start the CloudXR runtime. It runs as a background service that outlives this sh
 .. code-block:: bash
 
    source isaac_teleop_env/bin/activate
-   python -m isaacteleop.cloudxr.service start
+   python -m isaacteleop.cloudxr.service start --accept-eula
 
 In the shell that runs the plugin, source the environment file that the runtime writes on startup. This points the OpenXR loader at CloudXR:
 

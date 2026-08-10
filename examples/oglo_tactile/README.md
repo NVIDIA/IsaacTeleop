@@ -59,7 +59,7 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
 ```bash
 cd ~/Documents/IsaacTeleop
 source scripts/setup_cloudxr_env.sh
-python -m isaacteleop.cloudxr.service start
+python -m isaacteleop.cloudxr.service start --accept-eula   # flag needed on first run only
 # Note the printed web-client URL, e.g.  https://<laptop-ip>:48322/
 ```
 

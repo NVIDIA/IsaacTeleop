@@ -149,7 +149,11 @@ class CloudXRLauncher:
                 usb_local,
                 host_client,
             )
-            self._attach(device_profile, env_config)
+            # env_config=None: the service we just started was given this
+            # configuration, so there is nothing it ignored to report -- and
+            # telling the caller to restart it would be advice to undo their
+            # own settings.
+            self._attach(device_profile, None)
             return
 
         self._service = CloudXRService(

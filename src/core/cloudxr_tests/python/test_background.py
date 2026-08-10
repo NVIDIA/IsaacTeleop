@@ -10,6 +10,7 @@ import sys
 import time
 
 import pytest
+from unittest.mock import patch
 
 from isaacteleop.cloudxr import background
 
@@ -168,3 +169,17 @@ class TestTerminate:
 
         assert background.terminate(run_dir, timeout_sec=0.3) is False
         assert sent == [signal.SIGTERM]
+
+
+class TestTerminateRaces:
+    """The service can exit between the pid check and the signal."""
+
+    def test_a_process_that_exits_first_counts_as_stopped(self, tmp_path):
+        run_dir = str(tmp_path)
+        background.pid_path(run_dir).write_text("4242\n", encoding="utf-8")
+        with (
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=4242),
+            patch("os.kill", side_effect=ProcessLookupError),
+        ):
+            assert background.terminate(run_dir) is True
+        assert not background.pid_path(run_dir).exists()
