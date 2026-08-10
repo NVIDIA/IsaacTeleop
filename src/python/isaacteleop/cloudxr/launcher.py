@@ -54,6 +54,19 @@ started with its own configuration.\033[0m
     \033[1;32mpython -m isaacteleop.cloudxr.service start --cloudxr-env-config \
 {path}\033[0m"""
 
+# No colour: this one is raised, not printed, so it lands in logs and captured
+# output as often as on a terminal.
+_RUN_EMBEDDED_REFUSED = """\
+A CloudXR runtime is already serving {run_dir}, so run_embedded cannot own one.
+
+  To own the runtime here, stop the running service first:
+    python -m isaacteleop.cloudxr.service stop
+
+  To use the running one, construct the launcher without run_embedded.
+  It then attaches, and setup_oob / usb_local / host_client belong to the
+  service that started the runtime — its WSS proxy is not this process's to
+  configure."""
+
 _ENV_CONFIG_ROW = (
     "  {key}: \033[33m{requested}\033[0m requested, \033[36m{running}\033[0m in effect"
 )
@@ -183,14 +196,7 @@ class CloudXRLauncher:
         """
         if not is_runtime_live(self._run_dir):
             return
-        raise RuntimeError(
-            f"A CloudXR runtime is already serving {self._run_dir}, so "
-            "run_embedded cannot own one.  Stop it with "
-            "'python -m isaacteleop.cloudxr.service stop', or drop "
-            "run_embedded to attach to it — the WSS proxy options "
-            "(setup_oob, usb_local, host_client) then belong to the service "
-            "that started it, not to this process."
-        )
+        raise RuntimeError(_RUN_EMBEDDED_REFUSED.format(run_dir=self._run_dir))
 
     def _start_service(
         self,

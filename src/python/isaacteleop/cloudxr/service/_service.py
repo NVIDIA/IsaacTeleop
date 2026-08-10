@@ -38,6 +38,18 @@ from ..runtime import (
 
 logger = logging.getLogger(__name__)
 
+_RUNTIME_ALREADY_SERVING = """\
+A CloudXR runtime is already serving {run_dir}, and starting a second one would
+drop the live session.
+
+  To use the running one, point OpenXR at it:
+    source {env_file}
+  Applications that embed CloudXRLauncher do this for themselves.
+
+  To replace it, stop the running service first:
+    python -m isaacteleop.cloudxr.service stop
+  (Ctrl+C in its terminal if it is running in the foreground.)"""
+
 _RUNTIME_WORKER_CODE = """\
 import sys, os
 sys.path = [p for p in sys.path if p]
@@ -351,13 +363,10 @@ class CloudXRService:
         """
         if is_runtime_live(run_dir):
             raise RuntimeError(
-                f"A CloudXR runtime is already serving {run_dir}; starting a "
-                "second one would drop the live session.  To use the running "
-                f"runtime: source {os.path.join(run_dir, ENV_FILE_NAME)} — "
-                "applications that embed CloudXRLauncher attach to it on their "
-                "own.  To replace it: python -m isaacteleop.cloudxr.service "
-                "stop (Ctrl+C in its terminal if it is running in the "
-                "foreground)."
+                _RUNTIME_ALREADY_SERVING.format(
+                    run_dir=run_dir,
+                    env_file=os.path.join(run_dir, ENV_FILE_NAME),
+                )
             )
 
         for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
