@@ -104,6 +104,18 @@ class TestAttach:
 
         assert env_path.read_text() == before
 
+    def test_run_embedded_is_refused(self, tmp_path):
+        """Attaching would answer a request to own with a runtime it cannot configure."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        # The service's own refusal is mocked out, so this pins the launcher's:
+        # it fires first, before anything resolves against the live runtime.
+        with _live(), mock_service_deps(tmp_path) as mocks:
+            with pytest.raises(RuntimeError, match="already serving"):
+                CloudXRLauncher(install_dir=install, run_embedded=True)
+
+        mocks["from_args"].assert_not_called()
+        mocks["popen"].assert_not_called()
+
     def test_stop_does_not_touch_a_borrowed_runtime(self, tmp_path):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
         with _live():
@@ -291,14 +303,6 @@ class TestNothingRunning:
         with _live(False), mock_service_deps(tmp_path, ready=True) as mocks:
             with CloudXRLauncher(install_dir=str(tmp_path), run_embedded=True):
                 mocks["proc"].poll.return_value = 0
-
-    def test_a_live_runtime_wins_over_run_embedded(self, tmp_path):
-        """run_embedded is a fallback, not an instruction to duplicate."""
-        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
-        with _live():
-            launcher = CloudXRLauncher(install_dir=install, run_embedded=True)
-
-        assert launcher.owns_runtime is False
 
 
 class TestDeprecatedKnob:

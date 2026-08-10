@@ -89,7 +89,8 @@ class CloudXRLauncher:
     :class:`~isaacteleop.cloudxr.service.CloudXRService` is serving, adopting
     its environment so OpenXR resolves to it, and leaves it running on exit.
     With no service running it starts a detached one — announced, because that
-    outlives this process.  ``run_embedded`` is the only way to own a runtime.
+    outlives this process.  ``run_embedded`` is the only way to own a runtime,
+    and it refuses to run beside one.
 
     Example::
 
@@ -115,8 +116,9 @@ class CloudXRLauncher:
         Args:
             run_embedded: Run a :class:`CloudXRService` inside this process
                 instead of starting a detached one.  This process then owns the
-                runtime and stops it on exit.  A live runtime still wins: it is
-                attached to rather than duplicated.
+                runtime and stops it on exit.  Refused where a runtime is
+                already serving *install_dir*, rather than quietly attaching
+                to one this process cannot configure.
             start_wss_proxy: Deprecated no-op; the proxy always starts with
                 the runtime.
 
@@ -126,7 +128,8 @@ class CloudXRLauncher:
         applied.
 
         Raises:
-            RuntimeError: If the runtime fails to start or come up.
+            RuntimeError: If the runtime fails to start or come up, or if
+                *run_embedded* is set while a runtime is already serving.
         """
         if start_wss_proxy is not None:
             self._warn_start_wss_proxy_deprecated()
@@ -135,35 +138,58 @@ class CloudXRLauncher:
         self._logs_dir = Path(os.path.expanduser(install_dir)) / "logs"
         self._service: CloudXRService | None = None
 
+        if run_embedded:
+            self._refuse_beside_live_runtime()
+            self._service = CloudXRService(
+                install_dir=install_dir,
+                env_config=env_config,
+                device_profile=device_profile,
+                accept_eula=accept_eula,
+                setup_oob=setup_oob,
+                usb_local=usb_local,
+                host_client=host_client,
+            )
+            return
+
         if is_runtime_live(self._run_dir):
             self._attach(device_profile, env_config)
             return
 
-        if not run_embedded:
-            self._start_service(
-                install_dir,
-                env_config,
-                device_profile,
-                accept_eula,
-                setup_oob,
-                usb_local,
-                host_client,
-            )
-            # env_config=None: the service we just started was given this
-            # configuration, so there is nothing it ignored to report -- and
-            # telling the caller to restart it would be advice to undo their
-            # own settings.
-            self._attach(device_profile, None)
-            return
+        self._start_service(
+            install_dir,
+            env_config,
+            device_profile,
+            accept_eula,
+            setup_oob,
+            usb_local,
+            host_client,
+        )
+        # env_config=None: the service we just started was given this
+        # configuration, so there is nothing it ignored to report -- and
+        # telling the caller to restart it would be advice to undo their
+        # own settings.
+        self._attach(device_profile, None)
 
-        self._service = CloudXRService(
-            install_dir=install_dir,
-            env_config=env_config,
-            device_profile=device_profile,
-            accept_eula=accept_eula,
-            setup_oob=setup_oob,
-            usb_local=usb_local,
-            host_client=host_client,
+    def _refuse_beside_live_runtime(self) -> None:
+        """Reject ``run_embedded`` where a runtime is already serving.
+
+        Attaching would answer a request to own with a runtime this process
+        cannot configure, and the WSS proxy options (``setup_oob``,
+        ``usb_local``, ``host_client``) never reach the env file, so the
+        mismatch could not even be reported.
+
+        Raises:
+            RuntimeError: If a runtime is already serving the run directory.
+        """
+        if not is_runtime_live(self._run_dir):
+            return
+        raise RuntimeError(
+            f"A CloudXR runtime is already serving {self._run_dir}, so "
+            "run_embedded cannot own one.  Stop it with "
+            "'python -m isaacteleop.cloudxr.service stop', or drop "
+            "run_embedded to attach to it — the WSS proxy options "
+            "(setup_oob, usb_local, host_client) then belong to the service "
+            "that started it, not to this process."
         )
 
     def _start_service(

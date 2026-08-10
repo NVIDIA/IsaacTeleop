@@ -286,8 +286,9 @@ class TeleopRos2Node(Node):
         #
         # run_embedded: this node is the container's entrypoint, so there is no
         # separate service to attach to and nothing else to outlive.  It owns
-        # the runtime and stops it on exit.  A runtime that is already serving
-        # still wins — the flag is a fallback, not a second runtime.
+        # the runtime and stops it on exit, and fails where one is already
+        # serving — host_client below configures a WSS proxy, which only the
+        # process that starts it can do.
         if self._params.session_mode != SessionMode.LIVE:
             return self._run_session_loop()
 

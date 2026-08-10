@@ -214,9 +214,12 @@ either pass ``--accept-eula`` or pre-write the marker, as that image does:
 
 When the application *is* the entrypoint, it can own the runtime in-process
 instead of running a second one beside it — construct
-``CloudXRLauncher(run_embedded=True)``, as the ROS 2 example node does. A
-runtime that is already serving still wins, so this stays safe on a host where
-a service is up.
+``CloudXRLauncher(run_embedded=True)``, as the ROS 2 example node does. It
+refuses to start where a runtime is already serving the install directory:
+the options that configure the WSS proxy (``host_client``, ``setup_oob``,
+``usb_local``) only apply to a proxy the process starts itself, so attaching
+would drop them with nothing to report it. Stop that service, or drop
+``run_embedded`` to attach.
 
 To let other containers attach, share the run directory as a volume and point
 them at it with ``XR_RUNTIME_JSON`` and ``NV_CXR_RUNTIME_DIR``;
