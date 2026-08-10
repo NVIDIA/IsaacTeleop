@@ -5,6 +5,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
+import sys
 from datetime import datetime, timezone
 
 # -- Project information -----------------------------------------------------
@@ -15,20 +16,45 @@ copyright = f"2025-{build_time.year}, NVIDIA CORPORATION & AFFILIATES"
 copyright += f", last updated on {build_time.strftime('%B %d, %Y')}"
 author = "NVIDIA"
 
+
+def _smv_ref_name():
+    """Git ref name sphinx-multiversion is building, or "" outside it.
+
+    sphinx-multiversion builds every ref with ``-c`` pointing at the checkout it
+    was invoked from, so this conf.py is always the deploy branch's and anything
+    read from the tree describes that branch, not the ref. It passes the ref name
+    as ``-D smv_current_version=``, which Sphinx applies to the config only after
+    conf.py has run, so read it off the command line.
+    """
+    prefix = "smv_current_version="
+    return next((a[len(prefix) :] for a in sys.argv if a.startswith(prefix)), "")
+
+
 _version_file = os.path.join(os.path.dirname(__file__), "..", "..", "VERSION")
 # ``VERSION`` is ``MAJOR.MINOR.x`` on main and on every release branch and tag, so its
 # first two components name the release series a given build of the docs describes.
-# ``_pip_version_pin`` turns that into a specifier (``1.5.x`` -> ``~=1.5.0``, i.e.
-# >=1.5.0 <1.6.0) so each versioned docs build shows how to install its own series.
 if os.path.exists(_version_file):
     with open(_version_file) as f:
-        full_version = f.read().strip()
-    version = full_version
-    release = full_version
-    _pip_version_pin = "~={}.0".format(".".join(full_version.split(".")[:2]))
+        version = release = f.read().strip()
 else:
     version = release = "0.0.0"
-    _pip_version_pin = "~=1.0"
+
+
+def _pip_pin(ref_name, fallback):
+    """Install specifier for the series a build describes: ``1.5.x`` -> ``~=1.5.0``.
+
+    Release refs name their own series (``release/1.4.x``, ``v1.4.7``); ``main``
+    and plain ``sphinx-build`` fall back to the checked-out ``VERSION``.
+    """
+    tail = ref_name.rsplit("/", 1)[-1].removeprefix("v")
+    major, _, rest = (tail if tail[:1].isdigit() else fallback).partition(".")
+    minor = rest.partition(".")[0]
+    if not (major.isdigit() and minor.isdigit()) or major == "0":
+        return "~=1.0"
+    return f"~={major}.{minor}.0"
+
+
+_pip_version_pin = _pip_pin(_smv_ref_name(), version)
 
 # -- General configuration -----------------------------------------------------
 
@@ -65,9 +91,9 @@ html_static_path = ["_static"]
 html_css_files = ["css/custom.css"]
 
 # Per-version icon link overrides.  Keyed by the git ref name that
-# sphinx-multiversion builds (SPHINX_MULTIVERSION_NAME env var).  Unmatched
-# refs (including plain ``sphinx-build`` without multiversion) use _DEFAULT_ICONS.
-_smv_name = os.environ.get("SPHINX_MULTIVERSION_NAME", "")
+# sphinx-multiversion builds.  Unmatched refs (including plain ``sphinx-build``
+# without multiversion) use _DEFAULT_ICONS.
+_smv_name = _smv_ref_name()
 
 _DEFAULT_ICONS = {
     "teleop_version": "main",
