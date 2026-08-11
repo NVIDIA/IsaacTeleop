@@ -384,21 +384,23 @@ fi
 # release candidate, else a source build of this checkout. --wheel skips the
 # ladder; sender-only deploys skip isaacteleop entirely (README has the detail).
 #
-# Bump the floor in both specifiers. The rc one has to name a pre-release --
-# PEP 440 excludes them from a plain >=X.Y, and release/X.Y.x publishes an rc
-# per commit while a final can lag. The cloudxr extra is required, not
-# optional: XR is the default mode. uv accepts <path>[extra], so the extra
-# rides along on the wheel and source-build tiers.
+# The series comes from this checkout's VERSION, so a release branch cannot
+# resolve to a newer line. The cloudxr extra is required, not optional: XR is
+# the default mode. uv accepts <path>[extra], so the extra rides along on the
+# wheel and source-build tiers.
 ISAACTELEOP_EXTRAS="[cloudxr]"
-ISAACTELEOP_STABLE="isaacteleop${ISAACTELEOP_EXTRAS}>=1.4"
-ISAACTELEOP_PRE="isaacteleop${ISAACTELEOP_EXTRAS}>=1.4.0rc1"
-ISAACTELEOP_PKG="$ISAACTELEOP_STABLE"
+ISAACTELEOP_SERIES="$(cut -d. -f1,2 "$REPO_ROOT/VERSION" 2>/dev/null || true)"
+ISAACTELEOP_REQ="isaacteleop${ISAACTELEOP_EXTRAS}==${ISAACTELEOP_SERIES}.*"
+ISAACTELEOP_PKG="$ISAACTELEOP_REQ"
 
+# Prints the version the index would install, empty when nothing matches. Both
+# tiers use the same requirement; pass --pre for the release-candidate tier.
 # Resolves against the index without consulting the venv, so an already-installed
 # copy cannot make a tier look satisfiable. --no-deps keeps it to one fetch.
 isaacteleop_available() {
     echo "$1" | uv pip compile - --no-deps --quiet \
-        --python-version "$PYTHON_VERSION" >/dev/null 2>&1
+        --python-version "$PYTHON_VERSION" "${@:2}" 2>/dev/null |
+        sed -n 's/^isaacteleop==//p' || true
 }
 
 resolve_isaacteleop_pkg() {
@@ -412,24 +414,27 @@ resolve_isaacteleop_pkg() {
 
     if ! $BUILD_FROM_SOURCE; then
         step "isaacteleop: resolving from the package index"
-        if isaacteleop_available "$ISAACTELEOP_STABLE"; then
-            ISAACTELEOP_PKG="$ISAACTELEOP_STABLE"
-            note "final release ($ISAACTELEOP_STABLE)"
+        local rc
+        if [[ -n "$(isaacteleop_available "$ISAACTELEOP_REQ")" ]]; then
+            ISAACTELEOP_PKG="$ISAACTELEOP_REQ"
+            note "final release ($ISAACTELEOP_REQ)"
             return 0
         fi
-        if isaacteleop_available "$ISAACTELEOP_PRE"; then
-            ISAACTELEOP_PKG="$ISAACTELEOP_PRE"
-            note "no final release for $ISAACTELEOP_STABLE — using a release candidate ($ISAACTELEOP_PRE)"
+        # Pin the rc exactly so only isaacteleop resolves pre-release.
+        rc="$(isaacteleop_available "$ISAACTELEOP_REQ" --pre)"
+        if [[ -n "$rc" ]]; then
+            ISAACTELEOP_PKG="isaacteleop${ISAACTELEOP_EXTRAS}==${rc}"
+            note "no final release for $ISAACTELEOP_REQ — using a release candidate ($rc)"
             return 0
         fi
-        note "nothing matching $ISAACTELEOP_STABLE is installable from the index"
+        note "nothing matching $ISAACTELEOP_REQ is installable from the index"
     fi
 
     # An rsync'd robot tree and a standalone copy of examples/camera_viz/ have
     # no repo root to build from.
     if [[ -z "$REPO_ROOT" || ! -f "$REPO_ROOT/pyproject.toml" ]]; then
         cat >&2 <<EOF
-No way to obtain $ISAACTELEOP_STABLE.
+No way to obtain $ISAACTELEOP_REQ.
 
 Nothing suitable is published to the configured package index, and this copy
 of camera_viz is not inside an IsaacTeleop checkout, so there is nothing to
