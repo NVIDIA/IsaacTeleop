@@ -7,10 +7,10 @@
 # The SDK tarball (CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz) is placed in deps/cloudxr/
 # for use by Dockerfile.runtime.
 #
-# Three ways to obtain the SDK (tried in order):
+# Two ways to obtain the SDK:
 # 1) Local tarball: place CloudXR-<VERSION>-Linux-<ARCH>-sdk.tar.gz in deps/cloudxr/.
-# 2) Listed public NGC: nvidia/cloudxr-runtime.
-# 3) Unlisted public NGC: nvidia/cloudxr-runtime-for-isaac-teleop.
+# 2) Public NGC: RC versions use nvidia/cloudxr-runtime-for-isaac-teleop directly.
+#    Other versions try nvidia/cloudxr-runtime first and fall back to the unlisted resource.
 # Optional: set CXR_DOWNLOAD_EXP=1 to also download CloudXR-exp-<VERSION>-....
 
 set -Eeuo pipefail
@@ -106,8 +106,8 @@ download_ngc_file() {
 }
 
 # -----------------------------------------------------------------------------
-# Public NGC: try the listed resource before the unlisted Isaac Teleop resource.
-# Both sources are anonymous and must not require NGC credentials.
+# Public NGC is anonymous. RC versions go directly to the unlisted Isaac Teleop resource;
+# non-RC versions try listed first and fall back to unlisted without credentials.
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
     local resource="$1"
@@ -151,15 +151,27 @@ if install_from_local_tarball; then
     exit 0
 fi
 
-echo "Cannot install from local tarball, trying listed public NGC..."
-if install_from_public_ngc "cloudxr-runtime" "listed"; then
+if [[ "$CXR_RUNTIME_SDK_VERSION" == *-rc* ]]; then
+    NGC_RESOURCE="cloudxr-runtime-for-isaac-teleop"
+    NGC_VISIBILITY="unlisted"
+else
+    NGC_RESOURCE="cloudxr-runtime"
+    NGC_VISIBILITY="listed"
+fi
+
+echo "Cannot install from local tarball, trying ${NGC_VISIBILITY} public NGC..."
+if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
     exit 0
 fi
 
-echo "Cannot install from listed public NGC, trying unlisted public NGC..."
-if install_from_public_ngc "cloudxr-runtime-for-isaac-teleop" "unlisted"; then
-    exit 0
+if [[ "$NGC_VISIBILITY" == "listed" ]]; then
+    NGC_RESOURCE="cloudxr-runtime-for-isaac-teleop"
+    NGC_VISIBILITY="unlisted"
+    echo "Cannot install from listed public NGC, trying unlisted public NGC..."
+    if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
+        exit 0
+    fi
 fi
 
-echo "Cannot install from unlisted public NGC, exiting..."
+echo "Cannot install from ${NGC_VISIBILITY} public NGC, exiting..."
 exit 1

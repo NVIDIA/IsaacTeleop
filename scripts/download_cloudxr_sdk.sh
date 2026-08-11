@@ -6,12 +6,12 @@
 # Downloads the CloudXR Web Client SDK if not already present using NGC.
 # The SDK is extracted to deps/cloudxr/cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}/ for use by Dockerfile.web-app.
 #
-# Three ways to obtain the SDK (tried in order):
+# Two ways to obtain the SDK:
 # 1) Local tarball: place cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}.tar.gz in deps/cloudxr/.
 #    The tarball must extract to the same layout as the NGC release: root must contain
 #    nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz (optionally inside a single top-level directory).
-# 2) Listed public NGC: nvidia/cloudxr-js.
-# 3) Unlisted public NGC: nvidia/cloudxr-js-prerelease.
+# 2) Public NGC: RC versions use nvidia/cloudxr-js-prerelease directly. Other versions
+#    try nvidia/cloudxr-js first and fall back to nvidia/cloudxr-js-prerelease.
 
 set -Eeuo pipefail
 
@@ -94,8 +94,8 @@ install_from_local_tarball() {
 }
 
 # -----------------------------------------------------------------------------
-# Public NGC: try the listed resource before the unlisted prerelease resource.
-# Both sources are anonymous and must not require NGC credentials.
+# Public NGC is anonymous. RC versions go directly to the unlisted prerelease resource;
+# non-RC versions try listed first and fall back to unlisted without credentials.
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
     local resource="$1"
@@ -155,15 +155,27 @@ if install_from_local_tarball; then
     exit 0
 fi
 
-echo "Cannot install from local tarball, trying listed public NGC..."
-if install_from_public_ngc "cloudxr-js" "listed"; then
+if [[ "$CXR_WEB_SDK_VERSION" == *-rc* ]]; then
+    NGC_RESOURCE="cloudxr-js-prerelease"
+    NGC_VISIBILITY="unlisted"
+else
+    NGC_RESOURCE="cloudxr-js"
+    NGC_VISIBILITY="listed"
+fi
+
+echo "Cannot install from local tarball, trying ${NGC_VISIBILITY} public NGC..."
+if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
     exit 0
 fi
 
-echo "Cannot install from listed public NGC, trying unlisted public NGC..."
-if install_from_public_ngc "cloudxr-js-prerelease" "unlisted"; then
-    exit 0
+if [[ "$NGC_VISIBILITY" == "listed" ]]; then
+    NGC_RESOURCE="cloudxr-js-prerelease"
+    NGC_VISIBILITY="unlisted"
+    echo "Cannot install from listed public NGC, trying unlisted public NGC..."
+    if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
+        exit 0
+    fi
 fi
 
-echo "Cannot install from unlisted public NGC, exiting..."
+echo "Cannot install from ${NGC_VISIBILITY} public NGC, exiting..."
 exit 1

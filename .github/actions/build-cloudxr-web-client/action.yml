@@ -28,8 +28,8 @@ runs:
         version=$(grep -E '^CXR_WEB_SDK_VERSION=.+' deps/cloudxr/.env.default | cut -d= -f2)
         echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-    # download_cloudxr_sdk.sh tries a local tarball, then listed and unlisted
-    # public NGC resources. Only the tarball is needed here.
+    # download_cloudxr_sdk.sh tries a local tarball, then selects its public NGC
+    # route from the version. Only the tarball is needed here.
     - name: Download CloudXR Web SDK from NGC
       shell: bash
       env:
