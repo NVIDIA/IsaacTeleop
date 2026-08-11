@@ -51,14 +51,6 @@ struct FullBodyRecordingTraits
 // FullBodyRecordingTraits.
 using FullBodyPicoRecordingTraits [[deprecated("renamed to core::FullBodyRecordingTraits")]] = FullBodyRecordingTraits;
 
-// No replay_channels yet: there is no replay OAK impl, so nothing would consume it.
-// It arrives with the generated replay half when this tracker moves to the manifest.
-struct OakRecordingTraits
-{
-    static constexpr std::string_view schema_name = "core.FrameMetadataOakRecord";
-    static constexpr std::array recording_channels = { "oak", "oak_tracked" };
-};
-
 struct MessageChannelRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.MessageChannelMessagesRecord";

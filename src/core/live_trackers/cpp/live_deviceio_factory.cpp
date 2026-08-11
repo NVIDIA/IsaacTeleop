@@ -5,7 +5,6 @@
 
 #include "generated_live_includes.inc"
 #include "live_controller_tracker_impl.hpp"
-#include "live_frame_metadata_tracker_oak_impl.hpp"
 #include "live_full_body_tracker_noitom_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
@@ -15,7 +14,6 @@
 #include "live_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
@@ -100,12 +98,6 @@ std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(LiveDeviceIOFactory& f
     return typed ? factory.create_tensor_push_tracker_impl(typed) : nullptr;
 }
 
-std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
-{
-    auto* typed = dynamic_cast<const FrameMetadataTrackerOak*>(&tracker);
-    return typed ? factory.create_frame_metadata_tracker_oak_impl(typed) : nullptr;
-}
-
 std::unique_ptr<ITrackerImpl> try_create_haptic_command_reader_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const HapticCommandReaderTracker*>(&tracker);
@@ -155,7 +147,6 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
     make_dispatch_entry<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>(
         &try_create_haptic_command_reader_impl),
-    make_dispatch_entry<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>(&try_create_oak_impl),
 // Manifest trackers are single-vendor, so their rows can sit last as a block.
 #include "generated_live_dispatch_rows.inc"
 };
@@ -465,17 +456,6 @@ std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_trac
 std::unique_ptr<ITensorPushTrackerImpl> LiveDeviceIOFactory::create_tensor_push_tracker_impl(const TensorPushTracker* tracker)
 {
     return std::make_unique<LiveTensorPushTrackerImpl>(handles_, tracker);
-}
-
-std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_oak_impl(
-    const FrameMetadataTrackerOak* tracker)
-{
-    std::unique_ptr<OakMcapChannels> channels;
-    if (should_record(tracker))
-    {
-        channels = LiveFrameMetadataTrackerOakImpl::create_mcap_channels(*writer_, get_name(tracker));
-    }
-    return std::make_unique<LiveFrameMetadataTrackerOakImpl>(handles_, tracker, std::move(channels));
 }
 
 std::unique_ptr<IHapticCommandReaderTrackerImpl> LiveDeviceIOFactory::create_haptic_command_reader_tracker_impl(

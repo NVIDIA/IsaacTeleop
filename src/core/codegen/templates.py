@@ -60,7 +60,15 @@ def enrich_context(entry: dict[str, Any]) -> TrackerGenContext:
     cls = entry["class"]
     table = entry["table"]
     name = entry["name"]
-    if name.endswith("_tracker"):
+    # Optional manifest `header` keeps public #include stems when `name` alone would
+    # invent a different path (e.g. frame_metadata_oak → frame_metadata_tracker_oak).
+    header_override = entry.get("header")
+    if header_override is not None:
+        header = str(header_override)
+        base = f"{header}_base"
+        live_impl_file = f"live_{header}_impl"
+        replay_impl_file = f"replay_{header}_impl"
+    elif name.endswith("_tracker"):
         header = name
         base = f"{name}_base"
         live_impl_file = f"live_{name}_impl"

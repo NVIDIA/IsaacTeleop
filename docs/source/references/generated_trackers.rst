@@ -51,11 +51,14 @@ Per manifest entry, in ``${CMAKE_BINARY_DIR}/generated/trackers/``:
 .. code-block:: text
    :class: code-100col
 
-   deviceio_base/<name>_tracker_base.hpp              # I<Name>TrackerImpl interface
-   deviceio_trackers/inc/deviceio_trackers/<name>_tracker.hpp
-   deviceio_trackers/<name>_tracker.cpp               # the ITracker facade
-   live_trackers/live_<name>_tracker_impl.{hpp,cpp}   # wraps SchemaTracker / SchemaPusher
-   replay_trackers/replay_<name>_tracker_impl.{hpp,cpp}
+   deviceio_base/<header>_base.hpp                    # I<Class>Impl interface
+   deviceio_trackers/inc/deviceio_trackers/<header>.hpp
+   deviceio_trackers/<header>.cpp                     # the ITracker facade
+   live_trackers/live_<header>_impl.{hpp,cpp}         # wraps SchemaTracker / SchemaPusher
+   replay_trackers/replay_<header>_impl.{hpp,cpp}
+
+``header`` defaults from ``name`` (``<name>_tracker``, or ``name`` when it already ends in
+``_tracker``). Override it when the public ``#include`` stem must keep a historical path.
 
 The shared registration points stay hand-written and ``#include`` a generated ``.inc`` fragment,
 so hand-written trackers keep their own rows. The fragments under ``generated/trackers/inc/`` cover
@@ -95,6 +98,9 @@ Generated today
    * - ``haptic_command``
      - ``HapticCommandPushTracker``
      - ``direction = "push"``: a typed producer wrapping ``SchemaPusher``
+   * - ``frame_metadata_oak``
+     - ``FrameMetadataTrackerOak``
+     - Overrides ``class`` and ``header`` (file stem ``frame_metadata_tracker_oak``)
 
 Still hand-written
 ------------------
@@ -116,10 +122,6 @@ Still hand-written
    * - ``HapticCommandReaderTracker``
      - Cross-process consumer: ``read_all_samples`` on one collection, buckets by
        ``HapticCommand.endpoint`` (left/right). Paired with generated ``HapticCommandPushTracker``.
-   * - ``FrameMetadataTrackerOak``
-     - Single-stream schema-based reader (one ``SchemaTracker`` / collection per instance). Matches
-       the generated ``pull/`` shape after the single-stream refactor; still hand-written until it is
-       added to ``trackers.toml``.
    * - ``TensorPushTracker``
      - Deliberately kept as the untyped ``bytes`` escape hatch
 

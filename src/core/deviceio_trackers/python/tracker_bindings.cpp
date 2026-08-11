@@ -4,7 +4,6 @@
 #include "generated_tracker_binding_includes.inc"
 
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
@@ -15,7 +14,6 @@
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
 #include <schema/message_channel_generated.h>
-#include <schema/oak_generated.h>
 
 #include <array>
 #include <cstring>
@@ -166,20 +164,6 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             [](const core::MessageChannelTracker& self, const core::ITrackerSession& session,
                const core::MessageChannelMessagesT& message) { self.send_message(session, message.payload); },
             py::arg("session"), py::arg("message"), "Send a MessageChannelMessages payload over the message channel");
-
-    py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
-        m, "FrameMetadataTrackerOak")
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::FrameMetadataTrackerOak::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a FrameMetadataTrackerOak for one OAK stream's tensor collection, named "
-             "\"{collection_prefix}/{StreamName}\" (e.g. \"oak_camera/Color\"); create one per stream")
-        .def(
-            "get_data",
-            [](const core::FrameMetadataTrackerOak& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get this stream's FrameMetadataOakTrackedT; .data is None until first frame "
-            "arrives" TRACKED_LIFETIME_DOC);
 
     py::class_<core::HapticCommandReaderTracker, core::ITracker, std::shared_ptr<core::HapticCommandReaderTracker>>(
         m, "HapticCommandReaderTracker")

@@ -13,7 +13,6 @@ add_library(live_trackers STATIC
     live_full_body_tracker_pico_impl.cpp
     live_full_body_tracker_noitom_impl.cpp
     live_tensor_push_tracker_impl.cpp
-    live_frame_metadata_tracker_oak_impl.cpp
     live_haptic_command_reader_tracker_impl.cpp
     ${GENERATED_TRACKER_LIVE_SOURCES}
     inc/live_trackers/schema_tracker_base.hpp
@@ -26,7 +25,6 @@ add_library(live_trackers STATIC
     live_full_body_tracker_pico_impl.hpp
     live_full_body_tracker_noitom_impl.hpp
     live_tensor_push_tracker_impl.hpp
-    live_frame_metadata_tracker_oak_impl.hpp
     live_haptic_command_reader_tracker_impl.hpp
 )
 

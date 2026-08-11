@@ -10,7 +10,6 @@ add_library(deviceio_trackers STATIC
     controller_tracker.cpp
     message_channel_tracker.cpp
     tensor_push_tracker.cpp
-    frame_metadata_tracker_oak.cpp
     full_body_tracker.cpp
     haptic_command_reader_tracker.cpp
     ${GENERATED_TRACKER_FACADE_SOURCES}
@@ -20,7 +19,6 @@ add_library(deviceio_trackers STATIC
     inc/deviceio_trackers/message_channel_tracker.hpp
     inc/deviceio_trackers/full_body_tracker.hpp
     inc/deviceio_trackers/tensor_push_tracker.hpp
-    inc/deviceio_trackers/frame_metadata_tracker_oak.hpp
     inc/deviceio_trackers/haptic_command_reader_tracker.hpp
 )
 

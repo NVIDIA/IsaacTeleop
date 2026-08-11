@@ -172,6 +172,30 @@ class ManifestResolverTest(unittest.TestCase):
         entries = load_manifest(manifest, DEFAULTS_PATH)
         self.assertGreaterEqual(len(entries), 1)
 
+    def test_header_override_preserves_file_stems(self) -> None:
+        from templates import enrich_context
+
+        entry = resolve_tracker_entry(
+            {
+                "name": "frame_metadata_oak",
+                "table": "FrameMetadataOak",
+                "class": "FrameMetadataTrackerOak",
+                "schema": "oak",
+                "tensor_identifier": "frame_metadata",
+                "channel": "oak",
+                "header": "frame_metadata_tracker_oak",
+                "max_flatbuffer_size": 128,
+            },
+            load_defaults(DEFAULTS_PATH),
+        )
+        ctx = enrich_context(entry)
+        self.assertEqual(ctx.header, "frame_metadata_tracker_oak")
+        self.assertEqual(ctx.base_header, "frame_metadata_tracker_oak_base")
+        self.assertEqual(ctx.live_impl_file, "live_frame_metadata_tracker_oak_impl")
+        self.assertEqual(ctx.replay_impl_file, "replay_frame_metadata_tracker_oak_impl")
+        self.assertEqual(ctx.cls, "FrameMetadataTrackerOak")
+        self.assertEqual(ctx.traits, "OakRecordingTraits")
+
 
 if __name__ == "__main__":
     unittest.main()

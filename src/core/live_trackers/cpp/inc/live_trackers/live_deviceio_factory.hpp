@@ -25,8 +25,6 @@ class ITracker;
 class ITrackerImpl;
 class ControllerTracker;
 class IControllerTrackerImpl;
-class FrameMetadataTrackerOak;
-class IFrameMetadataTrackerOakImpl;
 class MessageChannelTracker;
 class IMessageChannelTrackerImpl;
 class FullBodyTracker;
@@ -87,8 +85,6 @@ public:
     std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_pico_impl(const FullBodyTracker* tracker);
     std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_noitom_impl(const FullBodyTracker* tracker);
     std::unique_ptr<ITensorPushTrackerImpl> create_tensor_push_tracker_impl(const TensorPushTracker* tracker);
-    std::unique_ptr<IFrameMetadataTrackerOakImpl> create_frame_metadata_tracker_oak_impl(
-        const FrameMetadataTrackerOak* tracker);
     std::unique_ptr<IHapticCommandReaderTrackerImpl> create_haptic_command_reader_tracker_impl(
         const HapticCommandReaderTracker* tracker);
     // create_<name>_tracker_impl for every manifest tracker.

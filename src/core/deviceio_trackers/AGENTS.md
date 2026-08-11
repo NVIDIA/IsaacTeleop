@@ -19,7 +19,8 @@ under `${CMAKE_BINARY_DIR}/generated/trackers/`, **not** in `cpp/`.
 - **Adding one is a manifest edit**, not a new source file: `name` and `table` are required, every
   other key has a `%placeholder%` default in [`defaults.toml`](defaults.toml). Override a key only
   where the convention genuinely does not hold (`se3_tracker` sets `class`; `generic_3axis_pedal`
-  sets `schema` because its `.fbs` is `pedals.fbs`).
+  sets `schema` because its `.fbs` is `pedals.fbs`; `frame_metadata_oak` sets `header` so the
+  public `#include` stem stays `frame_metadata_tracker_oak`).
 - **`direction = "push"`** generates a typed `<Table>PushTracker` (Teleop → plugin) instead of a
   reader facade. `TensorPushTracker` stays as the untyped `bytes` escape hatch — keep it.
 - **Do not hand-register a manifest tracker.** Factory dispatch rows, factory methods, pybind
@@ -34,11 +35,8 @@ under `${CMAKE_BINARY_DIR}/generated/trackers/`, **not** in `cpp/`.
 
 **Still hand-written:** the `.fbs` schema and its `schema/python/*_bindings.h` pybind file (codegen
 starts at the tracker layer, not the schema layer); `head`, `hand`, `controller`, `full_body`,
-`message_channel`, `HapticCommandReaderTracker` (multi-sample bucketing by
-`HapticCommand.endpoint` on one push-tensor collection);
-and `FrameMetadataTrackerOak`, which is now a single-stream schema-based reader (one collection per
-instance) and matches the generated `pull/` shape — still hand-written until it is added to
-`trackers.toml`.
+`message_channel`, and `HapticCommandReaderTracker` (multi-sample bucketing by
+`HapticCommand.endpoint` on one push-tensor collection).
 
 ## No OpenXR dependency
 

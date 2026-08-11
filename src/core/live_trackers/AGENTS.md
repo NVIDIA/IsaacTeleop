@@ -44,7 +44,7 @@ while multi-vendor hand-written types must keep their default vendor first.
 ## New tracker MCAP checklist
 
 Applies to **hand-written** live tracker impls (`head`, `hand`, `controller`, `full_body`,
-`message_channel`, `FrameMetadataTrackerOak`, …). For manifest trackers the impl, its MCAP
+`message_channel`, …). For manifest trackers the impl, its MCAP
 channels, and its recording traits are all generated — skip this checklist entirely.
 
 When adding MCAP support to a new **hand-written** tracker impl, all of the following are required together—missing any one causes a build failure or wrong timestamps:

@@ -37,7 +37,9 @@ and the `.inc` fragments.
 - **Prefer a manifest key over a template branch.** If one tracker differs, give it an override key;
   add a new manifest `shape` only when the control flow genuinely differs. A shape that makes the
   templates hard to follow is a signal to leave that tracker hand-written and say so in
-  [`../deviceio_trackers/AGENTS.md`](../deviceio_trackers/AGENTS.md).
+  [`../deviceio_trackers/AGENTS.md`](../deviceio_trackers/AGENTS.md). Optional `header` overrides the
+  derived file stem (and thus `*_base` / `live_*_impl` / `replay_*_impl`) when `name` alone would
+  invent a different public `#include` path.
 - **`direction` must be `pull` or `push`** — validated before defaults merge so a typo cannot silently
   pick up the wrong overlay. **`shape=single_collection` requires `record=true`** for `direction=pull`:
   those templates always emit MCAP channel/viewer constructors, while the factory only omits them
