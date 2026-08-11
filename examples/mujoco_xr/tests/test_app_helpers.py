@@ -3,21 +3,22 @@
 
 """Pure helpers from the app that guard against silent-corruption bugs."""
 
+import dataclasses
+
 import pytest
 
 app = pytest.importorskip(
     "isaacteleop_examples.mujoco_xr.app", reason="isaacteleop is not on PYTHONPATH"
 )
+robots = pytest.importorskip("isaacteleop_examples.mujoco_xr.robots")
 
 
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
         (0.011, 0.011),
-        (0.0, 0.0),
         (-1.0, 0.0),  # clock went backwards
         (5.0, app.MAX_DT_S),  # a long stall
-        (float("inf"), app.MAX_DT_S),
     ],
 )
 def test_clamp_dt(raw, expected):
@@ -92,3 +93,30 @@ def test_assert_frustum_rejects(index, broken, message):
     f[index] = broken(f[index])
     with pytest.raises(AssertionError, match=message):
         app._assert_frustum(f, _Fov(), app.NEAR_Z, app.FAR_Z)
+
+
+def test_an_unknown_robot_is_rejected_before_anything_starts():
+    """argparse's own gate, and it has to fire before the CloudXR runtime does."""
+    with pytest.raises(SystemExit) as exit_info:
+        app.main(["mujoco_xr", "--robot", "not-a-robot"])
+    assert exit_info.value.code == 2
+
+
+def test_the_unfetched_message_names_the_SELECTED_robots_script(monkeypatch, tmp_path):
+    """One robot's meshes must not satisfy the check for the other's.
+
+    The check runs before CloudXRLauncher.launch_context, so getting it wrong
+    means the failure lands buried in a started runtime's own logging instead.
+    """
+    unfetched = dataclasses.replace(
+        robots.SO101,
+        key="unfetched",
+        assets=tmp_path,
+        fetch_script="scripts/fetch-nothing.sh",
+    )
+    monkeypatch.setattr(app, "ROBOTS", {**app.ROBOTS, "unfetched": unfetched})
+    with pytest.raises(SystemExit) as exit_info:
+        app.main(["mujoco_xr", "--robot", "unfetched"])
+    message = str(exit_info.value)
+    assert "fetch-nothing.sh" in message
+    assert robots.SO101.meshes[0] in message

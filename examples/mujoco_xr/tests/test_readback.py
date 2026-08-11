@@ -18,7 +18,8 @@ import pytest
 mujoco = pytest.importorskip("mujoco")
 _mujoco_xr = pytest.importorskip("isaacteleop_examples.mujoco_xr._mujoco_xr")
 
-from isaacteleop_examples.mujoco_xr.app import DEFAULT_SCENE, FAR_Z, NEAR_Z  # noqa: E402
+from isaacteleop_examples.mujoco_xr.app import FAR_Z, NEAR_Z  # noqa: E402
+from isaacteleop_examples.mujoco_xr.robots import DEFAULT_ROBOT, ROBOTS  # noqa: E402
 
 W = H = 256
 HALF_FOV = math.radians(45.0)
@@ -29,7 +30,7 @@ GHOST_OFFSET = 0.15  # metres off-axis, comfortably outside the gripper's own si
 @pytest.fixture(scope="module")
 def rendered():
     """A live Renderer plus a device-to-host copier, or a skip saying why."""
-    model = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE))
+    model = mujoco.MjModel.from_xml_path(str(ROBOTS[DEFAULT_ROBOT].scene))
     data = mujoco.MjData(model)
 
     try:

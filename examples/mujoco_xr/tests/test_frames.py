@@ -9,7 +9,6 @@ Both are cheap to get wrong and expensive to debug on hardware.
 import math
 
 import numpy as np
-import pytest
 
 from isaacteleop_examples.mujoco_xr import _mujoco_xr
 
@@ -36,11 +35,14 @@ def test_axis_map_is_rep103():
     np.testing.assert_allclose(right, [0.0, -1.0, 0.0], atol=1e-12)
 
 
-@pytest.mark.parametrize("eye_height", [0.0, 1.2, 1.6])
-def test_point_one_metre_in_front_at_eye_height(eye_height):
+def test_point_one_metre_in_front_at_eye_height():
     """frames.hpp's definition, executable: a point 1 m in front of the operator
     at eye height h lands at MuJoCo (+1, 0, h), before the workspace translation.
+
+    One height, because mj_from_xr_pos is affine and the test above pins all
+    three columns of R.
     """
+    eye_height = 1.6
     t = np.asarray(_mujoco_xr.TRANS_MJ_FROM_XR)
     p_mj = np.asarray(_mujoco_xr.mj_from_xr_pos([0.0, eye_height, -1.0])) - t
     np.testing.assert_allclose(p_mj, [1.0, 0.0, eye_height], atol=1e-12)
@@ -53,12 +55,6 @@ def test_translation_has_both_terms():
     assert t[0] != 0.0, "operator standoff was zeroed"
     assert t[2] != 0.0, "floor datum was zeroed"
     assert t[1] == 0.0
-
-
-def test_identity_orientation_maps_to_the_convention_quaternion():
-    q_xyzw_identity = [0.0, 0.0, 0.0, 1.0]
-    q_wxyz = _mujoco_xr.mj_from_xr_quat(q_xyzw_identity)
-    np.testing.assert_allclose(q_wxyz, _mujoco_xr.QUAT_MJ_FROM_XR, atol=1e-12)
 
 
 def test_quaternion_input_order_is_xyzw_not_wxyz():

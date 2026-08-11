@@ -3,9 +3,9 @@
 SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
-The shipped scene: the SO-101 leader gripper ghost, and nothing else. No ground
-plane and no static furniture -- this is an AR scene and passthrough is the
-background.
+`--robot=so101`, the default: the SO-101 leader gripper ghost, and nothing else.
+No ground plane and no static furniture -- this is an AR scene and passthrough is
+the background.
 
 What a ghost-only scene cannot show: cpp/frames.hpp's constants place the ghost
 and the eye pose alike, so they cancel and it lands on the hand whatever they

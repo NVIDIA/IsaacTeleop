@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+`--robot=rebot`: the reBot DevArm gripper ghost, and nothing else. Same shape as
+so101_scene.xml -- see that file for what a ghost-only scene can and cannot show,
+and for why the headlight below is an ambient floor rather than a brighter light.
+-->
+<mujoco model="mujoco_xr_rebot_scene">
+  <option timestep="0.002"/>
+
+  <visual>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.4 0.4 0.4" specular="0.3 0.3 0.3"/>
+  </visual>
+
+  <include file="rebot/rebot_gripper.xml"/>
+</mujoco>

@@ -16,10 +16,14 @@
 #
 # See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
 name: mujoco_xr
-description: CloudXR runtime + MuJoCo scene in XR with the SO-101 leader gripper
+description: CloudXR runtime + MuJoCo gripper ghost in XR
 cwd: ..                        # -> Teleop repo root
 consumers:
   - name: mujoco xr app (requires headset)
+    # Add `--robot=rebot` below for the reBot DevArm gripper; the default is the
+    # SO-101 leader gripper. Each robot has its own fetch script, so switching
+    # needs examples/mujoco_xr/scripts/fetch-rebot-arm.sh and a reinstall first.
+    #
     # Keep --no-launch-cloudxr-runtime. The runtime is a host singleton on WSS
     # port 48322, so a second one kills this rig's own pane: the headset drops
     # mid-session and reads as a runtime crash rather than a config edit.

@@ -4,8 +4,8 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 
 An SO-101 leader gripper locked to the operator's controller grip pose, and the
-whole of the shipped scene. It shows app.py's grip calibration -- whether the
-tool sits in the hand the way a hand holds one -- but not cpp/frames.hpp, whose
+whole of `--robot=so101`. It shows app.py's grip calibration -- whether the tool
+sits in the hand the way a hand holds one -- but not cpp/frames.hpp, whose
 constants place the eye pose through the same transform and so cancel.
 
 Opaque, which makes draw order free. A scene that drops the alpha back must
@@ -74,9 +74,9 @@ inside a 65 m solid, which reads as "passthrough broke".
 
       <!-- DERIVED, not tuned: the handle is on the same CAD datum as the
            shank, so it takes the SAME transform. The evidence is the assembled
-           gap -- 0.3 mm shank-to-handle, 2.1 mm to the pivoting trigger --
-           which tests/test_ghost.py asserts, so a mesh refresh that broke the
-           datum fails rather than drifts. -->
+           gap -- 0.3 mm shank-to-handle, 2.1 mm to the pivoting trigger. No
+           test measures it: a mesh refresh that breaks the datum drifts
+           silently, so re-measure those gaps after one. -->
       <geom name="leader_ghost_handle" type="mesh" mesh="leader_handle"
             material="leader_ghost" pos="0 -0.000218 0.00095" quat="0 1 0 0"
             contype="0" conaffinity="0" mass="0" group="2"/>

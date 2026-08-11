@@ -9,6 +9,9 @@
 # reach the network, so it is an explicit step and the app names it at startup.
 # The files are package data, so REINSTALL afterwards -- skip that and the ghost
 # works from the source tree and fails from the wheel.
+#
+# TODO: the download loop below is a copy of the one in fetch-rebot-arm.sh --
+# extract it into a shared helper once a third robot or asset set needs it.
 set -euo pipefail
 
 # The pin. Bump it and the checksums together or the download is refused.
