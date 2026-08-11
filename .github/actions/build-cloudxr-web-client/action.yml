@@ -2,18 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Reads CXR_WEB_SDK_VERSION from deps/cloudxr/.env.default, downloads the SDK
-# from NGC (private if `ngc-api-key` is provided, public otherwise), and runs
-# `npm install` + `npm run build`. Output is written to
+# anonymously from NGC, and runs `npm install` + `npm run build`. Output is written to
 # deps/cloudxr/webxr_client/build/.
 
 name: Build CloudXR Web Client
 description: Download the CloudXR Web SDK from NGC and build the web client.
 
 inputs:
-  ngc-api-key:
-    description: NGC API key for the private SDK; leave empty to use the public SDK.
-    required: false
-    default: ''
   node-version:
     description: Node.js version for the web client build.
     required: false
@@ -33,14 +28,12 @@ runs:
         version=$(grep -E '^CXR_WEB_SDK_VERSION=.+' deps/cloudxr/.env.default | cut -d= -f2)
         echo "version=${version}" >> "$GITHUB_OUTPUT"
 
-    # download_cloudxr_sdk.sh tries local tarball, public NGC, then private NGC
-    # (the latter requires NGC_API_KEY). Only the tarball is needed here; the
-    # script's full bundle layout check is irrelevant for this action.
+    # download_cloudxr_sdk.sh tries a local tarball, then listed and unlisted
+    # public NGC resources. Only the tarball is needed here.
     - name: Download CloudXR Web SDK from NGC
       shell: bash
       env:
         CXR_WEB_SDK_VERSION: ${{ steps.sdk-version.outputs.version }}
-        NGC_API_KEY: ${{ inputs.ngc-api-key }}
       run: |
         ./scripts/download_cloudxr_sdk.sh
 

@@ -4,11 +4,6 @@
 name: Setup CloudXR SDK
 description: Parse CloudXR versions from .env.default and download the CloudXR Runtime and Web SDKs.
 
-inputs:
-  ngc-api-key:
-    description: NGC API key for downloading CloudXR SDKs from private NGC.
-    required: true
-
 outputs:
   runtime_version:
     description: CloudXR Runtime SDK version from .env.default.
@@ -39,9 +34,7 @@ runs:
       shell: bash
       env:
         CXR_RUNTIME_SDK_VERSION: ${{ steps.parse.outputs.runtime_version }}
-        # Staged here because the configure step re-runs this script without a key.
         CXR_DOWNLOAD_EXP: '1'
-        NGC_API_KEY: ${{ inputs.ngc-api-key }}
       run: |
         ./scripts/download_cloudxr_runtime_sdk.sh
 
@@ -49,6 +42,5 @@ runs:
       shell: bash
       env:
         CXR_WEB_SDK_VERSION: ${{ steps.parse.outputs.web_version }}
-        NGC_API_KEY: ${{ inputs.ngc-api-key }}
       run: |
         ./scripts/download_cloudxr_sdk.sh
