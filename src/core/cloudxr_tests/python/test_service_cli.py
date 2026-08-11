@@ -74,8 +74,11 @@ class TestStartEula:
 
     def test_accept_writes_the_marker(self, tmp_path):
         with (
+            # Probed three times: the pre-check, the re-check under the start
+            # lock, then the wait loop that sees the runtime come up.
             patch(
-                "isaacteleop.cloudxr.runtime.is_runtime_live", side_effect=[False, True]
+                "isaacteleop.cloudxr.runtime.is_runtime_live",
+                side_effect=[False, False, True],
             ),
             patch("isaacteleop.cloudxr.background.spawn") as m_spawn,
         ):

@@ -183,3 +183,31 @@ class TestTerminateRaces:
         ):
             assert background.terminate(run_dir) is True
         assert not background.pid_path(run_dir).exists()
+
+
+@_posix_only
+class TestStartRaces:
+    """A start that queues behind another must not spawn on top of it."""
+
+    def test_a_runtime_that_appears_under_the_lock_refuses_the_spawn(self, tmp_path):
+        """The loser would otherwise overwrite the winner's pid file.
+
+        Its own service refuses and exits, but service.pid now names that dead
+        process, so `service stop` can no longer reach the one still serving.
+        """
+        run_dir = str(tmp_path / "run")
+        os.makedirs(run_dir, exist_ok=True)
+        background.pid_path(run_dir).write_text("4242\n", encoding="utf-8")
+
+        with (
+            patch(
+                "isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True
+            ) as live,
+            patch("isaacteleop.cloudxr.background.spawn") as spawn,
+        ):
+            with pytest.raises(background.AlreadyServingError):
+                background.start_and_wait([], run_dir, tmp_path / "logs")
+
+        assert live.called
+        spawn.assert_not_called()
+        assert background.pid_path(run_dir).read_text() == "4242\n"

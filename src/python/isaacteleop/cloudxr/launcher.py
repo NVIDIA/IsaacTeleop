@@ -168,7 +168,7 @@ class CloudXRLauncher:
             self._attach(device_profile, env_config)
             return
 
-        self._start_service(
+        started = self._start_service(
             install_dir,
             env_config,
             device_profile,
@@ -177,11 +177,12 @@ class CloudXRLauncher:
             usb_local,
             host_client,
         )
-        # env_config=None: the service we just started was given this
+        # env_config=None once we started it: that service was given this
         # configuration, so there is nothing it ignored to report -- and
-        # telling the caller to restart it would be advice to undo their
-        # own settings.
-        self._attach(device_profile, None)
+        # telling the caller to restart it would be advice to undo their own
+        # settings.  A runtime that beat us to it did not get the config, so
+        # that one is reported like any other attach.
+        self._attach(device_profile, None if started else env_config)
 
     def _refuse_beside_live_runtime(self) -> None:
         """Reject ``run_embedded`` where a runtime is already serving.
@@ -207,11 +208,13 @@ class CloudXRLauncher:
         setup_oob: bool,
         usb_local: bool,
         host_client: bool,
-    ) -> None:
+    ) -> bool:
         """Start a detached service, then leave it running for the next caller.
 
         Announced rather than silent: it outlives this process, so a caller who
         did not ask for one still needs to know it is there and how to stop it.
+
+        Returns whether this call is the one that started it.
         """
         # Accept here, where a terminal exists: the detached service inherits
         # /dev/null on stdin and could not prompt.
@@ -235,10 +238,16 @@ class CloudXRLauncher:
             if device_profile != DEFAULT_DEVICE_PROFILE
             else None
         )
-        pid, log = background.start_and_wait(
-            flags, self._run_dir, self._logs_dir, extra_env
-        )
+        try:
+            pid, log = background.start_and_wait(
+                flags, self._run_dir, self._logs_dir, extra_env
+            )
+        except background.AlreadyServingError:
+            # Another caller won the race and is serving; attaching to it is
+            # what this path wanted.  Its configuration is not ours, though.
+            return False
         print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
+        return True
 
     def _attach(self, device_profile: str, env_config: str | Path | None) -> None:
         """Adopt the running runtime's environment and report any mismatch.

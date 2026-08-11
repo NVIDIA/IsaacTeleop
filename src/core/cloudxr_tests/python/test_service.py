@@ -82,6 +82,35 @@ class TestServiceConstruction:
             with pytest.raises(RuntimeError, match="failed to start"):
                 CloudXRService()
 
+    @_windows_skip
+    def test_runtime_stderr_goes_to_a_file_not_a_pipe(self, tmp_path):
+        """Nothing drains a pipe while the runtime runs, so it would fill and block."""
+        with mock_service_deps(tmp_path, ready=True) as mocks:
+            CloudXRService()
+
+        stderr = mocks["popen"].call_args.kwargs["stderr"]
+        assert stderr is not subprocess.PIPE
+        assert Path(stderr.name) == tmp_path / "logs" / "runtime_worker_stderr.log"
+
+    @_windows_skip
+    def test_startup_failure_reports_the_worker_stderr(self, tmp_path):
+        """A file the caller is never told about is no better than a full pipe."""
+
+        def _write_what_the_worker_would_have(*_args, **kwargs):
+            Path(kwargs["stderr"].name).write_text("ImportError: no runtime\n")
+            return mocks["proc"]
+
+        with mock_service_deps(tmp_path, ready=False) as mocks:
+            mocks["proc"].poll.return_value = 1
+            mocks["popen"].side_effect = _write_what_the_worker_would_have
+
+            with pytest.raises(RuntimeError) as exc:
+                CloudXRService()
+
+        detail = str(exc.value)
+        assert "runtime_worker_stderr.log" in detail
+        assert "ImportError: no runtime" in detail
+
     def test_wss_log_path_set_after_construction(self, tmp_path):
         """wss_log_path is a Path after successful construction."""
         with mock_service_deps(tmp_path, ready=True):

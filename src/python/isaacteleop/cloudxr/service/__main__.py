@@ -420,14 +420,13 @@ def _cmd_start(args: argparse.Namespace) -> int:
     run_dir, logs_dir = _resolve_dirs(args)
 
     if is_runtime_live(run_dir):
-        _fail(
-            f"A CloudXR runtime is already serving {run_dir}.  "
-            "Use `service status`, or stop it with `service stop`."
-        )
+        _fail(background.ALREADY_SERVING.format(run_dir=run_dir))
 
     _require_eula(args, run_dir)
 
     try:
+        # AlreadyServingError -- lost the race between the check above and the
+        # start lock -- carries that same refusal, so it needs no case here.
         pid, log = background.start_and_wait(_run_flags(args), run_dir, logs_dir)
     except RuntimeError as exc:
         _fail(str(exc))

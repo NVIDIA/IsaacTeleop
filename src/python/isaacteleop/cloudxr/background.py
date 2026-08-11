@@ -37,6 +37,21 @@ STOP_TIMEOUT_SEC = 15.0
 _MODULE = "isaacteleop.cloudxr.service"
 
 
+#: Refusal shown wherever a start meets a runtime that is already serving.
+ALREADY_SERVING = (
+    "A CloudXR runtime is already serving {run_dir}.  "
+    "Use `service status`, or stop it with `service stop`."
+)
+
+
+class AlreadyServingError(RuntimeError):
+    """A runtime was already serving the run directory, so nothing was spawned.
+
+    Distinct from the other startup failures because it is not one for some
+    callers: a launcher that only wants a runtime can attach to that one.
+    """
+
+
 def pid_path(run_dir: str) -> Path:
     """Path of the detached service's pid file."""
     return Path(run_dir) / PID_FILE
@@ -129,9 +144,12 @@ def _start_lock(run_dir: str):
     """Serialise service starts for *run_dir*.
 
     Two callers that both saw no runtime would otherwise spawn one each, and
-    two runtimes racing for the same IPC socket is worse than a wait.  The
-    second caller starts only once the first is serving, so its service
-    refuses on the live runtime instead of duplicating it.
+    two runtimes racing for the same IPC socket is worse than a wait.
+
+    The lock lives on the open fd, so the kernel drops it however the process
+    dies, SIGKILL included.  A leftover lock file is therefore not stale
+    state; do not unlink it, because another process may hold the lock on
+    that inode.
     """
     if fcntl is None:
         yield
@@ -139,10 +157,7 @@ def _start_lock(run_dir: str):
     os.makedirs(run_dir, mode=0o700, exist_ok=True)
     with open(os.path.join(run_dir, LOCK_FILE), "w", encoding="utf-8") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(handle, fcntl.LOCK_UN)
+        yield
 
 
 def start_and_wait(
@@ -154,11 +169,19 @@ def start_and_wait(
     """Spawn a detached service and wait until its runtime is serving *run_dir*.
 
     Raises:
+        AlreadyServingError: If a runtime is serving *run_dir* by the time
+            this caller holds the start lock.
         RuntimeError: If the service exits during startup, or never comes up.
     """
     from .runtime import RUNTIME_STARTUP_TIMEOUT_SEC, is_runtime_live  # noqa: PLC0415
 
     with _start_lock(run_dir):
+        # Re-check under the lock.  A caller that queued here behind another
+        # start would otherwise spawn a service that refuses and exits, and
+        # its pid file would already have replaced the pid of the service
+        # actually serving -- leaving that one unreachable by `service stop`.
+        if is_runtime_live(run_dir):
+            raise AlreadyServingError(ALREADY_SERVING.format(run_dir=run_dir))
         pid, log = spawn(run_args, run_dir, logs_dir, extra_env)
         deadline = time.monotonic() + RUNTIME_STARTUP_TIMEOUT_SEC
         while time.monotonic() < deadline:

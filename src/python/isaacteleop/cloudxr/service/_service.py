@@ -50,6 +50,10 @@ drop the live session.
     python -m isaacteleop.cloudxr.service stop
   (Ctrl+C in its terminal if it is running in the foreground.)"""
 
+#: Runtime worker stderr, kept apart from runtime_stderr.log so the worker and
+#: :func:`~.runtime.run` never append to one file from two processes.
+_WORKER_STDERR_LOG = "runtime_worker_stderr.log"
+
 _RUNTIME_WORKER_CODE = """\
 import sys, os
 sys.path = [p for p in sys.path if p]
@@ -182,16 +186,22 @@ class CloudXRService:
             prev = worker_env.get("LD_PRELOAD")
             worker_env["LD_PRELOAD"] = f"{preload} {prev}" if prev else preload
 
-        self._runtime_proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
-            ],
-            env=worker_env,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
+        # To a file, not a pipe: the runtime is long-lived and nothing here
+        # would drain a pipe while it runs, so past the pipe buffer (64 KiB)
+        # its next write to stderr would block the runtime with no diagnostic.
+        # Truncated per start so a failure report shows only this one.
+        worker_stderr = logs_dir_path / _WORKER_STDERR_LOG
+        with open(worker_stderr, "w", encoding="utf-8") as stderr_file:
+            self._runtime_proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
+                ],
+                env=worker_env,
+                stderr=stderr_file,
+                start_new_session=True,
+            )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
         if not self._atexit_registered:
@@ -380,9 +390,9 @@ class CloudXRService:
     def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
         """Build a diagnostic string after a failed runtime startup.
 
-        Captures the process exit code, subprocess stderr pipe, the
-        runtime stderr log file (written by :func:`~.runtime.run`), and
-        the most recent CloudXR native server log.
+        Captures the process exit code, the worker's stderr, the runtime
+        stderr log file (written by :func:`~.runtime.run`), and the most
+        recent CloudXR native server log.
         """
         _MAX_LOG_BYTES = 4096
         parts: list[str] = []
@@ -391,16 +401,6 @@ class CloudXRService:
             exit_code = proc.poll()
             if exit_code is not None:
                 parts.append(f"Process exited with code {exit_code}.")
-                stderr_pipe = getattr(proc, "stderr", None)
-                if stderr_pipe is not None:
-                    try:
-                        stderr_tail = stderr_pipe.read(_MAX_LOG_BYTES)
-                        if stderr_tail:
-                            parts.append(
-                                f"stderr: {stderr_tail.decode(errors='replace').strip()}"
-                            )
-                    except Exception:
-                        pass
             else:
                 parts.append("Process is still running but did not signal readiness.")
 
@@ -423,9 +423,10 @@ class CloudXRService:
         """Return log files useful for diagnosing a startup failure."""
         result: list[Path] = []
 
-        stderr_log = logs_dir / "runtime_stderr.log"
-        if stderr_log.is_file():
-            result.append(stderr_log)
+        for name in (_WORKER_STDERR_LOG, "runtime_stderr.log"):
+            log = logs_dir / name
+            if log.is_file():
+                result.append(log)
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:
