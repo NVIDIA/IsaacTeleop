@@ -52,9 +52,7 @@ if(NOT EXISTS "${CLOUDXR_SDK_PATH}" OR
     execute_process(
         COMMAND ${CMAKE_COMMAND} -E env
             "CXR_RUNTIME_SDK_VERSION=${CXR_RUNTIME_SDK_VERSION}"
-            "CXR_RUNTIME_NGC_SUFFIX=$ENV{CXR_RUNTIME_NGC_SUFFIX}"
             "CXR_DOWNLOAD_EXP=${_cloudxr_download_exp}"
-            "NGC_API_KEY=$ENV{NGC_API_KEY}"
             /bin/bash "${DOWNLOAD_SCRIPT}"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         RESULT_VARIABLE DOWNLOAD_EXIT_CODE
@@ -131,7 +129,7 @@ if(ENABLE_CLOUDXR_EXP_BUNDLE)
     if(NOT EXISTS "${CLOUDXR_SDK_EXP_PATH}")
         set(exp_error_message
             "CloudXR Experimental Runtime SDK tarball is required. Place ${CLOUDXR_SDK_EXP_FILE} in "
-            "deps/cloudxr/, or set NGC_API_KEY and update CXR_RUNTIME_SDK_VERSION to a version that publishes it.")
+            "deps/cloudxr/ or update CXR_RUNTIME_SDK_VERSION to a version that publishes it.")
         if(ENABLE_CLOUDXR_BUNDLE_CHECK)
             message(FATAL_ERROR "${exp_error_message}")
         else()
