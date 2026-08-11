@@ -168,6 +168,8 @@ if [[ "$NGC_VISIBILITY" == "listed" ]]; then
     NGC_RESOURCE="cloudxr-runtime-for-isaac-teleop"
     NGC_VISIBILITY="unlisted"
     echo "Cannot install from listed public NGC, trying unlisted public NGC..."
+    # Do not combine a partial listed download with the unlisted SDK bundle.
+    rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE" "$CXR_DEPLOYMENT_DIR/$EXP_SDK_FILE"
     if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
         exit 0
     fi
