@@ -9,7 +9,6 @@ import json
 import logging
 import os
 from urllib.parse import unquote, urlparse
-import shutil
 import ssl
 import subprocess
 import sys
@@ -94,6 +93,40 @@ def cert_paths_from_dir(cert_dir: Path) -> CertPaths:
     )
 
 
+def _generate_self_signed_cert(cert_paths: CertPaths) -> None:
+    """Generate a self-signed RSA certificate and private key using the cryptography package."""
+    import datetime
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+        .not_valid_after(
+            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
+        )
+        .sign(key, hashes.SHA256())
+    )
+    cert_paths.key_file.write_bytes(
+        key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
+    )
+    cert_paths.key_file.chmod(0o600)
+    cert_paths.cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+
+
 def ensure_certificate(cert_paths: CertPaths) -> None:
     """Generate a self-signed certificate if one does not already exist."""
     cert_exists = cert_paths.cert_file.exists()
@@ -111,34 +144,12 @@ def ensure_certificate(cert_paths: CertPaths) -> None:
 
     log.info("Generating self-signed SSL certificate ...")
     cert_paths.cert_dir.mkdir(parents=True, exist_ok=True)
-    openssl_bin = shutil.which("openssl")
-    if not openssl_bin:
+    if not os.access(cert_paths.cert_dir, os.W_OK):
         raise RuntimeError(
-            "OpenSSL executable not found on PATH; cannot generate TLS certificates."
+            f"Certificate directory {cert_paths.cert_dir} is not writable. "
+            f"Create it manually and retry: mkdir -p {cert_paths.cert_dir}"
         )
-
-    subprocess.run(
-        [
-            openssl_bin,
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:2048",
-            "-keyout",
-            str(cert_paths.key_file),
-            "-out",
-            str(cert_paths.cert_file),
-            "-days",
-            "365",
-            "-nodes",
-            "-subj",
-            "/CN=localhost",
-        ],
-        check=True,
-        capture_output=True,
-    )
-
-    cert_paths.key_file.chmod(0o600)
+    _generate_self_signed_cert(cert_paths)
     log.info("SSL certificate generated at %s", cert_paths.cert_file)
 
 
