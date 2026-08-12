@@ -19,9 +19,8 @@ when you want to:
 - keep the headset connected while you restart a teleop application repeatedly
   during development,
 - point OpenXR applications that do not embed ``CloudXRLauncher`` at CloudXR,
-- use launch modes that only the service exposes, such as serving the web
-  client locally (``--host-client``) or the out-of-band automation flags
-  (``--setup-oob``, ``--usb-local``).
+- use the out-of-band automation flags (``--setup-oob``, ``--usb-local``)
+  that only the service exposes.
 
 .. contents:: Sections
    :local:

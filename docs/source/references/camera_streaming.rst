@@ -275,6 +275,8 @@ serving. Useful flags:
 
 - ``--accept-eula`` — accept the CloudXR EULA non-interactively (first run only).
 - ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
+- ``--no-host-client`` — disable serving CloudXR.js at
+  ``https://<host>:48322/client/``.
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
 
