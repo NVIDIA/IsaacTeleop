@@ -301,8 +301,7 @@ class TestRefusalLeavesTheLiveRuntimeAlone:
 
 @contextlib.contextmanager
 def _stub_wss(run):
-    """Stand in for isaacteleop.cloudxr.wss, whose websockets dependency the
-    unit suite deliberately does not install."""
+    """Stand in for isaacteleop.cloudxr.wss so no real proxy is started."""
     name = "isaacteleop.cloudxr.wss"
     module = types.ModuleType(name)
     module.run = run

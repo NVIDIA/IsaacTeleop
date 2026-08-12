@@ -8,6 +8,7 @@ import errno
 import json
 import logging
 import os
+from http import HTTPStatus
 from urllib.parse import unquote, urlparse
 import shutil
 import ssl
@@ -335,6 +336,18 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
         ):
+            # index.html asks for ``bundle.js`` relatively, which the browser
+            # resolves against ``/`` unless the directory URL ends in a slash.
+            # ``path`` is normalized, so the raw target decides slash presence.
+            target, _, query = raw_path.partition("?")
+            if path == "/client" and not target.endswith("/"):
+                location = "/client/" + (f"?{query}" if query else "")
+                return Response(
+                    HTTPStatus.FOUND,
+                    HTTPStatus.FOUND.phrase,
+                    Headers({"Location": location, **CORS_HEADERS}),
+                    b"",
+                )
             _MIME = {
                 "index.html": "text/html; charset=utf-8",
                 "bundle.js": "application/javascript; charset=utf-8",
