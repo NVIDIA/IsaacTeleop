@@ -249,6 +249,7 @@ class TestNothingRunning:
         err = capsys.readouterr().err
         assert "started one (pid 4242)" in err
         assert "service stop" in err
+        assert "--host-client" in m_start.call_args.args[0]
 
     def test_forwards_config_to_the_service_it_starts(self, tmp_path):
         """A dropped setting here would silently start the wrong runtime.
@@ -345,6 +346,7 @@ class TestLaunchArgumentHelpers:
                 "--cloudxr-env-config",
                 "/etc/cloudxr.env",
                 "--accept-eula",
+                "--no-host-client",
                 "--no-launch-cloudxr-runtime",
                 "--no-launch-wss-proxy",
             ]
@@ -353,6 +355,7 @@ class TestLaunchArgumentHelpers:
         assert args.cloudxr_device_profile == "auto-webrtc"
         assert args.cloudxr_env_config == "/etc/cloudxr.env"
         assert args.accept_eula is True
+        assert args.host_client is False
         assert args.launch_cloudxr_runtime is False
         assert args.launch_wss_proxy is False
 
@@ -362,6 +365,7 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args([])
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
+        assert args.host_client is True
         assert args.launch_cloudxr_runtime is True
         assert args.launch_wss_proxy is None
 
@@ -472,6 +476,37 @@ class TestLaunchArgumentHelpers:
         assert CloudXRLauncher._resolve_accept_eula(args, False) is False
         args.accept_eula = False
         assert CloudXRLauncher._resolve_accept_eula(args, True) is True
+
+    def test_resolve_host_client_none_falls_back_to_args(self) -> None:
+        args = argparse.Namespace(host_client=True)
+        assert CloudXRLauncher._resolve_host_client(args) is True
+        args.host_client = False
+        assert CloudXRLauncher._resolve_host_client(args) is False
+
+    def test_resolve_host_client_explicit_override(self) -> None:
+        args = argparse.Namespace(host_client=True)
+        assert CloudXRLauncher._resolve_host_client(args, False) is False
+        args.host_client = False
+        assert CloudXRLauncher._resolve_host_client(args, True) is True
+
+    def test_start_service_omits_host_client_when_disabled(self, tmp_path) -> None:
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaacteleop.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ) as m_start,
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        flags = m_start.call_args.args[0]
+        assert "--host-client" not in flags
 
 
 class TestEnvConfigLauncherDefaults:
