@@ -96,6 +96,8 @@ def cert_paths_from_dir(cert_dir: Path) -> CertPaths:
 def _generate_self_signed_cert(cert_paths: CertPaths) -> None:
     """Generate a self-signed RSA certificate and private key using the cryptography package."""
     import datetime
+    import ipaddress
+    import stat
 
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -114,16 +116,31 @@ def _generate_self_signed_cert(cert_paths: CertPaths) -> None:
         .not_valid_after(
             datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
         )
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [
+                    x509.DNSName("localhost"),
+                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+                ]
+            ),
+            critical=False,
+        )
         .sign(key, hashes.SHA256())
     )
-    cert_paths.key_file.write_bytes(
-        key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.TraditionalOpenSSL,
-            serialization.NoEncryption(),
-        )
+    key_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
     )
-    cert_paths.key_file.chmod(0o600)
+    # Write the private key with mode 0o600 from the start to avoid a world-readable
+    # window between write_bytes() and a subsequent chmod().
+    key_fd = os.open(
+        cert_paths.key_file,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+        stat.S_IRUSR | stat.S_IWUSR,
+    )
+    with os.fdopen(key_fd, "wb") as f:
+        f.write(key_pem)
     cert_paths.cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
 
 
@@ -144,12 +161,18 @@ def ensure_certificate(cert_paths: CertPaths) -> None:
 
     log.info("Generating self-signed SSL certificate ...")
     cert_paths.cert_dir.mkdir(parents=True, exist_ok=True)
-    if not os.access(cert_paths.cert_dir, os.W_OK):
+    if not os.access(cert_paths.cert_dir, os.W_OK | os.X_OK):
         raise RuntimeError(
             f"Certificate directory {cert_paths.cert_dir} is not writable. "
             f"Create it manually and retry: mkdir -p {cert_paths.cert_dir}"
         )
-    _generate_self_signed_cert(cert_paths)
+    try:
+        _generate_self_signed_cert(cert_paths)
+    except PermissionError as exc:
+        raise RuntimeError(
+            f"Permission denied writing TLS certificate to {cert_paths.cert_dir}. "
+            f"Create it manually and retry: mkdir -p {cert_paths.cert_dir}"
+        ) from exc
     log.info("SSL certificate generated at %s", cert_paths.cert_file)
 
 
