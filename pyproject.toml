@@ -59,6 +59,7 @@ grounding = [
     "cmeel-tinyxml2<11",
 ]
 cloudxr = [
+    "cryptography>=3.0",
     "websockets>=14.0",
 ]
 
