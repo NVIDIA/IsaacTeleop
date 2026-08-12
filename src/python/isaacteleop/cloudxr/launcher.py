@@ -148,7 +148,7 @@ class CloudXRLauncher:
         accept_eula: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
-        host_client: bool = False,
+        host_client: bool = True,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> None:
@@ -519,6 +519,20 @@ class CloudXRLauncher:
         )
 
     @staticmethod
+    def add_host_client_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--host-client`` / ``--no-host-client`` on ``parser``."""
+        parser.add_argument(
+            "--host-client",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help=(
+                "Serve the web client at /client/ on the WSS proxy port (default 48322), "
+                "fetched once from the matching versioned release into "
+                "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client."
+            ),
+        )
+
+    @staticmethod
     def add_launch_wss_proxy_argument(parser: argparse.ArgumentParser) -> None:
         """Register the deprecated no-op ``--launch-wss-proxy`` on ``parser``.
 
@@ -542,6 +556,7 @@ class CloudXRLauncher:
         CloudXRLauncher.add_cloudxr_device_profile_argument(parser)
         CloudXRLauncher.add_cloudxr_env_config_argument(parser)
         CloudXRLauncher.add_accept_eula_argument(parser)
+        CloudXRLauncher.add_host_client_argument(parser)
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
         CloudXRLauncher.add_launch_wss_proxy_argument(parser)
 
@@ -590,6 +605,16 @@ class CloudXRLauncher:
         return bool(getattr(args, "accept_eula", False))
 
     @staticmethod
+    def _resolve_host_client(
+        args: argparse.Namespace,
+        host_client: bool | None = None,
+    ) -> bool:
+        """Return ``host_client`` or ``args.host_client`` when registered."""
+        if host_client is not None:
+            return host_client
+        return bool(getattr(args, "host_client", True))
+
+    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -599,7 +624,7 @@ class CloudXRLauncher:
         accept_eula: bool | None = None,
         setup_oob: bool = False,
         usb_local: bool = False,
-        host_client: bool = False,
+        host_client: bool | None = None,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> CloudXRLauncher | NoopContext:
@@ -608,11 +633,10 @@ class CloudXRLauncher:
         Returns :class:`NoopContext` when ``args.launch_cloudxr_runtime`` is
         false so callers can always ``with CloudXRLauncher.launch_context(args):``.
 
-        ``install_dir``, ``env_config``, ``device_profile``, and ``accept_eula``
-        default to the values registered by :meth:`add_launcher_arguments`
-        (``args.cloudxr_install_dir`` etc.); pass an explicit keyword only to
-        override what came in on the command line. For ``accept_eula``, pass
-        ``False`` to force-disable even when the CLI flag is set.
+        ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``, and
+        ``host_client`` default to the values registered by
+        :meth:`add_launcher_arguments` (``args.cloudxr_install_dir`` etc.); pass an
+        explicit keyword only to override what came in on the command line.
         ``run_embedded`` is forwarded to :class:`CloudXRLauncher`.
         ``start_wss_proxy`` is a deprecated no-op removed in 1.7.
         """
@@ -647,7 +671,7 @@ class CloudXRLauncher:
             accept_eula=CloudXRLauncher._resolve_accept_eula(args, accept_eula),
             setup_oob=setup_oob,
             usb_local=usb_local,
-            host_client=host_client,
+            host_client=CloudXRLauncher._resolve_host_client(args, host_client),
             run_embedded=run_embedded,
         )
 
