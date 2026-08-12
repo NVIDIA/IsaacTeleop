@@ -310,7 +310,13 @@ class CloudXRService:
     # ------------------------------------------------------------------
 
     def _install_signal_handlers(self) -> None:
-        """Install SIGTERM/SIGINT handlers that call :meth:`stop`, then the prior handler."""
+        """Install SIGTERM/SIGINT handlers that propagate to the prior handler.
+
+        Propagation happens first so that with-block __exit__ teardown runs in
+        the correct order: inner contexts (e.g. an OpenXR session) close before
+        the outer launcher terminates the runtime process.  stop() is reached
+        via __exit__ (context manager) and atexit (standalone use).
+        """
         if threading.current_thread() is not threading.main_thread():
             return
 
@@ -318,15 +324,14 @@ class CloudXRService:
 
         def _make_handler(prev):
             def _handler(signum, frame):
-                try:
-                    self.stop()
-                finally:
-                    if callable(prev):
-                        prev(signum, frame)
-                    else:
-                        signal.signal(signum, prev)
-                        if prev == signal.SIG_DFL:
-                            os.kill(os.getpid(), signum)
+                if callable(prev):
+                    # e.g. default_int_handler raises KeyboardInterrupt, which
+                    # unwinds with-blocks in order before atexit calls stop().
+                    prev(signum, frame)
+                else:
+                    # SIG_DFL would terminate the process without running atexit
+                    # or __exit__ handlers.  SystemExit triggers both.
+                    raise SystemExit(0)
 
             return _handler
 
