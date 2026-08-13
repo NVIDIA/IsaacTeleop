@@ -71,6 +71,15 @@ only point here — edit the rules in the doc, not the shims.
   must keep `[ ... ]`. Check the shebang (and, for sourced files, who sources
   them) first.
 
+## Examples / `run_example.sh`
+
+- `scripts/run_example.sh` syncs against the **install-tree** example
+  (`install/examples/...`), not `examples/`. Dependency extras such as
+  `isaacteleop[cloudxr]` only take effect once `install_python_example`
+  regenerates that pyproject (configure-time; see
+  `cmake/InstallPythonExample.cmake`). Editing the source pyproject alone is
+  not enough until cmake reconfigures and reinstalls.
+
 ## Comments and docstrings — say it once, briefly
 
 Comments earn their place by recording what the code cannot: a constraint, a
