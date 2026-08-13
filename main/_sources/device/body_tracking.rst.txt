@@ -225,10 +225,11 @@ Troubleshooting
 Recording and Replay
 --------------------
 
-Full body sessions can be captured to MCAP and replayed offline through the
-same retargeting pipeline — no headset required during replay. See
-:doc:`../references/mcap_record_replay` for the recording / replay API and
-the ``record_full_body.py`` / ``replay_full_body.py`` example.
+Full body sessions can be previewed live, captured to MCAP, and replayed
+offline through the same retargeting pipeline — no headset required during
+replay. See :doc:`../references/mcap_record_replay` for the API and the
+``live_full_body.py`` / ``record_full_body.py`` / ``replay_full_body.py``
+example.
 
 Recording is also available directly from C++: pass a ``McapRecordingConfig``
 to ``DeviceIOSession::run()`` with the tracker mapped to the ``full_body``

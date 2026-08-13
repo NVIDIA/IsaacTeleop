@@ -546,6 +546,8 @@ from a live OpenXR session and replays it with a <a class="reference external" h
 <li><p><code class="docutils literal notranslate"><span class="pre">record_controller.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_controller.py</span></code> — records the
 <code class="docutils literal notranslate"><span class="pre">controllers</span></code> channel and replays it in viser, including a per-controller
 HUD (thumbstick, trigger, squeeze, button states).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">live_full_body.py</span></code> — live viser preview of the full-body skeleton from
+an active OpenXR session.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> — records the
 <code class="docutils literal notranslate"><span class="pre">full_body</span></code> + <code class="docutils literal notranslate"><span class="pre">controllers</span></code> channels and replays the body skeleton in
 viser.</p></li>
@@ -566,6 +568,17 @@ same channel base name as <code class="docutils literal notranslate"><span class
 with <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code>. <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">rigs/full_body.yaml</span></code>
 runs it together with the full-body printer (see <a class="reference internal" href="rig.html#rig-launcher"><span class="std std-ref">Rig Launcher</span></a>).</p></li>
 </ul>
+<section id="live-preview">
+<h3>Live preview<a class="headerlink" href="#live-preview" title="Link to this heading">#</a></h3>
+<p>From the example directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>examples/mcap_record_replay/python
+uv<span class="w"> </span>sync
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>live_full_body.py<span class="w"> </span>--accept-eula
+uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>live_full_body.py<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w"> </span>--accept-eula<span class="w">  </span><span class="c1"># change viser port</span>
+</pre></div>
+</div>
+<p>Open the printed URL (default <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>) in a browser.</p>
+</section>
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
 <p>From the example directory:</p>
@@ -603,7 +616,9 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 left (green) and right (blue) hand skeletons update each frame.</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">record_controller.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_controller.py</span></code> and
 <code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> pairs use the same CLI
-(positional MCAP path, <code class="docutils literal notranslate"><span class="pre">--host</span></code>, <code class="docutils literal notranslate"><span class="pre">--port</span></code>, <code class="docutils literal notranslate"><span class="pre">--loop</span></code>).</p>
+(positional MCAP path, <code class="docutils literal notranslate"><span class="pre">--host</span></code>, <code class="docutils literal notranslate"><span class="pre">--port</span></code>, <code class="docutils literal notranslate"><span class="pre">--loop</span></code>).
+<code class="docutils literal notranslate"><span class="pre">live_full_body.py</span></code> accepts <code class="docutils literal notranslate"><span class="pre">--host</span></code>, <code class="docutils literal notranslate"><span class="pre">--port</span></code>, and the CloudXR launcher
+flags (including <code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>).</p>
 </section>
 </section>
 <section id="api-reference">
@@ -698,6 +713,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying-a-recording">Replaying a Recording</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-example">Runnable Example</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#live-preview">Live preview</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recording">Recording</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying">Replaying</a></li>
 </ul>
@@ -790,7 +806,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 12, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
       <br/>
     
   </p>

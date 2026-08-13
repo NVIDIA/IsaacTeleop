@@ -121,6 +121,8 @@ A complete record / replay example lives at
 - ``record_controller.py`` / ``replay_controller.py`` — records the
   ``controllers`` channel and replays it in viser, including a per-controller
   HUD (thumbstick, trigger, squeeze, button states).
+- ``live_full_body.py`` — live viser preview of the full-body skeleton from
+  an active OpenXR session.
 - ``record_full_body.py`` / ``replay_full_body.py`` — records the
   ``full_body`` + ``controllers`` channels and replays the body skeleton in
   viser.
@@ -142,6 +144,20 @@ A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
   same channel base name as ``FullBodySource``, so the resulting file replays
   with ``replay_full_body.py``. ``python -m isaacteleop.rig rigs/full_body.yaml``
   runs it together with the full-body printer (see :ref:`rig-launcher`).
+
+Live preview
+^^^^^^^^^^^^
+
+From the example directory:
+
+.. code-block:: bash
+
+   cd examples/mcap_record_replay/python
+   uv sync
+   uv run python live_full_body.py --accept-eula
+   uv run python live_full_body.py --port 8090 --accept-eula  # change viser port
+
+Open the printed URL (default ``http://localhost:8080``) in a browser.
 
 Recording
 ^^^^^^^^^
@@ -189,6 +205,8 @@ left (green) and right (blue) hand skeletons update each frame.
 The ``record_controller.py`` / ``replay_controller.py`` and
 ``record_full_body.py`` / ``replay_full_body.py`` pairs use the same CLI
 (positional MCAP path, ``--host``, ``--port``, ``--loop``).
+``live_full_body.py`` accepts ``--host``, ``--port``, and the CloudXR launcher
+flags (including ``--accept-eula``).
 
 API Reference
 -------------
