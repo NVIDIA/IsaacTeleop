@@ -46,7 +46,6 @@ def template_values(ctx: TrackerGenContext) -> dict[str, str]:
         "HEADER": ctx.header,
         "BASE_HEADER": ctx.base_header,
         "SCHEMA": ctx.schema,
-        "TRACKED_TYPE": ctx.tracked_type,
         "DATA_TYPE": ctx.data_type,
         "RECORD_TYPE": ctx.record_type,
         "FB_TABLE": ctx.fb_table,

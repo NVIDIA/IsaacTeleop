@@ -159,15 +159,14 @@ PYBIND11_MODULE(_deviceio_trackers, m)
         .def(
             "get_data",
             [](const core::HapticCommandReaderTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the latest haptic command tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC)
+            { return to_python(self.get_data(session)); },
+            py::arg("session"), "Get the latest haptic command (None when no data available)")
         .def(
             "get_data",
             [](const core::HapticCommandReaderTracker& self, const core::ITrackerSession& session,
-               std::string_view endpoint) { return share_tracked(self.get_data(session, endpoint)); },
+               std::string_view endpoint) { return to_python(self.get_data(session, endpoint)); },
             py::arg("session"), py::arg("endpoint"),
-            "Get the latest haptic command for one endpoint" TRACKED_LIFETIME_DOC);
+            "Get the latest haptic command for one endpoint (None when no data available)");
 
     // py::class_ blocks for every manifest tracker; the accessor name comes from the
     // manifest's python_accessor key.

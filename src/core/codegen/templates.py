@@ -45,7 +45,6 @@ class TrackerGenContext:
     live_impl_file: str
     replay_impl_file: str
     iface: str
-    tracked_type: str
     record_type: str
     data_type: str
     fb_table: str
@@ -107,7 +106,6 @@ def enrich_context(entry: dict[str, Any]) -> TrackerGenContext:
         live_impl_file=live_impl_file,
         replay_impl_file=replay_impl_file,
         iface=f"I{cls}Impl",
-        tracked_type=f"{table}TrackedT",
         record_type=f"{table}Record",
         data_type=f"{table}T",
         fb_table=table,

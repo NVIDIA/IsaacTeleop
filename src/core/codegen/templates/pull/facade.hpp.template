@@ -24,7 +24,7 @@ public:
     {
         return TRACKER_NAME;
     }
-    const @TRACKED_TYPE@& get_data(const ITrackerSession& session) const;
+    const Serialized<@FB_TABLE@>& get_data(const ITrackerSession& session) const;
     const std::string& collection_id() const
     {
         return collection_id_;

@@ -102,9 +102,9 @@ try
     for (size_t i = 0; i < stream_trackers.size(); ++i)
     {
         const auto& tracked = stream_trackers[i]->get_data(*session);
-        if (tracked.data)
+        if (tracked)
         {
-            last_sequences[i] = tracked.data->sequence_number;
+            last_sequences[i] = tracked->sequence_number();
         }
     }
 
@@ -119,14 +119,13 @@ try
         for (size_t i = 0; i < stream_trackers.size(); ++i)
         {
             const auto& tracked = stream_trackers[i]->get_data(*session);
-            if (!tracked.data ||
-                (last_sequences[i].has_value() && tracked.data->sequence_number == last_sequences[i].value()))
+            if (!tracked || (last_sequences[i].has_value() && tracked->sequence_number() == last_sequences[i].value()))
             {
                 continue;
             }
-            last_sequences[i] = tracked.data->sequence_number;
-            std::cout << "Sample " << ++received_count << ": " << core::EnumNameStreamType(tracked.data->stream)
-                      << " seq=" << tracked.data->sequence_number << std::endl;
+            last_sequences[i] = tracked->sequence_number();
+            std::cout << "Sample " << ++received_count << ": " << core::EnumNameStreamType(tracked->stream())
+                      << " seq=" << tracked->sequence_number() << std::endl;
         }
 
         auto now = std::chrono::steady_clock::now();
