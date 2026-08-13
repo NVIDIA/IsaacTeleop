@@ -27,14 +27,16 @@ from sphinx.util.docutils import SphinxRole
 DEFAULT_DATA = "_data/partners.yaml"
 LOGO_DIR = "_static/partner-logos"
 
-SECTIONS = ("active", "upcoming")
+# ``platform`` is the first-party band: NVIDIA stacks and teams, not partners. It is
+# listed first because the page renders the sections in this order.
+SECTIONS = ("platform", "active", "upcoming")
 LIFECYCLE_LABELS = {
-    "maintained": "Maintained",
+    "maintained": "Active",
     "upcoming": "Upcoming",
     "deprecated": "Deprecated",
 }
 INTEGRATION_LABELS = {"planning": "Planning", "in-integration": "In integration"}
-LINK_KINDS = ("internal", "external", "tracking")
+LINK_KINDS = ("internal", "external", "tracking", "contact")
 
 
 class eco_block(nodes.General, nodes.Element):
@@ -44,15 +46,35 @@ class eco_block(nodes.General, nodes.Element):
     ``class="docutils container"``, and because Bootstrap claims the same class name
     the theme neutralizes it with ``.docutils.container {padding-inline: unset}``.
     That rule outranks ours and silently flattens every horizontal padding.
+
+    ``html_tag`` and ``html_attributes`` let one node also stand in for the handful of
+    elements docutils has no equivalent for (a ``<button>``, a ``[popover]`` panel)
+    while keeping their contents as ordinary docutils children, so non-HTML builders
+    still render the text.
     """
 
 
 def _visit_eco_block(self, node):
-    self.body.append(self.starttag(node, "div", ""))
+    self.body.append(
+        self.starttag(
+            node, node.get("html_tag", "div"), "", **node.get("html_attributes", {})
+        )
+    )
 
 
 def _depart_eco_block(self, node):
-    self.body.append("</div>\n")
+    self.body.append(f"</{node.get('html_tag', 'div')}>\n")
+
+
+class eco_inline(nodes.Inline, nodes.Element):
+    """``eco_block``'s inline twin, for elements that sit inside a paragraph."""
+
+
+def _element(tag: str, classes: list[str], *, inline: bool = False, **attributes):
+    node = (eco_inline if inline else eco_block)(classes=classes)
+    node["html_tag"] = tag
+    node["html_attributes"] = attributes
+    return node
 
 
 def _passthrough(self, node):
@@ -61,6 +83,7 @@ def _passthrough(self, node):
 
 _ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _ISSUE_RE = re.compile(r"/(?:issues|pull)/(\d+)/?$")
+_TEL_RE = re.compile(r"[^\d+]")
 
 # A stroked glyph rather than U+2197: the Unicode arrow renders far heavier than the
 # surrounding 13px text in system fonts. Size and stroke come from the design mock.
@@ -68,6 +91,14 @@ _ARROW_SVG = (
     '<svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
     ' stroke-width="2" aria-hidden="true" focusable="false">'
     '<path d="M7 17 17 7M9 7h8v8"></path></svg>'
+)
+# Contact links open a panel rather than navigating, so they get an envelope where an
+# external link gets the arrow.
+_MAIL_SVG = (
+    '<svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    ' stroke-width="2" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+    '<rect x="3" y="5" width="18" height="14" rx="2"></rect>'
+    '<path d="m3.5 7 8.5 6 8.5-6"></path></svg>'
 )
 _REQUIRED = (
     "id",
@@ -170,6 +201,27 @@ def _validate(records: list, source: str, confdir: str) -> list[dict]:
                         name,
                         f"link {label!r}: internal links need exactly one of 'doc' or 'ref'",
                     )
+            elif kind == "contact":
+                contact = link.get("contact")
+                if not isinstance(contact, dict):
+                    _fail(
+                        source,
+                        name,
+                        f"link {label!r}: contact links need a 'contact' mapping",
+                    )
+                for field in ("name", "email"):
+                    if not contact.get(field):
+                        _fail(
+                            source,
+                            name,
+                            f"link {label!r}: contact.{field} is required",
+                        )
+                if "@" not in str(contact["email"]):
+                    _fail(
+                        source,
+                        name,
+                        f"link {label!r}: contact.email must be an email address",
+                    )
             elif not str(link.get("url", "")).startswith(("http://", "https://")):
                 _fail(source, name, f"link {label!r}: {kind} links need an http(s) url")
             elif kind == "tracking" and not _ISSUE_RE.search(link["url"]):
@@ -260,6 +312,41 @@ def _link_label(link: dict) -> str:
     return f"{link['label']} #{_ISSUE_RE.search(link['url']).group(1)}"
 
 
+def _contact_trigger(link: dict, panel_id: str) -> nodes.Element:
+    """The footer control. A ``<button>``, because it opens a panel instead of going
+    anywhere; ``popovertarget`` gives us light dismiss, Esc, and focus return with no
+    JavaScript, and the panel renders in the top layer so the card cannot clip it."""
+    button = _element(
+        "button",
+        ["partner-link", "is-contact"],
+        inline=True,
+        type="button",
+        popovertarget=panel_id,
+    )
+    button += nodes.inline("", link["label"], classes=["partner-link-text"])
+    button += nodes.raw("", _MAIL_SVG, format="html")
+    return button
+
+
+def _contact_panel(link: dict, panel_id: str) -> nodes.Element:
+    contact = link["contact"]
+    panel = _element("div", ["partner-contact"], popover="")
+    panel["ids"] = [panel_id]
+    panel += _line(["partner-contact-title"], contact.get("title", "Sales contact"))
+    panel += _line(["partner-contact-name"], contact["name"])
+
+    row = _line(["partner-contact-row"])
+    row += nodes.reference("", contact["email"], refuri=f"mailto:{contact['email']}")
+    panel += row
+
+    phone = str(contact.get("phone", ""))
+    if phone:
+        row = _line(["partner-contact-row"])
+        row += nodes.reference("", phone, refuri=f"tel:{_TEL_RE.sub('', phone)}")
+        panel += row
+    return panel
+
+
 def _link_node(link: dict, docname: str) -> nodes.Element:
     label = _link_label(link)
     classes = ["partner-link", f"is-{link['kind']}"]
@@ -315,11 +402,20 @@ def _card(record: dict, docname: str, today: datetime.date) -> nodes.Element:
         body += badges
 
     footer = _line(["partner-footer"])
-    for link in record["links"]:
-        footer += _link_node(link, docname)
+    # Panels are siblings of the footer, not children: the footer is a <p>, and a <div>
+    # inside a paragraph is invalid HTML that browsers silently reflow out of place.
+    panels = []
+    for index, link in enumerate(record["links"]):
+        if link["kind"] == "contact":
+            panel_id = f"partner-{record['id']}-contact-{index}"
+            footer += _contact_trigger(link, panel_id)
+            panels.append(_contact_panel(link, panel_id))
+        else:
+            footer += _link_node(link, docname)
     body += footer
 
     card += body
+    card += panels
     return card
 
 
@@ -376,14 +472,15 @@ class PartnerCount(SphinxRole):
 
 
 def setup(app):
-    app.add_node(
-        eco_block,
-        html=(_visit_eco_block, _depart_eco_block),
-        latex=(_passthrough, _passthrough),
-        text=(_passthrough, _passthrough),
-        man=(_passthrough, _passthrough),
-        texinfo=(_passthrough, _passthrough),
-    )
+    for node_class in (eco_block, eco_inline):
+        app.add_node(
+            node_class,
+            html=(_visit_eco_block, _depart_eco_block),
+            latex=(_passthrough, _passthrough),
+            text=(_passthrough, _passthrough),
+            man=(_passthrough, _passthrough),
+            texinfo=(_passthrough, _passthrough),
+        )
     app.add_directive("partner-grid", PartnerGrid)
     app.add_directive("eco-block", EcoBlock)
     app.add_role("partner-count", PartnerCount())
