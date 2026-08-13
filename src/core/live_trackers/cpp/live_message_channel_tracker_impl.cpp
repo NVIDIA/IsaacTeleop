@@ -255,6 +255,8 @@ void LiveMessageChannelTrackerImpl::create_channel()
     XrResult result = create_channel_fn_(handles_.instance, &create_info, &channel_);
     if (result != XR_SUCCESS)
     {
+        if (result == XR_ERROR_INSTANCE_LOST)
+            instance_lost_ = true;
         throw std::runtime_error("LiveMessageChannelTrackerImpl: xrCreateOpaqueDataChannelNV failed, result=" +
                                  std::to_string(result));
     }
@@ -290,6 +292,8 @@ void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
 
 bool LiveMessageChannelTrackerImpl::try_reopen_channel()
 {
+    if (instance_lost_)
+        return false;
     try
     {
         destroy_channel();
