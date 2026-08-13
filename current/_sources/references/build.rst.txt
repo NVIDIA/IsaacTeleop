@@ -12,7 +12,7 @@ The layout below reflects the actual ``CMakeLists.txt`` hierarchy (root ``CMakeL
    IsaacTeleop/
    ├── CMakeLists.txt              # Top-level: deps, core, examples, plugins, etc.
    ├── cmake/
-   │   ├── DepthAIVcpkgManifest.cmake  # OAK/DepthAI vcpkg manifest (pre-project)
+   │   ├── SetupHunter.cmake       # BUILD_PLUGINS, Hunter for OAK/DepthAI
    │   ├── SetupPython.cmake       # BUILD_PYTHON_BINDINGS, uv-managed Python
    │   ├── ClangFormat.cmake       # clang_format_check / clang_format_fix
    │   └── ...
@@ -66,62 +66,14 @@ After building, install the wheel with ``uv`` or ``pip``:
    # or
    pip install install/wheels/isaacteleop-*.whl
 
-Installing from source with pip (scikit-build-core)
----------------------------------------------------
-
-In addition to the classic CMake flow above (which stages the package
-and produces a wheel under ``install/wheels/``), the repository ships a root
-:code-file:`pyproject.toml` that exposes ``isaacteleop`` through the
-`scikit-build-core <https://scikit-build-core.readthedocs.io/>`_ build backend,
-driving the *same* top-level ``CMakeLists.txt`` (so the two paths coexist):
-
-.. code-block:: bash
-
-   pip install .            # build + install the compiled wheel from source
-   pip install -e .         # editable / developer install
-
-For the walkthrough — how this scoped build differs from the classic flow (ABI,
-omitted type stubs, versioning) and the caveat on iterating on pure-Python
-subpackages under an editable install — see
-:doc:`/getting_started/build_from_source/index`.
-
-Build directory layout and per-Python-version builds
-----------------------------------------------------
-
-A CMake binary directory holds exactly one configured Python version — the
-interpreter and ABI are baked into ``CMakeCache.txt`` and into the build venv. The
-two build paths therefore never share a directory:
-
-- **classic CMake** → whatever you pass to ``-B``, ``build/`` by convention.
-  ``ISAAC_TELEOP_PYTHON_VERSION`` selects the interpreter (default ``3.11``), and
-  changing it on an existing tree is rejected with an error rather than silently
-  reusing the old one — give each version its own directory.
-
-  .. code-block:: bash
-
-     cmake -B build
-     cmake --build build --parallel
-     cmake --install build
-
-     cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12   # a second version
-
-- **pip / scikit-build-core** → ``build-wheel/<cache-tag>/`` (e.g.
-  ``build-wheel/cpython-312/``), set by ``build-dir`` in
-  :code-file:`pyproject.toml` and chosen automatically per interpreter, keyed off
-  ``sys.implementation.cache_tag``. It lives outside ``build/`` so ``pip install``
-  and a classic ``cmake -B build`` never collide, and ``rm -rf build`` leaves the
-  incremental wheel tree intact.
-
-``build/`` and ``build-wheel/`` are gitignored.
-
 Output locations
 ----------------
 
-After a successful build and install, relative to your build directory:
+After a successful build and install:
 
-- **C++ libraries:** ``src/core/`` (and under each module)
-- **Python wheel:** ``wheels/isaacteleop-*.whl``
-- **Examples (binaries):** under ``examples/`` (e.g. ``examples/oxr/cpp/``)
+- **C++ libraries:** ``build/src/core/`` (and under each module)
+- **Python wheel:** ``build/wheels/isaacteleop-*.whl``
+- **Examples (binaries):** under ``build/examples/`` (e.g. ``build/examples/oxr/cpp/``)
 - **Installed files:** ``install/`` (or your ``CMAKE_INSTALL_PREFIX``)
   - Libraries: ``install/lib/``
   - Headers: ``install/include/``
@@ -146,26 +98,26 @@ You can inspect the ``_deps`` directory in your build tree for fetch logs.
 CMake can't find OpenXR
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-OpenXR is fetched automatically; it is not a system package. If configuration fails, try a clean configure
-(``--fresh`` wipes the CMake cache and reconfigures):
+OpenXR is fetched automatically; it is not a system package. If configuration fails, try a clean configure:
 
 .. code-block:: bash
 
-   cmake -B build --fresh
+   rm -rf build
+   cmake -B build
 
 Examples or tests can't find the library
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When building from the top-level, examples and tests use the build tree. Ensure you run
-``cmake --build build`` from the project root and run executables from the build directory
-(or use ``cmake --install build`` and run from ``install/``).
+``cmake --build build`` from the project root and run executables from the build directory (or use
+``cmake --install build`` and run from ``install/``).
 
 uv or Python version
 ~~~~~~~~~~~~~~~~~~~~
 
 ``cmake/SetupPython.cmake`` requires **uv** and uses ``ISAAC_TELEOP_PYTHON_VERSION``. Install uv as
-in :ref:`One time setup <one-time-setup>` and pass ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or 3.11,
-3.13) if you need a specific version.
+in :ref:`One time setup <one-time-setup>` and pass ``-DISAAC_TELEOP_PYTHON_VERSION=3.10`` (or 3.11,
+3.12, 3.13) if you need a specific version.
 
 Reference
 ---------
@@ -174,5 +126,5 @@ Reference
 - Core modules and options: ``src/core/CMakeLists.txt``
 - Dependencies: ``deps/third_party/CMakeLists.txt``
 - Python and uv: ``cmake/SetupPython.cmake``
-- OAK/DepthAI vcpkg manifest: ``cmake/DepthAIVcpkgManifest.cmake``
+- Plugins and Hunter: ``cmake/SetupHunter.cmake``
 - CI (Ubuntu, matrix build_type/python_version/arch): ``.github/workflows/build-ubuntu.yml``
