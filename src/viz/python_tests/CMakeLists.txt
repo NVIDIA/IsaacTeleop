@@ -13,6 +13,8 @@ file(GLOB TEST_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.py"
 )
 
+isaac_teleop_python_test_venv_setup(viz_python --extra dev)
+
 foreach(test_file ${TEST_FILES})
     get_filename_component(test_name "${test_file}" NAME_WE)
     add_test(
@@ -25,4 +27,5 @@ foreach(test_file ${TEST_FILES})
         ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
         LABELS "viz_python"
     )
+    isaac_teleop_python_test_venv_require(viz_python "viz_python_${test_name}")
 endforeach()

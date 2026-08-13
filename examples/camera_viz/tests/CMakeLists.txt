@@ -11,6 +11,8 @@ file(GLOB TEST_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.py"
 )
 
+isaac_teleop_python_test_venv_setup(camera_viz --extra dev --extra gpu)
+
 foreach(test_file ${TEST_FILES})
     get_filename_component(test_name "${test_file}" NAME_WE)
     add_test(
@@ -23,4 +25,5 @@ foreach(test_file ${TEST_FILES})
         ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
         LABELS "camera_viz"
     )
+    isaac_teleop_python_test_venv_require(camera_viz "camera_viz_${test_name}")
 endforeach()
