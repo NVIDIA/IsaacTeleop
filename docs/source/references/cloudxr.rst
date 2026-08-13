@@ -192,6 +192,21 @@ whatever runtime is serving, so with a service running they use it:
 The example leaves the service running when it exits, so the headset stays
 connected and the next run reattaches to the same session.
 
+Use a system OpenXR runtime (no CloudXR attach)
+-----------------------------------------------
+
+Examples that call :meth:`~isaacteleop.cloudxr.CloudXRLauncher.add_launcher_arguments`
+accept ``--no-launch-cloudxr-runtime``. That returns a :class:`~isaacteleop.cloudxr.NoopContext`:
+the process does not start or attach to CloudXR and leaves ``XR_RUNTIME_JSON`` and
+related environment variables unchanged. Use this when another runtime is already
+configured (for example Monado) or when a host singleton must not be duplicated
+(see ``examples/mujoco_xr/README.md`` and ``--no-launch-cloudxr-runtime`` there).
+
+.. code-block:: bash
+
+   export XR_RUNTIME_JSON=/path/to/your/openxr.json
+   python examples/latency_probe/python/latency_probe_example.py --no-launch-cloudxr-runtime
+
 Run the service in a container or CI
 ------------------------------------
 

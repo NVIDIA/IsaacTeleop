@@ -13,7 +13,11 @@ from unittest.mock import patch
 import pytest
 
 from conftest import mock_service_deps
-from isaacteleop.cloudxr.launcher import DEFAULT_DEVICE_PROFILE, CloudXRLauncher
+from isaacteleop.cloudxr.launcher import (
+    DEFAULT_DEVICE_PROFILE,
+    CloudXRLauncher,
+    NoopContext,
+)
 
 _windows_skip = pytest.mark.skipif(
     sys.platform == "win32",
@@ -358,7 +362,7 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args([])
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
-        assert args.launch_cloudxr_runtime is None
+        assert args.launch_cloudxr_runtime is True
         assert args.launch_wss_proxy is None
 
     def test_add_cloudxr_device_profile_argument_default(self) -> None:
@@ -373,12 +377,11 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args(["--cloudxr-device-profile", "AppleVisionPro"])
         assert args.cloudxr_device_profile == "AppleVisionPro"
 
-    def test_add_launch_cloudxr_runtime_argument_defaults_to_unset(self) -> None:
-        """None distinguishes "not passed" from "passed", so only the latter warns."""
+    def test_add_launch_cloudxr_runtime_argument_defaults_to_true(self) -> None:
         parser = argparse.ArgumentParser()
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
         args = parser.parse_args([])
-        assert args.launch_cloudxr_runtime is None
+        assert args.launch_cloudxr_runtime is True
 
     def test_add_launch_cloudxr_runtime_argument_no_launch(self) -> None:
         parser = argparse.ArgumentParser()
@@ -386,19 +389,50 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args(["--no-launch-cloudxr-runtime"])
         assert args.launch_cloudxr_runtime is False
 
-    def test_no_launch_cloudxr_runtime_is_a_deprecated_noop(self, tmp_path) -> None:
-        """It used to skip the runtime entirely; a live one is now always used."""
-        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+    def test_no_launch_cloudxr_runtime_returns_noop_context(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/cloudxr/openxr.json")
+        monkeypatch.setenv("XR_RUNTIME_JSON", "/system/openxr.json")
         args = argparse.Namespace(
             launch_cloudxr_runtime=False,
             cloudxr_install_dir=install,
             cloudxr_device_profile="Quest3",
         )
         with _live():
-            with pytest.warns(DeprecationWarning, match="no-launch-cloudxr-runtime"):
-                with CloudXRLauncher.launch_context(args) as launcher:
-                    assert launcher is not None
-                    assert launcher.owns_runtime is False
+            with CloudXRLauncher.launch_context(args) as launcher:
+                assert isinstance(launcher, NoopContext)
+                assert not isinstance(launcher, CloudXRLauncher)
+                assert launcher.owns_runtime is False
+                assert launcher.wss_log_path is None
+                launcher.stop()
+                launcher.health_check()
+        assert os.environ["XR_RUNTIME_JSON"] == "/system/openxr.json"
+
+    def test_no_launch_warns_when_launcher_options_ignored(
+        self, tmp_path, caplog
+    ) -> None:
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/cloudxr/openxr.json")
+        args = argparse.Namespace(
+            launch_cloudxr_runtime=False,
+            cloudxr_install_dir=install,
+            cloudxr_device_profile="Quest3",
+        )
+        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+            with CloudXRLauncher.launch_context(
+                args,
+                run_embedded=True,
+                setup_oob=True,
+                usb_local=True,
+                host_client=True,
+            ) as launcher:
+                assert isinstance(launcher, NoopContext)
+
+        assert "ignoring CloudXR launcher options" in caplog.text
+        assert "run_embedded" in caplog.text
+        assert "setup_oob" in caplog.text
+        assert "usb_local" in caplog.text
+        assert "host_client" in caplog.text
 
     @_windows_skip
     def test_launch_context_attaches_to_a_running_service(self, tmp_path) -> None:

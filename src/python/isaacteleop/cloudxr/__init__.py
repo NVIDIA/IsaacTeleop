@@ -3,7 +3,7 @@
 
 """CloudXR integration for isaacteleop."""
 
-from .launcher import CloudXRLauncher
+from .launcher import CloudXRLauncher, NoopContext
 from .service import CloudXRService
 
-__all__ = ["CloudXRLauncher", "CloudXRService"]
+__all__ = ["CloudXRLauncher", "CloudXRService", "NoopContext"]
