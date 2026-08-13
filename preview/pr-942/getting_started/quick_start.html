@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=296b4a60" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=d89f9809" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -363,10 +363,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -511,36 +512,39 @@ See <a class="reference internal" href="build_from_source/index.html"><span clas
 </section>
 <section id="configure-cloudxr-optional">
 <span id="run-cloudxr-server"></span><h2>3. Configure CloudXR (optional)<a class="headerlink" href="#configure-cloudxr-optional" title="Link to this heading">#</a></h2>
-<p>The teleop examples in this guide auto-launch the CloudXR runtime and its WSS
-proxy for you through <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code> when they connect — you do <strong>not</strong>
-need to start the runtime in a separate terminal or source any environment file.
+<p>The teleop examples in this guide bring CloudXR up for you when they connect —
+you do <strong>not</strong> need to start the runtime in a separate terminal or source any
+environment file. If nothing is serving yet, the example starts a CloudXR
+service in the background and prints how to stop it; that service outlives the
+example, so the headset stays connected from one run to the next.
 The first launch downloads the CloudXR Web Client SDK and asks you to review and
 accept the EULA on the terminal; answer the prompt once and the acceptance is
 remembered for subsequent runs.</p>
 <p>The CloudXR runtime uses the <code class="docutils literal notranslate"><span class="pre">Quest3</span></code> device profile by default; Apple Vision
 Pro needs <code class="docutils literal notranslate"><span class="pre">auto-native</span></code>. The profile is set on the <em>runtime</em>, so applications
 inherit whatever the runtime they connect to was started with. To override it,
-or any other setting, write a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> env file and pass it to the example
-with <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code>:</p>
+or any other setting, write a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> env file and start the service with
+it:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;NV_DEVICE_PROFILE=auto-native&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>custom.env
-python<span class="w"> </span>examples/teleop/python/gripper_retargeting_example_simple.py<span class="w"> </span><span class="se">\</span>
-<span class="w">      </span>--cloudxr-env-config<span class="w"> </span>./custom.env
+python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>start<span class="w"> </span>--cloudxr-env-config<span class="w"> </span>./custom.env
 </pre></div>
 </div>
-<p>The teleop examples under <code class="docutils literal notranslate"><span class="pre">examples/teleop/python/</span></code> all register CloudXR’s
-launcher arguments through <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher.add_launcher_arguments()</span></code>, so
-the same <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> flag is available on each of them. (The ROS 2
-example takes the equivalent <code class="docutils literal notranslate"><span class="pre">cloudxr_env_config</span></code> ROS parameter instead.)
+<p>The same <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> flag is available on the teleop examples under
+<code class="docutils literal notranslate"><span class="pre">examples/teleop/python/</span></code>, which register CloudXR’s launcher arguments through
+<code class="docutils literal notranslate"><span class="pre">CloudXRLauncher.add_launcher_arguments()</span></code> — but it applies only when the
+example is the one starting the runtime. With a service already running the
+example attaches to it instead, and prints which settings it had to ignore (see
+<a class="reference internal" href="../references/cloudxr.html"><span class="doc">CloudXR Service</span></a>). (The ROS 2 example takes the equivalent
+<code class="docutils literal notranslate"><span class="pre">cloudxr_env_config</span></code> ROS parameter instead.)
 To inspect the resolved settings after startup:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cat<span class="w"> </span>~/.cloudxr/run/cloudxr.env
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>If you prefer to run the runtime yourself in its own terminal — e.g. to keep
-the headset connection alive across example restarts, or to use launch modes
-like <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> and <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> — see
-<a class="reference internal" href="../references/cloudxr.html"><span class="doc">Dedicated CloudXR Runtime</span></a>.</p>
+<p>To manage the service yourself — check what is running, stop it, or use
+launch modes like <code class="docutils literal notranslate"><span class="pre">--host-client</span></code> and <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> — see
+<a class="reference internal" href="../references/cloudxr.html"><span class="doc">CloudXR Service</span></a>.</p>
 </div>
 <div class="pst-scrollable-table-container"><table class="table" id="id1">
 <caption><span class="caption-text">Environment variables</span><a class="headerlink" href="#id1" title="Link to this table">#</a></caption>
@@ -580,7 +584,7 @@ like <code class="docutils literal notranslate"><span class="pre">--host-client<
 main-thread join automatically. You normally do not need to set
 <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_CLOUDXR_EXP</span></code> or <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_CLOUDXR_JOIN_MAIN</span></code>; those are
 overrides for debugging or forcing the stable path. See
-<a class="reference internal" href="../references/cloudxr.html"><span class="doc">Dedicated CloudXR Runtime</span></a>.</p>
+<a class="reference internal" href="../references/cloudxr.html"><span class="doc">CloudXR Service</span></a>.</p>
 </section>
 <section id="whitelist-ports-for-firewall">
 <span id="whitelist-firewall-ports"></span><h2>4. Whitelist ports for Firewall<a class="headerlink" href="#whitelist-ports-for-firewall" title="Link to this heading">#</a></h2>
@@ -944,7 +948,7 @@ from source</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 11, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
       <br/>
     
   </p>

@@ -20,7 +20,7 @@ APIs (``xrLocateSpace``, ``xrSyncActions``, etc.):
 reading it from OpenXR tensor collections via the
 :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>` utility.
 
-- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp>` -- frame metadata for one OAK camera stream
+- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/trackers.toml>` -- frame metadata for one OAK camera stream (generated)
 - :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp>` -- foot pedal axis values
 - :code-file:`JointStateTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/joint_state_tracker.hpp>` -- named joint-space device state (leader arms, exoskeletons, gloves, ...)
 - :code-file:`Se3Tracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/se3_tracker.hpp>` -- generic SE3 (6-DoF) pose sources (tracker pucks, mocap rigid bodies, logical trackers)
@@ -227,7 +227,8 @@ stream, passing the tensor collection the plugin publishes that stream under --
 utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/oak.fbs`
-- C++ header: ``#include <deviceio/frame_metadata_tracker_oak.hpp>``
+- Manifest: :code-file:`src/core/deviceio_trackers/trackers.toml` (``frame_metadata_oak``)
+- C++ header: ``#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>``
 - Python import: ``from isaacteleop.deviceio import FrameMetadataTrackerOak``
 - Record channels: ``oak``, ``oak_tracked`` | MCAP schema: ``core.FrameMetadataOakRecord``
 - Tests:

@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=296b4a60" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=d89f9809" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -363,10 +363,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -424,9 +425,10 @@
                   
   <section id="ecosystem">
 <h1>Ecosystem<a class="headerlink" href="#ecosystem" title="Link to this heading">#</a></h1>
-<p>The Isaac Teleop ecosystem brings together the input devices, robot embodiments, and data
-services that work seamlessly with the unified teleoperation stack. Browse every partner and
-follow the link straight to their landing page or acquisition channel.</p>
+<p>The Isaac Teleop ecosystem brings together the NVIDIA platforms it is built into and the input
+devices, robot embodiments, and data services that work seamlessly with the unified teleoperation
+stack. Browse every entry and follow the link straight to its landing page, integration guide, or
+acquisition channel.</p>
 <div class="eco-scope"><div class="eco-scope-item"><p><strong>Input devices</strong></p>
 <p>Headsets, controllers, gloves, pedals, and master manipulators.</p>
 </div>
@@ -437,38 +439,131 @@ follow the link straight to their landing page or acquisition channel.</p>
 <p>Tools and services for recording, processing, and managing teleoperation data.</p>
 </div>
 </div>
+<p class="eco-eyebrow">Built and used inside NVIDIA</p>
+<section class="eco-section" id="nvidia-platforms-4">
+<h2>NVIDIA Platforms <span class="partner-count">4</span><a class="headerlink" href="#nvidia-platforms-4" title="Link to this heading">#</a></h2>
+<p>Stacks Isaac Teleop is developed against, and NVIDIA teams collecting data with it.</p>
+<div class="partner-grid partner-grid-platform"><div class="partner-card" id="partner-nvidia-gear"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo"><p class="partner-logo-img"><img alt="NVIDIA logo" class="only-light" src="../_images/nvidia.svg" /><img alt="NVIDIA logo" class="only-dark pst-js-only" src="../_images/nvidia-dark.svg" /></p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Research · Foundation Models</p>
+<p class="partner-name">NVIDIA GEAR</p>
+<p class="partner-desc">NVIDIA Research’s Generalist Embodied Agent Research group. GEAR collects real-robot demonstrations through Isaac Teleop and trains the GR00T foundation models on them.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://research.nvidia.com/labs/gear/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-external reference external" href="https://nvlabs.github.io/GR00T-WholeBodyControl/tutorials/isaac_teleop_publisher_setup.html" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">GR00T</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-isaac-sim"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo"><p class="partner-logo-img"><img alt="NVIDIA logo" class="only-light" src="../_images/nvidia.svg" /><img alt="NVIDIA logo" class="only-dark pst-js-only" src="../_images/nvidia-dark.svg" /></p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Simulation · Robotics Platform</p>
+<p class="partner-name">NVIDIA Isaac Sim</p>
+<p class="partner-desc">Teleoperation inside an existing Kit XR session: Isaac Sim hands its OpenXR handles to the teleop session, so one session serves both the simulator and the trackers. Supported with Isaac Sim 6.0.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://developer.nvidia.com/isaac/sim" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/teleop_session.html"><span class="doc">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-isaac-lab"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo"><p class="partner-logo-img"><img alt="NVIDIA logo" class="only-light" src="../_images/nvidia.svg" /><img alt="NVIDIA logo" class="only-dark pst-js-only" src="../_images/nvidia-dark.svg" /></p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Robot Learning · Simulation</p>
+<p class="partner-name">NVIDIA Isaac Lab</p>
+<p class="partner-desc">Drive simulated robots from an XR headset through Isaac Lab’s IsaacTeleopDevice, with retargeters shared between the two projects. Supported with Isaac Lab 3.0.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://developer.nvidia.com/isaac/lab" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/lerobot/data_collection_sim.html"><span class="doc">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-isaac-ros"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo"><p class="partner-logo-img"><img alt="NVIDIA logo" class="only-light" src="../_images/nvidia.svg" /><img alt="NVIDIA logo" class="only-dark pst-js-only" src="../_images/nvidia-dark.svg" /></p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">ROS 2 · CUDA-Accelerated Toolkit</p>
+<p class="partner-name">NVIDIA Isaac ROS</p>
+<p class="partner-desc">GPU-accelerated ROS 2 packages. Isaac Teleop publishes hand, end-effector, and body poses through the teleop_ros2 reference node that Isaac ROS Teleop consumes.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://developer.nvidia.com/isaac/ros" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-external reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/examples/teleop_ros2" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Integration</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+</div>
 <p class="eco-eyebrow">Active in the ecosystem</p>
-<section class="eco-section" id="partners-7">
-<h2>Partners <span class="partner-count">7</span><a class="headerlink" href="#partners-7" title="Link to this heading">#</a></h2>
+</section>
+<section class="eco-section" id="partners-18">
+<h2>Partners <span class="partner-count">18</span><a class="headerlink" href="#partners-18" title="Link to this heading">#</a></h2>
 <p>Production-ready integrations that partners actively maintain and support across releases.</p>
-<div class="partner-grid partner-grid-active"><div class="partner-card" id="partner-apple-vision-pro"><p class="partner-status is-maintained">Maintained</p>
-<div class="partner-logo"><p class="partner-logo-img"><img alt="Apple logo" class="only-light" src="../_images/apple.svg" /><img alt="Apple logo" class="only-dark pst-js-only" src="../_images/apple-dark.svg" /></p>
+<div class="partner-grid partner-grid-active"><div class="partner-card" id="partner-volcano-engine"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Volcano Engine</p>
 </div>
-<div class="partner-body"><p class="partner-eyebrow">XR Headset · Input Device</p>
-<p class="partner-name">Apple Vision Pro</p>
-<p class="partner-desc">Hand tracking (26 joints) and spatial controllers through the Isaac XR Teleop sample client for visionOS.</p>
-<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.apple.com/apple-vision-pro/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/quick_start.html#connect-apple-vision-pro"><span class="std std-ref">Integration</span></a></p>
-</div>
-</div>
-<div class="partner-card" id="partner-meta-quest"><p class="partner-status is-maintained">Maintained</p>
-<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Meta</p>
-</div>
-<div class="partner-body"><p class="partner-eyebrow">XR Headset · Input Device</p>
-<p class="partner-name">Meta Quest 2 / 3 / 3S</p>
-<p class="partner-desc">Motion controllers, triggers, thumbsticks, and hand tracking through the browser-based Isaac Teleop Web Client.</p>
-<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.meta.com/quest/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/quick_start.html#connect-quest-pico"><span class="std std-ref">Integration</span></a></p>
+<div class="partner-body"><p class="partner-eyebrow">Cloud Infrastructure · Isaac Teleop</p>
+<p class="partner-name">Volcano Engine</p>
+<p class="partner-desc">Cloud-hosted simulation teleoperation and data collection using Isaac Teleop.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.volcengine.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
 </div>
 </div>
-<div class="partner-card" id="partner-pico"><p class="partner-status is-maintained">Maintained</p>
+<div class="partner-card" id="partner-siemens"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Siemens</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Robotics OEM · Data Collection / Training</p>
+<p class="partner-name">Siemens</p>
+<p class="partner-desc">Sim and real-robot data collection using standalone Isaac Teleop with Siemens’ ROS 2 control stack.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.siemens.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-samsung"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Samsung</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Robotics OEM · Isaac Lab / Sim</p>
+<p class="partner-name">Samsung</p>
+<p class="partner-desc">Simulation teleoperation and data collection using Isaac Teleop with Isaac Lab 3.0 and Newton.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.samsung.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-mentee-robotics"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Mentee Robotics</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Robotics OEM · Data Collection / Training</p>
+<p class="partner-name">Mentee Robotics</p>
+<p class="partner-desc">Real-robot teleoperation and MCAP data collection on Mentee robots.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://menteebot.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-lerobot"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Hugging Face</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Robot Learning Framework · Data Collection</p>
+<p class="partner-name">LeRobot</p>
+<p class="partner-desc">End-to-end data collection with the SO-101: teleoperate in Isaac Lab or on the real arm and record demonstrations in the LeRobot dataset format, then fine-tune a GR00T policy on the result.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://huggingface.co/docs/lerobot" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/lerobot/index.html"><span class="doc">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-pico"><p class="partner-status is-maintained">Active</p>
 <div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">PICO</p>
 </div>
 <div class="partner-body"><p class="partner-eyebrow">XR Headset · Body Tracking</p>
 <p class="partner-name">Pico 4 Ultra &amp; Motion Tracker</p>
 <p class="partner-desc">Motion controllers, hand tracking, and full-body tracking via the Isaac Teleop Web Client. Full-body tracking requires an enterprise-activated headset.</p>
-<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.picoxr.com/products/pico4-ultra" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/quick_start.html#connect-quest-pico"><span class="std std-ref">Integration</span></a></p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.picoxr.com/products/pico4-ultra" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><button class="partner-link is-contact" popovertarget="partner-pico-contact-1" type="button"><span class="partner-link-text">Acquire</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m3.5 7 8.5 6 8.5-6"></path></svg></button>
+<a class="partner-link is-internal reference internal" href="../getting_started/quick_start.html#connect-quest-pico"><span class="std std-ref">Integration</span></a></p>
+</div>
+<div class="partner-contact" id="partner-pico-contact-1" popover=""><p class="partner-contact-title">PICO enterprise sales</p>
+<p class="partner-contact-name">Veronica Li</p>
+<p class="partner-contact-row"><a class="reference external" href="mailto:Veronica&#46;li&#37;&#52;&#48;bytedance&#46;com">Veronica<span>&#46;</span>li<span>&#64;</span>bytedance<span>&#46;</span>com</a></p>
+<p class="partner-contact-row"><a class="reference external" href="tel:+19095692774">+1 (909) 569-2774</a></p>
 </div>
 </div>
-<div class="partner-card" id="partner-manus"><p class="partner-status is-maintained">Maintained</p>
+<div class="partner-card" id="partner-lightwheel"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Lightwheel</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Data Factory · Ego Data Capture</p>
+<p class="partner-name">Lightwheel</p>
+<p class="partner-desc">Manus-based egocentric data collection and Wuji hand teleoperation for EgoSuite and RoboFinals.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://lightwheel.ai/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-noitom"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Noitom</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Motion Capture · Full-Body Tracking</p>
+<p class="partner-name">Noitom Motion Capture</p>
+<p class="partner-desc">Full-body mocap through the Noitom plugin: MocapApi reads the Hybrid Data Server and publishes FullBodyPose samples for the standard FullBodyTracker.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.noitom.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-external reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Integration</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-manus"><p class="partner-status is-maintained">Active</p>
 <div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">MANUS</p>
 </div>
 <div class="partner-body"><p class="partner-eyebrow">Hand-Tracking Gloves</p>
@@ -477,7 +572,43 @@ follow the link straight to their landing page or acquisition channel.</p>
 <p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.manus-meta.com/robotics#nvidia" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../device/manus.html"><span class="doc">Integration</span></a></p>
 </div>
 </div>
-<div class="partner-card" id="partner-haptikos"><p class="partner-status is-maintained">Maintained</p>
+<div class="partner-card" id="partner-sharpa"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Sharpa</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Dexterous Hand · Retargeting Target</p>
+<p class="partner-name">Sharpa Wave</p>
+<p class="partner-desc">Optimization-based inverse kinematics maps live hand tracking onto Sharpa Wave joint angles, single-hand or bimanual.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://sharpa.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../references/retargeting/sharpa.html"><span class="doc">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-wuji"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Wuji Technology</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Tactile Gloves · Dexterous Hands</p>
+<p class="partner-name">Wuji Glove &amp; Wuji Hand</p>
+<p class="partner-desc">The Wuji Glove plugin injects the glove’s 21-joint hand skeleton into the OpenXR hand-tracking layer, and the Wuji retargeter maps that onto Wuji Hand joint commands.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.wuji.tech/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../device/wuji_glove.html"><span class="doc">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-htc-vive"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">HTC VIVE</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">XR Headset · 6DoF Tracker</p>
+<p class="partner-name">HTC VIVE</p>
+<p class="partner-desc">Vive/OpenXR headset, controller, and hand-pose visualization, with Linux-native Vive Ultimate Tracker integration in development.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.vive.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-external reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/examples/cloudxr_mujoco_teleop" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Integration</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-opengraph-labs"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">OpenGraph Labs</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">Tactile Gloves · Contact Sensing</p>
+<p class="partner-name">OGLO Tactile Glove</p>
+<p class="partner-desc">80 tactile taxels and a 6-axis IMU per hand streamed over BLE at 100 Hz, recorded on the shared session clock so contact aligns with hand and head tracking.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.opengraphlabs.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../device/oglo.html"><span class="doc">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-haptikos"><p class="partner-status is-maintained">Active</p>
 <div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Haptikos</p>
 </div>
 <div class="partner-body"><p class="partner-eyebrow">Hand Exoskeleton · Haptics</p>
@@ -486,7 +617,25 @@ follow the link straight to their landing page or acquisition channel.</p>
 <p class="partner-footer"><a class="partner-link is-external reference external" href="https://haptikos.tech/product/haptikos/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../device/haptikos.html"><span class="doc">Integration</span></a></p>
 </div>
 </div>
-<div class="partner-card" id="partner-logitech"><p class="partner-status is-maintained">Maintained</p>
+<div class="partner-card" id="partner-apple-vision-pro"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Apple</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">XR Headset · Input Device</p>
+<p class="partner-name">Apple Vision Pro</p>
+<p class="partner-desc">Hand tracking (26 joints) and spatial controllers through the Isaac XR Teleop sample client for visionOS.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.apple.com/apple-vision-pro/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/quick_start.html#connect-apple-vision-pro"><span class="std std-ref">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-meta-quest"><p class="partner-status is-maintained">Active</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Meta</p>
+</div>
+<div class="partner-body"><p class="partner-eyebrow">XR Headset · Input Device</p>
+<p class="partner-name">Meta Quest 2 / 3 / 3S</p>
+<p class="partner-desc">Motion controllers, triggers, thumbsticks, and hand tracking through the browser-based Isaac Teleop Web Client.</p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.meta.com/quest/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-internal reference internal" href="../getting_started/quick_start.html#connect-quest-pico"><span class="std std-ref">Integration</span></a></p>
+</div>
+</div>
+<div class="partner-card" id="partner-logitech"><p class="partner-status is-maintained">Active</p>
 <div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Logitech</p>
 </div>
 <div class="partner-body"><p class="partner-eyebrow">Foot Pedal · Input Device</p>
@@ -495,7 +644,7 @@ follow the link straight to their landing page or acquisition channel.</p>
 <p class="partner-footer"><a class="partner-link is-external reference external" href="https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a><a class="partner-link is-external reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Integration</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
 </div>
 </div>
-<div class="partner-card" id="partner-luxonis"><p class="partner-status is-maintained">Maintained</p>
+<div class="partner-card" id="partner-luxonis"><p class="partner-status is-maintained">Active</p>
 <div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Luxonis</p>
 </div>
 <div class="partner-body"><p class="partner-eyebrow">Camera · Data Capture</p>
@@ -507,37 +656,17 @@ follow the link straight to their landing page or acquisition channel.</p>
 </div>
 <p class="eco-eyebrow">Joint plan in place</p>
 </section>
-<section class="eco-section" id="upcoming-partners-5">
-<h2>Upcoming Partners <span class="partner-count">5</span><a class="headerlink" href="#upcoming-partners-5" title="Link to this heading">#</a></h2>
+<section class="eco-section" id="upcoming-partners-3">
+<h2>Upcoming Partners <span class="partner-count">3</span><a class="headerlink" href="#upcoming-partners-3" title="Link to this heading">#</a></h2>
 <p>A joint development plan is in place with NVIDIA and integration work is scoped or underway.</p>
-<div class="partner-grid partner-grid-upcoming"><div class="partner-card is-upcoming" id="partner-haply"><p class="partner-status is-upcoming">Upcoming</p>
-<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Haply</p>
+<div class="partner-grid partner-grid-upcoming"><div class="partner-card is-upcoming" id="partner-sensing"><p class="partner-status is-upcoming">Upcoming</p>
+<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">SENSING</p>
 </div>
-<div class="partner-body"><p class="partner-eyebrow">Master Manipulator · Haptics</p>
-<p class="partner-name">Haply</p>
-<p class="partner-desc">Force-feedback master manipulators planned through the USB CLI plugin path.</p>
+<div class="partner-body"><p class="partner-eyebrow">Camera · Data Capture</p>
+<p class="partner-name">SENSING</p>
+<p class="partner-desc">Upcoming GMSL multi-camera hardware support for Isaac Teleop and egocentric data capture.</p>
 <p class="partner-badges"><span class="partner-badge">Planning</span></p>
-<p class="partner-footer"><a class="partner-link is-tracking reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/274" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Tracking #274</span><span class="partner-link-external-label"> (external)</span></a></p>
-</div>
-</div>
-<div class="partner-card is-upcoming" id="partner-joylo"><p class="partner-status is-upcoming">Upcoming</p>
-<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">JoyLo</p>
-</div>
-<div class="partner-body"><p class="partner-eyebrow">Master Manipulator</p>
-<p class="partner-name">JoyLo</p>
-<p class="partner-desc">Master manipulator over USB, in joint planning with the Isaac Teleop team.</p>
-<p class="partner-badges"><span class="partner-badge">Planning</span></p>
-<p class="partner-footer"><a class="partner-link is-tracking reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/272" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Tracking #272</span><span class="partner-link-external-label"> (external)</span></a></p>
-</div>
-</div>
-<div class="partner-card is-upcoming" id="partner-gello"><p class="partner-status is-upcoming">Upcoming</p>
-<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Gello</p>
-</div>
-<div class="partner-body"><p class="partner-eyebrow">Master Manipulator</p>
-<p class="partner-name">Gello</p>
-<p class="partner-desc">Low-cost master manipulator targeting the USB CLI plugin interface.</p>
-<p class="partner-badges"><span class="partner-badge">Planning</span></p>
-<p class="partner-footer"><a class="partner-link is-tracking reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/273" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Tracking #273</span><span class="partner-link-external-label"> (external)</span></a></p>
+<p class="partner-footer"><a class="partner-link is-external reference external" href="https://sensing-world.com/" rel="noopener noreferrer" target="_blank"><span class="partner-link-text">Overview</span><svg class="partner-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="partner-link-external-label"> (external)</span></a></p>
 </div>
 </div>
 <div class="partner-card is-upcoming" id="partner-so-101"><p class="partner-status is-upcoming">Upcoming</p>
@@ -570,7 +699,6 @@ follow the link straight to their landing page or acquisition channel.</p>
 integration together. Devices connect through a plugin process, so your SDK stays in your
 own repository under your own license.</p>
 <div class="eco-cta-actions"><p><a class="reference external" href="https://forms.gle/Fo5nRUHZivGN1itg9" rel="noopener noreferrer" target="_blank">Become a Partner</a></p>
-<p><a class="reference internal" href="../device/add_device.html"><span class="doc">Read the integration guide</span></a></p>
 </div>
 <ol class="arabic simple eco-cta-steps">
 <li><p><strong>Joint plan</strong> — agree on scope, devices, and timeline.</p></li>
@@ -630,8 +758,9 @@ own repository under your own license.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#partners-7">Partners <span class="partner-count">7</span></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming-partners-5">Upcoming Partners <span class="partner-count">5</span></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nvidia-platforms-4">NVIDIA Platforms <span class="partner-count">4</span></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#partners-18">Partners <span class="partner-count">18</span></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upcoming-partners-3">Upcoming Partners <span class="partner-count">3</span></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#become-a-partner">Become a Partner</a></li>
 </ul>
   </nav></div>
@@ -715,7 +844,7 @@ own repository under your own license.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 11, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
       <br/>
     
   </p>

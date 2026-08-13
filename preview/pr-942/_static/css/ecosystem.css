@@ -165,7 +165,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: currentColor;
+    background: currentcolor;
 }
 
 .partner-status.is-maintained {
@@ -221,16 +221,14 @@
     object-position: center;
 }
 
-/* Awaiting real artwork: an obviously unbranded grey plate. */
-.partner-logo.is-placeholder {
-    background: var(--pst-color-on-surface);
-}
-
+/* No artwork: the organization name stands in as a wordmark, sized to carry the
+   panel the way a logo would. */
 .partner-logo-placeholder {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-    color: var(--pst-color-text-muted);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--pst-color-text-base);
 }
 
 /* ---- card body ---- */
@@ -326,6 +324,106 @@
     color: var(--pst-color-text-muted) !important;
 }
 
+/* ---- contact popover ---- */
+
+/* The trigger is a <button>, so it needs the font and chrome resets a link does not. */
+.partner-link.is-contact {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.partner-contact {
+    width: min(19rem, calc(100vw - 2rem));
+    padding: 0.875rem 1rem 1rem;
+    border: 1px solid var(--pst-color-primary);
+    border-radius: 8px;
+    background: var(--pst-color-background);
+    box-shadow: 0 8px 24px var(--pst-color-shadow);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--pst-color-text-base);
+}
+
+/* Only on :popover-open, never on .partner-contact itself: an author `display` would
+   outrank the UA's `[popover]:not(:popover-open) {display: none}` and leave every
+   panel permanently open. */
+.partner-contact:popover-open {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.partner-contact p {
+    margin: 0;
+}
+
+.partner-contact-title {
+    margin-bottom: 0.25rem !important;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+.partner-contact-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.partner-contact-row a {
+    color: var(--pst-color-text-base) !important;
+}
+
+.partner-contact-row a:hover,
+.partner-contact-row a:focus {
+    color: var(--pst-color-primary) !important;
+}
+
+/* Sit the panel on its own card. Without anchor positioning (Baseline only since
+   January 2026) the UA default centers it in the viewport, which dismisses the same
+   way and still reads as one small card. */
+@supports (anchor-name: --partner-card) {
+    .partner-card {
+        anchor-name: --partner-card;
+        anchor-scope: --partner-card;
+    }
+
+    .partner-contact {
+        position: absolute;
+        position-anchor: --partner-card;
+        /* The UA sheet centers popovers with `inset: 0; margin: auto`. Both have to go
+           first, or top/right survive and over-constrain the box back to the top of
+           the viewport. */
+        inset: auto;
+        /* Inset from the card's own edges so its border still frames the panel. */
+        margin: 0 0 0.5rem 0.5rem;
+        left: anchor(left);
+        bottom: anchor(bottom);
+        width: calc(anchor-size(width) - 1rem);
+    }
+}
+
+/* Pre-2024 browsers: no toggle, so show the contact inline rather than behind a
+   button that cannot open anything. */
+@supports not selector(:popover-open) {
+    .partner-link.is-contact {
+        display: none;
+    }
+
+    .partner-contact {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        width: auto;
+        margin: 0 1.125rem 1.125rem;
+        box-shadow: none;
+    }
+}
+
 /* Screen-reader only: sighted users get the arrow above, except on tracking links
    where the issue number carries the same signal. */
 .partner-link-external-label {
@@ -335,7 +433,7 @@
     padding: 0;
     margin: -1px;
     overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
     white-space: nowrap;
     border: 0;
 }
@@ -411,12 +509,14 @@
     background: #8fd400;
 }
 
-.eco-cta-actions p:last-child a {
+/* Not :last-child -- a lone primary button is also the last, and would pick up the
+   secondary colours. */
+.eco-cta-actions p:not(:first-child) a {
     border-color: rgba(255, 255, 255, 0.4);
     color: #fff !important;
 }
 
-.eco-cta-actions p:last-child a:hover {
+.eco-cta-actions p:not(:first-child) a:hover {
     border-color: #fff;
     background: rgba(255, 255, 255, 0.08);
 }

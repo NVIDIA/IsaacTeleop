@@ -26,6 +26,25 @@ Prerequisites
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
 
+.. note::
+   **Optional — only needed to build the Televiz visualization module,** ``BUILD_VIZ``.
+   ``BUILD_VIZ`` is auto-detected: it defaults to ``ON`` when all three of the following are
+   found at configure time and to ``OFF`` otherwise, so a core-only source build still
+   configures on a machine without them. Watch the
+   ``-- BUILD_VIZ: <ON|OFF> (Vulkan=... CUDAToolkit=... glslang=...)`` configure line to see
+   which one is missing.
+
+   - **Vulkan headers + loader** — ``libvulkan-dev`` on Linux, the LunarG SDK on Windows.
+   - **CUDA Toolkit** (cudart at link time) — ``nvidia-cuda-toolkit`` or the official NVIDIA
+     installer.
+   - **glslangValidator** for compiling shaders to SPIR-V — ``glslang-tools`` on Linux,
+     ``brew install glslang`` on macOS; ships with the Vulkan SDK on Windows.
+
+   ``BUILD_VIZ=ON`` also pulls in GLFW, whose CMake uses ``pkg_check_modules()`` — install
+   ``pkg-config`` as well, or the configure fails before viz is reached. Most users do not
+   need any of this: ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz``
+   module. See `Other Build options`_ for the full option table.
+
 .. _one-time-setup:
 
 One time setup

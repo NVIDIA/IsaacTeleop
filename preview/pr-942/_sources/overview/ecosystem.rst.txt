@@ -4,9 +4,10 @@
 Ecosystem
 =========
 
-The Isaac Teleop ecosystem brings together the input devices, robot embodiments, and data
-services that work seamlessly with the unified teleoperation stack. Browse every partner and
-follow the link straight to their landing page or acquisition channel.
+The Isaac Teleop ecosystem brings together the NVIDIA platforms it is built into and the input
+devices, robot embodiments, and data services that work seamlessly with the unified teleoperation
+stack. Browse every entry and follow the link straight to its landing page, integration guide, or
+acquisition channel.
 
 .. eco-block:: eco-scope
 
@@ -27,6 +28,20 @@ follow the link straight to their landing page or acquisition channel.
       **Data workflows**
 
       Tools and services for recording, processing, and managing teleoperation data.
+
+.. rst-class:: eco-eyebrow
+
+Built and used inside NVIDIA
+
+.. rst-class:: eco-section
+
+NVIDIA Platforms :partner-count:`platform`
+------------------------------------------
+
+Stacks Isaac Teleop is developed against, and NVIDIA teams collecting data with it.
+
+.. partner-grid::
+   :section: platform
 
 .. rst-class:: eco-eyebrow
 
@@ -73,7 +88,9 @@ Become a Partner
 
       `Become a Partner <https://forms.gle/Fo5nRUHZivGN1itg9>`_
 
-      :doc:`Read the integration guide </device/add_device>`
+      .. Hidden until the dedicated integration page exists. Uncomment and retarget
+         the doc reference then.
+         :doc:`Read the integration guide </device/add_device>`
 
    .. rst-class:: eco-cta-steps
 

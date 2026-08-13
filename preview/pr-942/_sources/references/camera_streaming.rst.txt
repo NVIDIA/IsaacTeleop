@@ -246,9 +246,9 @@ CloudXR stream them efficiently (see
 CloudXR runtime flags
 ---------------------
 
-In XR mode the viewer launches the CloudXR runtime and WSS proxy itself. Useful flags:
+In XR mode the viewer attaches to the running CloudXR runtime, or starts one if none is
+serving. Useful flags:
 
-- ``--no-launch-cloudxr-runtime`` — reuse an already-running runtime.
 - ``--accept-eula`` — accept the CloudXR EULA non-interactively (first run only).
 - ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
 
@@ -351,10 +351,9 @@ YAML per source kind.
 Troubleshooting
 ---------------
 
-- **The XR session fails to create** — the viewer launches the CloudXR runtime itself; check
-  ``~/.cloudxr/logs/cxr_server.*.log`` and ``runtime_stderr.log`` for the startup failure. If a
-  runtime is already running from another app, pass ``--no-launch-cloudxr-runtime``. Pass
-  ``--mode window`` to render to a desktop window instead (no runtime involved).
+- **The XR session fails to create** — check ``~/.cloudxr/logs/cxr_server.*.log`` and
+  ``runtime_stderr.log`` for the startup failure. Pass ``--mode window`` to render to a
+  desktop window instead (no runtime involved).
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's

@@ -6,8 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 # Partner logos
 
 Canonical card logos for the Ecosystem page. Referenced by `logo.src` in
-`docs/source/_data/partners.yaml`; a record with no `logo` key renders a grey
-placeholder instead.
+`docs/source/_data/partners.yaml`; a record with no `logo` key renders the
+organization name as a plain text wordmark instead.
 
 - Name files after the partner `id`, e.g. `apple.svg`, `meta.svg`.
 - Prefer approved SVG artwork. Use PNG only when no vector asset exists; never JPEG.
