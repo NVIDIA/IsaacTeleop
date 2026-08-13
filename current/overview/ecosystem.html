@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=04dcff72"></script>
+    <script src="../_static/documentation_options.js?v=7509b52b"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.5.x" />
+  <meta name="docsearch:version" content="1.4.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -355,18 +355,16 @@
 <li class="toctree-l1"><a class="reference internal" href="../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -618,9 +616,9 @@ session is running via USB or Bluetooth. See <a class="reference internal" href=
 <h2>Targeted Robotics Embodiments<a class="headerlink" href="#targeted-robotics-embodiments" title="Link to this heading">#</a></h2>
 <ul class="simple">
 <li><p>Retarget the standardized device outputs to different embodiments.</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/python/isaacteleop/retargeters" rel="noopener noreferrer" target="_blank">Reference retargeter implementations</a>,
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/retargeters/" rel="noopener noreferrer" target="_blank">Reference retargeter implementations</a>,
 including popular embodiments such as Unitree G1.</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/python/isaacteleop/retargeting_engine_ui" rel="noopener noreferrer" target="_blank">Retargeter tuning UI</a> to facilitate
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/retargeting_engine_ui/python" rel="noopener noreferrer" target="_blank">Retargeter tuning UI</a> to facilitate
 live retargeter tuning.</p></li>
 <li><p>GR00T-WholeBodyControl SONIC whole-body control on Unitree G1 (Thor backpack); see
 <a class="reference external" href="https://nvlabs.github.io/GR00T-WholeBodyControl/tutorials/isaac_teleop_publisher_setup.html" rel="noopener noreferrer" target="_blank">GR00T-WholeBodyControl: Isaac Teleop Publisher Setup</a> to get started.</p></li>
