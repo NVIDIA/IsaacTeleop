@@ -50,7 +50,7 @@ public:
 private:
     void initialize_functions();
     XrSystemId resolve_system_id() const;
-    MessageChannelStatus query_status() const;
+    MessageChannelStatus query_status();
     void create_channel();
     void destroy_channel() noexcept;
     bool try_reopen_channel();

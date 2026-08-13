@@ -265,26 +265,26 @@ void LiveMessageChannelTrackerImpl::create_channel()
 void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
 {
     if (channel_ == XR_NULL_HANDLE)
-    {
         return;
-    }
 
-    if (shutdown_fn_)
+    // Skip NV extension calls when the instance is already lost: the IPC
+    // socket is closed so every call would fail with XRT_ERROR_IPC_FAILURE
+    // and generate noisy "Broken pipe" log spam against a dead runtime.
+    if (!instance_lost_)
     {
-        XrResult result = shutdown_fn_(channel_);
-        if (result != XR_SUCCESS)
+        if (shutdown_fn_)
         {
-            std::cerr << "[LiveMessageChannelTrackerImpl] xrShutdownOpaqueDataChannelNV failed, result=" << result
-                      << std::endl;
+            XrResult result = shutdown_fn_(channel_);
+            if (result != XR_SUCCESS)
+                std::cerr << "[LiveMessageChannelTrackerImpl] xrShutdownOpaqueDataChannelNV failed, result=" << result
+                          << std::endl;
         }
-    }
-    if (destroy_channel_fn_)
-    {
-        XrResult result = destroy_channel_fn_(channel_);
-        if (result != XR_SUCCESS)
+        if (destroy_channel_fn_)
         {
-            std::cerr << "[LiveMessageChannelTrackerImpl] xrDestroyOpaqueDataChannelNV failed, result=" << result
-                      << std::endl;
+            XrResult result = destroy_channel_fn_(channel_);
+            if (result != XR_SUCCESS)
+                std::cerr << "[LiveMessageChannelTrackerImpl] xrDestroyOpaqueDataChannelNV failed, result=" << result
+                          << std::endl;
         }
     }
     channel_ = XR_NULL_HANDLE;
@@ -307,12 +307,13 @@ bool LiveMessageChannelTrackerImpl::try_reopen_channel()
     }
 }
 
-MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
+MessageChannelStatus LiveMessageChannelTrackerImpl::query_status()
 {
-    if (channel_ == XR_NULL_HANDLE)
+    if (instance_lost_ || channel_ == XR_NULL_HANDLE)
     {
-        // Channel was destroyed (e.g. failed reopen); report DISCONNECTED so
-        // update() will schedule a reopen attempt on the next frame.
+        // Channel was destroyed (e.g. failed reopen, or instance lost); report
+        // DISCONNECTED so update() will schedule a reopen attempt next frame
+        // (try_reopen_channel guards against retrying after instance loss).
         return MessageChannelStatus::DISCONNECTED;
     }
 
@@ -320,8 +321,14 @@ MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
     XrResult state_result = get_state_fn_(channel_, &channel_state);
     if (state_result != XR_SUCCESS)
     {
-        throw std::runtime_error("LiveMessageChannelTrackerImpl: xrGetOpaqueDataChannelStateNV failed, result=" +
-                                 std::to_string(state_result));
+        // Any failure here means the runtime connection is gone.  Mark the
+        // instance lost and return DISCONNECTED rather than throwing: a thrown
+        // exception would propagate to the embedding app (e.g. Isaac Lab) and
+        // be misread as a recoverable pipeline error, triggering a needless
+        // session restart against a dead runtime.
+        instance_lost_ = true;
+        channel_ = XR_NULL_HANDLE;
+        return MessageChannelStatus::DISCONNECTED;
     }
 
     switch (channel_state.state)
