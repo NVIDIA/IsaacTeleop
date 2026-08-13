@@ -1055,33 +1055,7 @@ class TeleopSession:
             )
 
         # Initialize plugins (if any)
-        if self.config.plugins:
-            for plugin_config in self.config.plugins:
-                if not plugin_config.enabled:
-                    continue
-
-                # Validate search paths
-                valid_paths = [p for p in plugin_config.search_paths if p.exists()]
-                if not valid_paths:
-                    continue
-
-                # Create plugin manager
-                manager = pm.PluginManager([str(p) for p in valid_paths])
-                self.plugin_managers.append(manager)
-
-                # Check if plugin exists
-                plugins = manager.get_plugin_names()
-                if plugin_config.plugin_name not in plugins:
-                    continue
-
-                # Start plugin and add to exit stack
-                context = manager.start(
-                    plugin_config.plugin_name,
-                    plugin_config.plugin_root_id,
-                    plugin_config.plugin_args,
-                )
-                stack.enter_context(context)
-                self.plugin_contexts.append(context)
+        self._start_configured_plugins(stack)
 
         # Initialize runtime state
         self.frame_count = 0
@@ -1091,6 +1065,34 @@ class TeleopSession:
         self._last_execution_state = None
         self._async_runner = None
         self._active_retargeting_execution_mode = self.config.retargeting_execution.mode
+
+    def _start_configured_plugins(self, stack: ExitStack) -> None:
+        """Start ``config.plugins`` and register them on ``stack`` for cleanup."""
+        if not self.config.plugins:
+            return
+
+        for plugin_config in self.config.plugins:
+            if not plugin_config.enabled:
+                continue
+
+            valid_paths = [p for p in plugin_config.search_paths if p.exists()]
+            if not valid_paths:
+                continue
+
+            manager = pm.PluginManager([str(p) for p in valid_paths])
+            self.plugin_managers.append(manager)
+
+            plugins = manager.get_plugin_names()
+            if plugin_config.plugin_name not in plugins:
+                continue
+
+            context = manager.start(
+                plugin_config.plugin_name,
+                plugin_config.plugin_root_id,
+                plugin_config.plugin_args,
+            )
+            stack.enter_context(context)
+            self.plugin_contexts.append(context)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Exit the context - cleanup resources."""
