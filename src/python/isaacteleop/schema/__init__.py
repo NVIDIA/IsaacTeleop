@@ -58,6 +58,13 @@ from ._schema import (
     # Haptic command types (vendor-neutral cross-process device output).
     HapticCommand,
     pack_haptic_command,
+    # Latency probe sample (generic vendor I/O teaching schemas).
+    LatencyProbeRequest,
+    LatencyProbeRequestTrackedT,
+    LatencyProbeRequestRecord,
+    LatencyProbeResponse,
+    LatencyProbeResponseTrackedT,
+    LatencyProbeResponseRecord,
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
@@ -143,6 +150,13 @@ __all__ = [
     # Haptic command types.
     "HapticCommand",
     "pack_haptic_command",
+    # Latency probe sample schemas.
+    "LatencyProbeRequest",
+    "LatencyProbeRequestTrackedT",
+    "LatencyProbeRequestRecord",
+    "LatencyProbeResponse",
+    "LatencyProbeResponseTrackedT",
+    "LatencyProbeResponseRecord",
     # Camera types.
     "StreamType",
     "FrameMetadataOak",

@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: latency_probe
+description: "Bidirectional latency probe (LatencyProbeRequest in, LatencyProbeResponse out)"
+command: "./latency_probe_plugin"
+version: "1.0.0"
+devices:
+  - path: "/probe/latency"
+    type: "latency_probe"
+    description: "Synthetic float round-trip latency probe"

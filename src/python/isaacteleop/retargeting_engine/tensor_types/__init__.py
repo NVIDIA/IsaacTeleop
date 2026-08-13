@@ -28,6 +28,7 @@ from .tactile_types import (
     NUM_CONTROLLER_HAPTIC_FIELDS,
     NUM_END_EFFECTOR_FORCE_AXES,
 )
+from .latency_probe_types import LatencyProbeTensor
 from .indices import (
     HandInputIndex,
     HeadInputIndex,
@@ -67,6 +68,8 @@ __all__ = [
     "NUM_HAPTIC_FINGERS",
     "NUM_CONTROLLER_HAPTIC_FIELDS",
     "NUM_END_EFFECTOR_FORCE_AXES",
+    # Latency probe teaching types
+    "LatencyProbeTensor",
     # Indices
     "HandInputIndex",
     "HeadInputIndex",

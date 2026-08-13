@@ -1,0 +1,24 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Plugin → Teleop latency probe sample (synthetic input).
+table LatencyProbeRequest {
+    sequence: uint32 (id: 0);
+    value: float (id: 1);
+    send_time_ns: ulong (id: 2);
+}
+
+table LatencyProbeRequestTracked {
+    data: LatencyProbeRequest (id: 0);
+}
+
+table LatencyProbeRequestRecord {
+    data: LatencyProbeRequest (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type LatencyProbeRequestRecord;

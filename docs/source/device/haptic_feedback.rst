@@ -20,6 +20,15 @@ Haptic output is a graph phase symmetric to the input phase: where an input
 source feeds device data *into* the retargeting graph, a haptic **sink** consumes
 graph outputs and writes them *out* to a device after the graph runs.
 
+The same session contract applies to **any** vendor output, not only haptics.
+For a fully generic cross-process path with dedicated input/output schemas, see
+:ref:`device-interface-device-plugin` (vendor output section) and the
+**latency_probe** sample
+(``examples/latency_probe/python/latency_probe_example.py``), which uses
+``DeviceOutputSink`` and ``SchemaPushOutputAdapter`` instead of the haptic types.
+
+Haptic-specific pieces:
+
 - **Device-side schemas** (``TensorGroupType``) describe what a device consumes.
   ``ControllerHapticPulse`` carries ``[amplitude, frequency_hz, duration_s]``;
   ``EndEffectorForce`` carries a 3-DoF force for future grounded devices. They
@@ -88,8 +97,11 @@ A new haptic device implements ``IHapticDevice`` (``accepted_type``,
 multi-actuator rigs share the same contract without a hardcoded handedness
 assumption. Devices that run their vendor SDK in a separate process (haptic
 gloves, exoskeletons) implement the same interface but exchange data with their
-plugin over a tensor collection; those integrations land on top of this
-foundation.
+plugin over a tensor collection via ``HapticCommand`` and
+``HapticCommandReaderTracker`` (multi-endpoint bucketing on one collection).
+New cross-process devices that are not haptic-specific should prefer a dedicated
+schema pair and the generic ``DeviceOutputSink`` path documented under
+:ref:`device-interface-device-plugin`.
 
 See also
 --------

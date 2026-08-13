@@ -37,6 +37,32 @@ tensor_identifier = "haptic_command"
 max_flatbuffer_size = 256
 
 [[tracker]]
+name = "latency_probe_request"
+table = "LatencyProbeRequest"
+schema = "latency_probe_request"
+channel = "latency_probe_in"
+max_flatbuffer_size = 128
+python_accessor = "get_probe_data"
+
+[[tracker]]
+name = "latency_probe_response"
+direction = "push"
+table = "LatencyProbeResponse"
+schema = "latency_probe_response"
+tensor_identifier = "latency_probe_response"
+max_flatbuffer_size = 128
+
+[[tracker]]
+name = "latency_probe_response_reader"
+table = "LatencyProbeResponse"
+schema = "latency_probe_response"
+class = "LatencyProbeResponseReaderTracker"
+channel = "latency_probe_out"
+tensor_identifier = "latency_probe_response"
+max_flatbuffer_size = 128
+python_accessor = "get_response_data"
+
+[[tracker]]
 name = "frame_metadata_oak"
 table = "FrameMetadataOak"
 class = "FrameMetadataTrackerOak"

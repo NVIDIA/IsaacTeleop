@@ -9,6 +9,8 @@ pybind11_add_module(schema_py
     haptic_command_bindings.h
     head_bindings.h
     joint_state_bindings.h
+    latency_probe_request_bindings.h
+    latency_probe_response_bindings.h
     message_channel_bindings.h
     oglo_tactile_bindings.h
     pedals_bindings.h

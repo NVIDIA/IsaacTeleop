@@ -222,6 +222,51 @@ Use the same ``collection_id`` (and optionally ``tensor_identifier``) as the plu
 :ref:`Schema IO example: build and run <schema-io-example>` above for building and running
 ``pedal_pusher`` and ``pedal_printer``.
 
+Vendor output (Teleop → plugin)
+--------------------------------
+
+Input plugins (above) push device data **into** Teleop. Vendor **output** is the
+symmetric path: a retargeting graph produces a device-side ``TensorGroupType``,
+an ``IDeviceIOSink`` stores it each frame, and ``TeleopSession`` flushes it to the
+device after the graph runs.
+
+Cross-process output (reference: **latency_probe** sample):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+
+   * - Component
+     - Code location
+   * - Output schema (``.fbs``)
+     - :code-file:`src/core/schema/fbs/latency_probe_response.fbs`
+   * - Host push tracker
+     - Generated ``LatencyProbeResponsePushTracker`` from
+       :code-file:`src/core/deviceio_trackers/trackers.toml` (``direction = "push"``)
+   * - Plugin pull tracker
+     - Generated ``LatencyProbeResponseReaderTracker`` (same table +
+       ``tensor_identifier``, plugin ``DeviceIOSession``)
+   * - Session sink
+     - :code:`DeviceOutputSink` +
+       :code:`isaacteleop.device_output.SchemaPushOutputAdapter`
+   * - Bidirectional sample
+     - :code-dir:`src/plugins/latency_probe` +
+       :code-file:`examples/latency_probe/python/latency_probe_example.py`
+
+Flow:
+
+1. Define a **Teleop → plugin** FlatBuffer table and add a manifest ``push`` tracker row.
+2. On the host, retargeters map sim/sensor data into a matching ``TensorGroupType``.
+3. Wire ``DeviceOutputSink`` + ``SchemaPushOutputAdapter`` (or a custom
+   ``IDeviceOutputAdapter``) and register the connected sink with
+   ``TeleopSessionConfig(sinks=[...])``.
+4. In the plugin process, register the matching **pull** tracker on the same
+   ``collection_id`` + ``tensor_identifier`` and read samples after
+   ``DeviceIOSession::update()``.
+
+The **latency_probe** plugin also pushes ``LatencyProbeRequest`` on a separate
+collection so the sample demonstrates both directions with independent schemas.
+
 .. _schema-io-example:
 
 Schema IO example: build and run
