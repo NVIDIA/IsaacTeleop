@@ -8,8 +8,12 @@
 #
 # Reads the source pyproject.toml and appends a [tool.uv] block only to the
 # installed copy so that `uv run` works out of the box in the install tree. On the
-# way it pins isaacteleop to the version this build produced and drops any
-# [tool.uv.sources], so the installed example resolves the wheel next to it.
+# way it pins isaacteleop to the version this build produced (preserving extras
+# like [cloudxr]) and drops any [tool.uv.sources], so the installed example
+# resolves the wheel next to it. Generation runs at configure time; the
+# CMAKE_CONFIGURE_DEPENDS below re-runs configure when the source pyproject
+# changes so `cmake --build && cmake --install` (e.g. scripts/run_example.sh)
+# picks up dependency edits.
 #
 # Usage:
 #   install_python_example(DESTINATION examples/oxr/python)
@@ -30,6 +34,10 @@ macro(install_python_example)
     else()
         set(_IPE_PLATFORM_MACHINE "x86_64")
     endif()
+
+    # Reconfigure when the source pyproject changes (file(READ) is configure-time).
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/pyproject.toml")
 
     # Read the bare pyproject.toml and append uv configuration for the
     # installed environment.
