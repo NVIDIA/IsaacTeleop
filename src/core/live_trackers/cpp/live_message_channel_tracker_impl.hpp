@@ -73,6 +73,7 @@ private:
 
     XrTimeConverter time_converter_;
     int64_t last_update_time_ = 0;
+    bool instance_lost_ = false;
     MessageChannelMessagesTrackedT messages_;
     std::vector<uint8_t> receive_buffer_;
     std::unique_ptr<MessageChannelMcapChannels> mcap_channels_;
