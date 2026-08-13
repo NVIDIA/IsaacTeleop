@@ -156,7 +156,9 @@ def _validate(records: list, source: str, confdir: str) -> list[dict]:
             )
 
         new_until = record.get("new_until")
-        if new_until is not None and not isinstance(new_until, datetime.date):
+        # Not isinstance: PyYAML loads a timestamp as datetime.datetime, which subclasses
+        # date and would pass, then blow up on the date comparison in _status_badge.
+        if new_until is not None and type(new_until) is not datetime.date:
             _fail(source, name, "new_until must be an unquoted YYYY-MM-DD date")
 
         orders = seen_orders.setdefault(record["section"], set())
