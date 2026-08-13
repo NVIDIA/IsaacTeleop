@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=7509b52b"></script>
+    <script src="../_static/documentation_options.js?v=04dcff72"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -59,12 +59,12 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="MCAP Recording &amp; Replay" href="mcap_record_replay.html" />
-    <link rel="prev" title="Retargeter: Joint-Space Device" href="retargeting/joint_space.html" />
+    <link rel="prev" title="Retargeter: Wuji Glove to Wuji Hand" href="retargeting/wuji.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.x" />
+  <meta name="docsearch:version" content="1.5.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -355,16 +355,18 @@
 <li class="toctree-l1"><a class="reference internal" href="../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -708,9 +710,9 @@ CloudXR stream them efficiently (see
 </section>
 <section id="cloudxr-runtime-flags">
 <h2><a class="toc-backref" href="#id9" role="doc-backlink">CloudXR runtime flags</a><a class="headerlink" href="#cloudxr-runtime-flags" title="Link to this heading">#</a></h2>
-<p>In XR mode the viewer launches the CloudXR runtime and WSS proxy itself. Useful flags:</p>
+<p>In XR mode the viewer attaches to the running CloudXR runtime, or starts one if none is
+serving. Useful flags:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> — reuse an already-running runtime.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code> — accept the CloudXR EULA non-interactively (first run only).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-device-profile</span> <span class="pre">PROFILE</span></code> — <code class="docutils literal notranslate"><span class="pre">NV_DEVICE_PROFILE</span></code> (default <code class="docutils literal notranslate"><span class="pre">Quest3</span></code>).</p></li>
 </ul>
@@ -803,10 +805,9 @@ YAML per source kind.</p>
 <section id="troubleshooting">
 <h2><a class="toc-backref" href="#id13" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><strong>The XR session fails to create</strong> — the viewer launches the CloudXR runtime itself; check
-<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/logs/cxr_server.*.log</span></code> and <code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code> for the startup failure. If a
-runtime is already running from another app, pass <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code>. Pass
-<code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> to render to a desktop window instead (no runtime involved).</p></li>
+<li><p><strong>The XR session fails to create</strong> — check <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/logs/cxr_server.*.log</span></code> and
+<code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code> for the startup failure. Pass <code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> to render to a
+desktop window instead (no runtime involved).</p></li>
 <li><p><strong>No window appears over SSH</strong> — <code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> needs a local display; run on the machine
 you’re sitting at, or use a video-capable remote desktop.</p></li>
 <li><p><strong>“video source: no such file”</strong> — relative <code class="docutils literal notranslate"><span class="pre">path:</span></code> values resolve against the YAML’s
@@ -887,12 +888,12 @@ extensions and forwards the handles through <code class="docutils literal notran
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="retargeting/joint_space.html"
+       href="retargeting/wuji.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Retargeter: Joint-Space Device</p>
+        <p class="prev-next-title">Retargeter: Wuji Glove to Wuji Hand</p>
       </div>
     </a>
     <a class="right-next"

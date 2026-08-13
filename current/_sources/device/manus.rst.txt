@@ -128,23 +128,23 @@ The MANUS plugin connects to the Teleop session through the CloudXR / OpenXR
 runtime, so the runtime must be running and its environment sourced in the
 shell that launches the plugin.
 
-In one terminal, start the CloudXR runtime (keep it running for the duration
-of the session):
+Start the CloudXR runtime. It runs as a background service that outlives
+this shell, until you stop it with ``python -m isaacteleop.cloudxr.service stop``:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr
+   python -m isaacteleop.cloudxr.service start
 
-In the terminal you will use to run the plugin, source the environment file
+In the shell you will use to run the plugin, source the environment file
 that the runtime writes on startup. This points the OpenXR loader at CloudXR:
 
 .. code-block:: bash
 
    source ~/.cloudxr/run/cloudxr.env
 
-See :ref:`run-cloudxr-server` and :ref:`whitelist-firewall-ports`
-in the Quick Start for the full CloudXR runtime setup, including EULA
-acceptance and firewall configuration.
+See :ref:`dedicated-cloudxr-runtime` for the full CloudXR service setup,
+including EULA acceptance, and :ref:`whitelist-firewall-ports` in the Quick
+Start for firewall configuration.
 
 2. Verify with the CLI tool
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -269,7 +269,7 @@ Troubleshooting
    * - No data received
      - Ensure MANUS Core is running and the gloves are connected and calibrated.
    * - CloudXR runtime errors
-     - Make sure the CloudXR runtime is running (``python -m isaacteleop.cloudxr``)
+     - Check that a runtime is serving with ``python -m isaacteleop.cloudxr.service status``,
        and that ``~/.cloudxr/run/cloudxr.env`` has been sourced in the same
        terminal as the plugin.
    * - Permission denied for USB devices

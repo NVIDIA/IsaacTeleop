@@ -45,7 +45,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=7509b52b"></script>
+    <script src="../../_static/documentation_options.js?v=04dcff72"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -59,12 +59,12 @@
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
     <link rel="next" title="Retargeter: Manus to Sharpa" href="sharpa.html" />
-    <link rel="prev" title="Build System" href="../build.html" />
+    <link rel="prev" title="Generated Tracker Code" href="../generated_trackers.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.x" />
+  <meta name="docsearch:version" content="1.5.x" />
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -355,21 +355,24 @@
 <li class="toctree-l1"><a class="reference internal" href="../../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1 current active has-children"><a class="current reference internal" href="#">Retargeting Interface</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
 <li class="toctree-l2"><a class="reference internal" href="sharpa.html">Retargeter: Manus to Sharpa</a></li>
 <li class="toctree-l2"><a class="reference internal" href="so101.html">Retargeters: SO-101 (5-DOF arm)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="joint_space.html">Retargeter: Joint-Space Device</a></li>
+<li class="toctree-l2"><a class="reference internal" href="wuji.html">Retargeter: Wuji Glove to Wuji Hand</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -472,11 +475,20 @@ and <code class="docutils literal notranslate"><span class="pre">controller_thre
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
 <summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-text">WujiHandRetargeter</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<p class="sd-card-text">Maps OpenXR hand tracking to the 20 joint commands of a Wuji Hand or Wuji Hand 2 through
+<code class="docutils literal notranslate"><span class="pre">wuji_sdk</span></code>. See <a class="reference internal" href="wuji.html"><span class="doc">Retargeter: Wuji Glove to Wuji Hand</span></a> for installation, configuration, and hardware examples.</p>
+</div>
+</details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
 <span class="sd-summary-text">SO101ClutchRetargeter / SO101GripperRetargeter</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
 <p class="sd-card-text">Retargeters for the SO-101 5-DOF arm under full-pose SE3 IK. <code class="docutils literal notranslate"><span class="pre">SO101ClutchRetargeter</span></code>
-outputs a 7-D <code class="docutils literal notranslate"><span class="pre">ee_pose</span></code> like <code class="docutils literal notranslate"><span class="pre">Se3AbsRetargeter</span></code> but clutch-rebases controller position
-around an origin captured on engage (no teleport) and composes a fixed orientation
-calibration offset onto the grip orientation so the gripper pose follows the controller pose.
+outputs a 7-D <code class="docutils literal notranslate"><span class="pre">ee_pose</span></code> like <code class="docutils literal notranslate"><span class="pre">Se3AbsRetargeter</span></code> but clutch-rebases the <strong>full pose</strong> around
+an origin captured on engage (no teleport): it re-latches both the home position and the home
+orientation on every engage and composes the orientation delta on the <strong>left</strong> (base frame),
+with no fixed calibration offset. It engages on <code class="docutils literal notranslate"><span class="pre">RUNNING</span></code> <strong>and</strong>
+<code class="docutils literal notranslate"><span class="pre">squeeze</span> <span class="pre">&gt;</span> <span class="pre">squeeze_threshold</span></code>, re-seeds its held pose from the configured home on <code class="docutils literal notranslate"><span class="pre">reset</span></code>,
+and can latch its home position from the arm’s measured EE pose.
 <code class="docutils literal notranslate"><span class="pre">SO101GripperRetargeter</span></code> maps the trigger to a proportional jaw closedness in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.
 See <a class="reference internal" href="so101.html"><span class="doc">Retargeters: SO-101 (5-DOF arm)</span></a> for the full setup.</p>
 </div>
@@ -564,8 +576,34 @@ target joint names, type (e.g. <code class="docutils literal notranslate"><span 
 <p class="sd-card-text"><strong>DexBiManualRetargeter:</strong> Bimanual wrapper around two <code class="docutils literal notranslate"><span class="pre">DexHandRetargeter</span></code> instances. Create
 <code class="docutils literal notranslate"><span class="pre">DexHandRetargeterConfig</span></code> for left and right hands, then instantiate with
 <code class="docutils literal notranslate"><span class="pre">left_config</span></code>, <code class="docutils literal notranslate"><span class="pre">right_config</span></code>, and <code class="docutils literal notranslate"><span class="pre">target_joint_names</span></code> (combined left + right joint
-names). See the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md" rel="noopener noreferrer" target="_blank">retargeters README</a>
-for a full code example.</p>
+names):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeters</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DexBiManualRetargeter</span><span class="p">,</span>
+    <span class="n">DexHandRetargeterConfig</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">left_config</span> <span class="o">=</span> <span class="n">DexHandRetargeterConfig</span><span class="p">(</span>
+    <span class="n">hand_joint_names</span><span class="o">=</span><span class="n">left_hand_joints</span><span class="p">,</span>
+    <span class="n">hand_retargeting_config</span><span class="o">=</span><span class="s2">&quot;/path/to/left_hand_config.yml&quot;</span><span class="p">,</span>
+    <span class="n">hand_urdf</span><span class="o">=</span><span class="s2">&quot;/path/to/left_hand.urdf&quot;</span><span class="p">,</span>
+    <span class="n">hand_side</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">right_config</span> <span class="o">=</span> <span class="n">DexHandRetargeterConfig</span><span class="p">(</span>
+    <span class="n">hand_joint_names</span><span class="o">=</span><span class="n">right_hand_joints</span><span class="p">,</span>
+    <span class="n">hand_retargeting_config</span><span class="o">=</span><span class="s2">&quot;/path/to/right_hand_config.yml&quot;</span><span class="p">,</span>
+    <span class="n">hand_urdf</span><span class="o">=</span><span class="s2">&quot;/path/to/right_hand.urdf&quot;</span><span class="p">,</span>
+    <span class="n">hand_side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">bimanual_retargeter</span> <span class="o">=</span> <span class="n">DexBiManualRetargeter</span><span class="p">(</span>
+    <span class="n">left_config</span><span class="o">=</span><span class="n">left_config</span><span class="p">,</span>
+    <span class="n">right_config</span><span class="o">=</span><span class="n">right_config</span><span class="p">,</span>
+    <span class="n">target_joint_names</span><span class="o">=</span><span class="n">left_hand_joints</span> <span class="o">+</span> <span class="n">right_hand_joints</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;dex_bimanual&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
 <p class="sd-card-text"><strong>Coordinate frame:</strong> The <code class="docutils literal notranslate"><span class="pre">handtracking_to_baselink_frame_transform</span></code> parameter is a 3x3
 rotation matrix flattened to 9 elements. Applied as
 <code class="docutils literal notranslate"><span class="pre">target_pos</span> <span class="pre">=</span> <span class="pre">joint_pos</span> <span class="pre">&#64;</span> <span class="pre">wrist_rotation</span> <span class="pre">&#64;</span> <span class="pre">transform_matrix</span></code>. Config default is <strong>Identity</strong>
@@ -652,7 +690,7 @@ both hands with left and right VR controllers.</p>
 <p class="sd-card-text">For a complete hand retargeting example (e.g. <code class="docutils literal notranslate"><span class="pre">HandsSource</span></code> + <code class="docutils literal notranslate"><span class="pre">DexHandRetargeter</span></code> or
 <code class="docutils literal notranslate"><span class="pre">TriHandMotionControllerRetargeter</span></code>, connect and compute), see
 <code class="docutils literal notranslate"><span class="pre">g1_trihand_retargeting_example.py</span></code> and <code class="docutils literal notranslate"><span class="pre">dex_bimanual_example.py</span></code> in the
-<code class="docutils literal notranslate"><span class="pre">examples/teleop/python</span></code> directory, or the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md" rel="noopener noreferrer" target="_blank">retargeters README</a>.</p>
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/examples/teleop/python" rel="noopener noreferrer" target="_blank">examples/teleop/python</a> directory.</p>
 </div>
 </div>
 </details><details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
@@ -768,14 +806,14 @@ retargeter tuning UI.</p></li>
 <li><p>Connect to existing source nodes (<code class="docutils literal notranslate"><span class="pre">HandsSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>) or create a new
 <code class="docutils literal notranslate"><span class="pre">IDeviceIOSource</span></code> subclass for custom input devices.</p></li>
 </ol>
-<p>See the <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/retargeters/README.md" rel="noopener noreferrer" target="_blank">retargeters README</a>
-and <a class="reference internal" href="../../getting_started/contributing.html"><span class="doc">Contributing Guide</span></a> for details.</p>
+<p>See the <a class="reference internal" href="../../getting_started/contributing.html"><span class="doc">Contributing Guide</span></a> for details.</p>
 <div class="toctree-wrapper compound">
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Retargeter setup guides</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="sharpa.html">Retargeter: Manus to Sharpa</a></li>
 <li class="toctree-l1"><a class="reference internal" href="so101.html">Retargeters: SO-101 (5-DOF arm)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="joint_space.html">Retargeter: Joint-Space Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="wuji.html">Retargeter: Wuji Glove to Wuji Hand</a></li>
 </ul>
 </div>
 </section>
@@ -792,12 +830,12 @@ and <a class="reference internal" href="../../getting_started/contributing.html"
                   
 <div class="prev-next-area">
     <a class="left-prev"
-       href="../build.html"
+       href="../generated_trackers.html"
        title="previous page">
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Build System</p>
+        <p class="prev-next-title">Generated Tracker Code</p>
       </div>
     </a>
     <a class="right-next"
