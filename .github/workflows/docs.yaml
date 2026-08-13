@@ -11,9 +11,7 @@
 # Builds are gated on changed paths by the `changes` job; gh-pages
 # `keep_files: true` preserves whichever artifact was skipped.
 #
-# Web client uses the private CloudXR SDK for pushes and for PRs whose
-# author is in ALLOWED_CLOUDXR_JS_PR_AUTHORS (Repo Settings → Variables);
-# all other PRs fall back to the public SDK.
+# The web client downloads its CloudXR SDK anonymously from public NGC resources.
 
 name: Build & deploy docs
 
@@ -45,7 +43,6 @@ jobs:
     outputs:
       is-canonical-repo: ${{ steps.is-canonical-repo.outputs.defined }}
       is-deploy-branch: ${{ steps.is-deploy-branch.outputs.defined }}
-      use_ngc_key: ${{ steps.ngc-allowlist.outputs.use_ngc_key }}
     steps:
     - id: is-canonical-repo
       if: github.repository == 'NVIDIA/IsaacTeleop'
@@ -56,22 +53,6 @@ jobs:
         || startsWith(github.ref, 'refs/heads/release/')
         || startsWith(github.ref, 'refs/tags/v')
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
-    - id: ngc-allowlist
-      run: |
-        if [ "${{ github.event_name }}" != 'pull_request' ]; then
-          echo "use_ngc_key=true" >> "$GITHUB_OUTPUT"
-        elif [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
-          echo "use_ngc_key=false" >> "$GITHUB_OUTPUT"
-        else
-          ACTOR="${{ github.actor }}"
-          ALLOWED="${{ vars.ALLOWED_CLOUDXR_JS_PR_AUTHORS }}"
-          # Normalize: remove spaces so "alice, bob" matches like "alice,bob"
-          ALLOWED="${ALLOWED// /}"
-          case ",${ALLOWED}," in
-            *",${ACTOR},"*) echo "use_ngc_key=true" >> "$GITHUB_OUTPUT" ;;
-            *) echo "use_ngc_key=false" >> "$GITHUB_OUTPUT" ;;
-          esac
-        fi
 
   # gh-pages keep_files preserves whichever artifact isn't rebuilt this run.
   changes:
@@ -171,11 +152,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # Allowlist no → public only. Allowlist yes + NGC_API_KEY → private only.
       - name: Build CloudXR web client
         uses: ./.github/actions/build-cloudxr-web-client
-        with:
-          ngc-api-key: ${{ needs.check-repo.outputs.use_ngc_key == 'true' && secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY || '' }}
 
       - name: Upload web app artifact
         uses: actions/upload-artifact@v6

@@ -21,6 +21,7 @@
 #define VT(field) (field + 2) * 2
 static_assert(core::HeadPose::VT_POSE == VT(0));
 static_assert(core::HeadPose::VT_IS_VALID == VT(1));
+static_assert(core::HeadPose::VT_IS_TRACKED == VT(2));
 
 static_assert(core::HeadPoseRecord::VT_DATA == VT(0));
 
@@ -31,6 +32,7 @@ static_assert(core::HeadPoseRecord::VT_DATA == VT(0));
 #define TYPE(field) decltype(std::declval<core::HeadPose>().field())
 static_assert(std::is_same_v<TYPE(pose), const core::Pose*>);
 static_assert(std::is_same_v<TYPE(is_valid), bool>);
+static_assert(std::is_same_v<TYPE(is_tracked), bool>);
 
 
 TEST_CASE("HeadPoseT can handle is_valid value properly", "[head][native]")
@@ -40,10 +42,20 @@ TEST_CASE("HeadPoseT can handle is_valid value properly", "[head][native]")
     // Create HeadPoseT with default values, is_valid should be false.
     auto head_pose = std::make_unique<core::HeadPoseT>();
     CHECK(head_pose->is_valid == false);
+    CHECK(head_pose->is_tracked == false);
 
     // Set is_valid to true.
     head_pose->is_valid = true;
     CHECK(head_pose->is_valid == true);
+}
+
+TEST_CASE("HeadPoseT can handle is_tracked value properly", "[head][native]")
+{
+    auto head_pose = std::make_unique<core::HeadPoseT>();
+    CHECK(head_pose->is_tracked == false);
+
+    head_pose->is_tracked = true;
+    CHECK(head_pose->is_tracked == true);
 }
 
 TEST_CASE("HeadPoseT default construction", "[head][native]")
@@ -53,6 +65,7 @@ TEST_CASE("HeadPoseT default construction", "[head][native]")
     // Default values.
     CHECK(head_pose->pose == nullptr);
     CHECK(head_pose->is_valid == false);
+    CHECK(head_pose->is_tracked == false);
 }
 
 TEST_CASE("HeadPoseT can store pose data", "[head][native]")
@@ -96,6 +109,7 @@ TEST_CASE("HeadPoseT serialization and deserialization", "[head][flatbuffers]")
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     head_pose->pose = std::make_unique<core::Pose>(position, orientation);
     head_pose->is_valid = true;
+    head_pose->is_tracked = true;
 
     // Serialize.
     auto offset = core::HeadPose::Pack(builder, head_pose.get());
@@ -110,6 +124,7 @@ TEST_CASE("HeadPoseT serialization and deserialization", "[head][flatbuffers]")
     CHECK(deserialized->pose()->position().y() == Catch::Approx(2.0f));
     CHECK(deserialized->pose()->position().z() == Catch::Approx(3.0f));
     CHECK(deserialized->is_valid() == true);
+    CHECK(deserialized->is_tracked() == true);
 }
 
 TEST_CASE("HeadPoseT can be unpacked from buffer", "[head][flatbuffers]")
@@ -122,6 +137,7 @@ TEST_CASE("HeadPoseT can be unpacked from buffer", "[head][flatbuffers]")
     core::Quaternion orientation(0.1f, 0.2f, 0.3f, 0.9f);
     original->pose = std::make_unique<core::Pose>(position, orientation);
     original->is_valid = true;
+    original->is_tracked = true;
 
     auto offset = core::HeadPose::Pack(builder, original.get());
     builder.Finish(offset);
@@ -136,6 +152,7 @@ TEST_CASE("HeadPoseT can be unpacked from buffer", "[head][flatbuffers]")
     CHECK(unpacked->pose->position().y() == Catch::Approx(6.0f));
     CHECK(unpacked->pose->position().z() == Catch::Approx(7.0f));
     CHECK(unpacked->is_valid == true);
+    CHECK(unpacked->is_tracked == true);
 }
 
 // =============================================================================
@@ -151,6 +168,7 @@ TEST_CASE("HeadPoseRecord serialization with DeviceDataTimestamp", "[head][flatb
     core::Quaternion orientation(0.0f, 0.0f, 0.0f, 1.0f);
     record->data->pose = std::make_unique<core::Pose>(position, orientation);
     record->data->is_valid = true;
+    record->data->is_tracked = true;
     record->timestamp = std::make_shared<core::DeviceDataTimestamp>(1000000000LL, 2000000000LL, 3000000000LL);
 
     auto offset = core::HeadPoseRecord::Pack(builder, record.get());
@@ -163,6 +181,7 @@ TEST_CASE("HeadPoseRecord serialization with DeviceDataTimestamp", "[head][flatb
     CHECK(deserialized->timestamp()->sample_time_raw_device_clock() == 3000000000LL);
     CHECK(deserialized->data()->pose()->position().x() == Catch::Approx(1.0f));
     CHECK(deserialized->data()->is_valid() == true);
+    CHECK(deserialized->data()->is_tracked() == true);
 }
 
 TEST_CASE("HeadPoseRecord can be unpacked with DeviceDataTimestamp", "[head][flatbuffers]")
@@ -172,6 +191,7 @@ TEST_CASE("HeadPoseRecord can be unpacked with DeviceDataTimestamp", "[head][fla
     auto original = std::make_shared<core::HeadPoseRecordT>();
     original->data = std::make_shared<core::HeadPoseT>();
     original->data->is_valid = true;
+    original->data->is_tracked = false;
     original->timestamp = std::make_shared<core::DeviceDataTimestamp>(111LL, 222LL, 333LL);
 
     auto offset = core::HeadPoseRecord::Pack(builder, original.get());
@@ -185,4 +205,5 @@ TEST_CASE("HeadPoseRecord can be unpacked with DeviceDataTimestamp", "[head][fla
     CHECK(unpacked->timestamp->sample_time_local_common_clock() == 222LL);
     CHECK(unpacked->timestamp->sample_time_raw_device_clock() == 333LL);
     CHECK(unpacked->data->is_valid == true);
+    CHECK(unpacked->data->is_tracked == false);
 }

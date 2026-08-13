@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 from rig_py_test_ns.config import (
-    DEFAULT_RUNTIME_COMMAND,
+    INSTALL_DIR_ENV,
     RigConfigError,
     ProcessConfig,
-    find_runtime_footguns,
     load_rig_config,
+    resolve_install_dir,
     substitute_command,
 )
 
@@ -48,8 +48,6 @@ def test_load_se3_rig():
     assert config.name == "se3_tracker"
     assert config.description
     assert config.cwd == REPO_ROOT  # cwd: .. resolves against rigs/
-    assert config.runtime is None
-    assert config.runtime_command == DEFAULT_RUNTIME_COMMAND
     assert config.params == {"hand": "right", "collection_id": "se3_tracker"}
     assert len(config.producers) == 1
     assert len(config.consumers) == 1
@@ -58,14 +56,14 @@ def test_load_se3_rig():
     assert "{collection_id}" in config.consumers[0].command
 
 
-def test_se3_rig_has_no_footguns():
-    config = load_rig_config(SE3_RIG)
-    assert (
-        find_runtime_footguns(
-            [*config.producers, *config.consumers], runtime_managed=True
-        )
-        == []
-    )
+def test_shipped_rigs_never_hard_code_the_install_prefix():
+    """A literal ``install/...`` silently breaks every non-default
+    CMAKE_INSTALL_PREFIX; {install} is the one spelling that follows it.
+    """
+    for rig in (SE3_RIG, FULL_BODY_RIG):
+        config = load_rig_config(rig)
+        for proc in (*config.producers, *config.consumers):
+            assert not proc.command.startswith("install/"), (rig, proc.command)
 
 
 def test_load_full_body_rig():
@@ -73,23 +71,11 @@ def test_load_full_body_rig():
     assert config.name == "full_body"
     assert config.description
     assert config.cwd == REPO_ROOT  # cwd: .. resolves against rigs/
-    assert config.runtime is None
-    assert config.runtime_command == DEFAULT_RUNTIME_COMMAND
     # Consumer-only rig: both panes read the runtime directly, so there are no
     # producers, no params, and no collection_id to rendezvous on.
     assert config.params == {}
     assert len(config.producers) == 0
     assert len(config.consumers) == 2
-
-
-def test_full_body_rig_has_no_footguns():
-    config = load_rig_config(FULL_BODY_RIG)
-    assert (
-        find_runtime_footguns(
-            [*config.producers, *config.consumers], runtime_managed=True
-        )
-        == []
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -158,12 +144,13 @@ def test_tmux_safe_name_is_accepted(tmp_path):
 @pytest.mark.parametrize("bad_name", ["se3 rig", "se3:rig", "se3.rig", "r'ig"])
 def test_tmux_unsafe_name_is_hard_error(tmp_path, bad_name):
     path = write_rig(tmp_path, MINIMAL.replace("name: mini", f'name: "{bad_name}"'))
-    with pytest.raises(RigConfigError, match="used as the tmux session name"):
+    with pytest.raises(RigConfigError, match="used as the tmux window name"):
         load_rig_config(path)
 
 
-def test_param_named_python_is_reserved(tmp_path):
-    path = write_rig(tmp_path, MINIMAL + "params:\n  python: /usr/bin/python\n")
+@pytest.mark.parametrize("reserved", ["python", "install"])
+def test_reserved_param_names_are_hard_errors(tmp_path, reserved):
+    path = write_rig(tmp_path, MINIMAL + f"params:\n  {reserved}: /some/where\n")
     with pytest.raises(RigConfigError, match="reserved"):
         load_rig_config(path)
 
@@ -192,7 +179,7 @@ def test_cwd_resolves_relative_to_yaml_directory(tmp_path):
 
 def test_python_placeholder_expands_to_sys_executable(tmp_path):
     result = substitute_command(
-        "{python} -m isaacteleop.cloudxr", {}, tmp_path / "c.yaml"
+        "{python} -m isaacteleop.cloudxr", {}, tmp_path / "c.yaml", tmp_path / "install"
     )
     assert result == f"{shlex.quote(sys.executable)} -m isaacteleop.cloudxr"
 
@@ -202,25 +189,26 @@ def test_params_substituted(tmp_path):
         "./plugin {hand} {collection_id}",
         {"hand": "left", "collection_id": "abc"},
         tmp_path / "c.yaml",
+        tmp_path / "install",
     )
     assert result == "./plugin left abc"
 
 
 def test_unknown_placeholder_is_hard_error(tmp_path):
     with pytest.raises(RigConfigError, match=r"unknown placeholder \{hand\}") as exc:
-        substitute_command("./plugin {hand}", {}, tmp_path / "c.yaml")
+        substitute_command("./plugin {hand}", {}, tmp_path / "c.yaml", tmp_path)
     # The remedy mentions brace escaping.
     assert "{{" in str(exc.value)
 
 
 def test_malformed_brace_is_hard_error_mentioning_escaping(tmp_path):
     with pytest.raises(RigConfigError, match=r"\{\{"):
-        substitute_command("echo ${VAR:-x}", {}, tmp_path / "c.yaml")
+        substitute_command("echo ${VAR:-x}", {}, tmp_path / "c.yaml", tmp_path)
 
 
 def test_escaped_braces_pass_through(tmp_path):
     assert (
-        substitute_command("echo {{literal}}", {}, tmp_path / "c.yaml")
+        substitute_command("echo {{literal}}", {}, tmp_path / "c.yaml", tmp_path)
         == "echo {literal}"
     )
 
@@ -234,46 +222,26 @@ def _proc(command: str) -> ProcessConfig:
     return ProcessConfig(name="app", command=command)
 
 
-def test_footgun_fires_on_python_script_without_flag():
-    warnings = find_runtime_footguns(
-        [_proc("{python} examples/teleop/python/example.py {collection_id}")],
-        runtime_managed=True,
+# ---------------------------------------------------------------------------
+# Install-prefix resolution
+# ---------------------------------------------------------------------------
+
+
+def test_install_dir_override_is_made_absolute(tmp_path, monkeypatch):
+    """Panes run from the rig's cwd, not the launching shell's directory, so
+    a relative override must be resolved before it reaches a pane.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "elsewhere").mkdir()
+    resolved = resolve_install_dir(tmp_path / "rig-cwd", {INSTALL_DIR_ENV: "elsewhere"})
+    assert resolved == (tmp_path / "elsewhere").resolve()
+
+
+def test_install_prefix_with_spaces_stays_one_shell_word(tmp_path):
+    prefix = tmp_path / "in stall"
+    command = substitute_command(
+        "{install}/plugins/foo/foo_plugin", {}, tmp_path / "c.yaml", prefix
     )
-    assert len(warnings) == 1
-    assert "--no-launch-cloudxr-runtime" in warnings[0]
-    # Names the symptom, not just the flag.
-    assert "kills the runtime pane" in warnings[0]
-
-
-def test_footgun_fires_on_module_invocation():
-    warnings = find_runtime_footguns(
-        [_proc("{python} -m isaacteleop.examples.foo")], runtime_managed=True
-    )
-    assert len(warnings) == 1
-
-
-def test_footgun_quiet_when_flag_present():
-    assert (
-        find_runtime_footguns(
-            [_proc("{python} example.py --no-launch-cloudxr-runtime")],
-            runtime_managed=True,
-        )
-        == []
-    )
-
-
-def test_footgun_quiet_on_cpp_binary():
-    assert (
-        find_runtime_footguns(
-            [_proc("install/examples/schemaio/se3_printer {collection_id}")],
-            runtime_managed=True,
-        )
-        == []
-    )
-
-
-def test_footgun_quiet_when_runtime_not_managed():
-    assert (
-        find_runtime_footguns([_proc("{python} example.py")], runtime_managed=False)
-        == []
-    )
+    # Quoted as a single word, concatenated with the unquoted remainder:
+    # the pane shell (and our own preflight) see one intact path.
+    assert shlex.split(command) == [f"{prefix}/plugins/foo/foo_plugin"]

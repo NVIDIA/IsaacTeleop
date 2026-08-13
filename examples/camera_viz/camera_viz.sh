@@ -165,6 +165,17 @@ _require_local_config() {
     }
 }
 
+# RTP deps are opt-in at setup time (``--with-rtp``), so a venv provisioned
+# for direct mode has no ``gi``. Fail here with the fix rather than letting
+# the sender die on an ImportError several log lines later.
+_require_rtp_deps() {
+    "$LOCAL_VENV/bin/python" -c "import gi" >/dev/null 2>&1 && return 0
+    log_error "the RTP path needs dependencies this venv doesn't have"
+    log_info "Re-run setup with --with-rtp:"
+    log_info "  ./camera_viz.sh setup --with-rtp"
+    exit 1
+}
+
 # Write a copy of CONFIG with ``source: rtp`` forced on. Used by loopback
 # so the receiver doesn't need the user to edit the YAML between runs.
 # Caller is responsible for rm-ing the returned path.
@@ -192,6 +203,11 @@ PY
 
 cmd_run() {
     _require_local_config run "${1:-}"
+    # ``source: rtp`` makes the viewer an RTP receiver, so it needs the same
+    # opt-in deps as the sender. Direct-mode configs don't.
+    if grep -qE '^[[:space:]]*source:[[:space:]]*["'\'']?rtp' "$1"; then
+        _require_rtp_deps
+    fi
     log_step "Starting camera_viz — Ctrl-C to exit"
     "$LOCAL_VENV/bin/python" "$HERE/camera_viz.py" "$@"
 }
@@ -219,6 +235,7 @@ _loopback_cleanup() {
 
 cmd_loopback() {
     _require_local_config loopback "${1:-}"
+    _require_rtp_deps
     _LOOPBACK_RECV_CONFIG="$(_rewrite_source_rtp "$1")"
     trap '_loopback_cleanup' EXIT
 
@@ -379,7 +396,8 @@ camera_viz.sh — local development + Jetson deployment for camera_viz
 
 LOCAL
     setup [--venv PATH] [--sender-only] [--jetson]
-          [--no-v4l2] [--no-oakd] [--no-rtp] [--with-zed]
+          [--no-v4l2] [--no-oakd] [--with-rtp] [--with-zed]
+          [--wheel PATH | --build-from-source]
                           Create .venv, install Python deps via uv into
                           the venv, build native codec. Python deps stay
                           inside .venv (no --system-site-packages).
@@ -393,11 +411,21 @@ LOCAL
                           PATH instead of creating one in-place.
                           examples/camera_viz/.venv is symlinked → PATH
                           so run / loopback pick it up too.
+                          --with-rtp adds the split-mode deps (GStreamer
+                          system packages, PyGObject, native codec).
+                          Needed for loopback, deploy, and any config
+                          with ``source: rtp``. Implied by --sender-only.
                           --sender-only skips isaacteleop + vulkan deps
                           (use on Jetson sender hosts).
                           --jetson adds JetPack-only checks: unversioned
                           CUDA lib symlinks + ld.so wiring that JetPack
                           skips. Off on desktop.
+                          isaacteleop is taken from the package index,
+                          preferring a final release and falling back to
+                          a release candidate. If neither is available,
+                          setup offers to build it from this checkout;
+                          --build-from-source picks that without asking,
+                          --wheel PATH installs a wheel you already built.
 
     loopback CONFIG       Run camera_streamer + camera_viz on 127.0.0.1.
 

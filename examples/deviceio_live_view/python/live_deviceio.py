@@ -54,8 +54,7 @@ def main(argv: list[str]) -> int:
     )
 
     with CloudXRLauncher.launch_context(args) as launcher:
-        if launcher is not None:
-            print(f"[live] CloudXR runtime started (WSS log: {launcher.wss_log_path})")
+        print(f"[live] CloudXR runtime started (WSS log: {launcher.wss_log_path})")
         print("[live] waiting for headset connection… (Ctrl+C to stop)")
 
         with TeleopSession(config) as session:

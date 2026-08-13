@@ -5,7 +5,7 @@
 Head Transform Node - Applies a 4x4 transform to head pose data.
 
 Transforms head position and orientation using a homogeneous transformation
-matrix while preserving the validity field.
+matrix while preserving the validity and tracked fields.
 
 The transform matrix is received as a tensor input from the graph, typically
 provided by a TransformSource node.
@@ -34,13 +34,13 @@ class HeadTransform(BaseRetargeter):
     Applies a 4x4 homogeneous transform to head pose data.
 
     Transforms the head position (R @ p + t) and orientation (R_quat * q)
-    while passing through is_valid unchanged.
+    while passing through is_valid and is_tracked unchanged.
 
     The transform matrix is provided as a tensor input, allowing it to be
     sourced from a TransformSource node in the graph.
 
     Inputs:
-        - "head": OptionalType(HeadInput) tensor (position, orientation, is_valid)
+        - "head": OptionalType(HeadInput) tensor (position, orientation, is_valid, is_tracked)
         - "transform": TransformMatrix tensor containing the (4, 4) matrix
 
     Outputs:
@@ -85,7 +85,7 @@ class HeadTransform(BaseRetargeter):
 
         Position is transformed as: p' = R @ p + t
         Orientation is transformed as: q' = R_quat * q
-        All other fields (is_valid) are copied unchanged.
+        All other fields (is_valid, is_tracked) are copied unchanged.
 
         Args:
             inputs: Dict with "head" and "transform" TensorGroups.

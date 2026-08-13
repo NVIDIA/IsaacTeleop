@@ -197,9 +197,9 @@ For a minimal C++ reader see ``examples/schemaio/full_body_printer.cpp``, which
 creates the tracker, queries the required OpenXR extensions, and prints the
 joint data each frame through ``DeviceIOSession``. The Python equivalent is
 ``examples/oxr/python/test_full_body_tracker.py``. Running
-``python -m isaacteleop.rig rigs/full_body.yaml`` starts the CloudXR runtime,
-this printer, and the C++ MCAP recorder together in one tmux session (see
-:ref:`rig-launcher`).
+``python -m isaacteleop.rig rigs/full_body.yaml`` runs this printer and the C++
+MCAP recorder together in one tmux window, against the CloudXR runtime it makes
+sure is serving first (see :ref:`rig-launcher`).
 
 Troubleshooting
 ~~~~~~~~~~~~~~~
@@ -225,10 +225,11 @@ Troubleshooting
 Recording and Replay
 --------------------
 
-Full body sessions can be captured to MCAP and replayed offline through the
-same retargeting pipeline — no headset required during replay. See
-:doc:`../references/mcap_record_replay` for the recording / replay API and
-the ``record_full_body.py`` / ``replay_full_body.py`` example.
+Full body sessions can be previewed live, captured to MCAP, and replayed
+offline through the same retargeting pipeline — no headset required during
+replay. See :doc:`../references/mcap_record_replay` for the API and the
+``live_full_body.py`` / ``record_full_body.py`` / ``replay_full_body.py``
+example.
 
 Recording is also available directly from C++: pass a ``McapRecordingConfig``
 to ``DeviceIOSession::run()`` with the tracker mapped to the ``full_body``

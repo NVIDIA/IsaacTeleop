@@ -3,26 +3,25 @@
 
 """Schema and loader for teleop-rig YAML files.
 
-A *rig* file describes one tmux teleop rig: the CloudXR runtime pane plus
-producer plugins and consumer apps. See ``rigs/se3_tracker.yaml`` in the
+A *rig* file describes one tmux teleop rig: its producer plugins and
+consumer apps. See ``rigs/se3_tracker.yaml`` in the
 Teleop repository for an annotated exemplar. Top-level keys::
 
-    name:         rig id AND tmux session name (required)
+    name:         rig id AND tmux window name (required)
     description:  free text (optional)
     cwd:          working dir for every pane, relative to the YAML file's
                   directory (optional; default: the YAML's directory)
     params:       flat str->scalar dict of {placeholder} values shared by
                   the commands below; edit the file to change them (optional)
-    runtime:      full-command override for the runtime pane (optional;
-                  default: "{python} -m isaacteleop.cloudxr --accept-eula")
     producers:    list of {name, command} — publish device data (optional)
     consumers:    list of {name, command} — read the streams (optional)
 
 At least one producer or consumer is required. Unknown keys are a hard
 error. Commands are shell strings typed verbatim into panes; ``{key}``
 placeholders are substituted from ``params`` (literal braces must be
-escaped as ``{{`` / ``}}``). The reserved ``{python}`` placeholder expands
-to the launching interpreter (:data:`sys.executable`).
+escaped as ``{{`` / ``}}``). Two placeholders are reserved: ``{python}``
+expands to the launching interpreter (:data:`sys.executable`) and
+``{install}`` to the install prefix (see :func:`resolve_install_dir`).
 """
 
 from __future__ import annotations
@@ -32,26 +31,35 @@ import re
 import shlex
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 import yaml
 
 #: Reserved placeholder expanding to the launching interpreter.
 PYTHON_PLACEHOLDER = "python"
 
-#: Default runtime pane command (used when the rig has no ``runtime:`` key).
-DEFAULT_RUNTIME_COMMAND = "{python} -m isaacteleop.cloudxr --accept-eula"
+#: Reserved placeholder expanding to the install prefix that holds the
+#: plugin and example binaries (see :func:`resolve_install_dir`).
+INSTALL_PLACEHOLDER = "install"
 
-#: Flag a Python TeleopSession script needs so it does not start a second
-#: (host-singleton) CloudXR runtime next to the managed runtime pane.
-NO_LAUNCH_RUNTIME_FLAG = "--no-launch-cloudxr-runtime"
+#: Override for the prefix ``{install}`` expands to — the value passed as
+#: ``CMAKE_INSTALL_PREFIX`` when the tree was installed somewhere other
+#: than the project default.
+INSTALL_DIR_ENV = "ISAAC_TELEOP_INSTALL_DIR"
+
+#: Reserved param names -> what they always expand to (used in the error).
+_RESERVED_PLACEHOLDERS = {
+    PYTHON_PLACEHOLDER: "the launching interpreter",
+    INSTALL_PLACEHOLDER: f"the install prefix (override: ${INSTALL_DIR_ENV})",
+}
+
 
 _TOP_LEVEL_KEYS = frozenset(
-    {"name", "description", "cwd", "params", "runtime", "producers", "consumers"}
+    {"name", "description", "cwd", "params", "producers", "consumers"}
 )
 _ENTRY_KEYS = frozenset({"name", "command"})
 
-#: ``name:`` doubles as the tmux session name, so keep it shell/tmux-safe
+#: ``name:`` doubles as the tmux window name, so keep it shell/tmux-safe
 #: (tmux targets treat ``.`` and ``:`` specially; spaces need quoting).
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -80,15 +88,9 @@ class RigConfig:
     description: str
     cwd: Path
     params: dict[str, str]
-    runtime: str | None
     producers: tuple[ProcessConfig, ...]
     consumers: tuple[ProcessConfig, ...]
     source: Path
-
-    @property
-    def runtime_command(self) -> str:
-        """The raw (unsubstituted) runtime pane command."""
-        return self.runtime if self.runtime is not None else DEFAULT_RUNTIME_COMMAND
 
 
 def _require_str(value: Any, what: str, source: Path) -> str:
@@ -144,10 +146,10 @@ def _parse_params(value: Any, source: Path) -> dict[str, str]:
             raise RigConfigError(
                 f"{source}: 'params' keys must be strings (got {key!r})"
             )
-        if key == PYTHON_PLACEHOLDER:
+        if key in _RESERVED_PLACEHOLDERS:
             raise RigConfigError(
-                f"{source}: param '{PYTHON_PLACEHOLDER}' is reserved "
-                "(it always expands to the launching interpreter)"
+                f"{source}: param '{key}' is reserved (it always expands to "
+                f"{_RESERVED_PLACEHOLDERS[key]})"
             )
         if isinstance(val, (dict, list)):
             raise RigConfigError(f"{source}: param '{key}' must be a scalar")
@@ -200,15 +202,12 @@ def load_rig_config(path: str | Path) -> RigConfig:
     name = _require_str(data["name"], "'name'", source)
     if not _NAME_PATTERN.match(name):
         raise RigConfigError(
-            f"{source}: name '{name}' is used as the tmux session name — "
+            f"{source}: name '{name}' is used as the tmux window name — "
             "use letters/digits/-/_ only"
         )
     description = ""
     if data.get("description") is not None:
         description = _require_str(data["description"], "'description'", source)
-    runtime = None
-    if data.get("runtime") is not None:
-        runtime = _require_str(data["runtime"], "'runtime'", source)
 
     yaml_dir = source.resolve().parent
     cwd = yaml_dir
@@ -227,18 +226,40 @@ def load_rig_config(path: str | Path) -> RigConfig:
         description=description,
         cwd=cwd,
         params=_parse_params(data.get("params"), source),
-        runtime=runtime,
         producers=producers,
         consumers=consumers,
         source=source,
     )
 
 
-def substitute_command(command: str, params: Mapping[str, str], source: Path) -> str:
+def resolve_install_dir(cwd: Path, env: Mapping[str, str]) -> Path:
+    """Return the install prefix ``{install}`` expands to.
+
+    ``$ISAAC_TELEOP_INSTALL_DIR`` wins — that is the knob for a tree
+    installed with a non-default ``CMAKE_INSTALL_PREFIX`` (say
+    ``/opt/isaacteleop/install``). Otherwise ``<cwd>/install``, the prefix
+    the project's own CMakeLists forces by default.
+
+    Always absolute: ``cwd`` already is, and a relative override is resolved
+    here — against the launching shell's directory, since the panes run from
+    the rig's ``cwd:`` and would otherwise read it as a different path.
+    """
+    override = env.get(INSTALL_DIR_ENV)
+    if override:
+        return Path(override).expanduser().resolve()
+    return cwd / "install"
+
+
+def substitute_command(
+    command: str, params: Mapping[str, str], source: Path, install_dir: Path
+) -> str:
     """Expand ``{key}`` placeholders in a command string.
 
-    ``{python}`` expands to the quoted launching interpreter; every other
-    placeholder must be declared in *params*.
+    ``{python}`` expands to the quoted launching interpreter and
+    ``{install}`` to the quoted *install_dir*; every other placeholder must
+    be declared in *params*. Both are quoted as single shell words, so a
+    prefix containing spaces still concatenates correctly with the rest of
+    the path (``'/o p/install'/plugins/x``).
 
     Raises:
         RigConfigError: On an unknown placeholder or malformed braces
@@ -247,6 +268,7 @@ def substitute_command(command: str, params: Mapping[str, str], source: Path) ->
     # A plain dict raises KeyError from format_map on unknown placeholders.
     table = dict(params)
     table[PYTHON_PLACEHOLDER] = shlex.quote(sys.executable)
+    table[INSTALL_PLACEHOLDER] = shlex.quote(str(install_dir))
     try:
         return command.format_map(table)
     except KeyError as exc:
@@ -259,39 +281,3 @@ def substitute_command(command: str, params: Mapping[str, str], source: Path) ->
             f"{source}: malformed placeholder in command {command!r}: {exc} "
             f"(literal braces must be escaped as {{{{ / }}}})"
         ) from exc
-
-
-def find_runtime_footguns(
-    processes: Sequence[ProcessConfig], runtime_managed: bool
-) -> list[str]:
-    """Warn-only lint: pre-typed Python commands that would self-launch a runtime.
-
-    Python TeleopSession scripts launch their own CloudXR runtime by
-    default. The runtime is a host singleton (fixed WSS port), so a second
-    runtime KILLS the managed runtime pane — the headset drops and every
-    producer stalls. Heuristic (narrow, never a gate): the managed runtime
-    pane is enabled AND a pre-typed command contains ``{python}`` and a
-    ``.py`` token or ``-m isaacteleop`` AND lacks ``--no-launch-cloudxr-runtime``.
-
-    Returns:
-        Warning strings to print; empty when nothing looks risky.
-    """
-    if not runtime_managed:
-        return []
-    warnings = []
-    for proc in processes:
-        cmd = proc.command
-        if "{python}" not in cmd or NO_LAUNCH_RUNTIME_FLAG in cmd:
-            continue
-        looks_python_app = "-m isaacteleop" in cmd or any(
-            token.endswith(".py") for token in cmd.split()
-        )
-        if looks_python_app:
-            warnings.append(
-                f"warning: '{proc.name}' looks like a Python TeleopSession script "
-                f"without {NO_LAUNCH_RUNTIME_FLAG}. Such scripts start their own "
-                "CloudXR runtime by default; the runtime is a host singleton, so a "
-                "second runtime kills the runtime pane — the headset drops and "
-                f"producers stall. Add {NO_LAUNCH_RUNTIME_FLAG} to its command."
-            )
-    return warnings

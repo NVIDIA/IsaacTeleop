@@ -59,8 +59,12 @@ void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
         throw std::runtime_error("[HeadTracker] xrLocateSpace failed: " + std::to_string(result));
     }
 
-    bool position_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
-    bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+    // OpenXR: VALID => pose may be read; TRACKED => actively tracked. Keep these
+    // separate so is_valid stays OpenXR-faithful (CloudXR may leave VALID set after disconnect).
+    const bool position_valid = (location.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0;
+    const bool orientation_valid = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT) != 0;
+    const bool position_tracked = (location.locationFlags & XR_SPACE_LOCATION_POSITION_TRACKED_BIT) != 0;
+    const bool orientation_tracked = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT) != 0;
 
     if (!native_)
     {
@@ -68,9 +72,11 @@ void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
     }
 
     native_->is_valid = position_valid && orientation_valid;
+    native_->is_tracked = native_->is_valid && position_tracked && orientation_tracked;
 
     if (native_->is_valid)
     {
+        // Pose is readable whenever VALID (including untracked placeholder / last pose).
         Point position(location.pose.position.x, location.pose.position.y, location.pose.position.z);
         Quaternion orientation(location.pose.orientation.x, location.pose.orientation.y, location.pose.orientation.z,
                                location.pose.orientation.w);
@@ -78,7 +84,7 @@ void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
     }
     else
     {
-        // Keep pose populated whenever data is present; validity is indicated by is_valid.
+        // is_valid=false: pose contents are unspecified; leave a default filler.
         native_->pose = std::make_shared<Pose>();
     }
 

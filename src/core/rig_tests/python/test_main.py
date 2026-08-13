@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import pytest
 from rig_py_test_ns.__main__ import main
 
 
@@ -28,12 +27,3 @@ def test_invalid_rig_is_a_friendly_error(tmp_path, capsys):
     path.write_text("name: x\nunknown_key: 1\n")
     assert main([str(path)]) == 1
     assert "unknown top-level key" in capsys.readouterr().err
-
-
-def test_kill_rejects_no_runtime(tmp_path, capsys):
-    path = tmp_path / "rig.yaml"
-    path.write_text("name: x\nconsumers:\n  - name: y\n    command: echo hi\n")
-    with pytest.raises(SystemExit) as exc:
-        main([str(path), "--kill", "--no-runtime"])
-    assert exc.value.code == 2
-    assert "--kill cannot be combined" in capsys.readouterr().err

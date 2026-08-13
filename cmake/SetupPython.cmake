@@ -67,6 +67,27 @@ isaac_teleop_enforce_python_version(
 
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
+# Build trees configured before this stamp existed hold a bare TRUE. Their version
+# is unknowable, so adopt them instead of failing on a value we cannot compare.
+if(ISAAC_TELEOP_PYTHON_CONFIGURED STREQUAL "TRUE")
+    set(ISAAC_TELEOP_PYTHON_CONFIGURED "${ISAAC_TELEOP_PYTHON_VERSION}" CACHE INTERNAL
+        "Python version this build directory was configured for")
+endif()
+
+# Discovery runs once per build tree. Re-running it on a version change would not
+# be enough anyway: the NumPy build venv below is keyed to the interpreter it was
+# created from. So reject the change and require a fresh directory, rather than
+# configuring for one version while compiling extensions against another.
+if(ISAAC_TELEOP_PYTHON_CONFIGURED AND
+   NOT ISAAC_TELEOP_PYTHON_CONFIGURED STREQUAL ISAAC_TELEOP_PYTHON_VERSION)
+    message(FATAL_ERROR
+        "This build directory is configured for Python ${ISAAC_TELEOP_PYTHON_CONFIGURED}, "
+        "but ISAAC_TELEOP_PYTHON_VERSION is now ${ISAAC_TELEOP_PYTHON_VERSION}. The Python "
+        "version is baked into the CMake cache and the build venv; configure a different "
+        "build directory instead (cmake -B build-py${ISAAC_TELEOP_PYTHON_VERSION} "
+        "-DISAAC_TELEOP_PYTHON_VERSION=${ISAAC_TELEOP_PYTHON_VERSION}), or delete this one.")
+endif()
+
 # Guard to prevent multiple inclusions from overwriting our settings
 if(NOT ISAAC_TELEOP_PYTHON_CONFIGURED)
     if(SKBUILD)
@@ -142,8 +163,9 @@ if(NOT ISAAC_TELEOP_PYTHON_CONFIGURED)
     set(PYTHON_INCLUDE_DIRS "${Python3_INCLUDE_DIRS}" CACHE PATH "Python include dirs" FORCE)
     set(PYTHON_LIBRARIES "${Python3_LIBRARIES}" CACHE FILEPATH "Python libraries" FORCE)
 
-    # Mark as configured to prevent re-running
-    set(ISAAC_TELEOP_PYTHON_CONFIGURED TRUE CACHE INTERNAL "Python configuration completed")
+    # Stamp the version, not a bare TRUE, so the guard above can catch a change.
+    set(ISAAC_TELEOP_PYTHON_CONFIGURED "${ISAAC_TELEOP_PYTHON_VERSION}" CACHE INTERNAL
+        "Python version this build directory was configured for")
 endif()
 
 # ==============================================================================

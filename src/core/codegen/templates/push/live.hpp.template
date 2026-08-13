@@ -1,0 +1,32 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+#include <deviceio_base/@BASE_HEADER@.hpp>
+#include <deviceio_trackers/@HEADER@.hpp>
+#include <oxr_utils/oxr_session_handles.hpp>
+#include <pusherio/schema_pusher.hpp>
+#include <schema/@SCHEMA@_generated.h>
+
+#include <cstdint>
+#include <vector>
+
+namespace core
+{
+class @LIVE_IMPL@ : public @IFACE@
+{
+public:
+    static std::vector<std::string> required_extensions()
+    {
+        return SchemaPusher::get_required_extensions();
+    }
+    @LIVE_IMPL@(const OpenXRSessionHandles& handles, const @CLASS@* tracker);
+    void update(int64_t monotonic_time_ns) override;
+    void push(const @DATA_TYPE@& data) const override;
+
+private:
+    mutable SchemaPusher pusher_;
+    int64_t last_update_time_ns_{ 0 };
+};
+} // namespace core

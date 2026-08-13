@@ -13,7 +13,9 @@ build, not by these tests.
 
 from __future__ import annotations
 
+import pytest
 import importlib.util
+from unittest.mock import MagicMock, patch
 import sys
 import types
 from pathlib import Path
@@ -46,3 +48,36 @@ def _ensure_rig_package() -> None:
 
 
 _ensure_rig_package()
+
+
+@pytest.fixture(autouse=True)
+def stub_cloudxr_launcher():
+    """Keep rig tests from starting a real CloudXR runtime.
+
+    ``launch_rig`` ensures one exists before planning panes; the rig's own
+    behaviour is what these tests cover, so the launcher is stubbed to a
+    fixed env file the pane assertions can rely on.
+
+    The module is injected into ``sys.modules`` rather than patched, because
+    ``isaacteleop`` is not installed here (see above) and patching would
+    import it.
+    """
+    stub = MagicMock()
+    stub.return_value.env_file = Path("/stub/.cloudxr/run/cloudxr.env")
+
+    launcher = types.ModuleType("isaacteleop.cloudxr.launcher")
+    launcher.CloudXRLauncher = stub
+    cloudxr = types.ModuleType("isaacteleop.cloudxr")
+    cloudxr.launcher = launcher
+    root = types.ModuleType("isaacteleop")
+    root.cloudxr = cloudxr
+
+    with patch.dict(
+        sys.modules,
+        {
+            "isaacteleop": root,
+            "isaacteleop.cloudxr": cloudxr,
+            "isaacteleop.cloudxr.launcher": launcher,
+        },
+    ):
+        yield stub

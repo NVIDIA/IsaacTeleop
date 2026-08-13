@@ -15,9 +15,20 @@ SPDX-License-Identifier: Apache-2.0
 - **Keep `Serialized<T>` schema-agnostic.** It owns a buffer and re-points within it; it knows nothing about any field. Anything that assumes a wrapper's `data` field belongs in `<schema/tracked.hpp>` — `payload(handle)` — so a translation unit's includes say which it depends on.
 - **An empty handle is the absent payload** — device inactive, no sample yet, replay gap. Consumers test one condition (`if (handle)`). Do **not** reintroduce a wrapper table to carry optionality: that was what the `Tracked` tables did before the handle became nullable, and it made every read a two-step null check. The exception is the message channel, whose payload is a **list**: a batch needs a table to hold the vector, and "nothing this frame" is an empty batch rather than an absent one.
 
+## Generated `I<Name>TrackerImpl` headers
+
+Only **hand-written** trackers keep their `<name>_tracker_base.hpp` in `cpp/inc/deviceio_base/`.
+The impl interface for a tracker declared in
+[`../deviceio_trackers/trackers.toml`](../deviceio_trackers/trackers.toml) is generated into
+`${CMAKE_BINARY_DIR}/generated/trackers/deviceio_base/` and reaches consumers through the same
+`<deviceio_base/...>` include path, so a missing header there usually means a stale build tree
+rather than a missing file. Do not hand-add a base header for a manifest tracker.
+
 ## CMake
 
 - **`deviceio_base`** is an **INTERFACE** library: list only what the headers actually need (e.g. `isaacteleop_schema`). Do **not** link `OpenXR::headers` or `oxr::oxr_utils` here.
+- The generated-header directory is added by the packages that consume it (`deviceio_trackers`,
+  `live_trackers`, `replay_trackers`), not by this INTERFACE target.
 
 ## Fallout for dependents
 

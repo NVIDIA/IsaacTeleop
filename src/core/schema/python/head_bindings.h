@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the HeadPose FlatBuffer schema.
-// HeadPose is a table (pose + is_valid), exposed as an encoded view.
+// HeadPose is a table (pose, is_valid, is_tracked), exposed as an encoded view.
 
 #pragma once
 
@@ -25,19 +25,21 @@ inline void bind_head(py::module& m)
 {
     serialized_class<HeadPose>(m, "HeadPose", "Encoded head pose: a pose plus its validity flag.")
         .def(py::init(
-                 [](const Pose& pose, bool is_valid)
+                 [](const Pose& pose, bool is_valid, bool is_tracked)
                  {
                      HeadPoseT native;
                      native.pose = std::make_shared<Pose>(pose);
                      native.is_valid = is_valid;
+                     native.is_tracked = is_tracked;
                      return pack<HeadPose>(native);
                  }),
-             py::arg("pose") = Pose(), py::arg("is_valid") = false,
+             py::arg("pose") = Pose(), py::arg("is_valid") = false, py::arg("is_tracked") = false,
              "Encode a head pose. Defaults to an all-zero pose that is not valid.")
         .def_property_readonly(
             "pose", [](const Serialized<HeadPose>& self) { return self ? self->pose() : nullptr; },
             py::return_value_policy::reference_internal)
         .def_property_readonly("is_valid", [](const Serialized<HeadPose>& self) { return self && self->is_valid(); })
+        .def_property_readonly("is_tracked", [](const Serialized<HeadPose>& self) { return self && self->is_tracked(); })
         .def("__repr__",
              [](const Serialized<HeadPose>& self)
              {
@@ -47,7 +49,8 @@ inline void bind_head(py::module& m)
                  }
                  const Pose* pose = self->pose();
                  const std::string pose_str = pose != nullptr ? pose_repr(*pose) : "None";
-                 return "HeadPose(pose=" + pose_str + ", is_valid=" + (self->is_valid() ? "True" : "False") + ")";
+                 return "HeadPose(pose=" + pose_str + ", is_valid=" + (self->is_valid() ? "True" : "False") +
+                        ", is_tracked=" + (self->is_tracked() ? "True" : "False") + ")";
              });
 
     bind_record<HeadPoseRecord, HeadPose>(m, "HeadPoseRecord", "HeadPose");

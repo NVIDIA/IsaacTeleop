@@ -73,15 +73,12 @@ the plugin:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr              # terminal 1, keep running
-
-.. code-block:: bash
-
-   source ~/.cloudxr/run/cloudxr.env          # terminal 2
+   python -m isaacteleop.cloudxr.service start   # runs in the background
+   source ~/.cloudxr/run/cloudxr.env
    ./build/src/plugins/wuji_glove/wuji_glove_plugin
 
-See :ref:`run-cloudxr-server` and :ref:`load-cloudxr-environment-variables` for
-the full runtime setup. The plugin resolves each glove's side from device
+See :ref:`dedicated-cloudxr-runtime` and
+:ref:`load-cloudxr-environment-variables` for the full service setup. The plugin resolves each glove's side from device
 metadata and reconnects automatically after a disconnect; applications can also
 launch it through its ``plugin.yaml`` using ``TeleopSession``.
 

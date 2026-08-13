@@ -282,9 +282,13 @@ class TeleopRos2Node(Node):
         return 0
 
     def run(self) -> int:
-        # MCAP replay reads recorded tracker data and needs no live runtime; a
-        # live session needs the CloudXR runtime + WSS proxy, which the node now
-        # owns in-process via CloudXRLauncher (no separate runtime process).
+        # MCAP replay reads recorded tracker data and needs no live runtime.
+        #
+        # run_embedded: this node is the container's entrypoint, so there is no
+        # separate service to attach to and nothing else to outlive.  It owns
+        # the runtime and stops it on exit, and fails where one is already
+        # serving — host_client below configures a WSS proxy, which only the
+        # process that starts it can do.
         if self._params.session_mode != SessionMode.LIVE:
             return self._run_session_loop()
 
@@ -295,6 +299,7 @@ class TeleopRos2Node(Node):
             setup_oob=self._params.cloudxr_params.setup_oob,
             usb_local=self._params.cloudxr_params.usb_local,
             host_client=True,
+            run_embedded=True,
         ) as launcher:
             self.get_logger().info(
                 "CloudXR runtime and WSS proxy started "

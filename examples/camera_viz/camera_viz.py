@@ -426,24 +426,20 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "use --mode xr or shape: quad in window mode."
             )
 
-    # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
-    # headset clients) before creating the session — VizSession's OpenXR
-    # instance needs XR_RUNTIME_JSON + a running service, both of which the
-    # launcher provides. --no-launch-cloudxr-runtime skips this when a
-    # runtime is already up (e.g. after sourcing ~/.cloudxr/run/cloudxr.env).
-    # Window mode never launches a runtime.
+    # In XR mode, attach to the CloudXR runtime (+ WSS proxy for headset
+    # clients) before creating the session — VizSession's OpenXR instance
+    # needs XR_RUNTIME_JSON and a live runtime, both of which the launcher
+    # provides. Window mode never touches a runtime.
     # Entered manually (not ``with``) so the unclean-stop path below can
-    # SKIP the teardown: stopping the runtime while a worker thread is
-    # still inside session.render() would rip the OpenXR service out from
-    # under a live xrWaitFrame — the same hazard the skip-destroy
-    # mitigation exists for. The launcher registers an atexit stop, which
-    # fires once the stuck (non-daemon) thread finally exits.
+    # SKIP the teardown: stopping a runtime this process owns while a worker
+    # thread is still inside session.render() would rip the OpenXR service
+    # out from under a live xrWaitFrame.
     launch_ctx = (
         CloudXRLauncher.launch_context(args)
         if effective_mode == "xr"
         else contextlib.nullcontext(None)
     )
-    launch_ctx.__enter__()
+    launcher = launch_ctx.__enter__()
     stop_launcher = True
     try:
         session = _make_session(cfg, mode_override=args.mode)
@@ -484,7 +480,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         runner.start()
         try:
-            runner.wait()
+            runner.wait(
+                health_check=launcher.health_check if launcher is not None else None
+            )
         finally:
             # Skip session.destroy() when a worker thread is still alive —
             # it may be inside session.render() and destroying under it

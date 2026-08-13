@@ -19,11 +19,31 @@ examples. The instructions align with the project's CMake configuration and the 
 Prerequisites
 -------------
 
-- **CMake** 3.20 or higher
+- **CMake** 3.24 or higher (Ubuntu 22.04's apt ``cmake`` is 3.22 — install a newer one
+  from `Kitware's APT repository <https://apt.kitware.com/>`_ or with ``pip install cmake``)
 - **C++20** compatible compiler
 - **Python** 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
+
+.. note::
+   **Optional — only needed to build the Televiz visualization module,** ``BUILD_VIZ``.
+   ``BUILD_VIZ`` is auto-detected: it defaults to ``ON`` when all three of the following are
+   found at configure time and to ``OFF`` otherwise, so a core-only source build still
+   configures on a machine without them. Watch the
+   ``-- BUILD_VIZ: <ON|OFF> (Vulkan=... CUDAToolkit=... glslang=...)`` configure line to see
+   which one is missing.
+
+   - **Vulkan headers + loader** — ``libvulkan-dev`` on Linux, the LunarG SDK on Windows.
+   - **CUDA Toolkit** (cudart at link time) — ``nvidia-cuda-toolkit`` or the official NVIDIA
+     installer.
+   - **glslangValidator** for compiling shaders to SPIR-V — ``glslang-tools`` on Linux,
+     ``brew install glslang`` on macOS; ships with the Vulkan SDK on Windows.
+
+   ``BUILD_VIZ=ON`` also pulls in GLFW, whose CMake uses ``pkg_check_modules()`` — install
+   ``pkg-config`` as well, or the configure fails before viz is reached. Most users do not
+   need any of this: ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz``
+   module. See `Other Build options`_ for the full option table.
 
 .. _one-time-setup:
 
@@ -53,6 +73,14 @@ Our build system uses `uv`_ for Python version and dependency management. Instal
 .. code-block:: bash
 
    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+The installer drops ``uv`` in ``~/.local/bin``, which is not on ``PATH`` in most shells. Add it for
+the current shell — and to your ``~/.bashrc`` to make it stick — or every ``uv`` command below
+fails with ``uv: command not found``:
+
+.. code-block:: bash
+
+   export PATH="$HOME/.local/bin:$PATH"
 
 .. note::
    While the build system uses `uv`_, the final Python packages can be installed via any Python package manager
@@ -107,30 +135,28 @@ See :ref:`dedicated-cloudxr-runtime`.
 2. CMake: Configure and build
 -----------------------------
 
-From the project root, configure with a **preset** — there is one per supported
-Python version (``py3.11`` … ``py3.13``; see :code-file:`CMakePresets.json`). A
-preset selects the Python version and an isolated per-version build directory, so
-different versions never share (and clobber) one configured CMake cache:
+From the project root:
 
 .. code-block:: bash
 
-   cmake --preset py3.12                       # configure
-   cmake --build --preset py3.12 --parallel    # build
-   cmake --install build/cmake-cpython-312     # install
+   cmake -B build                       # configure
+   cmake --build build --parallel       # build
+   cmake --install build                # install
 
-``cmake --preset py3.12`` is shorthand for the explicit configure it expands to —
-an isolated build directory plus the Python version:
+Add any other options as ``-D`` flags on the configure line, for example
+``cmake -B build -DCMAKE_BUILD_TYPE=Debug``.
 
-.. code-block:: bash
+.. important::
 
-   cmake -B build/cmake-cpython-312 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+   The Python version is baked into a build directory's CMake cache and its build
+   venv, so ``ISAAC_TELEOP_PYTHON_VERSION`` cannot be changed on an existing tree —
+   configuring again with a different value fails with an explanatory error. Give
+   each version its own directory:
 
-Add any other options as ``-D`` flags on the same line; a command-line ``-D``
-overrides the preset (e.g. ``cmake --preset py3.12 -DCMAKE_BUILD_TYPE=Debug``).
-Pick the preset that matches your interpreter rather than overriding
-``ISAAC_TELEOP_PYTHON_VERSION`` by hand. (A bare ``cmake -B build`` still works
-for a quick default build — Python 3.11 into ``./build`` — but the presets are
-the recommended path.)
+   .. code-block:: bash
+
+      cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+      cmake --build build-py3.12 --parallel
 
 This will:
 
@@ -151,7 +177,7 @@ To disable enforcement, set ``ENABLE_CLANG_FORMAT_CHECK`` to ``OFF``:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DENABLE_CLANG_FORMAT_CHECK=OFF
+   cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
 
 Useful targets:
 
@@ -160,8 +186,8 @@ Useful targets:
 
 .. code-block:: bash
 
-   cmake --build --preset py3.12 --target clang_format_check
-   cmake --build --preset py3.12 --target clang_format_fix
+   cmake --build build --target clang_format_check
+   cmake --build build --target clang_format_fix
 
 Other Build options
 ~~~~~~~~~~~~~~~~~~~
@@ -220,7 +246,9 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
      - ``ON``
    * - **OAK camera plugin**
      - ``BUILD_PLUGIN_OAK_CAMERA``
-     - ``OFF``; requires Hunter/DepthAI when ``ON``
+     - ``OFF``; when ``ON``, builds DepthAI v3.x and pulls its dependencies through
+       vcpkg, so it also needs ``CMAKE_TOOLCHAIN_FILE`` on a fresh build directory.
+       See :doc:`/device/oak`.
    * - **Teleop ROS2 example only**
      - ``BUILD_EXAMPLE_TELEOP_ROS2``
      - ``OFF``; when ``ON``, only ``examples/teleop_ros2`` (e.g. Docker)
@@ -228,55 +256,59 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
 Examples
 ~~~~~~~~
 
-Build for a different Python version — use the matching preset (``py3.11``,
-``py3.12``, ``py3.13``):
+Build for a different Python version — each needs its own build directory
+(``3.11``, ``3.12``, ``3.13`` are supported):
 
 .. code-block:: bash
 
-   cmake --preset py3.12
-   cmake --build --preset py3.12 --parallel
+   cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+   cmake --build build-py3.12 --parallel
 
 Debug build:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DCMAKE_BUILD_TYPE=Debug
-   cmake --build --preset py3.12
+   cmake -B build -DCMAKE_BUILD_TYPE=Debug
+   cmake --build build
 
 Build without examples:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_EXAMPLES=OFF
-   cmake --build --preset py3.12
+   cmake -B build -DBUILD_EXAMPLES=OFF
+   cmake --build build
 
 Build without Python bindings:
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_PYTHON_BINDINGS=OFF
-   cmake --build --preset py3.12
+   cmake -B build -DBUILD_PYTHON_BINDINGS=OFF
+   cmake --build build
 
-Build with OAK camera plugin (pulls Hunter/DepthAI):
+Build with the OAK camera plugin. It needs the vcpkg toolchain, and CMake only
+reads ``CMAKE_TOOLCHAIN_FILE`` on a build tree's **first** configure, so delete
+``build/`` first if it already exists (see :doc:`/device/oak`):
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_PLUGIN_OAK_CAMERA=ON
-   cmake --build --preset py3.12
+   rm -rf build
+   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
+       -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+   cmake --build build --target camera_plugin_oak --parallel
 
 Build only the teleop_ros2 example (e.g. for Docker, as in :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` teleop-ros2-docker job):
 
 .. code-block:: bash
 
-   cmake --preset py3.12 -DBUILD_EXAMPLES=OFF -DBUILD_EXAMPLE_TELEOP_ROS2=ON
-   cmake --build --preset py3.12
+   cmake -B build -DBUILD_EXAMPLES=OFF -DBUILD_EXAMPLE_TELEOP_ROS2=ON
+   cmake --build build
 
-Clean rebuild (``--fresh`` wipes the preset's CMake cache and reconfigures):
+Clean rebuild (``--fresh`` wipes the CMake cache and reconfigures):
 
 .. code-block:: bash
 
-   cmake --preset py3.12 --fresh
-   cmake --build --preset py3.12
+   cmake -B build --fresh
+   cmake --build build
 
 3. Running tests
 ----------------
@@ -285,10 +317,10 @@ When ``BUILD_TESTING`` is ``ON``, CTest is enabled at the top level. Run all tes
 
 .. code-block:: bash
 
-   cmake --build --preset py3.12 --target test
+   cmake --build build --target test
 
    # Or with ctest (e.g. parallel, output on failure)
-   ctest --test-dir build/cmake-cpython-312 --output-on-failure --parallel
+   ctest --test-dir build --output-on-failure --parallel
 
 The CI uses ``ctest`` (see :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>`).
 
@@ -327,12 +359,11 @@ the released wheels) is unchanged, so the two coexist.
 
 .. note::
 
-   The CMake build tree is kept under ``build/wheel-<cache-tag>/`` (e.g.
-   ``build/wheel-cpython-311/``) — one per Python version, so different
+   The CMake build tree is kept under ``build-wheel/<cache-tag>/`` (e.g.
+   ``build-wheel/cpython-311/``) — one per Python version, so different
    interpreters never share a configured CMake cache — instead of a temporary
-   directory. Re-installs are therefore incremental. The classic CMake path uses
-   sibling ``build/cmake-<cache-tag>/`` trees (via the presets below) with the same
-   per-version tag, so the two never collide; ``build/`` is gitignored.
+   directory. Re-installs are therefore incremental. It sits outside ``build/``, so
+   it never collides with a classic ``cmake -B build`` tree. Both are gitignored.
 
 What this path does and how it differs from the classic flow:
 

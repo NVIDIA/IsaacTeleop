@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-cmake_minimum_required(VERSION 3.20...3.25)
+cmake_minimum_required(VERSION 3.24...3.25)
 
 # Workaround for older CMake policy compatibility in dependencies
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Minimum CMake policy version")
@@ -167,6 +167,7 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/haptic_feedback)
     if(BUILD_VIZ)
         add_subdirectory(examples/camera_viz/tests)
+        add_subdirectory(examples/mujoco_xr)
     endif()
 elseif(BUILD_EXAMPLE_TELEOP_ROS2)
     add_subdirectory(examples/teleop_ros2)
