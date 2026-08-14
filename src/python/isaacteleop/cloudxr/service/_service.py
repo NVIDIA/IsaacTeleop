@@ -21,6 +21,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -53,6 +54,18 @@ drop the live session.
 #: Runtime worker stderr, kept apart from runtime_stderr.log so the worker and
 #: :func:`~.runtime.run` never append to one file from two processes.
 _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
+
+
+def _set_pdeathsig() -> None:
+    """Ask the kernel to send SIGTERM to this process when its parent dies.
+
+    Called as subprocess preexec_fn so the runtime is cleaned up even if the
+    parent Python process is killed with SIGKILL or crashes.  Linux-only.
+    """
+    import ctypes  # noqa: PLC0415
+
+    ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG = 1
+
 
 _RUNTIME_WORKER_CODE = """\
 import sys, os
@@ -201,6 +214,7 @@ class CloudXRService:
                 env=worker_env,
                 stderr=stderr_file,
                 start_new_session=True,
+                preexec_fn=_set_pdeathsig if sys.platform != "win32" else None,
             )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
@@ -360,26 +374,45 @@ class CloudXRService:
 
     @staticmethod
     def _cleanup_stale_runtime(run_dir: str) -> None:
-        """Refuse to start over a live runtime; otherwise clear stale sentinels.
+        """Kill a stale runtime if one is running, then clear sentinel files.
 
-        A run directory holds one runtime.  Liveness is decided by
-        connecting to the IPC socket, not by its existence — the file
-        routinely outlives the process that made it.
-
-        Runs before :class:`EnvConfig` resolves anything: resolving rewrites
-        ``cloudxr.env`` in place, so a refused start would otherwise have
-        already replaced the live runtime's environment with its own.
+        Uses a connection probe to distinguish a live runtime from stale files,
+        and kills via pidfiles rather than external tools so it works inside
+        containers where fuser or cross-namespace kill would fail.
 
         Raises:
-            RuntimeError: If a runtime is already serving the run directory.
+            RuntimeError: If a live runtime is detected and cannot be stopped.
         """
         if is_runtime_live(run_dir):
-            raise RuntimeError(
-                _RUNTIME_ALREADY_SERVING.format(
-                    run_dir=run_dir,
-                    env_file=os.path.join(run_dir, ENV_FILE_NAME),
-                )
+            logger.warning(
+                "Stale CloudXR runtime detected at %s; terminating it", run_dir
             )
+            for pidfile in ("cloudxr.pid", "monado.pid"):
+                pid_path = os.path.join(run_dir, pidfile)
+                try:
+                    pid = int(Path(pid_path).read_text().strip())
+                    os.kill(pid, signal.SIGTERM)
+                    logger.info(
+                        "Sent SIGTERM to stale runtime pid %d (%s)", pid, pidfile
+                    )
+                except (
+                    FileNotFoundError,
+                    ValueError,
+                    ProcessLookupError,
+                    PermissionError,
+                    OSError,
+                ):
+                    pass
+
+            time.sleep(2.0)
+
+            if is_runtime_live(run_dir):
+                raise RuntimeError(
+                    _RUNTIME_ALREADY_SERVING.format(
+                        run_dir=run_dir,
+                        env_file=os.path.join(run_dir, ENV_FILE_NAME),
+                    )
+                )
 
         for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
             path = os.path.join(run_dir, name)
