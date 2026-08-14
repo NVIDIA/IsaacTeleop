@@ -369,10 +369,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -687,13 +688,15 @@ for all seven joints.</p>
 <p class="admonition-title">Warning</p>
 <p>The gateway takes <strong>exclusive</strong> ownership of the CAN bus — stop it before running any
 <code class="docutils literal notranslate"><span class="pre">motorbridge-cli</span></code> command, or the CLI will find nothing.</p>
-<p><code class="docutils literal notranslate"><span class="pre">start-gateway.sh</span></code> defaults to binding <code class="docutils literal notranslate"><span class="pre">0.0.0.0:9002</span></code> with the placeholder token <code class="docutils literal notranslate"><span class="pre">0000</span></code>.
-The gateway refuses a non-loopback bind unless <code class="docutils literal notranslate"><span class="pre">MOTORBRIDGE_WS_TOKEN</span></code> is set, so that token is
-the only thing between your network and a moving arm. Outside an isolated bench network,
-override both:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MOTORBRIDGE_WS_TOKEN</span><span class="o">=</span>&lt;token&gt;<span class="w"> </span><span class="nv">BIND</span><span class="o">=</span><span class="m">127</span>.0.0.1:9002<span class="w"> </span>./start-gateway.sh
+<p><code class="docutils literal notranslate"><span class="pre">start-gateway.sh</span></code> binds <code class="docutils literal notranslate"><span class="pre">127.0.0.1:9002</span></code>, which reaches Studio only from a browser on the
+Orin itself. Driving the arm from another machine means binding wider, and the gateway refuses
+that unless <code class="docutils literal notranslate"><span class="pre">MOTORBRIDGE_WS_TOKEN</span></code> is set — from then on that token is the only thing between
+your network and a moving arm, so make it a real one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MOTORBRIDGE_WS_TOKEN</span><span class="o">=</span>&lt;token&gt;<span class="w"> </span><span class="nv">BIND</span><span class="o">=</span><span class="m">0</span>.0.0.0:9002<span class="w"> </span>./start-gateway.sh
 </pre></div>
 </div>
+<p>A browser cannot set WebSocket request headers, so Studio has to carry the token in the URL:
+<code class="docutils literal notranslate"><span class="pre">ws://&lt;orin-ip&gt;:9002/?motorbridge_ws_token=&lt;token&gt;</span></code>.</p>
 </div>
 </section>
 <section id="let-an-agent-do-it">
@@ -729,7 +732,8 @@ ACKing</strong>. Check motor power before touching software or pinmux.</p>
 </div>
 <p>A controller loopback test proves the driver is alive but says nothing about your pins,
 transceiver, or wiring — it never leaves the chip:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>ip<span class="w"> </span>link<span class="w"> </span><span class="nb">set</span><span class="w"> </span>can0<span class="w"> </span>down
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> </span>can-utils<span class="w">   </span><span class="c1"># JetPack ships without it; the tools themselves need no root</span>
+sudo<span class="w"> </span>ip<span class="w"> </span>link<span class="w"> </span><span class="nb">set</span><span class="w"> </span>can0<span class="w"> </span>down
 sudo<span class="w"> </span>ip<span class="w"> </span>link<span class="w"> </span><span class="nb">set</span><span class="w"> </span>can0<span class="w"> </span><span class="nb">type</span><span class="w"> </span>can<span class="w"> </span>bitrate<span class="w"> </span><span class="m">1000000</span><span class="w"> </span>loopback<span class="w"> </span>on<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>ip<span class="w"> </span>link<span class="w"> </span><span class="nb">set</span><span class="w"> </span>can0<span class="w"> </span>up
 <span class="o">(</span><span class="w"> </span>timeout<span class="w"> </span><span class="m">2</span><span class="w"> </span>candump<span class="w"> </span>-n<span class="w"> </span><span class="m">1</span><span class="w"> </span>can0<span class="w"> </span><span class="p">&amp;</span><span class="w"> </span><span class="o">)</span><span class="p">;</span><span class="w"> </span>sleep<span class="w"> </span><span class="m">0</span>.4<span class="p">;</span><span class="w"> </span>cansend<span class="w"> </span>can0<span class="w"> </span><span class="m">123</span><span class="c1">#DEADBEEF</span>
 sudo<span class="w"> </span>ip<span class="w"> </span>link<span class="w"> </span><span class="nb">set</span><span class="w"> </span>can0<span class="w"> </span>down
@@ -767,7 +771,7 @@ interface name replaced and its <code class="docutils literal notranslate"><span
 run both routinely, a systemd template unit (<code class="docutils literal notranslate"><span class="pre">can-rebot&#64;.service</span></code>, enabled as
 <code class="docutils literal notranslate"><span class="pre">can-rebot&#64;can0</span></code> and <code class="docutils literal notranslate"><span class="pre">can-rebot&#64;can1</span></code>) collapses the two files back into one.</p></li>
 <li><p><strong>Two gateways.</strong> A gateway owns exactly one bus, so each arm needs its own on its own port —
-<code class="docutils literal notranslate"><span class="pre">BIND=127.0.0.1:9002</span> <span class="pre">./start-gateway.sh</span> <span class="pre">--channel</span> <span class="pre">can0</span></code> alongside
+<code class="docutils literal notranslate"><span class="pre">./start-gateway.sh</span> <span class="pre">--channel</span> <span class="pre">can0</span></code> on the default port alongside
 <code class="docutils literal notranslate"><span class="pre">BIND=127.0.0.1:9003</span> <span class="pre">./start-gateway.sh</span> <span class="pre">--channel</span> <span class="pre">can1</span></code>. Motor IDs may repeat across the two
 arms; the buses never see each other, so each keeps its own 1–7.</p></li>
 </ol>
@@ -913,7 +917,7 @@ arms; the buses never see each other, so each keeps its own 1–7.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 10, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

@@ -362,10 +362,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -440,7 +441,7 @@ APIs (<code class="docutils literal notranslate"><span class="pre">xrLocateSpace
 reading it from OpenXR tensor collections via the
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp" rel="noopener noreferrer" target="_blank">SchemaTracker</a> utility.</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp" rel="noopener noreferrer" target="_blank">FrameMetadataTrackerOak</a> – frame metadata for one OAK camera stream</p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/trackers.toml" rel="noopener noreferrer" target="_blank">FrameMetadataTrackerOak</a> – frame metadata for one OAK camera stream (generated)</p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp" rel="noopener noreferrer" target="_blank">Generic3AxisPedalTracker</a> – foot pedal axis values</p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio_trackers/joint_state_tracker.hpp" rel="noopener noreferrer" target="_blank">JointStateTracker</a> – named joint-space device state (leader arms, exoskeletons, gloves, …)</p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/cpp/inc/deviceio_trackers/se3_tracker.hpp" rel="noopener noreferrer" target="_blank">Se3Tracker</a> – generic SE3 (6-DoF) pose sources (tracker pucks, mocap rigid bodies, logical trackers)</p></li>
@@ -636,6 +637,7 @@ reads the PICO <code class="docutils literal notranslate"><span class="pre">XR_B
 <ul>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/schemaio/full_body_printer.cpp" rel="noopener noreferrer" target="_blank">examples/schemaio/full_body_printer.cpp</a></p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/mcap_record_replay/cpp/record_full_body.cpp" rel="noopener noreferrer" target="_blank">examples/mcap_record_replay/cpp/record_full_body.cpp</a></p></li>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/mcap_record_replay/python/live_full_body.py" rel="noopener noreferrer" target="_blank">examples/mcap_record_replay/python/live_full_body.py</a></p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/mcap_record_replay/python/record_full_body.py" rel="noopener noreferrer" target="_blank">examples/mcap_record_replay/python/record_full_body.py</a></p></li>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/mcap_record_replay/python/replay_full_body.py" rel="noopener noreferrer" target="_blank">examples/mcap_record_replay/python/replay_full_body.py</a></p></li>
 </ul>
@@ -656,7 +658,8 @@ stream, passing the tensor collection the plugin publishes that stream under –
 utility internally.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/oak.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/oak.fbs</a></p></li>
-<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio/frame_metadata_tracker_oak.hpp&gt;</span></code></p></li>
+<li><p>Manifest: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/trackers.toml" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/trackers.toml</a> (<code class="docutils literal notranslate"><span class="pre">frame_metadata_oak</span></code>)</p></li>
+<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio_trackers/frame_metadata_tracker_oak.hpp&gt;</span></code></p></li>
 <li><p>Python import: <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaacteleop.deviceio</span> <span class="pre">import</span> <span class="pre">FrameMetadataTrackerOak</span></code></p></li>
 <li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">oak</span></code>, <code class="docutils literal notranslate"><span class="pre">oak_tracked</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.FrameMetadataOakRecord</span></code></p></li>
 <li><p>Tests:</p>
@@ -909,7 +912,7 @@ construction; see <a class="reference internal" href="../getting_started/teleop_
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 10, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

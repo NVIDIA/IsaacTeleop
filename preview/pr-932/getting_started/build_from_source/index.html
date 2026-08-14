@@ -365,10 +365,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -456,6 +457,26 @@ from <a class="reference external" href="https://apt.kitware.com/" rel="noopener
 <li><p><strong>uv</strong> for Python dependency management and managed Python</p></li>
 <li><p><strong>Internet connection</strong> for downloading dependencies via CMake FetchContent</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Optional — only needed to build the Televiz visualization module,</strong> <code class="docutils literal notranslate"><span class="pre">BUILD_VIZ</span></code>.
+<code class="docutils literal notranslate"><span class="pre">BUILD_VIZ</span></code> is auto-detected: it defaults to <code class="docutils literal notranslate"><span class="pre">ON</span></code> when all three of the following are
+found at configure time and to <code class="docutils literal notranslate"><span class="pre">OFF</span></code> otherwise, so a core-only source build still
+configures on a machine without them. Watch the
+<code class="docutils literal notranslate"><span class="pre">--</span> <span class="pre">BUILD_VIZ:</span> <span class="pre">&lt;ON|OFF&gt;</span> <span class="pre">(Vulkan=...</span> <span class="pre">CUDAToolkit=...</span> <span class="pre">glslang=...)</span></code> configure line to see
+which one is missing.</p>
+<ul class="simple">
+<li><p><strong>Vulkan headers + loader</strong> — <code class="docutils literal notranslate"><span class="pre">libvulkan-dev</span></code> on Linux, the LunarG SDK on Windows.</p></li>
+<li><p><strong>CUDA Toolkit</strong> (cudart at link time) — <code class="docutils literal notranslate"><span class="pre">nvidia-cuda-toolkit</span></code> or the official NVIDIA
+installer.</p></li>
+<li><p><strong>glslangValidator</strong> for compiling shaders to SPIR-V — <code class="docutils literal notranslate"><span class="pre">glslang-tools</span></code> on Linux,
+<code class="docutils literal notranslate"><span class="pre">brew</span> <span class="pre">install</span> <span class="pre">glslang</span></code> on macOS; ships with the Vulkan SDK on Windows.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">BUILD_VIZ=ON</span></code> also pulls in GLFW, whose CMake uses <code class="docutils literal notranslate"><span class="pre">pkg_check_modules()</span></code> — install
+<code class="docutils literal notranslate"><span class="pre">pkg-config</span></code> as well, or the configure fails before viz is reached. Most users do not
+need any of this: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> already ships the compiled <code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>
+module. See <a class="reference internal" href="#other-build-options">Other Build options</a> for the full option table.</p>
+</div>
 </section>
 <section id="one-time-setup">
 <span id="id1"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">One time setup</a><a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
@@ -529,7 +550,7 @@ like this:</p>
 </div>
 <p>To package the experimental runtime into the wheel as <code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr_exp</span></code>, configure with
 <code class="docutils literal notranslate"><span class="pre">-DENABLE_CLOUDXR_EXP_BUNDLE=ON</span></code>. Select it at runtime with <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_CLOUDXR_EXP</span></code>.
-See <a class="reference internal" href="../../references/cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">Dedicated CloudXR Runtime</span></a>.</p>
+See <a class="reference internal" href="../../references/cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">CloudXR Service</span></a>.</p>
 </section>
 </section>
 <section id="cmake-configure-and-build">
@@ -975,7 +996,7 @@ targets, install the <code class="docutils literal notranslate"><span class="pre
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 10, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

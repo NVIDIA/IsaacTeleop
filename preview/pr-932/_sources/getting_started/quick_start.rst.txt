@@ -101,9 +101,11 @@ See :doc:`build_from_source/index` for more details.
 3. Configure CloudXR (optional)
 -------------------------------
 
-The teleop examples in this guide auto-launch the CloudXR runtime and its WSS
-proxy for you through ``CloudXRLauncher`` when they connect — you do **not**
-need to start the runtime in a separate terminal or source any environment file.
+The teleop examples in this guide bring CloudXR up for you when they connect —
+you do **not** need to start the runtime in a separate terminal or source any
+environment file. If nothing is serving yet, the example starts a CloudXR
+service in the background and prints how to stop it; that service outlives the
+example, so the headset stays connected from one run to the next.
 The first launch downloads the CloudXR Web Client SDK and asks you to review and
 accept the EULA on the terminal; answer the prompt once and the acceptance is
 remembered for subsequent runs.
@@ -116,19 +118,21 @@ remembered for subsequent runs.
 The CloudXR runtime uses the ``Quest3`` device profile by default; Apple Vision
 Pro needs ``auto-native``. The profile is set on the *runtime*, so applications
 inherit whatever the runtime they connect to was started with. To override it,
-or any other setting, write a ``KEY=value`` env file and pass it to the example
-with ``--cloudxr-env-config``:
+or any other setting, write a ``KEY=value`` env file and start the service with
+it:
 
 .. code-block:: bash
 
    echo 'NV_DEVICE_PROFILE=auto-native' > custom.env
-   python examples/teleop/python/gripper_retargeting_example_simple.py \
-         --cloudxr-env-config ./custom.env
+   python -m isaacteleop.cloudxr.service start --cloudxr-env-config ./custom.env
 
-The teleop examples under ``examples/teleop/python/`` all register CloudXR's
-launcher arguments through ``CloudXRLauncher.add_launcher_arguments()``, so
-the same ``--cloudxr-env-config`` flag is available on each of them. (The ROS 2
-example takes the equivalent ``cloudxr_env_config`` ROS parameter instead.)
+The same ``--cloudxr-env-config`` flag is available on the teleop examples under
+``examples/teleop/python/``, which register CloudXR's launcher arguments through
+``CloudXRLauncher.add_launcher_arguments()`` — but it applies only when the
+example is the one starting the runtime. With a service already running the
+example attaches to it instead, and prints which settings it had to ignore (see
+:doc:`/references/cloudxr`). (The ROS 2 example takes the equivalent
+``cloudxr_env_config`` ROS parameter instead.)
 To inspect the resolved settings after startup:
 
 .. code-block:: bash
@@ -137,9 +141,8 @@ To inspect the resolved settings after startup:
 
 .. note::
 
-   If you prefer to run the runtime yourself in its own terminal — e.g. to keep
-   the headset connection alive across example restarts, or to use launch modes
-   like ``--host-client`` and ``--setup-oob`` — see
+   To manage the service yourself — check what is running, stop it, or use
+   launch modes like ``--host-client`` and ``--setup-oob`` — see
    :doc:`/references/cloudxr`.
 
 .. list-table:: Environment variables

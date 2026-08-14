@@ -77,6 +77,7 @@ Table of Contents
 
    references/requirements
    references/build
+   references/generated_trackers
    references/retargeting/index
    references/camera_streaming
    references/mcap_record_replay

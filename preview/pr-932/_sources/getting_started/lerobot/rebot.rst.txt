@@ -251,14 +251,17 @@ for all seven joints.
    The gateway takes **exclusive** ownership of the CAN bus — stop it before running any
    ``motorbridge-cli`` command, or the CLI will find nothing.
 
-   ``start-gateway.sh`` defaults to binding ``0.0.0.0:9002`` with the placeholder token ``0000``.
-   The gateway refuses a non-loopback bind unless ``MOTORBRIDGE_WS_TOKEN`` is set, so that token is
-   the only thing between your network and a moving arm. Outside an isolated bench network,
-   override both:
+   ``start-gateway.sh`` binds ``127.0.0.1:9002``, which reaches Studio only from a browser on the
+   Orin itself. Driving the arm from another machine means binding wider, and the gateway refuses
+   that unless ``MOTORBRIDGE_WS_TOKEN`` is set — from then on that token is the only thing between
+   your network and a moving arm, so make it a real one:
 
    .. code-block:: bash
 
-      MOTORBRIDGE_WS_TOKEN=<token> BIND=127.0.0.1:9002 ./start-gateway.sh
+      MOTORBRIDGE_WS_TOKEN=<token> BIND=0.0.0.0:9002 ./start-gateway.sh
+
+   A browser cannot set WebSocket request headers, so Studio has to carry the token in the URL:
+   ``ws://<orin-ip>:9002/?motorbridge_ws_token=<token>``.
 
 Let an agent do it
 ------------------
@@ -300,6 +303,7 @@ transceiver, or wiring — it never leaves the chip:
 
 .. code-block:: bash
 
+   sudo apt install can-utils   # JetPack ships without it; the tools themselves need no root
    sudo ip link set can0 down
    sudo ip link set can0 type can bitrate 1000000 loopback on && sudo ip link set can0 up
    ( timeout 2 candump -n 1 can0 & ); sleep 0.4; cansend can0 123#DEADBEEF
@@ -343,6 +347,6 @@ Three things to sort out, in order:
    run both routinely, a systemd template unit (``can-rebot@.service``, enabled as
    ``can-rebot@can0`` and ``can-rebot@can1``) collapses the two files back into one.
 #. **Two gateways.** A gateway owns exactly one bus, so each arm needs its own on its own port —
-   ``BIND=127.0.0.1:9002 ./start-gateway.sh --channel can0`` alongside
+   ``./start-gateway.sh --channel can0`` on the default port alongside
    ``BIND=127.0.0.1:9003 ./start-gateway.sh --channel can1``. Motor IDs may repeat across the two
    arms; the buses never see each other, so each keeps its own 1–7.
