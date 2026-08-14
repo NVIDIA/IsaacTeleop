@@ -17,6 +17,7 @@ import contextlib
 import logging
 import os
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -44,6 +45,17 @@ sys.path = [p for p in sys.path if p]
 from {runtime_mod}.runtime import run
 run()
 """
+
+
+def _set_pdeathsig() -> None:
+    """Ask the kernel to send SIGTERM to this process when its parent dies.
+
+    Called as subprocess preexec_fn so the runtime is cleaned up even if the
+    parent Python process is killed with SIGKILL or crashes.  Linux-only.
+    """
+    import ctypes  # noqa: PLC0415
+
+    ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG = 1
 
 
 class CloudXRLauncher:
@@ -148,6 +160,7 @@ class CloudXRLauncher:
             require_web_client_static_dir()
 
         self._runtime_proc: subprocess.Popen | None = None
+        self._worker_stderr_log: Path | None = None
         self._wss_thread: threading.Thread | None = None
         self._wss_loop: asyncio.AbstractEventLoop | None = None
         self._wss_stop_future: asyncio.Future | None = None
@@ -191,16 +204,20 @@ class CloudXRLauncher:
             prev = worker_env.get("LD_PRELOAD")
             worker_env["LD_PRELOAD"] = f"{preload} {prev}" if prev else preload
 
-        self._runtime_proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
-            ],
-            env=worker_env,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
+        worker_stderr_log = logs_dir_path / "runtime_worker_stderr.log"
+        self._worker_stderr_log = worker_stderr_log
+        with open(worker_stderr_log, "w", encoding="utf-8") as _stderr_file:
+            self._runtime_proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
+                ],
+                env=worker_env,
+                stderr=_stderr_file,
+                start_new_session=True,
+                preexec_fn=_set_pdeathsig if sys.platform != "win32" else None,
+            )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
         if not self._atexit_registered:
@@ -571,39 +588,50 @@ class CloudXRLauncher:
 
     @staticmethod
     def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:
-        """Remove stale sentinel files from a previous runtime that wasn't cleaned up.
+        """Kill a stale runtime if one is running, then clear sentinel files.
 
-        If the ``ipc_cloudxr`` socket still exists in the run directory, a
-        previous Monado/CloudXR process is likely still alive.  We send
-        SIGTERM to the process group that owns the socket, giving it a
-        chance to exit cleanly before we start a fresh runtime.
+        Uses a connection probe for liveness (more reliable than file existence)
+        and kills via pidfiles so it works inside containers where fuser or
+        cross-namespace kill would fail.
         """
         run_dir = env_cfg.openxr_run_dir()
         ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
 
-        if os.path.exists(ipc_socket):
+        if not os.path.exists(ipc_socket):
+            return
+
+        is_live = False
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.5)
+                sock.connect(ipc_socket)
+            is_live = True
+        except (ConnectionRefusedError, FileNotFoundError, socket.timeout, OSError):
+            pass
+
+        if is_live:
             logger.warning(
-                "Stale CloudXR IPC socket found at %s; attempting cleanup of previous runtime",
-                ipc_socket,
+                "Stale CloudXR runtime detected at %s; terminating it", run_dir
             )
-            try:
-                result = subprocess.run(
-                    ["fuser", "-k", "-TERM", ipc_socket],
-                    capture_output=True,
-                    timeout=5,
-                )
-                if result.returncode == 0:
-                    time.sleep(1)
-                    logger.info("Sent SIGTERM to processes holding stale IPC socket")
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
+            for pidfile in ("cloudxr.pid", "monado.pid"):
+                pid_path = os.path.join(run_dir, pidfile)
+                try:
+                    pid = int(Path(pid_path).read_text().strip())
+                    os.kill(pid, signal.SIGTERM)
+                    logger.info(
+                        "Sent SIGTERM to stale runtime pid %d (%s)", pid, pidfile
+                    )
+                except (
+                    FileNotFoundError,
+                    ValueError,
+                    ProcessLookupError,
+                    PermissionError,
+                    OSError,
+                ):
+                    pass
+            time.sleep(2.0)
 
-            try:
-                os.remove(ipc_socket)
-            except FileNotFoundError:
-                pass
-
-        for name in ("runtime_started", "monado.pid", "cloudxr.pid"):
+        for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
             try:
                 os.remove(os.path.join(run_dir, name))
             except FileNotFoundError:
@@ -623,13 +651,14 @@ class CloudXRLauncher:
             exit_code = proc.poll()
             if exit_code is not None:
                 parts.append(f"Process exited with code {exit_code}.")
-                stderr_pipe = getattr(proc, "stderr", None)
-                if stderr_pipe is not None:
+                if self._worker_stderr_log and self._worker_stderr_log.is_file():
                     try:
-                        stderr_tail = stderr_pipe.read(_MAX_LOG_BYTES)
-                        if stderr_tail:
+                        content = self._worker_stderr_log.read_text(
+                            errors="replace"
+                        ).strip()
+                        if content:
                             parts.append(
-                                f"stderr: {stderr_tail.decode(errors='replace').strip()}"
+                                f"runtime_worker_stderr.log:\n{content[-_MAX_LOG_BYTES:]}"
                             )
                     except Exception:
                         pass
@@ -658,6 +687,10 @@ class CloudXRLauncher:
         stderr_log = logs_dir / "runtime_stderr.log"
         if stderr_log.is_file():
             result.append(stderr_log)
+
+        worker_stderr_log = logs_dir / "runtime_worker_stderr.log"
+        if worker_stderr_log.is_file():
+            result.append(worker_stderr_log)
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:
