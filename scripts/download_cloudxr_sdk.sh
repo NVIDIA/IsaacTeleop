@@ -6,12 +6,12 @@
 # Downloads the CloudXR Web Client SDK if not already present using NGC.
 # The SDK is extracted to deps/cloudxr/cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}/ for use by Dockerfile.web-app.
 #
-# Three ways to obtain the SDK (tried in order):
+# Two ways to obtain the SDK:
 # 1) Local tarball: place cloudxr-web-sdk-${CXR_WEB_SDK_VERSION}.tar.gz in deps/cloudxr/.
 #    The tarball must extract to the same layout as the NGC release: root must contain
 #    nvidia-cloudxr-${CXR_WEB_SDK_VERSION}.tgz (optionally inside a single top-level directory).
-# 2) Public NGC: downloads via curl from the public NGC resource API.
-# 3) Private NGC: downloads via curl from the private NGC resource API; requires NGC_API_KEY.
+# 2) Public NGC: RC versions use nvidia/cloudxr-js-prerelease directly. Other versions
+#    try nvidia/cloudxr-js first and fall back to nvidia/cloudxr-js-prerelease.
 
 set -Eeuo pipefail
 
@@ -94,11 +94,13 @@ install_from_local_tarball() {
 }
 
 # -----------------------------------------------------------------------------
-# Public NGC: download via curl from the public NGC resource API
-# Resource: nvidia/cloudxr-js/${CXR_WEB_SDK_VERSION}
+# Public NGC is anonymous. RC versions go directly to the unlisted prerelease resource;
+# non-RC versions try listed first and fall back to unlisted without credentials.
 # -----------------------------------------------------------------------------
 install_from_public_ngc() {
-    local NGC_URL="https://api.ngc.nvidia.com/v2/resources/org/nvidia/cloudxr-js/${CXR_WEB_SDK_VERSION}/files?redirect=true&path=${SDK_FILE}"
+    local resource="$1"
+    local visibility="$2"
+    local NGC_URL="https://api.ngc.nvidia.com/v2/resources/org/nvidia/${resource}/${CXR_WEB_SDK_VERSION}/files?redirect=true&path=${SDK_FILE}"
 
     if ! command -v curl &> /dev/null; then
         echo -e "${RED}Error: curl not found. Please install it first.${NC}"
@@ -113,7 +115,7 @@ install_from_public_ngc() {
 
     mkdir -p "$CXR_DEPLOYMENT_DIR"
 
-    echo -e "${YELLOW}Downloading CloudXR Web SDK from NGC...${NC}"
+    echo -e "${YELLOW}Downloading CloudXR Web SDK from ${visibility} NGC resource...${NC}"
     if ! curl --fail --location \
         --connect-timeout 10 --max-time 120 \
         --retry 3 --retry-delay 5 \
@@ -126,52 +128,6 @@ install_from_public_ngc() {
 
     echo -e "${GREEN}✓ CloudXR Web SDK installed successfully${NC}"
     echo ""
-}
-
-# -----------------------------------------------------------------------------
-# Private NGC: download via curl from the private NGC resource API
-# Resource: 0566138804516934/cloudxr-dev/cloudxr-js:${CXR_WEB_SDK_VERSION}
-# Requires NGC_API_KEY for Bearer-token auth.
-# -----------------------------------------------------------------------------
-install_from_private_ngc() {
-    local NGC_ORG="0566138804516934"
-    local NGC_TEAM="cloudxr-dev"
-    local NGC_RESOURCE="cloudxr-js"
-    local NGC_URL="https://api.ngc.nvidia.com/v2/org/${NGC_ORG}/team/${NGC_TEAM}/resources/${NGC_RESOURCE}/versions/${CXR_WEB_SDK_VERSION}/files/${SDK_FILE}"
-
-    if [[ -z "${NGC_API_KEY:-}" ]]; then
-        echo -e "${RED}Error: NGC_API_KEY is not set; cannot download from private NGC${NC}"
-        return 1
-    fi
-
-    if ! command -v curl &> /dev/null; then
-        echo -e "${RED}Error: curl not found. Please install it first.${NC}"
-        return 1
-    fi
-
-    echo -e "${GREEN}=================================================${NC}"
-    echo -e "${GREEN}Downloading CloudXR Web SDK from private NGC${NC}"
-    echo -e "${GREEN}=================================================${NC}"
-    echo ""
-
-    mkdir -p "$CXR_DEPLOYMENT_DIR"
-
-    echo -e "${YELLOW}Downloading CloudXR Web SDK from private NGC...${NC}"
-    if ! curl --fail --location \
-        --connect-timeout 10 --max-time 120 \
-        --retry 3 --retry-delay 5 \
-        -H "Authorization: Bearer $NGC_API_KEY" \
-        -H "Content-Type: application/json" \
-        --output "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
-        "$NGC_URL"; then
-        echo -e "${RED}Error: Failed to download CloudXR Web SDK from private NGC${NC}"
-        rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE"
-        return 1
-    fi
-
-    echo -e "${GREEN}✓ CloudXR Web SDK installed successfully${NC}"
-    echo ""
-    return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -199,15 +155,27 @@ if install_from_local_tarball; then
     exit 0
 fi
 
-echo "Cannot install from local tarball, trying public NGC..."
-if install_from_public_ngc; then
+if [[ "$CXR_WEB_SDK_VERSION" == *-rc* ]]; then
+    NGC_RESOURCE="cloudxr-js-prerelease"
+    NGC_VISIBILITY="unlisted"
+else
+    NGC_RESOURCE="cloudxr-js"
+    NGC_VISIBILITY="listed"
+fi
+
+echo "Cannot install from local tarball, trying ${NGC_VISIBILITY} public NGC..."
+if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
     exit 0
 fi
 
-echo "Cannot install from public NGC, trying private NGC..."
-if install_from_private_ngc; then
-    exit 0
+if [[ "$NGC_VISIBILITY" == "listed" ]]; then
+    NGC_RESOURCE="cloudxr-js-prerelease"
+    NGC_VISIBILITY="unlisted"
+    echo "Cannot install from listed public NGC, trying unlisted public NGC..."
+    if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
+        exit 0
+    fi
 fi
 
-echo "Cannot install from private NGC, exiting..."
+echo "Cannot install from ${NGC_VISIBILITY} public NGC, exiting..."
 exit 1

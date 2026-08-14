@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[[tracker]]
+name = "joint_state"
+table = "JointStateOutput"
+max_flatbuffer_size = 4096
+
+[[tracker]]
+name = "se3_tracker"
+table = "Se3TrackerPose"
+class = "Se3Tracker"
+max_flatbuffer_size = 256
+facade_tensor_constant = true
+
+[[tracker]]
+name = "oglo_tactile"
+table = "OgloGloveSample"
+channel = "oglo"
+python_accessor = "get_glove_data"
+
+[[tracker]]
+name = "generic_3axis_pedal"
+table = "Generic3AxisPedalOutput"
+schema = "pedals"
+channel = "pedals"
+traits = "PedalRecordingTraits"
+max_flatbuffer_size = 256
+python_accessor = "get_pedal_data"
+
+[[tracker]]
+name = "haptic_command"
+direction = "push"
+table = "HapticCommand"
+schema = "haptic_command"
+tensor_identifier = "haptic_command"
+max_flatbuffer_size = 256
+
+[[tracker]]
+name = "frame_metadata_oak"
+table = "FrameMetadataOak"
+class = "FrameMetadataTrackerOak"
+schema = "oak"
+tensor_identifier = "frame_metadata"
+channel = "oak"
+header = "frame_metadata_tracker_oak"
+max_flatbuffer_size = 128

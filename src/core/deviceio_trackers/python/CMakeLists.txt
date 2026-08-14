@@ -10,6 +10,11 @@ target_link_libraries(deviceio_trackers_py
         deviceio::deviceio_trackers
 )
 
+target_include_directories(deviceio_trackers_py
+    PRIVATE
+        ${GENERATED_TRACKER_INC_DIR}
+)
+
 set_target_properties(deviceio_trackers_py PROPERTIES
     OUTPUT_NAME "_deviceio_trackers"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_trackers"

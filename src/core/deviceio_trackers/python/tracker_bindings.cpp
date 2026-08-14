@@ -1,27 +1,25 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include "generated_tracker_binding_includes.inc"
+
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
-#include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
+#include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
-#include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
-#include <deviceio_trackers/oglo_tactile_tracker.hpp>
-#include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
 #include <schema/message_channel_generated.h>
-#include <schema/oak_generated.h>
 
 #include <array>
 #include <cstring>
 #include <memory>
 #include <stdexcept>
+#include <string_view>
 
 namespace py = pybind11;
 
@@ -167,44 +165,26 @@ PYBIND11_MODULE(_deviceio_trackers, m)
                const core::MessageChannelMessagesT& message) { self.send_message(session, message.payload); },
             py::arg("session"), py::arg("message"), "Send a MessageChannelMessages payload over the message channel");
 
-    py::class_<core::FrameMetadataTrackerOak, core::ITracker, std::shared_ptr<core::FrameMetadataTrackerOak>>(
-        m, "FrameMetadataTrackerOak")
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::FrameMetadataTrackerOak::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a FrameMetadataTrackerOak for one OAK stream's tensor collection, named "
-             "\"{collection_prefix}/{StreamName}\" (e.g. \"oak_camera/Color\"); create one per stream")
+    py::class_<core::HapticCommandReaderTracker, core::ITracker, std::shared_ptr<core::HapticCommandReaderTracker>>(
+        m, "HapticCommandReaderTracker")
+        .def(py::init<const std::string&, std::size_t>(), py::arg("collection_id"),
+             py::arg("max_payload_size") = core::HapticCommandReaderTracker::DEFAULT_MAX_PAYLOAD_SIZE)
         .def(
             "get_data",
-            [](const core::FrameMetadataTrackerOak& self, const core::ITrackerSession& session)
+            [](const core::HapticCommandReaderTracker& self, const core::ITrackerSession& session)
             { return share_tracked(self.get_data(session)); },
             py::arg("session"),
-            "Get this stream's FrameMetadataOakTrackedT; .data is None until first frame "
-            "arrives" TRACKED_LIFETIME_DOC);
-
-    py::class_<core::Generic3AxisPedalTracker, core::ITracker, std::shared_ptr<core::Generic3AxisPedalTracker>>(
-        m, "Generic3AxisPedalTracker")
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::Generic3AxisPedalTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a Generic3AxisPedalTracker for the given tensor collection ID")
+            "Get the latest haptic command tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC)
         .def(
-            "get_pedal_data",
-            [](const core::Generic3AxisPedalTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the current foot pedal tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);
+            "get_data",
+            [](const core::HapticCommandReaderTracker& self, const core::ITrackerSession& session,
+               std::string_view endpoint) { return share_tracked(self.get_data(session, endpoint)); },
+            py::arg("session"), py::arg("endpoint"),
+            "Get the latest haptic command for one endpoint" TRACKED_LIFETIME_DOC);
 
-    py::class_<core::OgloTactileTracker, core::ITracker, std::shared_ptr<core::OgloTactileTracker>>(
-        m, "OgloTactileTracker")
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::OgloTactileTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct an OgloTactileTracker for the given tensor collection ID "
-             "(e.g. 'oglo/left' / 'oglo/right', matching the oglo_tactile plugin's --collection-prefix)")
-        .def(
-            "get_glove_data",
-            [](const core::OgloTactileTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the current tactile glove tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);
+    // py::class_ blocks for every manifest tracker; the accessor name comes from the
+    // manifest's python_accessor key.
+#include "generated_tracker_bindings.inc"
 
     py::class_<core::TensorPushTracker, core::ITracker, std::shared_ptr<core::TensorPushTracker>> tensor_push_tracker(
         m, "TensorPushTracker");
@@ -225,30 +205,6 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             },
             py::arg("session"), py::arg("payload"),
             "Push one serialized payload (bytes, length <= max_payload_size) to the paired consumer.");
-    py::class_<core::JointStateTracker, core::ITracker, std::shared_ptr<core::JointStateTracker>>(m, "JointStateTracker")
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct a JointStateTracker for the given tensor collection ID (one generic "
-             "joint-space device: leader arm, exoskeleton, ...)")
-        .def(
-            "get_data",
-            [](const core::JointStateTracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the current joint-state tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);
-
-    py::class_<core::Se3Tracker, core::ITracker, std::shared_ptr<core::Se3Tracker>>(m, "Se3Tracker")
-        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
-             py::arg("max_flatbuffer_size") = core::Se3Tracker::DEFAULT_MAX_FLATBUFFER_SIZE,
-             "Construct an Se3Tracker for the given tensor collection ID (one generic SE3 "
-             "6-DoF pose source: tracker puck, mocap rigid body, logical tracker, ...)")
-        .def(
-            "get_data",
-            [](const core::Se3Tracker& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
-            py::arg("session"),
-            "Get the current SE3 tracked state (data is None when no data available; gate on "
-            "data.is_valid before consuming the pose)" TRACKED_LIFETIME_DOC);
 
     py::class_<core::FullBodyTracker, core::ITracker, std::shared_ptr<core::FullBodyTracker>>(m, "FullBodyTracker")
         .def(py::init<>(),

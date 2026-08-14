@@ -1,0 +1,55 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Every OpenGL entry point this module calls: the name we call it by, then the
+// spelling its glcorearb.h PFNGL...PROC typedef uses.
+//
+// No include guard, deliberately: gl.hpp and gl.cpp include this three times
+// over with MUJOCO_XR_GL defined differently -- declare, define, load -- so no
+// two lists can drift and leave an entry point null at the first call.
+
+MUJOCO_XR_GL(Enable, ENABLE)
+MUJOCO_XR_GL(Disable, DISABLE)
+MUJOCO_XR_GL(GetError, GETERROR)
+MUJOCO_XR_GL(Viewport, VIEWPORT)
+MUJOCO_XR_GL(PixelStorei, PIXELSTOREI)
+MUJOCO_XR_GL(GetIntegerv, GETINTEGERV)
+MUJOCO_XR_GL(ReadPixels, READPIXELS)
+MUJOCO_XR_GL(DrawArrays, DRAWARRAYS)
+MUJOCO_XR_GL(GenTextures, GENTEXTURES)
+MUJOCO_XR_GL(DeleteTextures, DELETETEXTURES)
+MUJOCO_XR_GL(BindTexture, BINDTEXTURE)
+MUJOCO_XR_GL(TexImage2D, TEXIMAGE2D)
+MUJOCO_XR_GL(TexParameteri, TEXPARAMETERI)
+MUJOCO_XR_GL(ActiveTexture, ACTIVETEXTURE)
+MUJOCO_XR_GL(GenFramebuffers, GENFRAMEBUFFERS)
+MUJOCO_XR_GL(DeleteFramebuffers, DELETEFRAMEBUFFERS)
+MUJOCO_XR_GL(BindFramebuffer, BINDFRAMEBUFFER)
+MUJOCO_XR_GL(FramebufferTexture2D, FRAMEBUFFERTEXTURE2D)
+MUJOCO_XR_GL(CheckFramebufferStatus, CHECKFRAMEBUFFERSTATUS)
+MUJOCO_XR_GL(GetFramebufferAttachmentParameteriv, GETFRAMEBUFFERATTACHMENTPARAMETERIV)
+MUJOCO_XR_GL(BlitFramebuffer, BLITFRAMEBUFFER)
+MUJOCO_XR_GL(DrawBuffers, DRAWBUFFERS)
+MUJOCO_XR_GL(ReadBuffer, READBUFFER)
+MUJOCO_XR_GL(GenBuffers, GENBUFFERS)
+MUJOCO_XR_GL(DeleteBuffers, DELETEBUFFERS)
+MUJOCO_XR_GL(BindBuffer, BINDBUFFER)
+MUJOCO_XR_GL(BufferData, BUFFERDATA)
+MUJOCO_XR_GL(GenVertexArrays, GENVERTEXARRAYS)
+MUJOCO_XR_GL(DeleteVertexArrays, DELETEVERTEXARRAYS)
+MUJOCO_XR_GL(BindVertexArray, BINDVERTEXARRAY)
+MUJOCO_XR_GL(CreateShader, CREATESHADER)
+MUJOCO_XR_GL(ShaderSource, SHADERSOURCE)
+MUJOCO_XR_GL(CompileShader, COMPILESHADER)
+MUJOCO_XR_GL(GetShaderiv, GETSHADERIV)
+MUJOCO_XR_GL(GetShaderInfoLog, GETSHADERINFOLOG)
+MUJOCO_XR_GL(DeleteShader, DELETESHADER)
+MUJOCO_XR_GL(CreateProgram, CREATEPROGRAM)
+MUJOCO_XR_GL(AttachShader, ATTACHSHADER)
+MUJOCO_XR_GL(LinkProgram, LINKPROGRAM)
+MUJOCO_XR_GL(GetProgramiv, GETPROGRAMIV)
+MUJOCO_XR_GL(GetProgramInfoLog, GETPROGRAMINFOLOG)
+MUJOCO_XR_GL(DeleteProgram, DELETEPROGRAM)
+MUJOCO_XR_GL(UseProgram, USEPROGRAM)
+MUJOCO_XR_GL(GetUniformLocation, GETUNIFORMLOCATION)
+MUJOCO_XR_GL(Uniform1i, UNIFORM1I)

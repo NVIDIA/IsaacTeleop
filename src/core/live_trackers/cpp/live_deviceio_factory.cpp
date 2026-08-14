@@ -3,31 +3,22 @@
 
 #include "inc/live_trackers/live_deviceio_factory.hpp"
 
+#include "generated_live_includes.inc"
 #include "live_controller_tracker_impl.hpp"
-#include "live_frame_metadata_tracker_oak_impl.hpp"
 #include "live_full_body_tracker_noitom_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
-#include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
 #include "live_haptic_command_reader_tracker_impl.hpp"
 #include "live_head_tracker_impl.hpp"
-#include "live_joint_state_tracker_impl.hpp"
 #include "live_message_channel_tracker_impl.hpp"
-#include "live_oglo_tactile_tracker_impl.hpp"
-#include "live_se3_tracker_impl.hpp"
 #include "live_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
-#include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
-#include <deviceio_trackers/joint_state_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
-#include <deviceio_trackers/oglo_tactile_tracker.hpp>
-#include <deviceio_trackers/se3_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
@@ -101,12 +92,6 @@ std::unique_ptr<ITrackerImpl> try_create_full_body_noitom_impl(LiveDeviceIOFacto
     return typed ? factory.create_full_body_tracker_noitom_impl(typed) : nullptr;
 }
 
-std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
-{
-    auto* typed = dynamic_cast<const Generic3AxisPedalTracker*>(&tracker);
-    return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
-}
-
 std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const TensorPushTracker*>(&tracker);
@@ -119,29 +104,7 @@ std::unique_ptr<ITrackerImpl> try_create_haptic_command_reader_impl(LiveDeviceIO
     return typed ? factory.create_haptic_command_reader_tracker_impl(typed) : nullptr;
 }
 
-std::unique_ptr<ITrackerImpl> try_create_joint_state_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
-{
-    auto* typed = dynamic_cast<const JointStateTracker*>(&tracker);
-    return typed ? factory.create_joint_state_tracker_impl(typed) : nullptr;
-}
-
-std::unique_ptr<ITrackerImpl> try_create_se3_tracker_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
-{
-    auto* typed = dynamic_cast<const Se3Tracker*>(&tracker);
-    return typed ? factory.create_se3_tracker_impl(typed) : nullptr;
-}
-
-std::unique_ptr<ITrackerImpl> try_create_oak_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
-{
-    auto* typed = dynamic_cast<const FrameMetadataTrackerOak*>(&tracker);
-    return typed ? factory.create_frame_metadata_tracker_oak_impl(typed) : nullptr;
-}
-
-std::unique_ptr<ITrackerImpl> try_create_oglo_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
-{
-    auto* typed = dynamic_cast<const OgloTactileTracker*>(&tracker);
-    return typed ? factory.create_oglo_tactile_tracker_impl(typed) : nullptr;
-}
+#include "generated_live_try_create.inc"
 
 using CollectExtensionsFn = bool (*)(const ITracker&, std::set<std::string>&);
 using TypeMatchesFn = bool (*)(const ITracker&);
@@ -181,14 +144,11 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerPicoImpl>(&try_create_full_body_pico_impl, "body.pico-xr"),
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerNoitomImpl>(
         &try_create_full_body_noitom_impl, LiveFullBodyTrackerNoitomImpl::VENDOR_ID),
-    make_dispatch_entry<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>(&try_create_generic_pedal_impl),
     make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
     make_dispatch_entry<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>(
         &try_create_haptic_command_reader_impl),
-    make_dispatch_entry<JointStateTracker, LiveJointStateTrackerImpl>(&try_create_joint_state_impl),
-    make_dispatch_entry<Se3Tracker, LiveSe3TrackerImpl>(&try_create_se3_tracker_impl),
-    make_dispatch_entry<FrameMetadataTrackerOak, LiveFrameMetadataTrackerOakImpl>(&try_create_oak_impl),
-    make_dispatch_entry<OgloTactileTracker, LiveOgloTactileTrackerImpl>(&try_create_oglo_impl),
+// Manifest trackers are single-vendor, so their rows can sit last as a block.
+#include "generated_live_dispatch_rows.inc"
 };
 
 // Find a tracker's vendor selection in the config, or nullptr when unlisted.
@@ -493,28 +453,6 @@ std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_trac
     return std::make_unique<LiveFullBodyTrackerNoitomImpl>(handles_, *vendor, std::move(channels));
 }
 
-std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_generic_3axis_pedal_tracker_impl(
-    const Generic3AxisPedalTracker* tracker)
-{
-    std::unique_ptr<PedalMcapChannels> channels;
-    if (should_record(tracker))
-    {
-        channels = LiveGeneric3AxisPedalTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
-    }
-    return std::make_unique<LiveGeneric3AxisPedalTrackerImpl>(handles_, tracker, std::move(channels));
-}
-
-std::unique_ptr<IOgloTactileTrackerImpl> LiveDeviceIOFactory::create_oglo_tactile_tracker_impl(
-    const OgloTactileTracker* tracker)
-{
-    std::unique_ptr<OgloMcapChannels> channels;
-    if (should_record(tracker))
-    {
-        channels = LiveOgloTactileTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
-    }
-    return std::make_unique<LiveOgloTactileTrackerImpl>(handles_, tracker, std::move(channels));
-}
-
 std::unique_ptr<ITensorPushTrackerImpl> LiveDeviceIOFactory::create_tensor_push_tracker_impl(const TensorPushTracker* tracker)
 {
     return std::make_unique<LiveTensorPushTrackerImpl>(handles_, tracker);
@@ -526,35 +464,6 @@ std::unique_ptr<IHapticCommandReaderTrackerImpl> LiveDeviceIOFactory::create_hap
     return std::make_unique<LiveHapticCommandReaderTrackerImpl>(handles_, tracker);
 }
 
-std::unique_ptr<IJointStateTrackerImpl> LiveDeviceIOFactory::create_joint_state_tracker_impl(const JointStateTracker* tracker)
-{
-    std::unique_ptr<JointStateMcapChannels> channels;
-    if (should_record(tracker))
-    {
-        channels = LiveJointStateTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
-    }
-    return std::make_unique<LiveJointStateTrackerImpl>(handles_, tracker, std::move(channels));
-}
-
-std::unique_ptr<ISe3TrackerImpl> LiveDeviceIOFactory::create_se3_tracker_impl(const Se3Tracker* tracker)
-{
-    std::unique_ptr<Se3TrackerMcapChannels> channels;
-    if (should_record(tracker))
-    {
-        channels = LiveSe3TrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
-    }
-    return std::make_unique<LiveSe3TrackerImpl>(handles_, tracker, std::move(channels));
-}
-
-std::unique_ptr<IFrameMetadataTrackerOakImpl> LiveDeviceIOFactory::create_frame_metadata_tracker_oak_impl(
-    const FrameMetadataTrackerOak* tracker)
-{
-    std::unique_ptr<OakMcapChannels> channels;
-    if (should_record(tracker))
-    {
-        channels = LiveFrameMetadataTrackerOakImpl::create_mcap_channels(*writer_, get_name(tracker));
-    }
-    return std::make_unique<LiveFrameMetadataTrackerOakImpl>(handles_, tracker, std::move(channels));
-}
+#include "generated_live_factory_methods.inc"
 
 } // namespace core

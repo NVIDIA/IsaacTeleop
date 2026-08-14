@@ -1,0 +1,91 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# This example is its own wheel, and the wheel is the only way to run it:
+#
+#     uv pip install ./examples/mujoco_xr
+#     python -m isaacteleop_examples.mujoco_xr     # needs a headset + CloudXR
+#
+# Its own wheel because _mujoco_xr links libmujoco: folded into `isaacteleop`,
+# that wheel's contents would depend on whether the build host had mujoco.
+# `install_python_example()` cannot ship a compiled, ABI-tagged extension.
+
+[build-system]
+requires = [
+    "scikit-build-core>=1.0",
+    # Not pinned to the root build's pybind11: no pybind11-registered type
+    # crosses this boundary, so the two share no ABI.
+    "pybind11>=2.12",
+    # Not optional: the extension compiles against this wheel's headers, and
+    # without it an isolated build emits a wheel with no extension. Always equal
+    # to `dependencies` below -- and never restate the number in prose here,
+    # since CMakeLists.txt matches every `mujoco==` in this file.
+    "mujoco==3.11.0",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+# The dist name mirrors the import path rather than the directory name, so an
+# installed example does not claim a bare top-level `mujoco_xr` in
+# site-packages, right next to the real `mujoco`.
+name = "isaacteleop-examples-mujoco-xr"
+version = "0.0.0"  # Internal example - not versioned
+description = "MuJoCo scene rendered into an Isaac Teleop Televiz XR session"
+
+# A range, not a pin: scikit-build-core tags the wheel with the installing
+# interpreter's ABI. Bounds match ISAAC_TELEOP_PYTHON_VERSION_MIN /
+# _MAX_EXCLUSIVE in the root CMakeLists.txt.
+requires-python = ">=3.11,<3.14"
+
+dependencies = [
+    # Run-time mujoco, equal to the build-time pin above. Exactly one libmujoco
+    # may be loaded: mjModel* / mjData* addresses cross the pybind boundary.
+    "mujoco==3.11.0",
+    # Unversioned, and a live hazard: a published isaacteleop exists on PyPI, so
+    # this resolves happily against a release that is not this checkout's viz.
+    # Install the locally built wheel first, into the same environment:
+    #   uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/
+    "isaacteleop",
+    # app.py imports numpy directly. mujoco would pull it in anyway, but a
+    # transitive dependency imported by name breaks on an upstream change.
+    "numpy",
+]
+
+[tool.scikit-build]
+# Floor matches CMakeLists.txt's cmake_minimum_required; the <4 cap mirrors the
+# root pyproject.toml.
+cmake.version = ">=3.20,<4"
+cmake.build-type = "Release"
+
+# Persistent, so `uv pip install --reinstall-package ...` stays incremental
+# instead of reconfiguring from scratch. `{cache_tag}` keeps per-interpreter
+# caches apart. `**/build/` is gitignored.
+build-dir = "build/wheel-{cache_tag}"
+
+# `wheel.packages` owns every authored file under the package; CMake's
+# install(TARGETS) owns the one build-produced file. Their intersection must be
+# empty, and without this line it is not, because the in-tree build drops its
+# own .so there for ctest. Measured: omit it and a cp313 wheel ships the root
+# build's stale cp312 .so as well.
+#
+# `sdist.exclude`, not `wheel.exclude`: the latter is applied twice, so `*.so`
+# there would delete the freshly compiled extension too.
+[tool.scikit-build.sdist]
+exclude = ["python/isaacteleop_examples/mujoco_xr/*.so"]
+
+# Key is the path inside the wheel, value the source directory.
+#
+# `isaacteleop_examples` is deliberately not listed: it is a PEP 420 namespace
+# with no __init__.py and no owner, and scikit-build-core creates the
+# intermediate directory from this key. Adding an __init__.py there (or listing
+# the directory as a package) makes it a regular package owned by this wheel,
+# and a second example distribution then collides or is shadowed.
+[tool.scikit-build.wheel]
+packages = { "isaacteleop_examples/mujoco_xr" = "python/isaacteleop_examples/mujoco_xr" }
+
+# The absent [tool.scikit-build.editable] block is deliberate. `pip install -e`
+# is not supported: an editable install redirects the package back to the source
+# tree, which is where the in-tree CMake build drops its own _mujoco_xr*.so, so
+# you would silently import that one instead. `mode = "redirect"` is already the
+# default, so adding the block would not help. Use
+# `uv pip install --reinstall-package isaacteleop-examples-mujoco-xr .` instead.

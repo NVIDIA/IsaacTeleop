@@ -7,11 +7,47 @@ SPDX-License-Identifier: Apache-2.0
 
 **CRITICAL (non-optional):** Before editing this package, complete the mandatory **`AGENTS.md` preflight** in [`../../../AGENTS.md`](../../../AGENTS.md) (read every applicable `AGENTS.md` on your paths, not just this file).
 
+## Schema-based trackers come from the manifest — do not hand-write them
+
+A **schema-based** tracker is one whose live impl only moves a FlatBuffer table between a plugin's
+`SchemaPusher` and the host via `SchemaTracker` or `SchemaPusher` (no `xrLocate*` calls, no custom
+connection state). Those are declared
+in **[`trackers.toml`](trackers.toml)** and generated at configure time by
+[`../codegen/generate_trackers.py`](../codegen/generate_trackers.py); the facade `.hpp`/`.cpp` land
+under `${CMAKE_BINARY_DIR}/generated/trackers/`, **not** in `cpp/`.
+
+- **Adding one is a manifest edit**, not a new source file: `name` and `table` are required, every
+  other key has a `%placeholder%` default in [`defaults.toml`](defaults.toml). Override a key only
+  where the convention genuinely does not hold (`se3_tracker` sets `class`; `generic_3axis_pedal`
+  sets `schema` because its `.fbs` is `pedals.fbs`; `frame_metadata_oak` sets `header` so the
+  public `#include` stem stays `frame_metadata_tracker_oak`).
+- **`direction = "push"`** generates a typed `<Table>PushTracker` (Teleop → plugin) instead of a
+  reader facade. `TensorPushTracker` stays as the untyped `bytes` escape hatch — keep it.
+- **Do not hand-register a manifest tracker.** Factory dispatch rows, factory methods, pybind
+  blocks, MCAP recording traits, and the Python `__all__` are emitted as `.inc` fragments that the
+  hand-written files `#include`; adding a row yourself produces a duplicate definition.
+- **`__init__.py` needs no edit for new manifest trackers.**
+  [`../../../python/isaacteleop/deviceio_trackers/__init__.py`](../../../python/isaacteleop/deviceio_trackers/__init__.py)
+  star-imports `_generated_tracker_exports` (staged from configure-time codegen into the wheel
+  tree; for scikit-build-core / editable installs it is also installed via ``isaacteleop_wheel``
+  because it is not authored under ``src/python/``) and splices its ``__all__``. The legacy `isaacteleop.deviceio` shim is a **frozen** compat
+  surface — do not extend it with new generated trackers.
+
+**Still hand-written:** the `.fbs` schema and its `schema/python/*_bindings.h` pybind file (codegen
+starts at the tracker layer, not the schema layer); `head`, `hand`, `controller`, `full_body`,
+`message_channel`, and `HapticCommandReaderTracker` (multi-sample bucketing by
+`HapticCommand.endpoint` on one push-tensor collection).
+
 ## No OpenXR dependency
 
 - **`deviceio_trackers`** must **not** link **`OpenXR::headers`**, **`oxr::oxr_utils`**, or vendor extension targets, and must **not** `#include` OpenXR headers. Public API stays schema + **`deviceio_base`** only.
 - This includes **`tracker_bindings.cpp`**: do not add `#include <openxr/openxr.h>` or any `XR_NV_*` extension headers here, even when the bound tracker wraps an OpenXR concept. The UUID is `std::array<uint8_t, 16>` at the `deviceio_trackers` boundary—no OpenXR types leak through.
+- The generated facades hold the same line: they take a `collection_id` string and dispatch through
+  `deviceio_base`, so OpenXR stays on the `live_trackers` side of the boundary.
 
 ## Related docs
 
+- Manifest and generator rules: [`../codegen/AGENTS.md`](../codegen/AGENTS.md)
 - Base interface: [`../deviceio_base/AGENTS.md`](../deviceio_base/AGENTS.md)
+- Live impls and factory: [`../live_trackers/AGENTS.md`](../live_trackers/AGENTS.md)
+- Replay impls and factory: [`../replay_trackers/AGENTS.md`](../replay_trackers/AGENTS.md)

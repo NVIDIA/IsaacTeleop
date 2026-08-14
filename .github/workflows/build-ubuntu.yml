@@ -82,8 +82,6 @@ jobs:
     - name: Setup CloudXR SDK
       id: cloudxr-sdk
       uses: ./.github/actions/setup-cloudxr-sdk
-      with:
-        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     # robotic_grounding source bundle for the [grounding] extra (Sharpa retargeter).
     # Disabled on release branches (and PRs targeting them) to keep release
@@ -675,8 +673,6 @@ jobs:
 
     - name: Setup CloudXR SDK
       uses: ./.github/actions/setup-cloudxr-sdk
-      with:
-        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     - name: Build teleop_ros2 image
       run: |
