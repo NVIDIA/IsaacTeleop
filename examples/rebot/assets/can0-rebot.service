@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[Unit]
+Description=reBot: bring up Jetson built-in CAN (can0) @ 1 Mbit for RobStride arm
+After=multi-user.target
+
+[Service]
+# can0 only, deliberately: set_can_pinmux.py does not program the CAN1 pins, and
+# mttcan registers both netdevs, so bringing can1 up here would leave every
+# single-arm machine with a live interface wired to nothing.
+Type=oneshot
+RemainAfterExit=yes
+# mttcan is normally auto-loaded; ensure it and raw CAN are present.
+ExecStartPre=-/sbin/modprobe mttcan
+ExecStartPre=-/sbin/modprobe can_raw
+# The CAN0 pinmux lives in live registers and is cleared on every boot, so it has
+# to be reprogrammed before the interface is any use. Absolute path required: a
+# system unit's %h is /root. Install with:
+#   sudo install -D -m 755 set_can_pinmux.py /opt/rebot/set_can_pinmux.py
+# No leading '-': if the pinmux fails, fail loudly rather than bring up a dead bus.
+ExecStartPre=/usr/bin/python3 /opt/rebot/set_can_pinmux.py
+# Ensure a clean state, then configure + bring up at 1 Mbit (RobStride bitrate).
+ExecStartPre=-/sbin/ip link set can0 down
+ExecStart=/sbin/ip link set can0 type can bitrate 1000000 restart-ms 100
+ExecStartPost=/sbin/ip link set can0 up
+
+[Install]
+WantedBy=multi-user.target

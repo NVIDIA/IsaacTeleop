@@ -370,3 +370,115 @@ class TestWssProxyStartup:
 
         # The thread outlives the timeout; stop() is what reaps it.
         service._stop_wss_proxy()
+
+
+# ============================================================================
+# TestSignalHandlers
+# ============================================================================
+
+
+class TestSignalHandlers:
+    """Signal handlers must propagate first so with-block teardown runs in order.
+
+    The key invariant: the handler must NOT call stop() directly.  Instead it
+    propagates to the previous handler (e.g. raising KeyboardInterrupt for
+    SIGINT), so that inner context managers (like an OpenXR session) can clean
+    up before the outer CloudXRService terminates the runtime process.
+    stop() is reached via __exit__ and atexit.
+    """
+
+    def test_sigint_handler_raises_keyboard_interrupt_not_stop(self, tmp_path):
+        """SIGINT handler raises KeyboardInterrupt via prev; does not call stop()."""
+        with mock_service_deps(tmp_path, ready=True):
+            service = CloudXRService()
+
+        stop_called = []
+        service._original_stop = service.stop
+        service.stop = lambda: stop_called.append(True)
+
+        handler = signal.getsignal(signal.SIGINT)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                handler(signal.SIGINT, None)
+        finally:
+            service.stop = service._original_stop
+            service.stop()
+
+        assert not stop_called, "signal handler must not call stop() directly"
+
+    def test_sigterm_with_sig_dfl_prev_raises_system_exit(self, tmp_path):
+        """SIGTERM handler raises SystemExit when prev was SIG_DFL."""
+        orig_sigterm = signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        try:
+            with mock_service_deps(tmp_path, ready=True):
+                service = CloudXRService()
+
+            stop_called = []
+            service._original_stop = service.stop
+            service.stop = lambda: stop_called.append(True)
+
+            handler = signal.getsignal(signal.SIGTERM)
+            try:
+                with pytest.raises(SystemExit) as exc_info:
+                    handler(signal.SIGTERM, None)
+                assert exc_info.value.code == 0
+            finally:
+                service.stop = service._original_stop
+                service.stop()
+        finally:
+            signal.signal(signal.SIGTERM, orig_sigterm)
+
+        assert not stop_called, "signal handler must not call stop() directly"
+
+    def test_sigint_handler_with_callable_prev_calls_prev(self, tmp_path):
+        """SIGINT handler with a custom callable prev calls it instead of stop()."""
+        prev_called = []
+
+        def custom_prev(signum, frame):
+            prev_called.append(signum)
+
+        orig_sigint = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, custom_prev)
+        try:
+            with mock_service_deps(tmp_path, ready=True):
+                service = CloudXRService()
+
+            stop_called = []
+            service._original_stop = service.stop
+            service.stop = lambda: stop_called.append(True)
+
+            handler = signal.getsignal(signal.SIGINT)
+            try:
+                handler(signal.SIGINT, None)
+            finally:
+                service.stop = service._original_stop
+                service.stop()
+        finally:
+            signal.signal(signal.SIGINT, orig_sigint)
+
+        assert prev_called == [signal.SIGINT]
+        assert not stop_called, "signal handler must not call stop() directly"
+
+    def test_sigint_handler_with_sig_ign_prev_is_noop(self, tmp_path):
+        """SIGINT handler is a no-op when prev was SIG_IGN."""
+        orig_sigint = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            with mock_service_deps(tmp_path, ready=True):
+                service = CloudXRService()
+
+            stop_called = []
+            service._original_stop = service.stop
+            service.stop = lambda: stop_called.append(True)
+
+            handler = signal.getsignal(signal.SIGINT)
+            try:
+                handler(signal.SIGINT, None)  # must not raise
+            finally:
+                service.stop = service._original_stop
+                service.stop()
+        finally:
+            signal.signal(signal.SIGINT, orig_sigint)
+
+        assert not stop_called, "signal handler must not call stop() directly"

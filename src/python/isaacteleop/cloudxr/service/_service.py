@@ -54,6 +54,18 @@ drop the live session.
 #: :func:`~.runtime.run` never append to one file from two processes.
 _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
 
+
+def _set_pdeathsig() -> None:
+    """Ask the kernel to send SIGTERM to this process when its parent dies.
+
+    Called as subprocess preexec_fn so the runtime is cleaned up even if the
+    parent Python process is killed with SIGKILL or crashes.  Linux-only.
+    """
+    import ctypes  # noqa: PLC0415
+
+    ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG = 1
+
+
 _RUNTIME_WORKER_CODE = """\
 import sys, os
 sys.path = [p for p in sys.path if p]
@@ -201,6 +213,7 @@ class CloudXRService:
                 env=worker_env,
                 stderr=stderr_file,
                 start_new_session=True,
+                preexec_fn=_set_pdeathsig if sys.platform != "win32" else None,
             )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
@@ -310,7 +323,12 @@ class CloudXRService:
     # ------------------------------------------------------------------
 
     def _install_signal_handlers(self) -> None:
-        """Install SIGTERM/SIGINT handlers that call :meth:`stop`, then the prior handler."""
+        """Install SIGTERM/SIGINT handlers that propagate to the prior handler.
+
+        Propagating first lets with-block __exit__ teardown run in order so
+        inner contexts (e.g. an OpenXR session) close before stop() kills the
+        runtime.  stop() is reached via __exit__ and atexit.
+        """
         if threading.current_thread() is not threading.main_thread():
             return
 
@@ -318,15 +336,12 @@ class CloudXRService:
 
         def _make_handler(prev):
             def _handler(signum, frame):
-                try:
-                    self.stop()
-                finally:
-                    if callable(prev):
-                        prev(signum, frame)
-                    else:
-                        signal.signal(signum, prev)
-                        if prev == signal.SIG_DFL:
-                            os.kill(os.getpid(), signum)
+                if callable(prev):
+                    prev(signum, frame)
+                elif prev == signal.SIG_DFL:
+                    # Raise SystemExit so __exit__ and atexit handlers run.
+                    raise SystemExit(0)
+                # SIG_IGN: preserve the "ignore" disposition — no-op.
 
             return _handler
 
@@ -358,15 +373,11 @@ class CloudXRService:
 
     @staticmethod
     def _cleanup_stale_runtime(run_dir: str) -> None:
-        """Refuse to start over a live runtime; otherwise clear stale sentinels.
+        """Refuse to start over a live runtime; clear stale sentinels otherwise.
 
-        A run directory holds one runtime.  Liveness is decided by
-        connecting to the IPC socket, not by its existence — the file
-        routinely outlives the process that made it.
-
-        Runs before :class:`EnvConfig` resolves anything: resolving rewrites
-        ``cloudxr.env`` in place, so a refused start would otherwise have
-        already replaced the live runtime's environment with its own.
+        A run directory holds one runtime.  Liveness is decided by connecting
+        to the IPC socket, not by its existence — the file routinely outlives
+        the process that made it.
 
         Raises:
             RuntimeError: If a runtime is already serving the run directory.

@@ -116,7 +116,11 @@ void LiveMessageChannelTrackerImpl::drain_messages()
         if (query_result != XR_SUCCESS)
         {
             if (query_result == XR_ERROR_CHANNEL_NOT_CONNECTED_NV)
+                return;
+            if (query_result == XR_ERROR_INSTANCE_LOST)
             {
+                instance_lost_ = true;
+                channel_ = XR_NULL_HANDLE;
                 return;
             }
             throw std::runtime_error("LiveMessageChannelTrackerImpl: xrReceiveOpaqueDataChannelNV (query) failed, result=" +
@@ -161,7 +165,11 @@ void LiveMessageChannelTrackerImpl::drain_messages()
         if (recv_result != XR_SUCCESS)
         {
             if (recv_result == XR_ERROR_CHANNEL_NOT_CONNECTED_NV)
+                return;
+            if (recv_result == XR_ERROR_INSTANCE_LOST)
             {
+                instance_lost_ = true;
+                channel_ = XR_NULL_HANDLE;
                 return;
             }
             throw std::runtime_error("LiveMessageChannelTrackerImpl: xrReceiveOpaqueDataChannelNV (read) failed, result=" +
@@ -202,6 +210,11 @@ void LiveMessageChannelTrackerImpl::send_message(const std::vector<uint8_t>& pay
     XrResult state_result = get_state_fn_(channel_, &channel_state);
     if (state_result != XR_SUCCESS)
     {
+        if (state_result == XR_ERROR_INSTANCE_LOST)
+        {
+            instance_lost_ = true;
+            channel_ = XR_NULL_HANDLE;
+        }
         throw std::runtime_error("LiveMessageChannelTrackerImpl: xrGetOpaqueDataChannelStateNV failed, result=" +
                                  std::to_string(state_result));
     }
@@ -214,6 +227,11 @@ void LiveMessageChannelTrackerImpl::send_message(const std::vector<uint8_t>& pay
     XrResult send_result = send_fn_(channel_, static_cast<uint32_t>(payload.size()), payload_ptr);
     if (send_result != XR_SUCCESS)
     {
+        if (send_result == XR_ERROR_INSTANCE_LOST)
+        {
+            instance_lost_ = true;
+            channel_ = XR_NULL_HANDLE;
+        }
         throw std::runtime_error("LiveMessageChannelTrackerImpl: xrSendOpaqueDataChannelNV failed, result=" +
                                  std::to_string(send_result));
     }
@@ -260,6 +278,10 @@ void LiveMessageChannelTrackerImpl::create_channel()
     XrResult result = create_channel_fn_(handles_.instance, &create_info, &channel_);
     if (result != XR_SUCCESS)
     {
+        // INSTANCE_LOST and RUNTIME_FAILURE both indicate the IPC connection
+        // to the runtime is gone; suppress further reopen attempts.
+        if (result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE)
+            instance_lost_ = true;
         throw std::runtime_error("LiveMessageChannelTrackerImpl: xrCreateOpaqueDataChannelNV failed, result=" +
                                  std::to_string(result));
     }
@@ -268,26 +290,31 @@ void LiveMessageChannelTrackerImpl::create_channel()
 void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
 {
     if (channel_ == XR_NULL_HANDLE)
-    {
         return;
-    }
 
-    if (shutdown_fn_)
+    if (!instance_lost_)
     {
-        XrResult result = shutdown_fn_(channel_);
-        if (result != XR_SUCCESS)
+        if (shutdown_fn_)
         {
-            std::cerr << "[LiveMessageChannelTrackerImpl] xrShutdownOpaqueDataChannelNV failed, result=" << result
-                      << std::endl;
+            XrResult result = shutdown_fn_(channel_);
+            if (result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE)
+            {
+                instance_lost_ = true;
+                channel_ = XR_NULL_HANDLE;
+                return;
+            }
+            if (result != XR_SUCCESS)
+                std::cerr << "[LiveMessageChannelTrackerImpl] xrShutdownOpaqueDataChannelNV failed, result=" << result
+                          << std::endl;
         }
-    }
-    if (destroy_channel_fn_)
-    {
-        XrResult result = destroy_channel_fn_(channel_);
-        if (result != XR_SUCCESS)
+        if (destroy_channel_fn_)
         {
-            std::cerr << "[LiveMessageChannelTrackerImpl] xrDestroyOpaqueDataChannelNV failed, result=" << result
-                      << std::endl;
+            XrResult result = destroy_channel_fn_(channel_);
+            if (result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE)
+                instance_lost_ = true;
+            else if (result != XR_SUCCESS)
+                std::cerr << "[LiveMessageChannelTrackerImpl] xrDestroyOpaqueDataChannelNV failed, result=" << result
+                          << std::endl;
         }
     }
     channel_ = XR_NULL_HANDLE;
@@ -295,6 +322,8 @@ void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
 
 bool LiveMessageChannelTrackerImpl::try_reopen_channel()
 {
+    if (instance_lost_)
+        return false;
     try
     {
         destroy_channel();
@@ -310,10 +339,8 @@ bool LiveMessageChannelTrackerImpl::try_reopen_channel()
 
 MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
 {
-    if (channel_ == XR_NULL_HANDLE)
+    if (instance_lost_ || channel_ == XR_NULL_HANDLE)
     {
-        // Channel was destroyed (e.g. failed reopen); report DISCONNECTED so
-        // update() will schedule a reopen attempt on the next frame.
         return MessageChannelStatus::DISCONNECTED;
     }
 
@@ -321,8 +348,12 @@ MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
     XrResult state_result = get_state_fn_(channel_, &channel_state);
     if (state_result != XR_SUCCESS)
     {
-        throw std::runtime_error("LiveMessageChannelTrackerImpl: xrGetOpaqueDataChannelStateNV failed, result=" +
-                                 std::to_string(state_result));
+        // Only permanently disable the channel on fatal runtime-loss errors;
+        // transient failures return DISCONNECTED to allow a reopen attempt.
+        if (state_result == XR_ERROR_INSTANCE_LOST || state_result == XR_ERROR_RUNTIME_FAILURE)
+            instance_lost_ = true;
+        channel_ = XR_NULL_HANDLE;
+        return MessageChannelStatus::DISCONNECTED;
     }
 
     switch (channel_state.state)

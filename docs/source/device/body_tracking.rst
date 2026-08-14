@@ -32,6 +32,13 @@ and the BD skeleton format used on the server.
    and accuracy is lower since there are no physical trackers. See
    `Quest Body Tracking (Limited Support)`_ for details.
 
+.. seealso::
+
+   `GR00T-WholeBodyControl (SONIC)`_ can consume this CloudXR skeleton on a G1 robot as well.
+   See that project's setup guide for additional details.
+
+.. _`GR00T-WholeBodyControl (SONIC)`: https://nvlabs.github.io/GR00T-WholeBodyControl/tutorials/isaac_teleop_publisher_setup.html
+
 .. contents:: On this page
    :local:
    :depth: 2

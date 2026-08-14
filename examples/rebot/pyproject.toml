@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Standalone pyproject so `uv run` resolves motorbridge without pulling it into
+# the IsaacTeleop wheel's runtime requirements. motorbridge ships the CAN
+# transport plus the `motorbridge-cli` / `motorbridge-gateway` entry points.
+
+[project]
+name = "rebot"
+version = "0.0.0"
+description = "reBot B601-RS (RobStride 7-DOF) arm bring-up on Jetson AGX Orin"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "motorbridge>=0.5",
+]

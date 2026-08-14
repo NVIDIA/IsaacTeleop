@@ -61,7 +61,7 @@ private:
     const MessageChannelTracker* tracker_{ nullptr };
     XrSystemId system_id_{ XR_NULL_SYSTEM_ID };
     XrUuidEXT channel_uuid_{};
-    XrOpaqueDataChannelNV channel_{ XR_NULL_HANDLE };
+    mutable XrOpaqueDataChannelNV channel_{ XR_NULL_HANDLE };
 
     PFN_xrCreateOpaqueDataChannelNV create_channel_fn_{ nullptr };
     PFN_xrDestroyOpaqueDataChannelNV destroy_channel_fn_{ nullptr };
@@ -73,6 +73,7 @@ private:
 
     XrTimeConverter time_converter_;
     int64_t last_update_time_ = 0;
+    mutable bool instance_lost_ = false;
     // Assembly scratch for the drained batch, and the encoded snapshot published
     // from it each frame. Only the latter leaves this class.
     MessageChannelMessagesTrackedT native_;
