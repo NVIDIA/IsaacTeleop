@@ -21,7 +21,6 @@ import signal
 import subprocess
 import sys
 import threading
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -374,45 +373,22 @@ class CloudXRService:
 
     @staticmethod
     def _cleanup_stale_runtime(run_dir: str) -> None:
-        """Kill a stale runtime if one is running, then clear sentinel files.
+        """Refuse to start over a live runtime; clear stale sentinels otherwise.
 
-        Uses a connection probe to distinguish a live runtime from stale files,
-        and kills via pidfiles rather than external tools so it works inside
-        containers where fuser or cross-namespace kill would fail.
+        A run directory holds one runtime.  Liveness is decided by connecting
+        to the IPC socket, not by its existence — the file routinely outlives
+        the process that made it.
 
         Raises:
-            RuntimeError: If a live runtime is detected and cannot be stopped.
+            RuntimeError: If a runtime is already serving the run directory.
         """
         if is_runtime_live(run_dir):
-            logger.warning(
-                "Stale CloudXR runtime detected at %s; terminating it", run_dir
-            )
-            for pidfile in ("cloudxr.pid", "monado.pid"):
-                pid_path = os.path.join(run_dir, pidfile)
-                try:
-                    pid = int(Path(pid_path).read_text().strip())
-                    os.kill(pid, signal.SIGTERM)
-                    logger.info(
-                        "Sent SIGTERM to stale runtime pid %d (%s)", pid, pidfile
-                    )
-                except (
-                    FileNotFoundError,
-                    ValueError,
-                    ProcessLookupError,
-                    PermissionError,
-                    OSError,
-                ):
-                    pass
-
-            time.sleep(2.0)
-
-            if is_runtime_live(run_dir):
-                raise RuntimeError(
-                    _RUNTIME_ALREADY_SERVING.format(
-                        run_dir=run_dir,
-                        env_file=os.path.join(run_dir, ENV_FILE_NAME),
-                    )
+            raise RuntimeError(
+                _RUNTIME_ALREADY_SERVING.format(
+                    run_dir=run_dir,
+                    env_file=os.path.join(run_dir, ENV_FILE_NAME),
                 )
+            )
 
         for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
             path = os.path.join(run_dir, name)
