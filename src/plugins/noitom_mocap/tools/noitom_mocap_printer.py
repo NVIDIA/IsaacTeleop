@@ -141,8 +141,7 @@ def main() -> int:
         ) as session:
             while args.duration <= 0.0 or time.monotonic() - start_s < args.duration:
                 session.update()
-                tracked = tracker.get_body_pose(session)
-                frame = tracked.data
+                frame = tracker.get_body_pose(session)
                 elapsed_s = time.monotonic() - start_s
 
                 if frame is None:
