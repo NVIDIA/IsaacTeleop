@@ -21,7 +21,6 @@ import socket
 import subprocess
 import sys
 import threading
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -588,11 +587,13 @@ class CloudXRLauncher:
 
     @staticmethod
     def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:
-        """Kill a stale runtime if one is running, then clear sentinel files.
+        """Refuse to start over a live runtime; clear stale sentinels otherwise.
 
-        Uses a connection probe for liveness (more reliable than file existence)
-        and kills via pidfiles so it works inside containers where fuser or
-        cross-namespace kill would fail.
+        Uses a connection probe for liveness so dead-process socket files are
+        cleaned up without affecting an intentionally running runtime.
+
+        Raises:
+            RuntimeError: If a runtime is already serving the run directory.
         """
         run_dir = env_cfg.openxr_run_dir()
         ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
@@ -610,26 +611,10 @@ class CloudXRLauncher:
             pass
 
         if is_live:
-            logger.warning(
-                "Stale CloudXR runtime detected at %s; terminating it", run_dir
+            raise RuntimeError(
+                f"A CloudXR runtime is already serving {run_dir}. "
+                "Stop it before starting a new one."
             )
-            for pidfile in ("cloudxr.pid", "monado.pid"):
-                pid_path = os.path.join(run_dir, pidfile)
-                try:
-                    pid = int(Path(pid_path).read_text().strip())
-                    os.kill(pid, signal.SIGTERM)
-                    logger.info(
-                        "Sent SIGTERM to stale runtime pid %d (%s)", pid, pidfile
-                    )
-                except (
-                    FileNotFoundError,
-                    ValueError,
-                    ProcessLookupError,
-                    PermissionError,
-                    OSError,
-                ):
-                    pass
-            time.sleep(2.0)
 
         for name in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
             try:
