@@ -362,10 +362,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -489,15 +490,13 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 <p>The plugin reaches the Teleop session through the CloudXR / OpenXR runtime, so
 start the runtime first and source its environment in the shell that launches
 the plugin:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w">              </span><span class="c1"># terminal 1, keep running</span>
-</pre></div>
-</div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env<span class="w">          </span><span class="c1"># terminal 2</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>start<span class="w">   </span><span class="c1"># runs in the background</span>
+<span class="nb">source</span><span class="w"> </span>~/.cloudxr/run/cloudxr.env
 ./build/src/plugins/wuji_glove/wuji_glove_plugin
 </pre></div>
 </div>
-<p>See <a class="reference internal" href="../getting_started/quick_start.html#run-cloudxr-server"><span class="std std-ref">3. Configure CloudXR (optional)</span></a> and <a class="reference internal" href="../references/cloudxr.html#load-cloudxr-environment-variables"><span class="std std-ref">Load CloudXR environment variables</span></a> for
-the full runtime setup. The plugin resolves each glove’s side from device
+<p>See <a class="reference internal" href="../references/cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">CloudXR Service</span></a> and
+<a class="reference internal" href="../references/cloudxr.html#load-cloudxr-environment-variables"><span class="std std-ref">Load CloudXR environment variables</span></a> for the full service setup. The plugin resolves each glove’s side from device
 metadata and reconnects automatically after a disconnect; applications can also
 launch it through its <code class="docutils literal notranslate"><span class="pre">plugin.yaml</span></code> using <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code>.</p>
 </section>
@@ -693,7 +692,7 @@ that the runtime was up before both, and that hands are streaming
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 01, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

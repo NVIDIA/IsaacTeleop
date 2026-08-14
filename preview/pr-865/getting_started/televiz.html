@@ -362,10 +362,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -423,17 +424,16 @@
                   
   <section id="televiz">
 <h1>Televiz<a class="headerlink" href="#televiz" title="Link to this heading">#</a></h1>
-<p>Televiz (<code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>) is a lightweight compositor for Isaac Teleop. It composites camera and
-sensor feeds, plus 3D rendered content (gsplat, nvblox, neural reconstruction), into an XR headset, a
-desktop window, or an offscreen buffer, integrating directly with the device-tracking and retargeting
-pipeline.</p>
+<p>Televiz (<code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>) is the visualization module for Isaac Teleop. It composites what the
+operator sees — camera and sensor feeds, plus 3D rendered content such as gsplat or nvblox — and
+presents it in stereo to an XR headset over <a class="reference internal" href="../references/cloudxr.html"><span class="doc">CloudXR</span></a>. Desktop-window and
+offscreen output are also available, mainly for development and debugging.</p>
 <p>It is a <strong>compositor</strong>, not a capture or streaming layer: it consumes GPU frames and assembles them
 into a final image. Camera capture, decode, and network transport live in the application (see
 <a class="reference internal" href="../references/camera_streaming.html"><span class="doc">Camera Streaming</span></a>).</p>
 <p>The compositor is implemented in C++ (<code class="docutils literal notranslate"><span class="pre">namespace</span> <span class="pre">viz</span></code>, built on Vulkan + OpenXR + CUDA with no
 external rendering-framework dependency) and exposed through a pybind11 binding. This page uses the
-Python API, which mirrors the C++ names one-to-one — see <a class="reference internal" href="#c-api">C++ API</a> to link against the library
-directly.</p>
+Python API, which mirrors the C++ names one-to-one — see <a class="reference internal" href="#c-api">C++ API</a>.</p>
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
 <ul class="simple">
@@ -1259,7 +1259,7 @@ output locations.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 01, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

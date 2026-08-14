@@ -347,6 +347,7 @@
 <li class="toctree-l2"><a class="reference internal" href="data_collection_real.html">Data Collection in Real</a></li>
 <li class="toctree-l2"><a class="reference internal" href="data_collection_sim.html">Data Collection in Sim</a></li>
 <li class="toctree-l2"><a class="reference internal" href="training_groot.html">Model Training with GR00T</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rebot.html">reBot B601-RS on Jetson AGX Orin</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
@@ -368,10 +369,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -505,6 +507,7 @@ actuator-gap compensation.</p>
 <li><p><a class="reference internal" href="data_collection_real.html"><span class="doc">Data Collection in Real</span></a> — record demonstrations on a physical SO-101.</p></li>
 <li><p><a class="reference internal" href="data_collection_sim.html"><span class="doc">Data Collection in Sim</span></a> — record demonstrations in Isaac Lab.</p></li>
 <li><p><a class="reference internal" href="training_groot.html"><span class="doc">Model Training with GR00T</span></a> — fine-tune a GR00T N1.7 policy on the collected data.</p></li>
+<li><p><a class="reference internal" href="rebot.html"><span class="doc">reBot B601-RS on Jetson AGX Orin</span></a> — bring up a reBot B601-RS arm on a Jetson AGX Orin over built-in CAN.</p></li>
 </ul>
 <p>New to XR teleoperation? Start with the <a class="reference internal" href="../quick_start.html"><span class="doc">Isaac Teleop Quick Start</span></a>
 to set up CloudXR and connect a headset.</p>
@@ -516,7 +519,7 @@ to set up CloudXR and connect a headset.</p>
 <div class="line">☑ Implement teleop devices: XR controller and SO-101 Leader</div>
 <div class="line">☑ Data collection in real</div>
 <div class="line">☑ Data collection in sim (XR controller)</div>
-<div class="line">☐ Data collection in sim (SO-101 Leader)</div>
+<div class="line">☑ Data collection in sim (SO-101 Leader)</div>
 <div class="line">☐ Export sim demos to the LeRobot dataset format</div>
 <div class="line">☐ Model training with GR00T N1.7</div>
 <div class="line">☐ Sim-to-Real — update the <a class="reference external" href="https://docs.nvidia.com/learning/physical-ai/sim-to-real-so-101/latest/index.html" rel="noopener noreferrer" target="_blank">Sim-to-Real SO-101 learning path</a> to use Isaac Teleop</div>
@@ -661,7 +664,7 @@ to set up CloudXR and connect a headset.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 01, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

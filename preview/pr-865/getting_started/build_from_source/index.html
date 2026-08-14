@@ -365,10 +365,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -449,12 +450,33 @@ examples. The instructions align with the project’s CMake configuration and th
 <section id="prerequisites">
 <h2><a class="toc-backref" href="#id5" role="doc-backlink">Prerequisites</a><a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><strong>CMake</strong> 3.20 or higher</p></li>
+<li><p><strong>CMake</strong> 3.24 or higher (Ubuntu 22.04’s apt <code class="docutils literal notranslate"><span class="pre">cmake</span></code> is 3.22 — install a newer one
+from <a class="reference external" href="https://apt.kitware.com/" rel="noopener noreferrer" target="_blank">Kitware’s APT repository</a> or with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">cmake</span></code>)</p></li>
 <li><p><strong>C++20</strong> compatible compiler</p></li>
 <li><p><strong>Python</strong> 3.11, 3.12, or 3.13 (default 3.11; see <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> in root <code class="docutils literal notranslate"><span class="pre">CMakeLists.txt</span></code>)</p></li>
 <li><p><strong>uv</strong> for Python dependency management and managed Python</p></li>
 <li><p><strong>Internet connection</strong> for downloading dependencies via CMake FetchContent</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Optional — only needed to build the Televiz visualization module,</strong> <code class="docutils literal notranslate"><span class="pre">BUILD_VIZ</span></code>.
+<code class="docutils literal notranslate"><span class="pre">BUILD_VIZ</span></code> is auto-detected: it defaults to <code class="docutils literal notranslate"><span class="pre">ON</span></code> when all three of the following are
+found at configure time and to <code class="docutils literal notranslate"><span class="pre">OFF</span></code> otherwise, so a core-only source build still
+configures on a machine without them. Watch the
+<code class="docutils literal notranslate"><span class="pre">--</span> <span class="pre">BUILD_VIZ:</span> <span class="pre">&lt;ON|OFF&gt;</span> <span class="pre">(Vulkan=...</span> <span class="pre">CUDAToolkit=...</span> <span class="pre">glslang=...)</span></code> configure line to see
+which one is missing.</p>
+<ul class="simple">
+<li><p><strong>Vulkan headers + loader</strong> — <code class="docutils literal notranslate"><span class="pre">libvulkan-dev</span></code> on Linux, the LunarG SDK on Windows.</p></li>
+<li><p><strong>CUDA Toolkit</strong> (cudart at link time) — <code class="docutils literal notranslate"><span class="pre">nvidia-cuda-toolkit</span></code> or the official NVIDIA
+installer.</p></li>
+<li><p><strong>glslangValidator</strong> for compiling shaders to SPIR-V — <code class="docutils literal notranslate"><span class="pre">glslang-tools</span></code> on Linux,
+<code class="docutils literal notranslate"><span class="pre">brew</span> <span class="pre">install</span> <span class="pre">glslang</span></code> on macOS; ships with the Vulkan SDK on Windows.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">BUILD_VIZ=ON</span></code> also pulls in GLFW, whose CMake uses <code class="docutils literal notranslate"><span class="pre">pkg_check_modules()</span></code> — install
+<code class="docutils literal notranslate"><span class="pre">pkg-config</span></code> as well, or the configure fails before viz is reached. Most users do not
+need any of this: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> already ships the compiled <code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>
+module. See <a class="reference internal" href="#other-build-options">Other Build options</a> for the full option table.</p>
+</div>
 </section>
 <section id="one-time-setup">
 <span id="id1"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">One time setup</a><a class="headerlink" href="#one-time-setup" title="Link to this heading">#</a></h2>
@@ -474,6 +496,12 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 </div>
 <p>Our build system uses <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> for Python version and dependency management. Install <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a> if not already installed:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+</pre></div>
+</div>
+<p>The installer drops <code class="docutils literal notranslate"><span class="pre">uv</span></code> in <code class="docutils literal notranslate"><span class="pre">~/.local/bin</span></code>, which is not on <code class="docutils literal notranslate"><span class="pre">PATH</span></code> in most shells. Add it for
+the current shell — and to your <code class="docutils literal notranslate"><span class="pre">~/.bashrc</span></code> to make it stick — or every <code class="docutils literal notranslate"><span class="pre">uv</span></code> command below
+fails with <code class="docutils literal notranslate"><span class="pre">uv:</span> <span class="pre">command</span> <span class="pre">not</span> <span class="pre">found</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.local/bin:</span><span class="nv">$PATH</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -522,31 +550,30 @@ like this:</p>
 </div>
 <p>To package the experimental runtime into the wheel as <code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr_exp</span></code>, configure with
 <code class="docutils literal notranslate"><span class="pre">-DENABLE_CLOUDXR_EXP_BUNDLE=ON</span></code>. Select it at runtime with <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_CLOUDXR_EXP</span></code>.
-See <a class="reference internal" href="../../references/cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">Dedicated CloudXR Runtime</span></a>.</p>
+See <a class="reference internal" href="../../references/cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">CloudXR Service</span></a>.</p>
 </section>
 </section>
 <section id="cmake-configure-and-build">
 <h2><a class="toc-backref" href="#id8" role="doc-backlink">2. CMake: Configure and build</a><a class="headerlink" href="#cmake-configure-and-build" title="Link to this heading">#</a></h2>
-<p>From the project root, configure with a <strong>preset</strong> — there is one per supported
-Python version (<code class="docutils literal notranslate"><span class="pre">py3.11</span></code> … <code class="docutils literal notranslate"><span class="pre">py3.13</span></code>; see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/CMakePresets.json" rel="noopener noreferrer" target="_blank">CMakePresets.json</a>). A
-preset selects the Python version and an isolated per-version build directory, so
-different versions never share (and clobber) one configured CMake cache:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w">                       </span><span class="c1"># configure</span>
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--parallel<span class="w">    </span><span class="c1"># build</span>
-cmake<span class="w"> </span>--install<span class="w"> </span>build/cmake-cpython-312<span class="w">     </span><span class="c1"># install</span>
+<p>From the project root:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w">                       </span><span class="c1"># configure</span>
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--parallel<span class="w">       </span><span class="c1"># build</span>
+cmake<span class="w"> </span>--install<span class="w"> </span>build<span class="w">                </span><span class="c1"># install</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--preset</span> <span class="pre">py3.12</span></code> is shorthand for the explicit configure it expands to —
-an isolated build directory plus the Python version:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build/cmake-cpython-312<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+<p>Add any other options as <code class="docutils literal notranslate"><span class="pre">-D</span></code> flags on the configure line, for example
+<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">-B</span> <span class="pre">build</span> <span class="pre">-DCMAKE_BUILD_TYPE=Debug</span></code>.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The Python version is baked into a build directory’s CMake cache and its build
+venv, so <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> cannot be changed on an existing tree —
+configuring again with a different value fails with an explanatory error. Give
+each version its own directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build-py3.12<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+cmake<span class="w"> </span>--build<span class="w"> </span>build-py3.12<span class="w"> </span>--parallel
 </pre></div>
 </div>
-<p>Add any other options as <code class="docutils literal notranslate"><span class="pre">-D</span></code> flags on the same line; a command-line <code class="docutils literal notranslate"><span class="pre">-D</span></code>
-overrides the preset (e.g. <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--preset</span> <span class="pre">py3.12</span> <span class="pre">-DCMAKE_BUILD_TYPE=Debug</span></code>).
-Pick the preset that matches your interpreter rather than overriding
-<code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> by hand. (A bare <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">-B</span> <span class="pre">build</span></code> still works
-for a quick default build — Python 3.11 into <code class="docutils literal notranslate"><span class="pre">./build</span></code> — but the presets are
-the recommended path.)</p>
+</div>
 <p>This will:</p>
 <ol class="arabic simple">
 <li><p>Fetch dependencies (OpenXR SDK, yaml-cpp, pybind11, FlatBuffers, MCAP, and optionally Catch2 for tests) via FetchContent in <code class="docutils literal notranslate"><span class="pre">deps/third_party/CMakeLists.txt</span></code></p></li>
@@ -560,7 +587,7 @@ the recommended path.)</p>
 <p>On Linux, <strong>clang-format</strong> is enforced by default; the build fails if formatting changes would be applied. The project
 uses <strong>clang-format-14</strong> for consistent results across distributions (see <code class="docutils literal notranslate"><span class="pre">cmake/ClangFormat.cmake</span></code>).</p>
 <p>To disable enforcement, set <code class="docutils literal notranslate"><span class="pre">ENABLE_CLANG_FORMAT_CHECK</span></code> to <code class="docutils literal notranslate"><span class="pre">OFF</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>-DENABLE_CLANG_FORMAT_CHECK<span class="o">=</span>OFF
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DENABLE_CLANG_FORMAT_CHECK<span class="o">=</span>OFF
 </pre></div>
 </div>
 <p>Useful targets:</p>
@@ -568,8 +595,8 @@ uses <strong>clang-format-14</strong> for consistent results across distribution
 <li><p><code class="docutils literal notranslate"><span class="pre">clang_format_check</span></code> — verifies formatting (part of <code class="docutils literal notranslate"><span class="pre">ALL</span></code> on Linux)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">clang_format_fix</span></code> — applies formatting in place</p></li>
 </ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--target<span class="w"> </span>clang_format_check
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--target<span class="w"> </span>clang_format_fix
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>clang_format_check
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>clang_format_fix
 </pre></div>
 </div>
 </section>
@@ -662,7 +689,9 @@ cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class=
 </tr>
 <tr class="row-odd"><td><p><strong>OAK camera plugin</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BUILD_PLUGIN_OAK_CAMERA</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">OFF</span></code>; requires Hunter/DepthAI when <code class="docutils literal notranslate"><span class="pre">ON</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">OFF</span></code>; when <code class="docutils literal notranslate"><span class="pre">ON</span></code>, builds DepthAI v3.x and pulls its dependencies through
+vcpkg, so it also needs <code class="docutils literal notranslate"><span class="pre">CMAKE_TOOLCHAIN_FILE</span></code> on a fresh build directory.
+See <a class="reference internal" href="../../device/oak.html"><span class="doc">OAK Camera Plugin</span></a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><strong>Teleop ROS2 example only</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BUILD_EXAMPLE_TELEOP_ROS2</span></code></p></td>
@@ -674,40 +703,44 @@ cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class=
 </section>
 <section id="examples">
 <h3>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h3>
-<p>Build for a different Python version — use the matching preset (<code class="docutils literal notranslate"><span class="pre">py3.11</span></code>,
-<code class="docutils literal notranslate"><span class="pre">py3.12</span></code>, <code class="docutils literal notranslate"><span class="pre">py3.13</span></code>):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--parallel
+<p>Build for a different Python version — each needs its own build directory
+(<code class="docutils literal notranslate"><span class="pre">3.11</span></code>, <code class="docutils literal notranslate"><span class="pre">3.12</span></code>, <code class="docutils literal notranslate"><span class="pre">3.13</span></code> are supported):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build-py3.12<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+cmake<span class="w"> </span>--build<span class="w"> </span>build-py3.12<span class="w"> </span>--parallel
 </pre></div>
 </div>
 <p>Debug build:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Debug
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DCMAKE_BUILD_TYPE<span class="o">=</span>Debug
+cmake<span class="w"> </span>--build<span class="w"> </span>build
 </pre></div>
 </div>
 <p>Build without examples:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>-DBUILD_EXAMPLES<span class="o">=</span>OFF
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_EXAMPLES<span class="o">=</span>OFF
+cmake<span class="w"> </span>--build<span class="w"> </span>build
 </pre></div>
 </div>
 <p>Build without Python bindings:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>-DBUILD_PYTHON_BINDINGS<span class="o">=</span>OFF
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PYTHON_BINDINGS<span class="o">=</span>OFF
+cmake<span class="w"> </span>--build<span class="w"> </span>build
 </pre></div>
 </div>
-<p>Build with OAK camera plugin (pulls Hunter/DepthAI):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>-DBUILD_PLUGIN_OAK_CAMERA<span class="o">=</span>ON
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12
+<p>Build with the OAK camera plugin. It needs the vcpkg toolchain, and CMake only
+reads <code class="docutils literal notranslate"><span class="pre">CMAKE_TOOLCHAIN_FILE</span></code> on a build tree’s <strong>first</strong> configure, so delete
+<code class="docutils literal notranslate"><span class="pre">build/</span></code> first if it already exists (see <a class="reference internal" href="../../device/oak.html"><span class="doc">OAK Camera Plugin</span></a>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>rm<span class="w"> </span>-rf<span class="w"> </span>build
+cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PLUGIN_OAK_CAMERA<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-DCMAKE_TOOLCHAIN_FILE<span class="o">=</span><span class="nv">$VCPKG_ROOT</span>/scripts/buildsystems/vcpkg.cmake
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>camera_plugin_oak<span class="w"> </span>--parallel
 </pre></div>
 </div>
 <p>Build only the teleop_ros2 example (e.g. for Docker, as in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a> teleop-ros2-docker job):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>-DBUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span>-DBUILD_EXAMPLE_TELEOP_ROS2<span class="o">=</span>ON
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_EXAMPLES<span class="o">=</span>OFF<span class="w"> </span>-DBUILD_EXAMPLE_TELEOP_ROS2<span class="o">=</span>ON
+cmake<span class="w"> </span>--build<span class="w"> </span>build
 </pre></div>
 </div>
-<p>Clean rebuild (<code class="docutils literal notranslate"><span class="pre">--fresh</span></code> wipes the preset’s CMake cache and reconfigures):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--fresh
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12
+<p>Clean rebuild (<code class="docutils literal notranslate"><span class="pre">--fresh</span></code> wipes the CMake cache and reconfigures):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>--fresh
+cmake<span class="w"> </span>--build<span class="w"> </span>build
 </pre></div>
 </div>
 </section>
@@ -715,10 +748,10 @@ cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class=
 <section id="running-tests">
 <h2><a class="toc-backref" href="#id9" role="doc-backlink">3. Running tests</a><a class="headerlink" href="#running-tests" title="Link to this heading">#</a></h2>
 <p>When <code class="docutils literal notranslate"><span class="pre">BUILD_TESTING</span></code> is <code class="docutils literal notranslate"><span class="pre">ON</span></code>, CTest is enabled at the top level. Run all tests either via the CMake <code class="docutils literal notranslate"><span class="pre">test</span></code> target or with <code class="docutils literal notranslate"><span class="pre">ctest</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--target<span class="w"> </span><span class="nb">test</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span><span class="nb">test</span>
 
 <span class="c1"># Or with ctest (e.g. parallel, output on failure)</span>
-ctest<span class="w"> </span>--test-dir<span class="w"> </span>build/cmake-cpython-312<span class="w"> </span>--output-on-failure<span class="w"> </span>--parallel
+ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class="w"> </span>--output-on-failure<span class="w"> </span>--parallel
 </pre></div>
 </div>
 <p>The CI uses <code class="docutils literal notranslate"><span class="pre">ctest</span></code> (see <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a>).</p>
@@ -751,12 +784,11 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The CMake build tree is kept under <code class="docutils literal notranslate"><span class="pre">build/wheel-&lt;cache-tag&gt;/</span></code> (e.g.
-<code class="docutils literal notranslate"><span class="pre">build/wheel-cpython-311/</span></code>) — one per Python version, so different
+<p>The CMake build tree is kept under <code class="docutils literal notranslate"><span class="pre">build-wheel/&lt;cache-tag&gt;/</span></code> (e.g.
+<code class="docutils literal notranslate"><span class="pre">build-wheel/cpython-311/</span></code>) — one per Python version, so different
 interpreters never share a configured CMake cache — instead of a temporary
-directory. Re-installs are therefore incremental. The classic CMake path uses
-sibling <code class="docutils literal notranslate"><span class="pre">build/cmake-&lt;cache-tag&gt;/</span></code> trees (via the presets below) with the same
-per-version tag, so the two never collide; <code class="docutils literal notranslate"><span class="pre">build/</span></code> is gitignored.</p>
+directory. Re-installs are therefore incremental. It sits outside <code class="docutils literal notranslate"><span class="pre">build/</span></code>, so
+it never collides with a classic <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">-B</span> <span class="pre">build</span></code> tree. Both are gitignored.</p>
 </div>
 <p>What this path does and how it differs from the classic flow:</p>
 <ul class="simple">
@@ -964,7 +996,7 @@ targets, install the <code class="docutils literal notranslate"><span class="pre
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 01, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

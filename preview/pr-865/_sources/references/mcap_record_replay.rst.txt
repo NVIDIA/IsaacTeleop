@@ -121,6 +121,8 @@ A complete record / replay example lives at
 - ``record_controller.py`` / ``replay_controller.py`` — records the
   ``controllers`` channel and replays it in viser, including a per-controller
   HUD (thumbstick, trigger, squeeze, button states).
+- ``live_full_body.py`` — live viser preview of the full-body skeleton from
+  an active OpenXR session.
 - ``record_full_body.py`` / ``replay_full_body.py`` — records the
   ``full_body`` + ``controllers`` channels and replays the body skeleton in
   viser.
@@ -131,7 +133,9 @@ additional source nodes (``HeadSource``, ``ControllersSource``, …) in
 ``common.py``.
 
 For a live browser view of **all** human DeviceIO trackers at once (hands, head,
-controllers, and full body), see ``examples/deviceio_live_view/python/``.
+controllers, and full body), see ``examples/deviceio_live_view/python/``.  It is
+set up the same way as this example — the ``uv sync`` notes under `Recording`_
+apply to it too.
 
 A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
 
@@ -139,13 +143,26 @@ A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
   ``core::McapRecordingConfig`` to ``DeviceIOSession::run()``. It uses the
   same channel base name as ``FullBodySource``, so the resulting file replays
   with ``replay_full_body.py``. ``python -m isaacteleop.rig rigs/full_body.yaml``
-  runs it together with the CloudXR runtime and the full-body printer (see
-  :ref:`rig-launcher`).
+  runs it together with the full-body printer (see :ref:`rig-launcher`).
+
+Live preview
+^^^^^^^^^^^^
+
+From the example directory:
+
+.. code-block:: bash
+
+   cd examples/mcap_record_replay/python
+   uv sync
+   uv run python live_full_body.py --accept-eula
+   uv run python live_full_body.py --port 8090 --accept-eula  # change viser port
+
+Open the printed URL (default ``http://localhost:8080``) in a browser.
 
 Recording
 ^^^^^^^^^
 
-From the installed example directory:
+From the example directory:
 
 .. code-block:: bash
 
@@ -155,8 +172,20 @@ From the installed example directory:
    uv run python record_hand.py 10         # record for 10 seconds
    uv run python record_hand.py 10 out.mcap  # custom output path
 
+The example never downloads a published wheel — it runs against the
+``isaacteleop`` next to it.  Above, ``uv sync`` builds it from this checkout; the
+first sync compiles the extension modules and takes a few minutes, later ones
+reuse the cached build, and the install is editable, so edits under
+``src/python/`` need no rebuild.  From
+``install/examples/mcap_record_replay/python`` (after ``cmake --install``) it
+picks up the wheel you just built instead — see
+:doc:`/getting_started/build_from_source/index`.
+
 An active OpenXR runtime / headset must be connected, just like any other
-live ``TeleopSession``.
+live ``TeleopSession``.  Recording also needs the CloudXR runtime natives, which
+a from-source build bundles only when the CloudXR SDK tarball is available —
+CMake fetches it automatically, and warns rather than fails if it cannot.  Replay
+has no such requirement.
 
 Replaying
 ^^^^^^^^^
@@ -176,6 +205,8 @@ left (green) and right (blue) hand skeletons update each frame.
 The ``record_controller.py`` / ``replay_controller.py`` and
 ``record_full_body.py`` / ``replay_full_body.py`` pairs use the same CLI
 (positional MCAP path, ``--host``, ``--port``, ``--loop``).
+``live_full_body.py`` accepts ``--host``, ``--port``, and the CloudXR launcher
+flags (including ``--accept-eula``).
 
 API Reference
 -------------

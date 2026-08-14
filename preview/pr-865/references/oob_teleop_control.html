@@ -362,10 +362,11 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rig.html">Rig Launcher</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -439,7 +440,7 @@ web client page and the <code class="docutils literal notranslate"><span class="
 baseline works, add <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> to automate the full flow.</p>
 <p>Launch the CloudXR runtime with the <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> flag (add <code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>
 on first run):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>run<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob
 </pre></div>
 </div>
 <p>This will:</p>
@@ -454,7 +455,7 @@ via Chrome DevTools Protocol (CDP)</p></li>
 CI, or wireless-only environments — set <code class="docutils literal notranslate"><span class="pre">TELEOP_OOB_HUB_ONLY=1</span></code> and open
 the teleop URL on the headset manually. This mode supports WiFi setup only
 and is <strong>not compatible with</strong> <code class="docutils literal notranslate"><span class="pre">--usb-local</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">TELEOP_OOB_HUB_ONLY</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">TELEOP_OOB_HUB_ONLY</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>run<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob
 </pre></div>
 </div>
 <p>You should see output confirming the hub is running:</p>
@@ -555,7 +556,7 @@ temporarily during CDP automation to reach the browser’s DevTools socket.</p>
 <code class="docutils literal notranslate"><span class="pre">chrome://inspect/#devices</span></code> from the PC or tap CONNECT on the headset
 directly.  To re-open the page later without restarting the launcher, pass the
 bookmark URL above to <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr.webclient</span></code> (see
-<a class="reference internal" href="cloudxr.html"><span class="doc">Dedicated CloudXR Runtime</span></a>).</p>
+<a class="reference internal" href="cloudxr.html"><span class="doc">CloudXR Service</span></a>).</p>
 </section>
 <section id="architecture">
 <h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">#</a></h2>
@@ -578,7 +579,7 @@ bookmark URL above to <code class="docutils literal notranslate"><span class="pr
 periodically (default every 500 ms), receives config pushes.</p></td>
 </tr>
 <tr class="row-odd"><td><p><strong>Streaming host</strong></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--setup-oob</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr.service</span> <span class="pre">run</span> <span class="pre">--setup-oob</span></code></p></td>
 <td><p>Runs CloudXR runtime + WSS proxy + OOB hub on a single TLS port.
 Opens the teleop page and clicks CONNECT via USB adb + CDP.</p></td>
 </tr>
@@ -926,7 +927,7 @@ over the USB cable on the headset’s loopback via <code class="docutils literal
 <code class="docutils literal notranslate"><span class="pre">--setup-oob</span></code> because the OOB hub is the only path that delivers TURN relay
 configuration to the client (without it the headset has no way to discover the
 coturn endpoint).  Always use both flags together:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob<span class="w"> </span>--usb-local
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>run<span class="w"> </span>--accept-eula<span class="w"> </span>--setup-oob<span class="w"> </span>--usb-local
 </pre></div>
 </div>
 <p>On startup the launcher:</p>
@@ -1202,7 +1203,7 @@ or stage <code class="docutils literal notranslate"><span class="pre">nvidia-clo
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 01, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

@@ -362,10 +362,11 @@
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -465,6 +466,9 @@ For the exact command surface and flags, see the
 <ul class="simple">
 <li><p>A workstation meeting the <a class="reference internal" href="requirements.html"><span class="doc">system requirements</span></a> (Ubuntu, NVIDIA
 GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.</p></li>
+<li><p>For Jetson platforms, use
+<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack-sdk-621" rel="noopener noreferrer" target="_blank">JetPack 6.2.1</a> on Orin or
+<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack/downloads/archive-7.1" rel="noopener noreferrer" target="_blank">JetPack 7.1</a> on Thor.</p></li>
 <li><p>For the default XR mode, a headset to connect as the CloudXR client — follow the
 <a class="reference internal" href="../getting_started/quick_start.html"><span class="doc">quick start</span></a> step <a class="reference internal" href="../getting_started/quick_start.html#connect-xr-headset"><span class="std std-ref">5. Connect an XR headset</span></a>. The viewer
 launches the CloudXR runtime itself; nothing to start separately. No headset handy?
@@ -480,12 +484,30 @@ run the sample’s one-time setup:</p>
 </pre></div>
 </div>
 <p>There is no need to install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package yourself — <code class="docutils literal notranslate"><span class="pre">setup</span></code> creates the
-sample’s own environment: it installs <code class="docutils literal notranslate"><span class="pre">isaacteleop&gt;=1.4</span></code> (which bundles Televiz) and every other
-Python dependency from PyPI into <code class="docutils literal notranslate"><span class="pre">.venv/</span></code> via <code class="docutils literal notranslate"><span class="pre">uv</span></code>, builds the native NVENC/NVDEC codec, and
-probes system packages (GStreamer plugins, cairo / girepository headers, JetPack <code class="docutils literal notranslate"><span class="pre">cuda-nvrtc</span></code> +
-<code class="docutils literal notranslate"><span class="pre">ld.so</span></code> wiring). When something is missing it prints the exact <code class="docutils literal notranslate"><span class="pre">apt-get</span></code> line and prompts
-<code class="docutils literal notranslate"><span class="pre">[y/N]</span></code> — answering <code class="docutils literal notranslate"><span class="pre">n</span></code> or running non-interactively aborts.</p>
-<p>By default <code class="docutils literal notranslate"><span class="pre">setup</span></code> provisions everything except ZED support; flags trim or extend that:</p>
+sample’s own environment: it installs <code class="docutils literal notranslate"><span class="pre">isaacteleop[cloudxr]</span></code> (which bundles Televiz) and every
+other Python dependency into <code class="docutils literal notranslate"><span class="pre">.venv/</span></code> via <code class="docutils literal notranslate"><span class="pre">uv</span></code>, then probes the system packages it needs
+(cairo / girepository headers, GStreamer plugins and the native NVENC/NVDEC codec under
+<code class="docutils literal notranslate"><span class="pre">--with-rtp</span></code>, JetPack <code class="docutils literal notranslate"><span class="pre">cuda-nvrtc</span></code> + <code class="docutils literal notranslate"><span class="pre">ld.so</span></code> wiring). When something is missing it prints
+the exact <code class="docutils literal notranslate"><span class="pre">apt-get</span></code> line and prompts <code class="docutils literal notranslate"><span class="pre">[y/N]</span></code> — answering <code class="docutils literal notranslate"><span class="pre">n</span></code> or running non-interactively
+aborts. The <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> extra is not optional for this sample: XR is the default display mode
+and the viewer launches the CloudXR runtime itself.</p>
+<p>camera_viz needs an <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> new enough to carry the features it uses, so <code class="docutils literal notranslate"><span class="pre">setup</span></code> works
+down a ladder to get one:</p>
+<ol class="arabic simple">
+<li><p>the newest <strong>final release</strong> on the package index, if one meets that minimum;</p></li>
+<li><p>otherwise the newest <strong>release candidate</strong> — Isaac Teleop publishes an rc from every
+release-branch commit, and PEP 440 keeps pre-releases out of a plain minimum-version
+specifier;</p></li>
+<li><p>otherwise a <strong>source build</strong> of the surrounding checkout, after asking. This is a full
+C++ / CUDA / Vulkan build and needs CMake, the CUDA toolkit, Vulkan headers,
+<code class="docutils literal notranslate"><span class="pre">glslangValidator</span></code>, and <code class="docutils literal notranslate"><span class="pre">clang-format-14</span></code>.</p></li>
+</ol>
+<p>The ladder is automatic, so <code class="docutils literal notranslate"><span class="pre">setup</span></code> starts preferring final releases the moment one qualifies.
+Override it with <code class="docutils literal notranslate"><span class="pre">--wheel</span> <span class="pre">PATH</span></code> or <code class="docutils literal notranslate"><span class="pre">--build-from-source</span></code>. The minimum version itself lives in
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/camera_viz/scripts/_install_deps.sh" rel="noopener noreferrer" target="_blank">scripts/_install_deps.sh</a>.</p>
+<p>By default <code class="docutils literal notranslate"><span class="pre">setup</span></code> provisions the direct-mode path — USB / UVC and OAK-D camera support. Split
+mode (RTP) and ZED support are opt-in, since both pull in dependencies the direct path never
+needs. Flags trim or extend that:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 22.0%" />
@@ -503,9 +525,10 @@ probes system packages (GStreamer plugins, cairo / girepository headers, JetPack
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--no-oakd</span></code></p></td>
 <td><p>Skip OAK-D support (<code class="docutils literal notranslate"><span class="pre">depthai</span></code>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--no-rtp</span></code></p></td>
-<td><p>Skip split-mode dependencies: the GStreamer system packages and the native NVENC/NVDEC
-codec build. Direct mode still works.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--with-rtp</span></code></p></td>
+<td><p>Also install the split-mode dependencies: the GStreamer system packages, PyGObject, and the
+native NVENC/NVDEC codec build. Required for <code class="docutils literal notranslate"><span class="pre">loopback</span></code> and for any config with
+<code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">rtp</span></code>; implied by <code class="docutils literal notranslate"><span class="pre">--sender-only</span></code>. Direct mode does not need it.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--with-zed</span></code></p></td>
 <td><p>Also build + install the ZED SDK’s Python API (<code class="docutils literal notranslate"><span class="pre">pyzed</span></code>). Requires the ZED SDK on the
@@ -521,8 +544,12 @@ machine (default <code class="docutils literal notranslate"><span class="pre">/u
 <td><p>Install into an existing virtual environment instead of creating <code class="docutils literal notranslate"><span class="pre">.venv/</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--wheel</span> <span class="pre">PATH</span></code></p></td>
-<td><p>Install a locally built <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> wheel instead of the PyPI release — for developing
-Isaac Teleop itself (see <a class="reference internal" href="../getting_started/build_from_source/index.html"><span class="doc">Build from Source</span></a>).</p></td>
+<td><p>Install a locally built <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> wheel instead of resolving one from the index — for
+developing Isaac Teleop itself (see <a class="reference internal" href="../getting_started/build_from_source/index.html"><span class="doc">Build from Source</span></a>).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--build-from-source</span></code></p></td>
+<td><p>Skip the index entirely and build <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> from the surrounding checkout, and
+answer step 3’s prompt without asking.</p></td>
 </tr>
 </tbody>
 </table>
@@ -572,7 +599,8 @@ recording (e.g. from a ZED) as stereo, splitting each frame into per-eye views (
 <td><p>USB / UVC cameras — anything <code class="docutils literal notranslate"><span class="pre">v4l2-ctl</span> <span class="pre">--list-formats-ext</span></code> reports.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">oakd</span></code></p></td>
-<td><p>OAK-D mono RGB / LEFT / RIGHT (stereo not yet wired).</p></td>
+<td><p>OAK-D RGB / LEFT / RIGHT; mono or <code class="docutils literal notranslate"><span class="pre">stereo:</span> <span class="pre">true</span></code>. Stereo ships GRAY8 over USB to halve
+bandwidth and is broadcast to RGBA on the GPU; <code class="docutils literal notranslate"><span class="pre">stereo_rgb</span></code> keeps color.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">zed</span></code></p></td>
 <td><p>ZED 2 / Mini / X One; mono or <code class="docutils literal notranslate"><span class="pre">stereo:</span> <span class="pre">true</span></code> (per-eye SDK retrieve, zero-copy on the GPU).</p></td>
@@ -682,9 +710,9 @@ CloudXR stream them efficiently (see
 </section>
 <section id="cloudxr-runtime-flags">
 <h2><a class="toc-backref" href="#id9" role="doc-backlink">CloudXR runtime flags</a><a class="headerlink" href="#cloudxr-runtime-flags" title="Link to this heading">#</a></h2>
-<p>In XR mode the viewer launches the CloudXR runtime and WSS proxy itself. Useful flags:</p>
+<p>In XR mode the viewer attaches to the running CloudXR runtime, or starts one if none is
+serving. Useful flags:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> — reuse an already-running runtime.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code> — accept the CloudXR EULA non-interactively (first run only).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-device-profile</span> <span class="pre">PROFILE</span></code> — <code class="docutils literal notranslate"><span class="pre">NV_DEVICE_PROFILE</span></code> (default <code class="docutils literal notranslate"><span class="pre">Quest3</span></code>).</p></li>
 </ul>
@@ -705,6 +733,9 @@ frame until the next IDR (default every 5 s).</p>
 </div>
 <p>In split mode every camera entry must pin <code class="docutils literal notranslate"><span class="pre">width</span></code>, <code class="docutils literal notranslate"><span class="pre">height</span></code>, and <code class="docutils literal notranslate"><span class="pre">fps</span></code> in the YAML — the
 receiver sizes its decoder from the config, not from the wire.</p>
+<p>The workstation needs the RTP dependencies, which <code class="docutils literal notranslate"><span class="pre">setup</span></code> does not install by default — re-run
+it with <code class="docutils literal notranslate"><span class="pre">--with-rtp</span></code> if you provisioned for direct mode first. The robot side is handled by
+<code class="docutils literal notranslate"><span class="pre">deploy</span></code>, which implies the flag.</p>
 <p>Set <code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">rtp</span></code> in the config, export the robot/streaming credentials once per shell, then
 deploy the sender and run the viewer:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">REMOTE_HOST</span><span class="o">=</span><span class="m">10</span>.0.0.5<span class="w"> </span><span class="nv">REMOTE_USER</span><span class="o">=</span>nvidia
@@ -774,10 +805,9 @@ YAML per source kind.</p>
 <section id="troubleshooting">
 <h2><a class="toc-backref" href="#id13" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><strong>The XR session fails to create</strong> — the viewer launches the CloudXR runtime itself; check
-<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/logs/cxr_server.*.log</span></code> and <code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code> for the startup failure. If a
-runtime is already running from another app, pass <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code>. Pass
-<code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> to render to a desktop window instead (no runtime involved).</p></li>
+<li><p><strong>The XR session fails to create</strong> — check <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/logs/cxr_server.*.log</span></code> and
+<code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code> for the startup failure. Pass <code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> to render to a
+desktop window instead (no runtime involved).</p></li>
 <li><p><strong>No window appears over SSH</strong> — <code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> needs a local display; run on the machine
 you’re sitting at, or use a video-capable remote desktop.</p></li>
 <li><p><strong>“video source: no such file”</strong> — relative <code class="docutils literal notranslate"><span class="pre">path:</span></code> values resolve against the YAML’s
@@ -994,7 +1024,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 01, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>

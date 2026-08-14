@@ -347,6 +347,7 @@
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Data Collection in Real</a></li>
 <li class="toctree-l2"><a class="reference internal" href="data_collection_sim.html">Data Collection in Sim</a></li>
 <li class="toctree-l2"><a class="reference internal" href="training_groot.html">Model Training with GR00T</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rebot.html">reBot B601-RS on Jetson AGX Orin</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
@@ -368,10 +369,11 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -474,9 +476,9 @@ uv pip install &quot;isaacteleop[cloudxr,retargeters-lite]~=1.5.0&quot; &quot;sc
 </pre></div>
 </div>
 </li>
-<li><p>Accept the CloudXR EULA once. The runtime auto-launches on connect and prompts for the EULA on
-stdin, which would hang a headless run, so accept it ahead of time:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula
+<li><p>Accept the CloudXR EULA once and start the runtime. The EULA prompts on stdin, which would hang
+a headless run, so do both ahead of time; the service outlives each script you run below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>start<span class="w"> </span>--accept-eula
 </pre></div>
 </div>
 </li>
@@ -794,7 +796,7 @@ finishes (unless <code class="docutils literal notranslate"><span class="pre">--
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 01, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>
