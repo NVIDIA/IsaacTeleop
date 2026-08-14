@@ -292,6 +292,12 @@ void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
         if (shutdown_fn_)
         {
             XrResult result = shutdown_fn_(channel_);
+            if (result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE)
+            {
+                instance_lost_ = true;
+                channel_ = XR_NULL_HANDLE;
+                return;
+            }
             if (result != XR_SUCCESS)
                 std::cerr << "[LiveMessageChannelTrackerImpl] xrShutdownOpaqueDataChannelNV failed, result=" << result
                           << std::endl;
@@ -299,7 +305,9 @@ void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
         if (destroy_channel_fn_)
         {
             XrResult result = destroy_channel_fn_(channel_);
-            if (result != XR_SUCCESS)
+            if (result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE)
+                instance_lost_ = true;
+            else if (result != XR_SUCCESS)
                 std::cerr << "[LiveMessageChannelTrackerImpl] xrDestroyOpaqueDataChannelNV failed, result=" << result
                           << std::endl;
         }
@@ -335,9 +343,10 @@ MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
     XrResult state_result = get_state_fn_(channel_, &channel_state);
     if (state_result != XR_SUCCESS)
     {
-        // Return DISCONNECTED rather than throwing so callers don't treat
-        // instance loss as a recoverable pipeline error.
-        instance_lost_ = true;
+        // Only permanently disable the channel on fatal runtime-loss errors;
+        // transient failures return DISCONNECTED to allow a reopen attempt.
+        if (state_result == XR_ERROR_INSTANCE_LOST || state_result == XR_ERROR_RUNTIME_FAILURE)
+            instance_lost_ = true;
         channel_ = XR_NULL_HANDLE;
         return MessageChannelStatus::DISCONNECTED;
     }
