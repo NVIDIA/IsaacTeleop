@@ -45,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=7509b52b"></script>
+    <script src="../_static/documentation_options.js?v=04dcff72"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +64,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.x" />
+  <meta name="docsearch:version" content="1.5.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -355,16 +355,18 @@
 <li class="toctree-l1"><a class="reference internal" href="../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -428,7 +430,7 @@ examples more readable by focusing on <strong>what</strong> you want to do rathe
 <strong>how</strong> to set it up.</p>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
-<p>The main component is <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/teleop_session_manager/python/teleop_session.py" rel="noopener noreferrer" target="_blank">TeleopSession</a>, which manages the complete lifecycle
+<p>The main component is <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/isaacteleop/teleop_session_manager/teleop_session.py" rel="noopener noreferrer" target="_blank">TeleopSession</a>, which manages the complete lifecycle
 of a teleop session. It wraps the lower-level
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_session/cpp/inc/deviceio_session/deviceio_session.hpp" rel="noopener noreferrer" target="_blank">DeviceIOSession</a>
 and <a class="reference internal" href="../device/trackers.html"><span class="doc">device trackers</span></a> so that callers don’t need to
@@ -1086,7 +1088,7 @@ of input sources.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
       <br/>
     
   </p>
