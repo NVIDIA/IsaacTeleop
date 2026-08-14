@@ -273,7 +273,9 @@ void LiveMessageChannelTrackerImpl::create_channel()
     XrResult result = create_channel_fn_(handles_.instance, &create_info, &channel_);
     if (result != XR_SUCCESS)
     {
-        if (result == XR_ERROR_INSTANCE_LOST)
+        // INSTANCE_LOST and RUNTIME_FAILURE both indicate the IPC connection
+        // to the runtime is gone; suppress further reopen attempts.
+        if (result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE)
             instance_lost_ = true;
         throw std::runtime_error("LiveMessageChannelTrackerImpl: xrCreateOpaqueDataChannelNV failed, result=" +
                                  std::to_string(result));
@@ -285,9 +287,6 @@ void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
     if (channel_ == XR_NULL_HANDLE)
         return;
 
-    // Skip NV extension calls when the instance is already lost: the IPC
-    // socket is closed so every call would fail with XRT_ERROR_IPC_FAILURE
-    // and generate noisy "Broken pipe" log spam against a dead runtime.
     if (!instance_lost_)
     {
         if (shutdown_fn_)
@@ -329,9 +328,6 @@ MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
 {
     if (instance_lost_ || channel_ == XR_NULL_HANDLE)
     {
-        // Channel was destroyed (e.g. failed reopen, or instance lost); report
-        // DISCONNECTED so update() will schedule a reopen attempt next frame
-        // (try_reopen_channel guards against retrying after instance loss).
         return MessageChannelStatus::DISCONNECTED;
     }
 
@@ -339,11 +335,8 @@ MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
     XrResult state_result = get_state_fn_(channel_, &channel_state);
     if (state_result != XR_SUCCESS)
     {
-        // Any failure here means the runtime connection is gone.  Mark the
-        // instance lost and return DISCONNECTED rather than throwing: a thrown
-        // exception would propagate to the embedding app (e.g. Isaac Lab) and
-        // be misread as a recoverable pipeline error, triggering a needless
-        // session restart against a dead runtime.
+        // Return DISCONNECTED rather than throwing so callers don't treat
+        // instance loss as a recoverable pipeline error.
         instance_lost_ = true;
         channel_ = XR_NULL_HANDLE;
         return MessageChannelStatus::DISCONNECTED;

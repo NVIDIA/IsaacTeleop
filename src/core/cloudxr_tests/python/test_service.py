@@ -459,3 +459,26 @@ class TestSignalHandlers:
 
         assert prev_called == [signal.SIGINT]
         assert not stop_called, "signal handler must not call stop() directly"
+
+    def test_sigint_handler_with_sig_ign_prev_is_noop(self, tmp_path):
+        """SIGINT handler is a no-op when prev was SIG_IGN."""
+        orig_sigint = signal.getsignal(signal.SIGINT)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            with mock_service_deps(tmp_path, ready=True):
+                service = CloudXRService()
+
+            stop_called = []
+            service._original_stop = service.stop
+            service.stop = lambda: stop_called.append(True)
+
+            handler = signal.getsignal(signal.SIGINT)
+            try:
+                handler(signal.SIGINT, None)  # must not raise
+            finally:
+                service.stop = service._original_stop
+                service.stop()
+        finally:
+            signal.signal(signal.SIGINT, orig_sigint)
+
+        assert not stop_called, "signal handler must not call stop() directly"
