@@ -539,10 +539,11 @@ class CloudXRLauncher:
                     # e.g. default_int_handler raises KeyboardInterrupt, which
                     # unwinds with-blocks in order before atexit calls stop().
                     prev(signum, frame)
-                else:
+                elif prev == signal.SIG_DFL:
                     # SIG_DFL would terminate the process without running atexit
                     # or __exit__ handlers.  SystemExit triggers both.
                     raise SystemExit(0)
+                # SIG_IGN: signal was previously ignored — preserve that (no-op).
 
             return _handler
 

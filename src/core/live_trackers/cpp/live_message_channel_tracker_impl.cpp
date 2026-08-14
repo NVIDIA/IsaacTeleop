@@ -111,7 +111,11 @@ void LiveMessageChannelTrackerImpl::drain_messages()
         if (query_result != XR_SUCCESS)
         {
             if (query_result == XR_ERROR_CHANNEL_NOT_CONNECTED_NV)
+                return;
+            if (query_result == XR_ERROR_INSTANCE_LOST)
             {
+                instance_lost_ = true;
+                channel_ = XR_NULL_HANDLE;
                 return;
             }
             throw std::runtime_error("LiveMessageChannelTrackerImpl: xrReceiveOpaqueDataChannelNV (query) failed, result=" +
@@ -156,7 +160,11 @@ void LiveMessageChannelTrackerImpl::drain_messages()
         if (recv_result != XR_SUCCESS)
         {
             if (recv_result == XR_ERROR_CHANNEL_NOT_CONNECTED_NV)
+                return;
+            if (recv_result == XR_ERROR_INSTANCE_LOST)
             {
+                instance_lost_ = true;
+                channel_ = XR_NULL_HANDLE;
                 return;
             }
             throw std::runtime_error("LiveMessageChannelTrackerImpl: xrReceiveOpaqueDataChannelNV (read) failed, result=" +
@@ -197,6 +205,11 @@ void LiveMessageChannelTrackerImpl::send_message(const std::vector<uint8_t>& pay
     XrResult state_result = get_state_fn_(channel_, &channel_state);
     if (state_result != XR_SUCCESS)
     {
+        if (state_result == XR_ERROR_INSTANCE_LOST)
+        {
+            instance_lost_ = true;
+            channel_ = XR_NULL_HANDLE;
+        }
         throw std::runtime_error("LiveMessageChannelTrackerImpl: xrGetOpaqueDataChannelStateNV failed, result=" +
                                  std::to_string(state_result));
     }
@@ -209,6 +222,11 @@ void LiveMessageChannelTrackerImpl::send_message(const std::vector<uint8_t>& pay
     XrResult send_result = send_fn_(channel_, static_cast<uint32_t>(payload.size()), payload_ptr);
     if (send_result != XR_SUCCESS)
     {
+        if (send_result == XR_ERROR_INSTANCE_LOST)
+        {
+            instance_lost_ = true;
+            channel_ = XR_NULL_HANDLE;
+        }
         throw std::runtime_error("LiveMessageChannelTrackerImpl: xrSendOpaqueDataChannelNV failed, result=" +
                                  std::to_string(send_result));
     }
@@ -307,7 +325,7 @@ bool LiveMessageChannelTrackerImpl::try_reopen_channel()
     }
 }
 
-MessageChannelStatus LiveMessageChannelTrackerImpl::query_status()
+MessageChannelStatus LiveMessageChannelTrackerImpl::query_status() const
 {
     if (instance_lost_ || channel_ == XR_NULL_HANDLE)
     {
