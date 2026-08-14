@@ -1035,6 +1035,14 @@ void XrBackend::record_native_layers(VkCommandBuffer cmd, const Frame& /*frame*/
             baseline_axis_ws = glm::mat3_cast(view.pose.orientation) * glm::vec3(1.0f, 0.0f, 0.0f);
         }
 
+        // Curved surfaces converge by rotation instead: see
+        // NativeLayerView::stereo_convergence_deg. Positive pushes content
+        // away, matching the baseline's sign — a +yaw swings the surface's
+        // −z (and with it the image) toward −x, so the left eye takes the
+        // positive half.
+        const bool apply_convergence = stereo && view.stereo_convergence_deg != 0.0f;
+        const float half_convergence_rad = glm::radians(view.stereo_convergence_deg) * 0.5f;
+
         for (uint32_t e = 0; e < eye_count; ++e)
         {
             ViewSwapchain& sw = qs.eyes[e];
@@ -1086,6 +1094,12 @@ void XrBackend::record_native_layers(VkCommandBuffer cmd, const Frame& /*frame*/
                 const float sign = (e == 0) ? -1.0f : +1.0f;
                 // 0.5 halves the disparity per eye; 0.001 converts mm → m.
                 eye_pose.position += sign * (view.stereo_baseline_mm * 0.0005f) * baseline_axis_ws;
+            }
+            if (apply_convergence)
+            {
+                const float sign = (e == 0) ? +1.0f : -1.0f;
+                const glm::quat yaw = glm::angleAxis(sign * half_convergence_rad, glm::vec3(0.0f, 1.0f, 0.0f));
+                eye_pose.orientation = glm::normalize(eye_pose.orientation * yaw);
             }
 
             NativeLayerSubmit submit{};

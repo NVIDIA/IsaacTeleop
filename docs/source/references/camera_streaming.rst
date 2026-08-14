@@ -210,6 +210,64 @@ In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` u
 Lazy-mode knobs live under ``placements.<name>``: ``look_away_angle_deg``,
 ``reposition_distance``, ``reposition_delay_s``, ``transition_duration_s``.
 
+Controller bindings
+^^^^^^^^^^^^^^^^^^^
+
+In XR the controllers retune the view live, without editing the YAML and restarting. The right
+hand changes how the feed looks; the left, what surface it is mapped onto:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+
+   * - Input
+     - Effect
+   * - Right stick ←/→
+     - Stereo plane gap — how far apart the two eyes' planes sit
+       (``placements.<cam>.stereo_plane_distance_cm``). Widening it pushes the scene back
+       instead of packing it into the space in front of the planes. Stereo cameras only.
+   * - ``A``
+     - Cycle the lock mode: ``world`` → ``head`` → ``gimbal`` → ``lazy``.
+   * - ``B``
+     - Toggle mono / stereo. Stereo cameras only.
+   * - ``X``
+     - Cycle the shape: ``quad`` → ``cylinder`` → ``equirect``.
+   * - ``Y``
+     - Reset everything to the YAML values.
+   * - Left stick
+     - Retunes the active shape: ``quad`` size / vertical position, ``cylinder`` arc width /
+       vertical position, ``equirect`` horizontal / vertical span.
+
+Changes apply to every camera at once and appear both on the terminal status panel and on a
+head-locked panel in the headset that auto-hides shortly after. Neither toggle reallocates:
+``B`` sends the left frame to both eyes, and ``X`` flips visibility between shapes built at
+startup, so the extra shapes cost VRAM (reported at startup) rather than a stall on the press.
+
+The stereo gap is bounded below **divergent parallax** — a gap wider than your IPD would need
+the eyes to splay outward — and the headset's measured IPD sets that ceiling, not the config.
+The HUD suggests a gap derived from the plane distance and that IPD.
+
+Bindings, rates and limits live under ``display.controls``; see the
+:code-file:`README <examples/camera_viz/README.md>` for the full set.
+
+Status panel
+^^^^^^^^^^^^
+
+On a terminal the sample redraws a snapshot in place rather than scrolling a log — render and
+submit rates alongside each camera's current shape, lock mode, size, and stereo gap::
+
+   camera_viz  xr · local · 1 camera
+   ──────────────────────────────────────────────────────────────────
+     render 58.0 fps (target 72)   missed 0   gpu 2.1 ms
+
+     camera      shape     lock    eyes   size m  height m  planes cm   submit/s
+     zed         cylinder  lazy    stereo 1.00    +0.00     5.0/5.2     64.0
+
+     headset IPD 63 mm
+
+When stderr is not a terminal — piped, or the systemd unit ``deploy`` installs — it falls back
+to one line every few seconds carrying the same numbers.
+
 Display surfaces
 ----------------
 

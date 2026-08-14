@@ -127,8 +127,9 @@ display:                      # camera_viz only
       offset_x: 0.0
       offset_y: 0.0
       # size: [w_m, h_m]
-      # stereo_baseline_mm: 0  # stereo cams: 0 = both eyes share the world quad
-                               # (parallax from the frames); ~65 = virtual IPD push
+      # stereo_plane_distance_cm: 0   # stereo cams: gap between the left- and
+                                      # right-eye planes; 0 = both eyes share
+                                      # one plane. See "Stereo plane distance"
       # shape: quad            # quad (default) | cylinder | equirect — XR only for
                                # the curved shapes
       # compositor: openxr     # openxr (default) | televiz — quads only
@@ -149,7 +150,92 @@ Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` (
 
 Lazy knobs under `placements.<name>`: `look_away_angle_deg`, `reposition_distance`, `reposition_delay_s`, `transition_duration_s`.
 
+## Controller bindings (XR)
+
+Retune the view without editing YAML and restarting. The right hand changes how the feed looks, the left what surface it's on. Quest and Pico report these identically.
+
+| Input | Effect |
+|---|---|
+| **Right stick** ←/→ | Stereo plane gap. Stereo cameras only |
+| **A** | Lock mode: `world` → `head` → `gimbal` → `lazy` |
+| **B** | Mono / stereo. Stereo cameras only |
+| **X** | Shape: `quad` → `cylinder` → `equirect` |
+| **Y** | Reset everything to the YAML values |
+| **Left stick** | Per shape, below |
+
+| Shape | ←/→ | ↑/↓ |
+|---|---|---|
+| `quad` | size, aspect preserved | slide up / down |
+| `cylinder` | arc width | slide up / down |
+| `equirect` | horizontal span | vertical span |
+
+Changes apply to every camera at once and appear on the status panel and an in-headset HUD that auto-hides ~2.5 s later (`hud: false` to disable). Nothing is written back to the YAML.
+
+Neither toggle reallocates: **B** sends the left frame to both eyes, **X** flips visibility between shapes all built at startup. The cost is VRAM — two extra layers per camera, reported at startup; `shape_switching: false` keeps only the configured shape.
+
+A quad's `distance` and a cylinder's `cylinder_radius_m` stay YAML-only. Apparent size is `2·atan((w/2)/d)` and arc width is `radius × angle`, so moving either surface further away enlarges it by the same factor and looks identical — they'd duplicate the size axis. What they *do* change is the real distance to the surface, which the stereo gap works from.
+
+```yaml
+display:
+  controls:
+    enabled: true                      # false disables the bindings
+    hud: true                          # in-headset readout
+    shape_switching: true              # keep all 3 shapes resident for X
+    deadzone: 0.2                      # stick rest-position tolerance
+    plane_distance_rate_cm_per_s: 2.0  # held-stick ramp rates
+    size_rate_m_per_s: 0.5
+    offset_rate_m_per_s: 0.5
+    angle_rate_deg_per_s: 40.0
+```
+
+Limits — `plane_distance_min_cm` / `plane_distance_max_cm`, `size_range_m`, `offset_y_range_m`, `cylinder_angle_range_deg`, `equirect_h_range_deg`, `equirect_v_half_range_deg` — all default inside what the layers accept. See `configs/zed.yaml`.
+
+### Stereo plane distance
+
+A stereo layer draws each eye's image on its own plane; `stereo_plane_distance_cm` is the gap between them.
+
+```yaml
+display:
+  placements:
+    zed:
+      distance: 1.0                  # how far away the planes are
+      stereo_plane_distance_cm: 5.0  # how far apart they are
+```
+
+At `0` both eyes share one plane, so the whole scene — near objects and far background alike — is packed into the space between you and `distance`. Widening the gap pushes it back and lets it spread out. Applied exactly as given (×10 into the layer's `stereo_baseline_mm`); the stick moves it in 0.1 cm steps.
+
+The HUD suggests a value from the plane distance and the headset's measured IPD, shown beside the one in use (`5.0/5.2` on the panel). Advice only — the stick sets the value, which is also how you correct a headset whose IPD setting doesn't match your eyes.
+
+The stick can't reach **divergent parallax**: at a gap equal to your IPD the eyes' rays are parallel, and beyond it they would have to splay outward — the classic cause of stereo eye strain. The ceiling comes from the measured IPD, not the config.
+
+**B** parks the gap at zero while mono, since one image on two separated planes would only shift its depth, and restores it on the way back.
+
+Not applicable to `equirect`: the gap shifts each eye's surface, and the sphere sits at infinite radius where translating it does nothing, so the stick skips it. Curved layers have a rotation-based equivalent in Televiz (`stereo_convergence_deg`), which is uniform across the arc and works at any radius.
+
+> **Not the camera's baseline.** That is the physical gap between the camera's two lenses — fixed in hardware, baked into the pixels, and what sets the scene's depth *scale*. This only moves where that scene sits.
+
+> Live adjustment needs `Layer.set_stereo_baseline_mm`, newer than the released `isaacteleop` wheel. On an older wheel that one binding disables itself with a notice; A, B, X and Y still work.
+
 ---
+
+## Status panel
+
+On a terminal, camera_viz redraws a snapshot in place instead of scrolling a log:
+
+```
+camera_viz  xr · local · 1 camera
+────────────────────────────────────────────────────────────────────
+  render 58.0 fps (target 72)   missed 0   gpu 2.1 ms
+
+  camera      shape     lock    eyes   size m  height m  planes cm   submit/s
+  zed         cylinder  lazy    stereo 1.00    +0.00     5.0/5.2     64.0
+
+  headset IPD 63 mm
+
+  stereo planes 5.0 cm  ·  suggested 5.2 cm
+```
+
+`planes cm` is the value in use and the suggestion. `-` means the field doesn't apply — equirect has no gap, window mode has no controls. When stderr isn't a terminal (piped, or a `deploy`ed systemd unit) it falls back to one line every 5 s with the same numbers.
 
 ## Layout
 

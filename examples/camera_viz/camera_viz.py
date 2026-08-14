@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import math
+import os
 import signal
 import sys
 from dataclasses import dataclass
@@ -32,6 +33,13 @@ import isaacteleop.viz as viz
 from isaacteleop.cloudxr import CloudXRLauncher
 
 from pipeline import FrameSource, VizRunner
+from controls import (
+    ControllerControls,
+    ControlTarget,
+    controls_config_from_yaml,
+)
+from dashboard import Dashboard
+from hud import make_hud
 from placements import PlacementConfig, PlacementStrategy, build as build_placement
 from sources import (
     PairedFrameSource,
@@ -49,7 +57,13 @@ class SourceEntry:
     source: FrameSource
     placement: Optional[PlacementStrategy]
     stereo: bool = False
-    stereo_baseline_mm: float = 0.0
+    # display.placements.<name>.stereo_plane_distance_cm — the gap between
+    # the left-eye and right-eye planes.
+    stereo_plane_distance_cm: float = 0.0
+    # Kept so the controls can rebuild a strategy when the lock mode is
+    # cycled at runtime; None outside XR (no placement to rebuild).
+    lock_mode: str = "lazy"
+    placement_config: Optional[PlacementConfig] = None
     # display.placements.<name>.shape: quad | cylinder | equirect.
     shape: str = "quad"
     # Who composites the layer (display.placements.<name>.compositor):
@@ -62,6 +76,10 @@ class SourceEntry:
 
 
 _VALID_SHAPES = ("quad", "cylinder", "equirect")
+
+# ImageLayerBase::kSlotCount (kMaxFramesInFlight + 2). Only used to
+# report the VRAM that shape switching adds.
+_MAILBOX_SLOTS = 7
 _VALID_COMPOSITORS = ("openxr", "televiz")
 
 # Every key the placements.<name> block understands (lock-mode strategy
@@ -79,7 +97,7 @@ _KNOWN_PLACEMENT_KEYS = frozenset(
         "reposition_delay_s",
         "transition_duration_s",
         "size",
-        "stereo_baseline_mm",
+        "stereo_plane_distance_cm",
         "shape",
         "compositor",
         "cylinder_radius_m",
@@ -137,7 +155,11 @@ def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, f
 _VALID_LOCK_MODES = ("world", "head", "lazy", "gimbal")
 
 
-def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStrategy]:
+def _build_placement(
+    spec: Optional[dict], is_xr: bool
+) -> Tuple[Optional[PlacementStrategy], str, Optional[PlacementConfig]]:
+    """Returns (strategy, lock_mode, config). The last two let the
+    controls rebuild a strategy when the lock mode changes at runtime."""
     if spec is not None:
         # Validate in every display mode — a typo'd lock_mode shouldn't
         # silently become lazy (XR) or pass unnoticed (window).
@@ -148,7 +170,7 @@ def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStr
                 f"got {lock_mode!r}"
             )
     if not is_xr or spec is None:
-        return None
+        return None, "lazy", None
     cfg_kwargs = {}
     if "size" in spec:
         cfg_kwargs["size_meters"] = tuple(spec["size"])
@@ -164,7 +186,8 @@ def _build_placement(spec: Optional[dict], is_xr: bool) -> Optional[PlacementStr
         if key in spec:
             cfg_kwargs[key] = spec[key]
     cfg = PlacementConfig(**cfg_kwargs)
-    return build_placement(spec.get("lock_mode", "lazy"), cfg)
+    lock_mode = spec.get("lock_mode", "lazy")
+    return build_placement(lock_mode, cfg), lock_mode, cfg
 
 
 def _enabled_cameras(cfg: dict) -> List[dict]:
@@ -179,7 +202,7 @@ _DEFAULT_PLANE_WIDTH_M = 1.0
 
 def _placement_with_aspect(
     spec: Optional[dict], width: int, height: int, is_xr: bool
-) -> Optional[PlacementStrategy]:
+) -> Tuple[Optional[PlacementStrategy], str, Optional[PlacementConfig]]:
     """Build the placement, filling in ``size`` from the source's aspect
     ratio when the YAML doesn't pin it. Width defaults to 1.0 m so a
     16:9 source lands at 1.0 x 0.5625, a 3.55:1 SBS at 1.0 x 0.281."""
@@ -192,11 +215,12 @@ def _placement_with_aspect(
 
 
 def _stereo_for(cam: dict, placements_cfg: dict) -> Tuple[bool, float]:
-    """``cameras.<cam>.stereo`` (producer toggle) + ``placements.<cam>.stereo_baseline_mm``."""
+    """``cameras.<cam>.stereo`` (producer toggle) plus the placement's
+    ``placements.<cam>.stereo_plane_distance_cm`` — the gap between the
+    left-eye and right-eye planes in 3D."""
     stereo = bool(cam.get("stereo", False))
     pspec = placements_cfg.get(cam["name"]) or {}
-    baseline_mm = float(pspec.get("stereo_baseline_mm", 0.0))
-    return stereo, baseline_mm
+    return stereo, float(pspec.get("stereo_plane_distance_cm", 0.0))
 
 
 def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
@@ -208,10 +232,10 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
         # Aspect comes from the built source's spec, not the YAML — video
         # sources may omit width/height and size themselves from the file.
         first = cam_sources[0].spec
-        placement = _placement_with_aspect(
+        placement, lock_mode, placement_cfg = _placement_with_aspect(
             placements_cfg.get(cam["name"]), first.width, first.height, is_xr
         )
-        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
+        stereo, plane_distance_cm = _stereo_for(cam, placements_cfg)
         shape, compositor, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
         for source in cam_sources:
             entries.append(
@@ -219,11 +243,13 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                     source=source,
                     placement=placement,
                     stereo=stereo,
-                    stereo_baseline_mm=baseline_mm,
+                    stereo_plane_distance_cm=plane_distance_cm,
                     shape=shape,
                     compositor=compositor,
                     cylinder_radius_m=radius_m,
                     cylinder_angle_deg=angle_deg,
+                    lock_mode=lock_mode,
+                    placement_config=placement_cfg,
                 )
             )
     return entries
@@ -247,13 +273,13 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 "width/height when source: rtp — the receiver sizes its "
                 "decoder from the YAML, not from the wire"
             )
-        placement = _placement_with_aspect(
+        placement, lock_mode, placement_cfg = _placement_with_aspect(
             placements_cfg.get(cam["name"]),
             int(cam["width"]),
             int(cam["height"]),
             is_xr,
         )
-        stereo, baseline_mm = _stereo_for(cam, placements_cfg)
+        stereo, plane_distance_cm = _stereo_for(cam, placements_cfg)
 
         if stereo:
             if "port_right" not in rtp:
@@ -296,17 +322,23 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 source=source,
                 placement=placement,
                 stereo=stereo,
-                stereo_baseline_mm=baseline_mm,
+                stereo_plane_distance_cm=plane_distance_cm,
                 shape=shape,
                 compositor=compositor,
                 cylinder_radius_m=radius_m,
                 cylinder_angle_deg=angle_deg,
+                lock_mode=lock_mode,
+                placement_config=placement_cfg,
             )
         )
     return entries
 
 
-def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSession:
+def _make_session(
+    cfg: dict,
+    mode_override: Optional[str] = None,
+    required_extensions: Optional[List[str]] = None,
+) -> viz.VizSession:
     display = cfg.get("display", {})
     # --mode overrides display.mode when given.
     mode_str = (mode_override or display.get("mode", "xr")).lower()
@@ -328,12 +360,15 @@ def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSess
     if "clear_color" in display:
         session_cfg.clear_color = tuple(display["clear_color"])
     session_cfg.app_name = display.get("app_name", "camera_viz")
+    # Televiz creates the XrInstance, so anything downstream needs (here the
+    # controller tracker's action-context extension) has to be declared now.
+    if required_extensions:
+        session_cfg.required_extensions = list(required_extensions)
     return viz.VizSession.create(session_cfg)
 
 
-def _add_layer(session: viz.VizSession, entry: SourceEntry):
-    """Register one layer for ``entry`` per its ``shape`` (from
-    ``display.placements.<name>`` in the YAML).
+def _build_layer(session: viz.VizSession, entry: SourceEntry, shape: str):
+    """One layer of ``shape`` for ``entry``.
 
     quad     → QuadLayer, composited by the OpenXR runtime by default
                (``compositor: televiz`` opts into the built-in compositor);
@@ -345,26 +380,29 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry):
                to be an equirect panorama). Runtime-composited always.
     """
     spec = entry.source.spec
-    if entry.shape == "cylinder":
+    if shape == "cylinder":
         layer_cfg = viz.CylinderLayerConfig()
         layer_cfg.name = spec.name
         layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
         layer_cfg.stereo = entry.stereo
-        layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
+        layer_cfg.stereo_baseline_mm = entry.stereo_plane_distance_cm * 10.0
         # aspect_ratio 0 = derived from the source resolution (square texels).
         layer_cfg.placement = viz.CylinderLayerPlacement(
             radius_m=entry.cylinder_radius_m,
             central_angle_rad=math.radians(entry.cylinder_angle_deg),
         )
         return session.add_cylinder_layer(layer_cfg)
-    if entry.shape == "equirect":
+    if shape == "equirect":
         layer_cfg = viz.EquirectLayerConfig()
         layer_cfg.name = spec.name
         layer_cfg.resolution = viz.Resolution(spec.width, spec.height)
         layer_cfg.stereo = entry.stereo
         # Baseline only matters at finite sphere radius; harmless at the
         # default infinite-radius placement (full 360x180 sphere).
-        layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
+        layer_cfg.stereo_baseline_mm = entry.stereo_plane_distance_cm * 10.0
+        # Set explicitly rather than leaning on the default so the controls
+        # have a known starting point to adjust from and reset to.
+        layer_cfg.placement = viz.EquirectLayerPlacement()
         return session.add_equirect_layer(layer_cfg)
 
     layer_cfg = viz.QuadLayerConfig()
@@ -373,12 +411,42 @@ def _add_layer(session: viz.VizSession, entry: SourceEntry):
     layer_cfg.format = viz.PixelFormat.kRGBA8
     if entry.stereo:
         layer_cfg.stereo = True
-        layer_cfg.stereo_baseline_mm = entry.stereo_baseline_mm
+        layer_cfg.stereo_baseline_mm = entry.stereo_plane_distance_cm * 10.0
     # OpenXR-runtime composition is the default (kXr only; window mode is
     # always composited by Televiz). Requires a placement, which the
     # placement strategy applies below.
     layer_cfg.openxr_composition = entry.compositor == "openxr"
     return session.add_quad_layer(layer_cfg)
+
+
+def _add_layers(
+    session: viz.VizSession, entry: SourceEntry, all_shapes: bool
+) -> "dict[str, object]":
+    """Returns ``{shape: layer}`` for ``entry``.
+
+    With ``all_shapes`` every shape is built up front and all but the
+    configured one start hidden, so switching later is just an atomic
+    ``set_visible`` — no reallocation and no ``vkDeviceWaitIdle`` mid-demo,
+    which is what removing and re-adding a layer would cost.
+    """
+    shapes = _VALID_SHAPES if all_shapes else (entry.shape,)
+    layers = {}
+    for shape in shapes:
+        layer = _build_layer(session, entry, shape)
+        layer.set_visible(shape == entry.shape)
+        layers[shape] = layer
+    return layers
+
+
+def _estimate_layer_bytes(entry: SourceEntry, shape: str) -> int:
+    """Rough VRAM for one layer's mailbox: kSlotCount images, doubled for
+    stereo, plus the quad's mip chain."""
+    spec = entry.source.spec
+    per_image = spec.width * spec.height * 4
+    total = per_image * _MAILBOX_SLOTS * (2 if entry.stereo else 1)
+    if shape == "quad":
+        total = int(total * 4 / 3)  # capped mip chain ≈ +33%
+    return total
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -426,6 +494,22 @@ def main(argv: Optional[list[str]] = None) -> int:
                 "use --mode xr or shape: quad in window mode."
             )
 
+    # The runtime otherwise blocks each server frame until a fresh client pose
+    # arrives. The launcher hands its own os.environ to the runtime
+    # subprocess, so setting it here is enough; setdefault means an explicit
+    # NV_ENABLE_POSE_WAIT=... from the shell still wins, and the value must be
+    # one the runtime's parser recognises as false ("false"/"0"/"off"/...) --
+    # anything it doesn't recognise, "False" included, reads as true.
+    # No effect under --no-launch-cloudxr-runtime: that runtime already
+    # started with whatever environment it was given.
+    if effective_mode == "xr":
+        os.environ.setdefault("NV_ENABLE_POSE_WAIT", "true")
+        # Runtime-side fixed foveation: the runtime warps the composited image
+        # before encoding, so peripheral pixels cost less bandwidth. Off in the
+        # runtime by default, and it applies to the layers fast path camera_viz
+        # uses, not just to projection layers.
+        os.environ.setdefault("NV_CXR_RUNTIME_FOVEATION", "false")
+
     # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
     # headset clients) before creating the session — VizSession's OpenXR
     # instance needs XR_RUNTIME_JSON + a running service, both of which the
@@ -446,7 +530,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     launcher = launch_ctx.__enter__()
     stop_launcher = True
     try:
-        session = _make_session(cfg, mode_override=args.mode)
+        controls_cfg = controls_config_from_yaml(cfg.get("display", {}))
+        # Window mode has no controllers, so don't ask for their extensions.
+        want_controls = controls_cfg.enabled and effective_mode == "xr"
+        session = _make_session(
+            cfg,
+            mode_override=args.mode,
+            required_extensions=(
+                ControllerControls.required_extensions() if want_controls else None
+            ),
+        )
         is_xr = session.is_xr_mode()
 
         if source_mode == "local":
@@ -454,26 +547,83 @@ def main(argv: Optional[list[str]] = None) -> int:
         else:
             entries = _build_rtp_entries(cfg, is_xr)
 
+        # Shape switching needs every shape resident, and the shaped layers
+        # are XR-only, so it is off outside XR regardless of the config.
+        switch_shapes = want_controls and is_xr and controls_cfg.shape_switching
+
         # Build sources, layers, and placement strategies in parallel arrays.
-        sources, layers, strategies = [], [], []
+        # ``layers`` holds the *active* layer per source: the controls swap
+        # entries in place when the shape changes.
+        sources, layers, strategies, shape_layers = [], [], [], []
         for entry in entries:
+            per_shape = _add_layers(session, entry, switch_shapes)
             sources.append(entry.source)
-            layers.append(_add_layer(session, entry))
-            # Placement lock-mode strategies reposition quads AND cylinders
-            # (the runner adapts the pose to the cylinder's head-anchored
-            # center); an equirect sphere has nothing to re-snap.
-            strategies.append(
-                entry.placement if entry.shape in ("quad", "cylinder") else None
+            shape_layers.append(per_shape)
+            layers.append(per_shape[entry.shape])
+            # Lock-mode strategies reposition quads AND cylinders (the runner
+            # adapts the pose to the cylinder's head-anchored center). An
+            # equirect sphere is centred on the operator with nothing to
+            # re-snap, so the runner skips it by layer type -- the strategy is
+            # still kept here, because switching away from equirect needs it.
+            strategies.append(entry.placement)
+
+        cameras = f"{len(sources)} camera" + ("s" if len(sources) != 1 else "")
+        header = f"{effective_mode} · {source_mode} · {cameras}"
+        notes = []
+        if switch_shapes:
+            extra = sum(
+                _estimate_layer_bytes(e, shape)
+                for e in entries
+                for shape in _VALID_SHAPES
+                if shape != e.shape
+            )
+            notes.append(
+                f"shape switching on — {len(_VALID_SHAPES) - 1} extra layer(s) per "
+                f"camera, about {extra / (1024 * 1024):.0f} MiB additional VRAM"
             )
 
-        shapes = ",".join(sorted({e.shape for e in entries})) or "quad"
-        print(
-            f"camera_viz: source={source_mode}, mode={effective_mode}, "
-            f"xr={is_xr}, shapes={shapes}, {len(sources)} layer(s)",
-            flush=True,
-        )
+        controls = None
+        if want_controls and is_xr:
+            targets = [
+                ControlTarget(
+                    name=e.source.spec.name,
+                    layer=layer,
+                    shape=e.shape,
+                    stereo=e.stereo,
+                    plane_distance_cm=e.stereo_plane_distance_cm,
+                    lock_mode=e.lock_mode,
+                    placement_config=e.placement_config,
+                    shape_layers=per_shape,
+                    cylinder_radius_m=e.cylinder_radius_m,
+                    cylinder_angle_deg=e.cylinder_angle_deg,
+                )
+                for e, layer, per_shape in zip(entries, layers, shape_layers)
+            ]
+            # ``strategies`` is handed over as-is: the controls swap entries
+            # in place and the runner reads the same list.
+            # Added last so it composites over the feeds (insertion order is
+            # blend order for runtime-composited layers).
+            hud = make_hud(session, controls_cfg.hud)
+            controls = ControllerControls(
+                session, targets, strategies, controls_cfg, hud=hud
+            )
 
-        runner = VizRunner(session, sources, layers, strategies)
+        dashboard = Dashboard()
+        if not dashboard.live:
+            # Nothing is redrawing, so the header would never be seen.
+            print(f"camera_viz: {header}", flush=True)
+            for note in notes:
+                print(f"camera_viz: {note}", file=sys.stderr, flush=True)
+        runner = VizRunner(
+            session,
+            sources,
+            layers,
+            strategies,
+            controls=controls,
+            dashboard=dashboard,
+            header=header,
+            notes=notes,
+        )
 
         def _on_signal(signum, frame):
             print(f"camera_viz: stopping (signal {signum})...", flush=True)
@@ -482,26 +632,37 @@ def main(argv: Optional[list[str]] = None) -> int:
         signal.signal(signal.SIGINT, _on_signal)
         signal.signal(signal.SIGTERM, _on_signal)
 
+        # Entered manually rather than with ``with``: teardown is ordered and
+        # conditional. The controls' trackers borrow the XrInstance / XrSession
+        # that VizSession owns, so they must detach AFTER the render thread
+        # stops polling them but BEFORE destroy() frees those handles — and
+        # neither may happen at all if a worker thread is still alive.
+        if controls is not None:
+            controls.__enter__()
         runner.start()
         try:
             runner.wait(
                 health_check=launcher.health_check if launcher is not None else None
             )
         finally:
-            # Skip session.destroy() when a worker thread is still alive —
-            # it may be inside session.render() and destroying under it
-            # would UAF on the Vulkan / CUDA handles. Non-daemon thread
-            # keeps the process alive; OS reaps at exit. Leave the CloudXR
-            # runtime up too (see launch_ctx comment above).
+            # Skip destroy() when a worker thread is still alive — it may be
+            # inside session.render() and destroying under it would UAF on the
+            # Vulkan / CUDA handles. Non-daemon thread keeps the process alive;
+            # OS reaps at exit. Leave the CloudXR runtime up too (see the
+            # launch_ctx comment above).
             clean = runner.stop()
+            dashboard.close()
             if clean:
+                if controls is not None:
+                    controls.__exit__(None, None, None)
                 session.destroy()
             else:
                 stop_launcher = False
                 print(
-                    "camera_viz: worker thread did not exit; leaving VizSession "
-                    "and the CloudXR runtime alive to avoid use-after-free. "
-                    "Process will keep running until the stuck thread completes.",
+                    "camera_viz: worker thread did not exit; leaving VizSession, "
+                    "the controller session and the CloudXR runtime alive to "
+                    "avoid use-after-free. Process will keep running until the "
+                    "stuck thread completes.",
                     file=sys.stderr,
                     flush=True,
                 )

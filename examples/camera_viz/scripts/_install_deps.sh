@@ -533,7 +533,8 @@ fi
 # girepository-1.0 build path, and Ubuntu 22.04 only ships 1.0
 # (libgirepository1.0-dev). 3.50.x supports both. Source-builds against
 # the C deps installed in ensure_apt_deps(); pycairo is a transitive dep.
-PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15")
+# pillow renders the XR controls HUD (examples/camera_viz/hud.py).
+PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15" "pillow>=10.0")
 [[ "$MODE" == full ]] && PKGS=("$ISAACTELEOP_PKG" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
