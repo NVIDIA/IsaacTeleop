@@ -1,0 +1,192 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Source of truth for the Supported Input Devices table on the Ecosystem page;
+# rendered by the ``device-matrix`` directive (docs/source/_ext/partner_grid.py).
+#
+# Devices are looked up, not browsed, so this section is a table and not a card grid.
+# A supported device is not the same thing as a partner card in partners.yaml: a company
+# may have both (Haptikos, MANUS, PICO), one without the other, and neither file derives
+# from the other.
+#
+# A row is: name, input modes, and a Details button opening a panel. Required fields are
+# id, name, url, group, and modes; unknown fields fail the build.
+#   url      the manufacturer's product page. The device name is that link, so no row
+#            carries a separate "Overview" link.
+#   group    xr | peripheral -- the two group header rows, rendered in that order.
+#   modes    the input modes, which decide the available retargeters and control
+#            schemes. One short phrase, not a sentence.
+#   details  optional; the three panel columns, always rendered in the order
+#            set up / requirements / acquire. A column with nothing to say renders an em
+#            dash so the three stay aligned across devices. Omit `details` entirely and
+#            the row gets no button.
+#
+# A details entry is a bare string, a link, or a way to reach someone:
+#   - Pico OS 15.4.4U or newer
+#   - label: How To Connect             # plus exactly one of doc, ref, or url
+#     ref: connect-quest-pico
+#     note: runs in the headset browser # optional gloss, rendered after an em dash
+#   - email: sales@example.com          # renders as a mailto: link
+#   - phone: +1 (555) 123-4567          # renders as a tel: link
+# No sentences and no trailing periods: this is a reference table.
+#
+# Rows render in file order within their group, so the file reads like the page. There
+# is no `order` field to keep in sync.
+#
+# The docs site and the IsaacTeleop repository are both this project, so a link into
+# either is internal and gets no external marker. Only third-party domains do --
+# including other GitHub organizations such as isaac-sim.
+#
+# `planned` renders as one line under the table, not as a row. Its `tracking` url must
+# end in an issue or pull number, which the link label picks up: "Tracking #276".
+
+devices:
+  # ---------------------------------------------------------------------- xr --
+  - id: apple-vision-pro
+    name: Apple Vision Pro
+    url: https://www.apple.com/apple-vision-pro/
+    group: xr
+    modes: Hand tracking (26 joints), spatial controllers
+    details:
+      setup:
+        - label: Sample Client
+          url: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
+        - label: Connect Apple Vision Pro
+          ref: connect-apple-vision-pro
+      requirements:
+        - Built from source with Xcode
+      acquire:
+        - label: apple.com
+          url: https://www.apple.com/apple-vision-pro/
+
+  - id: meta-quest
+    name: Meta Quest 2 / 3 / 3S
+    url: https://www.meta.com/quest/
+    group: xr
+    modes: Motion controllers, hand tracking
+    details:
+      setup:
+        - label: How To Connect
+          ref: connect-quest-pico
+        - Isaac Teleop Web Client — runs in the headset browser
+      requirements:
+        - No additional software
+      acquire:
+        - label: meta.com
+          url: https://www.meta.com/quest/
+
+  - id: pico-4-ultra
+    name: Pico 4 Ultra
+    url: https://www.picoxr.com/products/pico4-ultra
+    group: xr
+    modes: Motion controllers, hand tracking
+    details:
+      setup:
+        - label: How To Connect
+          ref: connect-quest-pico
+        - Isaac Teleop Web Client — runs in the headset browser
+      requirements:
+        - Pico OS 15.4.4U or newer
+      # The same contact as the PICO partner card. Both are published with her consent;
+      # if it changes, it changes in partners.yaml too.
+      acquire:
+        - Veronica Li
+        - email: Veronica.li@bytedance.com
+        - phone: +1 (909) 569-2774
+
+  - id: pico-motion-tracker
+    name: Pico Motion Tracker
+    url: https://www.picoxr.com/global/products/pico-motion-tracker
+    group: xr
+    modes: Full body tracking
+    details:
+      setup:
+        - label: Body Tracking guide
+          doc: /device/body_tracking
+        - Isaac Teleop Web Client
+      requirements:
+        - >-
+          Pico 4 Ultra Enterprise, or a consumer unit with enterprise features activated
+          (contact PICO)
+        - Pico OS 15.4.4U+ · Pico Browser 4.0.40+
+      acquire:
+        - Veronica Li
+        - email: Veronica.li@bytedance.com
+        - phone: +1 (909) 569-2774
+
+  # -------------------------------------------------------------- peripheral --
+  - id: manus-gloves
+    name: MANUS Gloves
+    url: https://www.manus-meta.com/robotics#nvidia
+    group: peripheral
+    modes: High-fidelity finger tracking
+    details:
+      setup:
+        - label: MANUS Gloves Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus
+        - label: MANUS Gloves docs
+          doc: /device/manus
+      requirements:
+        - MANUS SDK
+        - USB receiver on the workstation
+      acquire:
+        - label: manus-meta.com
+          url: https://www.manus-meta.com/
+        - email: sales@manus-meta.com
+
+  - id: haptikos-exoskeletons
+    name: Haptikos Exoskeletons
+    url: https://haptikos.tech/product/haptikos/
+    group: peripheral
+    modes: Finger tracking, haptic feedback
+    details:
+      setup:
+        - label: Haptikos Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos
+        - label: Haptikos docs
+          doc: /device/haptikos
+      requirements:
+        - Haptikos Robotics API
+      acquire:
+        - label: haptikos.tech
+          url: https://haptikos.tech/
+
+  # The plugin is named generically because any 3-axis HID pedal goes through it.
+  - id: logitech-rudder-pedals
+    name: Logitech Rudder Pedals
+    url: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
+    group: peripheral
+    modes: 3-axis foot pedal
+    details:
+      setup:
+        - label: Generic 3-axis Pedal Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal
+      requirements:
+        - USB connection to the workstation
+      acquire:
+        - label: logitechg.com
+          url: https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals
+
+  - id: oak-d-camera
+    name: OAK-D Camera
+    url: https://shop.luxonis.com/products/oak-d
+    group: peripheral
+    modes: Offline data recording
+    details:
+      setup:
+        - label: OAK-D Camera Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oak
+        - label: OAK Camera docs
+          doc: /device/oak
+      requirements:
+        - USB 3 connection to the workstation
+      acquire:
+        - label: shop.luxonis.com
+          url: https://shop.luxonis.com/
+
+planned:
+  - id: 3d-space-mouse
+    name: 3Dconnexion 3D Space Mouse
+    url: https://3dconnexion.com/us/spacemouse/
+    note: HID input over USB, CLI tool.
+    tracking: https://github.com/NVIDIA/IsaacTeleop/issues/276

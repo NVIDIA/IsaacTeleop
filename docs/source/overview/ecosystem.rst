@@ -33,6 +33,12 @@ acquisition channel.
 
 Built and used inside NVIDIA
 
+.. Explicit targets on every section below: the count pill is part of the heading text,
+   so without them the slug carries the count and #partners becomes #partners-15,
+   changing every time a card is added or removed.
+
+.. _nvidia-platforms:
+
 .. rst-class:: eco-section
 
 NVIDIA Platforms :partner-count:`platform`
@@ -47,6 +53,8 @@ Stacks Isaac Teleop is developed against, and NVIDIA teams collecting data with 
 
 Active in the ecosystem
 
+.. _partners:
+
 .. rst-class:: eco-section
 
 Partners :partner-count:`active`
@@ -60,6 +68,8 @@ Production-ready integrations that partners actively maintain and support across
 .. rst-class:: eco-eyebrow
 
 Joint plan in place
+
+.. _upcoming-partners:
 
 .. rst-class:: eco-section
 
@@ -97,3 +107,20 @@ Become a Partner
    #. **Joint plan** — agree on scope, devices, and timeline.
    #. **Implementation** — build the plugin and open a pull request.
    #. **Maintenance** — keep the integration green across releases.
+
+.. rst-class:: eco-eyebrow
+
+One interface, any device
+
+.. _supported-input-devices:
+
+.. rst-class:: eco-section
+
+Supported Input Devices :device-count:`all`
+-------------------------------------------
+
+A standardized device interface removes custom integrations and their maintenance. Input
+modes determine which retargeters and control schemes are available.
+:doc:`Add a new device → </device/add_device>`
+
+.. device-matrix::

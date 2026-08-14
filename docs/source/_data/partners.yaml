@@ -4,9 +4,14 @@
 # Source of truth for the Ecosystem page partner cards; rendered by the
 # ``partner-grid`` directive (docs/source/_ext/partner_grid.py).
 #
+# A supported device is a row in _data/devices.yaml, not a card here. A company may have
+# both (Haptikos, MANUS, PICO) or either one alone, and neither file derives from the
+# other -- a card says who works with us, a row says what you can plug in.
+#
 # Adding a partner:
-#   1. Append a record below. Required: id, organization, product_name, section,
-#      lifecycle, category, description, links, order.
+#   1. Add a record below. Required: id, organization, product_name, section,
+#      lifecycle, category, plus description and links outside the upcoming band.
+#      Unknown fields fail the build, so check the list here before inventing one.
 #   2. Drop the logo in docs/source/_static/partner-logos/ and point logo.src at it.
 #      Omit the whole `logo` key to render the organization name as a text wordmark.
 #      Add logo.src_dark when a single-color mark would vanish in the other theme;
@@ -17,7 +22,6 @@
 #     platform is the first-party band: NVIDIA stacks and teams that Isaac Teleop is
 #     built into, not partners who plug in. Keep it to NVIDIA.
 #   lifecycle           maintained | upcoming | deprecated
-#   integration_status  planning | in-integration        (optional)
 #   links[].kind        internal | external | tracking | contact
 #     internal needs exactly one of `doc` (a docname) or `ref` (a label);
 #     external and tracking need `url`.
@@ -29,6 +33,25 @@
 #     address, or number here puts it on a public site and in git history: use a role
 #     alias where one exists, and get the person's consent where one does not.
 #
+# Card order:
+#   active and upcoming sort alphabetically by organization, so those records carry no
+#   `order` field -- the build rejects one. Keep the records below in that same order
+#   so the file reads like the page.
+#   platform is hand-ordered and requires a unique integer `order` within the section.
+#
+# The platform band renders no logo panel and no status pill: every entry is NVIDIA and
+# active, which the section heading and subtitle already say. Those records need a
+# `handle` instead -- the role that stack plays, in two or three words, as a chip --
+# and the build rejects `logo`, `new_until`, and any lifecycle but maintained on them,
+# rather than accept a field that renders nowhere. `version` is optional and must be
+# quoted; it renders as a quiet suffix after the title, so it stays out of the
+# description.
+#
+# The upcoming band is the other end: nothing is integrated yet, so the card is a
+# wordmark, a category, and a tracking link once one exists. It renders no description
+# and the build rejects one, and a partner with no public page yet carries no `links` at
+# all rather than a placeholder.
+#
 # new_until is an unquoted YYYY-MM-DD date. Up to that date the card shows a
 # green "New" badge, after which it falls back to its lifecycle label with no
 # edit required.
@@ -37,22 +60,15 @@ partners:
   # --------------------------------------------------------------- platform --
   - id: nvidia-gear
     organization: NVIDIA
-    product_name: NVIDIA GEAR
+    product_name: GEAR
     section: platform
     lifecycle: maintained
     category: Research
     type: Foundation Models
-    # logo source: nvidia-sphinx-theme, the horizontal two-color screen logo. The eye
-    # is #76b900 in both files; only the wordmark changes, black on light and white on
-    # dark, so both themes need their own file.
-    logo:
-      src: nvidia.svg
-      src_dark: nvidia-dark.svg
-      alt: NVIDIA logo
+    handle: Embodied AI Research
     description: >
-      NVIDIA Research's Generalist Embodied Agent Research group. GEAR collects
-      real-robot demonstrations through Isaac Teleop and trains the GR00T foundation
-      models on them.
+      NVIDIA's research group for building foundation models for embodied agents in
+      virtual and physical worlds.
     links:
       - label: Overview
         kind: external
@@ -64,19 +80,15 @@ partners:
 
   - id: isaac-sim
     organization: NVIDIA
-    product_name: NVIDIA Isaac Sim
+    product_name: Isaac Sim
     section: platform
     lifecycle: maintained
     category: Simulation
     type: Robotics Platform
-    logo:
-      src: nvidia.svg
-      src_dark: nvidia-dark.svg
-      alt: NVIDIA logo
+    handle: Robot Simulator
     description: >
-      Teleoperation inside an existing Kit XR session: Isaac Sim hands its OpenXR
-      handles to the teleop session, so one session serves both the simulator and the
-      trackers. Supported with Isaac Sim 6.0.
+      An open-source robotics simulation, testing, and synthetic-data-generation
+      framework built on NVIDIA Omniverse libraries.
     links:
       - label: Overview
         kind: external
@@ -88,18 +100,15 @@ partners:
 
   - id: isaac-lab
     organization: NVIDIA
-    product_name: NVIDIA Isaac Lab
+    product_name: Isaac Lab
     section: platform
     lifecycle: maintained
     category: Robot Learning
     type: Simulation
-    logo:
-      src: nvidia.svg
-      src_dark: nvidia-dark.svg
-      alt: NVIDIA logo
+    handle: Robot Training
     description: >
-      Drive simulated robots from an XR headset through Isaac Lab's IsaacTeleopDevice,
-      with retargeters shared between the two projects. Supported with Isaac Lab 3.0.
+      An open-source, GPU-accelerated robot-learning simulation framework for training
+      robot policies at scale.
     links:
       - label: Overview
         kind: external
@@ -111,18 +120,15 @@ partners:
 
   - id: isaac-ros
     organization: NVIDIA
-    product_name: NVIDIA Isaac ROS
+    product_name: Isaac ROS
     section: platform
     lifecycle: maintained
     category: ROS 2
     type: CUDA-Accelerated Toolkit
-    logo:
-      src: nvidia.svg
-      src_dark: nvidia-dark.svg
-      alt: NVIDIA logo
+    handle: Robot Runtime
     description: >
-      GPU-accelerated ROS 2 packages. Isaac Teleop publishes hand, end-effector, and
-      body poses through the teleop_ros2 reference node that Isaac ROS Teleop consumes.
+      A collection of CUDA-accelerated ROS 2 packages and AI models for developing
+      high-performance AI robotics applications.
     links:
       - label: Overview
         kind: external
@@ -133,67 +139,22 @@ partners:
     order: 40
 
   # ----------------------------------------------------------------- active --
-  - id: volcano-engine
-    organization: Volcano Engine
-    product_name: Volcano Engine
+  - id: haptikos
+    organization: Haptikos
+    product_name: Haptikos Exoskeletons
     section: active
     lifecycle: maintained
-    category: Cloud Infrastructure
-    type: Isaac Teleop
+    category: Hand Exoskeleton
+    type: Haptics
     description: >
-      Cloud-hosted simulation teleoperation and data collection using Isaac Teleop.
+      Making the digital world a meaningful extension of reality.
     links:
       - label: Overview
         kind: external
-        url: https://www.volcengine.com/
-    order: 10
-
-  - id: siemens
-    organization: Siemens
-    product_name: Siemens
-    section: active
-    lifecycle: maintained
-    category: Robotics OEM
-    type: Data Collection / Training
-    description: >
-      Sim and real-robot data collection using standalone Isaac Teleop with Siemens'
-      ROS 2 control stack.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.siemens.com/
-    order: 20
-
-  - id: samsung
-    organization: Samsung
-    product_name: Samsung
-    section: active
-    lifecycle: maintained
-    category: Robotics OEM
-    type: Isaac Lab / Sim
-    description: >
-      Simulation teleoperation and data collection using Isaac Teleop with Isaac Lab 3.0
-      and Newton.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.samsung.com/
-    order: 30
-
-  - id: mentee-robotics
-    organization: Mentee Robotics
-    product_name: Mentee Robotics
-    section: active
-    lifecycle: maintained
-    category: Robotics OEM
-    type: Data Collection / Training
-    description: >
-      Real-robot teleoperation and MCAP data collection on Mentee robots.
-    links:
-      - label: Overview
-        kind: external
-        url: https://menteebot.com/
-    order: 40
+        url: https://haptikos.tech/product/haptikos/
+      - label: Integration
+        kind: internal
+        doc: /device/haptikos
 
   - id: lerobot
     organization: Hugging Face
@@ -203,9 +164,7 @@ partners:
     category: Robot Learning Framework
     type: Data Collection
     description: >
-      End-to-end data collection with the SO-101: teleoperate in Isaac Lab or on the
-      real arm and record demonstrations in the LeRobot dataset format, then fine-tune
-      a GR00T policy on the result.
+      State-of-the-art machine learning for real-world robotics
     links:
       - label: Overview
         kind: external
@@ -213,7 +172,70 @@ partners:
       - label: Integration
         kind: internal
         doc: /getting_started/lerobot/index
-    order: 50
+
+  - id: lightwheel
+    organization: Lightwheel
+    product_name: Lightwheel
+    section: active
+    lifecycle: maintained
+    category: Data Factory
+    type: Ego Data Capture
+    description: >
+      Data and Simulation Infrastructure to Accelerate Your Robotics Deployment
+    links:
+      - label: Overview
+        kind: external
+        url: https://lightwheel.ai/
+
+  - id: manus
+    organization: MANUS
+    product_name: MANUS Metagloves Pro
+    section: active
+    lifecycle: maintained
+    category: Hand-Tracking Gloves
+    description: >
+      Generate high-fidelity dexterous manipulation data in simulation
+    links:
+      - label: Overview
+        kind: external
+        url: https://www.manus-meta.com/robotics#nvidia
+      - label: Integration
+        kind: internal
+        doc: /device/manus
+
+  - id: noitom
+    organization: Noitom
+    product_name: Noitom Motion Capture
+    section: active
+    lifecycle: maintained
+    category: Motion Capture
+    type: Full-Body Tracking
+    description: >
+      Pioneering the Future of Motion Capture
+    links:
+      - label: Overview
+        kind: external
+        url: https://www.noitom.com/
+      - label: Integration
+        kind: external
+        url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap
+
+  - id: opengraph-labs
+    organization: OpenGraph Labs
+    product_name: OGLO Tactile Glove
+    section: active
+    lifecycle: maintained
+    category: Tactile Gloves
+    type: Contact Sensing
+    description: >
+      The ground-truth data layer for robotics.
+    links:
+      - label: Overview
+        kind: external
+        url: https://www.opengraphlabs.com/
+      - label: Integration
+        kind: internal
+        doc: /device/oglo
 
   - id: pico
     organization: PICO
@@ -223,8 +245,7 @@ partners:
     category: XR Headset
     type: Body Tracking
     description: >
-      Motion controllers, hand tracking, and full-body tracking via the Isaac Teleop
-      Web Client. Full-body tracking requires an enterprise-activated headset.
+      Reality. Amplified.
     links:
       - label: Overview
         kind: external
@@ -239,279 +260,71 @@ partners:
       - label: Integration
         kind: internal
         ref: connect-quest-pico
-    order: 60
 
-  - id: lightwheel
-    organization: Lightwheel
-    product_name: Lightwheel
+  - id: siemens
+    organization: Siemens
+    product_name: Siemens
     section: active
     lifecycle: maintained
-    category: Data Factory
-    type: Ego Data Capture
+    category: Robotics OEM
+    type: Data Collection / Training
     description: >
-      Manus-based egocentric data collection and Wuji hand teleoperation for EgoSuite
-      and RoboFinals.
+      The partnership between Siemens and NVIDIA is shaping a more efficient and
+      resilient future – enabling organizations to scale production, improve product
+      quality, and adapt swiftly to changing market conditions.
     links:
       - label: Overview
         kind: external
-        url: https://lightwheel.ai/
-    order: 70
+        url: https://www.siemens.com/
 
-  - id: noitom
-    organization: Noitom
-    product_name: Noitom Motion Capture
+  - id: volcano-engine
+    organization: Volcano Engine
+    product_name: Volcano Engine
     section: active
     lifecycle: maintained
-    category: Motion Capture
-    type: Full-Body Tracking
+    category: Cloud Infrastructure
+    type: Isaac Teleop
+    # The company's own tagline, left in Chinese as given.
     description: >
-      Full-body mocap through the Noitom plugin: MocapApi reads the Hybrid Data Server
-      and publishes FullBodyPose samples for the standard FullBodyTracker.
+      模型、工具、应用到云底座，企业 AI 一站构建
     links:
       - label: Overview
         kind: external
-        url: https://www.noitom.com/
-      - label: Integration
-        kind: external
-        url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap
-    order: 80
-
-  - id: manus
-    organization: MANUS
-    product_name: MANUS Metagloves Pro
-    section: active
-    lifecycle: maintained
-    category: Hand-Tracking Gloves
-    description: >
-      High-fidelity finger tracking through the MANUS SDK plugin, in both the standard
-      and haptic glove variants.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.manus-meta.com/robotics#nvidia
-      - label: Integration
-        kind: internal
-        doc: /device/manus
-    order: 90
-
-  - id: sharpa
-    organization: Sharpa
-    product_name: Sharpa Wave
-    section: active
-    lifecycle: maintained
-    category: Dexterous Hand
-    type: Retargeting Target
-    description: >
-      Optimization-based inverse kinematics maps live hand tracking onto Sharpa Wave
-      joint angles, single-hand or bimanual.
-    links:
-      - label: Overview
-        kind: external
-        url: https://sharpa.com/
-      - label: Integration
-        kind: internal
-        doc: /references/retargeting/sharpa
-    order: 100
-
-  - id: wuji
-    organization: Wuji Technology
-    product_name: Wuji Glove & Wuji Hand
-    section: active
-    lifecycle: maintained
-    category: Tactile Gloves
-    type: Dexterous Hands
-    description: >
-      The Wuji Glove plugin injects the glove's 21-joint hand skeleton into the OpenXR
-      hand-tracking layer, and the Wuji retargeter maps that onto Wuji Hand joint
-      commands.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.wuji.tech/
-      - label: Integration
-        kind: internal
-        doc: /device/wuji_glove
-    order: 110
-
-  - id: htc-vive
-    organization: HTC VIVE
-    product_name: HTC VIVE
-    section: active
-    lifecycle: maintained
-    category: XR Headset
-    type: 6DoF Tracker
-    description: >
-      Vive/OpenXR headset, controller, and hand-pose visualization, with Linux-native
-      Vive Ultimate Tracker integration in development.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.vive.com/
-      - label: Integration
-        kind: external
-        url: https://github.com/NVIDIA/IsaacTeleop/tree/main/examples/cloudxr_mujoco_teleop
-    order: 120
-
-  - id: opengraph-labs
-    organization: OpenGraph Labs
-    product_name: OGLO Tactile Glove
-    section: active
-    lifecycle: maintained
-    category: Tactile Gloves
-    type: Contact Sensing
-    description: >
-      80 tactile taxels and a 6-axis IMU per hand streamed over BLE at 100 Hz, recorded
-      on the shared session clock so contact aligns with hand and head tracking.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.opengraphlabs.com/
-      - label: Integration
-        kind: internal
-        doc: /device/oglo
-    order: 130
-
-  - id: haptikos
-    organization: Haptikos
-    product_name: Haptikos Exoskeletons
-    section: active
-    lifecycle: maintained
-    category: Hand Exoskeleton
-    type: Haptics
-    description: >
-      High-fidelity finger tracking with force feedback through the Haptikos
-      Robotics API plugin.
-    links:
-      - label: Overview
-        kind: external
-        url: https://haptikos.tech/product/haptikos/
-      - label: Integration
-        kind: internal
-        doc: /device/haptikos
-    order: 140
-
-  - id: apple-vision-pro
-    organization: Apple
-    product_name: Apple Vision Pro
-    section: active
-    lifecycle: maintained
-    category: XR Headset
-    type: Input Device
-    description: >
-      Hand tracking (26 joints) and spatial controllers through the Isaac XR Teleop
-      sample client for visionOS.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.apple.com/apple-vision-pro/
-      - label: Integration
-        kind: internal
-        ref: connect-apple-vision-pro
-    order: 150
-
-  - id: meta-quest
-    organization: Meta
-    product_name: Meta Quest 2 / 3 / 3S
-    section: active
-    lifecycle: maintained
-    category: XR Headset
-    type: Input Device
-    description: >
-      Motion controllers, triggers, thumbsticks, and hand tracking through the
-      browser-based Isaac Teleop Web Client.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.meta.com/quest/
-      - label: Integration
-        kind: internal
-        ref: connect-quest-pico
-    order: 160
-
-  - id: logitech
-    organization: Logitech
-    product_name: Logitech Rudder Pedals
-    section: active
-    lifecycle: maintained
-    category: Foot Pedal
-    type: Input Device
-    description: >
-      Three-axis foot pedal exposed through the generic 3-axis pedal plugin for
-      locomotion and clutch control.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
-      - label: Integration
-        kind: external
-        url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal
-    order: 170
-
-  - id: luxonis
-    organization: Luxonis
-    product_name: Luxonis OAK-D Camera
-    section: active
-    lifecycle: maintained
-    category: Camera
-    type: Data Capture
-    description: >
-      Offline egocentric data recording through the OAK-D camera plugin.
-    links:
-      - label: Overview
-        kind: external
-        url: https://www.luxonis.com/
-      - label: Acquire
-        kind: external
-        url: https://shop.luxonis.com/products/oak-d
-      - label: Integration
-        kind: internal
-        doc: /device/oak
-    order: 180
+        url: https://www.volcengine.com/
 
   # --------------------------------------------------------------- upcoming --
+  - id: htc-vive
+    organization: HTC VIVE
+    product_name: VIVE Ultimate Tracker
+    section: upcoming
+    lifecycle: upcoming
+    category: 6DoF Tracker
+    links:
+      - label: Tracking
+        kind: tracking
+        url: https://github.com/NVIDIA/IsaacTeleop/issues/577
+
+  # No links: nothing public to point at yet, and the band takes a card with none.
   - id: sensing
     organization: SENSING
     product_name: SENSING
     section: upcoming
     lifecycle: upcoming
-    integration_status: planning
     category: Camera
     type: Data Capture
-    description: >
-      Upcoming GMSL multi-camera hardware support for Isaac Teleop and egocentric data
-      capture.
-    links:
-      - label: Overview
-        kind: external
-        url: https://sensing-world.com/
-    order: 10
 
-  - id: so-101
-    organization: SO-101
-    product_name: SO-101
+  - id: sharpa
+    organization: Sharpa
+    product_name: Sharpa Wave
     section: upcoming
     lifecycle: upcoming
-    integration_status: planning
-    category: Master Manipulator
-    description: >
-      Open master-manipulator arm, integration scoped through the USB CLI plugin.
-    links:
-      - label: Tracking
-        kind: tracking
-        url: https://github.com/NVIDIA/IsaacTeleop/issues/275
-    order: 20
+    category: Dexterous Hand
+    type: Retargeting Target
 
-  - id: 3dconnexion
-    organization: 3Dconnexion
-    product_name: 3D Space Mouse
+  - id: wuji
+    organization: Wuji Technology
+    product_name: Wuji Glove & Wuji Hand
     section: upcoming
     lifecycle: upcoming
-    integration_status: planning
-    category: HID Input
-    description: >
-      Six-degree-of-freedom HID input planned through the USB CLI plugin path.
-    links:
-      - label: Tracking
-        kind: tracking
-        url: https://github.com/NVIDIA/IsaacTeleop/issues/276
-    order: 30
+    category: Tactile Gloves
+    type: Dexterous Hands
