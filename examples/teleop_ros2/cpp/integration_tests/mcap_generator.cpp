@@ -151,7 +151,7 @@ std::shared_ptr<core::HandPoseT> make_hand_sample(bool left, int frame)
     const float mirror_x = left ? 1.0f : -1.0f;
     const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
     auto sample = std::make_shared<core::HandPoseT>();
-    sample->joints = std::make_unique<core::HandJoints>();
+    sample->joints = std::make_shared<core::HandJoints>();
     for (int joint = 0; joint < core::HandJoint_NUM_JOINTS; ++joint)
     {
         const auto& offset = kHandJointOffsets[static_cast<std::size_t>(joint)];
@@ -188,7 +188,7 @@ std::shared_ptr<core::FullBodyPoseT> make_full_body_sample(int frame)
 {
     const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
     auto sample = std::make_shared<core::FullBodyPoseT>();
-    sample->joints = std::make_unique<core::BodyJoints>();
+    sample->joints = std::make_shared<core::BodyJoints>();
     sample->all_joint_poses_tracked = true;
     for (int joint = 0; joint < core::BodyJoint_NUM_JOINTS; ++joint)
     {
