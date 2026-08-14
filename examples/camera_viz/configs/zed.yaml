@@ -21,9 +21,9 @@ cameras:
     # Per-eye dims pick the SDK preset (HD2K=2208x1242, HD1080=1920x1080,
     # HD720=1280x720, VGA=672x376). Mismatch errors at startup with the
     # full list.
-    width: 1280
-    height: 720
-    fps: 60
+    width: 1920
+    height: 1080
+    fps: 30
     bus_type: usb               # usb | gmsl
     serial_number: 0            # 0 → first available
     stereo: true
@@ -42,14 +42,40 @@ display:
     near_z: 0.05
     far_z: 100.0
   clear_color: [0.0, 0.0, 0.0, 0.0]
+  # Controller bindings (XR only).
+  #   right stick X : stereo plane gap     right A : lock mode   right B : mono/stereo
+  #   left stick    : shape params         left X  : shape       left Y  : reset
+  controls:
+    enabled: true
+    # hud: true                      # in-headset readout of what each press
+    #                                # changed; opaque, auto-hides after ~2.5 s
+    # shape_switching: true          # keep all 3 shapes resident so left X is
+    #                                # instant; costs the extra shapes' VRAM
+    # deadzone: 0.2                  # stick rest-position tolerance
+    # plane_distance_rate_cm_per_s: 2.0  # held-stick ramp rates (0.1 cm steps)
+    # size_rate_m_per_s: 0.5
+    # offset_rate_m_per_s: 0.5
+    # angle_rate_deg_per_s: 40.0
+    # plane_distance_min_cm: -10.0       # limits
+    # plane_distance_max_cm: 10.0
+    # size_range_m: [0.2, 8.0]
+    # offset_y_range_m: [-2.0, 2.0]
+    # cylinder_angle_range_deg: [15.0, 350.0]
+    # equirect_h_range_deg: [30.0, 360.0]
+    # equirect_v_half_range_deg: [10.0, 90.0]
   placements:
     zed:                        # size defaults to 1.0 m wide × aspect-derived height
       lock_mode: lazy
       distance: 1.0
-      stereo_baseline_mm: 50.0
+      # Gap between the left-eye and right-eye planes. 0 = both eyes share
+      # one plane and all depth comes from the captured images, which packs
+      # the whole scene into the space between you and `distance`. Widening
+      # the gap pushes the scene back. The HUD suggests a value from the
+      # plane distance and the measured IPD; the right stick trims it.
+      stereo_plane_distance_cm: 5.0
       # Surface the feed is mapped onto (all shapes are per-camera):
       # shape: cylinder           # quad (default) | cylinder | equirect
-      # compositor: openxr    # openxr (default: the OpenXR runtime
+      compositor: openxr # openxr (default: the OpenXR runtime
       #                       # composites the layer) | televiz (built-in
       #                       # compositor; quad shape only)
       # cylinder_radius_m: 2.0    # cylinder only
