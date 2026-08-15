@@ -150,13 +150,14 @@ public:
                 throw std::runtime_error("Failed to get properties for XDev " + std::to_string(xdevId));
             }
 
-            // serial is a fixed char[256], never a pointer, so a null check would always be true.
-            // Bound the length so a runtime that fills the array without a terminator cannot
-            // walk past it.
+            // name and serial are fixed char[256], never pointers, so a null check would always
+            // be true. Bound both lengths so a runtime that fills an array without a terminator
+            // cannot walk past it.
+            std::string name_str(properties.name, ::strnlen(properties.name, sizeof(properties.name)));
             std::string serial_str(properties.serial, ::strnlen(properties.serial, sizeof(properties.serial)));
             if (serial_str == "Head Device (0)" || serial_str == "Head Device (1)")
             {
-                std::cout << "[CREATE HAND] XDev ID=" << xdevId << " Name=\"" << properties.name << "\""
+                std::cout << "[CREATE HAND] XDev ID=" << xdevId << " Name=\"" << name_str << "\""
                           << " Serial=\"" << serial_str << "\"" << std::endl;
 
                 XrHandEXT hand = (serial_str == "Head Device (1)") ? XR_HAND_RIGHT_EXT : XR_HAND_LEFT_EXT;
@@ -164,7 +165,7 @@ public:
             }
             else
             {
-                std::cout << "[SKIP] XDev ID=" << xdevId << " Name=\"" << properties.name << "\""
+                std::cout << "[SKIP] XDev ID=" << xdevId << " Name=\"" << name_str << "\""
                           << " Serial=\"" << serial_str << "\"" << std::endl;
             }
         }
