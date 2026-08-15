@@ -124,8 +124,6 @@ private:
     mutable std::mutex landscape_mutex;
     std::optional<uint32_t> left_glove_id;
     std::optional<uint32_t> right_glove_id;
-    std::optional<uint32_t> m_left_calibrated_glove_id;
-    std::optional<uint32_t> m_right_calibrated_glove_id;
     std::vector<unsigned char> m_left_calibration;
     std::vector<unsigned char> m_right_calibration;
     bool is_connected = false;
