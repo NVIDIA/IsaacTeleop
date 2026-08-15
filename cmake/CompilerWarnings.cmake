@@ -6,21 +6,26 @@
 # ==============================================================================
 # isaac_teleop_enable_compiler_warnings() applies the project's warning set to the
 # CALLING directory scope, which CMake then inherits into every subdirectory added
-# after the call. The top-level CMakeLists.txt therefore calls it *after*
-# add_subdirectory(deps) so third-party trees (OpenXR SDK, yaml-cpp, pybind11,
-# mcap, flatbuffers, Catch2, ...) keep building with their own flags and are never
-# held to warning levels we do not control.
+# after the call. It is called at the top of src/CMakeLists.txt and
+# examples/CMakeLists.txt -- the roots of the two first-party trees -- so the flags
+# follow the directory layout. Third-party trees (OpenXR SDK, yaml-cpp, pybind11,
+# mcap, flatbuffers, Catch2, ...) live under deps/, which never calls this, and so
+# keep building with their own flags whatever order the root adds things in.
 #
-# Ordering alone does not cover code fetched from inside src/plugins/, which is added
-# after the call and would otherwise inherit these flags. See the third-party
-# containment scope at the bottom of this file for how those trees opt out.
+# Directory scoping does not cover code fetched from *inside* src/plugins/, which
+# does inherit these flags. See the third-party containment scope at the bottom of
+# this file for how those trees opt out.
 
 option(ISAAC_TELEOP_ENABLE_WARNINGS "Enable the project warning set on first-party C++ targets" ON)
 option(ISAAC_TELEOP_WARNINGS_AS_ERRORS "Promote the project warning set to errors (-Werror / /WX)" OFF)
 
 function(isaac_teleop_enable_compiler_warnings)
+    # Called once per first-party tree, so name the scope: the messages are only
+    # useful if you can tell which directory each one covers.
+    file(RELATIVE_PATH _scope "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
+
     if(NOT ISAAC_TELEOP_ENABLE_WARNINGS)
-        message(STATUS "Compiler warnings: disabled (ISAAC_TELEOP_ENABLE_WARNINGS=OFF)")
+        message(STATUS "Compiler warnings (${_scope}/): disabled (ISAAC_TELEOP_ENABLE_WARNINGS=OFF)")
         return()
     endif()
 
@@ -53,7 +58,7 @@ function(isaac_teleop_enable_compiler_warnings)
         "$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:MSVC>>:${_msvc}>"
     )
 
-    message(STATUS "Compiler warnings: enabled (warnings as errors: ${ISAAC_TELEOP_WARNINGS_AS_ERRORS})")
+    message(STATUS "Compiler warnings (${_scope}/): enabled (warnings as errors: ${ISAAC_TELEOP_WARNINGS_AS_ERRORS})")
 endfunction()
 
 # ==============================================================================
