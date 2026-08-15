@@ -130,15 +130,14 @@ if(WIN32)
     endif()
 endif()
 
+# Project warning set. This only defines the helpers -- src/CMakeLists.txt and
+# examples/CMakeLists.txt each enable the set for their own tree, so the flags are
+# scoped by directory rather than by where this include sits. Nothing here applies
+# compile options, and deps/ below is unaffected.
+include(cmake/CompilerWarnings.cmake)
+
 # Build dependencies (OpenXR SDK, etc.)
 add_subdirectory(deps)
-
-# Project warning set. Deliberately after add_subdirectory(deps): directory-scope
-# compile options are inherited only by subdirectories added *after* this call, so
-# third-party trees keep their own flags while everything below (src/, examples/,
-# plugins) is held to ours. See cmake/CompilerWarnings.cmake.
-include(cmake/CompilerWarnings.cmake)
-isaac_teleop_enable_compiler_warnings()
 
 # Enable CTest at top level so tests from subdirectories are discoverable
 if(BUILD_TESTING)
@@ -149,62 +148,12 @@ endif()
 # Build interfaces (headers)
 add_subdirectory(deps/cloudxr/openxr_extensions)
 
-# Build core modules (OXR and DEVICEIO)
-add_subdirectory(src/core)
+# Build the first-party tree: core modules, the Python package, Televiz, plugins.
+add_subdirectory(src)
 
-# Stage the isaacteleop Python tree. Must follow src/core (defines BUILD_PYTHON_BINDINGS).
-add_subdirectory(src/python)
-
-# Build Televiz visualization module (sibling of src/core).
-# src/viz/CMakeLists.txt orchestrates its own sub-modules and tests.
-if(BUILD_VIZ)
-    add_subdirectory(src/viz)
-endif()
-
-# Build examples if requested
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples/oxr)
-    add_subdirectory(examples/retargeting)
-    add_subdirectory(examples/teleop_session_manager)
-    add_subdirectory(examples/teleop_ros2)
-    add_subdirectory(examples/schemaio)
-    add_subdirectory(examples/native_openxr)
-    add_subdirectory(examples/mcap_record_replay)
-    add_subdirectory(examples/deviceio_live_view)
-    add_subdirectory(examples/haptic_feedback)
-    if(BUILD_VIZ)
-        add_subdirectory(examples/camera_viz/tests)
-        add_subdirectory(examples/mujoco_xr)
-    endif()
-elseif(BUILD_EXAMPLE_TELEOP_ROS2)
-    add_subdirectory(examples/teleop_ros2)
-endif()
-
-# Build plugins if requested
-if(BUILD_PLUGINS)
-    # Build plugin utilities
-    add_subdirectory(src/plugins/plugin_utils)
-
-    add_subdirectory(src/plugins/controller_se3_tracker)
-    add_subdirectory(src/plugins/controller_synthetic_hands)
-    add_subdirectory(src/plugins/generic_3axis_pedal)
-    add_subdirectory(src/plugins/so101_leader)
-    add_subdirectory(src/plugins/rebot_devarm_leader)
-    add_subdirectory(src/plugins/manus)
-    add_subdirectory(src/plugins/haptikos)
-    if(BUILD_PLUGIN_NOITOM_MOCAP)
-        add_subdirectory(src/plugins/noitom_mocap)
-    endif()
-    if(BUILD_PLUGIN_OAK_CAMERA)
-        add_subdirectory(src/plugins/oak)
-    endif()
-    if(BUILD_PLUGIN_OGLO)
-        add_subdirectory(src/plugins/oglo_tactile)
-    endif()
-    # Gated: requires the wuji_sdk C library (set WUJI_SDK_INCLUDE_DIR + lib path).
-    if(BUILD_PLUGIN_WUJI_GLOVE)
-        add_subdirectory(src/plugins/wuji_glove)
-    endif()
+# Build examples if requested (examples/CMakeLists.txt honours both options).
+if(BUILD_EXAMPLES OR BUILD_EXAMPLE_TELEOP_ROS2)
+    add_subdirectory(examples)
 endif()
 
 # Formatting enforcement (runs on Linux by default)
