@@ -240,11 +240,11 @@ void ManusTracker::initialize() noexcept(false)
 {
     if (!m_config.left_calibration_file.empty())
     {
-        m_left_calibration = read_calibration_file(m_config.left_calibration_file);
+        m_left_calibration_file = read_calibration_file(m_config.left_calibration_file);
     }
     if (!m_config.right_calibration_file.empty())
     {
-        m_right_calibration = read_calibration_file(m_config.right_calibration_file);
+        m_right_calibration_file = read_calibration_file(m_config.right_calibration_file);
     }
 
     std::cout << "[Manus] Initializing SDK..." << std::endl;
@@ -565,24 +565,24 @@ void ManusTracker::DisconnectFromGloves()
 
 bool ManusTracker::apply_glove_calibration(uint32_t glove_id, bool is_left)
 {
-    auto& calibration = is_left ? m_left_calibration : m_right_calibration;
-    if (calibration.empty())
+    auto& calibration_file = is_left ? m_left_calibration_file : m_right_calibration_file;
+    if (calibration_file.empty())
     {
         return true;
     }
 
     SetGloveCalibrationReturnCode result = SetGloveCalibrationReturnCode_Error;
     const SDKReturnCode rc =
-        CoreSdk_SetGloveCalibration(glove_id, calibration.data(), static_cast<uint32_t>(calibration.size()), &result);
+        CoreSdk_SetGloveCalibration(glove_id, calibration_file.data(), static_cast<uint32_t>(calibration_file.size()), &result);
     if (rc != SDKReturnCode::SDKReturnCode_Success || result != SetGloveCalibrationReturnCode_Success)
     {
         std::cerr << "[Manus] Failed to apply " << (is_left ? "left" : "right")
-                  << " glove calibration (glove id=" << glove_id << ", SDK code=" << static_cast<int>(rc)
+                  << " glove calibration file (glove id=" << glove_id << ", SDK code=" << static_cast<int>(rc)
                   << ", result=" << static_cast<int>(result) << ")" << std::endl;
         return false;
     }
 
-    std::cout << "[Manus] Applied " << (is_left ? "left" : "right") << " glove calibration to glove id=" << glove_id
+    std::cout << "[Manus] Applied " << (is_left ? "left" : "right") << " glove calibration file to glove id=" << glove_id
               << std::endl;
     return true;
 }

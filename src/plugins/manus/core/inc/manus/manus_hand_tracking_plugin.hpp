@@ -124,8 +124,8 @@ private:
     mutable std::mutex landscape_mutex;
     std::optional<uint32_t> left_glove_id;
     std::optional<uint32_t> right_glove_id;
-    std::vector<unsigned char> m_left_calibration;
-    std::vector<unsigned char> m_right_calibration;
+    std::vector<unsigned char> m_left_calibration_file;
+    std::vector<unsigned char> m_right_calibration_file;
     bool is_connected = false;
 
     // Haptic state — the per-side log-once flags use std::atomic to stay
