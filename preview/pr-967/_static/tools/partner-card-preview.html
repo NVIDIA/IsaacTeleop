@@ -1167,6 +1167,10 @@ function wrapText(text, width, indent) {
    string, not true. */
 const YAML_BOOLISH = /^(y|n|yes|no|true|false|on|off|null|~)$/i;
 
+function yamlQuoted(value) {
+    return '"' + String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+}
+
 function yamlScalar(value) {
     const text = String(value);
     const unsafe = text === ""
@@ -1177,26 +1181,30 @@ function yamlScalar(value) {
         || YAML_BOOLISH.test(text)
         || /^[-+.]?\d/.test(text) && !isNaN(Number(text));
     if (!unsafe) return text;
-    return '"' + text.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+    return yamlQuoted(text);
 }
 
 function yamlText() {
     const upcoming = state.section === "upcoming";
     const id = slug(state.product || state.organization);
-    const extension = state.logo && !state.logo.isSvg ? ".png" : ".svg";
+    // Per logo, not once: a partner may send an SVG light mark and a PNG dark one, and
+    // these names have to match the files zipPackage() writes beside this record.
+    const extension = (logo) => (logo.isSvg ? ".svg" : ".png");
     const lines = [];
     lines.push("  - id: " + id);
     lines.push("    organization: " + yamlScalar(state.organization.trim() || "TODO"));
     lines.push("    product_name: " + yamlScalar(state.product.trim() || "TODO"));
-    if (state.version.trim()) lines.push('    version: "' + state.version.trim() + '"');
+    // Always quoted: partner_grid rejects a non-string version, because 3.10 unquoted is
+    // the number 3.1.
+    if (state.version.trim()) lines.push("    version: " + yamlQuoted(state.version.trim()));
     lines.push("    section: " + state.section);
     lines.push("    lifecycle: " + (upcoming ? "upcoming" : "maintained"));
     lines.push("    category: " + yamlScalar(state.category.trim() || "TODO"));
     if (state.type.trim()) lines.push("    type: " + yamlScalar(state.type.trim()));
     if (state.logo && !upcoming) {
         lines.push("    logo:");
-        lines.push("      src: " + id + extension);
-        if (state.logoDark) lines.push("      src_dark: " + id + "-dark" + extension);
+        lines.push("      src: " + id + extension(state.logo));
+        if (state.logoDark) lines.push("      src_dark: " + id + "-dark" + extension(state.logoDark));
         lines.push("      alt: " + yamlScalar((state.organization.trim() || "TODO") + " logo"));
     }
     if (!upcoming && state.description.trim()) {
