@@ -21,6 +21,7 @@ import math
 from dataclasses import replace
 from typing import List, Optional, Tuple
 
+from placements import yaw_quat
 
 
 def _clamp(value: float, limits: Tuple[float, float]) -> float:
@@ -64,7 +65,7 @@ class ShapeControl:
         if offset == placement.offset_y:
             return []
         retune(target, strategy, offset_y=offset)
-        return [f"height {offset:+.2f} m"]
+        return [f"height: {offset:+.2f} m"]
 
 
 class QuadControl(ShapeControl):
@@ -88,7 +89,7 @@ class QuadControl(ShapeControl):
                     strategy,
                     size_meters=(new_width, new_width * height / width),
                 )
-                out.append(f"size {new_width:.2f} m")
+                out.append(f"size: {new_width:.2f} m")
         return out + self._adjust_height(target, cfg, strategy, ay, dt)
 
 
@@ -104,7 +105,7 @@ class CylinderControl(ShapeControl):
         if angle != target.cylinder_angle_deg:
             target.cylinder_angle_deg = angle
             apply_cylinder(target)
-            out.append(f"arc {angle:.0f}°")
+            out.append(f"arc: {angle:.0f}°")
         return out + self._adjust_height(target, cfg, strategy, ay, dt)
 
 
@@ -127,7 +128,7 @@ class EquirectControl(ShapeControl):
             return []
         target.equirect_h_deg, target.equirect_v_half_deg = horizontal, vertical
         apply_equirect(target)
-        return [f"span {horizontal:.0f}° x {2 * vertical:.0f}°"]
+        return [f"span: {horizontal:.0f}° x {2 * vertical:.0f}°"]
 
 
 _CONTROLS = {
@@ -167,6 +168,11 @@ def apply_equirect(target) -> None:
     if layer is None:
         return
     placement = layer.placement()
+    # The texture's horizontal center maps to the pose's -z, so yawing the
+    # pose is what aims the middle of the panorama. This is the sphere's only
+    # useful pose knob: its radius is infinite, where translation does
+    # nothing. Vertically the center sits on the pose's horizon.
+    placement.pose.orientation = yaw_quat(math.radians(target.equirect_yaw_deg))
     placement.central_horizontal_angle_rad = math.radians(target.equirect_h_deg)
     # Kept symmetric about the horizon, which also keeps upper > lower.
     placement.upper_vertical_angle_rad = math.radians(target.equirect_v_half_deg)

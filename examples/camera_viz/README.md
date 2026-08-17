@@ -132,6 +132,7 @@ display:                      # camera_viz only
       # stereo_plane_distance_cm: 0   # stereo cams: gap between the left- and
                                       # right-eye planes; 0 = both eyes share
                                       # one plane. See "Stereo plane distance"
+      # equirect_yaw_deg: 0.0  # equirect: heading the middle of the feed points at
       # shape: quad            # quad (default) | cylinder | equirect — XR only for
                                # the curved shapes
       # compositor: openxr     # openxr (default) | televiz — quads only
@@ -176,7 +177,8 @@ Retune the view without editing YAML and restarting. The right hand changes how 
 
 | Input | Effect |
 |---|---|
-| **Right stick** ←/→ | Stereo plane gap. Stereo cameras only |
+| **Right stick** ←/→ | Stereo plane gap. Stereo cameras only — on `equirect`, pans instead |
+| **Right stick click** | Recenter on your view |
 | **A** | Lock mode: `world` → `head` → `gimbal` → `lazy` |
 | **B** | Mono / stereo. Stereo cameras only |
 | **X** | Shape: `quad` → `cylinder` → `equirect` |
@@ -188,6 +190,8 @@ Retune the view without editing YAML and restarting. The right hand changes how 
 | `quad` | size, aspect preserved | slide up / down |
 | `cylinder` | arc width | slide up / down |
 | `equirect` | horizontal span | vertical span |
+
+Recentering reads per shape: an `equirect` yaws so the middle of the panorama lands dead ahead, and a placed surface re-snaps its anchor — the way back from a `world`-locked plane left in another part of the room.
 
 Changes apply to every camera at once and appear on the status panel and an in-headset HUD that auto-hides ~2.5 s later (`hud: false` to disable). Nothing is written back to the YAML.
 
@@ -230,11 +234,27 @@ The stick can't reach **divergent parallax**: at a gap equal to your IPD the eye
 
 **B** parks the gap at zero while mono, since one image on two separated planes would only shift its depth, and restores it on the way back.
 
-Not applicable to `equirect`: the gap shifts each eye's surface, and the sphere sits at infinite radius where translating it does nothing, so the stick skips it. Curved layers have a rotation-based equivalent in Televiz (`stereo_convergence_deg`), which is uniform across the arc and works at any radius.
+Not applicable to `equirect`: the gap shifts each eye's surface, and the sphere sits at infinite radius where translating it does nothing, so the stick skips it there and pans instead. Curved layers have a rotation-based equivalent in Televiz (`stereo_convergence_deg`), which is uniform across the arc and works at any radius.
 
 > **Not the camera's baseline.** That is the physical gap between the camera's two lenses — fixed in hardware, baked into the pixels, and what sets the scene's depth *scale*. This only moves where that scene sits.
 
 > Live adjustment needs `Layer.set_stereo_baseline_mm`, newer than the released `isaacteleop` wheel. On an older wheel that one binding disables itself with a notice; A, B, X and Y still work.
+
+### Aiming an equirect
+
+The middle of the texture maps to the sphere pose's **−z**, and the middle row to its horizon. With no rotation that is the reference space's forward — wherever the headset faced when it last recentered — so a camera mounted facing another way puts the interesting part of the feed off to one side.
+
+```yaml
+display:
+  placements:
+    sky:
+      shape: equirect
+      equirect_yaw_deg: -90.0  # heading the middle of the feed points at
+```
+
+Positive is a turn to the left. The right stick pans it live and the stick click snaps it to your view; **Y** puts it back to the YAML value. The heading in use rides in the panel's `shape` column (`equirect +35°`).
+
+The sphere has no lock mode: it is centred on you and follows your head everywhere, so `world` / `head` / `lazy` and the `distance` / `size` knobs are all blank for it. This heading is its whole placement.
 
 ---
 
@@ -247,15 +267,15 @@ camera_viz  xr · local · 1 camera
 ────────────────────────────────────────────────────────────────────
   render 58.0 fps (target 72)   missed 0   gpu 2.1 ms
 
-  camera      shape     lock    eyes   size m  height m  planes cm   submit/s
-  zed         cylinder  lazy    stereo 1.00    +0.00     5.0/5.2     64.0
+  camera      shape          lock    eyes   size m  height m  planes cm   submit/s
+  zed         cylinder       lazy    stereo 1.00    +0.00     5.0/5.2     64.0
 
   headset IPD 63 mm
 
-  stereo planes 5.0 cm  ·  suggested 5.2 cm
+  stereo planes: 5.0 cm  ·  suggested: 5.2 cm · IPD: 63 mm
 ```
 
-`planes cm` is the value in use and the suggestion. `-` means the field doesn't apply — equirect has no gap, window mode has no controls. When stderr isn't a terminal (piped, or a `deploy`ed systemd unit) it falls back to one line every 5 s with the same numbers.
+`planes cm` is the value in use and the suggestion. `-` means the field doesn't apply — equirect has no gap, window mode has no controls. While the panel is live it owns stderr: control messages and source lifecycle lines go through it rather than printing underneath and pushing it out of alignment. When stderr isn't a terminal (piped, or a `deploy`ed systemd unit) it falls back to one line every 5 s with the same numbers.
 
 ## Layout
 

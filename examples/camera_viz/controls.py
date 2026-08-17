@@ -2,20 +2,24 @@
 # SPDX-License-Identifier: Apache-2.0
 """Controller bindings for camera_viz (Quest / Pico).
 
-Right hand -- what the feed looks like:
+Right hand -- where the feed sits and how it reads in depth:
 
-    thumbstick X   stereo baseline, held to ramp
-    A              cycle lock mode (world -> head -> gimbal -> lazy)
+    thumbstick X   gap between the eyes' stereo planes, held to ramp;
+                   on equirect, which has no gap to set, it pans the
+                   panorama instead
+    thumbstick     recenter: aim the surface at wherever you are looking
+      click
+    A              cycle lock mode (world -> head -> lazy)
     B              toggle mono / stereo
 
 Left hand -- what surface it is mapped onto:
 
     X              cycle shape (quad -> cylinder -> equirect)
-    Y              reset this shape's parameters to the YAML values
-    thumbstick     shape-dependent, see SHAPE_PARAMS:
-                     quad      X = plane width, Y = distance
-                     cylinder  X = radius,      Y = arc angle
-                     equirect  X = horizontal span, Y = vertical span
+    Y              reset every parameter to the YAML values
+    thumbstick     shape-dependent, see shape_controls:
+                     quad      X = size,   Y = height
+                     cylinder  X = arc,    Y = height
+                     equirect  X = h-span, Y = v-span
 
 Input arrives through a ``ControllerTracker`` on a ``DeviceIOSession`` that
 shares the OpenXR session Televiz owns, so there is one CloudXR connection
@@ -36,7 +40,12 @@ from typing import Any, List, Optional, Sequence
 import shape_controls
 import stereo
 from hud import split_message
-from placements import PlacementConfig, PlacementStrategy, build as build_placement
+from placements import (
+    PlacementConfig,
+    PlacementStrategy,
+    build as build_placement,
+    heading_deg,
+)
 
 # Re-exported so ``controls`` stays the one import for callers and tests.
 DEFAULT_IPD_MM = stereo.DEFAULT_IPD_MM
@@ -129,6 +138,9 @@ class ControlTarget:
     cylinder_angle_deg: float = 90.0
     equirect_h_deg: float = 360.0
     equirect_v_half_deg: float = 90.0
+    # Heading the middle of the panorama points at, degrees about +Y. The
+    # sphere has no strategy to place it, so this is its whole pose.
+    equirect_yaw_deg: float = 0.0
 
     def __post_init__(self) -> None:
         # Snapshot for the Y button. Tuples/floats only, so a reset can't be
@@ -141,6 +153,7 @@ class ControlTarget:
             "cylinder_angle_deg": self.cylinder_angle_deg,
             "equirect_h_deg": self.equirect_h_deg,
             "equirect_v_half_deg": self.equirect_v_half_deg,
+            "equirect_yaw_deg": self.equirect_yaw_deg,
             "size_meters": (
                 tuple(self.placement_config.size_meters)
                 if self.placement_config is not None
@@ -176,9 +189,16 @@ class ControllerControls:
         config: Optional[ControlsConfig] = None,
         tracker: Optional[Any] = None,
         hud: Optional[Any] = None,
+        log_to_stderr: bool = True,
     ) -> None:
         """``tracker`` overrides the ControllerTracker; tests inject a fake
-        so the policy can be exercised without the SDK or a headset."""
+        so the policy can be exercised without the SDK or a headset.
+
+        ``log_to_stderr`` is off when the status panel is live: it redraws
+        stderr in place by moving the cursor, and a second writer on the same
+        stream lands mid-panel and leaves a trail of half-erased copies. The
+        panel shows the same events on its own line, so nothing is lost.
+        """
         if len(targets) != len(strategies):
             raise ValueError(
                 f"targets / strategies length mismatch: "
@@ -189,6 +209,7 @@ class ControllerControls:
         self._strategies = strategies
         self._cfg = config or ControlsConfig()
         self._hud = hud
+        self._log = _log if log_to_stderr else _discard
         if tracker is None:
             import isaacteleop.deviceio as deviceio
 
@@ -198,6 +219,7 @@ class ControllerControls:
         self._device_ctx: Optional[Any] = None
         self._prev_a = False
         self._prev_b = False
+        self._prev_stick = False
         self._prev_x = False
         self._prev_y = False
         # Held-stick messages would otherwise print once per rendered frame.
@@ -212,7 +234,7 @@ class ControllerControls:
             hasattr(t.layer, "set_stereo_baseline_mm") for t in self._targets
         )
         if not self._baseline_supported and any(t.stereo for t in self._targets):
-            _log(
+            self._log(
                 "installed isaacteleop has no Layer.set_stereo_baseline_mm; "
                 "thumbstick baseline disabled (A and B still work)"
             )
@@ -263,7 +285,14 @@ class ControllerControls:
         cfg = target.placement_config
         gap = None if target.shape == "equirect" else target.plane_distance_cm
         return {
-            "shape": target.shape,
+            # The heading rides along with the shape: it is the sphere's
+            # whole placement, and the lock / size / gap columns are all
+            # blank for it.
+            "shape": (
+                f"{target.shape} {target.equirect_yaw_deg:+.0f}°"
+                if target.shape == "equirect"
+                else target.shape
+            ),
             "lock_mode": target.lock_mode,
             "stereo": target.stereo and not target.force_mono.is_set(),
             "size_m": cfg.size_meters[0] if cfg is not None else None,
@@ -294,7 +323,7 @@ class ControllerControls:
         """
         if ipd_mm is not None and abs(ipd_mm - self._ipd_mm) > 0.1:
             self._ipd_mm = ipd_mm
-            _log(f"headset IPD {ipd_mm:.1f} mm")
+            self._log(f"headset IPD: {ipd_mm:.1f} mm")
         if self._device_session is None:
             return
         self._elapsed += dt
@@ -309,18 +338,24 @@ class ControllerControls:
         if controller is None:
             # Controller asleep or out of range. Drop the edge state so
             # waking it mid-press doesn't fire a phantom transition.
-            self._prev_a = self._prev_b = False
+            self._prev_a = self._prev_b = self._prev_stick = False
             return
 
         inputs = controller.inputs
         a, b = bool(inputs.primary_click), bool(inputs.secondary_click)
+        click = bool(inputs.thumbstick_click)
         if a and not self._prev_a:
             self._cycle_lock_modes()
         if b and not self._prev_b:
             self._toggle_stereo()
-        self._prev_a, self._prev_b = a, b
+        if click and not self._prev_stick:
+            self._recenter()
+        self._prev_a, self._prev_b, self._prev_stick = a, b, click
 
+        # One stick, two shapes' worth of meaning: a target is either an
+        # equirect or it isn't, so exactly one of these acts on it.
         self._adjust_plane_distance(float(inputs.thumbstick_x), dt)
+        self._adjust_equirect_yaw(float(inputs.thumbstick_x), dt)
 
     def _step_left(self, dt: float) -> None:
         controller = self._tracker.get_left_controller(self._device_session).data
@@ -409,7 +444,7 @@ class ControllerControls:
                 suggestions.append((target.name, f"{suggested:.1f} cm"))
         if changed:
             self._notify(
-                f"stereo planes {summarize(changed)}",
+                f"stereo planes: {summarize(changed)}",
                 self._gap_detail(suggestions),
                 log_key="plane_distance",
             )
@@ -428,13 +463,61 @@ class ControllerControls:
     def _gap_detail(self, suggestions: List[tuple]) -> str:
         """Second HUD line: the suggestion, and the IPD it came from -- which
         is how a headset whose IPD setting is wrong becomes visible."""
-        ipd = f"IPD {self._ipd_mm:.0f} mm"
+        ipd = f"IPD: {self._ipd_mm:.0f} mm"
         if not suggestions:
             return ipd
         # The count already appears on the first line; repeating it is noise.
         values = {value for _, value in suggestions}
         shown = suggestions[0][1] if len(values) == 1 else summarize(suggestions)
-        return f"suggested {shown} · {ipd}"
+        return f"suggested: {shown} · {ipd}"
+
+    def _adjust_equirect_yaw(self, axis: float, dt: float) -> None:
+        """Right stick on an equirect: pan the panorama.
+
+        The gap binding skips this shape (an infinite sphere cannot be
+        translated), so the stick is free here and panning is what an
+        operator actually reaches for on a 360 feed -- a camera is rarely
+        mounted facing exactly the way the headset was when it recentered.
+        """
+        scaled = self._axis(axis)
+        if scaled == 0.0:
+            return
+        delta = scaled * self._cfg.angle_rate_deg_per_s * dt
+        changed = []
+        for target in self._targets:
+            if target.shape != "equirect":
+                continue
+            # Stick right pans the view right: the middle of the texture
+            # swings left, which is +heading.
+            target.equirect_yaw_deg = _wrap_deg(target.equirect_yaw_deg + delta)
+            shape_controls.apply_equirect(target)
+            changed.append((target.name, f"{target.equirect_yaw_deg:+.0f}°"))
+        if changed:
+            self._notify(f"pan: {summarize(changed)}", log_key="equirect_yaw")
+
+    def _recenter(self) -> None:
+        """Thumbstick click: put the surface back where you are looking.
+
+        One gesture, read per shape: an equirect yaws so the middle of the
+        panorama lands dead ahead, and anything with a placement re-snaps its
+        anchor -- which is the way out of a world-locked plane left behind in
+        another part of the room.
+        """
+        head = self._session.head_pose_now()
+        if head is None:
+            return
+        heading = heading_deg(head.orientation)
+        for index, target in enumerate(self._targets):
+            if target.shape == "equirect":
+                target.equirect_yaw_deg = _wrap_deg(heading)
+                shape_controls.apply_equirect(target)
+            elif target.placement_config is not None:
+                # A fresh strategy re-snaps on its next update; retuning the
+                # live one would keep the anchor it is holding.
+                self._strategies[index] = build_placement(
+                    target.lock_mode, target.placement_config
+                )
+        self._notify("recentered on your view")
 
     def _cycle_lock_modes(self) -> None:
         changed = []
@@ -450,7 +533,7 @@ class ControllerControls:
             self._strategies[i] = build_placement(nxt, target.placement_config)
             changed.append((target.name, nxt))
         if changed:
-            self._notify("lock mode " + summarize(changed))
+            self._notify("lock mode: " + summarize(changed))
 
     def _toggle_stereo(self) -> None:
         targets = [t for t in self._targets if t.stereo]
@@ -473,7 +556,7 @@ class ControllerControls:
                 if target.plane_distance_before_mono is not None:
                     self._set_plane_distance(target, target.plane_distance_before_mono)
                     target.plane_distance_before_mono = None
-        self._notify("mono" if to_mono else "stereo")
+        self._notify("eyes: mono" if to_mono else "eyes: stereo")
 
     def _set_plane_distance(self, target, value: float) -> None:
         """``value`` is the running total; the layer only ever sees whole
@@ -509,7 +592,7 @@ class ControllerControls:
             shape = self._targets[0].shape if self._targets else ""
             hint = SHAPE_PARAMS.get(shape)
             suffix = f"  (stick: X {hint[0]}, Y {hint[1]})" if hint else ""
-            self._notify("shape " + summarize(changed) + suffix)
+            self._notify("shape: " + summarize(changed) + suffix)
 
     def _adjust_shape_params(self, ax: float, ay: float, dt: float) -> None:
         """Left stick. One entry per camera with its changed parameters joined:
@@ -570,6 +653,7 @@ class ControllerControls:
         target.cylinder_angle_deg = initial["cylinder_angle_deg"]
         target.equirect_h_deg = initial["equirect_h_deg"]
         target.equirect_v_half_deg = initial["equirect_v_half_deg"]
+        target.equirect_yaw_deg = initial["equirect_yaw_deg"]
         shape_controls.apply_all(target)
 
     def _notify(
@@ -597,7 +681,7 @@ class ControllerControls:
         ):
             if log_key is not None:
                 self._last_log[log_key] = self._elapsed
-            _log(f"{message}  |  {detail}" if detail else message)
+            self._log(f"{message}  |  {detail}" if detail else message)
         if self._hud is not None:
             self._hud.show([message, detail] if detail else split_message(message))
 
@@ -623,10 +707,19 @@ def _clamp(value: float, limits) -> float:
     return min(max(value, lo), hi)
 
 
+def _wrap_deg(angle: float) -> float:
+    """Into (-180, 180], so a panned-all-the-way-round readout stays legible."""
+    return (angle + 180.0) % 360.0 - 180.0
+
+
 def _log(message: str) -> None:
-    # Operator feedback: there is no HUD, so the terminal is the only
-    # confirmation that a press registered.
+    # Operator feedback for a run without the panel: confirmation at the
+    # workstation that a press registered.
     print(f"camera_viz: controls: {message}", file=sys.stderr, flush=True)
+
+
+def _discard(message: str) -> None:
+    """Sink for when the status panel owns stderr."""
 
 
 def controls_config_from_yaml(display: dict) -> ControlsConfig:

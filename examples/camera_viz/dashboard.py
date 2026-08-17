@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import shutil
 import sys
+import threading
 from dataclasses import dataclass, field
 from typing import List, Optional, Sequence
 
@@ -26,7 +27,7 @@ _RESET = "\033[0m"
 # Units live in the header so the rows stay numbers.
 _COLUMNS = (
     ("camera", 12),
-    ("shape", 10),
+    ("shape", 15),  # equirect carries its heading here
     ("lock", 8),
     ("eyes", 7),
     ("size m", 8),
@@ -82,12 +83,18 @@ class Snapshot:
 
 
 class Dashboard:
-    """Redraws a fixed block of lines in place. Not thread-safe: the render
-    thread owns it."""
+    """Redraws a fixed block of lines in place.
+
+    The render thread drives :meth:`show`, but a capture thread can call
+    :meth:`note` at any moment, and two interleaved writes would tear an
+    escape sequence in half -- so the stream is held under a lock.
+    """
 
     def __init__(self, stream=None, colour: Optional[bool] = None) -> None:
         self._out = stream if stream is not None else sys.stderr
+        self._lock = threading.Lock()
         self._painted = 0
+        self._columns = 0
         self._live = self._out.isatty() if hasattr(self._out, "isatty") else False
         self._colour = self._live if colour is None else colour
 
@@ -97,11 +104,29 @@ class Dashboard:
         return self._live
 
     def show(self, snapshot: Snapshot) -> None:
+        with self._lock:
+            self._show(snapshot)
+
+    def _show(self, snapshot: Snapshot) -> None:
         if not self._live:
             self._out.write(self._one_line(snapshot) + "\n")
             self._out.flush()
             return
+        size = shutil.get_terminal_size((100, 24))
+        if size.columns != self._columns:
+            # Rewrapped underneath us: the old panel's height no longer says
+            # how far up its top is. Start a fresh one below the wreckage
+            # rather than erase whatever is there now.
+            self._columns, self._painted = size.columns, 0
         lines = self._compose(snapshot)
+        # One row per line is the whole premise of the cursor arithmetic, so
+        # a panel taller than the terminal cannot be redrawn in place: the
+        # top scrolls off and every repaint leaves a copy behind.
+        if len(lines) >= size.lines:
+            self._painted = 0
+            self._out.write(self._one_line(snapshot) + "\n")
+            self._out.flush()
+            return
         if self._painted:
             self._out.write(f"\033[{self._painted}A")
         for line in lines:
@@ -112,13 +137,36 @@ class Dashboard:
         self._out.flush()
         self._painted = max(len(lines), self._painted)
 
+    def note(self, text: str) -> None:
+        """Print a line above the panel, keeping the panel intact.
+
+        The panel owns the cursor while it is live, so anything else writing
+        to the same stream lands inside it and every later repaint is off by
+        however many lines that write scrolled -- which is how you end up
+        with a column of half-erased headers. Route lifecycle messages here
+        and they scroll away above the panel like an ordinary log.
+        """
+        with self._lock:
+            self._note(text)
+
+    def _note(self, text: str) -> None:
+        if self._live and self._painted:
+            self._out.write(f"\033[{self._painted}A")
+            for _ in range(self._painted):
+                self._out.write("\033[2K\n")
+            self._out.write(f"\033[{self._painted}A")
+            self._painted = 0
+        self._out.write(text + "\n")
+        self._out.flush()
+
     def close(self) -> None:
         """Leave the cursor below the panel so a later print doesn't land in
         the middle of it."""
-        if self._live and self._painted:
-            self._out.write("\n")
-            self._out.flush()
-            self._painted = 0
+        with self._lock:
+            if self._live and self._painted:
+                self._out.write("\n")
+                self._out.flush()
+                self._painted = 0
 
     # ── composition ──────────────────────────────────────────────────
 
@@ -128,8 +176,19 @@ class Dashboard:
         text = text[:width]
         return f"{style}{text}{_RESET}" if style and self._colour else text
 
+    def _width(self) -> int:
+        """Widest line we will draw.
+
+        One short of the terminal: a line that fills the last column leaves
+        the cursor wrap-pending, and the newline after it costs two rows on
+        some terminals instead of one -- which slides the panel down a row
+        per repaint and strands a copy of the header each time.
+        """
+        columns = shutil.get_terminal_size((100, 24)).columns
+        return max(20, min(columns - 1, 100))
+
     def _compose(self, snapshot: Snapshot) -> List[str]:
-        width = min(shutil.get_terminal_size((100, 24)).columns, 100)
+        width = self._width()
         lines = [
             self._paint(f"camera_viz  {snapshot.header}", width, _BOLD),
             self._paint("─" * width, width, _DIM),

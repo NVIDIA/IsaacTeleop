@@ -40,12 +40,18 @@ from controls import (
 )
 from dashboard import Dashboard
 from hud import make_hud
-from placements import PlacementConfig, PlacementStrategy, build as build_placement
+from placements import (
+    PlacementConfig,
+    PlacementStrategy,
+    build as build_placement,
+    yaw_quat,
+)
 from sources import (
     PairedFrameSource,
     RtpH264Source,
     build_local_camera,
     resolve_video_paths,
+    set_notify_sink,
     set_verbose,
 )
 
@@ -73,6 +79,11 @@ class SourceEntry:
     # Cylinder shape parameters (display.placements.<name>).
     cylinder_radius_m: float = 2.0
     cylinder_angle_deg: float = 90.0
+    # Equirect shape parameter: heading the middle of the panorama points
+    # at, degrees about +Y (0 = the reference space's forward, positive to
+    # the left). The sphere has no lock-mode strategy, so this is how a feed
+    # whose camera does not face the way the headset started gets aimed.
+    equirect_yaw_deg: float = 0.0
 
 
 _VALID_SHAPES = ("quad", "cylinder", "equirect")
@@ -102,6 +113,7 @@ _KNOWN_PLACEMENT_KEYS = frozenset(
         "compositor",
         "cylinder_radius_m",
         "cylinder_angle_deg",
+        "equirect_yaw_deg",
     }
 )
 
@@ -122,11 +134,14 @@ def _warn_unknown_placement_keys(cam_name: str, pspec: dict) -> None:
         )
 
 
-def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, float]:
+def _shape_for(
+    cam_name: str, placements_cfg: dict
+) -> Tuple[str, str, float, float, float]:
     """Per-camera surface config from ``display.placements.<name>``:
     ``shape`` (quad | cylinder | equirect, default quad), ``compositor``
     (openxr — the default — or televiz; quads only), ``cylinder_radius_m``
-    / ``cylinder_angle_deg`` (cylinder only)."""
+    / ``cylinder_angle_deg`` (cylinder only), ``equirect_yaw_deg``
+    (equirect only)."""
     pspec = placements_cfg.get(cam_name) or {}
     _warn_unknown_placement_keys(cam_name, pspec)
     shape = str(pspec.get("shape", "quad")).lower()
@@ -149,7 +164,8 @@ def _shape_for(cam_name: str, placements_cfg: dict) -> Tuple[str, bool, float, f
         )
     radius_m = float(pspec.get("cylinder_radius_m", 2.0))
     angle_deg = float(pspec.get("cylinder_angle_deg", 90.0))
-    return shape, compositor, radius_m, angle_deg
+    yaw_deg = float(pspec.get("equirect_yaw_deg", 0.0))
+    return shape, compositor, radius_m, angle_deg, yaw_deg
 
 
 _VALID_LOCK_MODES = ("world", "head", "lazy", "gimbal")
@@ -236,7 +252,9 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
             placements_cfg.get(cam["name"]), first.width, first.height, is_xr
         )
         stereo, plane_distance_cm = _stereo_for(cam, placements_cfg)
-        shape, compositor, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
+        shape, compositor, radius_m, angle_deg, yaw_deg = _shape_for(
+            cam["name"], placements_cfg
+        )
         for source in cam_sources:
             entries.append(
                 SourceEntry(
@@ -248,6 +266,7 @@ def _build_local_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                     compositor=compositor,
                     cylinder_radius_m=radius_m,
                     cylinder_angle_deg=angle_deg,
+                    equirect_yaw_deg=yaw_deg,
                     lock_mode=lock_mode,
                     placement_config=placement_cfg,
                 )
@@ -316,7 +335,9 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 gpu_id=int(rtp.get("gpu_id", 0)),
             )
 
-        shape, compositor, radius_m, angle_deg = _shape_for(cam["name"], placements_cfg)
+        shape, compositor, radius_m, angle_deg, yaw_deg = _shape_for(
+            cam["name"], placements_cfg
+        )
         entries.append(
             SourceEntry(
                 source=source,
@@ -327,6 +348,7 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
                 compositor=compositor,
                 cylinder_radius_m=radius_m,
                 cylinder_angle_deg=angle_deg,
+                equirect_yaw_deg=yaw_deg,
                 lock_mode=lock_mode,
                 placement_config=placement_cfg,
             )
@@ -367,6 +389,21 @@ def _make_session(
     return viz.VizSession.create(session_cfg)
 
 
+def _check_shapes_are_displayable(cfg: dict, effective_mode: str) -> None:
+    """Shaped layers are composited by the OpenXR runtime, so they need XR
+    mode. Checked here, before the runtime is launched, rather than as a
+    failure part-way through building the session."""
+    placements_cfg = cfg.get("display", {}).get("placements", {})
+    for cam in _enabled_cameras(cfg):
+        shape = _shape_for(cam["name"], placements_cfg)[0]
+        if shape != "quad" and effective_mode != "xr":
+            raise SystemExit(
+                f"camera_viz: placements.{cam['name']}.shape: {shape} is "
+                "composited by the OpenXR runtime and requires XR mode; "
+                "use --mode xr or shape: quad in window mode."
+            )
+
+
 def _build_layer(session: viz.VizSession, entry: SourceEntry, shape: str):
     """One layer of ``shape`` for ``entry``.
 
@@ -377,7 +414,8 @@ def _build_layer(session: viz.VizSession, entry: SourceEntry, shape: str):
                (``cylinder_radius_m`` / ``cylinder_angle_deg``, aspect from
                the source). Runtime-composited always.
     equirect → EquirectLayer: full 360x180 sphere (the source is expected
-               to be an equirect panorama). Runtime-composited always.
+               to be an equirect panorama), aimed by ``equirect_yaw_deg``.
+               Runtime-composited always.
     """
     spec = entry.source.spec
     if shape == "cylinder":
@@ -401,8 +439,14 @@ def _build_layer(session: viz.VizSession, entry: SourceEntry, shape: str):
         # default infinite-radius placement (full 360x180 sphere).
         layer_cfg.stereo_baseline_mm = entry.stereo_plane_distance_cm * 10.0
         # Set explicitly rather than leaning on the default so the controls
-        # have a known starting point to adjust from and reset to.
-        layer_cfg.placement = viz.EquirectLayerPlacement()
+        # have a known starting point to adjust from and reset to. The pose's
+        # -z is where the middle of the panorama lands, so yawing it aims the
+        # feed; position is irrelevant on the default infinite-radius sphere.
+        layer_cfg.placement = viz.EquirectLayerPlacement(
+            pose=viz.Pose3D(
+                (0.0, 0.0, 0.0), yaw_quat(math.radians(entry.equirect_yaw_deg))
+            )
+        )
         return session.add_equirect_layer(layer_cfg)
 
     layer_cfg = viz.QuadLayerConfig()
@@ -479,20 +523,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         raise ValueError(f"camera_viz: source must be local|rtp, got {source_mode!r}")
 
     effective_mode = (args.mode or cfg.get("display", {}).get("mode", "xr")).lower()
-    # Shaped layers (display.placements.<name>.shape) are composited by
-    # the OpenXR runtime, so they need XR mode and a current isaacteleop —
-    # fail fast, before launching the runtime, when either is missing.
-    placements_cfg = cfg.get("display", {}).get("placements", {})
-    for cam in _enabled_cameras(cfg):
-        shape, _, _, _ = _shape_for(cam["name"], placements_cfg)
-        if shape == "quad":
-            continue
-        if effective_mode != "xr":
-            raise SystemExit(
-                f"camera_viz: placements.{cam['name']}.shape: {shape} is "
-                "composited by the OpenXR runtime and requires XR mode; "
-                "use --mode xr or shape: quad in window mode."
-            )
+    _check_shapes_are_displayable(cfg, effective_mode)
 
     # The runtime otherwise blocks each server frame until a fresh client pose
     # arrives. The launcher hands its own os.environ to the runtime
@@ -580,6 +611,18 @@ def main(argv: Optional[list[str]] = None) -> int:
                 f"camera, about {extra / (1024 * 1024):.0f} MiB additional VRAM"
             )
 
+        # Built before the controls and the sources' notifications are
+        # rerouted: while it is live it owns stderr, and a second writer on
+        # that stream lands inside the panel (see Dashboard.note).
+        dashboard = Dashboard()
+        if dashboard.live:
+            set_notify_sink(dashboard.note)
+        else:
+            # Nothing is redrawing, so the header would never be seen.
+            print(f"camera_viz: {header}", flush=True)
+            for note in notes:
+                print(f"camera_viz: {note}", file=sys.stderr, flush=True)
+
         controls = None
         if want_controls and is_xr:
             targets = [
@@ -594,6 +637,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                     shape_layers=per_shape,
                     cylinder_radius_m=e.cylinder_radius_m,
                     cylinder_angle_deg=e.cylinder_angle_deg,
+                    equirect_yaw_deg=e.equirect_yaw_deg,
                 )
                 for e, layer, per_shape in zip(entries, layers, shape_layers)
             ]
@@ -603,15 +647,14 @@ def main(argv: Optional[list[str]] = None) -> int:
             # blend order for runtime-composited layers).
             hud = make_hud(session, controls_cfg.hud)
             controls = ControllerControls(
-                session, targets, strategies, controls_cfg, hud=hud
+                session,
+                targets,
+                strategies,
+                controls_cfg,
+                hud=hud,
+                log_to_stderr=not dashboard.live,
             )
 
-        dashboard = Dashboard()
-        if not dashboard.live:
-            # Nothing is redrawing, so the header would never be seen.
-            print(f"camera_viz: {header}", flush=True)
-            for note in notes:
-                print(f"camera_viz: {note}", file=sys.stderr, flush=True)
         runner = VizRunner(
             session,
             sources,
