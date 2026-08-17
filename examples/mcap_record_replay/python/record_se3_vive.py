@@ -1,0 +1,151 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 HTC Corporation. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Record live VIVE Ultimate Tracker SE3 pose streams to an MCAP file — headset-free.
+
+Reads the per-tracker "vive_tracker_<serial>" tensor collections pushed by the
+vive_se3_tracker plugin (one core.Se3Tracker per collection) and records each
+one to its own MCAP channel pair (<cid> / <cid>_tracked) via the standard
+Se3TrackerRecordingTraits. Replay with replay_se3_vive.py.
+
+Prerequisites (separate terminals):
+  1. CloudXR runtime:  python -m isaacteleop.cloudxr
+  2. the pusher:       ./vive_se3_tracker_plugin
+     (VIVEHub tracker_server running, or VIVE_SE3_SYNTHETIC=1 for a smoke test)
+
+With no arguments it records 10 s of every collection the pusher currently
+advertises (see --collections), to a timestamped file under ../recordings/.
+
+Usage:
+    source ~/.cloudxr/run/cloudxr.env
+    uv run record_se3_vive.py [duration_s] [output.mcap] [--collections a,b,c]
+"""
+
+import argparse
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
+from isaacteleop.deviceio_trackers import Se3Tracker
+from isaacteleop.oxr import OpenXRSession
+
+
+def _collections_file() -> str:
+    """Where the pusher advertises live collection ids (one per line).
+
+    Must mirror resolve_collections_file() in the plugin: VIVE_SE3_COLLECTIONS_FILE
+    overrides wholesale; otherwise the per-user $XDG_RUNTIME_DIR (systemd's
+    mode-0700 dir); otherwise a private per-user dir under /tmp
+    (vive_se3_tracker-<uid>) — never a fixed world-writable /tmp path.
+    """
+    env = os.environ.get("VIVE_SE3_COLLECTIONS_FILE")
+    if env:
+        return env
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg:
+        return os.path.join(xdg, "vive_se3_collections.txt")
+    base = os.path.join("/tmp", f"vive_se3_tracker-{os.getuid()}")  # noqa: S108 - per-user 0700 dir, matches plugin
+    return os.path.join(base, "vive_se3_collections.txt")
+
+
+DEFAULT_COLLECTIONS_FILE = _collections_file()
+
+
+def discover_collections() -> list[str]:
+    """Read the collection ids the running pusher advertises, in file order."""
+    path = Path(DEFAULT_COLLECTIONS_FILE)
+    if not path.is_file():
+        return []
+    seen = {}
+    for line in path.read_text().splitlines():
+        cid = line.strip()
+        if cid:
+            seen.setdefault(cid, None)
+    return list(seen)
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "duration", nargs="?", type=float, default=10.0, help="Recording duration (s)"
+    )
+    parser.add_argument("output", nargs="?", help="Output .mcap path")
+    parser.add_argument(
+        "--collections",
+        default=None,
+        help="Comma-separated collection ids (default: auto-discover from the running pusher)",
+    )
+    args = parser.parse_args(argv[1:])
+
+    if args.output:
+        mcap_path = Path(args.output)
+        mcap_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        out_dir = Path(__file__).resolve().parent.parent / "recordings"
+        out_dir.mkdir(exist_ok=True)
+        mcap_path = out_dir / f"se3_vive_{datetime.now():%Y%m%d_%H%M%S}.mcap"
+
+    if args.collections:
+        collections = [c.strip() for c in args.collections.split(",") if c.strip()]
+    else:
+        collections = discover_collections()
+        if not collections:
+            print(
+                "[record-se3] no live collections found "
+                f"({DEFAULT_COLLECTIONS_FILE} missing or empty). "
+                "Is the vive_se3_tracker pusher running and a tracker streaming? "
+                "Or pass --collections explicitly.",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"[record-se3] discovered collections: {', '.join(collections)}")
+
+    trackers = {cid: Se3Tracker(cid) for cid in collections}
+
+    # MCAP channel base name = collection id (channels "<cid>" + "<cid>_tracked").
+    recording = McapRecordingConfig(
+        str(mcap_path), tracker_names=[(t, cid) for cid, t in trackers.items()]
+    )
+
+    print(f"[record-se3] writing {mcap_path} for {args.duration:.1f}s")
+    for cid in collections:
+        print(f"[record-se3]   collection '{cid}'")
+
+    tracker_list = list(trackers.values())
+    extensions = DeviceIOSession.get_required_extensions(tracker_list)
+    with OpenXRSession("McapSe3ViveRecord", extensions) as oxr_session:
+        with DeviceIOSession.run(
+            tracker_list, oxr_session.get_handles(), recording
+        ) as session:
+            start = time.time()
+            frame = 0
+            while time.time() - start < args.duration:
+                session.update()
+                if frame % 60 == 0:
+                    parts = []
+                    for cid, tracker in trackers.items():
+                        data = tracker.get_data(session)
+                        if data.data is None:
+                            parts.append(f"{cid}: -")
+                        elif not data.data.is_valid:
+                            parts.append(f"{cid}: lost")
+                        else:
+                            p = data.data.pose.position
+                            parts.append(f"{cid}: [{p.x:+.2f} {p.y:+.2f} {p.z:+.2f}]")
+                    print(
+                        f"[record-se3] t={time.time() - start:5.2f}s  "
+                        + "  ".join(parts)
+                    )
+                frame += 1
+                time.sleep(1 / 90)
+
+    print(f"[record-se3] done — {mcap_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
