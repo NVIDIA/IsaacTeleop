@@ -132,11 +132,25 @@ display:                      # camera_viz only
       # shape: quad            # quad (default) | cylinder | equirect — XR only for
                                # the curved shapes
       # compositor: openxr     # openxr (default) | televiz — quads only
+                               # Orin: use televiz (see Known issues)
       # cylinder_radius_m: 2.0 # cylinder: viewing distance to the arc
       # cylinder_angle_deg: 90 # cylinder: visible arc width
 ```
 
 Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` (plus `port_right` if stereo) and renders as its own plane.
+
+## Known issues
+
+### Black camera plane on Orin
+
+With the CloudXR experimental runtime on Orin, the default OpenXR compositor displays the camera plane but its contents remain black. Set `compositor: televiz` under the camera's `display.placements` entry. The same feed displays correctly with this workaround.
+
+```yaml
+display:
+  placements:
+    cam:
+      compositor: televiz
+```
 
 ## Lock modes (XR)
 
