@@ -534,12 +534,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     # No effect under --no-launch-cloudxr-runtime: that runtime already
     # started with whatever environment it was given.
     if effective_mode == "xr":
-        os.environ.setdefault("NV_ENABLE_POSE_WAIT", "true")
+        os.environ.setdefault("NV_ENABLE_POSE_WAIT", "false")
         # Runtime-side fixed foveation: the runtime warps the composited image
         # before encoding, so peripheral pixels cost less bandwidth. Off in the
         # runtime by default, and it applies to the layers fast path camera_viz
         # uses, not just to projection layers.
-        os.environ.setdefault("NV_CXR_RUNTIME_FOVEATION", "false")
+        os.environ.setdefault("NV_CXR_RUNTIME_FOVEATION", "true")
 
     # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
     # headset clients) before creating the session — VizSession's OpenXR
