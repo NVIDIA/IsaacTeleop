@@ -11,6 +11,7 @@ add_library(live_trackers STATIC
     live_controller_tracker_impl.cpp
     live_message_channel_tracker_impl.cpp
     live_full_body_tracker_pico_impl.cpp
+    live_full_body_tracker_meta_impl.cpp
     live_full_body_tracker_noitom_impl.cpp
     live_tensor_push_tracker_impl.cpp
     live_haptic_command_reader_tracker_impl.cpp
@@ -23,6 +24,7 @@ add_library(live_trackers STATIC
     live_controller_tracker_impl.hpp
     live_message_channel_tracker_impl.hpp
     live_full_body_tracker_pico_impl.hpp
+    live_full_body_tracker_meta_impl.hpp
     live_full_body_tracker_noitom_impl.hpp
     live_tensor_push_tracker_impl.hpp
     live_haptic_command_reader_tracker_impl.hpp
