@@ -225,7 +225,11 @@ hand changes how the feed looks; the left, what surface it is mapped onto:
    * - Right stick ←/→
      - Stereo plane gap — how far apart the two eyes' planes sit
        (``placements.<cam>.stereo_plane_distance_cm``). Widening it pushes the scene back
-       instead of packing it into the space in front of the planes. Stereo cameras only.
+       instead of packing it into the space in front of the planes. Stereo cameras only; on
+       ``equirect``, which has no gap to set, the same stick pans the panorama.
+   * - Right stick click
+     - Recenter on your view: an ``equirect`` yaws so the middle of the panorama lands dead
+       ahead, and a placed surface re-snaps its anchor.
    * - ``A``
      - Cycle the lock mode: ``world`` → ``head`` → ``gimbal`` → ``lazy``.
    * - ``B``
@@ -260,8 +264,8 @@ submit rates alongside each camera's current shape, lock mode, size, and stereo 
    ──────────────────────────────────────────────────────────────────
      render 58.0 fps (target 72)   missed 0   gpu 2.1 ms
 
-     camera      shape     lock    eyes   size m  height m  planes cm   submit/s
-     zed         cylinder  lazy    stereo 1.00    +0.00     5.0/5.2     64.0
+     camera      shape          lock    eyes   size m  height m  planes cm   submit/s
+     zed         cylinder       lazy    stereo 1.00    +0.00     5.0/5.2     64.0
 
      headset IPD 63 mm
 
@@ -290,7 +294,10 @@ panoramic sources look better on a curved surface: set ``shape`` per camera unde
        visor).
    * - ``equirect``
      - Full 360°×180° sphere around the operator, for equirectangular panorama / VR-video
-       sources. Lock modes don't apply.
+       sources. The middle of the texture points along ``equirect_yaw_deg`` (0 = the
+       direction the headset last recentered on, positive to the left), which is how a camera
+       mounted facing another way gets aimed. Lock modes don't apply — the sphere is centred
+       on the operator and follows them everywhere.
 
 Curved shapes exist only in XR mode — the viewer exits with an error in window mode. Stereo
 sources render per-eye textures on the same surface, and ``stereo_baseline_mm`` adds a per-eye
@@ -399,6 +406,7 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
          # size: [w_m, h_m]
          # stereo_baseline_mm: 0
          # shape: quad           # quad | cylinder | equirect (cylinder/equirect are XR-only)
+         # equirect_yaw_deg: 0.0  # equirect: heading the middle of the feed points at
          # compositor: openxr    # openxr (default) | televiz — quads only
          # cylinder_radius_m: 2.0
          # cylinder_angle_deg: 90

@@ -44,6 +44,7 @@ display:
   clear_color: [0.0, 0.0, 0.0, 0.0]
   # Controller bindings (XR only).
   #   right stick X : stereo plane gap     right A : lock mode   right B : mono/stereo
+  #                   (equirect: pan)      right stick click : recenter on your view
   #   left stick    : shape params         left X  : shape       left Y  : reset
   controls:
     enabled: true
@@ -80,3 +81,6 @@ display:
       #                       # compositor; quad shape only)
       # cylinder_radius_m: 2.0    # cylinder only
       # cylinder_angle_deg: 45    # cylinder only
+      # equirect_yaw_deg: 0.0     # equirect only: heading the middle of the
+      #                           # feed points at (0 = where the headset last
+      #                           # recentered, positive to the left)

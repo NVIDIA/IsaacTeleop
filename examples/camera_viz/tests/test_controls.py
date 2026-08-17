@@ -22,7 +22,12 @@ from controls import (
     ControlTarget,
 )
 from controls import controls_config_from_yaml
-from placements import PlacementConfig, build as build_placement
+from placements import (
+    PlacementConfig,
+    build as build_placement,
+    heading_deg,
+    yaw_quat,
+)
 
 
 class FakeLayer:
@@ -34,11 +39,12 @@ class FakeLayer:
 
 
 class FakeInputs:
-    def __init__(self, a=False, b=False, x=0.0, y=0.0) -> None:
+    def __init__(self, a=False, b=False, x=0.0, y=0.0, click=False) -> None:
         self.primary_click = a
         self.secondary_click = b
         self.thumbstick_x = x
         self.thumbstick_y = y
+        self.thumbstick_click = click
 
 
 class FakeSnapshot:
@@ -72,11 +78,20 @@ class FakeSession:
         pass
 
 
+class FakePose3D:
+    def __init__(self, orientation) -> None:
+        self.position = (0.0, 0.0, 0.0)
+        self.orientation = orientation
+
+
 class FakeVizSession:
     """Only the bit the controls touch per frame."""
 
+    def __init__(self, head=None) -> None:
+        self.head = head
+
     def head_pose_now(self):
-        return None
+        return self.head
 
 
 def _make(targets, config=None):
@@ -113,7 +128,7 @@ def _stereo_target(name="cam", plane_distance=0.0, lock_mode="lazy"):
 
 
 def _press(controls, dt=1.0, **kwargs):
-    """Right hand: a, b, x (stick)."""
+    """Right hand: a, b, x (stick), click (stick press)."""
     controls._tracker.right = FakeInputs(**kwargs)
     controls._tracker.left = FakeInputs()
     controls.step(dt)
@@ -391,8 +406,18 @@ class FakeCylinderPlacement:
         self.central_angle_rad = math.radians(90.0)
 
 
+class FakePose:
+    """viz.Pose3D's surface: the placement's ``pose`` is a live reference, so
+    writing ``pose.orientation`` reaches the placement."""
+
+    def __init__(self) -> None:
+        self.position = (0.0, 0.0, 0.0)
+        self.orientation = (1.0, 0.0, 0.0, 0.0)
+
+
 class FakeEquirectPlacement:
     def __init__(self) -> None:
+        self.pose = FakePose()
         self.central_horizontal_angle_rad = math.radians(360.0)
         self.upper_vertical_angle_rad = math.radians(90.0)
         self.lower_vertical_angle_rad = math.radians(-90.0)
@@ -939,3 +964,154 @@ def test_reset_restores_height_too():
 
     _press_left(controls, b=True)  # Y: reset
     assert target.placement_config.offset_y == pytest.approx(0.0)
+
+
+# ── Equirect aiming: pan + recenter ───────────────────────────────────
+
+
+def _looking(yaw_deg: float) -> FakeVizSession:
+    return FakeVizSession(FakePose3D(yaw_quat(math.radians(yaw_deg))))
+
+
+def test_right_stick_pans_an_equirect_instead_of_setting_a_gap():
+    """The sphere has no gap to set, so the stick is free -- and panning is
+    what a 360 feed actually needs, since the camera rarely faces the way the
+    headset did when it recentered."""
+    target = _switchable_target("equirect")
+    controls, _ = _make(
+        [target], ControlsConfig(deadzone=0.0, angle_rate_deg_per_s=40.0)
+    )
+
+    _press(controls, x=1.0, dt=0.5)
+    assert target.equirect_yaw_deg == pytest.approx(20.0)
+    placement = target.shape_layers["equirect"].placement()
+    assert placement.pose.orientation == pytest.approx(yaw_quat(math.radians(20.0)))
+
+
+def test_panning_wraps_instead_of_running_off():
+    target = _switchable_target("equirect")
+    target.equirect_yaw_deg = 170.0
+    controls, _ = _make(
+        [target], ControlsConfig(deadzone=0.0, angle_rate_deg_per_s=40.0)
+    )
+    _press(controls, x=1.0, dt=1.0)
+    assert target.equirect_yaw_deg == pytest.approx(-150.0)
+
+
+def test_the_stick_does_not_pan_a_shape_that_has_a_gap():
+    target = _switchable_target("quad")
+    controls, _ = _make([target], ControlsConfig(deadzone=0.0))
+    _press(controls, x=1.0, dt=1.0)
+    assert target.equirect_yaw_deg == 0.0
+
+
+def test_stick_click_aims_the_panorama_where_you_are_looking():
+    target = _switchable_target("equirect")
+    controls, _ = _make([target])
+    controls._session = _looking(35.0)
+
+    _press(controls, click=True)
+    assert target.equirect_yaw_deg == pytest.approx(35.0, abs=1e-3)
+
+
+def test_stick_click_resnaps_a_placed_layer():
+    """Same gesture, read per shape: a world-locked plane left in another
+    part of the room comes back."""
+    target = _switchable_target("quad", name="cam")
+    target.lock_mode = "world"
+    controls, strategies = _make([target])
+    controls._session = _looking(0.0)
+    before = strategies[0]
+
+    _press(controls, click=True)
+    assert strategies[0] is not before
+
+
+def test_recenter_is_a_press_not_a_hold():
+    target = _switchable_target("equirect")
+    controls, _ = _make([target])
+    controls._session = _looking(35.0)
+    _press(controls, click=True)
+    target.equirect_yaw_deg = 0.0
+    _press(controls, click=True)  # still held
+    assert target.equirect_yaw_deg == 0.0
+
+
+def test_recenter_does_nothing_without_a_head_pose():
+    """Tracking loss must not slam the panorama to a default heading."""
+    target = _switchable_target("equirect")
+    target.equirect_yaw_deg = 90.0
+    controls, _ = _make([target])  # FakeVizSession head is None
+    _press(controls, click=True)
+    assert target.equirect_yaw_deg == 90.0
+
+
+def test_reset_restores_the_panorama_heading():
+    target = _switchable_target("equirect")
+    controls, _ = _make(
+        [target], ControlsConfig(deadzone=0.0, angle_rate_deg_per_s=40.0)
+    )
+    _press(controls, x=1.0, dt=1.0)
+    assert target.equirect_yaw_deg != 0.0
+
+    _press_left(controls, b=True)  # Y: reset
+    assert target.equirect_yaw_deg == pytest.approx(0.0)
+    placement = target.shape_layers["equirect"].placement()
+    assert placement.pose.orientation == pytest.approx((1.0, 0.0, 0.0, 0.0))
+
+
+def test_heading_is_the_inverse_of_the_yaw_it_is_built_from():
+    for degrees in (-179.0, -90.0, 0.0, 45.0, 179.0):
+        assert heading_deg(yaw_quat(math.radians(degrees))) == pytest.approx(
+            degrees, abs=1e-3
+        )
+
+
+# ── The panel owns stderr while it is live ────────────────────────────
+
+
+def test_control_messages_stay_off_stderr_when_the_panel_owns_it(capsys):
+    """Two writers on one stream is what left a column of half-erased
+    headers scrolling up the terminal."""
+    target = _switchable_target("quad")
+    controls = ControllerControls(
+        FakeVizSession(),
+        [target],
+        [build_placement(target.lock_mode, target.placement_config)],
+        ControlsConfig(),
+        tracker=FakeTracker(),
+        log_to_stderr=False,
+    )
+    controls._device_session = FakeSession()
+    _press(controls, a=True)
+
+    assert capsys.readouterr().err == ""
+    # The event still reaches the panel, which is what draws it.
+    assert "lock" in controls.last_event
+
+
+# ── Config plumbing ───────────────────────────────────────────────────
+
+
+def test_shape_config_carries_the_equirect_heading():
+    import camera_viz
+
+    shape, _, _, _, yaw = camera_viz._shape_for(
+        "sky", {"sky": {"shape": "equirect", "equirect_yaw_deg": -90.0}}
+    )
+    assert (shape, yaw) == ("equirect", -90.0)
+    assert camera_viz._shape_for("cam", {})[4] == 0.0
+
+
+def test_a_curved_shape_is_refused_before_the_runtime_starts():
+    """Also pins the shape-config tuple against its callers: an extra field
+    once slipped past a positional unpack here."""
+    import camera_viz
+
+    cfg = {
+        "cameras": [{"name": "sky", "enabled": True}],
+        "display": {"placements": {"sky": {"shape": "equirect"}}},
+    }
+    camera_viz._check_shapes_are_displayable(cfg, "xr")
+    with pytest.raises(SystemExit, match="requires XR mode"):
+        camera_viz._check_shapes_are_displayable(cfg, "window")
