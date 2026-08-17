@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 HTC Corporation. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: vive_se3_tracker
+description: "Vive Ultimate Trackers -> per-tracker SE3 pose streams, pushed via OpenXR"
+command: "./vive_se3_tracker_plugin"
+version: "0.1.0"
+devices:
+  - path: "/se3_tracker/vive"
+    type: "se3_tracker"
+    description: "SE3 (6-DoF) pose of each VIVE Ultimate Tracker (via VIVEHub); one collection per tracker, named by serial"
