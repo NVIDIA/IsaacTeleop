@@ -274,24 +274,6 @@ The HUD suggests a gap derived from the plane distance and that IPD.
 Bindings, rates and limits live under ``display.controls``; see the
 :code-file:`README <examples/camera_viz/README.md>` for the full set.
 
-Status panel
-^^^^^^^^^^^^
-
-On a terminal the sample redraws a snapshot in place rather than scrolling a log — render and
-submit rates alongside each camera's current shape, lock mode, size, and stereo gap::
-
-   camera_viz  xr · local · 1 camera
-   ──────────────────────────────────────────────────────────────────
-     render 58.0 fps (target 72)   missed 0   gpu 2.1 ms
-
-     camera      shape          lock    eyes   size m  height m  planes cm   submit/s
-     zed         cylinder       lazy    stereo 1.00    +0.00     5.0/5.2     64.0
-
-     headset IPD 63 mm
-
-When stderr is not a terminal — piped, or the systemd unit ``deploy`` installs — it falls back
-to one line every few seconds carrying the same numbers.
-
 Display surfaces
 ----------------
 
