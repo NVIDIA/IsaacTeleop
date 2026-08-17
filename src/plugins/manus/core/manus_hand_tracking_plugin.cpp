@@ -572,8 +572,8 @@ bool ManusTracker::apply_glove_calibration(uint32_t glove_id, bool is_left)
     }
 
     SetGloveCalibrationReturnCode result = SetGloveCalibrationReturnCode_Error;
-    const SDKReturnCode rc =
-        CoreSdk_SetGloveCalibration(glove_id, calibration_file.data(), static_cast<uint32_t>(calibration_file.size()), &result);
+    const SDKReturnCode rc = CoreSdk_SetGloveCalibration(
+        glove_id, calibration_file.data(), static_cast<uint32_t>(calibration_file.size()), &result);
     if (rc != SDKReturnCode::SDKReturnCode_Success || result != SetGloveCalibrationReturnCode_Success)
     {
         std::cerr << "[Manus] Failed to apply " << (is_left ? "left" : "right")
@@ -582,8 +582,8 @@ bool ManusTracker::apply_glove_calibration(uint32_t glove_id, bool is_left)
         return false;
     }
 
-    std::cout << "[Manus] Applied " << (is_left ? "left" : "right") << " glove calibration file to glove id=" << glove_id
-              << std::endl;
+    std::cout << "[Manus] Applied " << (is_left ? "left" : "right")
+              << " glove calibration file to glove id=" << glove_id << std::endl;
     return true;
 }
 
