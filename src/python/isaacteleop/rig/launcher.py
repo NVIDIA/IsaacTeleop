@@ -3,9 +3,12 @@
 
 """tmux orchestration for teleop rigs.
 
-Launches one tmux session per rig: the CloudXR runtime pane starts
-immediately; each producer/consumer pane waits for the runtime to come up,
-sources the CloudXR env it writes, and then RUNS its command automatically.
+Launches one tmux WINDOW per rig, named after the rig: run from inside
+tmux the window joins the current session, run from a plain shell it gets
+a session of its own (also named after the rig). The CloudXR runtime pane
+starts immediately; each producer/consumer pane waits for the runtime to
+come up, sources the CloudXR env it writes, and then RUNS its command
+automatically.
 When the command exits (the classic early exit: started before a headset
 connected, so 'Failed to get OpenXR system'), the pane prints the exit
 status and drops to an interactive shell with the same command pre-typed —
@@ -39,9 +42,11 @@ from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
 from .config import (
+    INSTALL_DIR_ENV,
     RigConfig,
     RigError,
     find_runtime_footguns,
+    resolve_install_dir,
     substitute_command,
 )
 
@@ -52,11 +57,41 @@ RunTmux = Callable[[Sequence[str]], str]
 #: ``footgun`` marks a Python app missing --no-launch-cloudxr-runtime.
 _Pane = tuple[str, str, str, str, bool]
 
+#: A live rig: (tmux window id, name of the session holding it).
+_RigWindow = tuple[str, str]
+
+#: Field separator for multi-field ``-F`` formats. Session and window names
+#: may contain spaces; no tmux id or name field contains a tab.
+_SEP = "\t"
+
+#: ``-F`` format for a freshly created rig window.
+_NEW_WINDOW_FORMAT = f"#{{pane_id}}{_SEP}#{{window_id}}{_SEP}#{{session_name}}"
+
+#: ``-F`` format for the ``list-windows -a`` rig lookup.
+_LIST_WINDOWS_FORMAT = f"#{{window_id}}{_SEP}#{{session_name}}{_SEP}#{{window_name}}"
+
 _BUILD_REMEDY = (
     "build and install first:\n"
     "  cmake -B build -DBUILD_EXAMPLES=ON -DBUILD_PYTHON_BINDINGS=ON\n"
     "  cmake --build build --parallel && cmake --install build"
 )
+
+#: An install tree the user already has (another checkout, a deployment) is
+#: as likely as an unbuilt one — a remedy that only says "build" sends them
+#: rebuilding what they have. Appended whenever the override is unset.
+_INSTALL_DIR_HINT = (
+    f"\nor point {INSTALL_DIR_ENV} at an install tree you already have:\n"
+    f"  {INSTALL_DIR_ENV}=/path/to/install python -m isaacteleop.rig <rig.yaml>"
+)
+
+#: Marker of a configured CMake build tree.
+_CMAKE_CACHE = "CMakeCache.txt"
+
+#: Directories that hold build trees: a hand-made ``cmake -B build``, and the
+#: managed preset/wheel trees, which are one level down (``build-cmake/
+#: cpython-311``). Only used to sharpen an error message, so an unknown
+#: layout costs nothing but a less specific remedy.
+_BUILD_DIRS = ("build", "build-cmake", "build-wheel")
 
 #: Maximum time [s] a worker pane waits for the runtime before giving up on
 #: auto-loading the CloudXR env (matches the runtime's own startup timeout
@@ -100,7 +135,7 @@ def _check_tmux_installed() -> None:
         )
 
 
-def _check_python_can_import_cloudxr(env: Mapping[str, str]) -> None:
+def _check_python_can_import_cloudxr(env: Mapping[str, str], install_dir: Path) -> None:
     """Verify the pane interpreter can import isaacteleop.cloudxr.
 
     tmux panes spawn fresh shells that do not inherit the caller's venv, so
@@ -116,15 +151,65 @@ def _check_python_can_import_cloudxr(env: Mapping[str, str]) -> None:
         raise PreflightError(
             f"{sys.executable} cannot import 'isaacteleop.cloudxr' — run from the "
             "environment where the isaacteleop wheel is installed "
-            "(pip install install/wheels/isaacteleop-*.whl)"
+            f"(pip install {install_dir}/wheels/isaacteleop-*.whl)"
         )
 
 
-def _check_commands_exist(panes: Sequence[tuple[str, str]], cwd: Path) -> None:
+def _configured_build_tree(cwd: Path) -> Path | None:
+    """Return the most recently configured build tree under *cwd*, if any.
+
+    Each of :data:`_BUILD_DIRS` itself, else one level down.
+    """
+    found: list[Path] = []
+    for name in _BUILD_DIRS:
+        root = cwd / name
+        if (root / _CMAKE_CACHE).is_file():
+            found.append(root)
+            continue
+        try:
+            found.extend(p for p in root.iterdir() if (p / _CMAKE_CACHE).is_file())
+        except OSError:
+            continue  # missing, unreadable, or not a directory
+    if not found:
+        return None
+    return max(found, key=lambda p: (p / _CMAKE_CACHE).stat().st_mtime)
+
+
+def _missing_binary_remedy(cwd: Path, install_dir: Path, env: Mapping[str, str]) -> str:
+    """Name the fix for a missing binary: bad override, built-not-installed,
+    or nothing built at all.
+
+    An override that points at the wrong tree looks exactly like a missing
+    build, so say which prefix was actually used and where it came from. A
+    build tree with no install is just as indistinguishable, and the fix
+    there is one command — not the full rebuild the generic remedy implies.
+    The build tree's own ``CMAKE_INSTALL_PREFIX`` may point anywhere (a
+    wheel build aims at a temp dir), so the install line always passes
+    ``--prefix`` explicitly.
+    """
+    if env.get(INSTALL_DIR_ENV):
+        return (
+            f"{INSTALL_DIR_ENV} resolves {{install}} to {install_dir} — point it at a "
+            f"tree built with 'cmake --install build', or unset it for {cwd / 'install'}"
+        )
+    build = _configured_build_tree(cwd)
+    if build is not None:
+        return (
+            f"{build} is configured but nothing is installed at {install_dir} — "
+            f"install it:\n"
+            f"  cmake --build {build} --parallel\n"
+            f"  cmake --install {build} --prefix {install_dir}" + _INSTALL_DIR_HINT
+        )
+    return _BUILD_REMEDY + _INSTALL_DIR_HINT
+
+
+def _check_commands_exist(
+    panes: Sequence[tuple[str, str]], cwd: Path, remedy: str
+) -> None:
     """Require path-like first command tokens to exist and be executable.
 
     Mirrors the old run_se3_demo.sh preflight. *panes* is a sequence of
-    (name, substituted command) pairs.
+    (name, substituted command) pairs; *remedy* is appended to the error.
     """
     for name, command in panes:
         try:
@@ -142,7 +227,7 @@ def _check_commands_exist(panes: Sequence[tuple[str, str]], cwd: Path) -> None:
         path = Path(first) if os.path.isabs(first) else cwd / first
         if not (path.is_file() and os.access(path, os.X_OK)):
             raise PreflightError(
-                f"'{name}': {path} not found or not executable — {_BUILD_REMEDY}"
+                f"'{name}': {path} not found or not executable — {remedy}"
             )
 
 
@@ -232,23 +317,23 @@ def launch_rig(
     no_runtime: bool = False,
     run_tmux: RunTmux | None = None,
 ) -> None:
-    """Launch (or re-attach to) the tmux session for a teleop rig.
+    """Launch (or switch to) the tmux window for a teleop rig.
 
     The rig file is the single source of configuration: params live in its
     ``params:`` block and are substituted into every command that
     references them (edit the file to change them).
 
-    An existing session is re-attached BEFORE any launch-only preflight
-    (plan substitution, cwd/command checks): edits to a running rig's YAML
-    can never block getting back into the live session.
+    A running rig is switched to BEFORE any launch-only preflight (plan
+    substitution, cwd/command checks): edits to a running rig's YAML can
+    never block getting back into the live window.
 
     Args:
         config: The parsed rig (see :func:`~.config.load_rig_config`).
         no_runtime: Skip the runtime pane (a CloudXR runtime is already
             running elsewhere, e.g. after ``python -m isaacteleop.cloudxr``).
         run_tmux: Injectable tmux seam for tests. When ``None`` the real
-            tmux is used: tmux-on-PATH is checked immediately (the session
-            probe needs it) and the interpreter-can-import-
+            tmux is used: tmux-on-PATH is checked immediately (the rig-window
+            lookup needs it) and the interpreter-can-import-
             isaacteleop.cloudxr probe runs with the launch-only preflight.
 
     Raises:
@@ -262,24 +347,27 @@ def launch_rig(
         _check_tmux_installed()
         run_tmux = _run_tmux
 
-    # Reattach must win before any launch-only preflight below: a broken
-    # edit to a running rig's YAML must never block reattachment.
-    session = config.name
-    if _session_exists(run_tmux, session):
+    # Switching to a live rig must win before any launch-only preflight
+    # below: a broken edit to a running rig's YAML must never block it.
+    existing = _find_rig_window(run_tmux, config.name)
+    if existing is not None:
+        window_id, session = existing
         message = (
-            f"session '{session}' already exists — switching to it "
+            f"rig '{config.name}' is already running in session '{session}' — "
+            f"switching to it "
             f"(kill with: python -m isaacteleop.rig {config.source} --kill)"
         )
         if no_runtime:
             message += (
-                "\nnote: --no-runtime ignored for an existing session; "
+                "\nnote: --no-runtime ignored for a running rig; "
                 "kill it first to relaunch with new settings"
             )
         print(message)
-        _goto_session(run_tmux, session, env)
+        _goto_rig_window(run_tmux, window_id, session, env)
         return
 
     params = config.params
+    install_dir = resolve_install_dir(config.cwd, env)
 
     # Resolve the pane plan. Runtime first (starts immediately); producers
     # and consumers auto-run once the runtime env is ready.
@@ -295,7 +383,7 @@ def launch_rig(
                 "runtime",
                 runtime_name,
                 raw,
-                substitute_command(raw, params, config.source),
+                substitute_command(raw, params, config.source, install_dir),
                 False,
             )
         )
@@ -306,7 +394,9 @@ def launch_rig(
                     role,
                     proc.name,
                     proc.command,
-                    substitute_command(proc.command, params, config.source),
+                    substitute_command(
+                        proc.command, params, config.source, install_dir
+                    ),
                     bool(find_runtime_footguns([proc], runtime_managed=not no_runtime)),
                 )
             )
@@ -318,13 +408,14 @@ def launch_rig(
     _check_commands_exist(
         [(name, resolved) for role, name, _, resolved, _ in plan if role != "runtime"],
         config.cwd,
+        _missing_binary_remedy(config.cwd, install_dir, env),
     )
     for warning in find_runtime_footguns(
         [*config.producers, *config.consumers], runtime_managed=not no_runtime
     ):
         print(warning, file=sys.stderr)
     if using_real_tmux and any("{python}" in raw for _, _, raw, _, _ in plan):
-        _check_python_can_import_cloudxr(env)
+        _check_python_can_import_cloudxr(env, install_dir)
 
     runtime_resolved = plan[0][3] if not no_runtime else None
     cloudxr_run_dir = _cloudxr_run_dir(runtime_resolved, env)
@@ -342,43 +433,70 @@ def launch_rig(
                 f"cannot remove stale {stale}: {exc} — fix permissions on "
                 f"{cloudxr_run_dir} (was the runtime run with sudo?)"
             ) from exc
-    _create_session(run_tmux, session, config.cwd, plan, env, cloudxr_run_dir)
-    _print_instructions(session, config.description, plan)
-    _goto_session(run_tmux, session, env)
+    window_id, session = _create_rig_window(
+        run_tmux, config.name, config.cwd, plan, env, cloudxr_run_dir
+    )
+    _print_instructions(config.name, session, config.description, plan)
+    _goto_rig_window(run_tmux, window_id, session, env)
 
 
 def kill_rig(config: RigConfig, *, run_tmux: RunTmux | None = None) -> None:
-    """Kill the rig's tmux session (and every process running in it).
+    """Kill the rig's tmux window (and every process running in it).
 
-    Idempotent: killing a rig whose session does not exist just reports
-    that there is nothing to do.
+    Only the rig's own window: the session it lives in may be the user's,
+    full of unrelated work. A rig that owns its session takes the session
+    down with it — tmux ends a session whose last window is killed.
+
+    Idempotent: killing a rig that is not running just reports that there
+    is nothing to do.
 
     Args:
-        config: The parsed rig; its ``name`` is the tmux session name.
+        config: The parsed rig; its ``name`` is the tmux window name.
         run_tmux: Injectable tmux seam for tests (real tmux when ``None``).
     """
     if run_tmux is None:
         _check_tmux_installed()
         run_tmux = _run_tmux
-    session = config.name
-    if not _session_exists(run_tmux, session):
-        print(f"no session '{session}' to kill")
+    existing = _find_rig_window(run_tmux, config.name)
+    if existing is None:
+        print(f"no rig '{config.name}' to kill")
         return
-    run_tmux(["kill-session", "-t", session])
-    print(f"killed session '{session}'")
+    window_id, session = existing
+    run_tmux(["kill-window", "-t", window_id])
+    print(f"killed rig '{config.name}' in session '{session}'")
 
 
-def _session_exists(run_tmux: RunTmux, session: str) -> bool:
-    """Return whether the tmux session already exists (has-session probe)."""
+def _find_rig_window(run_tmux: RunTmux, name: str) -> _RigWindow | None:
+    """Return the running rig's (window id, session name), or ``None``.
+
+    Searches every session (``-a``), so a rig launched from another session
+    is switched to rather than duplicated. The match is an exact window-name
+    comparison in Python, never a tmux ``-t`` target: tmux target resolution
+    falls back to prefix and fnmatch matching, so ``-t rig`` would also find
+    ``rig_tracker``. tmux exits non-zero when no server is running.
+    """
     try:
-        run_tmux(["has-session", "-t", session])
+        listing = run_tmux(["list-windows", "-a", "-F", _LIST_WINDOWS_FORMAT])
     except subprocess.CalledProcessError:
-        return False
-    return True
+        return None
+    for line in listing.splitlines():
+        window_id, _, rest = line.partition(_SEP)
+        session, _, window_name = rest.partition(_SEP)
+        if window_name == name:
+            return window_id, session
+    return None
 
 
-def _goto_session(run_tmux: RunTmux, session: str, env: Mapping[str, str]) -> None:
-    """Attach from a plain shell; switch the client when already inside tmux."""
+def _goto_rig_window(
+    run_tmux: RunTmux, window_id: str, session: str, env: Mapping[str, str]
+) -> None:
+    """Make the rig window current, then attach to (or switch to) its session.
+
+    ``select-window`` first so the session is already showing the rig when
+    the client lands on it — including the case where the rig window sits in
+    the session the client is attached to, where switching alone is a no-op.
+    """
+    run_tmux(["select-window", "-t", window_id])
     if env.get("TMUX"):
         run_tmux(["switch-client", "-t", session])
     else:
@@ -482,22 +600,27 @@ def _worker_pane_command(
     )
 
 
-def _create_session(
+def _create_rig_window(
     run_tmux: RunTmux,
-    session: str,
+    rig: str,
     cwd: Path,
     plan: Sequence[_Pane],
     env: Mapping[str, str],
     cloudxr_run_dir: Path,
-) -> None:
-    """Create the session, each pane spawned running its wrapper command.
+) -> _RigWindow:
+    """Create the rig window, each pane spawned running its wrapper command.
 
-    Pane ids are captured via ``-PF '#{pane_id}'`` (never indices) so the
-    layout is immune to base-index / pane-base-index user settings. Layout:
-    ``main-horizontal`` with the runtime as the main pane — a full-width
-    strip of :data:`RUNTIME_PANE_HEIGHT` on top (it only prints status and
-    the web-client URL) — and the workers tiled below. Under ``--no-runtime``
-    all panes are peers and stay ``tiled``.
+    Inside tmux the window joins the client's current session; otherwise it
+    gets a new session of its own. Returns (window id, session name).
+
+    Pane and window ids are captured via ``-PF`` (never indices or names) so
+    the layout is immune to base-index settings AND to the window sharing a
+    session with the user's other windows: every option and layout call
+    below must target the rig's own window, not whatever window happens to
+    be current. Layout: ``main-horizontal`` with the runtime as the main
+    pane — a full-width strip of :data:`RUNTIME_PANE_HEIGHT` on top (it only
+    prints status and the web-client URL) — and the workers tiled below.
+    Under ``--no-runtime`` all panes are peers and stay ``tiled``.
 
     Every pane's setup runs as its SPAWN COMMAND (the trailing tmux
     shell-command), never as keystrokes typed by the launcher: keystrokes
@@ -523,24 +646,46 @@ def _create_session(
                 _worker_pane_command(command, cloudxr_run_dir, role, name, footgun)
             )
 
-    first_pane = run_tmux(
-        [
-            "new-session",
-            "-d",
-            "-P",
-            "-F",
-            "#{pane_id}",
-            "-s",
-            session,
-            "-n",
-            "rig",
-            "-c",
-            str(cwd),
-            pane_commands[0],
-        ]
-    )
-    # Session-scoped only (-t <session>, no -g): never touch global tmux config.
-    run_tmux(["set-option", "-t", session, "pane-border-status", "top"])
+    if env.get("TMUX"):
+        # -d: build the panes out of sight, then switch once everything is
+        # laid out (_goto_rig_window) instead of jumping the user's client
+        # into a window that is still splitting.
+        created = run_tmux(
+            [
+                "new-window",
+                "-d",
+                "-P",
+                "-F",
+                _NEW_WINDOW_FORMAT,
+                "-n",
+                rig,
+                "-c",
+                str(cwd),
+                pane_commands[0],
+            ]
+        )
+    else:
+        created = run_tmux(
+            [
+                "new-session",
+                "-d",
+                "-P",
+                "-F",
+                _NEW_WINDOW_FORMAT,
+                "-s",
+                rig,
+                "-n",
+                rig,
+                "-c",
+                str(cwd),
+                pane_commands[0],
+            ]
+        )
+    first_pane, window_id, session = created.split(_SEP)
+
+    # Window-scoped (-w -t <window id>), never global (-g) or session-wide:
+    # the rig must not restyle the user's other windows.
+    run_tmux(["set-option", "-w", "-t", window_id, "pane-border-status", "top"])
 
     pane_ids = [first_pane]
     for i in range(1, len(plan)):
@@ -562,12 +707,22 @@ def _create_session(
         )
         # Redistribute after every split so chained splits never hit tmux's
         # "pane too small" limit, no matter how many panes the rig has.
-        run_tmux(["select-layout", "-t", session, "tiled"])
+        # select-layout takes a pane target: any rig pane names the window.
+        run_tmux(["select-layout", "-t", pane_ids[0], "tiled"])
     if len(plan) > 1 and plan[0][0] == "runtime":
         # Final layout: the runtime (pane 0 → the main pane) as a slim
         # full-width strip on top, workers tiled in the space below.
-        run_tmux(["set-option", "-t", session, "main-pane-height", RUNTIME_PANE_HEIGHT])
-        run_tmux(["select-layout", "-t", session, "main-horizontal"])
+        run_tmux(
+            [
+                "set-option",
+                "-w",
+                "-t",
+                window_id,
+                "main-pane-height",
+                RUNTIME_PANE_HEIGHT,
+            ]
+        )
+        run_tmux(["select-layout", "-t", pane_ids[0], "main-horizontal"])
     # else (--no-runtime): all panes are peer workers — stay tiled.
 
     for pane_id, (role, name, _, _, _) in zip(pane_ids, plan):
@@ -588,11 +743,14 @@ def _create_session(
             "before the headset was in, press Enter in it to rerun",
         ]
     )
+    return window_id, session
 
 
-def _print_instructions(session: str, description: str, plan: Sequence[_Pane]) -> None:
+def _print_instructions(
+    rig: str, session: str, description: str, plan: Sequence[_Pane]
+) -> None:
     """Print the pane rundown BEFORE attaching (it survives detach)."""
-    header = f"Rig session '{session}' created"
+    header = f"Rig '{rig}' created in tmux session '{session}'"
     if description:
         header += f": {description}"
     print(header)
@@ -608,4 +766,4 @@ def _print_instructions(session: str, description: str, plan: Sequence[_Pane]) -
         "their command automatically once the runtime is up; if a command exited "
         "before the headset connected, press Enter in its pane to rerun."
     )
-    print(f"Kill the session with --kill (or: tmux kill-session -t {session})")
+    print(f"Kill the rig with --kill (or: tmux kill-window -t {session}:{rig})")

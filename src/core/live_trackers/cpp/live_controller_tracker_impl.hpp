@@ -46,7 +46,12 @@ public:
     const ControllerSnapshotTrackedT& get_right_controller() const override;
     void apply_left_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
     void apply_right_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
+    std::string get_interaction_profile() const override;
 
+private:
+    std::string query_interaction_profile() const;
+
+public:
 private:
     // Internal side selector for the shared haptic implementation. The public
     // surface stays split (apply_left/right) to match get_left/right_controller.
@@ -60,7 +65,11 @@ private:
     const OpenXRCoreFunctions core_funcs_;
     XrTimeConverter time_converter_;
 
+    XrInstance instance_;
     XrSession session_;
+
+    // Cached on sync: querying per call would cost an IPC round trip per frame.
+    std::string interaction_profile_;
     XrSpace base_space_;
 
     XrPath left_hand_path_;

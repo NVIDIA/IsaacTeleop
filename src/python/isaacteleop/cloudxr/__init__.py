@@ -3,6 +3,11 @@
 
 """CloudXR integration for isaacteleop."""
 
+from .headset import HEADSET_BY_INTERACTION_PROFILE, identify_headset
 from .launcher import CloudXRLauncher
 
-__all__ = ["CloudXRLauncher"]
+__all__ = [
+    "CloudXRLauncher",
+    "identify_headset",
+    "HEADSET_BY_INTERACTION_PROFILE",
+]

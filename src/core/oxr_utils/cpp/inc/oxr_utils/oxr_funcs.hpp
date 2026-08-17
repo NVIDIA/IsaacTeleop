@@ -46,6 +46,7 @@ struct OpenXRCoreFunctions
 
     // Action system functions (for controller tracking)
     PFN_xrStringToPath xrStringToPath;
+    PFN_xrPathToString xrPathToString;
     PFN_xrCreateActionSet xrCreateActionSet;
     PFN_xrDestroyActionSet xrDestroyActionSet;
     PFN_xrCreateAction xrCreateAction;
@@ -89,6 +90,7 @@ struct OpenXRCoreFunctions
         // Action system functions (optional, for controller tracking)
         // Note: These don't fail the load if not available, as they're only needed by controller tracker
         getProcAddr(instance, "xrStringToPath", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrStringToPath));
+        getProcAddr(instance, "xrPathToString", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrPathToString));
         getProcAddr(instance, "xrCreateActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateActionSet));
         getProcAddr(instance, "xrDestroyActionSet", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrDestroyActionSet));
         getProcAddr(instance, "xrCreateAction", reinterpret_cast<PFN_xrVoidFunction*>(&results.xrCreateAction));
@@ -149,6 +151,9 @@ struct ActionContextFunctions
     PFN_xrCreateSessionActionContextNV create_session_ctx;
     PFN_xrDestroySessionActionContextNV destroy_session_ctx;
     PFN_xrSyncActions2NV sync_actions_2;
+    // Optional: null on runtimes predating the query, so null-check before use.
+    // Loaded without loadExtensionFunction on purpose -- see load() below.
+    PFN_xrGetCurrentInteractionProfile2NV get_current_interaction_profile;
 
     static ActionContextFunctions load(XrInstance instance, PFN_xrGetInstanceProcAddr getProcAddr)
     {
@@ -163,6 +168,15 @@ struct ActionContextFunctions
                               reinterpret_cast<PFN_xrVoidFunction*>(&f.destroy_session_ctx));
         loadExtensionFunction(
             instance, getProcAddr, "xrSyncActions2NV", reinterpret_cast<PFN_xrVoidFunction*>(&f.sync_actions_2));
+        // Looked up directly rather than through loadExtensionFunction, which
+        // throws when a symbol is missing. This one is genuinely optional: a
+        // runtime without it must still construct a controller tracker, so leave
+        // the pointer null and let the caller report "no profile".
+        if (XR_FAILED(getProcAddr(instance, "xrGetCurrentInteractionProfile2NV",
+                                  reinterpret_cast<PFN_xrVoidFunction*>(&f.get_current_interaction_profile))))
+        {
+            f.get_current_interaction_profile = nullptr;
+        }
 
         if (!f.create_instance_ctx || !f.destroy_instance_ctx || !f.create_session_ctx || !f.destroy_session_ctx ||
             !f.sync_actions_2)

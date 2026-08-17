@@ -11,7 +11,7 @@ runtime, one or more **producer** plugins that publish device data, and one or
 more **consumer** apps (a Python ``TeleopSession`` script or a C++ example
 binary) that read the streams. Such a configured set is a *rig* — the same
 shape serves demos, production teleop, and data collection.
-``isaacteleop.rig`` starts a rig in a single tmux session from a small YAML
+``isaacteleop.rig`` starts a rig in a single tmux window from a small YAML
 file, instead of you juggling three terminals by hand:
 
 .. code-block:: bash
@@ -33,8 +33,9 @@ Prerequisites
 
 - ``tmux`` installed (``sudo apt install tmux``).
 - A built and installed Teleop tree (see :ref:`install-isaacteleop-pip-package`
-  and the build reference) — the rig references binaries under
-  ``install/plugins/`` and ``install/examples/``.
+  and the build reference) — the rigs reach their binaries through
+  ``{install}/plugins/`` and ``{install}/examples/`` (see
+  `The install prefix`_).
 - The ``isaacteleop`` wheel installed in the **current** Python environment.
   tmux panes do not inherit your venv; the launcher bakes the absolute path of
   its own interpreter (and your ``PYTHONPATH``, if set) into the pane commands,
@@ -54,7 +55,8 @@ Run a rig
 What happens:
 
 1. **Preflight** — the launcher verifies tmux is available, the referenced
-   binaries exist and are executable (with the exact ``cmake`` remedy if not),
+   binaries exist under the resolved install prefix and are executable (naming
+   the exact remedy if not — see `The install prefix`_),
    and the interpreter can import ``isaacteleop.cloudxr``. Nothing is created
    until preflight passes.
 2. **Runtime pane starts immediately** (a slim full-width strip on top —
@@ -81,20 +83,55 @@ What happens:
    :kbd:`Enter` in that pane to rerun. If the runtime never comes up (or
    its environment fails to load), the pane does *not* run the command; it
    prints a remedy and leaves the command pre-typed instead.
-5. The launcher then attaches (from a plain shell) or switches your current
-   client (from inside tmux — no nesting).
+5. The launcher then switches you to the rig window. Run from inside tmux,
+   the rig is a **new window in your current session** — your other windows
+   stay put and nothing nests. Run from a plain shell, it gets a session of
+   its own (named after the rig) and the launcher attaches to it.
 
-Re-running the same rig just switches to the existing session; it does
-**not** re-apply ``--no-runtime`` or pick up edits to the rig file. Start
-over with:
+Re-running the same rig just switches to the running one — in whichever
+session it lives; it does **not** re-apply ``--no-runtime`` or pick up edits
+to the rig file. Start over with:
 
 .. code-block:: bash
 
    python -m isaacteleop.rig rigs/se3_tracker.yaml --kill
 
-which kills the rig's tmux session and every process in it (equivalent to
-``tmux kill-session -t se3_tracker``, without needing to know the session
-name). Killing a rig that is not running is a no-op.
+which kills the rig's tmux window and every process in it (equivalent to
+``tmux kill-window -t se3_tracker``, without needing to know which session
+holds it). Only the rig's window: a session you launched the rig into keeps
+its other windows. Killing a rig that is not running is a no-op.
+
+The install prefix
+------------------
+
+Rig commands reference binaries as ``{install}/plugins/...`` and
+``{install}/examples/...``. ``{install}`` resolves at launch time to:
+
+1. ``$ISAAC_TELEOP_INSTALL_DIR``, if set — the knob for a tree installed with a
+   non-default ``CMAKE_INSTALL_PREFIX``;
+2. otherwise ``<cwd>/install``, the prefix this project's CMakeLists forces by
+   default (``cwd`` is the rig's, so for the shipped rigs that is
+   ``<repo>/install``).
+
+.. code-block:: bash
+
+   # a tree installed elsewhere, e.g. cmake --install build --prefix /opt/isaacteleop/install
+   ISAAC_TELEOP_INSTALL_DIR=/opt/isaacteleop/install \
+       python -m isaacteleop.rig rigs/se3_tracker.yaml
+
+A binary that is missing under the resolved prefix names the fix for the case
+you are actually in: a build tree that was configured but never installed gets
+the one ``cmake --install ... --prefix ...`` command (its own
+``CMAKE_INSTALL_PREFIX`` may point anywhere, so the prefix is passed
+explicitly); a set ``ISAAC_TELEOP_INSTALL_DIR`` that resolves to the wrong tree
+says so rather than telling you to rebuild; and every message without the
+variable set mentions it, since an install tree you already have is as likely
+as an unbuilt one.
+
+The prefix is made absolute before it reaches a pane, and quoted, so a path
+containing spaces works. A rig that spells the path out literally
+(``install/plugins/...``) still works whenever the default prefix is the right
+one — but it cannot follow the variable, which is the point of the placeholder.
 
 The rig YAML
 ------------
@@ -104,7 +141,7 @@ own:
 
 .. code-block:: yaml
 
-   name: se3_tracker              # rig id AND tmux session name (letters/digits/-/_)
+   name: se3_tracker              # rig id AND tmux window name (letters/digits/-/_)
    description: CloudXR runtime + SE3 controller tracker plugin + pose printer
    cwd: ..                        # pane working dir, relative to this file
    params:                        # shared values, substituted into the commands below
@@ -114,10 +151,10 @@ own:
    #   {python} -m isaacteleop.cloudxr --accept-eula
    producers:                     # publish device data into the runtime
      - name: se3 tracker plugin (requires headset + controller)
-       command: "install/plugins/controller_se3_tracker/controller_se3_tracker_plugin {hand} {collection_id}"
+       command: "{install}/plugins/controller_se3_tracker/controller_se3_tracker_plugin {hand} {collection_id}"
    consumers:                     # read the streams — a TeleopSession script or a C++ binary
      - name: se3 printer (requires headset)
-       command: "install/examples/schemaio/se3_printer {collection_id}"
+       command: "{install}/examples/schemaio/se3_printer {collection_id}"
 
 ``rigs/full_body.yaml`` shows the other supported shape — no ``producers``
 key, because its consumers read the tracking data directly from the runtime,
@@ -134,10 +171,10 @@ Top-level keys:
      - Meaning
    * - ``name``
      - yes
-     - Rig id **and** tmux session name. Letters, digits, ``-``, ``_`` only.
+     - Rig id **and** tmux window name. Letters, digits, ``-``, ``_`` only.
    * - ``description``
      - no
-     - Free text, printed when the session is created.
+     - Free text, printed when the rig is created.
    * - ``cwd``
      - no
      - Working directory for every pane and the base for relative command
@@ -159,9 +196,11 @@ Top-level keys:
        the pane title (a good place for hardware prerequisites); ``command``
        is a shell string run verbatim in the pane.
 
-Commands are plain shell strings. ``{python}`` always expands to the absolute
-path of the launching interpreter; every other ``{placeholder}`` must be
-declared under ``params`` (literal braces are written ``{{`` / ``}}``).
+Commands are plain shell strings. Two placeholders are reserved: ``{python}``
+expands to the absolute path of the launching interpreter and ``{install}`` to
+the install prefix (see `The install prefix`_). Every other ``{placeholder}``
+must be declared under ``params`` (literal braces are written ``{{`` / ``}}``);
+``python`` and ``install`` are rejected as param names.
 Unknown top-level keys, unknown entry keys, and unknown placeholders are hard
 errors — a typo fails loudly at load time instead of misbehaving in a pane.
 
@@ -218,5 +257,5 @@ Troubleshooting
      - The consumer self-launched a second runtime; add
        ``--no-launch-cloudxr-runtime`` to its command in the rig.
    * - Edits to the rig file seem ignored
-     - The session already existed; relaunch after
+     - The rig was already running; relaunch after
        ``python -m isaacteleop.rig <rig.yaml> --kill``.
