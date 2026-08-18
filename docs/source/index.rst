@@ -70,6 +70,7 @@ Table of Contents
    device/oglo
    device/wuji_glove
    device/haptikos
+   device/jmex
 
 .. toctree::
    :maxdepth: 2
