@@ -7,8 +7,16 @@ from __future__ import annotations
 
 import numpy as np
 
-import hud
-from hud import _BODY, _H, _TITLE, _W, _fit, _render, split_message
+from controls import hud
+from controls.hud import (
+    _BODY,
+    _H,
+    _TITLE,
+    _W,
+    _fit,
+    _render,
+    split_message,
+)
 
 
 def test_render_shape_and_opacity():

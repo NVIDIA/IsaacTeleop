@@ -16,7 +16,7 @@ Left hand -- what surface it is mapped onto:
 
     X              cycle shape (quad -> cylinder -> equirect)
     Y              reset every parameter to the YAML values
-    thumbstick     shape-dependent, see shape_controls:
+    thumbstick     shape-dependent, see controls.shapes:
                      quad      X = size,   Y = height
                      cylinder  X = arc,    Y = height
                      equirect  X = h-span, Y = v-span
@@ -37,9 +37,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Sequence
 
-import shape_controls
-import stereo
-from hud import split_message
+from . import shapes, stereo
+from .hud import split_message
 from placements import (
     PlacementConfig,
     PlacementStrategy,
@@ -66,7 +65,7 @@ SHAPE_CYCLE = ("quad", "cylinder", "equirect")
 
 # Per-shape stick bindings, for the log line and the docs.
 #: Each shape's two stick axes, from the control that implements them.
-SHAPE_PARAMS = {shape: shape_controls.axes(shape) for shape in SHAPE_CYCLE}
+SHAPE_PARAMS = {shape: shapes.axes(shape) for shape in SHAPE_CYCLE}
 
 
 @dataclass
@@ -490,7 +489,7 @@ class ControllerControls:
             # Stick right pans the view right: the middle of the texture
             # swings left, which is +heading.
             target.equirect_yaw_deg = _wrap_deg(target.equirect_yaw_deg + delta)
-            shape_controls.apply_equirect(target)
+            shapes.apply_equirect(target)
             changed.append((target.name, f"{target.equirect_yaw_deg:+.0f}°"))
         if changed:
             self._notify(f"pan: {summarize(changed)}", log_key="equirect_yaw")
@@ -510,7 +509,7 @@ class ControllerControls:
         for index, target in enumerate(self._targets):
             if target.shape == "equirect":
                 target.equirect_yaw_deg = _wrap_deg(heading)
-                shape_controls.apply_equirect(target)
+                shapes.apply_equirect(target)
             elif target.placement_config is not None:
                 # A fresh strategy re-snaps on its next update; retuning the
                 # live one would keep the anchor it is holding.
@@ -603,7 +602,7 @@ class ControllerControls:
             return
         changed = []
         for i, target in enumerate(self._targets):
-            control = shape_controls.for_shape(target.shape)
+            control = shapes.for_shape(target.shape)
             if control is None:
                 continue
             parts = control.adjust(target, self._cfg, self._strategies[i], ax, ay, dt)
@@ -641,7 +640,7 @@ class ControllerControls:
                 self._strategies[index] = strategy
 
         if target.placement_config is not None and initial["size_meters"]:
-            shape_controls.retune(
+            shapes.retune(
                 target,
                 strategy,
                 size_meters=initial["size_meters"],
@@ -654,7 +653,7 @@ class ControllerControls:
         target.equirect_h_deg = initial["equirect_h_deg"]
         target.equirect_v_half_deg = initial["equirect_v_half_deg"]
         target.equirect_yaw_deg = initial["equirect_yaw_deg"]
-        shape_controls.apply_all(target)
+        shapes.apply_all(target)
 
     def _notify(
         self,

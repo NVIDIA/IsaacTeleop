@@ -7,7 +7,7 @@ example, not in viz_layers.
 """
 
 # Re-exported: the same yaw maths positions an equirect sphere, which has no
-# lock-mode strategy of its own (see shape_controls).
+# lock-mode strategy of its own (see controls.shapes).
 from ._math import heading_deg, yaw_quat
 from .lock_modes import (
     HeadLocked,
