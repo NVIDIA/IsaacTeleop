@@ -22,7 +22,13 @@ class FakeLayer:
         self.submitted += 1
 
 
+class FakeSpec:
+    name = "cam"
+
+
 class FakeSource:
+    spec = FakeSpec()
+
     def latest(self):
         return None
 
@@ -98,3 +104,51 @@ def test_mutating_the_caller_list_does_not_reach_the_runner():
     runner = _runner(None, caller_layers)
     caller_layers[0] = other
     assert runner._active_layer(0) is layer
+
+
+# ── The panel must not sit between the camera and the layer ───────────
+
+
+def test_the_panel_is_drawn_off_the_submit_thread():
+    """A terminal that stops draining (paused ssh, tmux scrollback, ^S) fills
+    the pty buffer in ~25 paints and blocks the writer. On the submit thread
+    that stops the video feed, so the panel gets its own thread."""
+    import inspect
+
+    from pipeline.runner import VizRunner
+
+    submit_src = inspect.getsource(VizRunner._submit_loop_inner)
+    assert "_print_stats" not in submit_src
+    assert "_print_stats" in inspect.getsource(VizRunner._stats_loop)
+
+
+def test_a_broken_panel_write_does_not_kill_the_stats_thread(monkeypatch):
+    """stderr can go away mid-run (the terminal closes, the pipe breaks). The
+    panel is decoration; losing it must not take the stats thread with it."""
+    import threading
+
+    from pipeline import runner as runner_mod
+
+    monkeypatch.setattr(runner_mod, "LIVE_STATS_PERIOD_S", 0.005)
+
+    calls = []
+    barrier = threading.Event()
+
+    class ExplodingDashboard:
+        live = True
+
+        def show(self, snapshot):
+            calls.append(1)
+            if len(calls) >= 3:
+                barrier.set()
+            raise OSError("terminal went away")
+
+    runner = _runner()
+    runner._dashboard = ExplodingDashboard()
+    thread = threading.Thread(target=runner._stats_loop, daemon=True)
+    thread.start()
+    # It raised on every call and still came back for the next period.
+    assert barrier.wait(timeout=3.0), f"stats thread stopped after {len(calls)} calls"
+    runner._stop.set()
+    thread.join(timeout=2.0)
+    assert not thread.is_alive()
