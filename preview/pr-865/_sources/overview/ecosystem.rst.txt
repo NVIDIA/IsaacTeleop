@@ -106,6 +106,8 @@ Become a Partner
 
    #. **Joint plan** — agree on scope, devices, and timeline.
    #. **Implementation** — build the plugin and open a pull request.
+   #. **Listing** — `build your Ecosystem card <../_static/tools/partner-card-preview.html>`_
+      and send it to us.
    #. **Maintenance** — keep the integration green across releases.
 
 .. rst-class:: eco-eyebrow

@@ -241,7 +241,9 @@ pose shift (no effect on the equirect sphere at its default infinite radius).
 Surfaces are composited by the OpenXR runtime, which keeps them sharp under head motion and lets
 CloudXR stream them efficiently (see
 :ref:`OpenXR composition layers <openxr-composition-layers>`). For flat planes only,
-``compositor: televiz`` opts a camera back into Televiz's built-in compositor.
+``compositor: televiz`` opts a camera back into Televiz's built-in compositor. On Jetson Orin
+(CloudXR experimental runtime), set ``compositor: televiz`` so the plane is not left black; see
+Troubleshooting below.
 
 CloudXR runtime flags
 ---------------------
@@ -360,6 +362,18 @@ Troubleshooting
   directory (``configs/``), not the directory you launched from.
 - **A source fails asking for CuPy / CUDA** — check ``nvidia-smi`` works and setup completed;
   all sources allocate their frame buffers on the GPU.
+- **Black camera plane on Orin** — with the CloudXR experimental runtime on Orin, the default
+  OpenXR compositor shows the camera plane but leaves its contents black. Under the camera's
+  ``display.placements`` entry, set ``compositor: televiz`` (quads only). The same feed displays
+  correctly with this workaround:
+
+  .. code-block:: yaml
+
+     display:
+       placements:
+         cam:
+           compositor: televiz
+
 - **Split mode renders nothing** — check the sender is up (``./camera_viz.sh service-status``),
   ``$STREAMING_HOST`` was the workstation's IP at deploy time, and UDP ports (default 5000+)
   aren't firewalled.

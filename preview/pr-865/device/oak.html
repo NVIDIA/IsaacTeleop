@@ -481,7 +481,7 @@ sudo<span class="w"> </span>apt<span class="w"> </span>install<span class="w"> <
 <span class="c1"># Install vcpkg (one-time)</span>
 git<span class="w"> </span>clone<span class="w"> </span>https://github.com/microsoft/vcpkg<span class="w"> </span>~/.vcpkg
 ~/.vcpkg/bootstrap-vcpkg.sh
-<span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;export VCPKG_ROOT=~/.vcpkg&#39;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bashrc<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>~/.bashrc
+<span class="nb">echo</span><span class="w"> </span><span class="s1">'export VCPKG_ROOT=~/.vcpkg'</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>~/.bashrc<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>~/.bashrc
 </pre></div>
 </div>
 </section>
@@ -564,33 +564,33 @@ also <a class="reference internal" href="../references/mcap_record_replay.html">
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.deviceio</span><span class="w"> </span><span class="kn">import</span> <span class="n">FrameMetadataTrackerOak</span><span class="p">,</span> <span class="n">McapRecordingConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.teleop_session_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">PluginConfig</span><span class="p">,</span> <span class="n">TeleopSession</span><span class="p">,</span> <span class="n">TeleopSessionConfig</span>
 
-<span class="n">PLUGIN_ROOT</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;build/src/plugins&quot;</span><span class="p">)</span>  <span class="c1"># or your installed plugin search path</span>
-<span class="n">COLLECTION_PREFIX</span> <span class="o">=</span> <span class="s2">&quot;oak_camera&quot;</span>
-<span class="n">STREAM_NAMES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Color&quot;</span><span class="p">,</span> <span class="s2">&quot;MonoLeft&quot;</span><span class="p">]</span>
+<span class="n">PLUGIN_ROOT</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"build/src/plugins"</span><span class="p">)</span>  <span class="c1"># or your installed plugin search path</span>
+<span class="n">COLLECTION_PREFIX</span> <span class="o">=</span> <span class="s2">"oak_camera"</span>
+<span class="n">STREAM_NAMES</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"Color"</span><span class="p">,</span> <span class="s2">"MonoLeft"</span><span class="p">]</span>
 
 <span class="c1"># One tracker per stream, each on the collection the plugin publishes it under.</span>
 <span class="n">oak_trackers</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="n">name</span><span class="p">:</span> <span class="n">FrameMetadataTrackerOak</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">COLLECTION_PREFIX</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="n">FrameMetadataTrackerOak</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">COLLECTION_PREFIX</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">STREAM_NAMES</span>
 <span class="p">}</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;OakTeleop&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"OakTeleop"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>  <span class="c1"># your retargeting pipeline</span>
     <span class="n">trackers</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">oak_trackers</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span>
     <span class="n">mcap_config</span><span class="o">=</span><span class="n">McapRecordingConfig</span><span class="p">(</span>
-        <span class="s2">&quot;recording.mcap&quot;</span><span class="p">,</span>
-        <span class="p">[(</span><span class="n">tracker</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;oak_metadata_</span><span class="si">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">tracker</span> <span class="ow">in</span> <span class="n">oak_trackers</span><span class="o">.</span><span class="n">items</span><span class="p">()],</span>
+        <span class="s2">"recording.mcap"</span><span class="p">,</span>
+        <span class="p">[(</span><span class="n">tracker</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"oak_metadata_</span><span class="si">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">tracker</span> <span class="ow">in</span> <span class="n">oak_trackers</span><span class="o">.</span><span class="n">items</span><span class="p">()],</span>
     <span class="p">),</span>
     <span class="n">plugins</span><span class="o">=</span><span class="p">[</span>
         <span class="n">PluginConfig</span><span class="p">(</span>
-            <span class="n">plugin_name</span><span class="o">=</span><span class="s2">&quot;oak_camera&quot;</span><span class="p">,</span>
-            <span class="n">plugin_root_id</span><span class="o">=</span><span class="s2">&quot;oak_camera&quot;</span><span class="p">,</span>
+            <span class="n">plugin_name</span><span class="o">=</span><span class="s2">"oak_camera"</span><span class="p">,</span>
+            <span class="n">plugin_root_id</span><span class="o">=</span><span class="s2">"oak_camera"</span><span class="p">,</span>
             <span class="n">search_paths</span><span class="o">=</span><span class="p">[</span><span class="n">PLUGIN_ROOT</span><span class="p">],</span>
             <span class="n">plugin_args</span><span class="o">=</span><span class="p">[</span>
-                <span class="s2">&quot;--add-stream=camera=Color,output=./color.h264&quot;</span><span class="p">,</span>
-                <span class="s2">&quot;--add-stream=camera=MonoLeft,output=./left.h264&quot;</span><span class="p">,</span>
-                <span class="sa">f</span><span class="s2">&quot;--collection-prefix=</span><span class="si">{</span><span class="n">COLLECTION_PREFIX</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s2">"--add-stream=camera=Color,output=./color.h264"</span><span class="p">,</span>
+                <span class="s2">"--add-stream=camera=MonoLeft,output=./left.h264"</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">"--collection-prefix=</span><span class="si">{</span><span class="n">COLLECTION_PREFIX</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="p">],</span>
         <span class="p">),</span>
     <span class="p">],</span>
@@ -879,7 +879,7 @@ ffprobe<span class="w"> </span>-show_entries<span class="w"> </span><span class=
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

@@ -512,24 +512,24 @@ environment’s action space expects):</p>
     <span class="n">TensorReorderer</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="n">SO101_JOINTS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;shoulder_pan&quot;</span><span class="p">,</span> <span class="s2">&quot;shoulder_lift&quot;</span><span class="p">,</span> <span class="s2">&quot;elbow_flex&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_flex&quot;</span><span class="p">,</span> <span class="s2">&quot;wrist_roll&quot;</span><span class="p">,</span> <span class="s2">&quot;gripper&quot;</span><span class="p">]</span>
+<span class="n">SO101_JOINTS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"shoulder_pan"</span><span class="p">,</span> <span class="s2">"shoulder_lift"</span><span class="p">,</span> <span class="s2">"elbow_flex"</span><span class="p">,</span> <span class="s2">"wrist_flex"</span><span class="p">,</span> <span class="s2">"wrist_roll"</span><span class="p">,</span> <span class="s2">"gripper"</span><span class="p">]</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">build_so101_joint_pipeline</span><span class="p">():</span>
-    <span class="n">source</span> <span class="o">=</span> <span class="n">JointStateSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;leader&quot;</span><span class="p">,</span> <span class="n">collection_id</span><span class="o">=</span><span class="s2">&quot;so101_leader&quot;</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="n">SO101_JOINTS</span><span class="p">)</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">JointStateSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"leader"</span><span class="p">,</span> <span class="n">collection_id</span><span class="o">=</span><span class="s2">"so101_leader"</span><span class="p">,</span> <span class="n">joint_names</span><span class="o">=</span><span class="n">SO101_JOINTS</span><span class="p">)</span>
     <span class="n">retargeter</span> <span class="o">=</span> <span class="n">JointStateRetargeter</span><span class="p">(</span>
-        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;leader&quot;</span><span class="p">,</span>
-        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;joint&quot;</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"leader"</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">"joint"</span><span class="p">,</span>
         <span class="n">config</span><span class="o">=</span><span class="n">JointStateRetargeterConfig</span><span class="p">(</span><span class="n">device_joints</span><span class="o">=</span><span class="n">SO101_JOINTS</span><span class="p">,</span> <span class="n">target_joints</span><span class="o">=</span><span class="n">SO101_JOINTS</span><span class="p">),</span>
     <span class="p">)</span>
     <span class="n">head</span> <span class="o">=</span> <span class="n">retargeter</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span><span class="n">JointStateRetargeter</span><span class="o">.</span><span class="n">JOINTS</span><span class="p">:</span> <span class="n">source</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">JointStateSource</span><span class="o">.</span><span class="n">JOINTS</span><span class="p">)})</span>
     <span class="n">reorderer</span> <span class="o">=</span> <span class="n">TensorReorderer</span><span class="p">(</span>
-        <span class="n">input_config</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;joint_targets&quot;</span><span class="p">:</span> <span class="n">SO101_JOINTS</span><span class="p">},</span>
+        <span class="n">input_config</span><span class="o">=</span><span class="p">{</span><span class="s2">"joint_targets"</span><span class="p">:</span> <span class="n">SO101_JOINTS</span><span class="p">},</span>
         <span class="n">output_order</span><span class="o">=</span><span class="n">SO101_JOINTS</span><span class="p">,</span>
-        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;action_reorderer&quot;</span><span class="p">,</span>
-        <span class="n">input_types</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;joint_targets&quot;</span><span class="p">:</span> <span class="s2">&quot;scalar&quot;</span><span class="p">},</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"action_reorderer"</span><span class="p">,</span>
+        <span class="n">input_types</span><span class="o">=</span><span class="p">{</span><span class="s2">"joint_targets"</span><span class="p">:</span> <span class="s2">"scalar"</span><span class="p">},</span>
     <span class="p">)</span>
-    <span class="n">connected</span> <span class="o">=</span> <span class="n">reorderer</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span><span class="s2">&quot;joint_targets&quot;</span><span class="p">:</span> <span class="n">head</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;joint_targets&quot;</span><span class="p">)})</span>
-    <span class="k">return</span> <span class="n">OutputCombiner</span><span class="p">({</span><span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="n">connected</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;output&quot;</span><span class="p">)})</span>
+    <span class="n">connected</span> <span class="o">=</span> <span class="n">reorderer</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span><span class="s2">"joint_targets"</span><span class="p">:</span> <span class="n">head</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"joint_targets"</span><span class="p">)})</span>
+    <span class="k">return</span> <span class="n">OutputCombiner</span><span class="p">({</span><span class="s2">"action"</span><span class="p">:</span> <span class="n">connected</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"output"</span><span class="p">)})</span>
 </pre></div>
 </div>
 <p>For <code class="docutils literal notranslate"><span class="pre">ee_pose</span></code> mode, build the retargeter with <code class="docutils literal notranslate"><span class="pre">mode=&quot;ee_pose&quot;</span></code> + a <code class="docutils literal notranslate"><span class="pre">urdf_path</span></code> / <code class="docutils literal notranslate"><span class="pre">ee_link</span></code>
@@ -548,7 +548,7 @@ and flatten <code class="docutils literal notranslate"><span class="pre">ee_pose
 <h2>Validate<a class="headerlink" href="#validate" title="Link to this heading">#</a></h2>
 <p>Sim-free unit tests cover both modes (joint affine/remap/hold/reset, EE forward kinematics, clutch
 rebasing, and the flattened action width/order):</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class="w"> </span>-R<span class="w"> </span><span class="s1">&#39;retargeting_test_joint_state&#39;</span><span class="w"> </span>--output-on-failure
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class="w"> </span>-R<span class="w"> </span><span class="s1">'retargeting_test_joint_state'</span><span class="w"> </span>--output-on-failure
 </pre></div>
 </div>
 <div class="admonition seealso">
@@ -697,7 +697,7 @@ SO-101 plugin, and MCAP record/replay.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

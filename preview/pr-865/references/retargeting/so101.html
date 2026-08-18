@@ -620,15 +620,15 @@ binary <code class="docutils literal notranslate"><span class="pre">+1</span> <s
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.tensor_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">TransformMatrix</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">build_so101_stack_pipeline</span><span class="p">(</span><span class="n">base_T_gripper_home</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
-    <span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;controllers&quot;</span><span class="p">)</span>
-    <span class="n">world_T_anchor</span> <span class="o">=</span> <span class="n">ValueInput</span><span class="p">(</span><span class="s2">&quot;world_T_anchor&quot;</span><span class="p">,</span> <span class="n">TransformMatrix</span><span class="p">())</span>
+    <span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"controllers"</span><span class="p">)</span>
+    <span class="n">world_T_anchor</span> <span class="o">=</span> <span class="n">ValueInput</span><span class="p">(</span><span class="s2">"world_T_anchor"</span><span class="p">,</span> <span class="n">TransformMatrix</span><span class="p">())</span>
     <span class="c1"># The clutch requires a base-frame controller stream; rebase it upstream.</span>
     <span class="n">xformed</span> <span class="o">=</span> <span class="n">controllers</span><span class="o">.</span><span class="n">transformed</span><span class="p">(</span><span class="n">world_T_anchor</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ValueInput</span><span class="o">.</span><span class="n">VALUE</span><span class="p">))</span>
 
-    <span class="c1"># home_base_T_ee is REQUIRED and both blocks are used. Pass the arm&#39;s pose at the reset</span>
+    <span class="c1"># home_base_T_ee is REQUIRED and both blocks are used. Pass the arm's pose at the reset</span>
     <span class="c1"># pose, or a placeholder plus a set_home_base_T_ee() call before the first RUNNING frame.</span>
     <span class="n">clutch</span> <span class="o">=</span> <span class="n">SO101ClutchRetargeter</span><span class="p">(</span>
-        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;ee_pose&quot;</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"ee_pose"</span><span class="p">,</span>
         <span class="n">home_base_T_ee</span><span class="o">=</span><span class="n">base_T_gripper_home</span><span class="p">,</span>
         <span class="n">input_device</span><span class="o">=</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">,</span>
     <span class="p">)</span>
@@ -638,27 +638,27 @@ binary <code class="docutils literal notranslate"><span class="pre">+1</span> <s
         <span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">xformed</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">),</span>
     <span class="p">})</span>
 
-    <span class="n">gripper</span> <span class="o">=</span> <span class="n">SO101GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;gripper&quot;</span><span class="p">,</span> <span class="n">input_device</span><span class="o">=</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">)</span>
+    <span class="n">gripper</span> <span class="o">=</span> <span class="n">SO101GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"gripper"</span><span class="p">,</span> <span class="n">input_device</span><span class="o">=</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">)</span>
     <span class="n">connected_gripper</span> <span class="o">=</span> <span class="n">gripper</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
         <span class="p">{</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">xformed</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">)}</span>
     <span class="p">)</span>
 
     <span class="c1"># Keep all 7 pose names and pass the full pose (xyz + quat) plus gripper through.</span>
-    <span class="n">ee_elements</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;pos_x&quot;</span><span class="p">,</span> <span class="s2">&quot;pos_y&quot;</span><span class="p">,</span> <span class="s2">&quot;pos_z&quot;</span><span class="p">,</span> <span class="s2">&quot;quat_x&quot;</span><span class="p">,</span> <span class="s2">&quot;quat_y&quot;</span><span class="p">,</span> <span class="s2">&quot;quat_z&quot;</span><span class="p">,</span> <span class="s2">&quot;quat_w&quot;</span><span class="p">]</span>
+    <span class="n">ee_elements</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"pos_x"</span><span class="p">,</span> <span class="s2">"pos_y"</span><span class="p">,</span> <span class="s2">"pos_z"</span><span class="p">,</span> <span class="s2">"quat_x"</span><span class="p">,</span> <span class="s2">"quat_y"</span><span class="p">,</span> <span class="s2">"quat_z"</span><span class="p">,</span> <span class="s2">"quat_w"</span><span class="p">]</span>
     <span class="n">reorderer</span> <span class="o">=</span> <span class="n">TensorReorderer</span><span class="p">(</span>
         <span class="n">input_config</span><span class="o">=</span><span class="p">{</span>
-            <span class="s2">&quot;ee_pose&quot;</span><span class="p">:</span> <span class="n">ee_elements</span><span class="p">,</span>
-            <span class="s2">&quot;gripper_command&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;gripper_value&quot;</span><span class="p">],</span>
+            <span class="s2">"ee_pose"</span><span class="p">:</span> <span class="n">ee_elements</span><span class="p">,</span>
+            <span class="s2">"gripper_command"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"gripper_value"</span><span class="p">],</span>
         <span class="p">},</span>
-        <span class="n">output_order</span><span class="o">=</span><span class="n">ee_elements</span> <span class="o">+</span> <span class="p">[</span><span class="s2">&quot;gripper_value&quot;</span><span class="p">],</span>
-        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;action_reorderer&quot;</span><span class="p">,</span>
-        <span class="n">input_types</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;ee_pose&quot;</span><span class="p">:</span> <span class="s2">&quot;array&quot;</span><span class="p">,</span> <span class="s2">&quot;gripper_command&quot;</span><span class="p">:</span> <span class="s2">&quot;scalar&quot;</span><span class="p">},</span>
+        <span class="n">output_order</span><span class="o">=</span><span class="n">ee_elements</span> <span class="o">+</span> <span class="p">[</span><span class="s2">"gripper_value"</span><span class="p">],</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">"action_reorderer"</span><span class="p">,</span>
+        <span class="n">input_types</span><span class="o">=</span><span class="p">{</span><span class="s2">"ee_pose"</span><span class="p">:</span> <span class="s2">"array"</span><span class="p">,</span> <span class="s2">"gripper_command"</span><span class="p">:</span> <span class="s2">"scalar"</span><span class="p">},</span>
     <span class="p">)</span>
     <span class="n">connected</span> <span class="o">=</span> <span class="n">reorderer</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
-        <span class="s2">&quot;ee_pose&quot;</span><span class="p">:</span> <span class="n">connected_clutch</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;ee_pose&quot;</span><span class="p">),</span>
-        <span class="s2">&quot;gripper_command&quot;</span><span class="p">:</span> <span class="n">connected_gripper</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;gripper_command&quot;</span><span class="p">),</span>
+        <span class="s2">"ee_pose"</span><span class="p">:</span> <span class="n">connected_clutch</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"ee_pose"</span><span class="p">),</span>
+        <span class="s2">"gripper_command"</span><span class="p">:</span> <span class="n">connected_gripper</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"gripper_command"</span><span class="p">),</span>
     <span class="p">})</span>
-    <span class="k">return</span> <span class="n">OutputCombiner</span><span class="p">({</span><span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="n">connected</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;output&quot;</span><span class="p">)})</span>
+    <span class="k">return</span> <span class="n">OutputCombiner</span><span class="p">({</span><span class="s2">"action"</span><span class="p">:</span> <span class="n">connected</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"output"</span><span class="p">)})</span>
 </pre></div>
 </div>
 <p>See <a class="reference internal" href="index.html#isaac-teleop-pipeline-builder"><span class="std std-ref">Build a Retargeting Pipeline</span></a> for the general pipeline-builder pattern and
@@ -816,7 +816,7 @@ binary <code class="docutils literal notranslate"><span class="pre">+1</span> <s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

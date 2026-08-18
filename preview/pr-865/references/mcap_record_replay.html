@@ -437,9 +437,9 @@ trackers from the pipeline, so you only need to provide the output filename:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.deviceio</span><span class="w"> </span><span class="kn">import</span> <span class="n">McapRecordingConfig</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
-    <span class="n">mcap_config</span><span class="o">=</span><span class="n">McapRecordingConfig</span><span class="p">(</span><span class="s2">&quot;recording.mcap&quot;</span><span class="p">),</span>
+    <span class="n">mcap_config</span><span class="o">=</span><span class="n">McapRecordingConfig</span><span class="p">(</span><span class="s2">"recording.mcap"</span><span class="p">),</span>
 <span class="p">)</span>
 
 <span class="k">with</span> <span class="n">TeleopSession</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
@@ -462,13 +462,13 @@ useful for recording additional trackers that are not part of the pipeline:</p>
 <span class="n">extra_tracker</span> <span class="o">=</span> <span class="n">deviceio</span><span class="o">.</span><span class="n">HandTracker</span><span class="p">()</span>
 
 <span class="n">mcap_config</span> <span class="o">=</span> <span class="n">McapRecordingConfig</span><span class="p">(</span>
-    <span class="s2">&quot;recording.mcap&quot;</span><span class="p">,</span>
-    <span class="p">[(</span><span class="n">extra_tracker</span><span class="p">,</span> <span class="s2">&quot;extra_hands&quot;</span><span class="p">)],</span>
+    <span class="s2">"recording.mcap"</span><span class="p">,</span>
+    <span class="p">[(</span><span class="n">extra_tracker</span><span class="p">,</span> <span class="s2">"extra_hands"</span><span class="p">)],</span>
 <span class="p">)</span>
 
 <span class="c1"># Final tracker list will be:</span>
-<span class="c1">#   [(head_source.tracker, &quot;head&quot;), (hands_source.tracker, &quot;hands&quot;),</span>
-<span class="c1">#    (extra_tracker, &quot;extra_hands&quot;)]</span>
+<span class="c1">#   [(head_source.tracker, "head"), (hands_source.tracker, "hands"),</span>
+<span class="c1">#    (extra_tracker, "extra_hands")]</span>
 </pre></div>
 </div>
 </section>
@@ -486,16 +486,16 @@ file:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.deviceio</span><span class="w"> </span><span class="kn">import</span> <span class="n">McapReplayConfig</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">mode</span><span class="o">=</span><span class="n">SessionMode</span><span class="o">.</span><span class="n">REPLAY</span><span class="p">,</span>
-    <span class="n">mcap_config</span><span class="o">=</span><span class="n">McapReplayConfig</span><span class="p">(</span><span class="s2">&quot;recording.mcap&quot;</span><span class="p">),</span>
+    <span class="n">mcap_config</span><span class="o">=</span><span class="n">McapReplayConfig</span><span class="p">(</span><span class="s2">"recording.mcap"</span><span class="p">),</span>
 <span class="p">)</span>
 
 <span class="k">with</span> <span class="n">TeleopSession</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
-        <span class="n">action</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;action&quot;</span><span class="p">]</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"action"</span><span class="p">]</span>
         <span class="c1"># Process replayed action ...</span>
 </pre></div>
 </div>
@@ -503,8 +503,8 @@ file:</p>
 explicit <code class="docutils literal notranslate"><span class="pre">tracker_names</span></code> you provide are <strong>appended</strong> after them.  Use this
 to add extra trackers that aren’t part of the pipeline:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">McapReplayConfig</span><span class="p">(</span>
-    <span class="s2">&quot;recording.mcap&quot;</span><span class="p">,</span>
-    <span class="p">[(</span><span class="n">extra_tracker</span><span class="p">,</span> <span class="s2">&quot;extra_hands&quot;</span><span class="p">)],</span>
+    <span class="s2">"recording.mcap"</span><span class="p">,</span>
+    <span class="p">[(</span><span class="n">extra_tracker</span><span class="p">,</span> <span class="s2">"extra_hands"</span><span class="p">)],</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -609,8 +609,8 @@ flags (including <code class="docutils literal notranslate"><span class="pre">--
 <section id="sessionmode">
 <h3><code class="docutils literal notranslate"><span class="pre">SessionMode</span></code><a class="headerlink" href="#sessionmode" title="Link to this heading">#</a></h3>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">SessionMode</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
-    <span class="n">LIVE</span> <span class="o">=</span> <span class="s2">&quot;live&quot;</span>
-    <span class="n">REPLAY</span> <span class="o">=</span> <span class="s2">&quot;replay&quot;</span>
+    <span class="n">LIVE</span> <span class="o">=</span> <span class="s2">"live"</span>
+    <span class="n">REPLAY</span> <span class="o">=</span> <span class="s2">"replay"</span>
 </pre></div>
 </div>
 <p>Determines whether <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> creates a live OpenXR session or replays
@@ -789,7 +789,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 14, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>
