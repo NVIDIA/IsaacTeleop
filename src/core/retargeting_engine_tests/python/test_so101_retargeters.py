@@ -3,16 +3,17 @@
 
 """Sim-free unit tests for the SO-101 XR teleop retargeters.
 
-Covers the SO-101 retargeters that drive the full-pose SE3 IK stacking pipeline:
+Covers the SO-101 retargeter that drives the full-pose SE3 IK stacking pipeline. The
+analog gripper node that used to live beside it is gripper-agnostic and moved out; its
+tests are in test_analog_gripper_retargeter.py.
 
-* :class:`~isaacteleop.retargeters.SO101GripperRetargeter` -- analog trigger -> jaw closedness.
 * :class:`~isaacteleop.retargeters.SO101ClutchRetargeter` -- the engage-relative full-pose clutch,
   re-latching both home position and orientation on every engage with a base-frame left-composed
   orientation delta.
 
-Each retargeter is exercised both at the pure-math level (the module-private helper functions)
-and at the ``BaseRetargeter.compute`` level (build inputs/outputs, drive a frame, read the
-emitted tensor), with no ``gym.make``, USD, GPU, or XR device.
+It is exercised both at the pure-math level (the module-private helper functions) and at
+the ``BaseRetargeter.compute`` level (build inputs/outputs, drive a frame, read the emitted
+tensor), with no ``gym.make``, USD, GPU, or XR device.
 """
 
 import math
@@ -40,20 +41,12 @@ from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInputIndex,
     TransformMatrix,
 )
-from isaacteleop.retargeters import (
-    SO101ClutchRetargeter,
-    SO101GripperRetargeter,
-)
+from isaacteleop.retargeters import SO101ClutchRetargeter
 from isaacteleop.retargeters.SO101.clutch_retargeter import (
     _mat_to_quat_xyzw,
     _normalize_quat,
     _quat_inv,
     _quat_mul,
-)
-from isaacteleop.retargeters.SO101.gripper_retargeter import (
-    GRIPPER_COMMAND_KEY,
-    _TRIGGER_DEADZONE,
-    _trigger_to_closedness,
 )
 
 # ---------------------------------------------------------------------------
@@ -157,89 +150,6 @@ def _quat_xyzw(axis, angle_rad: float) -> np.ndarray:
 def _read_pose(outputs) -> np.ndarray:
     """Read the 7D ee_pose output as a numpy array."""
     return np.asarray(np.from_dlpack(outputs["ee_pose"][0]), dtype=np.float64)
-
-
-# ===========================================================================
-# SO101GripperRetargeter
-# ===========================================================================
-
-
-class TestSO101GripperTriggerMath:
-    """The pure ``_trigger_to_closedness`` mapping (deadzone + rescale + clamp)."""
-
-    def test_released_is_open(self):
-        """A fully released trigger maps to closedness 0 (jaw open)."""
-        assert _trigger_to_closedness(0.0) == pytest.approx(0.0)
-
-    def test_full_press_is_closed(self):
-        """A fully pressed trigger maps to closedness 1 (jaw closed)."""
-        assert _trigger_to_closedness(1.0) == pytest.approx(1.0)
-
-    def test_deadzone_stays_open(self):
-        """A trigger within the released-end deadzone stays at closedness 0."""
-        assert _trigger_to_closedness(_TRIGGER_DEADZONE) == pytest.approx(0.0)
-        assert _trigger_to_closedness(_TRIGGER_DEADZONE - 0.01) == pytest.approx(0.0)
-
-    def test_half_press_is_mid(self):
-        """A half-pressed trigger maps to roughly half-closed (monotonic, mid-range)."""
-        c = _trigger_to_closedness(0.5)
-        assert 0.4 < c < 0.6
-        assert _trigger_to_closedness(0.0) < c < _trigger_to_closedness(1.0)
-
-    def test_clamps_out_of_range(self):
-        """Trigger values outside [0, 1] clamp to the closedness endpoints."""
-        assert _trigger_to_closedness(-0.5) == pytest.approx(0.0)
-        assert _trigger_to_closedness(1.5) == pytest.approx(1.0)
-
-
-class TestSO101GripperRetargeter:
-    """End-to-end ``compute`` behavior of the analog gripper retargeter."""
-
-    def test_output_spec_is_single_scalar(self):
-        """Outputs exactly one scalar under the gripper command key."""
-        r = SO101GripperRetargeter(name="gripper")
-        spec = r.output_spec()
-        assert list(spec) == [GRIPPER_COMMAND_KEY]
-
-    def test_full_press_closes(self):
-        """A fully pressed trigger drives the jaw closed (c == 1)."""
-        r = SO101GripperRetargeter(name="gripper")
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(trigger=1.0)
-        r.compute(inputs, outputs, _make_context())
-        assert float(outputs[GRIPPER_COMMAND_KEY][0]) == pytest.approx(1.0)
-
-    def test_release_opens(self):
-        """A released trigger drives the jaw open (c == 0)."""
-        r = SO101GripperRetargeter(name="gripper")
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(trigger=0.0)
-        r.compute(inputs, outputs, _make_context())
-        assert float(outputs[GRIPPER_COMMAND_KEY][0]) == pytest.approx(0.0)
-
-    def test_dropped_frame_holds_last(self):
-        """An absent controller frame holds the last commanded closedness."""
-        r = SO101GripperRetargeter(name="gripper")
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(trigger=1.0)
-        r.compute(inputs, outputs, _make_context())
-
-        # Next frame: controller absent -> hold the previous closedness (1.0).
-        inputs2, outputs2 = _build_io(r)
-        r.compute(inputs2, outputs2, _make_context())
-        assert float(outputs2[GRIPPER_COMMAND_KEY][0]) == pytest.approx(1.0)
-
-    def test_reset_reopens(self):
-        """A reset returns the jaw to fully open even after a closed frame."""
-        r = SO101GripperRetargeter(name="gripper")
-        inputs, outputs = _build_io(r)
-        inputs[ControllersSource.RIGHT] = _make_controller(trigger=1.0)
-        r.compute(inputs, outputs, _make_context())
-
-        # Reset with an absent controller -> the held value is forced back to open.
-        inputs2, outputs2 = _build_io(r)
-        r.compute(inputs2, outputs2, _make_context(reset=True))
-        assert float(outputs2[GRIPPER_COMMAND_KEY][0]) == pytest.approx(0.0)
 
 
 # ===========================================================================

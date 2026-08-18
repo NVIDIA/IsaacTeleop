@@ -46,22 +46,28 @@ Available Retargeters
    ``hand_side`` (``"left"`` or ``"right"``), ``gripper_close_meters``, ``gripper_open_meters``,
    and ``controller_threshold`` for trigger-based closing.
 
+.. dropdown:: AnalogGripperRetargeter
+
+   Outputs a single float jaw *closedness* in ``[0, 1]`` (``0`` = open, ``1`` = closed) from the
+   controller's analog trigger, with a released-end deadzone, so a half-pressed trigger leaves the
+   jaw half-closed. The closedness is unitless; the mapping onto joint angles or jaw travel belongs
+   to the consumer. See :doc:`so101` for a worked pipeline.
+
 .. dropdown:: WujiHandRetargeter
 
    Maps OpenXR hand tracking to the 20 joint commands of a Wuji Hand or Wuji Hand 2 through
    ``wuji_sdk``. See :doc:`wuji` for installation, configuration, and hardware examples.
 
-.. dropdown:: SO101ClutchRetargeter / SO101GripperRetargeter
+.. dropdown:: SO101ClutchRetargeter
 
-   Retargeters for the SO-101 5-DOF arm under full-pose SE3 IK. ``SO101ClutchRetargeter``
+   Retargeter for the SO-101 5-DOF arm under full-pose SE3 IK. ``SO101ClutchRetargeter``
    outputs a 7-D ``ee_pose`` like ``Se3AbsRetargeter`` but clutch-rebases the **full pose** around
    an origin captured on engage (no teleport): it re-latches both the home position and the home
    orientation on every engage and composes the orientation delta on the **left** (base frame),
    with no fixed calibration offset. It engages on ``RUNNING`` **and**
    ``squeeze > squeeze_threshold``, re-seeds its held pose from the configured home on ``reset``,
-   and can latch its home position from the arm's measured EE pose.
-   ``SO101GripperRetargeter`` maps the trigger to a proportional jaw closedness in ``[0, 1]``.
-   See :doc:`so101` for the full setup.
+   and can latch its home position from the arm's measured EE pose. Pair it with
+   ``AnalogGripperRetargeter`` for the jaw. See :doc:`so101` for the full setup.
 
 .. dropdown:: JointStateRetargeter
 
