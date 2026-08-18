@@ -28,6 +28,7 @@ add_library(viz_session STATIC
     inc/viz/session/viz_session.hpp
     inc/viz/session/window_backend.hpp
     inc/viz/session/xr_backend.hpp
+    inc/viz/session/xr_reference_space.hpp
 )
 
 target_include_directories(viz_session

@@ -7,6 +7,7 @@
 #include "frame_info.hpp"
 #include "layer_base.hpp"
 #include "viz_compositor.hpp"
+#include "xr_reference_space.hpp"
 
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <viz/core/host_image.hpp>
@@ -86,6 +87,12 @@ public:
         // two MUST match for runtime reprojection.
         float xr_near_z = 0.05f;
         float xr_far_z = 100.0f;
+
+        // kXr-only: where the session's origin sits. kLocal (the default and
+        // the previous hard-wired behaviour) puts y=0 at head height. An
+        // unavailable space throws at session creation naming the space rather
+        // than silently degrading to a different origin.
+        XrReferenceSpace xr_reference_space = XrReferenceSpace::kLocal;
 
         // Opt-in GPU timestamp queries (render-pass, post-pass, total).
         // Off by default — production builds shouldn't pay. Read via

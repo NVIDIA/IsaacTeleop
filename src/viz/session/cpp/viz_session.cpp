@@ -19,6 +19,22 @@ namespace viz
 namespace
 {
 
+// A switch with no default, so a value added to the enum fails to compile here
+// rather than silently mapping to LOCAL.
+XrReferenceSpaceType to_xr_reference_space_type(XrReferenceSpace space)
+{
+    switch (space)
+    {
+    case XrReferenceSpace::kLocal:
+        return XR_REFERENCE_SPACE_TYPE_LOCAL;
+    case XrReferenceSpace::kLocalFloor:
+        return XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR;
+    case XrReferenceSpace::kStage:
+        return XR_REFERENCE_SPACE_TYPE_STAGE;
+    }
+    throw std::runtime_error("VizSession: unknown XrReferenceSpace");
+}
+
 std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
 {
     switch (cfg.mode)
@@ -42,6 +58,7 @@ std::unique_ptr<DisplayBackend> make_backend(const VizSession::Config& cfg)
         // Env blend mode chosen at runtime from what the system advertises.
         xc.session_config.near_z = cfg.xr_near_z;
         xc.session_config.far_z = cfg.xr_far_z;
+        xc.session_config.reference_space_type = to_xr_reference_space_type(cfg.xr_reference_space);
         return std::make_unique<XrBackend>(std::move(xc));
     }
     }
