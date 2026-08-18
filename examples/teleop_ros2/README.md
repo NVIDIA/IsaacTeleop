@@ -125,7 +125,7 @@ docker run --rm --gpus all --net=host --ipc=host \
   -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_client_route`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 

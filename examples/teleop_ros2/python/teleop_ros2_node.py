@@ -38,6 +38,7 @@ TF frames published in hand_teleop and controller_teleop modes (configurable via
   - world_frame -> head_frame
 """
 
+import os
 import time
 
 import rclpy
@@ -52,6 +53,7 @@ from teleop_ros2_interfaces.msg import NamedPoseArray
 from tf2_ros import TransformBroadcaster
 
 from isaacteleop.cloudxr import CloudXRLauncher
+from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
 from isaacteleop.teleop_session_manager import SessionMode, TeleopSession
 from messages import (
     build_controller_msg,
@@ -292,6 +294,7 @@ class TeleopRos2Node(Node):
         if self._params.session_mode != SessionMode.LIVE:
             return self._run_session_loop()
 
+        os.environ[TELEOP_CLIENT_ROUTE_ENV] = self._params.cloudxr_params.client_route
         with CloudXRLauncher(
             install_dir=self._params.cloudxr_params.install_dir,
             env_config=self._params.cloudxr_params.env_config,
