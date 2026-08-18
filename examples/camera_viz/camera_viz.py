@@ -261,6 +261,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         session = display.make_session(
             cfg,
             mode_override=args.mode,
+            system_wait_override=args.xr_wait,
             required_extensions=(
                 ControllerControls.required_extensions() if want_controls else None
             ),
