@@ -56,7 +56,7 @@ PYBIND11_MODULE(_schema, m)
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);
 
-    // Bind vendor-neutral HapticCommand table + pack_haptic_command() encoder.
+    // Bind vendor-neutral HapticCommand table.
     core::bind_haptic_command(m);
 
     // Bind OAK types (StreamType enum, FrameMetadataOak table).

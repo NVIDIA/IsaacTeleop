@@ -269,11 +269,98 @@ class TestPushTensorHapticDevice:
         assert len(warnings) == 1
 
 
-class TestPackHapticCommand:
-    def test_pack_returns_nonempty_bytes_with_endpoint(self) -> None:
-        from isaacteleop.schema import pack_haptic_command
+def _replay_session(tracker):
+    """A real ``ITrackerSession`` holding ``tracker``, with no MCAP file behind it.
 
-        payload = pack_haptic_command("left", [0.1, 0.2, 0.3, 0.4, 0.5])
-        assert isinstance(payload, bytes) and len(payload) > 0
-        # FlatBuffers stores the endpoint string inline.
-        assert b"left" in payload
+    A push tracker has no replay stream -- its replay impl is a no-op and the factory
+    never opens the recording -- so replay is the one session kind that can be built
+    off-device. That is enough to drive a push down the production path: the pybind
+    conversion, the generated facade, ``session.get_tracker_impl()``, and the impl call.
+    """
+    from isaacteleop.deviceio_session import McapReplayConfig, ReplaySession
+
+    return ReplaySession.run(McapReplayConfig("", [(tracker, "haptic_command")]))
+
+
+class _ForwardingHapticPushTracker:
+    """Records each push while still forwarding it to the real tracker.
+
+    The doubles above replace the tracker outright, so the binding under it never runs.
+    This one wraps rather than replaces: the real ``push`` executes, and the recorded
+    endpoints give the assertions something positive to check.
+    """
+
+    def __init__(self, real) -> None:
+        self._real = real
+        self.pushed_endpoints: List[str] = []
+
+    def get_name(self) -> str:
+        return self._real.get_name()
+
+    def push(self, session, command) -> None:
+        self._real.push(session, command)
+        self.pushed_endpoints.append(command.endpoint)
+
+
+class TestPushTensorHapticDeviceAgainstRealTracker:
+    """``PushTensorHapticDevice`` driving the real ``HapticCommandPushTracker``.
+
+    The suite above swaps the tracker for a double, which leaves the binding between
+    the two unexercised. That gap hides a whole failure class: ``flush`` catches every
+    tracker exception and logs one warning per endpoint, so a binding that rejects the
+    payload it is handed drops haptics silently rather than raising. These tests assert
+    both halves -- the push arrived, and nothing was logged.
+    """
+
+    def _device(self, **kwargs):
+        from isaacteleop.haptic_devices.push_tensor import PushTensorHapticDevice
+
+        return PushTensorHapticDevice("test_collection", FingerPowerVector(5), **kwargs)
+
+    def test_flush_pushes_every_endpoint_without_logging(self, caplog) -> None:
+        device = self._device()
+        recorder = _ForwardingHapticPushTracker(device.get_tracker())
+        session = _replay_session(device.get_tracker())
+        device._tracker = recorder
+
+        device.apply("left", np.array([0.1, 0.2, 0.3, 0.4, 0.5], dtype=np.float32))
+        device.apply("right", np.zeros(5, dtype=np.float32))
+
+        with caplog.at_level("WARNING"):
+            device.flush(session)
+
+        assert recorder.pushed_endpoints == ["left", "right"]
+        assert [r.getMessage() for r in caplog.records] == []
+
+    def test_tracker_accepts_a_constructed_haptic_command(self) -> None:
+        """The call ``flush`` makes, without the exception gate that hides its failure."""
+        from isaacteleop.schema import HapticCommand
+
+        tracker = self._device().get_tracker()
+        session = _replay_session(tracker)
+
+        tracker.push(
+            session, HapticCommand(endpoint="left", values=[0.1, 0.2, 0.3, 0.4, 0.5])
+        )
+
+
+class TestHapticCommandEncoding:
+    """The ``HapticCommand`` constructor encodes, so what ``flush`` builds is already
+    the wire payload. Reading the fields back off the result is what shows the encode
+    ran and round-trips."""
+
+    def test_constructor_round_trips_endpoint_and_values(self) -> None:
+        from isaacteleop.schema import HapticCommand
+
+        command = HapticCommand("left", [0.1, 0.2, 0.3, 0.4, 0.5])
+
+        assert command.endpoint == "left"
+        assert command.values == pytest.approx([0.1, 0.2, 0.3, 0.4, 0.5])
+
+    def test_constructor_defaults_to_an_empty_command(self) -> None:
+        from isaacteleop.schema import HapticCommand
+
+        command = HapticCommand()
+
+        assert command.endpoint == ""
+        assert command.values == []

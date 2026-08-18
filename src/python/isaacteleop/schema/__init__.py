@@ -55,7 +55,6 @@ from ._schema import (
     # Haptic command types (vendor-neutral cross-process device output).
     HapticCommand,
     HapticCommandRecord,
-    pack_haptic_command,
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
@@ -144,7 +143,6 @@ __all__ = [
     # Haptic command types.
     "HapticCommand",
     "HapticCommandRecord",
-    "pack_haptic_command",
     # Camera types.
     "StreamType",
     "FrameMetadataOak",

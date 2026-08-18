@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the vendor-neutral HapticCommand FlatBuffer schema.
-// Types: HapticCommand (table) and HapticCommandRecord, plus a pack helper that
-// serialises a command to the bytes a TensorPushTracker pushes to a peer-process
-// device plugin.
+// Types: HapticCommand (table) and HapticCommandRecord.
+//
+// The constructor is the only producer-side entry point: it encodes, so the command
+// a caller builds is already the wire payload HapticCommandPushTracker.push() carries
+// to a peer-process device plugin.
 
 #pragma once
 
 #include "schema_serialized.h"
 
-#include <flatbuffers/flatbuffers.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/haptic_command_generated.h>
@@ -39,23 +40,6 @@ inline void bind_haptic_command(py::module& m)
         .def_property_readonly("values", vector_field(&HapticCommand::values));
 
     bind_record<HapticCommandRecord, HapticCommand>(m, "HapticCommandRecord", "HapticCommand");
-
-    // Producer-side encode: serialise a HapticCommand (endpoint + values) to the raw
-    // FlatBuffer bytes that TensorPushTracker.push() carries to the consumer. Distinct
-    // from the HapticCommand constructor, which yields a view rather than the wire bytes.
-    m.def(
-        "pack_haptic_command",
-        [](const std::string& endpoint, const std::vector<float>& values) -> py::bytes
-        {
-            HapticCommandT cmd;
-            cmd.endpoint = endpoint;
-            cmd.values = values;
-            flatbuffers::FlatBufferBuilder fbb;
-            fbb.Finish(HapticCommand::Pack(fbb, &cmd));
-            return py::bytes(reinterpret_cast<const char*>(fbb.GetBufferPointer()), fbb.GetSize());
-        },
-        py::arg("endpoint"), py::arg("values"),
-        "Serialise a HapticCommand (endpoint, values) to FlatBuffer bytes for TensorPushTracker.push().");
 }
 
 } // namespace core
