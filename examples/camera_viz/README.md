@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
-In XR mode the viewer **attaches to the CloudXR runtime + WSS proxy**, starting a background service if none is serving — nothing to start separately (`--accept-eula` for the first run; CloudXR.js is hosted at `https://<host>:48322/client/` by default, disable with `--no-host-client`; `camera_viz.py --help` for the rest). Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy` / `gimbal`.
+In XR mode the viewer **attaches to the CloudXR runtime + WSS proxy**, starting a background service if none is serving — nothing to start separately (`--accept-eula` for the first run; CloudXR.js is hosted at `https://<host>:48322/client/` by default when this run starts the service — `--no-host-client` only applies then; stop and restart the service to change hosting; `camera_viz.py --help` for the rest). Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy` / `gimbal`.
 
 ---
 
@@ -57,6 +57,15 @@ Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--
 ```
 
 Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `realsense.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `synthetic_xr_3up.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
+
+In XR mode, open CloudXR.js on the headset at `https://<host>:48322/client/` (accept the self-signed cert, then CONNECT). When `run` starts the CloudXR service it prints that URL. If a service is already running, use the package CLI through the example venv:
+
+```bash
+./camera_viz.sh py -m isaacteleop.cloudxr.service status
+./camera_viz.sh py -m isaacteleop.cloudxr.service stop
+```
+
+(`service-status` / `service-logs` / `service-restart` are for the robot RTP unit from `deploy`, not CloudXR.)
 
 > **Jetson Orin:** when the CloudXR runtime runs on Orin, set **Video Codec** to **H.264** in the CloudXR web client.
 
@@ -120,7 +129,10 @@ cameras:
 display:                      # camera_viz only
   mode: xr | window           # default: xr
   window: { width, height }
-  xr:     { near_z, far_z }
+  xr:
+    near_z:
+    far_z:
+    system_wait_seconds: 180  # default
   clear_color: [r, g, b, a]
   placements:
     cam:
@@ -175,7 +187,7 @@ Lazy knobs under `placements.<name>`: `look_away_angle_deg`, `reposition_distanc
 
 ```
 camera_viz/
-├── camera_viz.sh        — CLI: setup / loopback / run / deploy / service-*
+├── camera_viz.sh        — CLI: setup / loopback / run / deploy / service-* / py
 ├── camera_viz.py        — receiver / viewer
 ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
 ├── pipeline/            — source ABC + threaded runner

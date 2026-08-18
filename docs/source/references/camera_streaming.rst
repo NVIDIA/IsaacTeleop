@@ -276,7 +276,17 @@ serving. Useful flags:
 - ``--accept-eula`` — accept the CloudXR EULA non-interactively (first run only).
 - ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
 - ``--no-host-client`` — disable serving CloudXR.js at
-  ``https://<host>:48322/client/``.
+  ``https://<host>:48322/client/``. Only applies when this run starts the
+  service; stop and restart the service to change hosting.
+
+When the viewer starts a CloudXR service it prints the client URL. If a service is
+already running, use the package CLI through the example venv::
+
+   ./camera_viz.sh py -m isaacteleop.cloudxr.service status
+   ./camera_viz.sh py -m isaacteleop.cloudxr.service stop
+
+Or run ``python -m isaacteleop.cloudxr.service …`` from any environment that
+already has ``isaacteleop`` installed.
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
 
@@ -360,7 +370,10 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
    display:
      mode: xr | window           # default: xr
      window: { width, height }
-     xr:     { near_z, far_z }
+     xr:
+       near_z:
+       far_z:
+       system_wait_seconds: 180  # default
      clear_color: [r, g, b, a]
      placements:
        cam:
@@ -380,8 +393,11 @@ Troubleshooting
 ---------------
 
 - **The XR session fails to create** — check ``~/.cloudxr/logs/cxr_server.*.log`` and
-  ``runtime_stderr.log`` for the startup failure. Pass ``--mode window`` to render to a
-  desktop window instead (no runtime involved).
+  ``runtime_stderr.log`` for the startup failure. ``XR_ERROR_FORM_FACTOR_UNAVAILABLE``
+  (-35) means the runtime is up but no headset has clicked CONNECT yet; XR mode waits
+  ``display.xr.system_wait_seconds`` (default 180; override with
+  ``--xr-wait``) for that. Pass ``--mode window`` to
+  render to a desktop window instead (no runtime involved).
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's
