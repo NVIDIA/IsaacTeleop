@@ -65,6 +65,15 @@ services:
         echo "CXR_NATIVE_GPU_TESTS: $${CXR_NATIVE_GPU_TESTS}"
         echo ""
 
+        # `timeout 0` means no timeout, so a typo'd override would silently
+        # restore the hang this guards against.  Whole seconds only: the name
+        # says SEC, and a suffix would read as one unit while meaning another.
+        TEST_TIMEOUT="$${CXR_GPU_TEST_TIMEOUT_SEC:-300}"
+        if [[ ! "$$TEST_TIMEOUT" =~ ^[0-9]+$$ ]] || [[ "$$TEST_TIMEOUT" -le 0 ]]; then
+            echo "CXR_GPU_TEST_TIMEOUT_SEC must be a positive whole number of seconds (got '$$TEST_TIMEOUT')"
+            exit 1
+        fi
+
         PASSED=0
         FAILED=0
         FAILED_TESTS=""
@@ -82,7 +91,7 @@ services:
                 echo "Running: $$test_script"
                 echo "----------------------------------------"
 
-                if timeout "$${CXR_GPU_TEST_TIMEOUT_SEC:-300}" python "$$test_script"; then
+                if timeout --kill-after=10 "$$TEST_TIMEOUT" python "$$test_script"; then
                     echo "✅ PASSED: $$test_script"
                     PASSED=$((PASSED + 1))
                 else
@@ -107,7 +116,7 @@ services:
                 echo "Running: $$native_test"
                 echo "----------------------------------------"
 
-                if timeout "$${CXR_GPU_TEST_TIMEOUT_SEC:-300}" /app/$$native_test; then
+                if timeout --kill-after=10 "$$TEST_TIMEOUT" /app/$$native_test; then
                     echo "✅ PASSED: $$native_test"
                     PASSED=$((PASSED + 1))
                 else
