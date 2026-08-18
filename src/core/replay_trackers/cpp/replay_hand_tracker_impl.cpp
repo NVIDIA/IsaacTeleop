@@ -45,7 +45,7 @@ void ReplayHandTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     auto right_record = mcap_viewers_->read_serialized(1);
     if (left_record)
     {
-        left_tracked_ = left_record.narrow(payload(left_record));
+        left_tracked_ = narrow_payload(left_record);
     }
     else
     {
@@ -55,7 +55,7 @@ void ReplayHandTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 
     if (right_record)
     {
-        right_tracked_ = right_record.narrow(payload(right_record));
+        right_tracked_ = narrow_payload(right_record);
     }
     else
     {

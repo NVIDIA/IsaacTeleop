@@ -25,79 +25,76 @@ from isaacteleop.schema import (
 )
 
 
-def _payload_tensor_type(class_name: str, payload_cls: type, doc: str) -> type:
-    """Build the ``TensorType`` subclass carrying one DeviceIO payload handle.
+class _PayloadTensorType(TensorType):
+    """Carries one DeviceIO payload handle.
 
-    Every payload validates the same way, so the class name and the payload class
-    are the only things that vary between them.
+    Every payload validates the same way, so a subclass only names the schema class it
+    accepts. The class itself is what distinguishes one payload from another --
+    ``TensorType.is_compatible_with`` rejects a mismatch before it gets here.
     """
 
+    #: Schema view class this tensor type accepts. Set by each subclass.
+    _payload_cls: type
+
     def _check_instance_compatibility(self, other: TensorType) -> bool:
-        if not isinstance(other, cls):
-            raise TypeError(f"Expected {class_name}, got {type(other).__name__}")
+        if not isinstance(other, type(self)):
+            raise TypeError(
+                f"Expected {type(self).__name__}, got {type(other).__name__}"
+            )
         return True
 
     def validate_value(self, value: Any) -> None:
         # None is how an inactive device arrives; only a wrong type is an error.
-        if value is not None and not isinstance(value, payload_cls):
+        if value is not None and not isinstance(value, self._payload_cls):
             raise TypeError(
-                f"Expected {payload_cls.__name__} for '{self.name}', got {type(value).__name__}"
+                f"Expected {self._payload_cls.__name__} for '{self.name}', got {type(value).__name__}"
             )
 
-    cls = type(
-        class_name,
-        (TensorType,),
-        {
-            "__doc__": doc,
-            "__module__": __name__,
-            "_check_instance_compatibility": _check_instance_compatibility,
-            "validate_value": validate_value,
-        },
-    )
-    return cls
+
+class HeadPoseTrackedType(_PayloadTensorType):
+    """HeadPose payload from DeviceIO HeadTracker."""
+
+    _payload_cls = HeadPose
 
 
-HeadPoseTrackedType = _payload_tensor_type(
-    "HeadPoseTrackedType", HeadPose, "HeadPose wrapper type from DeviceIO HeadTracker."
-)
+class HandPoseTrackedType(_PayloadTensorType):
+    """HandPose payload from DeviceIO HandTracker."""
 
-HandPoseTrackedType = _payload_tensor_type(
-    "HandPoseTrackedType", HandPose, "HandPose wrapper type from DeviceIO HandTracker."
-)
+    _payload_cls = HandPose
 
-ControllerSnapshotTrackedType = _payload_tensor_type(
-    "ControllerSnapshotTrackedType",
-    ControllerSnapshot,
-    "ControllerSnapshot wrapper type from DeviceIO ControllerTracker.",
-)
 
-Generic3AxisPedalOutputTrackedType = _payload_tensor_type(
-    "Generic3AxisPedalOutputTrackedType",
-    Generic3AxisPedalOutput,
-    "Generic3AxisPedalOutput wrapper type from DeviceIO Generic3AxisPedalTracker.",
-)
+class ControllerSnapshotTrackedType(_PayloadTensorType):
+    """ControllerSnapshot payload from DeviceIO ControllerTracker."""
 
-JointStateOutputTrackedType = _payload_tensor_type(
-    "JointStateOutputTrackedType",
-    JointStateOutput,
-    "JointStateOutput wrapper type from DeviceIO JointStateTracker.",
-)
+    _payload_cls = ControllerSnapshot
 
-FullBodyPoseTrackedType = _payload_tensor_type(
-    "FullBodyPoseTrackedType",
-    FullBodyPose,
-    """FullBodyPose wrapper type from DeviceIO FullBodyTracker.
+
+class Generic3AxisPedalOutputTrackedType(_PayloadTensorType):
+    """Generic3AxisPedalOutput payload from DeviceIO Generic3AxisPedalTracker."""
+
+    _payload_cls = Generic3AxisPedalOutput
+
+
+class JointStateOutputTrackedType(_PayloadTensorType):
+    """JointStateOutput payload from DeviceIO JointStateTracker."""
+
+    _payload_cls = JointStateOutput
+
+
+class FullBodyPoseTrackedType(_PayloadTensorType):
+    """FullBodyPose payload from DeviceIO FullBodyTracker.
 
     Vendor-agnostic: the full-body tracker produces the same FullBodyPose
     payload regardless of the live vendor (native XR, pushed tensor, ...).
-    """,
-)
+    """
 
-MessageChannelMessagesTrackedType = _payload_tensor_type(
-    "MessageChannelMessagesTrackedType",
-    MessageChannelMessagesTracked,
-    "MessageChannelMessagesTracked wrapper type from DeviceIO MessageChannelTracker.",
-)
+    _payload_cls = FullBodyPose
+
+
+class MessageChannelMessagesTrackedType(_PayloadTensorType):
+    """MessageChannelMessagesTracked batch from DeviceIO MessageChannelTracker."""
+
+    _payload_cls = MessageChannelMessagesTracked
 
 
 class MessageChannelConnectionStatus(IntEnum):
@@ -110,26 +107,14 @@ class MessageChannelConnectionStatus(IntEnum):
     UNKNOWN = -1
 
 
-class MessageChannelStatusType(TensorType):
-    """Enum status for message channel connectivity."""
+class MessageChannelStatusType(_PayloadTensorType):
+    """Enum status for message channel connectivity.
 
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
+    Not a device payload: MessageChannelSource always assigns a status. It validates
+    like one so that an unset slot is tolerated the same way.
+    """
 
-    def _check_instance_compatibility(self, other: TensorType) -> bool:
-        if not isinstance(other, MessageChannelStatusType):
-            raise TypeError(
-                f"Expected MessageChannelStatusType, got {type(other).__name__}"
-            )
-        return True
-
-    def validate_value(self, value: Any) -> None:
-        # Not a device payload: MessageChannelSource always assigns a status. None is
-        # tolerated only so an unset slot validates like the payload types above.
-        if value is not None and not isinstance(value, MessageChannelConnectionStatus):
-            raise TypeError(
-                f"Expected MessageChannelConnectionStatus for '{self.name}', got {type(value).__name__}"
-            )
+    _payload_cls = MessageChannelConnectionStatus
 
 
 def DeviceIOHeadPoseTracked() -> TensorGroupType:

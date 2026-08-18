@@ -34,7 +34,7 @@ class HeadSource(IDeviceIOSource):
     Inputs:
         - "deviceio_head": Raw HeadPose flatbuffer object from DeviceIO
 
-    Outputs (Optional — absent only when ``tracked.data is None``):
+    Outputs (Optional — absent only when the head payload is None):
         - "head": OptionalTensorGroup. When present, consumers must check
           ``HeadInputIndex.IS_VALID`` before reading the pose, and
           ``HeadInputIndex.IS_TRACKED`` before treating it as live tracking.
@@ -98,7 +98,7 @@ class HeadSource(IDeviceIOSource):
         """
         Convert DeviceIO HeadPose to standard HeadInput tensor.
 
-        Calls ``set_none()`` on the output only when ``tracked.data is None``.
+        Calls ``set_none()`` on the output only when the head payload is None.
         When data is present, pose/is_valid/is_tracked are always emitted —
         consumers must gate on ``IS_VALID`` / ``IS_TRACKED`` before use.
 

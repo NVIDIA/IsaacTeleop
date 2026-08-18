@@ -36,22 +36,17 @@ inline void bind_se3_tracker(py::module& m)
                  }),
              py::arg("pose") = Pose(), py::arg("is_valid") = false,
              "Encode an SE3 pose. Defaults to an all-zero pose that is not valid.")
-        .def_property_readonly(
-            "pose", [](const Serialized<Se3TrackerPose>& self) { return self ? self->pose() : nullptr; },
-            py::return_value_policy::reference_internal)
-        .def_property_readonly(
-            "is_valid", [](const Serialized<Se3TrackerPose>& self) { return self && self->is_valid(); })
-        .def("__repr__",
-             [](const Serialized<Se3TrackerPose>& self)
-             {
-                 if (!self)
-                 {
-                     return std::string("Se3TrackerPose(<empty>)");
-                 }
-                 const Pose* pose = self->pose();
-                 const std::string pose_str = pose != nullptr ? pose_repr(*pose) : "None";
-                 return "Se3TrackerPose(pose=" + pose_str + ", is_valid=" + (self->is_valid() ? "True" : "False") + ")";
-             });
+        .def_property_readonly("pose", field(&Se3TrackerPose::pose), py::return_value_policy::reference_internal)
+        .def_property_readonly("is_valid", field(&Se3TrackerPose::is_valid))
+        .def("__repr__", view_repr<Se3TrackerPose>("Se3TrackerPose",
+                                                   [](const Se3TrackerPose& self)
+                                                   {
+                                                       const Pose* pose = self.pose();
+                                                       const std::string pose_str =
+                                                           pose != nullptr ? pose_repr(*pose) : "None";
+                                                       return "Se3TrackerPose(pose=" + pose_str +
+                                                              ", is_valid=" + (self.is_valid() ? "True" : "False") + ")";
+                                                   }));
 
     bind_record<Se3TrackerPoseRecord, Se3TrackerPose>(m, "Se3TrackerPoseRecord", "Se3TrackerPose");
 }

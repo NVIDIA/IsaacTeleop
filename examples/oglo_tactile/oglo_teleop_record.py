@@ -85,10 +85,10 @@ def _head_locked_placement(
     offset `panel_right` to the right and `panel_drop` down, facing the operator
     (bottom-right of view so it never blocks the center). None if no head pose."""
     h = head_tracker.get_head(session)
-    if h is None or h.data is None or h.data.pose is None:
+    if h is None or h.pose is None:
         return None
-    p = h.data.pose.position
-    o = h.data.pose.orientation
+    p = h.pose.position
+    o = h.pose.orientation
     q = (o.w, o.x, o.y, o.z)  # schema quaternion is (x,y,z,w); Pose3D wants (w,x,y,z)
     pos = np.array([p.x, p.y, p.z], dtype=float)
     fwd = _qrot(q, (0.0, 0.0, -1.0))

@@ -33,23 +33,17 @@ inline void bind_pedals(py::module& m)
                  }),
              py::arg("left_pedal") = 0.0f, py::arg("right_pedal") = 0.0f, py::arg("rudder") = 0.0f,
              "Encode a pedal state. Omitted axes are zero.")
-        .def_property_readonly("left_pedal", [](const Serialized<Generic3AxisPedalOutput>& self)
-                               { return self ? self->left_pedal() : 0.0f; })
-        .def_property_readonly("right_pedal", [](const Serialized<Generic3AxisPedalOutput>& self)
-                               { return self ? self->right_pedal() : 0.0f; })
-        .def_property_readonly(
-            "rudder", [](const Serialized<Generic3AxisPedalOutput>& self) { return self ? self->rudder() : 0.0f; })
-        .def("__repr__",
-             [](const Serialized<Generic3AxisPedalOutput>& self)
-             {
-                 if (!self)
-                 {
-                     return std::string("Generic3AxisPedalOutput(<empty>)");
-                 }
-                 return "Generic3AxisPedalOutput(left_pedal=" + std::to_string(self->left_pedal()) +
-                        ", right_pedal=" + std::to_string(self->right_pedal()) +
-                        ", rudder=" + std::to_string(self->rudder()) + ")";
-             });
+        .def_property_readonly("left_pedal", field(&Generic3AxisPedalOutput::left_pedal))
+        .def_property_readonly("right_pedal", field(&Generic3AxisPedalOutput::right_pedal))
+        .def_property_readonly("rudder", field(&Generic3AxisPedalOutput::rudder))
+        .def("__repr__", view_repr<Generic3AxisPedalOutput>(
+                             "Generic3AxisPedalOutput",
+                             [](const Generic3AxisPedalOutput& self)
+                             {
+                                 return "Generic3AxisPedalOutput(left_pedal=" + std::to_string(self.left_pedal()) +
+                                        ", right_pedal=" + std::to_string(self.right_pedal()) +
+                                        ", rudder=" + std::to_string(self.rudder()) + ")";
+                             }));
 
     bind_record<Generic3AxisPedalOutputRecord, Generic3AxisPedalOutput>(
         m, "Generic3AxisPedalOutputRecord", "Generic3AxisPedalOutput");

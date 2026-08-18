@@ -148,8 +148,11 @@ size_t message_count(const core::Serialized<core::MessageChannelMessagesTracked>
     return messages != nullptr ? messages->size() : 0;
 }
 
-std::string payload_string(const core::MessageChannelMessages* msg)
+// Sibling of message_count(): reaches one drained message so the assertions below do not
+// each re-spell the vector shape. Precondition: message_count(msgs) > index.
+std::string message_at(const core::Serialized<core::MessageChannelMessagesTracked>& msgs, size_t index)
 {
+    const auto* msg = payload(msgs)->Get(index);
     return std::string(msg->payload()->begin(), msg->payload()->end());
 }
 
@@ -427,9 +430,9 @@ TEST_CASE("ReplaySession: message channel drains records on their recorded frame
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
         REQUIRE(message_count(msgs) == 3);
-        CHECK(payload_string(payload(msgs)->Get(0)) == "start");
-        CHECK(payload_string(payload(msgs)->Get(1)) == "stop");
-        CHECK(payload_string(payload(msgs)->Get(2)) == "reset");
+        CHECK(message_at(msgs, 0) == "start");
+        CHECK(message_at(msgs, 1) == "stop");
+        CHECK(message_at(msgs, 2) == "reset");
     }
 
     // EOF: subsequent updates produce empty batches (no double-emission).
@@ -472,21 +475,21 @@ TEST_CASE("ReplaySession: message channel fans recorded events across update tic
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
         REQUIRE(message_count(msgs) == 1);
-        CHECK(payload_string(payload(msgs)->Get(0)) == "start");
+        CHECK(message_at(msgs, 0) == "start");
     }
 
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
         REQUIRE(message_count(msgs) == 1);
-        CHECK(payload_string(payload(msgs)->Get(0)) == "stop");
+        CHECK(message_at(msgs, 0) == "stop");
     }
 
     session->update();
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
         REQUIRE(message_count(msgs) == 1);
-        CHECK(payload_string(payload(msgs)->Get(0)) == "reset");
+        CHECK(message_at(msgs, 0) == "reset");
     }
 
     session->update();
@@ -557,12 +560,12 @@ TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of 
         if (frame == kStartFrame)
         {
             REQUIRE(message_count(msgs) == 1);
-            CHECK(payload_string(payload(msgs)->Get(0)) == "start");
+            CHECK(message_at(msgs, 0) == "start");
         }
         else if (frame == kStopFrame)
         {
             REQUIRE(message_count(msgs) == 1);
-            CHECK(payload_string(payload(msgs)->Get(0)) == "stop");
+            CHECK(message_at(msgs, 0) == "stop");
         }
         else
         {
@@ -615,8 +618,8 @@ TEST_CASE("ReplaySession: message channel drains payloads alongside sentinels in
     {
         const auto& msgs = ctrl_tracker.get_messages(*session);
         REQUIRE(message_count(msgs) == 2);
-        CHECK(payload_string(payload(msgs)->Get(0)) == "hello");
-        CHECK(payload_string(payload(msgs)->Get(1)) == "world");
+        CHECK(message_at(msgs, 0) == "hello");
+        CHECK(message_at(msgs, 1) == "world");
     }
 
     session->update();

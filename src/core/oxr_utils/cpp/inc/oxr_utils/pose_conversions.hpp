@@ -31,18 +31,40 @@ inline XrPosef to_xr_posef(const core::ControllerPose& controller_pose, bool& ou
     return to_xr_posef(controller_pose.pose());
 }
 
-// Convert core::ControllerSnapshot to get aim pose as XrPosef
-inline XrPosef get_aim_pose(const core::ControllerSnapshot& snapshot, bool& out_valid)
+// Identity filler returned alongside out_valid=false, matching the "pose contents are
+// unspecified while invalid" rule the pose schemas state.
+inline XrPosef identity_posef()
 {
-    out_valid = snapshot.aim_pose()->is_valid();
-    return to_xr_posef(snapshot.aim_pose()->pose());
+    return XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
 }
 
-// Convert core::ControllerSnapshot to get grip pose as XrPosef
+// Convert core::ControllerSnapshot to get aim pose as XrPosef.
+//
+// Reading a snapshot through its encoded accessors makes each nested table
+// independently optional at the format level, so absence is answered here -- once --
+// rather than left for every caller to null-check.
+inline XrPosef get_aim_pose(const core::ControllerSnapshot& snapshot, bool& out_valid)
+{
+    const core::ControllerPose* aim_pose = snapshot.aim_pose();
+    if (aim_pose == nullptr)
+    {
+        out_valid = false;
+        return identity_posef();
+    }
+    return to_xr_posef(*aim_pose, out_valid);
+}
+
+// Convert core::ControllerSnapshot to get grip pose as XrPosef. Absent grip pose is
+// handled as in get_aim_pose above.
 inline XrPosef get_grip_pose(const core::ControllerSnapshot& snapshot, bool& out_valid)
 {
-    out_valid = snapshot.grip_pose()->is_valid();
-    return to_xr_posef(snapshot.grip_pose()->pose());
+    const core::ControllerPose* grip_pose = snapshot.grip_pose();
+    if (grip_pose == nullptr)
+    {
+        out_valid = false;
+        return identity_posef();
+    }
+    return to_xr_posef(*grip_pose, out_valid);
 }
 
 } // namespace oxr_utils

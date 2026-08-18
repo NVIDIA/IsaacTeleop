@@ -35,23 +35,18 @@ inline void bind_head(py::module& m)
                  }),
              py::arg("pose") = Pose(), py::arg("is_valid") = false, py::arg("is_tracked") = false,
              "Encode a head pose. Defaults to an all-zero pose that is not valid.")
-        .def_property_readonly(
-            "pose", [](const Serialized<HeadPose>& self) { return self ? self->pose() : nullptr; },
-            py::return_value_policy::reference_internal)
-        .def_property_readonly("is_valid", [](const Serialized<HeadPose>& self) { return self && self->is_valid(); })
-        .def_property_readonly("is_tracked", [](const Serialized<HeadPose>& self) { return self && self->is_tracked(); })
-        .def("__repr__",
-             [](const Serialized<HeadPose>& self)
-             {
-                 if (!self)
-                 {
-                     return std::string("HeadPose(<empty>)");
-                 }
-                 const Pose* pose = self->pose();
-                 const std::string pose_str = pose != nullptr ? pose_repr(*pose) : "None";
-                 return "HeadPose(pose=" + pose_str + ", is_valid=" + (self->is_valid() ? "True" : "False") +
-                        ", is_tracked=" + (self->is_tracked() ? "True" : "False") + ")";
-             });
+        .def_property_readonly("pose", field(&HeadPose::pose), py::return_value_policy::reference_internal)
+        .def_property_readonly("is_valid", field(&HeadPose::is_valid))
+        .def_property_readonly("is_tracked", field(&HeadPose::is_tracked))
+        .def("__repr__", view_repr<HeadPose>("HeadPose",
+                                             [](const HeadPose& self)
+                                             {
+                                                 const Pose* pose = self.pose();
+                                                 const std::string pose_str = pose != nullptr ? pose_repr(*pose) : "None";
+                                                 return "HeadPose(pose=" + pose_str +
+                                                        ", is_valid=" + (self.is_valid() ? "True" : "False") +
+                                                        ", is_tracked=" + (self.is_tracked() ? "True" : "False") + ")";
+                                             }));
 
     bind_record<HeadPoseRecord, HeadPose>(m, "HeadPoseRecord", "HeadPose");
 }

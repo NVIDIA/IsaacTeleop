@@ -64,14 +64,14 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         right_b = controller_tracker_b.get_right_controller(session)
 
         def assert_trackers_consistent(label, ta, tb):
-            a_active = ta.data is not None and ta.data.grip_pose.is_valid
-            b_active = tb.data is not None and tb.data.grip_pose.is_valid
+            a_active = ta is not None and ta.grip_pose.is_valid
+            b_active = tb is not None and tb.grip_pose.is_valid
             assert a_active == b_active, (
                 f"{label}: A active={a_active} but B active={b_active}"
             )
             if a_active:
-                pa = ta.data.grip_pose.pose.position
-                pb = tb.data.grip_pose.pose.position
+                pa = ta.grip_pose.pose.position
+                pb = tb.grip_pose.pose.position
                 tol = 0.01
                 assert abs(pa.x - pb.x) < tol, f"{label} x: {pa.x} vs {pb.x}"
                 assert abs(pa.y - pb.y) < tol, f"{label} y: {pa.y} vs {pb.y}"

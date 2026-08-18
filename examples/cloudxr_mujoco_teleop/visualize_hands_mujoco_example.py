@@ -319,7 +319,7 @@ def main() -> int:
                     session.update()
 
                     if head_tracker is not None:
-                        head = head_tracker.get_head(session).data
+                        head = head_tracker.get_head(session)
                         if head is not None and head.is_valid and head_mid is not None:
                             pos, quat = _xr_pose_to_mj(
                                 head.pose.position, head.pose.orientation
@@ -329,8 +329,8 @@ def main() -> int:
                             viewer.cam.lookat[:] = pos
 
                     viewer.user_scn.ngeom = 0
-                    left = hand_tracker.get_left_hand(session).data
-                    right = hand_tracker.get_right_hand(session).data
+                    left = hand_tracker.get_left_hand(session)
+                    right = hand_tracker.get_right_hand(session)
                     n_l = _draw_hand(viewer.user_scn, left, HAND_COLOURS["left"])
                     n_r = _draw_hand(viewer.user_scn, right, HAND_COLOURS["right"])
 

@@ -35,21 +35,8 @@ inline void bind_haptic_command(py::module& m)
                      return pack<HapticCommand>(native);
                  }),
              py::arg("endpoint") = std::string{}, py::arg("values") = std::vector<float>{}, "Encode a haptic command.")
-        .def_property_readonly("endpoint",
-                               [](const Serialized<HapticCommand>& self)
-                               {
-                                   const auto* endpoint = self ? self->endpoint() : nullptr;
-                                   return endpoint != nullptr ? endpoint->str() : std::string{};
-                               })
-        .def_property_readonly("values",
-                               [](const Serialized<HapticCommand>& self)
-                               {
-                                   // FlatBuffers omits an empty vector rather than encoding a
-                                   // zero-length one, so an absent field is "no values".
-                                   const auto* values = self ? self->values() : nullptr;
-                                   return values != nullptr ? std::vector<float>(values->begin(), values->end()) :
-                                                              std::vector<float>{};
-                               });
+        .def_property_readonly("endpoint", string_field(&HapticCommand::endpoint))
+        .def_property_readonly("values", vector_field(&HapticCommand::values));
 
     bind_record<HapticCommandRecord, HapticCommand>(m, "HapticCommandRecord", "HapticCommand");
 

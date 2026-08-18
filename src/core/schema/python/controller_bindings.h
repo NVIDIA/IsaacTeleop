@@ -78,30 +78,24 @@ inline void bind_controller(py::module& m)
              py::arg("inputs") = ControllerInputState(),
              "Encode a controller snapshot. Omitted poses are all-zero and not valid.")
         .def_property_readonly(
-            "grip_pose", [](const Serialized<ControllerSnapshot>& self) { return self ? self->grip_pose() : nullptr; },
-            py::return_value_policy::reference_internal)
+            "grip_pose", field(&ControllerSnapshot::grip_pose), py::return_value_policy::reference_internal)
         .def_property_readonly(
-            "aim_pose", [](const Serialized<ControllerSnapshot>& self) { return self ? self->aim_pose() : nullptr; },
-            py::return_value_policy::reference_internal)
-        .def_property_readonly(
-            "inputs", [](const Serialized<ControllerSnapshot>& self) { return self ? self->inputs() : nullptr; },
-            py::return_value_policy::reference_internal)
+            "aim_pose", field(&ControllerSnapshot::aim_pose), py::return_value_policy::reference_internal)
+        .def_property_readonly("inputs", field(&ControllerSnapshot::inputs), py::return_value_policy::reference_internal)
         .def("__repr__",
-             [](const Serialized<ControllerSnapshot>& self)
-             {
-                 if (!self)
+             view_repr<ControllerSnapshot>(
+                 "ControllerSnapshot",
+                 [](const ControllerSnapshot& self)
                  {
-                     return std::string("ControllerSnapshot(<empty>)");
-                 }
-                 auto pose_str = [](const ControllerPose* pose)
-                 {
-                     return pose != nullptr ?
-                                "ControllerPose(is_valid=" + std::string(pose->is_valid() ? "True" : "False") + ")" :
-                                std::string("None");
-                 };
-                 return "ControllerSnapshot(grip_pose=" + pose_str(self->grip_pose()) +
-                        ", aim_pose=" + pose_str(self->aim_pose()) + ")";
-             });
+                     auto pose_str = [](const ControllerPose* pose)
+                     {
+                         return pose != nullptr ?
+                                    "ControllerPose(is_valid=" + std::string(pose->is_valid() ? "True" : "False") + ")" :
+                                    std::string("None");
+                     };
+                     return "ControllerSnapshot(grip_pose=" + pose_str(self.grip_pose()) +
+                            ", aim_pose=" + pose_str(self.aim_pose()) + ")";
+                 }));
 
     bind_record<ControllerSnapshotRecord, ControllerSnapshot>(m, "ControllerSnapshotRecord", "ControllerSnapshot");
 }

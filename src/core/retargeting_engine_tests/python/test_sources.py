@@ -268,7 +268,7 @@ class TestHeadSource:
     def test_head_source_compute_valid_but_untracked(self):
         """VALID pose with is_tracked=False still emits Optional with both flags.
 
-        Matches post-disconnect head samples: Tracked.data stays non-null with a
+        Matches post-disconnect head samples: the payload stays present with a
         readable placeholder pose (is_valid=True) while is_tracked is false so
         consumers can freeze without violating OpenXR 'do not read if !valid'.
         """
@@ -298,7 +298,7 @@ class TestHeadSource:
         assert head[HeadInputIndex.IS_TRACKED] is False
 
     def test_head_source_compute_inactive(self):
-        """Test that inactive head (Tracked.data is None) produces absent output."""
+        """Test that an inactive head (payload is None) produces absent output."""
         source = HeadSource(name="head")
 
         inputs = _make_inputs(source, {"deviceio_head": [None]})
@@ -327,7 +327,7 @@ class TestControllersSourceOptional:
         assert output_spec["controller_right"].is_optional
 
     def test_active_controller_produces_data(self):
-        """Active controllers (Tracked.data is not None) produce non-absent OptionalTensorGroups."""
+        """Active controllers (payload is not None) produce non-absent OptionalTensorGroups."""
         source = ControllersSource(name="controllers")
 
         left_snapshot = create_controller_snapshot(
@@ -359,7 +359,7 @@ class TestControllersSourceOptional:
         ] == pytest.approx(0.9)
 
     def test_inactive_controller_sets_none(self):
-        """Inactive controllers (Tracked.data is None) produce absent OptionalTensorGroups."""
+        """Inactive controllers (payload is None) produce absent OptionalTensorGroups."""
         source = ControllersSource(name="controllers")
 
         right_snapshot = create_controller_snapshot(
@@ -457,7 +457,7 @@ class TestHeadSourceOptional:
         assert isinstance(outputs["head"], OptionalTensorGroup)
 
     def test_active_head_produces_data(self):
-        """Active head (Tracked.data is not None) produces non-absent OptionalTensorGroup."""
+        """Active head (payload is not None) produces non-absent OptionalTensorGroup."""
         source = HeadSource(name="head")
 
         head_data = HeadPose(
@@ -477,7 +477,7 @@ class TestHeadSourceOptional:
         )
 
     def test_inactive_head_sets_none(self):
-        """Inactive head (Tracked.data is None) produces absent OptionalTensorGroup."""
+        """Inactive head (payload is None) produces absent OptionalTensorGroup."""
         source = HeadSource(name="head")
 
         inputs = _make_inputs(source, {"deviceio_head": [None]})

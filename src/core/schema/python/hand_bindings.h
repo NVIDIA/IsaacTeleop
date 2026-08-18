@@ -163,20 +163,15 @@ inline void bind_hand(py::module& m)
                      return pack<HandPose>(native);
                  }),
              py::arg("joints") = HandJoints(), "Encode a hand pose. Defaults to all-zero joints.")
-        .def_property_readonly(
-            "joints", [](const Serialized<HandPose>& self) { return self ? self->joints() : nullptr; },
-            py::return_value_policy::reference_internal)
-        .def("__repr__",
-             [](const Serialized<HandPose>& self)
-             {
-                 if (!self)
-                 {
-                     return std::string("HandPose(<empty>)");
-                 }
-                 const std::string joints_str =
-                     self->joints() != nullptr ? "HandJoints(poses=[...26 entries...])" : "None";
-                 return "HandPose(joints=" + joints_str + ")";
-             });
+        .def_property_readonly("joints", field(&HandPose::joints), py::return_value_policy::reference_internal)
+        .def("__repr__", view_repr<HandPose>("HandPose",
+                                             [](const HandPose& self)
+                                             {
+                                                 const std::string joints_str =
+                                                     self.joints() != nullptr ? "HandJoints(poses=[...26 entries...])" :
+                                                                                "None";
+                                                 return "HandPose(joints=" + joints_str + ")";
+                                             }));
 
     bind_record<HandPoseRecord, HandPose>(m, "HandPoseRecord", "HandPose");
 }

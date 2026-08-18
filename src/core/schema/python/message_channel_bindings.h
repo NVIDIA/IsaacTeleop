@@ -63,23 +63,8 @@ inline void bind_message_channel(py::module& m)
                  }),
              py::arg("data") = std::vector<Serialized<MessageChannelMessages>>{},
              "Encode a batch of messages. Omit `data` for an empty batch.")
-        .def_property_readonly("data",
-                               [](const Serialized<MessageChannelMessagesTracked>& self)
-                               {
-                                   // FlatBuffers omits an empty vector rather than encoding a
-                                   // zero-length one, so an absent field is an empty batch.
-                                   std::vector<Serialized<MessageChannelMessages>> messages;
-                                   const auto* encoded = payload(self);
-                                   if (encoded != nullptr)
-                                   {
-                                       messages.reserve(encoded->size());
-                                       for (const auto* message : *encoded)
-                                       {
-                                           messages.push_back(self.narrow(message));
-                                       }
-                                   }
-                                   return messages;
-                               })
+        .def_property_readonly("data", [](const Serialized<MessageChannelMessagesTracked>& self)
+                               { return narrow_vector(self, payload(self)); })
         .def("__repr__",
              [](const Serialized<MessageChannelMessagesTracked>& self)
              {

@@ -113,7 +113,7 @@ try
         // Update session (this calls update on all trackers).
         session->update();
 
-        // Print current data if available. tracked.data is null only in limp mode (body tracking
+        // Print current data if available. The handle is empty only in limp mode (body tracking
         // unsupported); a supported-but-untracked body still delivers data with valid=0/24 joints.
         const auto& tracked = tracker->get_body_pose(*session);
         if (const auto* body = tracked.get())

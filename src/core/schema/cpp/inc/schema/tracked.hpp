@@ -34,4 +34,17 @@ auto payload(const Serialized<T>& wrapper)
     return wrapper ? wrapper->data() : nullptr;
 }
 
+/*!
+ * @brief The `data` field as a handle sharing the wrapper's buffer, empty when there is none.
+ *
+ * What a consumer that republishes the payload wants: narrowing re-points into the bytes
+ * already owned rather than allocating a second buffer, and an absent `data` lands on an
+ * empty handle without a branch at the call site.
+ */
+template <typename T>
+auto narrow_payload(const Serialized<T>& wrapper)
+{
+    return wrapper.narrow(payload(wrapper));
+}
+
 } // namespace core

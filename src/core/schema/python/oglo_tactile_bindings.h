@@ -44,46 +44,25 @@ inline void bind_oglo_tactile(py::module& m)
              py::arg("seq") = 0, py::arg("device_time_us") = 0, py::arg("taxels") = std::vector<uint16_t>{},
              py::arg("accel_x") = 0, py::arg("accel_y") = 0, py::arg("accel_z") = 0, py::arg("gyro_x") = 0,
              py::arg("gyro_y") = 0, py::arg("gyro_z") = 0, "Encode a tactile glove sample.")
+        .def_property_readonly("seq", field(&OgloGloveSample::seq))
+        .def_property_readonly("device_time_us", field(&OgloGloveSample::device_time_us))
         .def_property_readonly(
-            "seq", [](const Serialized<OgloGloveSample>& self) -> uint32_t { return self ? self->seq() : 0; })
-        .def_property_readonly("device_time_us",
-                               [](const Serialized<OgloGloveSample>& self) -> uint32_t
-                               { return self ? self->device_time_us() : 0; })
-        .def_property_readonly(
-            "taxels",
-            [](const Serialized<OgloGloveSample>& self)
-            {
-                // A FlatBuffers vector field is omitted when empty, so an absent field is an
-                // empty reading rather than missing data.
-                const auto* taxels = self ? self->taxels() : nullptr;
-                return taxels != nullptr ? std::vector<uint16_t>(taxels->begin(), taxels->end()) :
-                                           std::vector<uint16_t>{};
-            },
-            "80 raw 12-bit taxels (0..4095) in finger,row,col order")
-        .def_property_readonly(
-            "accel_x", [](const Serialized<OgloGloveSample>& self) -> int16_t { return self ? self->accel_x() : 0; })
-        .def_property_readonly(
-            "accel_y", [](const Serialized<OgloGloveSample>& self) -> int16_t { return self ? self->accel_y() : 0; })
-        .def_property_readonly(
-            "accel_z", [](const Serialized<OgloGloveSample>& self) -> int16_t { return self ? self->accel_z() : 0; })
-        .def_property_readonly(
-            "gyro_x", [](const Serialized<OgloGloveSample>& self) -> int16_t { return self ? self->gyro_x() : 0; })
-        .def_property_readonly(
-            "gyro_y", [](const Serialized<OgloGloveSample>& self) -> int16_t { return self ? self->gyro_y() : 0; })
-        .def_property_readonly(
-            "gyro_z", [](const Serialized<OgloGloveSample>& self) -> int16_t { return self ? self->gyro_z() : 0; })
-        .def("__repr__",
-             [](const Serialized<OgloGloveSample>& self)
-             {
-                 if (!self)
-                 {
-                     return std::string("OgloGloveSample(<empty>)");
-                 }
-                 const auto* taxels = self->taxels();
-                 return "OgloGloveSample(seq=" + std::to_string(self->seq()) +
-                        ", device_time_us=" + std::to_string(self->device_time_us()) +
-                        ", taxels=" + std::to_string(taxels != nullptr ? taxels->size() : 0) + ")";
-             });
+            "taxels", vector_field(&OgloGloveSample::taxels), "80 raw 12-bit taxels (0..4095) in finger,row,col order")
+        .def_property_readonly("accel_x", field(&OgloGloveSample::accel_x))
+        .def_property_readonly("accel_y", field(&OgloGloveSample::accel_y))
+        .def_property_readonly("accel_z", field(&OgloGloveSample::accel_z))
+        .def_property_readonly("gyro_x", field(&OgloGloveSample::gyro_x))
+        .def_property_readonly("gyro_y", field(&OgloGloveSample::gyro_y))
+        .def_property_readonly("gyro_z", field(&OgloGloveSample::gyro_z))
+        .def("__repr__", view_repr<OgloGloveSample>(
+                             "OgloGloveSample",
+                             [](const OgloGloveSample& self)
+                             {
+                                 const auto* taxels = self.taxels();
+                                 return "OgloGloveSample(seq=" + std::to_string(self.seq()) +
+                                        ", device_time_us=" + std::to_string(self.device_time_us()) +
+                                        ", taxels=" + std::to_string(taxels != nullptr ? taxels->size() : 0) + ")";
+                             }));
 
     bind_record<OgloGloveSampleRecord, OgloGloveSample>(m, "OgloGloveSampleRecord", "OgloGloveSample");
 }

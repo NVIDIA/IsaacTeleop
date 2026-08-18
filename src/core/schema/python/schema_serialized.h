@@ -50,6 +50,80 @@ py::class_<Serialized<T>> serialized_class(py::module& m, const char* name, cons
 }
 
 /*!
+ * @brief Reads `getter` through the handle, answering the field's zero value on an empty one.
+ *
+ * Covers scalars, enums and bools, and the nested struct fields whose accessor returns a
+ * pointer (`R{}` is null there, which pybind hands to Python as None -- pair those with
+ * `py::return_value_policy::reference_internal`, since the struct lives in this buffer).
+ *
+ * Writing the guard once is the point: what an empty view reads as is one decision rather
+ * than one per field. Per `serialized_class` above, that case does not arise in practice.
+ */
+template <typename T, typename R>
+auto field(R (T::*getter)() const)
+{
+    return [getter](const Serialized<T>& self) -> R { return self ? (self.get()->*getter)() : R{}; };
+}
+
+//! `field()` for a string field, which reads as "" rather than as None when absent.
+template <typename T>
+auto string_field(const flatbuffers::String* (T::*getter)() const)
+{
+    return [getter](const Serialized<T>& self)
+    {
+        const auto* value = self ? (self.get()->*getter)() : nullptr;
+        return value != nullptr ? value->str() : std::string{};
+    };
+}
+
+/*!
+ * @brief `field()` for a vector-of-scalars field, copied out into a `std::vector`.
+ *
+ * FlatBuffers omits an empty vector rather than encoding a zero-length one, so an absent
+ * field is an empty reading rather than missing data.
+ */
+template <typename T, typename E>
+auto vector_field(const flatbuffers::Vector<E>* (T::*getter)() const)
+{
+    return [getter](const Serialized<T>& self)
+    {
+        const auto* values = self ? (self.get()->*getter)() : nullptr;
+        return values != nullptr ? std::vector<E>(values->begin(), values->end()) : std::vector<E>{};
+    };
+}
+
+/*!
+ * @brief One handle per element of a vector-of-tables field, all sharing `self`'s buffer.
+ *
+ * The read-side counterpart to `to_native_vector()` below: narrowing rather than unpacking,
+ * so the elements cost a refcount bump each instead of an allocation. Absent reads as empty,
+ * for the reason given on `vector_field()`.
+ */
+template <typename T, typename U>
+std::vector<Serialized<U>> narrow_vector(const Serialized<T>& self,
+                                         const flatbuffers::Vector<flatbuffers::Offset<U>>* encoded)
+{
+    std::vector<Serialized<U>> handles;
+    if (encoded != nullptr)
+    {
+        handles.reserve(encoded->size());
+        for (const auto* item : *encoded)
+        {
+            handles.push_back(self.narrow(item));
+        }
+    }
+    return handles;
+}
+
+//! `__repr__` answering "<name>(<empty>)" for an empty handle, and deferring to `body`
+//! otherwise, so each table only has to describe the fields it wants to show.
+template <typename T, typename Body>
+auto view_repr(const char* name, Body body)
+{
+    return [name, body](const Serialized<T>& self) { return self ? body(*self) : std::string(name) + "(<empty>)"; };
+}
+
+/*!
  * @brief Converts handles into the native element vector a table's vector field takes.
  *
  * FlatBuffers cannot splice a finished buffer into another one, so a constructor composing
@@ -57,12 +131,12 @@ py::class_<Serialized<T>> serialized_class(py::module& m, const char* name, cons
  * A construction-time cost only -- the read path never unpacks.
  *
  * A vector field is the one place a null element is fatal: the generated `Pack` null-checks
- * an optional table field but dereferences every vector element unconditionally. `field`
- * names the vector in the message.
+ * an optional table field but dereferences every vector element unconditionally.
+ * `field_name` names the vector in the message.
  */
 template <typename DataT>
 std::vector<std::shared_ptr<typename DataT::NativeTableType>> to_native_vector(const std::vector<Serialized<DataT>>& handles,
-                                                                               const char* field)
+                                                                               const char* field_name)
 {
     std::vector<std::shared_ptr<typename DataT::NativeTableType>> natives;
     natives.reserve(handles.size());
@@ -70,7 +144,7 @@ std::vector<std::shared_ptr<typename DataT::NativeTableType>> to_native_vector(c
     {
         if (!handle)
         {
-            throw py::value_error(std::string(field) + ": entries must be non-empty");
+            throw py::value_error(std::string(field_name) + ": entries must be non-empty");
         }
         auto native = std::make_shared<typename DataT::NativeTableType>();
         handle->UnPackTo(native.get());
