@@ -173,9 +173,7 @@ jobs:
           --gcov-exclude "${BUILD_DIR}/CMakeFiles/.*/CompilerId.*/.*"
           --exclude-directories "${BUILD_DIR}/CMakeFiles"
           --filter "src/"
-          --exclude "src/.*/.*_tests/.*"
-          --exclude "src/.*/tests/.*"
-          --exclude "src/.*/python_tests/.*"
+          --exclude "tests/.*"
         )
 
         gcovr "${gcovr_args[@]}" --txt --output coverage/summary.txt --print-summary | tee coverage/totals.txt
@@ -223,10 +221,10 @@ jobs:
         mkdir -p viz-tests-pkg
         # Glob all viz_*_tests executables (covers viz_core_tests today, and
         # viz_layers_tests / viz_session_tests / viz_xr_tests as they ship).
-        find "${BUILD_DIR}/src/viz" -name 'viz_*_tests' -type f -executable \
+        find "${BUILD_DIR}/tests/cpp/viz" -name 'viz_*_tests' -type f -executable \
           -exec cp -v {} viz-tests-pkg/ \;
         if ! ls viz-tests-pkg/viz_*_tests >/dev/null 2>&1; then
-          echo "No viz test binaries found under ${BUILD_DIR}/src/viz/"
+          echo "No viz test binaries found under ${BUILD_DIR}/tests/cpp/viz/"
           exit 1
         fi
         tar -cvzf viz-tests.tar.gz -C viz-tests-pkg .
@@ -493,7 +491,7 @@ jobs:
                  --with pytest \
                  --with numpy \
                  --with cupy-cuda12x \
-                 pytest -v --tb=short src/viz/python_tests/
+                 pytest -v --tb=short tests/python/viz/
         }
         if ! run_pytest; then
           echo "::warning::viz_python GPU tests failed on first attempt; retrying after 5s"

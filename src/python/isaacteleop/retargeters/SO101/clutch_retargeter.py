@@ -174,7 +174,7 @@ def _mat_to_quat_xyzw(matrix: np.ndarray) -> np.ndarray:
 
     Branch-on-trace conversions are not eyeball-verifiable, so this is pinned numerically against
     an independent reference over random SO(3) in
-    ``retargeting_engine_tests/python/test_so101_retargeters.py``.
+    ``tests/python/core/retargeting_engine/test_so101_retargeters.py``.
     """
     m00, m01, m02 = matrix[0, 0], matrix[0, 1], matrix[0, 2]
     m10, m11, m12 = matrix[1, 0], matrix[1, 1], matrix[1, 2]

@@ -90,8 +90,10 @@ CMakeLists.txt            ← top level: adds deps/ and src/ subdirectories
       x.cpp               ← private implementation
       x.h                 ← private header
       z.cpp               ← (see include-ordering example above)
-    mod1_tests/ ...       ← test executable; links mod1::mod1 + deps (e.g. gtest)
-    mod2/ ...             ← another module (one CMake target per dir)
+    mod1/ ...             ← another module (one CMake target per dir)
+  tests/                  ← pytest + Catch2/CTest (see tests/AGENTS.md)
+    cpp/ ...              ← Catch2 executables; links src/ libs + deps
+    python/ ...           ← pytest suites; one pyproject.toml per leaf
 ```
 
 ## This repo's concrete conventions
