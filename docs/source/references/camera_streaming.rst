@@ -279,14 +279,12 @@ serving. Useful flags:
   ``https://<host>:48322/client/``. Only applies when this run starts the
   service; stop and restart the service to change hosting.
 
-When the viewer starts a CloudXR service it prints the client URL. If a service is
-already running, use the package CLI through the example venv::
+When the viewer starts a CloudXR service it prints the client URL. To inspect
+or stop an already-running service, activate the example venv (or any
+environment with ``isaacteleop``) and run::
 
-   ./camera_viz.sh py -m isaacteleop.cloudxr.service status
-   ./camera_viz.sh py -m isaacteleop.cloudxr.service stop
-
-Or run ``python -m isaacteleop.cloudxr.service …`` from any environment that
-already has ``isaacteleop`` installed.
+   python -m isaacteleop.cloudxr.service status
+   python -m isaacteleop.cloudxr.service stop
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
 
