@@ -56,6 +56,19 @@ esac
 SDK_FILE="CloudXR-${CXR_RUNTIME_SDK_VERSION}-Linux-${ARCH}-sdk.tar.gz"
 EXP_SDK_FILE="CloudXR-exp-${CXR_RUNTIME_SDK_VERSION}-Linux-${ARCH}-sdk.tar.gz"
 
+# Remote names on NGC, newest convention first. 6.3.0-rc4 renamed the published
+# tarballs to a "-external" infix; the payload is unchanged. Downloads are always
+# saved as $SDK_FILE / $EXP_SDK_FILE, which is what CMake and Dockerfile.runtime-ngc
+# expect on disk.
+SDK_REMOTE_FILES=(
+    "CloudXR-external-${CXR_RUNTIME_SDK_VERSION}-Linux-${ARCH}-sdk.tar.gz"
+    "$SDK_FILE"
+)
+EXP_SDK_REMOTE_FILES=(
+    "CloudXR-exp-external-${CXR_RUNTIME_SDK_VERSION}-Linux-${ARCH}-sdk.tar.gz"
+    "$EXP_SDK_FILE"
+)
+
 is_valid_sdk_bundle() {
     local dir="$1"
     [[ -f "$dir/$SDK_FILE" ]] || return 1
@@ -87,14 +100,10 @@ download_ngc_file() {
     local out_path="$2"
     local label="$3"
 
-    [[ -s "$out_path" ]] && return 0
-
-    echo -e "${YELLOW}Downloading ${label}...${NC}"
     local -a curl_args=(--fail --location --output "$out_path"
         --connect-timeout 10 --max-time 120
         --retry 3 --retry-delay 5)
     if ! curl "${curl_args[@]}" "$url"; then
-        echo -e "${RED}Error: Failed to download ${label}${NC}"
         rm -f "$out_path"
         return 1
     fi
@@ -103,6 +112,29 @@ download_ngc_file() {
         rm -f "$out_path"
         return 1
     fi
+}
+
+# Try each remote name in turn; the first that resolves wins.
+download_ngc_first_match() {
+    local base="$1"
+    local out_path="$2"
+    local label="$3"
+    shift 3
+    local -a remote_files=("$@")
+
+    [[ -s "$out_path" ]] && return 0
+
+    local remote
+    for remote in "${remote_files[@]}"; do
+        echo -e "${YELLOW}Downloading ${label} (${remote})...${NC}"
+        if download_ngc_file "${base}${remote}" "$out_path" "$label"; then
+            return 0
+        fi
+    done
+
+    echo -e "${RED}Error: Failed to download ${label}${NC}"
+    echo -e "${RED}Tried: ${remote_files[*]}${NC}"
+    return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -127,15 +159,17 @@ install_from_public_ngc() {
     mkdir -p "$CXR_DEPLOYMENT_DIR"
 
     local base="https://api.ngc.nvidia.com/v2/resources/org/nvidia/${resource}/${CXR_RUNTIME_SDK_VERSION}/files?redirect=true&path="
-    download_ngc_file \
-        "${base}${SDK_FILE}" \
+    download_ngc_first_match \
+        "$base" \
         "$CXR_DEPLOYMENT_DIR/$SDK_FILE" \
-        "CloudXR Runtime SDK" || return 1
+        "CloudXR Runtime SDK" \
+        "${SDK_REMOTE_FILES[@]}" || return 1
     if [[ "${CXR_DOWNLOAD_EXP:-0}" == "1" ]]; then
-        download_ngc_file \
-            "${base}${EXP_SDK_FILE}" \
+        download_ngc_first_match \
+            "$base" \
             "$CXR_DEPLOYMENT_DIR/$EXP_SDK_FILE" \
-            "CloudXR Experimental Runtime SDK" || return 1
+            "CloudXR Experimental Runtime SDK" \
+            "${EXP_SDK_REMOTE_FILES[@]}" || return 1
     fi
 
     echo -e "${GREEN}✓ CloudXR Runtime SDK installed successfully${NC}"
