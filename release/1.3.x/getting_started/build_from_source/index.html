@@ -737,13 +737,13 @@ uv<span class="w"> </span>venv<span class="w"> </span>--python<span class="o">=<
 <p>Then pass <code class="docutils literal notranslate"><span class="pre">--find-links=/tmp/nlopt-wheels/</span></code> when installing so the locally-built wheel is
 used instead of attempting a PyPI download:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># pip</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span><span class="se">\</span>
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaacteleop[retargeters,cloudxr,ui]"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--find-links<span class="o">=</span>/tmp/nlopt-wheels/<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--no-index<span class="w"> </span>--force-reinstall
 
 <span class="c1"># uv pip</span>
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span><span class="se">\</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaacteleop[retargeters,cloudxr,ui]"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--find-links<span class="o">=</span>/tmp/nlopt-wheels/<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--reinstall
@@ -752,11 +752,11 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --no-index to use only wheels in ./install/wheels/;</span>
 <span class="c1"># Pass --force-reinstall to replace an existing install.</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaacteleop[retargeters,cloudxr,ui]"</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --reinstall to replace an existing install.</span>
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaacteleop[retargeters,cloudxr,ui]"</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
 </pre></div>
 </div>
 <div class="toctree-wrapper compound">
@@ -909,7 +909,7 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

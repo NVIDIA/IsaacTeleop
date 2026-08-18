@@ -511,7 +511,7 @@ a headless run, so do both ahead of time; the service outlives each script you r
 <p class="admonition-title">Note</p>
 <p>The <code class="docutils literal notranslate"><span class="pre">examples</span></code> package resolves only from that root. Running these commands from an Isaac
 Teleop checkout or any other directory fails with:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="ne">ModuleNotFoundError</span><span class="p">:</span> <span class="n">No</span> <span class="n">module</span> <span class="n">named</span> <span class="s1">&#39;examples.isaac_teleop_to_so101&#39;</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="ne">ModuleNotFoundError</span><span class="p">:</span> <span class="n">No</span> <span class="n">module</span> <span class="n">named</span> <span class="s1">'examples.isaac_teleop_to_so101'</span>
 </pre></div>
 </div>
 <p>If you hit this, <code class="docutils literal notranslate"><span class="pre">cd</span></code> into your LeRobot clone and re-run.</p>
@@ -553,9 +553,9 @@ gripper. Release the grip to pause.</p>
 <span class="w">    </span>--robot.port<span class="o">=</span>/dev/ttyACM0<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--robot.id<span class="o">=</span>so101_follower_arm<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--teleop.type<span class="o">=</span>xr_controller<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--robot.cameras<span class="o">=</span><span class="s2">&quot;{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dataset.repo_id<span class="o">=</span><span class="k">$(</span>hf<span class="w"> </span>auth<span class="w"> </span>whoami<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.user&#39;</span><span class="k">)</span>/my_test_dataset<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dataset.single_task<span class="o">=</span><span class="s2">&quot;Pick up vial from rack on the left side&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--robot.cameras<span class="o">=</span><span class="s2">"{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset.repo_id<span class="o">=</span><span class="k">$(</span>hf<span class="w"> </span>auth<span class="w"> </span>whoami<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.user'</span><span class="k">)</span>/my_test_dataset<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset.single_task<span class="o">=</span><span class="s2">"Pick up vial from rack on the left side"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.num_episodes<span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.episode_time_s<span class="o">=</span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.reset_time_s<span class="o">=</span><span class="m">5</span>
@@ -630,9 +630,9 @@ after CloudXR is up; <code class="docutils literal notranslate"><span class="pre
 <span class="w">    </span>--teleop.port<span class="o">=</span>/dev/ttyACM1<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--teleop.id<span class="o">=</span>so101_leader_arm<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--launch_plugin<span class="o">=</span>/path/to/IsaacTeleop/install/plugins/so101_leader/so101_leader_plugin<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--robot.cameras<span class="o">=</span><span class="s2">&quot;{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dataset.repo_id<span class="o">=</span><span class="k">$(</span>hf<span class="w"> </span>auth<span class="w"> </span>whoami<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.user&#39;</span><span class="k">)</span>/my_test_dataset<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--dataset.single_task<span class="o">=</span><span class="s2">&quot;Pick up vial from rack on the left side&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--robot.cameras<span class="o">=</span><span class="s2">"{ front: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30}}"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset.repo_id<span class="o">=</span><span class="k">$(</span>hf<span class="w"> </span>auth<span class="w"> </span>whoami<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">'.user'</span><span class="k">)</span>/my_test_dataset<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset.single_task<span class="o">=</span><span class="s2">"Pick up vial from rack on the left side"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.num_episodes<span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.episode_time_s<span class="o">=</span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--dataset.reset_time_s<span class="o">=</span><span class="m">5</span>
@@ -815,7 +815,7 @@ finishes (unless <code class="docutils literal notranslate"><span class="pre">--
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

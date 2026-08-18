@@ -528,7 +528,7 @@ running OpenXR runtime (e.g. CloudXR).</p></td>
 <span class="n">session</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
 <span class="n">layer_cfg</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">QuadLayerConfig</span><span class="p">()</span>
-<span class="n">layer_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;cam&quot;</span>
+<span class="n">layer_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"cam"</span>
 <span class="n">layer_cfg</span><span class="o">.</span><span class="n">resolution</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">Resolution</span><span class="p">(</span><span class="mi">1024</span><span class="p">,</span> <span class="mi">1024</span><span class="p">)</span>
 <span class="n">layer</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">add_quad_layer</span><span class="p">(</span><span class="n">layer_cfg</span><span class="p">)</span>
 
@@ -752,13 +752,13 @@ extensions automatically), then pass the handles through:</p>
 
 <span class="n">cfg</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSessionConfig</span><span class="p">()</span>
 <span class="n">cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">DisplayMode</span><span class="o">.</span><span class="n">kXr</span>
-<span class="c1"># Aggregate the XR extensions downstream trackers need so they&#39;re present</span>
+<span class="c1"># Aggregate the XR extensions downstream trackers need so they're present</span>
 <span class="c1"># on the XrInstance Televiz is about to create.</span>
 <span class="n">cfg</span><span class="o">.</span><span class="n">required_extensions</span> <span class="o">=</span> <span class="n">DeviceIOSession</span><span class="o">.</span><span class="n">get_required_extensions</span><span class="p">(</span><span class="n">trackers</span><span class="p">)</span>
 <span class="n">viz_session</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">oxr_handles</span><span class="o">=</span><span class="n">OpenXRSessionHandles</span><span class="p">(</span><span class="o">*</span><span class="n">viz_session</span><span class="o">.</span><span class="n">get_oxr_handles</span><span class="p">()),</span>
 <span class="p">)</span>
@@ -1033,7 +1033,7 @@ output locations.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

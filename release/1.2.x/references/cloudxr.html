@@ -494,7 +494,7 @@ directly to a constructor argument.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">CloudXRLauncher</span><span class="p">:</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">install_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;~/.cloudxr&quot;</span><span class="p">,</span>
+        <span class="n">install_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"~/.cloudxr"</span><span class="p">,</span>
         <span class="n">env_config</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">accept_eula</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">setup_oob</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
@@ -637,7 +637,7 @@ the runtime:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.cloudxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">CloudXRLauncher</span>
 
 <span class="k">with</span> <span class="n">CloudXRLauncher</span><span class="p">(</span><span class="n">accept_eula</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">launcher</span><span class="p">:</span>
-    <span class="n">run_teleop_session</span><span class="p">()</span>  <span class="c1"># your app&#39;s main work</span>
+    <span class="n">run_teleop_session</span><span class="p">()</span>  <span class="c1"># your app's main work</span>
 </pre></div>
 </div>
 <p>On exit (normal or exception) the runtime subprocess and WSS proxy are
@@ -655,7 +655,7 @@ internally:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.cloudxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">CloudXRLauncher</span>
 
 <span class="n">launcher</span> <span class="o">=</span> <span class="n">CloudXRLauncher</span><span class="p">(</span>
-    <span class="n">install_dir</span><span class="o">=</span><span class="s2">&quot;~/.cloudxr&quot;</span><span class="p">,</span>
+    <span class="n">install_dir</span><span class="o">=</span><span class="s2">"~/.cloudxr"</span><span class="p">,</span>
     <span class="n">env_config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="n">accept_eula</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span>
@@ -1053,7 +1053,7 @@ details to <code class="docutils literal notranslate"><span class="pre">logs/wss
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

@@ -472,8 +472,8 @@ The reference implementation is the <strong>generic 3-axis foot pedal</strong>:<
 serialization in the plugin and deserialization in the tracker; pusher and reader must agree
 on the same schema ahead of time (the schema is not sent over the wire).</p>
 <p>Reference schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/pedals.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/pedals.fbs</a></p>
-<div class="code-100col highlight-idl notranslate"><div class="highlight"><pre><span></span>include<span class="w"> </span><span class="s2">&quot;point.fbs&quot;</span>;
-include<span class="w"> </span><span class="s2">&quot;timestamp.fbs&quot;</span>;
+<div class="code-100col highlight-idl notranslate"><div class="highlight"><pre><span></span>include<span class="w"> </span><span class="s2">"point.fbs"</span>;
+include<span class="w"> </span><span class="s2">"timestamp.fbs"</span>;
 
 namespace<span class="w"> </span>core;
 
@@ -828,7 +828,7 @@ trackers during the update loop.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

@@ -455,16 +455,16 @@ manage them directly:</p>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.examples</span><span class="w"> </span><span class="kn">import</span> <span class="n">GripperRetargeter</span>
 
 <span class="c1"># Create source and build pipeline</span>
-<span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;controllers&quot;</span><span class="p">)</span>
-<span class="n">gripper</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;gripper&quot;</span><span class="p">)</span>
+<span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"controllers"</span><span class="p">)</span>
+<span class="n">gripper</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"gripper"</span><span class="p">)</span>
 <span class="n">pipeline</span> <span class="o">=</span> <span class="n">gripper</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
-    <span class="s2">&quot;controller_left&quot;</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;controller_left&quot;</span><span class="p">),</span>
-    <span class="s2">&quot;controller_right&quot;</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;controller_right&quot;</span><span class="p">)</span>
+    <span class="s2">"controller_left"</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"controller_left"</span><span class="p">),</span>
+    <span class="s2">"controller_right"</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"controller_right"</span><span class="p">)</span>
 <span class="p">})</span>
 
 <span class="c1"># Configure session</span>
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyTeleopApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyTeleopApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">trackers</span><span class="o">=</span><span class="p">[],</span>  <span class="c1"># Auto-discovered</span>
 <span class="p">)</span>
@@ -474,8 +474,8 @@ manage them directly:</p>
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
         <span class="c1"># Access outputs</span>
-        <span class="n">left</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;gripper_left&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">right</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;gripper_right&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">left</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"gripper_left"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">right</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"gripper_right"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
 </pre></div>
 </div>
 </section>
@@ -521,7 +521,7 @@ argument is a <code class="docutils literal notranslate"><span class="pre">uint6
     <span class="n">instance_handle</span><span class="p">,</span> <span class="n">session_handle</span><span class="p">,</span> <span class="n">space_handle</span><span class="p">,</span> <span class="n">proc_addr</span>
 <span class="p">)</span>
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">oxr_handles</span><span class="o">=</span><span class="n">handles</span><span class="p">,</span>  <span class="c1"># Skip internal OpenXR session creation</span>
 <span class="p">)</span>
@@ -578,9 +578,9 @@ matching the historical ownership behavior.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.teleop_session_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetargetingExecutionConfig</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
-    <span class="n">retargeting_execution</span><span class="o">=</span><span class="n">RetargetingExecutionConfig</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">&quot;pipelined&quot;</span><span class="p">),</span>
+    <span class="n">retargeting_execution</span><span class="o">=</span><span class="n">RetargetingExecutionConfig</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s2">"pipelined"</span><span class="p">),</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -609,10 +609,10 @@ pipelined mode, but public session state such as <code class="docutils literal n
 <span class="p">)</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">retargeting_execution</span><span class="o">=</span><span class="n">RetargetingExecutionConfig</span><span class="p">(</span>
-        <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;pipelined&quot;</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="s2">"pipelined"</span><span class="p">,</span>
         <span class="n">pacing</span><span class="o">=</span><span class="n">DeadlinePacingConfig</span><span class="p">(</span><span class="n">safety_margin_s</span><span class="o">=</span><span class="mf">0.015</span><span class="p">),</span>
     <span class="p">),</span>
 <span class="p">)</span>
@@ -706,11 +706,11 @@ up faster.</p></li>
 <h3>PluginConfig<a class="headerlink" href="#pluginconfig" title="Link to this heading">#</a></h3>
 <p>Configure plugins:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">PluginConfig</span><span class="p">(</span>
-    <span class="n">plugin_name</span><span class="o">=</span><span class="s2">&quot;controller_synthetic_hands&quot;</span><span class="p">,</span>
-    <span class="n">plugin_root_id</span><span class="o">=</span><span class="s2">&quot;synthetic_hands&quot;</span><span class="p">,</span>
-    <span class="n">search_paths</span><span class="o">=</span><span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;/path/to/plugins&quot;</span><span class="p">)],</span>
+    <span class="n">plugin_name</span><span class="o">=</span><span class="s2">"controller_synthetic_hands"</span><span class="p">,</span>
+    <span class="n">plugin_root_id</span><span class="o">=</span><span class="s2">"synthetic_hands"</span><span class="p">,</span>
+    <span class="n">search_paths</span><span class="o">=</span><span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="s2">"/path/to/plugins"</span><span class="p">)],</span>
     <span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="n">plugin_args</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;--arg1=val1&quot;</span><span class="p">,</span> <span class="s2">&quot;--arg2=val2&quot;</span><span class="p">],</span>
+    <span class="n">plugin_args</span><span class="o">=</span><span class="p">[</span><span class="s2">"--arg1=val1"</span><span class="p">,</span> <span class="s2">"--arg2=val2"</span><span class="p">],</span>
 <span class="p">)</span>
 </pre></div>
 </div>
@@ -817,7 +817,7 @@ of input sources.</p></li>
 <span class="n">required_extensions</span> <span class="o">=</span> <span class="n">deviceio</span><span class="o">.</span><span class="n">DeviceIOSession</span><span class="o">.</span><span class="n">get_required_extensions</span><span class="p">([</span><span class="n">controller_tracker</span><span class="p">])</span>
 
 <span class="c1"># Create OpenXR session</span>
-<span class="n">oxr_session</span> <span class="o">=</span> <span class="n">oxr</span><span class="o">.</span><span class="n">OpenXRSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span> <span class="n">required_extensions</span><span class="p">)</span>
+<span class="n">oxr_session</span> <span class="o">=</span> <span class="n">oxr</span><span class="o">.</span><span class="n">OpenXRSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"MyApp"</span><span class="p">,</span> <span class="n">required_extensions</span><span class="p">)</span>
 <span class="n">oxr_session</span><span class="o">.</span><span class="fm">__enter__</span><span class="p">()</span>
 
 <span class="c1"># Create DeviceIO session</span>
@@ -830,8 +830,8 @@ of input sources.</p></li>
 <span class="n">plugin_context</span> <span class="o">=</span> <span class="n">plugin_manager</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
 
 <span class="c1"># Setup pipeline</span>
-<span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;controllers&quot;</span><span class="p">)</span>
-<span class="n">gripper</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;gripper&quot;</span><span class="p">)</span>
+<span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"controllers"</span><span class="p">)</span>
+<span class="n">gripper</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"gripper"</span><span class="p">)</span>
 <span class="n">pipeline</span> <span class="o">=</span> <span class="n">gripper</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span><span class="o">...</span><span class="p">})</span>
 
 <span class="c1"># Main loop</span>
@@ -841,9 +841,9 @@ of input sources.</p></li>
     <span class="n">left_controller</span> <span class="o">=</span> <span class="n">controller_tracker</span><span class="o">.</span><span class="n">get_left_controller</span><span class="p">(</span><span class="n">deviceio_session</span><span class="p">)</span>
     <span class="n">right_controller</span> <span class="o">=</span> <span class="n">controller_tracker</span><span class="o">.</span><span class="n">get_right_controller</span><span class="p">(</span><span class="n">deviceio_session</span><span class="p">)</span>
     <span class="n">inputs</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">&quot;controllers&quot;</span><span class="p">:</span> <span class="p">{</span>
-            <span class="s2">&quot;deviceio_controller_left&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">left_controller</span><span class="p">],</span>
-            <span class="s2">&quot;deviceio_controller_right&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">right_controller</span><span class="p">]</span>
+        <span class="s2">"controllers"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"deviceio_controller_left"</span><span class="p">:</span> <span class="p">[</span><span class="n">left_controller</span><span class="p">],</span>
+            <span class="s2">"deviceio_controller_right"</span><span class="p">:</span> <span class="p">[</span><span class="n">right_controller</span><span class="p">]</span>
         <span class="p">}</span>
     <span class="p">}</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">pipeline</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span>
@@ -853,7 +853,7 @@ of input sources.</p></li>
 <p><strong>After (declarative):</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Configuration</span>
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">trackers</span><span class="o">=</span><span class="p">[</span><span class="n">controller_tracker</span><span class="p">],</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
 <span class="p">)</span>
@@ -887,13 +887,13 @@ of input sources.</p></li>
         <span class="n">result</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
 
         <span class="c1"># Custom logic</span>
-        <span class="n">left_gripper</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">&quot;gripper_left&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">left_gripper</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"gripper_left"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">if</span> <span class="n">left_gripper</span> <span class="o">&gt;</span> <span class="mf">0.5</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Left gripper activated!&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"Left gripper activated!"</span><span class="p">)</span>
 
         <span class="c1"># Frame timing</span>
         <span class="k">if</span> <span class="n">session</span><span class="o">.</span><span class="n">frame_count</span> <span class="o">%</span> <span class="mi">60</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Running at </span><span class="si">{</span><span class="mi">60</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">session</span><span class="o">.</span><span class="n">get_elapsed_time</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> FPS&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Running at </span><span class="si">{</span><span class="mi">60</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">session</span><span class="o">.</span><span class="n">get_elapsed_time</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> FPS"</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
@@ -1061,7 +1061,7 @@ of input sources.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

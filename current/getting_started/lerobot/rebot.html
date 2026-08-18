@@ -671,7 +671,7 @@ systemctl<span class="w"> </span>--no-pager<span class="w"> </span>status<span c
 <p>A healthy oneshot reports <code class="docutils literal notranslate"><span class="pre">active</span> <span class="pre">(exited)</span></code>. Skipping the first line — easy to do when updating an
 already-installed unit — gets you a unit that fails on every boot and a bus that never comes up:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>set_can_pinmux.py (code=exited, status=2)
-python3: can&#39;t open file &#39;/opt/rebot/set_can_pinmux.py&#39;: [Errno 2] No such file or directory
+python3: can't open file '/opt/rebot/set_can_pinmux.py': [Errno 2] No such file or directory
 </pre></div>
 </div>
 <p>Install the script and <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">can0-rebot.service</span></code>.</p>
@@ -707,7 +707,7 @@ plus a troubleshooting tree covering the failure modes that actually bite (loopb
 motors answer, <code class="docutils literal notranslate"><span class="pre">MUX</span> <span class="pre">UNCLAIMED</span></code> pinmux red herrings, wedged TX FIFOs). Paste this into Claude Code,
 or any agent that can fetch a URL, from the Orin itself — the prompt is self-contained, so the agent
 does not need a checkout of this repository to start:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Bring up the reBot B601-RS arm on this Jetson AGX Orin using the Orin&#39;s built-in
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Bring up the reBot B601-RS arm on this Jetson AGX Orin using the Orin's built-in
 CAN (mttcan) and an SN65HVD230 transceiver — no USB-CAN adapter.
 
 Follow the procedure at
@@ -918,7 +918,7 @@ arms; the buses never see each other, so each keeps its own 1–7.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

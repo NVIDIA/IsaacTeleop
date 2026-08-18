@@ -497,7 +497,7 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 <p>The installer drops <code class="docutils literal notranslate"><span class="pre">uv</span></code> in <code class="docutils literal notranslate"><span class="pre">~/.local/bin</span></code>, which is not on <code class="docutils literal notranslate"><span class="pre">PATH</span></code> in most shells. Add it for
 the current shell — and to your <code class="docutils literal notranslate"><span class="pre">~/.bashrc</span></code> to make it stick — or every <code class="docutils literal notranslate"><span class="pre">uv</span></code> command below
 fails with <code class="docutils literal notranslate"><span class="pre">uv:</span> <span class="pre">command</span> <span class="pre">not</span> <span class="pre">found</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.local/bin:</span><span class="nv">$PATH</span><span class="s2">&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/.local/bin:</span><span class="nv">$PATH</span><span class="s2">"</span>
 </pre></div>
 </div>
 <div class="admonition note">
@@ -740,11 +740,11 @@ Using <code class="docutils literal notranslate"><span class="pre">pip</span></c
 based on the Python version.  Note that <code class="docutils literal notranslate"><span class="pre">pip</span></code> and <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code> has slightly different options.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --no-index to use only wheels in ./install/wheels/;</span>
 <span class="c1"># Pass --force-reinstall to replace an existing install.</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaacteleop[retargeters,cloudxr,ui]"</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --reinstall to replace an existing install.</span>
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;isaacteleop[retargeters,cloudxr,ui]&quot;</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaacteleop[retargeters,cloudxr,ui]"</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
 </pre></div>
 </div>
 <div class="toctree-wrapper compound">
@@ -897,7 +897,7 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

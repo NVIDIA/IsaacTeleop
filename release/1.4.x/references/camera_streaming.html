@@ -788,7 +788,7 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:</p>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cam</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v4l2</span><span class="w">                </span><span class="c1"># v4l2 | oakd | zed | video | synthetic</span>
-<span class="w">    </span><span class="nt">width</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2560</span><span class="w">               </span><span class="c1"># video: optional — defaults to the file&#39;s size</span>
+<span class="w">    </span><span class="nt">width</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2560</span><span class="w">               </span><span class="c1"># video: optional — defaults to the file's size</span>
 <span class="w">    </span><span class="nt">height</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">720</span><span class="w">               </span><span class="c1"># (required when source: rtp)</span>
 <span class="w">    </span><span class="nt">fps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
 <span class="w">    </span><span class="nt">stereo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">             </span><span class="c1"># zed / video / synthetic — per-eye capture + SBS in XR</span>
@@ -883,7 +883,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 <span class="n">viz_session</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">oxr_handles</span><span class="o">=</span><span class="n">OpenXRSessionHandles</span><span class="p">(</span><span class="o">*</span><span class="n">viz_session</span><span class="o">.</span><span class="n">get_oxr_handles</span><span class="p">()),</span>
 <span class="p">)</span>
@@ -1042,7 +1042,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 16, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>
