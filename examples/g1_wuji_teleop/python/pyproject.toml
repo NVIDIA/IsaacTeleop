@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "g1-wuji-teleop-example"
+version = "0.0.0"
+description = "G1-Wuji AVP/VR + MANUS teleop example"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "isaacteleop[cloudxr,retargeters]",
+    "numpy>=1.23.0",
+    "PyYAML>=6.0",
+]

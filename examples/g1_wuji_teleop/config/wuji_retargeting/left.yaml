@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# G1-Wuji MANUS retargeting config backed by the official wuji-retargeting package.
+
+optimizer:
+  type: "AdaptiveOptimizerAnalytical"
+  urdf_path: "../../assets/wuji_hand/urdf/left.urdf"
+
+retarget:
+  huber_delta: 2.0
+  huber_delta_dir: 0.5
+  norm_delta: 0.04
+
+  w_pos: 1.0
+  w_dir: 2.0
+  scaling: 1.0
+  project_tip_dir: false
+
+  w_full_hand: 1.0
+  segment_scaling:
+    thumb: [0.98, 1.0, 1.0]
+    index: [1.1, 0.989, 1.03]
+    middle: [1.10, 0.96, 0.96]
+    ring: [1.1, 0.97, 0.99]
+    pinky: [1.105, 1.15, 1.15]
+
+  pinch_thresholds:
+    index: { d1: 2.0, d2: 4.0 }
+    middle: { d1: 2.0, d2: 4.0 }
+    ring: { d1: 2.0, d2: 4.0 }
+    pinky: { d1: 2.0, d2: 4.0 }
+
+  mediapipe_rotation:
+    x: 0.0
+    y: 0.0
+    z: 15.0
+
+  lp_alpha: 0.2

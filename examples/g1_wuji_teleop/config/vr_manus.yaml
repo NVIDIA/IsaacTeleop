@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+session:
+  app_name: G1WujiVrManusTeleop
+
+manus_plugin:
+  plugin_name: manus_hand_plugin
+  plugin_root_id: manus
+  search_paths:
+    - ../../../install/plugins
+  args: []
+
+robot:
+  variant: g1_wuji
+  initial_world_position: [2.0, 2.0, 0.8]
+  initial_world_orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+
+  avp_frame_binding:
+    enabled: true
+    calibration_window_s: 3.0
+    robot_reference_body: torso_link
+    robot_reference_offset_pos: [0.0077774, 0.0000210, 0.3836842]
+    robot_reference_offset_quat_xyzw: [0.0, 0.0, 0.0, 1.0]
+    head_forward_axis_isaac: [0.0, 1.0, 0.0]
+
+  head_view_camera:
+    enabled: true
+    activate_on_calibration: true
+    prim_path: /World/TeleopTargets/HeadViewCamera
+    head_link_prim_path: /World/G1Wuji/torso_link/head_link
+    translation_offset_m: [0.05, 0.0, 0.3836842]
+    orientation_offset_rpy_deg: [70.0, 0.0, -90.0]
+    horizontal_aperture_mm: 20.955
+    focal_length_mm: 5.0
+    clipping_range_m: [0.01, 1000.0]
+
+  third_viewpoint:
+    relative_position_m: [0.0, -1.2, 0.55]
+
+avp:
+  ee_pose_source: controller
+  controller_pose_source: grip
+  left_controller_to_palm_pos: [-0.08, 0.0, -0.02]
+  left_controller_to_palm_quat_xyzw: [0.0, 0.0, 0.382683, 0.92388]
+  right_controller_to_palm_pos: [0.08, 0.0, -0.02]
+  right_controller_to_palm_quat_xyzw: [0.0, 0.0, -0.382683, 0.92388]
+
+retargeting:
+  backend: official_wuji
