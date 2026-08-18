@@ -67,16 +67,3 @@ set_target_properties(oglo_tactile_plugin PROPERTIES INSTALL_RPATH "$ORIGIN")
 
 install(TARGETS oglo_tactile_plugin RUNTIME DESTINATION plugins/oglo_tactile)
 install(FILES plugin.yaml README.md DESTINATION plugins/oglo_tactile)
-
-# ------------------------------------------------------------------------------
-# Parser unit test (dependency-free; validates the packed12 v5 wire decode
-# against the firmware's packing reference).
-# ------------------------------------------------------------------------------
-if(BUILD_TESTING)
-    add_executable(test_oglo_packet_parser
-        tests/test_oglo_packet_parser.cpp
-        oglo_packet_parser.cpp
-    )
-    target_include_directories(test_oglo_packet_parser PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-    add_test(NAME oglo_packet_parser COMMAND test_oglo_packet_parser)
-endif()

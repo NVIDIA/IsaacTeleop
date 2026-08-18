@@ -133,8 +133,8 @@ Tracks the HMD head pose via the OpenXR view space.
 - Record channels: ``head`` | MCAP schema: ``core.HeadPoseRecord``
 - Tests:
 
-  - :code-file:`src/core/schema_tests/cpp/test_head.cpp`
-  - :code-file:`src/core/schema_tests/python/test_head.py`
+  - :code-file:`tests/cpp/core/schema/test_head.cpp`
+  - :code-file:`tests/python/core/schema/test_head.py`
 
 - Examples:
 
@@ -153,8 +153,8 @@ Tracks articulated hand joints (26 joints per hand, following the OpenXR
 - Record channels: ``left_hand``, ``right_hand`` | MCAP schema: ``core.HandPoseRecord``
 - Tests:
 
-  - :code-file:`src/core/schema_tests/cpp/test_hand.cpp`
-  - :code-file:`src/core/schema_tests/python/test_hand.py`
+  - :code-file:`tests/cpp/core/schema/test_hand.cpp`
+  - :code-file:`tests/python/core/schema/test_hand.py`
   - :code-file:`examples/oxr/python/test_synthetic_hands.py`
 
 - Examples:
@@ -175,8 +175,8 @@ axis inputs. Uses standard OpenXR action bindings.
 - Record channels: ``left_controller``, ``right_controller`` | MCAP schema: ``core.ControllerSnapshotRecord``
 - Tests:
 
-  - :code-file:`src/core/schema_tests/cpp/test_controller.cpp`
-  - :code-file:`src/core/schema_tests/python/test_controller.py`
+  - :code-file:`tests/cpp/core/schema/test_controller.cpp`
+  - :code-file:`tests/python/core/schema/test_controller.py`
   - :code-file:`examples/oxr/python/test_controller_tracker.py`
 
 - Examples:
@@ -201,8 +201,8 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
 - Record channels: ``full_body`` | MCAP schema: ``core.FullBodyPoseRecord``
 - Tests:
 
-  - :code-file:`src/core/schema_tests/cpp/test_full_body.cpp`
-  - :code-file:`src/core/schema_tests/python/test_full_body.py`
+  - :code-file:`tests/cpp/core/schema/test_full_body.cpp`
+  - :code-file:`tests/python/core/schema/test_full_body.py`
   - :code-file:`examples/oxr/python/test_full_body_tracker.py`
 
 - Examples:
@@ -234,8 +234,8 @@ utility internally.
 - Record channels: ``oak``, ``oak_tracked`` | MCAP schema: ``core.FrameMetadataOakRecord``
 - Tests:
 
-  - :code-file:`src/core/schema_tests/cpp/test_oak.cpp`
-  - :code-file:`src/core/schema_tests/python/test_camera.py`
+  - :code-file:`tests/cpp/core/schema/test_oak.cpp`
+  - :code-file:`tests/python/core/schema/test_camera.py`
   - :code-file:`examples/oxr/python/test_oak_camera.py`
 
 - Examples:
@@ -255,8 +255,8 @@ utility internally.
 - Record channels: ``pedals`` | MCAP schema: ``core.Generic3AxisPedalOutputRecord``
 - Tests:
 
-  - :code-file:`src/core/schema_tests/cpp/test_pedals.cpp`
-  - :code-file:`src/core/schema_tests/python/test_pedals.py`
+  - :code-file:`tests/cpp/core/schema/test_pedals.cpp`
+  - :code-file:`tests/python/core/schema/test_pedals.py`
 
 - Examples:
 
