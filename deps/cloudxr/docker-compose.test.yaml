@@ -44,6 +44,10 @@ services:
       - XR_RUNTIME_JSON=/cloudxr-test/.cloudxr/openxr_cloudxr.json
       - CXR_PYTHON_GPU_TESTS
       - CXR_NATIVE_GPU_TESTS
+      # No client connects here, so anything that waits for an OpenXR system
+      # waits forever; without this a hang holds a self-hosted GPU runner to
+      # the job timeout instead of failing.
+      - CXR_GPU_TEST_TIMEOUT_SEC
       - EXPECTED_ISAACTELEOP_VERSION
     volumes:
       - openxr-volume:/cloudxr-test/:ro
@@ -78,7 +82,7 @@ services:
                 echo "Running: $$test_script"
                 echo "----------------------------------------"
 
-                if python "$$test_script"; then
+                if timeout "$${CXR_GPU_TEST_TIMEOUT_SEC:-300}" python "$$test_script"; then
                     echo "✅ PASSED: $$test_script"
                     PASSED=$((PASSED + 1))
                 else
@@ -103,7 +107,7 @@ services:
                 echo "Running: $$native_test"
                 echo "----------------------------------------"
 
-                if /app/$$native_test; then
+                if timeout "$${CXR_GPU_TEST_TIMEOUT_SEC:-300}" /app/$$native_test; then
                     echo "✅ PASSED: $$native_test"
                     PASSED=$((PASSED + 1))
                 else

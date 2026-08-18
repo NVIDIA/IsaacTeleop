@@ -157,9 +157,9 @@ void OpenXRSession::create_system()
             // (a missing one gives -51). No headset is attached to it.
             throw std::runtime_error(
                 "Failed to get OpenXR system: XR_ERROR_FORM_FACTOR_UNAVAILABLE (-35). "
-                "The OpenXR runtime is up but no headset is connected to it. "
-                "Connect the headset, check NV_DEVICE_PROFILE matches it, or pass "
-                "wait_for_system=true to block until it connects. "
+                "The OpenXR runtime is up but no headset is connected to it, and this "
+                "session asked for wait_for_system=false rather than waiting for one. "
+                "Connect the headset, or check NV_DEVICE_PROFILE matches it. "
                 "See docs/source/references/cloudxr.rst, Troubleshooting.");
         }
 
