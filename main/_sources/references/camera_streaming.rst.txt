@@ -362,6 +362,9 @@ Troubleshooting
   directory (``configs/``), not the directory you launched from.
 - **A source fails asking for CuPy / CUDA** — check ``nvidia-smi`` works and setup completed;
   all sources allocate their frame buffers on the GPU.
+- **No video on Orin.** When the CloudXR runtime runs on Jetson Orin, set
+  **Video Codec** to **H.264** in the CloudXR web client. See
+  :ref:`connect-xr-headset`.
 - **Black camera plane on Orin** — with the CloudXR experimental runtime on Orin, the default
   OpenXR compositor shows the camera plane but leaves its contents black. Under the camera's
   ``display.placements`` entry, set ``compositor: televiz`` (quads only). The same feed displays

@@ -19,11 +19,31 @@ examples. The instructions align with the project's CMake configuration and the 
 Prerequisites
 -------------
 
-- **CMake** 3.20 or higher
+- **CMake** 3.24 or higher (Ubuntu 22.04's apt ``cmake`` is 3.22 — install a newer one
+  from `Kitware's APT repository <https://apt.kitware.com/>`_ or with ``pip install cmake``)
 - **C++20** compatible compiler
-- **Python** 3.10, 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
+- **Python** 3.11, 3.12, or 3.13 (default 3.11; see ``ISAAC_TELEOP_PYTHON_VERSION`` in root ``CMakeLists.txt``)
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
+
+.. note::
+   **Optional — only needed to build the Televiz visualization module,** ``BUILD_VIZ``.
+   ``BUILD_VIZ`` is auto-detected: it defaults to ``ON`` when all three of the following are
+   found at configure time and to ``OFF`` otherwise, so a core-only source build still
+   configures on a machine without them. Watch the
+   ``-- BUILD_VIZ: <ON|OFF> (Vulkan=... CUDAToolkit=... glslang=...)`` configure line to see
+   which one is missing.
+
+   - **Vulkan headers + loader** — ``libvulkan-dev`` on Linux, the LunarG SDK on Windows.
+   - **CUDA Toolkit** (cudart at link time) — ``nvidia-cuda-toolkit`` or the official NVIDIA
+     installer.
+   - **glslangValidator** for compiling shaders to SPIR-V — ``glslang-tools`` on Linux,
+     ``brew install glslang`` on macOS; ships with the Vulkan SDK on Windows.
+
+   ``BUILD_VIZ=ON`` also pulls in GLFW, whose CMake uses ``pkg_check_modules()`` — install
+   ``pkg-config`` as well, or the configure fails before viz is reached. Most users do not
+   need any of this: ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz``
+   module. See `Other Build options`_ for the full option table.
 
 .. _one-time-setup:
 
@@ -121,9 +141,24 @@ From the project root:
 
 .. code-block:: bash
 
-   cmake -B build
-   cmake --build build --parallel
-   cmake --install build
+   cmake -B build                       # configure
+   cmake --build build --parallel       # build
+   cmake --install build                # install
+
+Add any other options as ``-D`` flags on the configure line, for example
+``cmake -B build -DCMAKE_BUILD_TYPE=Debug``.
+
+.. important::
+
+   The Python version is baked into a build directory's CMake cache and its build
+   venv, so ``ISAAC_TELEOP_PYTHON_VERSION`` cannot be changed on an existing tree —
+   configuring again with a different value fails with an explanatory error. Give
+   each version its own directory:
+
+   .. code-block:: bash
+
+      cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+      cmake --build build-py3.12 --parallel
 
 This will:
 
@@ -190,7 +225,7 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
      - ``ON``
    * - **Python version**
      - ``ISAAC_TELEOP_PYTHON_VERSION``
-     - ``3.11`` (3.10, 3.11, 3.12, or 3.13)
+     - ``3.11`` (3.11, 3.12, or 3.13)
    * - **Testing**
      - ``BUILD_TESTING``
      - ``ON``; enables CTest and Catch2
@@ -213,7 +248,9 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
      - ``ON``
    * - **OAK camera plugin**
      - ``BUILD_PLUGIN_OAK_CAMERA``
-     - ``OFF``; requires Hunter/DepthAI when ``ON``
+     - ``OFF``; when ``ON``, builds DepthAI v3.x and pulls its dependencies through
+       vcpkg, so it also needs ``CMAKE_TOOLCHAIN_FILE`` on a fresh build directory.
+       See :doc:`/device/oak`.
    * - **Teleop ROS2 example only**
      - ``BUILD_EXAMPLE_TELEOP_ROS2``
      - ``OFF``; when ``ON``, only ``examples/teleop_ros2`` (e.g. Docker)
@@ -221,12 +258,13 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
 Examples
 ~~~~~~~~
 
-Build with a different Python version (must match a version supported by ``SetupPython.cmake``):
+Build for a different Python version — each needs its own build directory
+(``3.11``, ``3.12``, ``3.13`` are supported):
 
 .. code-block:: bash
 
-   cmake -B build -DISAAC_TELEOP_PYTHON_VERSION=3.12
-   cmake --build build
+   cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
+   cmake --build build-py3.12 --parallel
 
 Debug build:
 
@@ -249,12 +287,16 @@ Build without Python bindings:
    cmake -B build -DBUILD_PYTHON_BINDINGS=OFF
    cmake --build build
 
-Build with OAK camera plugin (pulls Hunter/DepthAI):
+Build with the OAK camera plugin. It needs the vcpkg toolchain, and CMake only
+reads ``CMAKE_TOOLCHAIN_FILE`` on a build tree's **first** configure, so delete
+``build/`` first if it already exists (see :doc:`/device/oak`):
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON
-   cmake --build build
+   rm -rf build
+   cmake -B build -DBUILD_PLUGIN_OAK_CAMERA=ON \
+       -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake
+   cmake --build build --target camera_plugin_oak --parallel
 
 Build only the teleop_ros2 example (e.g. for Docker, as in :code-file:`build-ubuntu.yml <.github/workflows/build-ubuntu.yml>` teleop-ros2-docker job):
 
@@ -263,12 +305,11 @@ Build only the teleop_ros2 example (e.g. for Docker, as in :code-file:`build-ubu
    cmake -B build -DBUILD_EXAMPLES=OFF -DBUILD_EXAMPLE_TELEOP_ROS2=ON
    cmake --build build
 
-Clean rebuild:
+Clean rebuild (``--fresh`` wipes the CMake cache and reconfigures):
 
 .. code-block:: bash
 
-   rm -rf build
-   cmake -B build
+   cmake -B build --fresh
    cmake --build build
 
 3. Running tests
@@ -302,6 +343,84 @@ based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly diff
 
    # Pass --reinstall to replace an existing install.
    uv pip install "isaacteleop[retargeters,cloudxr,ui]" --find-links=./install/wheels/ --reinstall
+
+Alternative: install directly from source with pip
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The repository also ships a root :code-file:`pyproject.toml` using the
+`scikit-build-core <https://scikit-build-core.readthedocs.io/>`_ backend, which
+drives the same top-level ``CMakeLists.txt``. This lets you build and install
+with standard Python tooling, without running the ``cmake -B build`` steps
+yourself; the classic flow above (which CI uses to produce ``install/wheels/`` and
+the released wheels) is unchanged, so the two coexist.
+
+.. code-block:: bash
+
+   pip install .            # build + install the compiled wheel from source
+   pip install -e .         # editable / developer install
+
+.. note::
+
+   The CMake build tree is kept under ``build-wheel/<cache-tag>/`` (e.g.
+   ``build-wheel/cpython-311/``) — one per Python version, so different
+   interpreters never share a configured CMake cache — instead of a temporary
+   directory. Re-installs are therefore incremental. It sits outside ``build/``, so
+   it never collides with a classic ``cmake -B build`` tree. Both are gitignored.
+
+What this path does and how it differs from the classic flow:
+
+- **Full build, no overrides.** The backend passes no ``cmake.define`` overrides,
+  so ``BUILD_EXAMPLES``, ``BUILD_TESTING``, and ``BUILD_PLUGINS`` stay at their
+  CMake defaults: a ``pip install`` builds the full default target — extensions,
+  examples, C++ tests, and plugins (a plugin without its SDK skips gracefully). It
+  installs only the ``isaacteleop_wheel`` and ``isaacteleop_binaries`` components,
+  so C++ library/header install rules do not leak into the wheel.
+- **clang-format is enforced.** Because the gate is left on, the build **fails** if
+  ``clang-format-14`` is not installed or any C++ file is unformatted — a
+  ``pip install`` therefore requires ``clang-format-14`` on Linux.
+- **All executables on PATH.** Every executable built from ``src/`` and
+  ``examples/`` — example programs, C++ test binaries, plugin tools
+  (``oxr_simple_api_demo``, ``se3_printer``, ``schema_tests``, …) — is installed
+  into the venv's ``bin/`` (the wheel's scripts scheme; see the executable-install
+  loop in the root ``CMakeLists.txt``), so they are on ``PATH`` once the venv is
+  active. They statically link the teleop core libraries, so they are
+  self-contained. Shared libraries (Python extension modules, plugin ``.so``) are
+  not executables and are **not** placed in ``bin/``.
+- **ABI.** Extensions are compiled against the interpreter that runs the build
+  (so the wheel's ABI tag matches) and against NumPy 2.x, so a single wheel works
+  with both NumPy 1.x and 2.x at runtime.
+- **No type stubs.** The pip-built wheel omits the ``.pyi`` stubs that the classic
+  and released wheels ship (stub generation shells out to ``uv``, which is not
+  guaranteed inside pip's build isolation). Imports and runtime behavior are
+  unaffected.
+- **Version.** The pip-facing version is derived from the ``VERSION`` file as
+  ``MAJOR.MINOR+local`` — the same value the classic flow produces for a
+  non-CI/local build. The pip path is a from-source/dev build, so it is always
+  tagged ``+local``; the git-aware release versioning (tags, ``a1`` / ``rc1`` /
+  ``.devN`` labels) stays with the classic flow via
+  :code-file:`cmake/IsaacTeleopVersion.cmake`.
+
+.. admonition:: Editable installs and iterating on pure-Python subpackages
+
+   An editable install (``pip install -e .``) never recompiles on import. Pure-Python
+   subpackages resolve straight to ``src/python/isaacteleop/``, so edits **take effect
+   live** — a fresh interpreter is enough.
+
+   Compiled extensions are the exception: ``.so``/``.pyd`` still come from the CMake
+   build tree, so C++ changes need a ``cmake --build`` (or a re-run of
+   ``pip install -e .``) first.
+
+See :doc:`/references/build` for the full build-system reference.
+
+.. admonition:: ``retargeters`` extra on aarch64 (Jetson / DGX)
+
+   The full ``retargeters`` extra does **not** resolve on ``aarch64`` (some of its
+   pinned dependencies have no aarch64 wheels). On Jetson/DGX-class robotics
+   targets, install the ``retargeters-lite`` extra instead:
+
+   .. code-block:: bash
+
+      pip install "isaacteleop[retargeters-lite]"
 
 .. toctree::
    :hidden:

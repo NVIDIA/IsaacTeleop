@@ -123,16 +123,16 @@ Collect Teleop Data
          sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
       Then clone, configure, build, and install (see
-      :doc:`/getting_started/build_from_source/index` for the full prerequisite list, the CMake
-      presets, and all build options):
+      :doc:`/getting_started/build_from_source/index` for the full prerequisite list and all
+      build options):
 
       .. code-block:: bash
 
          git clone https://github.com/NVIDIA/IsaacTeleop.git
          cd IsaacTeleop
-         cmake --preset py3.12                       # configure (use the preset matching your Python)
-         cmake --build --preset py3.12 --parallel    # build
-         cmake --install build/cmake-cpython-312     # install into ./install
+         cmake -B build                       # configure
+         cmake --build build --parallel       # build
+         cmake --install build     # install into ./install
 
       The plugin lands at::
 
@@ -150,7 +150,7 @@ Collect Teleop Data
 
       .. code-block:: bash
 
-         cmake --build --preset py3.12 --target so101_leader_plugin
+         cmake --build build --target so101_leader_plugin
 
       .. admonition:: Build troubleshooting
          :class: tip
@@ -165,20 +165,20 @@ Collect Teleop Data
                 ``cmake/ClangFormat.cmake``)
               - Install the pinned formatter: ``sudo apt-get install -y clang-format-14``. To skip
                 the gate instead, reconfigure with
-                ``cmake --preset py3.12 -DENABLE_CLANG_FORMAT_CHECK=OFF``.
+                ``cmake -B build -DENABLE_CLANG_FORMAT_CHECK=OFF``.
             * - ``so101_leader_plugin: No such file or directory``
-              - The build was never installed. Re-run ``cmake --install build/cmake-cpython-312``,
+              - The build was never installed. Re-run ``cmake --install build``,
                 or run the binary from the build tree at
-                ``build/cmake-cpython-312/src/plugins/so101_leader/so101_leader_plugin``.
+                ``build/src/plugins/so101_leader/so101_leader_plugin``.
             * - Configure fails downloading dependencies
               - OpenXR SDK, yaml-cpp, pybind11, FlatBuffers, and MCAP are fetched by CMake
                 ``FetchContent`` — an internet connection (and any proxy settings) is required at
                 configure time.
             * - ``Could NOT find Python`` / wrong interpreter
-              - Use the preset matching your interpreter (``py3.11``, ``py3.12``, ``py3.13``)
-                rather than overriding ``ISAAC_TELEOP_PYTHON_VERSION``.
+              - Set ``-DISAAC_TELEOP_PYTHON_VERSION`` on a **fresh** build directory; it cannot
+                be changed on an existing one.
             * - Stale cache after changing options
-              - ``cmake --preset py3.12 --fresh`` wipes the cache and reconfigures.
+              - ``cmake -B build --fresh`` wipes the cache and reconfigures.
 
       **2. Set up and calibrate the leader arm**
 

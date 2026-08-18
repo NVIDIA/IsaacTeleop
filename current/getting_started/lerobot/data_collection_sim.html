@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -45,7 +46,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=7509b52b"></script>
+    <script src="../../_static/documentation_options.js?v=04dcff72"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +65,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.x" />
+  <meta name="docsearch:version" content="1.5.x" />
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -347,6 +348,7 @@
 <li class="toctree-l2"><a class="reference internal" href="data_collection_real.html">Data Collection in Real</a></li>
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Data Collection in Sim</a></li>
 <li class="toctree-l2"><a class="reference internal" href="training_groot.html">Model Training with GR00T</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rebot.html">reBot B601-RS on Jetson AGX Orin</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
@@ -361,16 +363,18 @@
 <li class="toctree-l1"><a class="reference internal" href="../../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -544,13 +548,13 @@ sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w
 </pre></div>
 </div>
 <p>Then clone, configure, build, and install (see
-<a class="reference internal" href="../build_from_source/index.html"><span class="doc">Build from Source</span></a> for the full prerequisite list, the CMake
-presets, and all build options):</p>
+<a class="reference internal" href="../build_from_source/index.html"><span class="doc">Build from Source</span></a> for the full prerequisite list and all
+build options):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/NVIDIA/IsaacTeleop.git
 <span class="nb">cd</span><span class="w"> </span>IsaacTeleop
-cmake<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w">                       </span><span class="c1"># configure (use the preset matching your Python)</span>
-cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--parallel<span class="w">    </span><span class="c1"># build</span>
-cmake<span class="w"> </span>--install<span class="w"> </span>build/cmake-cpython-312<span class="w">     </span><span class="c1"># install into ./install</span>
+cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w">                       </span><span class="c1"># configure</span>
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--parallel<span class="w">       </span><span class="c1"># build</span>
+cmake<span class="w"> </span>--install<span class="w"> </span>build<span class="w">     </span><span class="c1"># install into ./install</span>
 </pre></div>
 </div>
 <p>The plugin lands at:</p>
@@ -564,7 +568,7 @@ starts without any hardware attached:</p>
 </div>
 <p>Only the plugin is needed here; the rest of the build (Python wheel, examples) is harmless
 but optional. To build just this target:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>--preset<span class="w"> </span>py3.12<span class="w"> </span>--target<span class="w"> </span>so101_leader_plugin
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>so101_leader_plugin
 </pre></div>
 </div>
 <div class="tip admonition">
@@ -584,12 +588,12 @@ but optional. To build just this target:</p>
 <code class="docutils literal notranslate"><span class="pre">cmake/ClangFormat.cmake</span></code>)</p></td>
 <td><p>Install the pinned formatter: <code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt-get</span> <span class="pre">install</span> <span class="pre">-y</span> <span class="pre">clang-format-14</span></code>. To skip
 the gate instead, reconfigure with
-<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--preset</span> <span class="pre">py3.12</span> <span class="pre">-DENABLE_CLANG_FORMAT_CHECK=OFF</span></code>.</p></td>
+<code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">-B</span> <span class="pre">build</span> <span class="pre">-DENABLE_CLANG_FORMAT_CHECK=OFF</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">so101_leader_plugin:</span> <span class="pre">No</span> <span class="pre">such</span> <span class="pre">file</span> <span class="pre">or</span> <span class="pre">directory</span></code></p></td>
-<td><p>The build was never installed. Re-run <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">build/cmake-cpython-312</span></code>,
+<td><p>The build was never installed. Re-run <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">build</span></code>,
 or run the binary from the build tree at
-<code class="docutils literal notranslate"><span class="pre">build/cmake-cpython-312/src/plugins/so101_leader/so101_leader_plugin</span></code>.</p></td>
+<code class="docutils literal notranslate"><span class="pre">build/src/plugins/so101_leader/so101_leader_plugin</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p>Configure fails downloading dependencies</p></td>
 <td><p>OpenXR SDK, yaml-cpp, pybind11, FlatBuffers, and MCAP are fetched by CMake
@@ -597,11 +601,11 @@ or run the binary from the build tree at
 configure time.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Could</span> <span class="pre">NOT</span> <span class="pre">find</span> <span class="pre">Python</span></code> / wrong interpreter</p></td>
-<td><p>Use the preset matching your interpreter (<code class="docutils literal notranslate"><span class="pre">py3.11</span></code>, <code class="docutils literal notranslate"><span class="pre">py3.12</span></code>, <code class="docutils literal notranslate"><span class="pre">py3.13</span></code>)
-rather than overriding <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code>.</p></td>
+<td><p>Set <code class="docutils literal notranslate"><span class="pre">-DISAAC_TELEOP_PYTHON_VERSION</span></code> on a <strong>fresh</strong> build directory; it cannot
+be changed on an existing one.</p></td>
 </tr>
 <tr class="row-even"><td><p>Stale cache after changing options</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--preset</span> <span class="pre">py3.12</span> <span class="pre">--fresh</span></code> wipes the cache and reconfigures.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">-B</span> <span class="pre">build</span> <span class="pre">--fresh</span></code> wipes the cache and reconfigures.</p></td>
 </tr>
 </tbody>
 </table>
