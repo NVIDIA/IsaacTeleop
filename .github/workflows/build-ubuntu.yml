@@ -106,9 +106,9 @@ jobs:
         path: |
           ~/vcpkg
           ${{ env.BUILD_DIR }}/vcpkg_installed
-        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python_version }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          vcpkg-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python_version }}-${{ env.VCPKG_COMMIT }}-
+          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-
 
     - name: Setup vcpkg
       run: |
