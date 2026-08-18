@@ -450,9 +450,10 @@ client locally (<code class="docutils literal notranslate"><span class="pre">--h
 <li><p><a class="reference internal" href="#re-open-the-client-on-the-headset" id="id7">Re-open the client on the headset</a></p></li>
 <li><p><a class="reference internal" href="#load-cloudxr-environment-variables" id="id8">Load CloudXR environment variables</a></p></li>
 <li><p><a class="reference internal" href="#run-teleop-examples-against-the-service" id="id9">Run teleop examples against the service</a></p></li>
-<li><p><a class="reference internal" href="#run-the-service-in-a-container-or-ci" id="id10">Run the service in a container or CI</a></p></li>
-<li><p><a class="reference internal" href="#configuration" id="id11">Configuration</a></p></li>
-<li><p><a class="reference internal" href="#troubleshooting" id="id12">Troubleshooting</a></p></li>
+<li><p><a class="reference internal" href="#use-a-system-openxr-runtime-no-cloudxr-attach" id="id10">Use a system OpenXR runtime (no CloudXR attach)</a></p></li>
+<li><p><a class="reference internal" href="#run-the-service-in-a-container-or-ci" id="id11">Run the service in a container or CI</a></p></li>
+<li><p><a class="reference internal" href="#configuration" id="id12">Configuration</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id13">Troubleshooting</a></p></li>
 </ul>
 </nav>
 <section id="start-the-service">
@@ -618,6 +619,19 @@ python<span class="w"> </span>examples/teleop/python/gripper_retargeting_example
 </div>
 <p>The example leaves the service running when it exits, so the headset stays
 connected and the next run reattaches to the same session.</p>
+</section>
+<section id="use-a-system-openxr-runtime-no-cloudxr-attach">
+<h2>Use a system OpenXR runtime (no CloudXR attach)<a class="headerlink" href="#use-a-system-openxr-runtime-no-cloudxr-attach" title="Link to this heading">#</a></h2>
+<p>Examples that call <code class="xref py py-meth docutils literal notranslate"><span class="pre">add_launcher_arguments()</span></code>
+accept <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code>. That returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">NoopContext</span></code>:
+the process does not start or attach to CloudXR and leaves <code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> and
+related environment variables unchanged. Use this when another runtime is already
+configured (for example Monado) or when a host singleton must not be duplicated
+(see <code class="docutils literal notranslate"><span class="pre">examples/mujoco_xr/README.md</span></code> and <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> there).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">XR_RUNTIME_JSON</span><span class="o">=</span>/path/to/your/openxr.json
+python<span class="w"> </span>examples/latency_probe/python/latency_probe_example.py<span class="w"> </span>--no-launch-cloudxr-runtime
+</pre></div>
+</div>
 </section>
 <section id="run-the-service-in-a-container-or-ci">
 <h2>Run the service in a container or CI<a class="headerlink" href="#run-the-service-in-a-container-or-ci" title="Link to this heading">#</a></h2>
@@ -801,6 +815,7 @@ before putting the headset on.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#re-open-the-client-on-the-headset">Re-open the client on the headset</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#load-cloudxr-environment-variables">Load CloudXR environment variables</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-teleop-examples-against-the-service">Run teleop examples against the service</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#use-a-system-openxr-runtime-no-cloudxr-attach">Use a system OpenXR runtime (no CloudXR attach)</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-service-in-a-container-or-ci">Run the service in a container or CI</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#configuration">Configuration</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
