@@ -66,6 +66,14 @@ ManusPluginConfig parse_args(int argc, char** argv)
         {
             datasets_arg = arg.substr(std::string("--datasets=").size());
         }
+        else if (starts_with(arg, "--left-calibration="))
+        {
+            config.left_calibration_file = arg.substr(std::string("--left-calibration=").size());
+        }
+        else if (starts_with(arg, "--right-calibration="))
+        {
+            config.right_calibration_file = arg.substr(std::string("--right-calibration=").size());
+        }
         else if (starts_with(arg, "--plugin-root-id="))
         {
             // Injected by the PluginManager; not used by this plugin.
