@@ -285,6 +285,12 @@ running the CloudXR runtime and wss proxy in containerized environment; or using
       - Click the **Click https://<ip>:48322/ to accept cert** link that appears on the page.
       - In the new tab, you will see a **"Your connection is not private"** warning. Click **Advanced**, then **Proceed to <ip> (unsafe)**.
       - Once accepted, the page will show **Certificate Accepted**. Navigate back to the CloudXR.js client page.
+
+   .. important::
+
+      **Jetson Orin:** when the CloudXR runtime runs on Orin, set **Video Codec** to
+      **H.264** in the CloudXR web client.
+
    3. Click **Connect** to begin teleoperation.
 
    .. note::
