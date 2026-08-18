@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -496,16 +497,16 @@ self-signed certificate check):</p>
 <p>You should see the headset listed under <code class="docutils literal notranslate"><span class="pre">&quot;headsets&quot;</span></code> with
 <code class="docutils literal notranslate"><span class="pre">&quot;connected&quot;:</span> <span class="pre">true</span></code>:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;updatedAt&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1776112022900</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;configVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;serverIP&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;HOST_IP&gt;&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">48322</span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;headsets&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">  </span><span class="nt">"updatedAt"</span><span class="p">:</span><span class="w"> </span><span class="mi">1776112022900</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"configVersion"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"serverIP"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;HOST_IP&gt;"</span><span class="p">,</span><span class="w"> </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">48322</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"headsets"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;clientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;193f3758-281e-4292-8c36-6541b58963ef&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;connected&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;deviceLabel&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;registeredAt&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1776112022805</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;metricsByCadence&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">      </span><span class="nt">"clientId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"193f3758-281e-4292-8c36-6541b58963ef"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"connected"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"deviceLabel"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"registeredAt"</span><span class="p">:</span><span class="w"> </span><span class="mi">1776112022805</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"metricsByCadence"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">  </span><span class="p">]</span>
 <span class="p">}</span>
@@ -517,7 +518,7 @@ network.</p>
 <p><strong>Step 4 — (Optional) Push config to the headset</strong></p>
 <p>Before or after the headset connects to the CloudXR stream, you can push
 configuration overrides via the HTTP config API:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-k<span class="w"> </span><span class="s2">&quot;https://&lt;HOST_IP&gt;:48322/api/oob/v1/config?serverIP=&lt;HOST_IP&gt;&amp;port=48322&amp;codec=av1&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-k<span class="w"> </span><span class="s2">"https://&lt;HOST_IP&gt;:48322/api/oob/v1/config?serverIP=&lt;HOST_IP&gt;&amp;port=48322&amp;codec=av1"</span>
 </pre></div>
 </div>
 <p>See <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/config</span></code> below for all supported keys.</p>
@@ -527,7 +528,7 @@ without it, press <strong>CONNECT</strong> on the headset manually.  Once stream
 the headset reports metrics to the hub every 500 ms.  Poll the state endpoint
 from a PC to collect them:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Poll every 2 seconds (adjust to taste)</span>
-watch<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="s1">&#39;curl -sk https://&lt;HOST_IP&gt;:48322/api/oob/v1/state | python3 -m json.tool&#39;</span>
+watch<span class="w"> </span>-n<span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="s1">'curl -sk https://&lt;HOST_IP&gt;:48322/api/oob/v1/state | python3 -m json.tool'</span>
 </pre></div>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">metricsByCadence</span></code> field on each headset entry will now contain live streaming metrics.</p>
@@ -598,22 +599,22 @@ Opens the teleop page and clicks CONNECT via USB adb + CDP.</p></td>
 <section id="registration-first-message">
 <h3>Registration (first message)<a class="headerlink" href="#registration-first-message" title="Link to this heading">#</a></h3>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;register&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;headset&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;deviceLabel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Quest 3&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;token&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;optional CONTROL_TOKEN&gt;&quot;</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"register"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"payload"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"role"</span><span class="p">:</span><span class="w"> </span><span class="s2">"headset"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"deviceLabel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Quest 3"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"token"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;optional CONTROL_TOKEN&gt;"</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">role</span></code> must be <code class="docutils literal notranslate"><span class="pre">&quot;headset&quot;</span></code>. The hub replies with:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;hello&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;clientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&lt;uuid&gt;&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;configVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;serverIP&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">48322</span><span class="p">}</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"hello"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"payload"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"clientId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;uuid&gt;"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"configVersion"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"serverIP"</span><span class="p">:</span><span class="w"> </span><span class="s2">"..."</span><span class="p">,</span><span class="w"> </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">48322</span><span class="p">}</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -622,13 +623,13 @@ Opens the teleop page and clicks CONNECT via USB adb + CDP.</p></td>
 <section id="headset-hub-clientmetrics">
 <h3>Headset → hub: <code class="docutils literal notranslate"><span class="pre">clientMetrics</span></code><a class="headerlink" href="#headset-hub-clientmetrics" title="Link to this heading">#</a></h3>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;clientMetrics&quot;</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;payload&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;t&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1712800000000</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;cadence&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;frame&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;metrics&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;streaming.framerate&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">72.0</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;render.pose_to_render_time&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">18.5</span>
+<span class="w">  </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"clientMetrics"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"payload"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"t"</span><span class="p">:</span><span class="w"> </span><span class="mi">1712800000000</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"cadence"</span><span class="p">:</span><span class="w"> </span><span class="s2">"frame"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"metrics"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"streaming.framerate"</span><span class="p">:</span><span class="w"> </span><span class="mf">72.0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"render.pose_to_render_time"</span><span class="p">:</span><span class="w"> </span><span class="mf">18.5</span>
 <span class="w">    </span><span class="p">}</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
@@ -758,19 +759,19 @@ version.</p>
 </div>
 <p>Example response:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;updatedAt&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1712800000000</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;configVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;config&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;serverIP&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;10.0.0.1&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;port&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">48322</span><span class="p">},</span>
-<span class="w">  </span><span class="nt">&quot;headsets&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">  </span><span class="nt">"updatedAt"</span><span class="p">:</span><span class="w"> </span><span class="mi">1712800000000</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"configVersion"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"serverIP"</span><span class="p">:</span><span class="w"> </span><span class="s2">"10.0.0.1"</span><span class="p">,</span><span class="w"> </span><span class="nt">"port"</span><span class="p">:</span><span class="w"> </span><span class="mi">48322</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"headsets"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;clientId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc-123&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;connected&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;deviceLabel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Quest 3&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;registeredAt&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1712799990000</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">&quot;metricsByCadence&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nt">&quot;frame&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">          </span><span class="nt">&quot;at&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1712800000000</span><span class="p">,</span>
-<span class="w">          </span><span class="nt">&quot;metrics&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;streaming.framerate&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">72.0</span><span class="p">}</span>
+<span class="w">      </span><span class="nt">"clientId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"abc-123"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"connected"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"deviceLabel"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Quest 3"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"registeredAt"</span><span class="p">:</span><span class="w"> </span><span class="mi">1712799990000</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"metricsByCadence"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"frame"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">"at"</span><span class="p">:</span><span class="w"> </span><span class="mi">1712800000000</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"metrics"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"streaming.framerate"</span><span class="p">:</span><span class="w"> </span><span class="mf">72.0</span><span class="p">}</span>
 <span class="w">        </span><span class="p">}</span>
 <span class="w">      </span><span class="p">}</span>
 <span class="w">    </span><span class="p">}</span>
@@ -782,15 +783,15 @@ version.</p>
 <section id="get-api-oob-v1-config">
 <h3><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/api/oob/v1/config</span></code><a class="headerlink" href="#get-api-oob-v1-config" title="Link to this heading">#</a></h3>
 <p>Push config to connected headsets via query parameters:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-k<span class="w"> </span><span class="s2">&quot;https://localhost:48322/api/oob/v1/config?serverIP=10.0.0.5&amp;port=48322&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-k<span class="w"> </span><span class="s2">"https://localhost:48322/api/oob/v1/config?serverIP=10.0.0.5&amp;port=48322"</span>
 </pre></div>
 </div>
 <p>Example response:</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;ok&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;changed&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;configVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;targetCount&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">  </span><span class="nt">"ok"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"changed"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"configVersion"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"targetCount"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
 <span class="p">}</span>
 </pre></div>
 </div>
@@ -1203,7 +1204,7 @@ or stage <code class="docutils literal notranslate"><span class="pre">nvidia-clo
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

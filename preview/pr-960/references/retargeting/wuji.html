@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -476,7 +477,7 @@ the last valid command instead of forwarding the invalid output.</p></td>
 <section id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h2>
 <p>Install the Wuji retargeting extra:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;isaacteleop[wuji]&#39;</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'isaacteleop[wuji]'</span>
 </pre></div>
 </div>
 </section>
@@ -488,10 +489,10 @@ the last valid command instead of forwarding the invalid output.</p></td>
 <span class="p">)</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">WujiHandRetargeterConfig</span><span class="p">(</span>
-    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;wuji_hand_2&quot;</span><span class="p">,</span>
-    <span class="n">hand_side</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+    <span class="n">model</span><span class="o">=</span><span class="s2">"wuji_hand_2"</span><span class="p">,</span>
+    <span class="n">hand_side</span><span class="o">=</span><span class="s2">"right"</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">retargeter</span> <span class="o">=</span> <span class="n">WujiHandRetargeter</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;wuji_right&quot;</span><span class="p">)</span>
+<span class="n">retargeter</span> <span class="o">=</span> <span class="n">WujiHandRetargeter</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"wuji_right"</span><span class="p">)</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">model</span></code> accepts <code class="docutils literal notranslate"><span class="pre">&quot;wuji_hand&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;wuji_hand_2&quot;</span></code>. <code class="docutils literal notranslate"><span class="pre">hand_side</span></code> accepts
@@ -527,7 +528,7 @@ differs from <code class="docutils literal notranslate"><span class="pre">--hand
 first — the glove plugin’s <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> only builds the plugin target:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>cmake<span class="w"> </span>--build<span class="w"> </span>build
 <span class="gp">$ </span>ctest<span class="w"> </span>--test-dir<span class="w"> </span>build<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-R<span class="w"> </span><span class="s1">&#39;retargeting_test_wuji_(hand_retargeter|mapping_tables)&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-R<span class="w"> </span><span class="s1">'retargeting_test_wuji_(hand_retargeter|mapping_tables)'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--output-on-failure
 </pre></div>
 </div>
@@ -680,7 +681,7 @@ into a complete pipeline.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

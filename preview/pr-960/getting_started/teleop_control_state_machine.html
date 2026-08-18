@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -499,31 +500,31 @@ for the full runnable setup.</p>
     <span class="n">create_bool_selector</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;controllers&quot;</span><span class="p">)</span>
+<span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"controllers"</span><span class="p">)</span>
 <span class="n">left</span> <span class="o">=</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">LEFT</span><span class="p">)</span>
 
 <span class="n">kill_signal</span> <span class="o">=</span> <span class="n">create_bool_selector</span><span class="p">(</span>
     <span class="n">left</span><span class="p">,</span>
-    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;kill_signal_selector&quot;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"kill_signal_selector"</span><span class="p">,</span>
     <span class="n">selector_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">selected</span><span class="p">:</span> <span class="n">selected</span><span class="p">[</span><span class="n">ControllerInputIndex</span><span class="o">.</span><span class="n">SECONDARY_CLICK</span><span class="p">],</span>
 <span class="p">)</span>
 <span class="n">run_toggle_signal</span> <span class="o">=</span> <span class="n">create_bool_selector</span><span class="p">(</span>
     <span class="n">left</span><span class="p">,</span>
-    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;run_toggle_signal_selector&quot;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"run_toggle_signal_selector"</span><span class="p">,</span>
     <span class="n">selector_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">selected</span><span class="p">:</span> <span class="n">selected</span><span class="p">[</span><span class="n">ControllerInputIndex</span><span class="o">.</span><span class="n">PRIMARY_CLICK</span><span class="p">],</span>
 <span class="p">)</span>
 <span class="n">reset_signal</span> <span class="o">=</span> <span class="n">create_bool_selector</span><span class="p">(</span>
     <span class="n">left</span><span class="p">,</span>
-    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;reset_signal_selector&quot;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"reset_signal_selector"</span><span class="p">,</span>
     <span class="n">selector_fn</span><span class="o">=</span><span class="k">lambda</span> <span class="n">selected</span><span class="p">:</span> <span class="n">selected</span><span class="p">[</span><span class="n">ControllerInputIndex</span><span class="o">.</span><span class="n">THUMBSTICK_CLICK</span><span class="p">],</span>
 <span class="p">)</span>
 
-<span class="n">manager</span> <span class="o">=</span> <span class="n">DefaultTeleopStateManager</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;teleop_manager&quot;</span><span class="p">)</span>
+<span class="n">manager</span> <span class="o">=</span> <span class="n">DefaultTeleopStateManager</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"teleop_manager"</span><span class="p">)</span>
 <span class="n">control_pipeline</span> <span class="o">=</span> <span class="n">manager</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
     <span class="p">{</span>
-        <span class="n">manager</span><span class="o">.</span><span class="n">INPUT_KILL</span><span class="p">:</span> <span class="n">kill_signal</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;value&quot;</span><span class="p">),</span>
-        <span class="n">manager</span><span class="o">.</span><span class="n">INPUT_RUN_TOGGLE</span><span class="p">:</span> <span class="n">run_toggle_signal</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;value&quot;</span><span class="p">),</span>
-        <span class="n">manager</span><span class="o">.</span><span class="n">INPUT_RESET</span><span class="p">:</span> <span class="n">reset_signal</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">&quot;value&quot;</span><span class="p">),</span>
+        <span class="n">manager</span><span class="o">.</span><span class="n">INPUT_KILL</span><span class="p">:</span> <span class="n">kill_signal</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"value"</span><span class="p">),</span>
+        <span class="n">manager</span><span class="o">.</span><span class="n">INPUT_RUN_TOGGLE</span><span class="p">:</span> <span class="n">run_toggle_signal</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"value"</span><span class="p">),</span>
+        <span class="n">manager</span><span class="o">.</span><span class="n">INPUT_RESET</span><span class="p">:</span> <span class="n">reset_signal</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"value"</span><span class="p">),</span>
     <span class="p">}</span>
 <span class="p">)</span>
 </pre></div>
@@ -695,7 +696,7 @@ or other high-level behavior:</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

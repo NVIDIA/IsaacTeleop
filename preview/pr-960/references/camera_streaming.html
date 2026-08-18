@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -706,7 +707,9 @@ pose shift (no effect on the equirect sphere at its default infinite radius).</p
 <p>Surfaces are composited by the OpenXR runtime, which keeps them sharp under head motion and lets
 CloudXR stream them efficiently (see
 <a class="reference internal" href="../getting_started/televiz.html#openxr-composition-layers"><span class="std std-ref">OpenXR composition layers</span></a>). For flat planes only,
-<code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> opts a camera back into Televiz’s built-in compositor.</p>
+<code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> opts a camera back into Televiz’s built-in compositor. On Jetson Orin
+(CloudXR experimental runtime), set <code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> so the plane is not left black; see
+Troubleshooting below.</p>
 </section>
 <section id="cloudxr-runtime-flags">
 <h2><a class="toc-backref" href="#id9" role="doc-backlink">CloudXR runtime flags</a><a class="headerlink" href="#cloudxr-runtime-flags" title="Link to this heading">#</a></h2>
@@ -771,7 +774,7 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:</p>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cam</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v4l2</span><span class="w">                </span><span class="c1"># v4l2 | oakd | zed | video | synthetic</span>
-<span class="w">    </span><span class="nt">width</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2560</span><span class="w">               </span><span class="c1"># video: optional — defaults to the file&#39;s size</span>
+<span class="w">    </span><span class="nt">width</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2560</span><span class="w">               </span><span class="c1"># video: optional — defaults to the file's size</span>
 <span class="w">    </span><span class="nt">height</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">720</span><span class="w">               </span><span class="c1"># (required when source: rtp)</span>
 <span class="w">    </span><span class="nt">fps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
 <span class="w">    </span><span class="nt">stereo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">             </span><span class="c1"># zed / video / synthetic — per-eye capture + SBS in XR</span>
@@ -804,7 +807,7 @@ YAML per source kind.</p>
 </section>
 <section id="troubleshooting">
 <h2><a class="toc-backref" href="#id13" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
-<ul class="simple">
+<ul>
 <li><p><strong>The XR session fails to create</strong> — check <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/logs/cxr_server.*.log</span></code> and
 <code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code> for the startup failure. Pass <code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> to render to a
 desktop window instead (no runtime involved).</p></li>
@@ -814,6 +817,17 @@ you’re sitting at, or use a video-capable remote desktop.</p></li>
 directory (<code class="docutils literal notranslate"><span class="pre">configs/</span></code>), not the directory you launched from.</p></li>
 <li><p><strong>A source fails asking for CuPy / CUDA</strong> — check <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> works and setup completed;
 all sources allocate their frame buffers on the GPU.</p></li>
+<li><p><strong>Black camera plane on Orin</strong> — with the CloudXR experimental runtime on Orin, the default
+OpenXR compositor shows the camera plane but leaves its contents black. Under the camera’s
+<code class="docutils literal notranslate"><span class="pre">display.placements</span></code> entry, set <code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> (quads only). The same feed displays
+correctly with this workaround:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">display</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">placements</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cam</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">compositor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">televiz</span>
+</pre></div>
+</div>
+</li>
 <li><p><strong>Split mode renders nothing</strong> — check the sender is up (<code class="docutils literal notranslate"><span class="pre">./camera_viz.sh</span> <span class="pre">service-status</span></code>),
 <code class="docutils literal notranslate"><span class="pre">$STREAMING_HOST</span></code> was the workstation’s IP at deploy time, and UDP ports (default 5000+)
 aren’t firewalled.</p></li>
@@ -865,7 +879,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 <span class="n">viz_session</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">cfg</span><span class="p">)</span>
 
 <span class="n">config</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">oxr_handles</span><span class="o">=</span><span class="n">OpenXRSessionHandles</span><span class="p">(</span><span class="o">*</span><span class="n">viz_session</span><span class="o">.</span><span class="n">get_oxr_handles</span><span class="p">()),</span>
 <span class="p">)</span>
@@ -1024,7 +1038,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

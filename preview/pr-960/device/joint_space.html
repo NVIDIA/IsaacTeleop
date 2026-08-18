@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -476,7 +477,7 @@ group of joint positions for the retargeting graph.</p></td>
 <p>Joints are modeled as <strong>name -&gt; value</strong> records so consumers read them by name, independent of
 wire order:</p>
 <div class="code-100col highlight-idl notranslate"><div class="highlight"><pre><span></span>table<span class="w"> </span>JointState<span class="w"> </span>{
-<span class="w">  </span>name<span class="o">:</span><span class="w"> </span><span class="nb">string</span><span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">0</span>,<span class="w"> </span>key);<span class="w">   </span><span class="o">//</span><span class="w"> </span>e.g.<span class="w"> </span><span class="s2">&quot;shoulder_pan&quot;</span>,<span class="w"> </span><span class="s2">&quot;gripper&quot;</span>
+<span class="w">  </span>name<span class="o">:</span><span class="w"> </span><span class="nb">string</span><span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">0</span>,<span class="w"> </span>key);<span class="w">   </span><span class="o">//</span><span class="w"> </span>e.g.<span class="w"> </span><span class="s2">"shoulder_pan"</span>,<span class="w"> </span><span class="s2">"gripper"</span>
 <span class="w">  </span>position<span class="o">:</span><span class="w"> </span><span class="nb">float</span><span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">1</span>);<span class="w">     </span><span class="o">//</span><span class="w"> </span>[rad]<span class="w"> </span>revolute,<span class="w"> </span>[m]<span class="w"> </span>prismatic
 <span class="w">  </span>velocity<span class="o">:</span><span class="w"> </span><span class="nb">float</span><span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">2</span>);<span class="w">     </span><span class="o">//</span><span class="w"> </span>optional<span class="w"> </span>(JointStateOutput.has_velocity)
 <span class="w">  </span>effort<span class="o">:</span><span class="w"> </span><span class="nb">float</span><span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">3</span>);<span class="w">       </span><span class="o">//</span><span class="w"> </span>optional<span class="w"> </span>(JointStateOutput.has_effort)
@@ -506,7 +507,7 @@ wire protocol the FEETECH SCServo SDK / LeRobot’s <code class="docutils litera
 it disables torque (so the leader can be back-driven) and reads <code class="docutils literal notranslate"><span class="pre">Present_Position</span></code> each frame,
 converting ticks to radians with per-joint calibration. With no device path it falls back to a
 <strong>synthetic</strong> trajectory so the pipeline runs hardware-free (CI and the headless example).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id &quot;so101_leader&quot;:</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id "so101_leader":</span>
 ./install/plugins/so101_leader/so101_leader_plugin
 
 <span class="c1"># Real SO-101 leader on a serial port (Linux), optional calibration file:</span>
@@ -529,7 +530,7 @@ of the device argument: a serial path containing <code class="docutils literal n
 (e.g. <code class="docutils literal notranslate"><span class="pre">can0</span></code>) selects the <strong>RobStride</strong> build (<a class="reference internal" href="#rebot-devarm-robstride-build"><span class="std std-ref">below</span></a>).
 With no device argument it falls back to a <strong>synthetic</strong> trajectory, exactly like
 <code class="docutils literal notranslate"><span class="pre">so101_leader</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id &quot;rebot_devarm_leader&quot;:</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Synthetic backend (no hardware), default collection id "rebot_devarm_leader":</span>
 ./install/plugins/rebot_devarm_leader/rebot_devarm_leader_plugin
 </pre></div>
 </div>
@@ -595,9 +596,9 @@ OpenXR runtime, so a recorded session drives the retargeting graph headlessly:</
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.deviceio</span><span class="w"> </span><span class="kn">import</span> <span class="n">McapRecordingConfig</span><span class="p">,</span> <span class="n">McapReplayConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.teleop_session_manager</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionMode</span><span class="p">,</span> <span class="n">TeleopSession</span><span class="p">,</span> <span class="n">TeleopSessionConfig</span>
 
-<span class="c1"># Record (live): TeleopSessionConfig(..., mcap_config=McapRecordingConfig(&quot;leader.mcap&quot;))</span>
+<span class="c1"># Record (live): TeleopSessionConfig(..., mcap_config=McapRecordingConfig("leader.mcap"))</span>
 <span class="c1"># Replay (headless): TeleopSessionConfig(..., mode=SessionMode.REPLAY,</span>
-<span class="c1">#                                        mcap_config=McapReplayConfig(&quot;leader.mcap&quot;))</span>
+<span class="c1">#                                        mcap_config=McapReplayConfig("leader.mcap"))</span>
 </pre></div>
 </div>
 </section>
@@ -763,7 +764,7 @@ the end-to-end example, and validation.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

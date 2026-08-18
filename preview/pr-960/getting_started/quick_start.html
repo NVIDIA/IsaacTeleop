@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -493,12 +494,12 @@ to clone the repository for a couple quick samples to run.</p>
 <span id="install-isaacteleop-pip-package"></span><h2>2. Install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package<a class="headerlink" href="#install-the-isaacteleop-pip-package" title="Link to this heading">#</a></h2>
 <p>In a new terminal, activate your preferred virtual or conda environment, then install the latest
 stable release from PyPI:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;isaacteleop[cloudxr,retargeters]~=1.0&#39;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'isaacteleop[cloudxr,retargeters]~=1.0'</span>
 </pre></div>
 </div>
 <p>Pre-release builds are published between stable releases. Picking one up takes the NVIDIA index
 and an opt-in to pre-release versions — shown here with <a class="reference external" href="https://docs.astral.sh/uv/" rel="noopener noreferrer" target="_blank">uv</a>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">&#39;isaacteleop[cloudxr,retargeters]~=1.0&#39;</span><span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'isaacteleop[cloudxr,retargeters]~=1.0'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">      </span>--extra-index-url<span class="w"> </span>https://pypi.nvidia.com<span class="w"> </span>--prerelease<span class="o">=</span>allow
 </pre></div>
 </div>
@@ -524,7 +525,7 @@ Pro needs <code class="docutils literal notranslate"><span class="pre">auto-nati
 inherit whatever the runtime they connect to was started with. To override it,
 or any other setting, write a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> env file and start the service with
 it:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s1">&#39;NV_DEVICE_PROFILE=auto-native&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>custom.env
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s1">'NV_DEVICE_PROFILE=auto-native'</span><span class="w"> </span>&gt;<span class="w"> </span>custom.env
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>start<span class="w"> </span>--cloudxr-env-config<span class="w"> </span>./custom.env
 </pre></div>
 </div>
@@ -947,7 +948,7 @@ from source</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

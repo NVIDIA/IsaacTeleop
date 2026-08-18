@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -555,10 +556,10 @@ own:</p>
 <span class="w">  </span><span class="nt">collection_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3_tracker</span><span class="w">   </span><span class="c1"># defined ONCE, referenced by both sides below</span>
 <span class="nt">producers</span><span class="p">:</span><span class="w">                     </span><span class="c1"># publish device data into the runtime</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3 tracker plugin (requires headset + controller)</span>
-<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{install}/plugins/controller_se3_tracker/controller_se3_tracker_plugin</span><span class="nv"> </span><span class="s">{hand}</span><span class="nv"> </span><span class="s">{collection_id}&quot;</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"{install}/plugins/controller_se3_tracker/controller_se3_tracker_plugin</span><span class="nv"> </span><span class="s">{hand}</span><span class="nv"> </span><span class="s">{collection_id}"</span>
 <span class="nt">consumers</span><span class="p">:</span><span class="w">                     </span><span class="c1"># read the streams — a TeleopSession script or a C++ binary</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3 printer (requires headset)</span>
-<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;{install}/examples/schemaio/se3_printer</span><span class="nv"> </span><span class="s">{collection_id}&quot;</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"{install}/examples/schemaio/se3_printer</span><span class="nv"> </span><span class="s">{collection_id}"</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">rigs/full_body.yaml</span></code> shows the other supported shape — no <code class="docutils literal notranslate"><span class="pre">producers</span></code>
@@ -813,7 +814,7 @@ already pre-typed at the prompt.</p></td>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>

@@ -36,6 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -552,7 +553,7 @@ running OpenXR runtime (e.g. CloudXR).</p></td>
 <span class="n">session</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">viz_cfg</span><span class="p">)</span>
 
 <span class="n">layer_cfg</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">QuadLayerConfig</span><span class="p">()</span>
-<span class="n">layer_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;cam&quot;</span>
+<span class="n">layer_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"cam"</span>
 <span class="n">layer_cfg</span><span class="o">.</span><span class="n">resolution</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">Resolution</span><span class="p">(</span><span class="mi">1024</span><span class="p">,</span> <span class="mi">1024</span><span class="p">)</span>
 <span class="n">layer</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">add_quad_layer</span><span class="p">(</span><span class="n">layer_cfg</span><span class="p">)</span>
 
@@ -806,12 +807,12 @@ all:</p>
 </div>
 <p>Combining the two — a panorama background with a camera feed on an arc in front of it:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">eq_cfg</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">EquirectLayerConfig</span><span class="p">()</span>
-<span class="n">eq_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;sky&quot;</span>
+<span class="n">eq_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"sky"</span>
 <span class="n">eq_cfg</span><span class="o">.</span><span class="n">resolution</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">Resolution</span><span class="p">(</span><span class="mi">4096</span><span class="p">,</span> <span class="mi">2048</span><span class="p">)</span>
 <span class="n">sky</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">add_equirect_layer</span><span class="p">(</span><span class="n">eq_cfg</span><span class="p">)</span>          <span class="c1"># default = full sphere</span>
 
 <span class="n">cyl_cfg</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">CylinderLayerConfig</span><span class="p">()</span>
-<span class="n">cyl_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;cam&quot;</span>
+<span class="n">cyl_cfg</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"cam"</span>
 <span class="n">cyl_cfg</span><span class="o">.</span><span class="n">resolution</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">Resolution</span><span class="p">(</span><span class="mi">1920</span><span class="p">,</span> <span class="mi">1080</span><span class="p">)</span>
 <span class="n">cyl_cfg</span><span class="o">.</span><span class="n">placement</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">CylinderLayerPlacement</span><span class="p">(</span><span class="n">radius_m</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>   <span class="c1"># 2 m arc in front of the user</span>
 <span class="n">cam</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">add_cylinder_layer</span><span class="p">(</span><span class="n">cyl_cfg</span><span class="p">)</span>
@@ -897,7 +898,7 @@ holds <em>either</em> one <code class="docutils literal notranslate"><span class
 <span class="k">while</span> <span class="n">running</span><span class="p">:</span>
     <span class="n">info</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">begin_frame</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">info</span><span class="o">.</span><span class="n">should_render</span><span class="p">:</span>
-        <span class="c1"># Render against THIS frame&#39;s per-eye poses (info.views[i].pose + .fov).</span>
+        <span class="c1"># Render against THIS frame's per-eye poses (info.views[i].pose + .fov).</span>
         <span class="n">color</span><span class="p">,</span> <span class="n">depth</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">views</span><span class="p">)</span>        <span class="c1"># RGBA8 + D32F CUDA buffers</span>
         <span class="k">if</span> <span class="n">layer</span><span class="o">.</span><span class="n">stereo</span><span class="p">:</span>
             <span class="n">layer</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">left_color</span><span class="p">,</span> <span class="n">left_depth</span><span class="p">,</span> <span class="n">right_color</span><span class="p">,</span> <span class="n">right_depth</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">cuda_stream</span><span class="p">)</span>
@@ -969,13 +970,13 @@ extensions automatically), then pass the handles through:</p>
 
 <span class="n">viz_cfg</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSessionConfig</span><span class="p">()</span>
 <span class="n">viz_cfg</span><span class="o">.</span><span class="n">mode</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">DisplayMode</span><span class="o">.</span><span class="n">kXr</span>
-<span class="c1"># Aggregate the XR extensions downstream trackers need so they&#39;re present</span>
+<span class="c1"># Aggregate the XR extensions downstream trackers need so they're present</span>
 <span class="c1"># on the XrInstance Televiz is about to create.</span>
 <span class="n">viz_cfg</span><span class="o">.</span><span class="n">required_extensions</span> <span class="o">=</span> <span class="n">DeviceIOSession</span><span class="o">.</span><span class="n">get_required_extensions</span><span class="p">(</span><span class="n">trackers</span><span class="p">)</span>
 <span class="n">viz_session</span> <span class="o">=</span> <span class="n">televiz</span><span class="o">.</span><span class="n">VizSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">viz_cfg</span><span class="p">)</span>
 
 <span class="n">teleop_cfg</span> <span class="o">=</span> <span class="n">TeleopSessionConfig</span><span class="p">(</span>
-    <span class="n">app_name</span><span class="o">=</span><span class="s2">&quot;MyApp&quot;</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="o">=</span><span class="s2">"MyApp"</span><span class="p">,</span>
     <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline</span><span class="p">,</span>
     <span class="n">oxr_handles</span><span class="o">=</span><span class="n">OpenXRSessionHandles</span><span class="p">(</span><span class="o">*</span><span class="n">viz_session</span><span class="o">.</span><span class="n">get_oxr_handles</span><span class="p">()),</span>
 <span class="p">)</span>
@@ -1259,7 +1260,7 @@ output locations.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 13, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
       <br/>
     
   </p>
