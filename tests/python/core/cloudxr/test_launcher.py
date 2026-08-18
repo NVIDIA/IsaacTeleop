@@ -223,6 +223,71 @@ class TestDivergenceWarnings:
 
         assert "gone.env" in caplog.text
 
+    def test_warns_when_running_service_lacks_host_client(self, tmp_path, capsys):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=[],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        err = capsys.readouterr().err
+        assert "--host-client is ignored" in err
+        assert "without --host-client" in err
+        assert "service stop" in err
+        assert "service start --host-client" in err
+
+    def test_warns_when_running_service_has_host_client(self, tmp_path, capsys):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=["--host-client"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        err = capsys.readouterr().err
+        assert "--no-host-client is ignored" in err
+        assert "with --host-client" in err
+        assert "service stop" in err
+
+    def test_quiet_when_running_host_client_matches(self, tmp_path, capsys):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=["--host-client"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        assert "host-client" not in capsys.readouterr().err
+
+    def test_quiet_when_foreground_service_flags_are_unknown(self, tmp_path, capsys):
+        """Foreground services leave no pid file, so their flags cannot be read."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=[],
+            ) as m_flags,
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        m_flags.assert_not_called()
+        assert "host-client" not in capsys.readouterr().err
+
 
 class TestNothingRunning:
     """Without a service, the launcher starts a detached one and says so."""
@@ -241,6 +306,14 @@ class TestNothingRunning:
                 "isaacteleop.cloudxr.background.start_and_wait",
                 return_value=(4242, tmp_path / "logs" / "service.log"),
             ) as m_start,
+            patch(
+                "isaacteleop.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+            patch(
+                "isaacteleop.cloudxr.oob_teleop_env.wss_proxy_port",
+                return_value=48322,
+            ),
         ):
             launcher = CloudXRLauncher(install_dir=install)
 
@@ -250,6 +323,7 @@ class TestNothingRunning:
         assert "started one (pid 4242)" in err
         assert "service stop" in err
         assert "--host-client" in m_start.call_args.args[0]
+        assert "https://10.0.0.5:48322/client/" in err
 
     def test_forwards_config_to_the_service_it_starts(self, tmp_path):
         """A dropped setting here would silently start the wrong runtime.
@@ -270,6 +344,10 @@ class TestNothingRunning:
                 "isaacteleop.cloudxr.background.start_and_wait",
                 return_value=(1, tmp_path / "logs" / "service.log"),
             ) as m_start,
+            patch(
+                "isaacteleop.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="127.0.0.1",
+            ),
         ):
             CloudXRLauncher(
                 install_dir=install, device_profile="auto-native", host_client=True
@@ -278,6 +356,24 @@ class TestNothingRunning:
         flags, _, _, extra_env = m_start.call_args.args
         assert "--host-client" in flags
         assert extra_env == {"NV_DEVICE_PROFILE": "auto-native"}
+
+    def test_omits_client_url_when_host_client_is_disabled(self, tmp_path, capsys):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaacteleop.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        assert "/client/" not in capsys.readouterr().err
 
     def test_default_profile_adds_no_environment(self, tmp_path):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")

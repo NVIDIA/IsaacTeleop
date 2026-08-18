@@ -53,6 +53,14 @@ def _parse_args(argv: Optional[list[str]]):
         help="Override display.mode from the config "
         "(default: the config's value, or xr when the config omits it).",
     )
+    parser.add_argument(
+        "--xr-wait",
+        type=int,
+        default=None,
+        metavar="SEC",
+        help="Override display.xr.system_wait_seconds "
+        "(default: the config's value, or 180 when omitted).",
+    )
     CloudXRLauncher.add_launcher_arguments(parser)
     return parser.parse_args(argv)
 
@@ -236,6 +244,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         session = display.make_session(
             cfg,
             mode_override=args.mode,
+            system_wait_override=args.xr_wait,
             required_extensions=(
                 ControllerControls.required_extensions() if want_controls else None
             ),
