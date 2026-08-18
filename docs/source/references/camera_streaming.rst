@@ -323,6 +323,31 @@ serving. Useful flags:
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
 
+Runtime settings themselves are declared in the config rather than exported. The viewer ships
+defaults (pose wait off, runtime foveation on), and ``display.cloudxr`` overrides them per
+deployment — list only what you want to change:
+
+.. code-block:: yaml
+
+   display:
+     cloudxr:
+       NV_DEVICE_PROFILE: apple-vision-pro
+       NV_ENABLE_POSE_WAIT: null   # null drops a viewer default
+
+The viewer writes these to a generated ``--cloudxr-env-config`` file, which outranks the process
+environment — so a value left in your shell (for example after sourcing
+``~/.cloudxr/run/cloudxr.env``, as ``--no-launch-cloudxr-runtime`` suggests) cannot silently
+override the config, and neither can it override ``--cloudxr-device-profile``. Booleans are
+written in the lowercase spelling the runtime's parser recognises; the launcher-computed keys
+(``XR_RUNTIME_JSON``, ``NV_CXR_RUNTIME_DIR``, ``NV_CXR_OUTPUT_DIR``, ``XRT_NO_STDIN``) are
+rejected by name. Passing ``--cloudxr-env-config`` yourself takes precedence over the generated
+file.
+
+An unknown variable name warns with a suggestion before the runtime launches, and is passed
+through regardless — the runtime has more settings than the viewer lists. To confirm what the
+runtime resolved, read the settings dump at the top of the newest
+``~/.cloudxr/logs/cxr_server.*.log``.
+
 .. _split-mode:
 
 Split mode — robot → workstation over RTP

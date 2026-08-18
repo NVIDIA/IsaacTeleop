@@ -42,6 +42,20 @@ display:
     near_z: 0.05
     far_z: 100.0
   clear_color: [0.0, 0.0, 0.0, 0.0]
+  # CloudXR runtime settings. camera_viz already sets sane defaults
+  # (cloudxr_env.DEFAULT_ENV: pose wait off, runtime foveation on) — this
+  # block is a per-deployment override, so list only what you want to change.
+  # It reaches the runtime as a generated --cloudxr-env-config file, which
+  # outranks the process environment, so a stale
+  # `source ~/.cloudxr/run/cloudxr.env` in your shell cannot silently win.
+  # camera_viz warns if the runtime resolves one differently from what was
+  # asked. `null` drops a default; booleans are written lowercase, the only
+  # spelling the runtime's parser reads as false.
+  # cloudxr:
+  #   NV_DEVICE_PROFILE: apple-vision-pro  # default: the launcher's quest3.
+  #                             # Non-quest3 profiles use separate-frames
+  #                             # packing, which turns off the runtime's
+  #                             # client-reconstructed streaming.
   # Controller bindings (XR only).
   #   right stick X : stereo plane gap     right A : lock mode   right B : mono/stereo
   #                   (equirect: pan)      right stick click : recenter on your view

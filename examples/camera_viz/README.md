@@ -258,6 +258,29 @@ The sphere has no lock mode: it is centred on you and follows your head everywhe
 
 ---
 
+## CloudXR runtime settings
+
+The runtime is configured by environment variables, and there are three ways to set one and be silently ignored: a name nothing reads, a stale `source ~/.cloudxr/run/cloudxr.env` in your shell (which outranks both `os.environ` and `--cloudxr-device-profile`), and a boolean spelled `False` — which the runtime's exact-match parser doesn't recognise, so it reads as **true**.
+
+camera_viz ships defaults in `cloudxr_env.DEFAULT_ENV` — pose wait off, runtime foveation on — so a config that says nothing gets both. `display.cloudxr` is a per-deployment override; list only what you want to change:
+
+```yaml
+display:
+  cloudxr:
+    NV_DEVICE_PROFILE: apple-vision-pro
+    NV_ENABLE_POSE_WAIT: null   # null drops a camera_viz default
+```
+
+camera_viz writes these to a generated `--cloudxr-env-config` file, the one tier that outranks the process environment. Booleans are lowercased for you; the launcher-computed keys (`XR_RUNTIME_JSON`, `NV_CXR_RUNTIME_DIR`, `NV_CXR_OUTPUT_DIR`, `XRT_NO_STDIN`) are refused by name. Passing `--cloudxr-env-config` yourself wins — camera_viz won't overwrite it.
+
+An unknown variable name warns with a suggestion before anything launches — `NV_CXR_DEVICE_PROFILE` is not a name the runtime reads, and it's one keystroke from one that is — but is still passed through, since the runtime has more knobs than camera_viz lists.
+
+To confirm what the runtime actually resolved, read the settings dump at the top of the newest `~/.cloudxr/logs/cxr_server.*.log`. Monado's `DEBUG_GET_ONCE` options (`NV_ENABLE_POSE_WAIT` among them) aren't in that dump; run with `XRT_PRINT_OPTIONS=true` and each is logged as `NAME=value (raw)`, where `(nil)` means it never arrived.
+
+> `NV_DEVICE_PROFILE` is device matching, not tuning. Anything other than `quest3` selects separate-frames packing, and `isFrameClientReconstructed()` bails unless packing is packed-frame — so a non-Quest profile gives up client-reconstructed streaming.
+
+---
+
 ## Status panel
 
 On a terminal, camera_viz redraws a snapshot in place instead of scrolling a log:
@@ -282,8 +305,13 @@ camera_viz  xr · local · 1 camera
 ```
 camera_viz/
 ├── camera_viz.sh        — CLI: setup / loopback / run / deploy / service-*
-├── camera_viz.py        — receiver / viewer
+├── camera_viz.py        — receiver / viewer (entrypoint + wiring)
 ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
+├── config.py            — YAML → SourceEntry: parse + validate, no allocation
+├── display.py           — VizSession + one layer per surface
+├── cloudxr_env.py       — display.cloudxr → the runtime's env file
+├── dashboard.py         — terminal status panel
+├── controls/            — XR controller bindings, shapes, stereo geometry, HUD
 ├── pipeline/            — source ABC + threaded runner
 ├── placements/          — XR lock-mode strategies
 ├── sources/             — V4L2 / OAK-D / ZED / synthetic / video replay / rtp_h264
