@@ -45,6 +45,11 @@ _STARTED_SERVICE = """\
   It outlives this script.  Stop it with:
     \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m"""
 
+_STARTED_HOST_CLIENT = (
+    "  web client: \033[36m{url}\033[0m  "
+    "\033[90m(hosted locally — open on your headset or browser)\033[0m"
+)
+
 _ENV_CONFIG_IGNORED = """\
 \033[33m{path} is ignored: the CloudXR runtime already serving this host was \
 started with its own configuration.\033[0m
@@ -53,6 +58,13 @@ started with its own configuration.\033[0m
     \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m
     \033[1;32mpython -m isaacteleop.cloudxr.service start --cloudxr-env-config \
 {path}\033[0m"""
+
+_HOST_CLIENT_IGNORED = """\
+\033[33m--{requested} is ignored: the CloudXR service already serving this \
+host was started {running}.\033[0m
+  Restart the service to apply it:
+    \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m
+    \033[1;32mpython -m isaacteleop.cloudxr.service start {start_flags}\033[0m"""
 
 # No colour: this one is raised, not printed, so it lands in logs and captured
 # output as often as on a terminal.
@@ -166,7 +178,8 @@ class CloudXRLauncher:
         Every other argument is forwarded to :class:`CloudXRService` and only
         applies when this process owns it.  When attaching they describe a
         runtime that already exists, so a mismatch is reported rather than
-        applied.
+        applied.  ``host_client`` is recovered from the detached service's
+        command line when that is available.
 
         Raises:
             RuntimeError: If the runtime fails to start or come up, or if
@@ -193,7 +206,7 @@ class CloudXRLauncher:
             return
 
         if is_runtime_live(self._run_dir):
-            self._attach(device_profile, env_config)
+            self._attach(device_profile, env_config, host_client)
             return
 
         started = self._start_service(
@@ -205,20 +218,22 @@ class CloudXRLauncher:
             usb_local,
             host_client,
         )
-        # env_config=None once we started it: that service was given this
-        # configuration, so there is nothing it ignored to report -- and
-        # telling the caller to restart it would be advice to undo their own
-        # settings.  A runtime that beat us to it did not get the config, so
-        # that one is reported like any other attach.
-        self._attach(device_profile, None if started else env_config)
+        # Skip mismatch reports for settings this call just applied.  A
+        # runtime that beat us to it did not get them, so that one is reported
+        # like any other attach.
+        self._attach(
+            device_profile,
+            None if started else env_config,
+            None if started else host_client,
+        )
 
     def _refuse_beside_live_runtime(self) -> None:
         """Reject ``run_embedded`` where a runtime is already serving.
 
         Attaching would answer a request to own with a runtime this process
-        cannot configure, and the WSS proxy options (``setup_oob``,
-        ``usb_local``, ``host_client``) never reach the env file, so the
-        mismatch could not even be reported.
+        cannot configure.  The WSS proxy options (``setup_oob``,
+        ``usb_local``, ``host_client``) belong to the service that started
+        the runtime; attaching can report a mismatch but cannot apply them.
 
         Raises:
             RuntimeError: If a runtime is already serving the run directory.
@@ -275,13 +290,27 @@ class CloudXRLauncher:
             # what this path wanted.  Its configuration is not ours, though.
             return False
         print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
+        if host_client:
+            from .oob_teleop_env import guess_lan_ipv4, wss_proxy_port  # noqa: PLC0415
+
+            url = (
+                f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
+            )
+            print(_STARTED_HOST_CLIENT.format(url=url), file=sys.stderr)
         return True
 
-    def _attach(self, device_profile: str, env_config: str | Path | None) -> None:
+    def _attach(
+        self,
+        device_profile: str,
+        env_config: str | Path | None,
+        host_client: bool | None = None,
+    ) -> None:
         """Adopt the running runtime's environment and report any mismatch.
 
         The env file is applied, never re-resolved: resolving it would rewrite
-        the file out from under the service that owns it.
+        the file out from under the service that owns it.  ``host_client`` is
+        ``None`` when this call just started the service, so there is nothing
+        to compare.
         """
         env = read_exported_env(self.env_file)
         if not env:
@@ -306,6 +335,29 @@ class CloudXRLauncher:
             )
         if env_config is not None:
             self._warn_env_config_ignored(env_config, env)
+        if host_client is not None:
+            self._warn_host_client_mismatch(host_client)
+
+    def _warn_host_client_mismatch(self, host_client: bool) -> None:
+        """Report when the running service's hosted-client mode differs.
+
+        Recovered from the detached service command line.  Foreground services
+        leave no pid file, so their flags cannot be recovered here and the
+        comparison stays quiet rather than guessing.
+        """
+        if background.read_pid(self._run_dir) is None:
+            return
+        running = "--host-client" in background.read_run_flags(self._run_dir)
+        if running == host_client:
+            return
+        print(
+            _HOST_CLIENT_IGNORED.format(
+                requested="host-client" if host_client else "no-host-client",
+                running="with --host-client" if running else "without --host-client",
+                start_flags="--host-client" if host_client else "",
+            ).rstrip(),
+            file=sys.stderr,
+        )
 
     @staticmethod
     def _warn_env_config_ignored(
@@ -526,8 +578,10 @@ class CloudXRLauncher:
             action=argparse.BooleanOptionalAction,
             default=True,
             help=(
-                "Serve the web client at /client/ on the WSS proxy port (default 48322), "
-                "fetched once from the matching versioned release into "
+                "Serve the web client at /client/ on the WSS proxy port "
+                "(default 48322) when this starts a CloudXR service. "
+                "Attaching to an existing service leaves its hosting unchanged. "
+                "Fetched once from the matching versioned release into "
                 "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client."
             ),
         )
