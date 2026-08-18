@@ -119,6 +119,7 @@ class VizRunner:
         self._stop = threading.Event()
         self._submit_thread: Optional[threading.Thread] = None
         self._render_thread: Optional[threading.Thread] = None
+        self._stats_thread: Optional[threading.Thread] = None
         # Submit thread bumps the version + notifies after each publish;
         # render thread compares versions under the lock, so wakeups
         # can't be lost.
@@ -132,7 +133,6 @@ class VizRunner:
         # Per-source submit counters (submit thread writes, stats print
         # reads — plain ints under the GIL, approximate reads are fine).
         self._submit_counts = [0] * len(self._layers)
-        self._stats_t0 = 0.0
 
     def start(self) -> None:
         if self._submit_thread is not None or self._render_thread is not None:
@@ -160,6 +160,11 @@ class VizRunner:
             target=self._render_loop, name="camera_viz_render", daemon=False
         )
         self._render_thread.start()
+        # Daemon: it only draws, so it must never hold up an exit.
+        self._stats_thread = threading.Thread(
+            target=self._stats_loop, name="camera_viz_stats", daemon=True
+        )
+        self._stats_thread.start()
 
     def stop(self) -> bool:
         """Returns True iff both worker threads exited within the join budget.
@@ -270,7 +275,6 @@ class VizRunner:
     def _submit_loop_inner(self) -> None:
         # Pin to the source's GPU on the first frame.
         device_pinned = False
-        self._stats_t0 = time.monotonic()
         # Which layer each source was last submitted to, and the frame it
         # sent, so a shape switch can re-send immediately (below).
         last_layers = [None] * len(self._layers)
@@ -315,11 +319,27 @@ class VizRunner:
                     self._data_cond.notify()
             else:
                 self._stop.wait(timeout=SUBMIT_POLL_S)
+
+    # ── Stats thread ───────────────────────────────────────────────────
+
+    def _stats_loop(self) -> None:
+        """The panel on its own thread, never the submit thread.
+
+        Writing it from the submit thread put a blocking write() between the
+        camera and the layer: a terminal that stops draining (a paused ssh
+        session, tmux scrollback, ^S) fills the pty buffer in about 25 paints
+        and then the feed stops until someone scrolls back down. A paint costs
+        0.035 ms on a local pty -- it is the tail that matters, not the median.
+        """
+        period = LIVE_STATS_PERIOD_S if self._dashboard.live else STATS_PERIOD_S
+        last = time.monotonic()
+        while not self._stop.wait(timeout=period):
             now = time.monotonic()
-            period = LIVE_STATS_PERIOD_S if self._dashboard.live else STATS_PERIOD_S
-            if now - self._stats_t0 >= period:
-                self._print_stats(now - self._stats_t0)
-                self._stats_t0 = now
+            try:
+                self._print_stats(now - last)
+            except Exception:  # noqa: BLE001 — a broken pipe must not stop the feed
+                logger.debug("status panel write failed", exc_info=True)
+            last = now
 
     def _print_stats(self, elapsed: float) -> None:
         """Push a snapshot of everything to the status panel.
