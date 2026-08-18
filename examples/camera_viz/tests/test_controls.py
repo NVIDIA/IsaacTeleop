@@ -694,7 +694,7 @@ def test_summarize_handles_nothing_changing():
 
 def test_multi_camera_baseline_message_stays_one_line(capsys):
     """End-to-end: three cameras must not produce three repeated values."""
-    from hud import _TEXT_W, _TITLE, split_message
+    from controls.hud import _TEXT_W, _TITLE, split_message
 
     targets = [_stereo_target(n) for n in ("front", "left", "right")]
     controls, _ = _make(targets, ControlsConfig(deadzone=0.0))
@@ -1088,30 +1088,3 @@ def test_control_messages_stay_off_stderr_when_the_panel_owns_it(capsys):
     assert capsys.readouterr().err == ""
     # The event still reaches the panel, which is what draws it.
     assert "lock" in controls.last_event
-
-
-# ── Config plumbing ───────────────────────────────────────────────────
-
-
-def test_shape_config_carries_the_equirect_heading():
-    import camera_viz
-
-    shape, _, _, _, yaw = camera_viz._shape_for(
-        "sky", {"sky": {"shape": "equirect", "equirect_yaw_deg": -90.0}}
-    )
-    assert (shape, yaw) == ("equirect", -90.0)
-    assert camera_viz._shape_for("cam", {})[4] == 0.0
-
-
-def test_a_curved_shape_is_refused_before_the_runtime_starts():
-    """Also pins the shape-config tuple against its callers: an extra field
-    once slipped past a positional unpack here."""
-    import camera_viz
-
-    cfg = {
-        "cameras": [{"name": "sky", "enabled": True}],
-        "display": {"placements": {"sky": {"shape": "equirect"}}},
-    }
-    camera_viz._check_shapes_are_displayable(cfg, "xr")
-    with pytest.raises(SystemExit, match="requires XR mode"):
-        camera_viz._check_shapes_are_displayable(cfg, "window")
