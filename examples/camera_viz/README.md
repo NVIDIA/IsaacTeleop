@@ -58,11 +58,12 @@ Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--
 
 Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `realsense.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `synthetic_xr_3up.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
 
-In XR mode, open CloudXR.js on the headset at `https://<host>:48322/client/` (accept the self-signed cert, then CONNECT). When `run` starts the CloudXR service it prints that URL. If a service is already running, use the package CLI through the example venv:
+In XR mode, open CloudXR.js on the headset at `https://<host>:48322/client/` (accept the self-signed cert, then CONNECT). When `run` starts the CloudXR service it prints that URL. To inspect or stop an already-running service from the example venv:
 
 ```bash
-./camera_viz.sh py -m isaacteleop.cloudxr.service status
-./camera_viz.sh py -m isaacteleop.cloudxr.service stop
+source .venv/bin/activate
+python -m isaacteleop.cloudxr.service status
+python -m isaacteleop.cloudxr.service stop
 ```
 
 (`service-status` / `service-logs` / `service-restart` are for the robot RTP unit from `deploy`, not CloudXR.)
@@ -187,7 +188,7 @@ Lazy knobs under `placements.<name>`: `look_away_angle_deg`, `reposition_distanc
 
 ```
 camera_viz/
-├── camera_viz.sh        — CLI: setup / loopback / run / deploy / service-* / py
+├── camera_viz.sh        — CLI: setup / loopback / run / deploy / service-*
 ├── camera_viz.py        — receiver / viewer
 ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
 ├── pipeline/            — source ABC + threaded runner
