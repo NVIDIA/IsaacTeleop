@@ -9,7 +9,6 @@
 #   ./camera_viz.sh setup [--sender-only]      install deps + build codec
 #   ./camera_viz.sh loopback CONFIG            run streamer + viz on 127.0.0.1
 #   ./camera_viz.sh run CONFIG [--mode M]      run the viewer (honors source:)
-#   ./camera_viz.sh py ARGS...                 run ARGS with the example .venv python
 #
 # Remote (Jetson robot):
 #   ./camera_viz.sh deploy --host H --user U [--password P] CONFIG
@@ -388,24 +387,6 @@ cmd_service_restart() {
 }
 
 # ──────────────────────────────────────────────────────────────────────
-# py — run an arbitrary command with the example .venv python
-# ──────────────────────────────────────────────────────────────────────
-
-cmd_py() {
-    LOCAL_VENV="$HERE/.venv"
-    [[ -x "$LOCAL_VENV/bin/python" ]] || {
-        log_error "no venv at $LOCAL_VENV — run ./camera_viz.sh setup first"
-        exit 1
-    }
-    (( $# )) || {
-        log_error "usage: camera_viz.sh py ARGS..."
-        log_error "example: ./camera_viz.sh py -m isaacteleop.cloudxr.service status"
-        exit 1
-    }
-    exec "$LOCAL_VENV/bin/python" "$@"
-}
-
-# ──────────────────────────────────────────────────────────────────────
 # Help
 # ──────────────────────────────────────────────────────────────────────
 
@@ -474,9 +455,6 @@ REMOTE (Jetson robot)
     service-restart  [--host H --user U [--password P]]
                           Inspect / manage the deployed robot RTP service.
 
-    py ARGS...                Run ARGS with the example .venv python.
-                          Example: ./camera_viz.sh py -m isaacteleop.cloudxr.service status
-
 ENVIRONMENT (remote commands)
     REMOTE_HOST, REMOTE_USER, REMOTE_PASSWORD
                           Defaults for --host / --user / --password. CLI
@@ -520,7 +498,6 @@ case "$cmd" in
     service-status)   cmd_service_status "$@" ;;
     service-logs)     cmd_service_logs "$@" ;;
     service-restart)  cmd_service_restart "$@" ;;
-    py)               cmd_py "$@" ;;
     -h|--help|help)   show_help ;;
     *) log_error "unknown command: $cmd"; show_help; exit 1 ;;
 esac
