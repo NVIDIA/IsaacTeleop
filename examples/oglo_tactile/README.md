@@ -30,6 +30,7 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
 
    ```bash
    sudo apt install libdbus-1-dev          # BlueZ for the BLE plugin
+   sudo apt install pkg-config glslang-tools libvulkan-dev   # BUILD_VIZ=ON below
    pip install pillow numpy                 # heatmap renderer
    pip install cupy-cuda12x                 # headset overlay GPU upload (match your CUDA)
    ```

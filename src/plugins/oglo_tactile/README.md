@@ -31,7 +31,7 @@ so packet sizes are never hardcoded (wire spec: the OGLO firmware packed12-v5 pa
 Linux only (BlueZ). Prerequisite:
 
 ```bash
-sudo apt install libdbus-1-dev
+sudo apt install libdbus-1-dev pkg-config
 ```
 
 ```bash
