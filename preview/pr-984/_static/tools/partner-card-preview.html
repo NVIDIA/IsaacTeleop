@@ -1,0 +1,1653 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+Standalone preview of one Ecosystem partner card, for partners to check their own logo
+and copy before sending it to us. Open the file directly -- no server, no build, and
+nothing is uploaded: logos are read with FileReader and stay in the tab.
+
+The card markup and CSS below are a copy of what the docs build produces
+(docs/source/_ext/partner_grid.py + docs/source/_static/css/ecosystem.css) and of the
+theme's --pst-* tokens. Change one of those and this file has to be updated with it;
+the fidelity of the preview is the whole point of the tool.
+
+Card widths in the width switcher are measured from the built page, not guessed:
+380px on any window >=1100px, 318px once the right-hand TOC appears (~1280px), 343px
+single column on a phone.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isaac Teleop — Ecosystem partner card preview</title>
+<style>
+/* ------------------------------------------------------------------ fonts --
+   Same sources the docs site uses, so an online preview gets NVIDIA Sans and an
+   offline one falls back to Arial. */
+@font-face{font-family:NVIDIA;font-style:normal;font-weight:300;src:url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Lt.woff2) format("woff2"),url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Lt.woff) format("woff")}
+@font-face{font-family:NVIDIA;font-style:normal;font-weight:400;src:url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Rg.woff2) format("woff2"),url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Rg.woff) format("woff")}
+@font-face{font-family:NVIDIA;font-style:normal;font-weight:500;src:url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Md.woff2) format("woff2"),url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Md.woff) format("woff")}
+@font-face{font-family:NVIDIA;font-style:normal;font-weight:700;src:url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Bd.woff2) format("woff2"),url(https://images.nvidia.com/etc/designs/nvidiaGDC/clientlibs_base/fonts/nvidia-sans/GLOBAL/NVIDIASans_W_Bd.woff) format("woff")}
+
+/* The card is sized in rem, so the root has to match the docs site's 16px. */
+html { font-size: 16px; }
+
+/* ------------------------------------------------------------ tool chrome --
+   Deliberately not themed: only the card stage flips to dark, so the controls stay
+   readable while you judge the dark card. */
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 0 24px 64px;
+    background: #f2f4f7;
+    color: #1f2328;
+    font-family: NVIDIA, Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+a { color: #4a7a00; }
+
+.wrap { max-width: 1220px; margin: 0 auto; }
+
+header.tool-head {
+    padding: 32px 0 20px;
+}
+
+.tool-title {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 0 0 6px;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+.tool-title .eyebrow {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: #76b900;
+    color: #10240a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.tool-lede { max-width: 68ch; margin: 0; color: #4b535c; }
+
+.tool-lede strong { color: #1f2328; }
+
+.layout {
+    display: grid;
+    grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.panel {
+    padding: 20px;
+    border: 1px solid #dfe3e8;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.panel + .panel { margin-top: 20px; }
+
+.panel-title {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #6b7480;
+}
+
+.panel-note { margin: 0 0 16px; font-size: 13px; color: #6b7480; }
+
+.panel-note code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: #eef1f4;
+    font-family: RobotoMono, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    color: #1f2328;
+}
+
+.panel-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* Reads as one sentence across the two buttons — "download, then open the form" — so nobody
+   takes the second one for a button that uploads on their behalf. */
+.step-sep { font-size: 11px; font-weight: 600; color: #8a929c; }
+
+.field { margin-bottom: 16px; }
+
+.field:last-child { margin-bottom: 0; }
+
+.field > label,
+.field > .label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 5px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.opt { font-weight: 400; color: #8a929c; }
+
+.hint { margin: 5px 0 0; font-size: 12px; color: #767e88; }
+
+.count { font-size: 11px; font-variant-numeric: tabular-nums; color: #8a929c; }
+
+.count.over { color: #b3261e; font-weight: 600; }
+
+input[type="text"], input[type="url"], textarea, select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #cdd3da;
+    border-radius: 6px;
+    background: #fff;
+    color: inherit;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+textarea { min-height: 84px; resize: vertical; }
+
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid #76b900;
+    outline-offset: 1px;
+}
+
+.row { display: flex; gap: 10px; }
+
+.row > * { flex: 1; min-width: 0; }
+
+/* ---- segmented switches ---- */
+
+.seg {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid #cdd3da;
+    border-radius: 8px;
+    background: #f7f8fa;
+}
+
+.seg button {
+    padding: 5px 12px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: #4b535c;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.seg button[aria-pressed="true"] {
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.16);
+    color: #1f2328;
+}
+
+/* ---- buttons ---- */
+
+.btn {
+    padding: 8px 14px;
+    border: 1px solid #cdd3da;
+    border-radius: 6px;
+    background: #fff;
+    color: #1f2328;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn:hover { border-color: #76b900; }
+
+.btn.primary { border-color: #76b900; background: #76b900; color: #10240a; }
+
+/* An <a> inherits the panel title's uppercase and tracking, which a <button> does not — reset
+   both, or the link shouts next to the button it sits beside. */
+a.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.btn.link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #4a7a00;
+    font-size: 12px;
+    text-decoration: underline;
+}
+
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---- logo drop zone ---- */
+
+.drop {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    padding: 16px;
+    border: 1px dashed #c3cad2;
+    border-radius: 8px;
+    background: #fafbfc;
+    text-align: center;
+    font-size: 13px;
+    color: #6b7480;
+    cursor: pointer;
+}
+
+.drop.is-over { border-color: #76b900; background: #f4fae9; }
+
+.drop input[type="file"] { display: none; }
+
+.drop-name { font-weight: 600; color: #1f2328; word-break: break-all; }
+
+/* ---- link rows ---- */
+
+.link-row {
+    padding: 12px;
+    border: 1px solid #e6e9ed;
+    border-radius: 8px;
+    background: #fafbfc;
+}
+
+.link-row + .link-row { margin-top: 10px; }
+
+.link-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7480;
+}
+
+/* ---- checks ---- */
+
+.checks { margin: 0; padding: 0; list-style: none; font-size: 13px; }
+
+.checks li {
+    display: flex;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid #eef0f3;
+}
+
+.checks li:last-child { border-bottom: 0; }
+
+.checks .mark { flex: none; width: 16px; font-weight: 700; text-align: center; }
+
+.checks .ok .mark { color: #3f8c00; }
+
+.checks .warn .mark { color: #b26b00; }
+
+.checks .bad .mark { color: #b3261e; }
+
+.checks .info .mark { color: #5b6570; }
+
+/* ---- preview column ---- */
+
+.preview-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.preview-bar .grp { display: flex; align-items: center; gap: 8px; }
+
+.preview-bar .grp > span {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7480;
+}
+
+.stages { display: flex; flex-wrap: wrap; gap: 20px; }
+
+.stage-wrap { flex: 1 1 auto; min-width: 0; }
+
+.stage-label {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6b7480;
+}
+
+/* The one element that carries the docs site's own environment: its color tokens, its
+   background, and its type. Everything inside is a copy of the real card. */
+.stage {
+    padding: 28px;
+    border: 1px solid #dfe3e8;
+    border-radius: 12px;
+    background: var(--pst-color-background);
+    font-family: NVIDIA, Arial, Helvetica, sans-serif;
+    font-size: 1rem;
+    line-height: 1.65;
+    color: var(--pst-color-text-base);
+}
+
+/* Values read off the built site, light and dark. */
+.stage[data-theme="light"] {
+    --pst-color-primary: #76B900;
+    --pst-color-background: #fff;
+    --pst-color-surface: #f5f5f5;
+    --pst-color-border: #c9c9c9;
+    --pst-color-text-base: #323232;
+    --pst-color-text-muted: #646464;
+    --pst-color-shadow: #d8d8d8;
+    --pst-color-attention: #ffc107;
+}
+
+.stage[data-theme="dark"] {
+    --pst-color-primary: #76B900;
+    --pst-color-background: #121212;
+    --pst-color-surface: #212121;
+    --pst-color-border: silver;
+    --pst-color-text-base: #cecece;
+    --pst-color-text-muted: #a6a6a6;
+    --pst-color-shadow: #212121;
+    --pst-color-attention: #dca90f;
+}
+
+/* Light/dark logo swap, the same pair of classes the theme uses. */
+.stage[data-theme="light"] .only-dark,
+.stage[data-theme="dark"] .only-light { display: none; }
+
+.size-readout {
+    margin: 10px 0 0;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: #6b7480;
+}
+
+/* ---- yaml output ---- */
+
+pre.out {
+    max-height: 340px;
+    margin: 0;
+    padding: 14px;
+    overflow: auto;
+    border: 1px solid #e6e9ed;
+    border-radius: 8px;
+    background: #fafbfc;
+    font-family: RobotoMono, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre;
+    tab-size: 2;
+}
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: #1f2328;
+    color: #fff;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease-out;
+}
+
+.toast.show { opacity: 1; }
+
+@media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+}
+
+/* ============================================================================
+   CARD -- copied from docs/source/_static/css/ecosystem.css. Keep in sync; do not
+   "improve" anything here, a difference from the site is a bug in this file.
+   ========================================================================== */
+
+.partner-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(282px, 1fr));
+    gap: 1.25rem;
+    margin: 0;
+}
+
+.partner-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+    background: var(--pst-color-background);
+    transition: box-shadow 0.15s ease-out, border-color 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.partner-card:hover {
+    border-color: var(--pst-color-primary);
+    box-shadow: 0 6px 18px var(--pst-color-shadow);
+    transform: translateY(-2px);
+}
+
+.partner-card.is-upcoming {
+    border-style: dashed;
+    background: var(--pst-color-surface);
+}
+
+.partner-card p { margin: 0; }
+
+.partner-status {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 999px;
+    background: var(--pst-color-background);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.partner-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentcolor;
+}
+
+.partner-status.is-maintained {
+    border-color: var(--pst-color-primary);
+    color: var(--pst-color-primary);
+}
+
+.partner-status.is-new {
+    border-color: var(--pst-color-primary);
+    background: var(--pst-color-primary);
+    color: #000;
+}
+
+.partner-status.is-upcoming {
+    border-color: var(--pst-color-attention);
+    color: var(--pst-color-attention);
+}
+
+.partner-status.is-deprecated { color: var(--pst-color-text-muted); }
+
+.partner-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 104px;
+    padding: 1.125rem 1.375rem;
+    border-bottom: 1px solid var(--pst-color-border);
+    background: var(--pst-color-surface);
+}
+
+.partner-card.is-upcoming .partner-logo { background: var(--pst-color-background); }
+
+.partner-logo-img {
+    display: block;
+    width: 100%;
+    line-height: 0;
+}
+
+.partner-logo img {
+    width: 100%;
+    height: 68px;
+    object-fit: contain;
+    object-position: center;
+}
+
+.partner-logo-placeholder {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--pst-color-text-base);
+}
+
+.partner-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 1rem 1.125rem 1.125rem;
+}
+
+.partner-eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+.partner-name {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--pst-color-text-base);
+}
+
+.partner-version {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--pst-color-text-muted);
+}
+
+.partner-desc {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--pst-color-text-base);
+}
+
+.partner-card p.partner-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    margin-top: auto;
+    padding-top: 0.875rem;
+    border-top: 1px solid var(--pst-color-border);
+}
+
+.partner-card p.partner-footer:empty::before {
+    content: "";
+    height: 1.25rem;
+}
+
+.partner-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--pst-color-text-base) !important;
+}
+
+.partner-link:hover,
+.partner-link:focus { color: var(--pst-color-primary) !important; }
+
+.eco-link-arrow { flex: none; width: 13px; height: 13px; }
+
+.partner-link.is-tracking {
+    font-weight: 500;
+    color: var(--pst-color-text-muted) !important;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="tool-head">
+    <p class="tool-title"><span class="eyebrow">Isaac Teleop</span> Ecosystem partner card preview</p>
+    <p class="tool-lede">
+        Fill in the fields, drop in your logo, and this page draws your card exactly as it
+        will appear in the Ecosystem partner grid — same width, same type, same light and
+        dark themes. <strong>Everything stays on your computer:</strong> this is a single
+        HTML file with no network calls except the NVIDIA brand font, and your logo is read
+        in the browser, never uploaded. When it looks right, download the archive at the
+        bottom and send it to us through the upload form.
+    </p>
+</header>
+
+<div class="layout">
+
+    <!-- ------------------------------------------------------------ controls -->
+    <div>
+        <section class="panel">
+            <p class="panel-title">Card content <button class="btn link" id="load-example" type="button">Load example</button></p>
+            <p class="panel-note">Two short lines beat one long one — every card in the grid is read at a glance.</p>
+
+            <div class="field">
+                <label for="f-section">Card type</label>
+                <select id="f-section">
+                    <option value="active">Integrated partner (logo, description, links)</option>
+                    <option value="upcoming">Coming soon (wordmark and category only)</option>
+                </select>
+            </div>
+
+            <div class="row">
+                <div class="field">
+                    <label for="f-org">Company <span class="opt">required</span></label>
+                    <input type="text" id="f-org" placeholder="Acme Robotics" autocomplete="off">
+                    <p class="hint">Also the fallback wordmark if you send no logo.</p>
+                </div>
+                <div class="field">
+                    <label for="f-version">Version <span class="opt">optional</span></label>
+                    <input type="text" id="f-version" placeholder="2.1" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="f-product">Product name <span class="count" id="c-product"></span></label>
+                <input type="text" id="f-product" placeholder="Acme Haptic Glove" autocomplete="off">
+                <p class="hint">The card title. Around 30 characters keeps it on one line.</p>
+            </div>
+
+            <div class="row">
+                <div class="field">
+                    <label for="f-category">Category <span class="opt">required</span></label>
+                    <input type="text" id="f-category" list="d-category" placeholder="Hand-Tracking Gloves" autocomplete="off">
+                    <datalist id="d-category">
+                        <option>Hand-Tracking Gloves</option>
+                        <option>Hand Exoskeleton</option>
+                        <option>Tactile Gloves</option>
+                        <option>XR Headset</option>
+                        <option>6DoF Tracker</option>
+                        <option>Motion Capture</option>
+                        <option>Master Manipulator</option>
+                        <option>Dexterous Hand</option>
+                        <option>Camera</option>
+                        <option>Robotics OEM</option>
+                        <option>Robot Learning Framework</option>
+                        <option>Cloud Infrastructure</option>
+                        <option>Data Factory</option>
+                    </datalist>
+                </div>
+                <div class="field">
+                    <label for="f-type">Sub-type <span class="opt">optional</span></label>
+                    <input type="text" id="f-type" list="d-type" placeholder="Haptics" autocomplete="off">
+                    <datalist id="d-type">
+                        <option>Haptics</option>
+                        <option>Contact Sensing</option>
+                        <option>Body Tracking</option>
+                        <option>Full-Body Tracking</option>
+                        <option>Data Collection</option>
+                        <option>Ego Data Capture</option>
+                        <option>Retargeting Target</option>
+                    </datalist>
+                </div>
+            </div>
+            <p class="hint" style="margin-top:-10px">The two join with a dot in the small line above the title.</p>
+
+            <div class="field" id="wrap-desc">
+                <label for="f-desc">Description <span class="count" id="c-desc"></span></label>
+                <textarea id="f-desc" placeholder="One or two sentences: what it is, and what it does with Isaac Teleop."></textarea>
+                <p class="hint">90–220 characters. Longer copy makes your card taller than the ones beside it.</p>
+            </div>
+
+            <div class="field">
+                <label for="f-status">Status badge <span class="opt">we set this</span></label>
+                <select id="f-status">
+                    <option value="is-maintained">Active</option>
+                    <option value="is-new">New</option>
+                    <option value="is-upcoming">Upcoming</option>
+                    <option value="is-deprecated">Deprecated</option>
+                </select>
+            </div>
+        </section>
+
+        <section class="panel">
+            <p class="panel-title">Logo</p>
+            <p class="panel-note">
+                SVG, transparent background, no embedded photos. It is drawn to fit a box
+                roughly 336&nbsp;&times;&nbsp;68&nbsp;px, so a horizontal wordmark or a
+                compact mark reads best.
+            </p>
+
+            <div class="field">
+                <span class="label">Logo file</span>
+                <label class="drop" id="drop-light">
+                    <input type="file" id="f-logo" accept=".svg,image/svg+xml,.png,image/png">
+                    <span class="drop-name" id="name-light">Drop an SVG here, or click to choose</span>
+                    <span id="sub-light">SVG preferred · PNG accepted at 3&times; size</span>
+                </label>
+                <p class="hint"><button class="btn link" id="clear-light" type="button">Remove logo</button></p>
+            </div>
+
+            <div class="field">
+                <span class="label">Dark-theme variant <span class="opt">optional</span></span>
+                <label class="drop" id="drop-dark">
+                    <input type="file" id="f-logo-dark" accept=".svg,image/svg+xml,.png,image/png">
+                    <span class="drop-name" id="name-dark">Drop a second file for dark mode</span>
+                    <span id="sub-dark">Only needed if your mark is a single dark or light color</span>
+                </label>
+                <p class="hint"><button class="btn link" id="clear-dark" type="button">Remove dark variant</button></p>
+            </div>
+        </section>
+
+        <section class="panel">
+            <p class="panel-title">Links <button class="btn link" id="add-link" type="button">Add link</button></p>
+            <p class="panel-note">Up to three. More than that and the footer wraps onto a second line.</p>
+            <div id="links"></div>
+        </section>
+    </div>
+
+    <!-- ------------------------------------------------------------- preview -->
+    <div>
+        <section class="panel">
+            <div class="preview-bar">
+                <div class="grp">
+                    <span>Theme</span>
+                    <div class="seg" id="seg-theme">
+                        <button type="button" data-v="light" aria-pressed="true">Light</button>
+                        <button type="button" data-v="dark" aria-pressed="false">Dark</button>
+                        <button type="button" data-v="both" aria-pressed="false">Both</button>
+                    </div>
+                </div>
+                <div class="grp">
+                    <span>Width</span>
+                    <div class="seg" id="seg-width">
+                        <button type="button" data-v="380" aria-pressed="true">Desktop 380px</button>
+                        <button type="button" data-v="318" aria-pressed="false">Narrow 318px</button>
+                        <button type="button" data-v="343" aria-pressed="false">Phone 343px</button>
+                    </div>
+                </div>
+                <div class="grp">
+                    <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;margin:0">
+                        <input type="checkbox" id="f-neighbor"> Show next to a neighbour card
+                    </label>
+                </div>
+            </div>
+
+            <div class="stages" id="stages"></div>
+            <p class="size-readout" id="readout"></p>
+        </section>
+
+        <section class="panel">
+            <p class="panel-title">Checks</p>
+            <ul class="checks" id="checks"></ul>
+        </section>
+
+        <section class="panel">
+            <p class="panel-title">
+                Send us this
+                <span class="panel-actions">
+                    <button class="btn primary" id="download-zip" type="button">Download .zip</button>
+                    <span class="step-sep">then</span>
+                    <a class="btn" href="https://forms.gle/fATPBXKNi9yFcKwb8" target="_blank" rel="noopener noreferrer">Open the upload form <span aria-hidden="true">&#8599;</span></a>
+                </span>
+            </p>
+            <p class="panel-note">
+                <code id="zip-filename">partner.zip</code> is everything we need in one
+                attachment: this record, your logo files renamed to match it, and a plain-text
+                summary. The record is what we paste into the site, so anything you change here
+                lands on the page as written. Save the archive first, then attach it in the
+                upload form — or email it to whoever you have been talking to here, if the form
+                will not open for you.
+            </p>
+            <pre class="out" id="yaml"></pre>
+        </section>
+
+        <section class="panel">
+            <p class="panel-title">Copy and reset</p>
+            <div class="btn-row">
+                <button class="btn" id="copy-summary" type="button">Copy summary</button>
+                <button class="btn" id="copy-yaml" type="button">Copy YAML</button>
+                <button class="btn" id="reset" type="button">Clear everything</button>
+            </div>
+            <p class="hint">
+                The copies hold the same record as the archive — as plain text, or as YAML to
+                paste. Your entries stay in this browser only, so you can close the tab and
+                come back.
+            </p>
+        </section>
+    </div>
+</div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+
+/* The docs site's own arrow glyph: shown only on links that leave NVIDIA's docs and
+   repository, which is the rule partner_grid.py applies. */
+const ARROW = '<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+    ' stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg>';
+const PROJECT_REPO = "https://github.com/NVIDIA/IsaacTeleop";
+const STORE_KEY = "isaac-teleop-partner-card-preview";
+/* Five lines in a 380px card. Past this the card stops matching the height of the ones
+   either side of it in the grid. */
+const DESC_LIMIT = 220;
+
+const STATUS_LABELS = {
+    "is-maintained": "Active",
+    "is-new": "New",
+    "is-upcoming": "Upcoming",
+    "is-deprecated": "Deprecated",
+};
+
+/* NVIDIA's own mark, in the two variants the docs theme ships. The example uses it
+   because a wordmark that is black in one file and white in the other is exactly the
+   case the light/dark pair exists for -- one file could not serve both cards. */
+const EXAMPLE_LOGO_LIGHT = "<svg id=\"Logo\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 3096.56 1065.98\"><defs><style>.cls-1{fill:#76b900;}</style></defs><title>nvidia-logo-horiz-rgb-blk-for-screen</title><g id=\"NVIDIA_Logo\" data-name=\"NVIDIA Logo\"><path id=\"Eye_Mark\" data-name=\"Eye Mark\" class=\"cls-1\" d=\"M562.33,440.33V398.81c4-.28,8.1-.5,12.25-.63,113.55-3.57,188,97.56,188,97.56S682.16,607.49,595.9,607.49a104.51,104.51,0,0,1-33.57-5.37V476.24c44.21,5.34,53.09,24.86,79.68,69.16l59.1-49.84S658,439,585.24,439a214.88,214.88,0,0,0-22.91,1.35m0-137.14v62c4.08-.32,8.16-.58,12.25-.73C732.49,359.15,835.35,494,835.35,494S717.19,637.65,594.1,637.65a181.36,181.36,0,0,1-31.77-2.8v38.33a208.94,208.94,0,0,0,26.46,1.72c114.55,0,197.39-58.5,277.62-127.74,13.29,10.65,67.74,36.55,78.94,47.91-76.28,63.85-254,115.31-354.8,115.31-9.71,0-19-.58-28.22-1.46v53.87H997.74V303.19Zm0,298.93v32.73C456.38,616,427,505.83,427,505.83s50.87-56.37,135.36-65.5v35.91l-.16,0c-44.34-5.33-79,36.1-79,36.1s19.41,69.73,79.14,89.8M374.15,501.05S437,408.39,562.33,398.81V365.2C423.46,376.35,303.19,494,303.19,494S371.3,690.89,562.33,708.92V673.18C422.15,655.55,374.15,501.05,374.15,501.05Z\"/><path id=\"NVIDIA\" d=\"M1782,390l0,301.68h85.2V390Zm-670.22-.41V691.71h86V462.33l66.59,0c22.06,0,37.77,5.48,48.4,16.83,13.48,14.36,19,37.51,19,79.87V691.71l83.27,0V524.81c0-119.12-75.93-135.19-150.21-135.19h-153m807.4.43V691.71h138.19c73.63,0,97.66-12.25,123.65-39.7,18.37-19.27,30.24-61.58,30.24-107.82,0-42.4-10.05-80.23-27.58-103.78-31.56-42.13-77-50.36-144.92-50.36Zm84.52,65.68h36.63c53.14,0,87.51,23.87,87.51,85.79s-34.37,85.8-87.51,85.8h-36.63Zm-344.54-65.68-71.1,239.08-68.14-239.07h-92l97.31,301.66h122.79l98.07-301.66Zm591.74,301.66h85.21V390.06h-85.23Zm238.84-301.56-119,301.46h84l18.82-53.29h140.8l17.82,53.29h91.21L2603.56,390.13Zm55.31,55,51.61,141.23H2491.82Z\"/><path d=\"M2767.13,700.91a26.61,26.61,0,1,1,26.61-26.61A26.6,26.6,0,0,1,2767.13,700.91Zm0-48.11c-11.94,0-21.12,9.18-21.12,21.5s9.18,21.5,21.12,21.5,21.12-9.18,21.12-21.5S2779.06,652.8,2767.13,652.8Zm4.77,35.62-5.14-11h-3v11h-6.32V660.11H2769c5.74,0,9.41,4.19,9.41,8.9a8,8,0,0,1-5.22,7.5l6,11.91Zm-3.75-23.09h-4.41v7.35h4.41a3.68,3.68,0,1,0,0-7.35Z\"/></g></svg>";
+const EXAMPLE_LOGO_DARK = "<svg id=\"Logo\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 3096.56 1065.98\"><defs><style>.cls-1{fill:#76b900;}.cls-2{fill:#fff;}</style></defs><title>nvidia-logo-horiz-rgb-wht-for-screen</title><g id=\"NVIDIA_Logo\" data-name=\"NVIDIA Logo\"><path id=\"Eye_Mark\" data-name=\"Eye Mark\" class=\"cls-1\" d=\"M562.33,440.33V398.81c4-.28,8.1-.5,12.25-.63,113.55-3.57,188,97.56,188,97.56S682.16,607.49,595.9,607.49a104.51,104.51,0,0,1-33.57-5.37V476.24c44.21,5.34,53.09,24.86,79.68,69.16l59.1-49.84S658,439,585.24,439a214.88,214.88,0,0,0-22.91,1.35m0-137.14v62c4.08-.32,8.16-.58,12.25-.73C732.49,359.15,835.35,494,835.35,494S717.19,637.65,594.1,637.65a181.36,181.36,0,0,1-31.77-2.8v38.33a208.94,208.94,0,0,0,26.46,1.72c114.55,0,197.39-58.5,277.62-127.74,13.29,10.65,67.74,36.55,78.94,47.91-76.28,63.85-254,115.31-354.8,115.31-9.71,0-19-.58-28.22-1.46v53.87H997.74V303.19Zm0,298.93v32.73C456.38,616,427,505.83,427,505.83s50.87-56.37,135.36-65.5v35.91l-.16,0c-44.34-5.33-79,36.1-79,36.1s19.41,69.73,79.14,89.8M374.15,501.05S437,408.39,562.33,398.81V365.2C423.46,376.35,303.19,494,303.19,494S371.3,690.89,562.33,708.92V673.18C422.15,655.55,374.15,501.05,374.15,501.05Z\"/><path id=\"NVIDIA\" class=\"cls-2\" d=\"M1782,390l0,301.68h85.2V390Zm-670.22-.41V691.71h86V462.33l66.59,0c22.06,0,37.77,5.48,48.4,16.83,13.48,14.36,19,37.51,19,79.87V691.71l83.27,0V524.81c0-119.12-75.93-135.19-150.21-135.19h-153m807.4.43V691.71h138.19c73.63,0,97.66-12.25,123.65-39.7,18.37-19.27,30.24-61.58,30.24-107.82,0-42.4-10.05-80.23-27.58-103.78-31.56-42.13-77-50.36-144.92-50.36Zm84.52,65.68h36.63c53.14,0,87.51,23.87,87.51,85.79s-34.37,85.8-87.51,85.8h-36.63Zm-344.54-65.68-71.1,239.08-68.14-239.07h-92l97.31,301.66h122.79l98.07-301.66Zm591.74,301.66h85.21V390.06h-85.23Zm238.84-301.56-119,301.46h84l18.82-53.29h140.8l17.82,53.29h91.21L2603.56,390.13Zm55.31,55,51.61,141.23H2491.82Z\"/><path class=\"cls-2\" d=\"M2767.13,700.91a26.61,26.61,0,1,1,26.61-26.61A26.6,26.6,0,0,1,2767.13,700.91Zm0-48.11c-11.94,0-21.12,9.18-21.12,21.5s9.18,21.5,21.12,21.5,21.12-9.18,21.12-21.5S2779.06,652.8,2767.13,652.8Zm4.77,35.62-5.14-11h-3v11h-6.32V660.11H2769c5.74,0,9.41,4.19,9.41,8.9a8,8,0,0,1-5.22,7.5l6,11.91Zm-3.75-23.09h-4.41v7.35h4.41a3.68,3.68,0,1,0,0-7.35Z\"/></g></svg>";
+
+function inlineLogo(text, name) {
+    return {
+        name: name,
+        size: text.length,
+        isSvg: true,
+        text: text,
+        dataUrl: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(text),
+    };
+}
+
+const EXAMPLE = {
+    section: "active",
+    organization: "NVIDIA",
+    product: "Isaac Teleop",
+    version: "",
+    category: "Platform",
+    type: "Teleop",
+    description: "A unified framework for high-fidelity egocentric and robot data collection: standardized device interfaces, graph-based retargeting, and a streamlined workflow across simulated and real robots.",
+    status: "is-maintained",
+    links: [
+        { kind: "external", label: "Overview", url: "https://nvidia.github.io/IsaacTeleop/main/index.html" },
+    ],
+    logo: inlineLogo(EXAMPLE_LOGO_LIGHT, "nvidia.svg"),
+    logoDark: inlineLogo(EXAMPLE_LOGO_DARK, "nvidia-dark.svg"),
+};
+
+const state = {
+    section: "active",
+    organization: "",
+    product: "",
+    version: "",
+    category: "",
+    type: "",
+    description: "",
+    status: "is-maintained",
+    links: [
+        { kind: "external", label: "Overview", url: "" },
+    ],
+    logo: null,      // { name, size, dataUrl, text, isSvg }
+    logoDark: null,
+    theme: "light",
+    width: "380",
+    neighbor: false,
+};
+
+const $ = (id) => document.getElementById(id);
+
+function esc(text) {
+    return String(text).replace(/[&<>"']/g, (c) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+    ));
+}
+
+function toast(message) {
+    const el = $("toast");
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => el.classList.remove("show"), 1600);
+}
+
+function slug(text) {
+    return String(text).toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "partner";
+}
+
+/* ------------------------------------------------------------------- card -- */
+
+function isExternal(url) {
+    return !String(url).startsWith(PROJECT_REPO);
+}
+
+function linkHtml(link) {
+    const label = (link.label || "").trim() || "Link";
+    if (link.kind === "tracking") {
+        const number = /\/(?:issues|pull)\/(\d+)\/?$/.exec(link.url || "");
+        return '<a class="partner-link is-tracking" href="#">' +
+            '<span class="partner-link-text">' + esc(label) + (number ? " #" + number[1] : "") + "</span></a>";
+    }
+    if (link.kind === "internal") {
+        return '<a class="partner-link is-internal" href="#">' +
+            '<span class="partner-link-text">' + esc(label) + "</span></a>";
+    }
+    const arrow = link.url && isExternal(link.url) ? ARROW : "";
+    return '<a class="partner-link is-external" href="#">' +
+        '<span class="partner-link-text">' + esc(label) + "</span>" + arrow + "</a>";
+}
+
+function logoPanelHtml() {
+    if (state.logo) {
+        const alt = esc((state.organization || "Partner") + " logo");
+        let images = "";
+        if (state.logoDark) {
+            images += '<img class="only-light" src="' + state.logo.dataUrl + '" alt="' + alt + '">';
+            images += '<img class="only-dark" src="' + state.logoDark.dataUrl + '" alt="' + alt + '">';
+        } else {
+            images += '<img src="' + state.logo.dataUrl + '" alt="' + alt + '">';
+        }
+        return '<div class="partner-logo"><p class="partner-logo-img">' + images + "</p></div>";
+    }
+    const word = esc(state.organization || "Your company");
+    return '<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">' + word + "</p></div>";
+}
+
+function cardHtml() {
+    const upcoming = state.section === "upcoming";
+    const status = upcoming ? "is-upcoming" : state.status;
+    const eyebrow = [state.category, state.type].filter((p) => p && p.trim()).join(" \u00b7 ");
+    const version = state.version.trim()
+        ? ' <span class="partner-version">' + esc(state.version.trim()) + "</span>" : "";
+
+    let html = '<div class="partner-card' + (upcoming ? " is-upcoming" : "") + '">';
+    html += '<p class="partner-status ' + status + '">' + esc(STATUS_LABELS[status]) + "</p>";
+    html += logoPanelHtml();
+    html += '<div class="partner-body">';
+    html += '<p class="partner-eyebrow">' + esc(eyebrow || "Category") + "</p>";
+    html += '<p class="partner-name">' + esc(state.product || state.organization || "Product name") + version + "</p>";
+    if (!upcoming && state.description.trim()) {
+        html += '<p class="partner-desc">' + esc(state.description.trim()) + "</p>";
+    }
+    html += '<p class="partner-footer">';
+    for (const link of state.links) {
+        if (upcoming && link.kind !== "tracking") continue;
+        html += linkHtml(link);
+    }
+    html += "</p></div></div>";
+    return html;
+}
+
+/* A real card from the grid, so you can see how a taller description pushes your
+   footer rule out of line with the card beside it. */
+function neighborHtml() {
+    return '<div class="partner-card">' +
+        '<p class="partner-status is-maintained">Active</p>' +
+        '<div class="partner-logo is-placeholder"><p class="partner-logo-placeholder">Neighbour</p></div>' +
+        '<div class="partner-body">' +
+        '<p class="partner-eyebrow">Motion Capture \u00b7 Full-Body Tracking</p>' +
+        '<p class="partner-name">Neighbour Mocap Suit</p>' +
+        '<p class="partner-desc">Pioneering the future of motion capture.</p>' +
+        '<p class="partner-footer">' +
+        '<a class="partner-link is-external" href="#"><span class="partner-link-text">Overview</span>' + ARROW + "</a>" +
+        '<a class="partner-link is-internal" href="#"><span class="partner-link-text">Integration</span></a>' +
+        "</p></div></div>";
+}
+
+function stageHtml(theme, label) {
+    const width = state.width + "px";
+    /* The phone layout is one column, so a neighbour there stacks rather than sits
+       beside the card -- which is what the site does at that width. */
+    const columns = state.neighbor && state.width !== "343" ? "repeat(2, " + width + ")" : width;
+    return '<div class="stage-wrap">' +
+        '<p class="stage-label">' + label + "</p>" +
+        '<div class="stage" data-theme="' + theme + '">' +
+        '<div class="partner-grid" style="grid-template-columns:' + columns + '">' +
+        cardHtml() + (state.neighbor ? neighborHtml() : "") +
+        "</div></div></div>";
+}
+
+/* ----------------------------------------------------------------- checks -- */
+
+/* Colours declared anywhere in an SVG, so a mark that is one solid tone can be called
+   out before it disappears into the card behind it. */
+function svgLuminance(text) {
+    const found = [];
+    const push = (r, g, b) => found.push(0.2126 * r / 255 + 0.7152 * g / 255 + 0.0722 * b / 255);
+    const hex = /#([0-9a-f]{3}|[0-9a-f]{6})\b/gi;
+    let m;
+    while ((m = hex.exec(text))) {
+        let h = m[1];
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        push(parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16));
+    }
+    const rgb = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/gi;
+    while ((m = rgb.exec(text))) push(+m[1], +m[2], +m[3]);
+    if (/["'\s:](black)["'\s;)]/i.test(text)) push(0, 0, 0);
+    if (/["'\s:](white)["'\s;)]/i.test(text)) push(255, 255, 255);
+    return found;
+}
+
+function lines(el, lineHeight) {
+    if (!el) return 0;
+    return Math.round(el.getBoundingClientRect().height / lineHeight);
+}
+
+function runChecks(card) {
+    const out = [];
+    const upcoming = state.section === "upcoming";
+    const add = (level, text) => out.push({ level, text });
+    const marks = { ok: "\u2713", warn: "!", bad: "\u00d7", info: "i" };
+    const paint = () => {
+        $("checks").innerHTML = out.map((entry) =>
+            '<li class="' + entry.level + '"><span class="mark">' + marks[entry.level] +
+            "</span><span>" + esc(entry.text) + "</span></li>"
+        ).join("");
+    };
+
+    /* Nothing entered yet: every field is "missing", which is a wall of red rather than
+       advice. Say where to start instead, and let the checks appear as fields fill in. */
+    if (!state.organization.trim() && !state.product.trim() && !state.category.trim()
+        && !state.description.trim() && !state.logo) {
+        add("info", "Start with your company and product name, then drop in a logo. This panel flags anything that would look wrong on the page.");
+        add("info", "Nothing here is sent anywhere. Use “Load example” above if you would rather see a finished card first.");
+        return paint();
+    }
+
+    if (!state.organization.trim()) add("bad", "Company name is missing.");
+    if (!state.product.trim()) add("bad", "Product name is missing — it is the card title.");
+    if (!state.category.trim()) add("bad", "Category is missing — it is the small line above the title.");
+
+    const name = card.querySelector(".partner-name");
+    const nameLines = lines(name, 21.25);
+    if (nameLines > 2) add("warn", "The title runs to " + nameLines + " lines. Shorten it, or move the model number into Version.");
+    else if (nameLines === 2) add("info", "The title wraps onto a second line. That is fine, but one line reads better.");
+
+    const eyebrowLines = lines(card.querySelector(".partner-eyebrow"), 18.15);
+    if (eyebrowLines > 1) add("warn", "Category and sub-type wrap onto two lines. Shorten one of them.");
+
+    if (!upcoming) {
+        const chars = state.description.trim().length;
+        const descLines = lines(card.querySelector(".partner-desc"), 19.5);
+        if (!chars) add("bad", "Description is empty. Every integrated partner card carries one or two sentences.");
+        else if (chars > DESC_LIMIT) add("warn", "The description is " + chars + " characters, over the " + DESC_LIMIT + "-character limit, and will make your card noticeably taller than its neighbours.");
+        else if (chars < 40) add("warn", "The description is very short (" + chars + " characters) — say what the product does, not just what it is.");
+        else add("ok", "Description fits in " + descLines + " lines.");
+        if (/[.!?]\s+\S+.*[.!?]\s+\S/.test(state.description.trim())) {
+            add("info", "That reads as three or more sentences. Two is the house style.");
+        }
+    }
+
+    const shown = state.links.filter((l) => (l.label || "").trim() && (l.kind === "internal" || (l.url || "").trim()));
+    if (!upcoming && !shown.length) add("warn", "No usable link yet. Most cards carry an Overview link to your product page.");
+    for (const link of state.links) {
+        const label = (link.label || "").trim();
+        if (!label) continue;
+        if (link.kind !== "internal" && !/^https?:\/\//.test((link.url || "").trim())) {
+            add("bad", '"' + label + '" needs a full URL starting with https://.');
+        }
+        if (link.kind === "tracking" && !/\/(?:issues|pull)\/\d+\/?$/.test(link.url || "")) {
+            add("bad", '"' + label + '" must point at a GitHub issue or pull request, ending in its number.');
+        }
+    }
+    /* Rows, not height: the footer carries its own padding and rule, so the links'
+       own top edges are what say whether they wrapped. */
+    const rows = new Set(Array.prototype.map.call(
+        card.querySelectorAll(".partner-footer .partner-link"),
+        (el) => Math.round(el.getBoundingClientRect().top)
+    )).size;
+    if (rows > 1) add("warn", "The links wrap onto " + rows + " rows. Three links is the practical limit.");
+
+    if (!state.logo) {
+        add("info", "No logo yet: the card falls back to your company name set as a wordmark, which is a legitimate choice if you would rather not publish artwork.");
+    } else {
+        const logo = state.logo;
+        if (!logo.isSvg) {
+            add("warn", "This is a PNG. SVG is sharper on every screen; if PNG is all you have, it needs a transparent background and at least 1000px of width.");
+        }
+        if (logo.size > 200 * 1024) {
+            add("warn", "The file is " + Math.round(logo.size / 1024) + " KB, which usually means a photo is embedded in it. Send outlines or paths only.");
+        }
+        if (logo.isSvg && logo.text) {
+            if (/<script|\son\w+\s*=/i.test(logo.text)) {
+                add("bad", "The SVG contains a script or an event handler. We cannot publish that — export a flattened, static file.");
+            }
+            if (/<image\b/i.test(logo.text)) {
+                add("warn", "The SVG embeds a bitmap image, so it will not stay sharp. Convert the artwork to paths.");
+            }
+            if (/(?:href|src)\s*=\s*["']https?:/i.test(logo.text)) {
+                add("warn", "The SVG references a remote file, which will not load on our site. Everything has to be inside the file.");
+            }
+            if (!/viewBox\s*=/i.test(logo.text)) {
+                add("warn", "The SVG has no viewBox, so it may not scale into the card's logo panel. Re-export with one.");
+            }
+            const lum = svgLuminance(logo.text);
+            if (lum.length && !state.logoDark) {
+                const max = Math.max.apply(null, lum);
+                const min = Math.min.apply(null, lum);
+                if (max < 0.28) add("warn", "Every colour in the mark is dark, so it will nearly vanish on the dark card. Switch the preview to Dark, and send a light variant as the dark-theme file.");
+                else if (min > 0.72) add("warn", "Every colour in the mark is very light, so it will nearly vanish on the light card. Send a darker variant as the second file.");
+            }
+        }
+        if (!state.logoDark) {
+            add("info", "One file for both themes. Check the Dark preview — if the mark disappears, send a second version.");
+        } else {
+            add("ok", "Light and dark variants supplied; the site swaps them with the theme.");
+        }
+    }
+
+    const box = card.getBoundingClientRect();
+    if (!out.some((entry) => entry.level === "bad")) {
+        add("ok", "Nothing blocking. Card renders " + Math.round(box.width) + " \u00d7 " + Math.round(box.height) + " px.");
+    }
+
+    paint();
+}
+
+/* ------------------------------------------------------------------- yaml -- */
+
+function wrapText(text, width, indent) {
+    const words = String(text).split(/\s+/).filter(Boolean);
+    const rows = [];
+    let row = "";
+    for (const word of words) {
+        if (row && (row + " " + word).length > width) { rows.push(row); row = word; }
+        else row = row ? row + " " + word : word;
+    }
+    if (row) rows.push(row);
+    return rows.map((r) => indent + r).join("\n");
+}
+
+/* Partners type their own punctuation, and a colon or a leading dash in a company name
+   would break the file we paste into the repo. Quote anything that is not a safe plain
+   scalar, including words YAML 1.1 reads as booleans -- a company called "On" is a
+   string, not true. */
+const YAML_BOOLISH = /^(y|n|yes|no|true|false|on|off|null|~)$/i;
+
+function yamlQuoted(value) {
+    return '"' + String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+}
+
+function yamlScalar(value) {
+    const text = String(value);
+    const unsafe = text === ""
+        || /^[-?:,[\]{}#&*!|>'"%@`]/.test(text)
+        || /:\s|\s#/.test(text)
+        || text !== text.trim()
+        || /[\n\t]/.test(text)
+        || YAML_BOOLISH.test(text)
+        || /^[-+.]?\d/.test(text) && !isNaN(Number(text));
+    if (!unsafe) return text;
+    return yamlQuoted(text);
+}
+
+function yamlText() {
+    const upcoming = state.section === "upcoming";
+    const id = slug(state.product || state.organization);
+    // Per logo, not once: a partner may send an SVG light mark and a PNG dark one, and
+    // these names have to match the files zipPackage() writes beside this record.
+    const extension = (logo) => (logo.isSvg ? ".svg" : ".png");
+    const lines = [];
+    lines.push("  - id: " + id);
+    lines.push("    organization: " + yamlScalar(state.organization.trim() || "TODO"));
+    lines.push("    product_name: " + yamlScalar(state.product.trim() || "TODO"));
+    // Always quoted: partner_grid rejects a non-string version, because 3.10 unquoted is
+    // the number 3.1.
+    if (state.version.trim()) lines.push("    version: " + yamlQuoted(state.version.trim()));
+    lines.push("    section: " + state.section);
+    lines.push("    lifecycle: " + (upcoming ? "upcoming" : "maintained"));
+    lines.push("    category: " + yamlScalar(state.category.trim() || "TODO"));
+    if (state.type.trim()) lines.push("    type: " + yamlScalar(state.type.trim()));
+    if (state.logo && !upcoming) {
+        lines.push("    logo:");
+        lines.push("      src: " + id + extension(state.logo));
+        if (state.logoDark) lines.push("      src_dark: " + id + "-dark" + extension(state.logoDark));
+        lines.push("      alt: " + yamlScalar((state.organization.trim() || "TODO") + " logo"));
+    }
+    if (!upcoming && state.description.trim()) {
+        lines.push("    description: >");
+        lines.push(wrapText(state.description.trim(), 84, "      "));
+    }
+    const usable = state.links.filter((l) => (l.label || "").trim());
+    if (usable.length) {
+        lines.push("    links:");
+        for (const link of usable) {
+            lines.push("      - label: " + yamlScalar(link.label.trim()));
+            lines.push("        kind: " + link.kind);
+            if (link.kind === "internal") lines.push("        doc: /device/" + id + "   # NVIDIA fills this in");
+            else lines.push("        url: " + yamlScalar(link.url.trim() || "TODO"));
+        }
+    }
+    return lines.join("\n");
+}
+
+/* The partner's own local date, not UTC: it records the day they filled the card in. */
+function dateStamp() {
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    return String(now.getFullYear()) + pad(now.getMonth() + 1) + pad(now.getDate());
+}
+
+/* The clipboard copy is a fragment to paste under an existing `partners:` key; the file
+   in the archive carries that key itself, so it is a valid YAML document a partner can
+   open, lint, or diff on their side. */
+function yamlFile() {
+    return [
+        "# Isaac Teleop — Ecosystem partner card",
+        "# Written by partner-card-preview.html. Send this file, with your logo, to the",
+        "# Isaac Teleop team: it is one record from docs/source/_data/partners.yaml.",
+        "partners:",
+        yamlText(),
+        "",
+    ].join("\n");
+}
+
+/* ------------------------------------------------------------------- zip -- */
+
+/* A ZIP is written by hand here rather than with a library: the page has to stay one
+   offline file, and every entry is a couple of kilobytes of text or SVG, so entries are
+   *stored* (method 0) and no compressor is needed. Layout per entry is a 30-byte local
+   header, the bytes, then a 46-byte central-directory record, closed by a 22-byte
+   end-of-central-directory. */
+const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i += 1) {
+        let value = i;
+        for (let bit = 0; bit < 8; bit += 1) {
+            value = value & 1 ? 0xEDB88320 ^ (value >>> 1) : value >>> 1;
+        }
+        table[i] = value >>> 0;
+    }
+    return table;
+})();
+
+function crc32(bytes) {
+    let value = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i += 1) {
+        value = CRC_TABLE[(value ^ bytes[i]) & 0xFF] ^ (value >>> 8);
+    }
+    return (value ^ 0xFFFFFFFF) >>> 0;
+}
+
+/* ZIP keeps modification times in the MS-DOS packed format: two-second resolution, and
+   years counted from 1980. */
+function dosStamp(when) {
+    return {
+        time: ((when.getHours() << 11) | (when.getMinutes() << 5) | (when.getSeconds() >> 1)) & 0xFFFF,
+        date: (((when.getFullYear() - 1980) << 9) | ((when.getMonth() + 1) << 5) | when.getDate()) & 0xFFFF,
+    };
+}
+
+function zipBlob(entries) {
+    const encoder = new TextEncoder();
+    const stamp = dosStamp(new Date());
+    const body = [];
+    const central = [];
+    let offset = 0;
+
+    for (const entry of entries) {
+        const name = encoder.encode(entry.name);
+        const data = entry.bytes;
+        const crc = crc32(data);
+
+        const local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, 0x04034B50, true);
+        local.setUint16(4, 20, true);       // version needed
+        local.setUint16(6, 0x0800, true);   // UTF-8 filenames
+        local.setUint16(8, 0, true);        // stored
+        local.setUint16(10, stamp.time, true);
+        local.setUint16(12, stamp.date, true);
+        local.setUint32(14, crc, true);
+        local.setUint32(18, data.length, true);
+        local.setUint32(22, data.length, true);
+        local.setUint16(26, name.length, true);
+        local.setUint16(28, 0, true);       // extra field
+        body.push(new Uint8Array(local.buffer), name, data);
+
+        const dir = new DataView(new ArrayBuffer(46));
+        dir.setUint32(0, 0x02014B50, true);
+        dir.setUint16(4, 20, true);         // version made by
+        dir.setUint16(6, 20, true);         // version needed
+        dir.setUint16(8, 0x0800, true);
+        dir.setUint16(10, 0, true);
+        dir.setUint16(12, stamp.time, true);
+        dir.setUint16(14, stamp.date, true);
+        dir.setUint32(16, crc, true);
+        dir.setUint32(20, data.length, true);
+        dir.setUint32(24, data.length, true);
+        dir.setUint16(28, name.length, true);
+        dir.setUint16(30, 0, true);         // extra field
+        dir.setUint16(32, 0, true);         // comment
+        dir.setUint16(34, 0, true);         // disk number
+        dir.setUint16(36, 0, true);         // internal attributes
+        dir.setUint32(38, 0, true);         // external attributes
+        dir.setUint32(42, offset, true);
+        central.push(new Uint8Array(dir.buffer), name);
+        offset += 30 + name.length + data.length;
+    }
+
+    const centralSize = central.reduce((total, part) => total + part.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054B50, true);
+    end.setUint16(4, 0, true);
+    end.setUint16(6, 0, true);
+    end.setUint16(8, entries.length, true);
+    end.setUint16(10, entries.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, offset, true);
+    end.setUint16(20, 0, true);            // archive comment
+
+    return new Blob(body.concat(central, [new Uint8Array(end.buffer)]), { type: "application/zip" });
+}
+
+/* The logo goes into the archive as the exact bytes the browser holds, so a partner's own
+   file arrives untouched apart from its name. */
+function dataUrlBytes(dataUrl) {
+    const comma = dataUrl.indexOf(",");
+    const payload = dataUrl.slice(comma + 1);
+    if (/;base64/i.test(dataUrl.slice(0, comma))) {
+        const binary = atob(payload);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+    return new TextEncoder().encode(decodeURIComponent(payload));
+}
+
+/* Company name plus the day, because the archive lands in our inbox next to a dozen others
+   and a partner often sends a second revision: "Hugging Face" -> hugging-face-20260814.
+   `slug` drops everything that is not a letter or a digit, which keeps the name safe on
+   every filesystem. */
+function packageBase() {
+    return slug(state.organization || state.product) + "-" + dateStamp();
+}
+
+/* One folder inside the archive, so unzipping never scatters loose files into whatever
+   directory it ran in. Logos are renamed to the `src` the YAML record points at, which is
+   the rename we would otherwise do by hand on this end. */
+function zipPackage() {
+    const base = packageBase();
+    const id = slug(state.product || state.organization);
+    const encoder = new TextEncoder();
+    const entries = [
+        { name: base + "/" + base + ".yaml", bytes: encoder.encode(yamlFile()) },
+        { name: base + "/summary.txt", bytes: encoder.encode(summaryText() + "\n") },
+    ];
+    if (state.logo) {
+        entries.push({
+            name: base + "/" + id + (state.logo.isSvg ? ".svg" : ".png"),
+            bytes: dataUrlBytes(state.logo.dataUrl),
+        });
+    }
+    if (state.logoDark) {
+        entries.push({
+            name: base + "/" + id + "-dark" + (state.logoDark.isSvg ? ".svg" : ".png"),
+            bytes: dataUrlBytes(state.logoDark.dataUrl),
+        });
+    }
+    return { name: base + ".zip", entries: entries };
+}
+
+/* A file:// page cannot write to disk, so the button hands the browser a blob and a
+   filename and lets its own download flow take over. */
+function downloadBlob(filename, blob) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+function summaryText() {
+    const upcoming = state.section === "upcoming";
+    const rows = [
+        "Company:      " + (state.organization || "-"),
+        "Product name: " + (state.product || "-") + (state.version.trim() ? "  (version " + state.version.trim() + ")" : ""),
+        "Category:     " + [state.category, state.type].filter(Boolean).join(" / "),
+    ];
+    if (!upcoming) rows.push("Description:  " + (state.description.trim() || "-"));
+    for (const link of state.links) {
+        if (!(link.label || "").trim()) continue;
+        rows.push("Link:         " + link.label.trim() + " (" + link.kind + ") " + (link.url.trim() || "-"));
+    }
+    rows.push("Logo file:    " + (state.logo ? state.logo.name : "none - use our company name as a wordmark"));
+    if (state.logoDark) rows.push("Dark variant: " + state.logoDark.name);
+    return rows.join("\n");
+}
+
+/* ----------------------------------------------------------------- render -- */
+
+function render() {
+    const both = state.theme === "both";
+    $("stages").innerHTML = both
+        ? stageHtml("light", "Light theme") + stageHtml("dark", "Dark theme")
+        : stageHtml(state.theme, state.theme === "dark" ? "Dark theme" : "Light theme");
+
+    const card = $("stages").querySelector(".partner-card");
+    const box = card.getBoundingClientRect();
+    $("readout").textContent = "Card: " + Math.round(box.width) + " \u00d7 " + Math.round(box.height) +
+        " px  ·  the grid gives every card the same width and stretches the shorter card in a row to match the taller one.";
+
+    $("yaml").textContent = yamlText();
+    $("zip-filename").textContent = packageBase() + ".zip";
+    runChecks(card);
+    save();
+}
+
+function counter(el, value, limit) {
+    el.textContent = value.length + " / " + limit;
+    el.classList.toggle("over", value.length > limit);
+}
+
+function syncFromInputs() {
+    state.section = $("f-section").value;
+    state.organization = $("f-org").value;
+    state.product = $("f-product").value;
+    state.version = $("f-version").value;
+    state.category = $("f-category").value;
+    state.type = $("f-type").value;
+    state.description = $("f-desc").value;
+    state.status = $("f-status").value;
+    state.neighbor = $("f-neighbor").checked;
+    counter($("c-product"), state.product, 34);
+    counter($("c-desc"), state.description, DESC_LIMIT);
+    $("wrap-desc").style.display = state.section === "upcoming" ? "none" : "";
+    $("f-status").disabled = state.section === "upcoming";
+    render();
+}
+
+function syncToInputs() {
+    $("f-section").value = state.section;
+    $("f-org").value = state.organization;
+    $("f-product").value = state.product;
+    $("f-version").value = state.version;
+    $("f-category").value = state.category;
+    $("f-type").value = state.type;
+    $("f-desc").value = state.description;
+    $("f-status").value = state.status;
+    $("f-neighbor").checked = state.neighbor;
+    for (const [id, value] of [["seg-theme", state.theme], ["seg-width", state.width]]) {
+        for (const button of $(id).querySelectorAll("button")) {
+            button.setAttribute("aria-pressed", String(button.dataset.v === value));
+        }
+    }
+    renderLinks();
+    showLogoName("light", state.logo);
+    showLogoName("dark", state.logoDark);
+    syncFromInputs();
+}
+
+const LINK_KINDS = [
+    ["external", "Your own page (external)"],
+    ["internal", "Isaac Teleop docs page"],
+    ["tracking", "GitHub issue (tracking)"],
+];
+
+function renderLinks() {
+    $("links").innerHTML = state.links.map((link, index) => {
+        const kinds = LINK_KINDS.map(([value, text]) =>
+            '<option value="' + value + '"' + (link.kind === value ? " selected" : "") + ">" + text + "</option>"
+        ).join("");
+        return '<div class="link-row" data-i="' + index + '">' +
+            '<div class="link-row-head"><span>Link ' + (index + 1) + "</span>" +
+            '<button class="btn link" data-act="remove">Remove</button></div>' +
+            '<div class="row"><div class="field" style="margin:0">' +
+            '<label>Label</label><input type="text" data-k="label" list="d-label" value="' + esc(link.label) + '" placeholder="Overview"></div>' +
+            '<div class="field" style="margin:0"><label>Kind</label><select data-k="kind">' + kinds + "</select></div></div>" +
+            (link.kind === "internal" ? '<p class="hint">We point this at the integration page in our own docs — no URL needed.</p>' :
+                '<div class="field" style="margin:10px 0 0"><label>URL</label>' +
+                '<input type="url" data-k="url" value="' + esc(link.url) + '" placeholder="https://example.com/product"></div>') +
+            "</div>";
+    }).join("") + '<datalist id="d-label"><option>Overview</option><option>Acquire</option><option>Integration</option><option>Documentation</option><option>Tracking</option></datalist>';
+}
+
+function showLogoName(which, logo) {
+    const name = which === "light" ? $("name-light") : $("name-dark");
+    const sub = which === "light" ? $("sub-light") : $("sub-dark");
+    if (logo) {
+        name.textContent = logo.name;
+        sub.textContent = (logo.isSvg ? "SVG" : "PNG") + " · " + Math.max(1, Math.round(logo.size / 1024)) + " KB";
+    } else if (which === "light") {
+        name.textContent = "Drop an SVG here, or click to choose";
+        sub.textContent = "SVG preferred · PNG accepted at 3× size";
+    } else {
+        name.textContent = "Drop a second file for dark mode";
+        sub.textContent = "Only needed if your mark is a single dark or light color";
+    }
+}
+
+function readLogo(file, which) {
+    if (!file) return;
+    const isSvg = /svg/i.test(file.type) || /\.svg$/i.test(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+        const record = { name: file.name, size: file.size, dataUrl: reader.result, isSvg: isSvg, text: "" };
+        const store = () => {
+            if (which === "light") state.logo = record; else state.logoDark = record;
+            showLogoName(which, record);
+            render();
+        };
+        if (!isSvg) return store();
+        const textReader = new FileReader();
+        textReader.onload = () => { record.text = textReader.result; store(); };
+        textReader.readAsText(file);
+    };
+    reader.readAsDataURL(file);
+}
+
+/* --------------------------------------------------------------- plumbing -- */
+
+function save() {
+    try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    } catch (error) {
+        /* A large logo can exceed the quota; the preview still works, it just will not
+           survive a reload. */
+    }
+}
+
+function load() {
+    try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw) Object.assign(state, JSON.parse(raw));
+    } catch (error) { /* corrupt or blocked storage: start clean */ }
+}
+
+function copy(text, what) {
+    navigator.clipboard.writeText(text).then(
+        () => toast(what + " copied"),
+        () => toast("Copy failed — select the text and copy it manually")
+    );
+}
+
+for (const id of ["f-section", "f-org", "f-product", "f-version", "f-category", "f-type", "f-desc", "f-status", "f-neighbor"]) {
+    $(id).addEventListener("input", syncFromInputs);
+    $(id).addEventListener("change", syncFromInputs);
+}
+
+for (const [id, key] of [["seg-theme", "theme"], ["seg-width", "width"]]) {
+    $(id).addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        state[key] = button.dataset.v;
+        for (const other of $(id).querySelectorAll("button")) {
+            other.setAttribute("aria-pressed", String(other === button));
+        }
+        render();
+    });
+}
+
+$("links").addEventListener("input", (event) => {
+    const row = event.target.closest(".link-row");
+    const key = event.target.dataset.k;
+    if (!row || !key) return;
+    state.links[+row.dataset.i][key] = event.target.value;
+    if (key === "kind") renderLinks();
+    render();
+});
+
+$("links").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-act=remove]");
+    if (!button) return;
+    state.links.splice(+button.closest(".link-row").dataset.i, 1);
+    renderLinks();
+    render();
+});
+
+$("add-link").addEventListener("click", () => {
+    state.links.push({ kind: "external", label: "", url: "" });
+    renderLinks();
+    render();
+});
+
+for (const [dropId, inputId, which] of [["drop-light", "f-logo", "light"], ["drop-dark", "f-logo-dark", "dark"]]) {
+    const drop = $(dropId);
+    $(inputId).addEventListener("change", (event) => readLogo(event.target.files[0], which));
+    drop.addEventListener("dragover", (event) => { event.preventDefault(); drop.classList.add("is-over"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("is-over"));
+    drop.addEventListener("drop", (event) => {
+        event.preventDefault();
+        drop.classList.remove("is-over");
+        readLogo(event.dataTransfer.files[0], which);
+    });
+}
+
+$("clear-light").addEventListener("click", () => { state.logo = null; showLogoName("light", null); render(); });
+$("clear-dark").addEventListener("click", () => { state.logoDark = null; showLogoName("dark", null); render(); });
+
+$("copy-yaml").addEventListener("click", () => copy(yamlText(), "YAML"));
+$("download-zip").addEventListener("click", () => {
+    const bundle = zipPackage();
+    downloadBlob(bundle.name, zipBlob(bundle.entries));
+    toast("Saved " + bundle.name + " (" + bundle.entries.length + " files)");
+});
+$("copy-summary").addEventListener("click", () => copy(summaryText(), "Summary"));
+
+$("load-example").addEventListener("click", () => {
+    Object.assign(state, JSON.parse(JSON.stringify(EXAMPLE)));
+    syncToInputs();
+});
+
+$("reset").addEventListener("click", () => {
+    Object.assign(state, {
+        section: "active", organization: "", product: "", version: "", category: "",
+        type: "", description: "", status: "is-maintained", logo: null, logoDark: null,
+        links: [{ kind: "external", label: "Overview", url: "" }],
+    });
+    syncToInputs();
+    toast("Cleared");
+});
+
+load();
+syncToInputs();
+/* The card is measured after layout, and the brand font changes those measurements. */
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+</script>
+</body>
+</html>
