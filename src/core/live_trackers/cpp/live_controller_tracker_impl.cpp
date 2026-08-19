@@ -353,17 +353,7 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
 
     XrActionsSyncState2NV sync_state{ XR_TYPE_ACTIONS_SYNC_STATE_2_NV };
 
-    XrResult result = action_ctx_funcs_.sync_actions_2(session_, &sync_info, &sync_state);
-    if (XR_FAILED(result))
-    {
-        // Policy: action sync failure is a critical tracker/runtime error.
-        // Ensure callers do not observe stale controller data after sync failure.
-        left_native_.reset();
-        right_native_.reset();
-        left_tracked_.reset();
-        right_tracked_.reset();
-        throw std::runtime_error("[ControllerTracker] xrSyncActions2NV failed: " + std::to_string(result));
-    }
+    XrResult result = XR_SUCCESS;
 
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
                                  std::shared_ptr<ControllerSnapshotT>& tracked)
@@ -382,7 +372,6 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
         result = core_funcs_.xrLocateSpace(grip_space.get(), base_space_, xr_time, &grip_location);
         if (XR_FAILED(result))
         {
-            tracked.reset();
             throw std::runtime_error("[ControllerTracker] xrLocateSpace(grip) failed: " + std::to_string(result));
         }
         if (XR_SUCCEEDED(result))
@@ -403,7 +392,6 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
         result = core_funcs_.xrLocateSpace(aim_space.get(), base_space_, xr_time, &aim_location);
         if (XR_FAILED(result))
         {
-            tracked.reset();
             throw std::runtime_error("[ControllerTracker] xrLocateSpace(aim) failed: " + std::to_string(result));
         }
         if (XR_SUCCEEDED(result))
@@ -442,8 +430,29 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
         tracked->inputs = std::make_shared<ControllerInputState>(inputs);
     };
 
-    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_native_);
-    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_native_);
+    try
+    {
+        // Policy: action sync failure is a critical tracker/runtime error.
+        result = action_ctx_funcs_.sync_actions_2(session_, &sync_info, &sync_state);
+        if (XR_FAILED(result))
+        {
+            throw std::runtime_error("[ControllerTracker] xrSyncActions2NV failed: " + std::to_string(result));
+        }
+
+        update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_native_);
+        update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_native_);
+    }
+    catch (...)
+    {
+        // Nothing here reached the encode below, and a failure on the left hand leaves the
+        // right one unqueried entirely, so both handles are stale rather than just the
+        // failing one. Drop all four so callers cannot observe last frame's poses.
+        left_native_.reset();
+        right_native_.reset();
+        left_tracked_.reset();
+        right_tracked_.reset();
+        throw;
+    }
 
     left_tracked_ = pack_optional<ControllerSnapshot>(left_native_);
     right_tracked_ = pack_optional<ControllerSnapshot>(right_native_);
