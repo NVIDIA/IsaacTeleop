@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Replay an argus_sender HVS2 stereo capture (2560x1984 per eye, HEVC).
+#   ./camera_viz.sh run configs/hvs2.yaml
+source: local
+
+cameras:
+  - name: hvs2
+    type: hvs2
+    enabled: true
+    stereo: true
+    path: ~/Downloads/shw5g_stereo.hvs2
+    fps: 60 # the format carries no timing; this is a playback choice
+    # loop: true
+
+display:
+  mode: xr
+  placements:
+    hvs2:
+      lock_mode: lazy
+      distance: 0.8
+      # 2560x1984 is nearly 4:3, so a wide plane keeps the pixels square.
+      size: [1.6, 1.24]
+      stereo_plane_distance_cm: 5.0
+      shape: quad
+      compositor: openxr
+  # Foveation is the point of this config. The aliasing on a 2560-wide feed
+  # is a *render* resolution problem before it is an encode one: Quest3
+  # renders 2048 px across ~94 deg per eye, so a 60 deg quad gets ~1307 px to
+  # show 2560 -- a 2x minification no encoder setting can undo. So raise the
+  # render target first, then decide how much of it survives to the wire.
+  #
+  #   UNWARPED = the render target the 1:1 centre is 1:1 *with*. Raising it
+  #              is what creates the pixels; it also costs compositor time.
+  #   WARPED   = what is actually encoded and streamed.
+  #   INSET    = how much of the frame stays 1:1 (see the README).
+  #
+  # The 1:1 region is inset x warped px of the render target, so this gets
+  # 1920 px (44 deg) at 1:1 -- 0.75x of the source, against 0.51x with the
+  # stock 2048. WARPED: 3072 with INSET: 90 resolves the feed fully (2765 px)
+  # at 2.25x today's encode; try it if the link holds.
+  #
+  # Confirm the runtime took them: the settings dump at the top of the newest
+  # ~/.cloudxr/logs/cxr_server.*.log echoes foveationUnwarpedWidth /
+  # foveationWarpedWidth, and the decider logs "Rendering Res / Streaming Res
+  # / Inset". The Quest3 profile pins streaming dimensions, so an override
+  # here may not negotiate.
+  cloudxr:
+    NV_CXR_RUNTIME_FOVEATION: true
+    NV_CXR_RUNTIME_FOVEATION_UNWARPED_WIDTH: 4096
+    NV_CXR_RUNTIME_FOVEATION_WARPED_WIDTH: 2048
+    NV_CXR_RUNTIME_FOVEATION_INSET: 75
+  controls:
+    enabled: true

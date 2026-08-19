@@ -23,7 +23,7 @@ import signal
 import sys
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import yaml
 
@@ -116,6 +116,40 @@ def _build_controls(
         # inside it and leaves every repaint misaligned.
         log_to_stderr=not dashboard.live,
     )
+
+
+def _render_extent_note(session, entries) -> List[str]:
+    """The per-eye extent the runtime asked us to render at.
+
+    This is the number that says whether a foveation
+    NV_CXR_RUNTIME_FOVEATION_UNWARPED_WIDTH override reached the app: the
+    runtime hands it back through xrEnumerateViewConfigurationViews. Shown
+    next to the widest source so the ratio is readable -- a feed wider than
+    the extent is being minified before it is ever encoded, which is what
+    aliases.
+    """
+    get = getattr(session, "get_recommended_resolution", None)
+    if get is None:  # older isaacteleop wheel
+        return []
+    try:
+        resolution = get()
+        width, height = resolution.width, resolution.height
+    except Exception as exc:  # noqa: BLE001 -- a note must not be fatal...
+        # ...but it must not vanish either: swallowing this silently is why
+        # the line went missing when get_recommended_resolution turned out to
+        # return a Resolution rather than a tuple.
+        print(f"camera_viz: render extent unavailable: {exc!r}", file=sys.stderr)
+        return []
+    note = f"render extent {width}x{height} per eye"
+    widest = max((e.source.spec.width for e in entries), default=0)
+    if widest:
+        note += f"; widest source {widest} px ({width / widest:.2f}x)"
+    # Printed here as well as returned: this is the one number that says
+    # whether a foveation override reached the app, and the status panel
+    # shows it dimmed on its last line, where it is easy to miss and gone
+    # entirely if the run dies later in startup.
+    print(f"camera_viz: {note}", file=sys.stderr, flush=True)
+    return [note]
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -219,7 +253,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         cameras = f"{len(sources)} camera" + ("s" if len(sources) != 1 else "")
         header = f"{effective_mode} · {source_mode} · {cameras}"
-        notes = []
+        notes = _render_extent_note(session, entries) if is_xr else []
         if switch_shapes:
             extra = sum(
                 display.estimate_layer_bytes(e, shape)
