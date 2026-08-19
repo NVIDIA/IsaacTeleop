@@ -17,6 +17,8 @@ file(GLOB TEST_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.py"
 )
 
+isaac_teleop_python_test_venv_setup(rig --extra dev)
+
 # Add each test file as a separate CTest test
 foreach(test_file ${TEST_FILES})
     # Get test name from filename (remove .py and path)
@@ -29,4 +31,6 @@ foreach(test_file ${TEST_FILES})
         COMMAND uv run --python ${ISAAC_TELEOP_PYTHON_VERSION} --extra dev pytest -v --tb=short "${test_file}"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
     )
+
+    isaac_teleop_python_test_venv_require(rig "rig_${test_name}")
 endforeach()

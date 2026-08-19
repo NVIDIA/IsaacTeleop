@@ -137,6 +137,7 @@ add_subdirectory(deps)
 if(BUILD_TESTING)
     # Make sure to call this after `deps` is added so that Catch2 is available
     enable_testing()
+    include(cmake/PythonTestVenv.cmake)
 endif()
 
 # Build interfaces (headers)

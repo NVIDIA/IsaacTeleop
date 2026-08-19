@@ -14,6 +14,8 @@ file(GLOB TEST_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.py"
 )
 
+isaac_teleop_python_test_venv_setup(cloudxr --extra dev)
+
 # Add each test file as a separate CTest test
 foreach(test_file ${TEST_FILES})
     # Get test name from filename (remove .py and path)
@@ -30,4 +32,6 @@ foreach(test_file ${TEST_FILES})
     set_tests_properties("cloudxr_${test_name}" PROPERTIES
         ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
     )
+
+    isaac_teleop_python_test_venv_require(cloudxr "cloudxr_${test_name}")
 endforeach()

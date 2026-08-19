@@ -34,6 +34,8 @@ if(TEST_WUJI_RETARGETER)
     set(WUJI_EXTRA_ARGS --extra wuji)
 endif()
 
+isaac_teleop_python_test_venv_setup(retargeting --extra dev ${GROUNDING_EXTRA_ARGS} ${WUJI_EXTRA_ARGS})
+
 # Add each test file as a separate CTest test
 foreach(test_file ${TEST_FILES})
     # Get test name from filename (remove .py and path)
@@ -58,6 +60,8 @@ foreach(test_file ${TEST_FILES})
     set_tests_properties("retargeting_${test_name}" PROPERTIES
         ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
     )
+
+    isaac_teleop_python_test_venv_require(retargeting "retargeting_${test_name}")
 endforeach()
 
 # Add mypy type checking test
@@ -73,3 +77,5 @@ add_test(
 set_tests_properties("retargeting_mypy_type_check" PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
 )
+
+isaac_teleop_python_test_venv_require(retargeting "retargeting_mypy_type_check")
