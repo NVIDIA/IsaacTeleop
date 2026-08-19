@@ -332,8 +332,13 @@ yet. Check, in order:
    do not embed ``CloudXRLauncher`` need ``source ~/.cloudxr/run/cloudxr.env``
    first, so that ``XR_RUNTIME_JSON`` and ``NV_CXR_RUNTIME_DIR`` point at it.
 
-Library defaults are fail-fast: ``OpenXRSession`` uses ``wait_for_system=false``
-and ``VizSessionConfig`` uses ``xr_system_wait_seconds = 0``, so -35 is raised
-on the first call rather than waited out. Set either one to block until a
-headset connects — that is what the examples do when they let you start the app
-before putting the headset on.
+``OpenXRSession`` does not raise it: ``wait_for_system`` defaults to true, so it
+logs ``OpenXR HMD form factor is unavailable; waiting for a system...`` once and
+retries every second until one appears. That is what lets you start an app before
+putting the headset on — and an app that appears to hang at start-up is usually
+sitting in this wait, so work the list above. Nothing times it out, and in Python
+``Ctrl-C`` is not delivered until a system turns up — the binding holds the GIL
+through the wait. C++ callers can pass
+``wait_for_system=false`` for the error instead; the Python binding does not
+expose it. ``VizSessionConfig`` is unaffected and stays fail-fast at
+``xr_system_wait_seconds = 0``.

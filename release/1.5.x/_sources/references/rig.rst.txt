@@ -73,10 +73,9 @@ What happens:
    :kbd:`Enter` needed. When the command exits, the pane reports
    ``[rig] command exited with status N — press Enter to rerun`` and drops
    to an interactive shell with the same command pre-typed at the prompt.
-   Anything that calls ``xrGetSystem`` before a headset connects exits with
-   ``Failed to get OpenXR system`` — so if a pane's app started before you
-   connected the headset to the printed URL, connect it and press
-   :kbd:`Enter` in that pane to rerun. If the CloudXR environment fails to
+   An app that reaches ``xrGetSystem`` before a headset connects waits there
+   (``waiting for a system...``) and carries on by itself once you connect
+   one to the printed URL — no rerun needed. If the CloudXR environment fails to
    load, the pane does *not* run the command; it prints a remedy and leaves
    the command pre-typed instead.
 5. The launcher then switches you to the rig window. Run from inside tmux,
@@ -232,11 +231,15 @@ Troubleshooting
        the pane does not run its command. Check the error printed above
        the message, ``source`` the file as the message says, then press
        :kbd:`Enter` — the command is already pre-typed.
+   * - A pane sits at ``waiting for a system...``
+     - Normal until a headset connects to the runtime's URL; the app goes on
+       by itself once one does. Nothing times this out, so a pane that never
+       moves is usually a device-profile mismatch — check it with
+       ``python -m isaacteleop.cloudxr.service status``.
    * - ``[rig] command exited with status ...`` right after launch
-     - The app auto-ran before the headset connected (classic:
-       ``Failed to get OpenXR system``); connect the headset to the
-       runtime's URL, then press :kbd:`Enter` in the pane — the command is
-       already pre-typed at the prompt.
+     - The command failed on its own account; a late headset is no longer
+       such an exit. Read the pane's output, then press :kbd:`Enter` to
+       rerun — the command is already pre-typed at the prompt.
    * - Edits to the rig file seem ignored
      - The rig was already running; relaunch after
        ``python -m isaacteleop.rig <rig.yaml> --kill``.

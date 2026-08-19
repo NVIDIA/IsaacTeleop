@@ -751,11 +751,16 @@ clicked CONNECT; until then there is no system to return.</p></li>
 do not embed <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code> need <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">~/.cloudxr/run/cloudxr.env</span></code>
 first, so that <code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> and <code class="docutils literal notranslate"><span class="pre">NV_CXR_RUNTIME_DIR</span></code> point at it.</p></li>
 </ol>
-<p>Library defaults are fail-fast: <code class="docutils literal notranslate"><span class="pre">OpenXRSession</span></code> uses <code class="docutils literal notranslate"><span class="pre">wait_for_system=false</span></code>
-and <code class="docutils literal notranslate"><span class="pre">VizSessionConfig</span></code> uses <code class="docutils literal notranslate"><span class="pre">xr_system_wait_seconds</span> <span class="pre">=</span> <span class="pre">0</span></code>, so -35 is raised
-on the first call rather than waited out. Set either one to block until a
-headset connects — that is what the examples do when they let you start the app
-before putting the headset on.</p>
+<p><code class="docutils literal notranslate"><span class="pre">OpenXRSession</span></code> does not raise it: <code class="docutils literal notranslate"><span class="pre">wait_for_system</span></code> defaults to true, so it
+logs <code class="docutils literal notranslate"><span class="pre">OpenXR</span> <span class="pre">HMD</span> <span class="pre">form</span> <span class="pre">factor</span> <span class="pre">is</span> <span class="pre">unavailable;</span> <span class="pre">waiting</span> <span class="pre">for</span> <span class="pre">a</span> <span class="pre">system...</span></code> once and
+retries every second until one appears. That is what lets you start an app before
+putting the headset on — and an app that appears to hang at start-up is usually
+sitting in this wait, so work the list above. Nothing times it out, and in Python
+<code class="docutils literal notranslate"><span class="pre">Ctrl-C</span></code> is not delivered until a system turns up — the binding holds the GIL
+through the wait. C++ callers can pass
+<code class="docutils literal notranslate"><span class="pre">wait_for_system=false</span></code> for the error instead; the Python binding does not
+expose it. <code class="docutils literal notranslate"><span class="pre">VizSessionConfig</span></code> is unaffected and stays fail-fast at
+<code class="docutils literal notranslate"><span class="pre">xr_system_wait_seconds</span> <span class="pre">=</span> <span class="pre">0</span></code>.</p>
 </section>
 </section>
 </section>
