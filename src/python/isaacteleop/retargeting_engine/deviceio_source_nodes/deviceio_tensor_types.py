@@ -51,6 +51,23 @@ class _PayloadTensorType(TensorType):
             )
 
 
+class _RequiredPayloadTensorType(_PayloadTensorType):
+    """Payload with no inactive state: a value is produced every frame, so None is an error.
+
+    Subclass this rather than ``_PayloadTensorType`` when the source always has something
+    to report -- a constant stand-in for "nothing happened" counts. Consumers of such a
+    slot are written without a None branch, so letting one through moves the failure to
+    whichever of them dereferences it first.
+    """
+
+    def validate_value(self, value: Any) -> None:
+        if value is None:
+            raise TypeError(
+                f"Expected {self._payload_cls.__name__} for '{self.name}', got None"
+            )
+        super().validate_value(value)
+
+
 class HeadPoseTrackedType(_PayloadTensorType):
     """HeadPose payload from DeviceIO HeadTracker."""
 
@@ -91,7 +108,7 @@ class FullBodyPoseTrackedType(_PayloadTensorType):
     _payload_cls = FullBodyPose
 
 
-class MessageChannelMessagesTrackedType(_PayloadTensorType):
+class MessageChannelMessagesTrackedType(_RequiredPayloadTensorType):
     """MessageChannelMessagesTracked batch from DeviceIO MessageChannelTracker."""
 
     _payload_cls = MessageChannelMessagesTracked
@@ -107,12 +124,8 @@ class MessageChannelConnectionStatus(IntEnum):
     UNKNOWN = -1
 
 
-class MessageChannelStatusType(_PayloadTensorType):
-    """Enum status for message channel connectivity.
-
-    Not a device payload: MessageChannelSource always assigns a status. It validates
-    like one so that an unset slot is tolerated the same way.
-    """
+class MessageChannelStatusType(_RequiredPayloadTensorType):
+    """Enum status for message channel connectivity."""
 
     _payload_cls = MessageChannelConnectionStatus
 

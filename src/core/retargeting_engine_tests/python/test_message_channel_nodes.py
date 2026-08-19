@@ -3,14 +3,18 @@
 
 from collections import deque
 
+import pytest
+
 from isaacteleop.schema import (
     MessageChannelMessages,
     MessageChannelMessagesTracked,
 )
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    HandPoseTrackedType,
     MessageChannelConnectionStatus,
     MessageChannelSink,
     MessageChannelSource,
+    MessageChannelStatusType,
 )
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
 from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
@@ -75,6 +79,30 @@ def test_message_channel_source_inactive_message():
     tracked_batch = outputs["messages_tracked"][0]
     assert tracked_batch.data == []
     assert outputs["status"][0] == MessageChannelConnectionStatus.CONNECTED
+
+
+def test_message_channel_sink_rejects_none_batch():
+    # None is a legal payload for a device tracker (the device is inactive) but not for
+    # the message channel, and the sink enqueues its input unchecked. A None reaching the
+    # outbound queue is unrecoverable: poll_tracker reads the head batch's `data` before
+    # it dequeues, so every later poll fails on the same entry.
+    sink = MessageChannelSink("msg_sink", deque())
+
+    with pytest.raises(TypeError):
+        _make_inputs(sink, {"messages_tracked": [None]})
+
+
+def test_message_channel_status_rejects_none():
+    status_type = MessageChannelStatusType("status")
+
+    with pytest.raises(TypeError):
+        status_type.validate_value(None)
+
+    status_type.validate_value(MessageChannelConnectionStatus.CONNECTED)
+
+
+def test_device_payload_accepts_none_when_inactive():
+    HandPoseTrackedType("hand_tracked").validate_value(None)
 
 
 def test_message_channel_sink_enqueues_message():
