@@ -53,8 +53,9 @@ GRIPPER_JOINT = "gripper"
 
 # The configuration the arm holds for the whole session, written to qpos once at
 # construction. This pose IS the wrist posture the engage gate demands, so turning
-# these re-aims the operator's hand. The arm is planar while J1 and J5 are zero, so
-# the gripper's orientation is the SUM of J2, J3 and J4, and J4 stops at +-95 degrees.
+# these re-aims the operator's hand, so re-solve _EULER_HAND_FROM_GHOST_DEG with them.
+# J2+J3+J4 set the gripper's elevation and J4 stops at +-95 degrees; J5 rolls the jaw
+# about the tool axis, which is a bearing shift in the posture the gate demands.
 Q_HOME_DEG = (
     0.00,  # J1 shoulder_pan  -- base yaw
     -45.00,  # J2 shoulder_lift -- first segment elevation
@@ -69,18 +70,17 @@ Q_HOME = np.radians(Q_HOME_DEG)
 # below eye level and 0.60 m ahead on the head's yaw-projected facing (anchor_from_head).
 # Measured from the head, not the reference-space origin: the app does not get to choose
 # that origin, and a stage-origin space puts anything authored against it a standing
-# height out. Whether it lands inside the gaze cone is a headset judgement. Only the
-# yaw of this anchor lasts the session -- it is the frame the grip offset below is
-# carried on. The position holds only until the first frame carrying a controller,
-# which owns all three axes from then on.
+# height out. Whether it lands inside the gaze cone is a headset judgement. A starting
+# pose only: the position holds until the first frame carrying a controller, and the yaw
+# only turns the arm to face the operator meanwhile. The controller owns both after it.
 HOME_GRIP_FROM_HEAD_XR = np.array([0.0, -0.30, -0.60])
 
 # Where the gripper's JAW sits relative to the CONTROLLER, in metres, XR axes: level
 # with the hand laterally, 0.25 m ahead and 0.10 m below it (XR is y-up and -z-forward,
 # cpp/frames.hpp). Only the starting value for the horizontal pair; the live one is
 # Follower.grip_from_controller_xr, which the thumbstick walks. The vertical term is
-# fixed. Carried on the anchor's yaw and never the wrist's, or turning the hand would
-# swing the arm around the operator.
+# fixed. Carried on the controller's own facing, so stick forward sends the arm along
+# the pointing ray and yawing the controller carries it around at a fixed offset.
 GRIP_FROM_CONTROLLER_XR = np.array([0.0, -0.10, -0.25])
 
 # What the thumbstick does to the two horizontal terms above. Deflection is a RATE, so
@@ -339,7 +339,13 @@ class EngageGate:
         # clutch `permits_engagement or verdict.ok`.
         if phase is ClutchPhase.ENGAGED:
             failed.append((GATE_KEY_ENGAGED, phase.value))
-        theta = math.inf
+        # There is no reach conjunct and no reach envelope. The gripper is placed
+        # exactly at its offset from the hand every frame, so a position residual is
+        # zero by construction. Do not add one back believing it bounds a workspace:
+        # this preview has none.
+        #
+        # The rotation conjunct is judged inside the tracked branch: with no hand there
+        # is no angle, and reporting one would be a second failure derived from the first.
         if hand_quat_xyzw is None:
             failed.append(("untracked", "controller not tracked"))
         else:
@@ -347,22 +353,15 @@ class EngageGate:
                 np.asarray(hand_quat_xyzw, dtype=float),
                 np.asarray(home_quat_xyzw, dtype=float),
             )
-
-        # There is no reach conjunct and no reach envelope. The gripper is placed
-        # exactly at its offset from the hand every frame, so a position residual is
-        # zero by construction. Do not add one back believing it bounds a workspace:
-        # this preview has none.
-        rotation_tol = _ROTATION_EXIT_RAD if self._ok else _ROTATION_ENTER_RAD
-        # Only against a tracked hand: with none there is no angle, and reporting one
-        # would be a second failure derived from the first.
-        if hand_quat_xyzw is not None and not theta < rotation_tol:
-            failed.append(
-                (
-                    "rotation",
-                    f"rotation {math.degrees(theta):.0f} deg "
-                    f"> {math.degrees(rotation_tol):.0f}",
+            rotation_tol = _ROTATION_EXIT_RAD if self._ok else _ROTATION_ENTER_RAD
+            if not theta < rotation_tol:
+                failed.append(
+                    (
+                        "rotation",
+                        f"rotation {math.degrees(theta):.0f} deg "
+                        f"> {math.degrees(rotation_tol):.0f}",
+                    )
                 )
-            )
         # The leader renders the LIMITER's output, so a gate that opens while it is
         # still clamping reveals a tool tens of degrees and hundreds of milliseconds
         # behind the hand. 4 deg/cm x 0.5 m/s is 3.49 rad/s against a 2.5 rad/s clamp,
