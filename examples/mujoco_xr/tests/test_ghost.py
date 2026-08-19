@@ -37,10 +37,10 @@ def _default_scene():
 
     Saying which meshes are missing beats MuJoCo's "Error opening file".
     """
-    missing = app._missing_leader_assets()
+    missing = app._missing_assets()
     if missing:
         pytest.skip(
-            f"leader meshes not fetched ({', '.join(missing)}); run {app.FETCH_SCRIPT}"
+            f"SO-101 assets not fetched ({', '.join(missing)}); run {app.FETCH_SCRIPT}"
         )
     return mujoco.MjModel.from_xml_path(str(app.DEFAULT_SCENE))
 
@@ -78,8 +78,8 @@ def _nearest_gap(a, b, stride=7, block=200):
 
 
 # ---------------------------------------------------------------------------
-# A stubbed pipeline result. ``app._update_ghost`` reads three fields through
-# the mapping protocol, and stubbing them is what keeps this file headless.
+# A stubbed controller. ``_place`` turns it into the pose ``app._update_ghost``
+# takes, and stubbing it is what keeps this file headless.
 # ---------------------------------------------------------------------------
 
 
@@ -106,18 +106,22 @@ class _NoController:
         raise AssertionError("an is_none controller must never be read")
 
 
-def _result(controller, closedness=0.0):
-    """Both hands plus the jaw channel, shaped like the real combiner output."""
-    other = (
-        app.ControllersSource.LEFT
-        if app.GHOST_HAND == app.ControllersSource.RIGHT
-        else app.ControllersSource.RIGHT
+def _place(data, ghost, controller, closedness=0.0):
+    """One frame of the loop: place the ghost only when the harness has a pose."""
+    if controller.is_none or not controller[ControllerInputIndex.GRIP_IS_VALID]:
+        return
+    app._update_ghost(
+        data,
+        ghost,
+        np.array(
+            [
+                *controller[ControllerInputIndex.GRIP_POSITION],
+                *controller[ControllerInputIndex.GRIP_ORIENTATION],
+            ],
+            dtype=float,
+        ),
+        closedness,
     )
-    return {
-        app.GHOST_HAND: controller,
-        other: _NoController(),
-        app.GRIPPER_COMMAND_KEY: [closedness],
-    }
 
 
 def test_the_ghost_is_opaque_and_collides_with_nothing():
@@ -248,9 +252,7 @@ def test_the_ghost_is_rigidly_attached_to_the_grip_frame():
         ((0.31, 1.24, -0.42), (0.0, 0.3826834, 0.0, 0.9238795)),
         ((-0.2, 0.9, -0.8), (0.5, 0.5, 0.5, 0.5)),
     ):
-        app._update_ghost(
-            data, ghost, _result(_Controller(True, grip_pos, grip_quat_xyzw))
-        )
+        _place(data, ghost, _Controller(True, grip_pos, grip_quat_xyzw))
         q_world_from_grip = np.array(_mujoco_xr.mj_from_xr_quat(list(grip_quat_xyzw)))
         inverse, relative = np.empty(4), np.empty(4)
         mujoco.mju_negQuat(inverse, q_world_from_grip)
@@ -274,8 +276,8 @@ def test_the_ghost_is_rigidly_attached_to_the_grip_frame():
             "orientation -- the translation is not being rotated with the grip"
         )
     # And it is the configured correction, not some other rigid attachment.
-    assert np.allclose(seen[0][0], app._QUAT_GRIP_FROM_GHOST, atol=1e-6)
-    assert np.allclose(seen[0][1], app._POS_GRIP_FROM_GHOST, atol=1e-6)
+    assert np.allclose(seen[0][0], app._QUAT_HAND_FROM_GHOST, atol=1e-6)
+    assert np.allclose(seen[0][1], app._POS_HAND_FROM_GHOST, atol=1e-6)
 
 
 def test_squeezing_drives_the_jaw_from_released_to_squeezed():
@@ -290,7 +292,7 @@ def test_squeezing_drives_the_jaw_from_released_to_squeezed():
     controller = _Controller(True, (0.0, 1.2, -0.5))
 
     def hinge_angle_at(closedness):
-        app._update_ghost(data, ghost, _result(controller, closedness))
+        _place(data, ghost, controller, closedness)
         mujoco.mj_forward(model, data)
         inverse, hinge = np.empty(4), np.empty(4)
         mujoco.mju_negQuat(inverse, np.array(data.mocap_quat[ghost.body]))
@@ -311,7 +313,7 @@ def test_squeezing_drives_the_jaw_from_released_to_squeezed():
 
     # And it is big enough to see: the far end of the lever sweeps ~90 mm.
     def trigger_at(closedness):
-        app._update_ghost(data, ghost, _result(controller, closedness))
+        _place(data, ghost, controller, closedness)
         mujoco.mj_forward(model, data)
         return _geom_verts_world(model, data, "leader_ghost_trigger")
 
@@ -363,9 +365,7 @@ def test_the_trigger_clears_the_whole_gripper_across_its_driven_range():
     worst = (0.0, "", 1e9)
     for step in range(9):
         closedness = step / 8
-        app._update_ghost(
-            data, ghost, _result(_Controller(True, (0.0, 1.2, -0.5)), closedness)
-        )
+        _place(data, ghost, _Controller(True, (0.0, 1.2, -0.5)), closedness)
         mujoco.mj_forward(model, data)
         trigger = _geom_verts_world(model, data, "leader_ghost_trigger")
         for part in others:
@@ -412,7 +412,9 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
         )
         return ControllerSnapshotTrackedT(ControllerSnapshot(pose, pose, state))
 
-    pipeline = app._build_pipeline()
+    from isaacteleop.retargeting_engine.interface import ValueInput
+
+    pipeline, _ = app._build_pipeline(np.eye(4, dtype=np.float32))
     spec = ControllersSource(name="controllers").input_spec()
 
     def closedness(trigger):
@@ -421,7 +423,12 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
             group = TensorGroup(spec[name])
             group[0] = snapshot(trigger)
             inputs[name] = group
-        out = pipeline.execute_pipeline({"controllers": inputs})
+        out = pipeline.execute_pipeline(
+            {
+                "controllers": inputs,
+                app.ENGAGE_PERMISSION_LEAF: {ValueInput.VALUE: app._permission(True)},
+            }
+        )
         assert app.GRIPPER_COMMAND_KEY in out
         return float(out[app.GRIPPER_COMMAND_KEY][0])
 
@@ -440,14 +447,12 @@ def test_an_untracked_controller_freezes_the_whole_gripper():
     model = _default_scene()
     data = mujoco.MjData(model)
     ghost = app._resolve_ghost(model)
-    app._update_ghost(
-        data, ghost, _result(_Controller(True, (0.2, 1.3, -0.5)), closedness=0.0)
-    )
+    _place(data, ghost, _Controller(True, (0.2, 1.3, -0.5)), closedness=0.0)
     seen_body = data.mocap_pos[ghost.body].copy()
     seen_jaw = data.mocap_quat[ghost.jaw].copy()
 
     for controller in (_Controller(False, (9.0, 9.0, 9.0)), _NoController()):
         for _ in range(3):
-            app._update_ghost(data, ghost, _result(controller, closedness=1.0))
+            _place(data, ghost, controller, closedness=1.0)
     assert np.array_equal(data.mocap_pos[ghost.body], seen_body)
     assert np.array_equal(data.mocap_quat[ghost.jaw], seen_jaw)

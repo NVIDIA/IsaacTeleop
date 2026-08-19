@@ -19,6 +19,7 @@ mujoco = pytest.importorskip("mujoco")
 _mujoco_xr = pytest.importorskip("isaacteleop_examples.mujoco_xr._mujoco_xr")
 
 from isaacteleop_examples.mujoco_xr.app import DEFAULT_SCENE, FAR_Z, NEAR_Z  # noqa: E402
+from isaacteleop_examples.mujoco_xr import follower  # noqa: E402
 
 W = H = 256
 HALF_FOV = math.radians(45.0)
@@ -31,6 +32,10 @@ def rendered():
     """A live Renderer plus a device-to-host copier, or a skip saying why."""
     model = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE))
     data = mujoco.MjData(model)
+    # These tests measure where the drawn pixels are, so the ghost must be the only
+    # thing drawn; the scene also carries the follower arm, 30 of its 34 geoms.
+    # Follower.__init__ ends by hiding it, the same switch the app uses.
+    follower.Follower(model, data)
 
     try:
         gl = mujoco.GLContext(W, H)

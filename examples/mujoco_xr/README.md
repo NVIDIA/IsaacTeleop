@@ -6,14 +6,15 @@ SPDX-License-Identifier: Apache-2.0
 # MuJoCo XR
 
 A MuJoCo scene rendered stereoscopically into an Isaac Teleop Televiz XR
-session, with an SO-101 leader gripper locked to the operator's right hand.
+session: an SO-101 **follower arm** the operator drags around by hand, and an
+SO-101 **leader gripper** that replaces it once the clutch engages.
 
 Single process, single thread, **one** OpenXR session:
 
 ```
 VizSession(kXr)  ──get_oxr_handles()──▶  TeleopSession
      │                                        │
-     │ recommended resolution                 │ controller grip poses
+     │ recommended resolution                 │ EePoseRateLimiter output
      ▼                                        ▼
 mjr_render ─blit─▶ flip + depth-invert ─glReadPixels─▶ PBO ═CUDA═▶ submit()
 ```
@@ -66,9 +67,9 @@ extension and asserts both report the same version.
 
 | | |
 |---|---|
-| **Covered by tests** | [`ctest -L mujoco_xr`](#tests) — the frame conventions, the frustum, the clock, the ghost overlay and its jaw channel, all pure CPU; **plus `test_readback.py`, which drives the real GPU path** (mjr_render → blit → flip/invert → PBO → CUDA). That one needs CUDA-OpenGL interop, so it wants a discrete NVIDIA GPU; it skips loudly elsewhere. **Measured on Jetson/Tegra it skips**, because `cudaGLGetDevices` reports the EGL context on no CUDA device — so a green `ctest` there does *not* mean the GPU path ran. |
+| **Covered by tests** | [`ctest -L mujoco_xr`](#tests) — the frame conventions, the frustum, the clock, the ghost overlay and its jaw channel, the safety harness the ghost renders, the follower's head anchoring and rigid drag, and the whole clutch handoff driven at frame rate through the real pipeline, all pure CPU; **plus `test_readback.py`, which drives the real GPU path** (mjr_render → blit → flip/invert → PBO → CUDA). That one needs CUDA-OpenGL interop, so it wants a discrete NVIDIA GPU; it skips loudly elsewhere. **Measured on Jetson/Tegra it skips**, because `cudaGLGetDevices` reports the EGL context on no CUDA device — so a green `ctest` there does *not* mean the GPU path ran. |
 | **Never executed anywhere** | **The XR half** — everything downstream of the readback. See [Not verified anywhere](#not-verified-anywhere-in-ci-or-on-a-developer-desktop). |
-| **Wrong by construction until calibrated** | The workspace translation, for any scene that adds static content — see [Frames](#frames-cppframeshpp). The shipped ghost-only scene does not show it. |
+| **Wrong by construction until calibrated** | Nothing, now. The follower is placed against the **measured head pose** rather than the reference-space origin, and its offset is authored in the **XR** frame and pushed through `mj_from_xr`, so `kTransMjFromXr` appears once with each sign and cancels — see [Frames](#frames-cppframeshpp). |
 
 Nothing in `.github/workflows/` installs `mujoco`, so the example is never
 configured and **not one of its tests has ever run in CI**. Green means one
@@ -78,9 +79,9 @@ developer ran it locally. Wiring examples into CI is
 ## Scope
 
 Renderer + MuJoCo + rig, and one scene: `assets/scene.xml` — an **SO-101
-leader gripper ghost** locked to the right controller's grip pose, and nothing
-else. No table, no blocks, no ground plane: this is an AR scene and passthrough
-is the background.
+follower arm** and an **SO-101 leader gripper ghost**, exactly one of which is
+drawn at a time. No table, no blocks, no ground plane: this is an AR scene and
+passthrough is the background.
 
 The ghost is not decoration. It is a real mesh assembly (4 fetched STLs, so it
 exercises the `mjGEOM_MESH` path), and locking it to the hand makes the *grip*
@@ -97,9 +98,14 @@ therefore the screen. There is no robot in the scene, so the jaw it drives is
 the operator's own trigger; that is enough to show the edge is live, and the
 SO-101 that will read the same output arrives with the scene catalogue.
 
+**And its pose is the safety harness's output, not the controller's** — see
+[The harness the ghost renders](#the-harness-the-ghost-renders). What that
+harness governs is the **clutch's** output; see
+[The clutch and the follower preview](#the-clutch-and-the-follower-preview).
+
 Two calibrations, and they are different in kind. `cpp/frames.hpp` is a
 *convention* fixed by two specs and cannot be wrong at runtime.
-`_QUAT_GRIP_FROM_GHOST` / `_POS_GRIP_FROM_GHOST` in `app.py` are a *measurement*
+`_QUAT_HAND_FROM_GHOST` / `_POS_HAND_FROM_GHOST` in `app.py` are a *measurement*
 of how a hand holds a tool, taken on a headset and checkable nowhere else. See
 [Frames](#frames-cppframeshpp).
 
@@ -237,6 +243,387 @@ beside the module, and editing it is how you load something else. There is no
 desktop or headless display mode; without a headset the verification path is
 [`ctest -L mujoco_xr`](#tests).
 
+## The harness the ghost renders
+
+The ghost's pose comes from an `EePoseRateLimiter` (`harness.py`,
+`_build_pipeline()`), so what the operator sees is **the command a follower
+would execute**, not where their hand is. That is the point:
+[#738](https://github.com/NVIDIA/IsaacTeleop/issues/738) reports operators
+losing minutes to harness interventions they could not perceive — the arm "stops
+following", and the instinct that produces (push harder, move faster) is exactly
+wrong.
+
+The limiter is a three-band governor: motion under the limits passes through
+untouched, motion over them is clamped to the limit, and a frame whose input
+velocity breaks the reject envelope is refused outright. Two things report which
+band is live:
+
+- **The ghost lags the hand.** Proprioceptive, and free — you feel where your
+  hand is and see the tool is not there.
+- **The ghost changes colour.** Amber while clamping, red while rejecting,
+  authored blue while passing through. Categorical, which the lag alone is not:
+  a clamp and a refusal both read as "behind my hand".
+
+Colour is written to the shared `leader_ghost` **material**, so one write
+recolours the whole tool. Do not switch it to `geom_rgba`: that silently wins
+over the material, and the four geoms would then have to be kept in step by
+hand. Alpha stays 1.0 in every band —
+`assets/leader/leader_gripper.xml` explains what opacity buys, and a translucent
+"intervening" state would quietly take those risks back.
+
+`InterventionMonitor` recovers the band by comparing what the limiter was handed
+against what it emitted, rather than by asking the limiter. That keeps the
+shipped node unmodified and works for any governor with the same contract; the
+cost is one extra `OutputCombiner` key (`COMMANDED_POSE_KEY`) carrying the
+limiter's own input, which nothing draws.
+
+**The limits are chosen for this demo, not measured against an SO-101.** 0.5 m/s
+and 2.5 rad/s clamp, 2.0 m/s and 10 rad/s reject — set so ordinary reaching is
+pass-through and a deliberate flick trips both bands on demand.
+`RateLimiterConfig` itself defaults to 0.25 m/s, which is the more conservative
+bring-up value and would clamp during ordinary reaching. **Nothing tests these
+numbers**, so retuning `_HARNESS` past what a hand can reach silently produces a
+demo that never intervenes.
+
+**The jaw is ungoverned** — a `JointRateLimiter` would bound it, but the trigger
+is one scalar the operator drives directly, not a solved output that can diverge.
+
+While the clutch is disengaged the limiter is still running, on a commanded pose
+that tracks the follower. That is not idling: the gate below refuses to go green
+unless the limiter is in its pass-through band, so this is where that conjunct
+gets its evidence.
+
+`rate_limiter.py` is
+[#727](https://github.com/NVIDIA/IsaacTeleop/pull/727) rehomed from
+`src/retargeters/` to `src/python/isaacteleop/retargeters/`, which is where that
+package now lives.
+
+## The clutch and the follower preview
+
+Disengaged, the operator drives the **follower's** gripper, and two things move
+it independently:
+
+- **Position** is the controller's, all three axes — `follower.py` slides the
+  whole arm so its **jaw** tracks the hand every frame, the grip offset off it
+  *exactly*.
+- **Yaw** is the controller's own yaw, every frame, with no button held. The base
+  turns onto it and the arm swings around the jaw.
+
+**The joints are locked.** `qpos` is written once, to `Q_HOME`, and the arm is
+moved as a rigid body — `Follower._place` is the one writer of `body_quat`,
+`Follower._move_base` the one writer of `body_pos` — so the gripper's orientation
+*in the base's frame* is a constant, and the jaw lands at its offset from the hand
+with no residual and no point it cannot reach. The offset starts at
+`GRIP_FROM_CONTROLLER_XR`: level with the hand laterally, 0.25 m ahead and 0.10 m
+below it, so they can see an arm they are not standing inside.
+
+**Both channels land on `GRIPPER_SITE`, and that is what makes the yaw pivot
+right.** Upstream declares a `gripperframe` site on the `gripper` body 98.4 mm out
+from its origin, 3.8 mm off the closed jaw surface — where a grasped object would
+be. The arm is placed *by* that point, so it is also the axis the yaw turns about:
+the jaw holds still and the base swings around it, 273 mm across ±90° of yaw.
+Place by the gripper **body** instead and the pinned point sits 98.4 mm short of
+the jaw, which then orbits it — a 15.8 mm arc over that same sweep, on the one
+point the operator is actually aiming. The body frame is still the **orientation**
+carrier, and `Follower.gripper_pose_mj()` returns it for exactly that; do not read
+its position as the tool point.
+
+**That offset is tunable from the headset, and only while disengaged.** The right
+thumbstick walks its two horizontal terms — stick X left/right, stick Y
+forward/back, forward sending the arm further out — at 0.20 m/s of full
+deflection, past a 0.15 deadzone and clamped to ±0.60 m on each. Deflection is a
+*rate*, so the offset holds where the stick left it; the drop below the hand is
+not on the stick. Both terms are carried on the **controller's own facing**, so
+forward sends the arm further along the pointing ray and right sends it to the
+controller's right — and yawing the controller carries the arm around with it at a
+fixed relative position, rather than leaving it behind in the world. Note this is
+the *facing*, not the base yaw, which leads it by the measured bias and would send
+"forward" off by exactly that much. Let go and the app prints what it settled on,
+in the constant's own form:
+
+```
+follower:   offset tuned to GRIP_FROM_CONTROLLER_XR = np.array([-0.31, -0.10, -0.22])
+```
+
+**Paste that back into `follower.py` as the new default.** It is a headset
+judgement and no headless test can make it, so this is how a session becomes a
+constant rather than a note-to-self. B (`SECONDARY_CLICK`) puts it back to the
+authored value on its rising edge, for an offset walked out to its clamp or a
+drifting stick that got there on its own. `ENGAGED` neither the stick nor the
+button does anything visible: the arm is hidden and frozen there, and an offset
+moving under it would apply the whole excursion on the release frame.
+
+Squeeze while the arm is **green** and the follower vanishes, the leader appears
+**in the hand** at the follower's rotation, and the harness colouring above takes
+over. **The offset is the preview's alone.** The leader is the tool the operator
+teleoperates, so it is mapped 1:1 onto the controller and an engagement does not
+inherit it — tuned or not. The visible cost is that the engage frame swaps one
+tool for another a whole offset away — a handoff between two objects, not one
+object jumping.
+
+Release and the follower comes back **immediately**: the arm is drawn again on
+the release frame itself and the drag resumes on that same frame, so the
+controller is driving it again with nothing in between.
+
+**Do not put a smoothstep back to the home pose on the release.** The drag runs on
+every disengaged frame, so a ramp has nothing to do: the arm would reach home and
+be dragged straight back onto the hand on the next frame. The visible cost of not
+having one is real and accepted — the arm teleports from where it froze onto the
+hand's position and yaw, by however far the operator moved and turned during the
+engagement.
+
+**The dwell is therefore the whole post-release debounce.** The gate's phase
+conjunct holds it shut for the entire engagement, so `_dwell_s` restarts at the
+release and no squeeze can re-latch for ~8 frames. Nothing else gates it: the
+limiter's reset pulse absorbs the teleport in one frame, so `still catching up`
+does not fire.
+
+**The app drives from the `aim` pose, and `HAND_POSE` is the single constant that
+says so.** OpenXR publishes two controller poses for two different jobs.
+`grip` is the palm centroid, published so an application can render an object the
+user is *holding*; its `-Z` runs little finger to thumb, **up through the fist**,
+and is not a pointing direction at all. `aim` is published so an application can
+*point*: its `-Z` is the ray. Reading a facing off `grip` therefore turns 1:1 with
+the hand but has an arbitrary zero — a fixed yaw offset the operator sees and
+cannot tune away — which is why this app moved to `aim`.
+
+`HAND_POSE` reaches everything: the follower's drive, the engage gate's operand,
+the clutch's latched home and the ghost's placement, because they all consume the
+one `HAND_POSE_KEY` channel. `SO101ClutchRetargeter` reads the controller group
+directly rather than that channel, so it takes a matching `controller_pose=`
+argument; its *orientation* delta is provably invariant to the choice — for a fixed
+body-frame `T`, `(R·T)(R₀·T)⁻¹ == R·R₀⁻¹` — so that argument changes the
+translation pivot only.
+
+**The cost is real and is the thing to watch in a headset.** `aim`'s *origin* is a
+device-specific ray origin rather than the palm centroid, so the arm's position
+gains a lever arm that swings as the wrist turns. Flip `HAND_POSE` back to
+`HandPose.GRIP` to compare — but re-tune `_EULER_HAND_FROM_GHOST_DEG` when you do,
+because the ghost calibration is relative to whichever frame that constant names.
+
+**Which axis you read was a leakage budget on `grip`; on `aim` there is nothing to
+choose**, since `-Z` is the ray by definition. The measurement is kept because it
+is what rules `grip` out and what to re-run if `aim` disappoints. Every candidate
+turns 1:1 with a rotation about the world vertical — an axis' azimuth does that by
+construction — so what separated them is only how much wrist **roll and pitch bleed
+into the arm's yaw**. Each axis is blind to rotation about *itself* and sensitive to
+the rest. Worst leak over ±45° at the posture the gate demands, measured on `grip`:
+
+| motion | `-Z` thumb | tool/barrel | flattened | best-fit |
+|---|---|---|---|---|
+| roll about the thumb axis | **0.00** | 12.89 | 21.09 | 23.40 |
+| roll about the barrel | 11.75 | **0.00** | 29.60 | 31.94 |
+| pitch about grip `+X` | **0.00** | 27.88 | 0.41 | **0.00** |
+| pitch about horizontal-perp | 2.30 | **0.00** | **0.00** | **0.00** |
+
+On `grip` the thumb axis won that table — best worst case, exact on two of four.
+`aim`'s `-Z` is the **tool/barrel** column, whose leak is dominated by how far the
+axis sits from horizontal at the posture held; the 27.88° there is a near-vertical
+singularity reached only because that stand-in axis starts 43.7° up, and a real aim
+ray held level does not go near it. **That is an expectation, not a measurement** —
+the grip-to-aim transform is per-device and no headless test here can supply it, so
+re-measure the leak on a headset. `follower.yaw_of_axis` takes the axis as a
+**required** argument for exactly this reason; `follower.yaw_of` keeps `-Z` and is
+for the **head** alone, whose `-Z` genuinely is its view direction.
+
+**`_YAW_TRIM_DEG` should now be zero, and a session that needs a large one is
+evidence, not a knob.** Removing the offset is the whole reason for reading `aim`,
+so if a trim is still needed the switch did not do its job. It is kept only to
+absorb a runtime whose aim convention differs from the operator's expectation.
+**Hold A and push the right thumbstick** left or right at 20°/s; A owns the stick
+while held, so a trim cannot also walk the grip offset. Let go and the app prints
+it in the constant's own form, to paste back:
+
+```
+follower:   yaw trim -> _YAW_TRIM_DEG = -10.0
+```
+
+It is applied as a **constant** on top of the reading, so it cannot introduce
+leakage of its own.
+
+**The ghost calibration's two halves are now sourced differently, and that is the
+point.**
+
+Its **rotation**, `_EULER_HAND_FROM_GHOST_DEG`, is **solved, not measured**. Nothing
+in it is a free choice once you decide what posture the engage gate should ask for,
+and *that* is the thing worth choosing. On `aim` a pose's `-Z` is the pointing ray,
+so demanding "level and unrolled" means "hold the controller the way you would
+naturally point it". `(270, 0, 90)` produces exactly that — **0.00° of pitch and
+0.00° of roll** against `Q_HOME`. It is a consequence of `Q_HOME`, so re-solve when
+that moves: it is the gripper's `xquat` at `Q_HOME` and base yaw 0, carried into XR by
+`_xr_from_mj_quat`, as intrinsic-XYZ Euler.
+
+Getting it wrong is quiet, and porting a `grip`-measured value is how it went wrong
+before: ported from that frame, it
+demanded **30° of upward pitch** — invisible on `grip`, where `-Z` is the thumb axis
+and points up anyway, and immediately obvious on `aim`, where it means aiming at the
+ceiling. Bearing is deliberately unpinned, hence the rounding to whole degrees: the
+base tracks the hand's yaw, so the gate's yaw cancels and `base_yaw_bias` absorbs the
+2.8° that is left.
+
+Its **translation**, `_POS_HAND_FROM_GHOST`, stays a headset measurement — no posture
+pins it — and the shipped value was measured on `grip`. That port *is* per-device, so
+`_log_hand_frames` computes it from one frame with both poses valid and prints it:
+
+```
+hand frames: this device's aim pose sits 50 deg and 40 mm off its grip pose. HAND_POSE is AIM, so for the ghost to sit where it did on GRIP, its POSITION wants:
+hand frames:   _POS_HAND_FROM_GHOST = np.array((-0.000, 0.020, 0.015))
+```
+
+Both terms of that port are needed — the origins' separation *and* the old offset
+turned by the same rotation; dropping the second leaves the ghost centimetres out
+while its orientation looks perfect.
+
+**The base leads the hand by a measured bias so the JAW faces it.**
+`Follower.jaw_yaw_xr` reads `GRIPPER_SITE`'s `+Z` — which way the gripper is turned
+— and `base_yaw_bias()` measures the lead at startup rather than authoring it,
+because how far the jaw sits off its own base yaw follows from `Q_HOME` and
+upstream's chain. With `J5 = -90` it comes out at **92.79°**. The jaw then faces the
+controller to **0.000° at every world yaw**, with **0.00° of leak from wrist roll
+and 0.00° from pitch**.
+
+The jaw and the arm's *reach* are different axes, parting company by exactly J5's
+roll: J5 turns the gripper about its tool axis without moving the links, so aiming
+one leaves the other off by that much. Aiming the jaw is the choice here, and the
+cost is the arm's body sitting **92.79°** to the side of where you point. The two
+are coupled through the calibration — moving the bias moves the demanded posture
+with it — so `_EULER_HAND_FROM_GHOST_DEG` must be re-solved whenever the aimed axis
+or `Q_HOME` changes.
+
+**The arm's yaw cancels the hand's, and that is why no button locks one.** The
+gate compares the controller against the rotation the clutch would latch, and
+because the base carries the wrist's own yaw that rotation is `wrist_yaw ∘ C` for
+a session constant `C`. The geodesic angle between them is therefore the angle
+between the wrist's *pitch and roll* and `C` — the same number whichever way the
+operator faces and whichever way they point. One posture to learn rather than one
+per reach, and `Q_HOME` earns its derivation from exactly that: the gripper
+orientation it produces is what the gate asks for. Correcting the yaw drive also
+drained `C` of nearly all its own yaw — from 2.79° to 0.73° — so the posture the
+gate demands no longer asks the operator to hold their wrist turned off the
+direction they are pointing.
+
+### Where the arm goes
+
+**Against the measured head pose, not the reference-space origin.** On the first
+frame carrying a usable `info.views[0].pose`, the home grip is placed
+`HOME_GRIP_FROM_HEAD_XR` — 0.30 m below and 0.60 m in front — of the head,
+**yaw-projected** onto the head's facing so "in front" means in front of the
+operator and not along the reference space's `-Z`. Yaw only: a bowed or tilted
+head must not tip the arm toward the floor.
+
+**The anchor is a starting pose and nothing more.** Its *position* is only where
+the arm waits out the window between the first head pose and the first controller
+frame; its *yaw* only turns the arm to face the operator for that same window.
+From the first driven frame the controller owns everything — position, base yaw,
+and the frame the thumbstick offset is carried on. `Follower.base_yaw_xr` reports
+whichever yaw is actually on the base.
+
+The app does not get to choose its reference origin. viz asks for no
+floor-origin space, so a runtime that hands back a stage-origin one puts
+everything authored against that origin a standing height out — which is what a
+headset run showed. The head pose is the only datum the app can trust.
+
+The anchor does not follow the head afterwards either: the pose the clutch is
+about to latch must not move out from under the operator as they look around.
+
+Placement is therefore runtime-derived, and so **neither tool is drawn until the
+anchor exists**. `Follower.__init__` starts the arm hidden, `_Preview.__init__`
+starts the ghost hidden, and `_Preview.after_step` returns early while
+`arm.anchored` is false — with the gate held shut, so the clutch cannot latch
+onto a pose the arm never held either.
+
+Two phases — `DISENGAGED` and `ENGAGED` — and the enum never answers "is the
+clutch latched?". `SO101ClutchRetargeter.is_engaged` is the sole authority for
+that; the phase takes it as an input every frame and never copies it into a
+field.
+
+**Green means all three of these hold**, and `follower.py`'s gate returns every
+one that does not, which `app.py` logs on each transition:
+
+- the hand's rotation is within the enter band of the rotation the clutch would
+  latch,
+- the rate limiter is passing through, not clamping,
+- and all of that has held for a dwell.
+
+**There is no reach conjunct, and no reach envelope.** The rigid drag puts the
+gripper exactly at its offset from the hand every frame, so a position residual
+is identically zero and a limit on it would forbid nothing — the arm goes
+wherever the hand goes, including places no articulated SO-101 could reach.
+`EngageGate.evaluate` says so where the conjunct used to be; do not add one back
+believing it keeps the operator inside a workspace this preview does not have.
+
+The rotation conjunct is the whole point. The leader is rebased onto the
+follower's rotation at engage, so if the operator's wrist is 40° from where the
+follower's gripper is pointing, that 40° does not go away — the clutch composes
+orientation as a **delta**, so it persists for the entire engagement. Hysteresis
+and the
+dwell are not polish either: the angle is recomputed every frame from a noisy
+controller, and a colour strobing at 72 Hz in a headset is worse than a wrong
+colour.
+
+**The pass-through conjunct is not optional.** The leader renders the *limiter's*
+output. The grip calibration converts hand rotation into ~4°/cm of tool motion,
+so 0.5 m/s of hand speed is 3.49 rad/s against a 2.5 rad/s clamp: clamping starts
+around 0.36 m/s, which is ordinary dragging. Without this conjunct the arm goes
+green while the tool about to be revealed is tens of degrees and hundreds of
+milliseconds behind.
+
+**The handoff is exact, and that is measurable.** `app.py` pushes
+`clutch.set_home_base_T_ee(pose_from_ghost_body(...))` on every non-`ENGAGED`
+frame, built from **two different sources**: the position from the last usable
+hand pose — latched in `after_step`, because `before_step` runs a frame ahead of
+it — and the rotation from the follower's gripper. So the clutch's home is the
+hand's position at the follower's rotation, and on the latch frame it emits that
+home exactly. Neither half is interchangeable: latching the gripper's *position*
+would carry the preview's offset into an engagement the clutch composes as a
+delta, and taking the *rotation* from the hand would leave the gate's rotation
+conjunct demanding nothing. `MEASURED_BASE_T_EE_INPUT` is deliberately left unwired — `_latch`
+reads it for **position only** and always takes the rotation from the last
+commanded rotation, so it cannot deliver this.
+
+Which is also the trap. Because the grip calibration **cancels exactly** through
+the handoff, the leader lands in the hand at the follower's rotation for *any*
+value of it and every geometric test passes. Its one surviving effect is which
+wrist posture the gate demands, so `app.py` logs two readable directions at
+startup — where the tool points and where the gate wants the operator's thumb —
+and **warns** past 45° on the thumb. It does not refuse to start: this app is the
+only place the calibration can be judged, so aborting would prevent the
+inspection the log exists for.
+
+Read the **hand-axis** direction when judging `_EULER_HAND_FROM_GHOST_DEG` — the log names it `pointing` on `aim` and `thumb` on `grip`. The tool
+direction does not contain the calibration at all — it is a guard on `Q_HOME` and
+a mesh refresh, and it reads the same 15° for a calibration that is right and one
+that is 118° wrong. Both are reported in the **arm's own frame** — XR axes
+un-yawed by `base_yaw_xr` — so they read the same whichever way the operator was
+facing and however they hold their wrist, which is also why the log can run
+*before* the arm is anchored.
+Against the reference space's `-Z` they would just report where the operator
+happened to stand.
+
+**Nothing integrates.** `mj_step` is never called: the follower is slid by its
+base and read back through `mj_forward`, and the ghost is two mocap bodies.
+Upstream's six `position` actuators are therefore inert — with `ctrl = 0` and
+`mj_step` they would drag the arm back to `qpos0` at about 1 rad per 0.4 s. There
+are deliberately no `gravity="0 0 0"` or `<flag actuation="disable"/>` attributes
+in `scene.xml`: flags that suppress dynamics nobody runs tell the next reader
+that dynamics run. The invariant that replaces them is simply *`qpos` is written
+once, by `follower.py`, and `body_pos` only by `Follower._move_base`*.
+
+With no `mj_step` there is also nothing left to refresh derived state, so the
+second invariant is the pass `mj_step` used to supply for free: **one
+`mj_forward` after every `qpos`, `body_pos` *or* `mocap_*` write, before every
+`xpos` / `xquat` / `geom_xpos` read — including the read inside
+`mjv_updateScene`.** `mocap_pos`/`mocap_quat` are *inputs to* forward kinematics
+and the renderer draws `geom_xpos`, so a correct mocap row is not a drawn pose.
+`follower.py` owns that call for the arm and `_Preview.after_step` for the ghost;
+nothing while `ENGAGED` moves the arm, which is why the ghost cannot borrow the
+drag's.
+
+`SO101ClutchRetargeter` gains one input for this, `ENGAGE_PERMITTED_INPUT`: an
+`OptionalType` boolean checked **only** where a latch is owed, so it gates the
+latch and never the engagement, and absent or unwired means permitted. It is an
+enable precondition, not a safety-rated stop.
+
 ## Conventions you can break
 
 ### Frames (`cpp/frames.hpp`)
@@ -273,8 +660,8 @@ disambiguate.
 
 ### Where the ghost sits on the hand (`app.py`)
 
-A *second* calibration, and a different kind: `_EULER_GRIP_FROM_GHOST_DEG` and
-`_POS_GRIP_FROM_GHOST` place the leader gripper on the operator's hand. Without
+A *second* calibration, and a different kind: `_EULER_HAND_FROM_GHOST_DEG` and
+`_POS_HAND_FROM_GHOST` place the leader gripper on the operator's hand. Without
 them the gripper's body origin — the follower's `gripper` datum, up at the wrist
 — lands on the grip pose, so the tool hangs off the hand at an arbitrary angle.
 
@@ -302,7 +689,7 @@ convention as a MuJoCo `euler=` attribute, pinned by a test against a compiled
 model rather than asserted here. Change one angle, `uv pip install
 --reinstall-package isaacteleop-examples-mujoco-xr ./examples/mujoco_xr`,
 relaunch: `Rz` spins the gripper about its own long axis, `Rx` / `Ry` tilt it in
-the hand, and `_POS_GRIP_FROM_GHOST` slides it along the grip axes if the angle
+the hand, and `_POS_HAND_FROM_GHOST` slides it along the hand-pose axes if the angle
 is right but the placement is not. **No test asserts a posture**, deliberately —
 they cover the machinery, so re-tuning cannot turn them red. The one that
 matters asserts the ghost is *rigidly attached* to the grip frame, which is
@@ -368,10 +755,10 @@ reads the array as you leave it, and `dir` is the camera's `forward`, un-negated
 or give the scene its own `<light>` elements, which `mjv_updateScene` does place
 correctly.
 
-The ghost's four STLs are **fetched, not vendored** — 2.3 MB of binary in a
-source tree is a poor trade when upstream publishes them at a stable commit, and
-Git LFS made every clone pay for them. Run it once, then reinstall, because they
-are package data:
+The 17 STLs are **fetched, not vendored** — 18 MB of binary in a source tree is
+a poor trade when upstream publishes them at a stable commit, and Git LFS made
+every clone pay for them. Run it once, then reinstall, because they are package
+data:
 
 ```bash
 examples/mujoco_xr/scripts/fetch-so-arm.sh          # from the repository root
@@ -384,30 +771,51 @@ the network, so the app fails at startup naming the script and `test_ghost.py`
 commit — a silently substituted mesh renders as a broken gripper rather than an
 error, which has already cost a debugging session.
 
+Each entry names its own destination: the two tools are separate MJCF fragments
+in separate directories, and each resolves meshes against its own, so
+`sts3215_03a_v1.stl` is fetched **twice** rather than aliased across. Both sets
+land **flat** beside their fragment — MuJoCo drops an included file's own
+`meshdir`, so upstream's `meshdir="assets"` is inert once included.
+
+The follower's MJCF is upstream's own `so101_new_calib.xml`, fetched verbatim and
+never edited; `assets/follower/follower_arm.xml` is a tracked wrapper — one
+material and an `<include>`, under a provenance comment. (`joints_properties.xml` is
+deliberately not fetched: upstream inlines its `<default>` block rather than
+`<include>`ing it, so the file is never read.)
+
 The script also pulls `so101_new_calib.urdf`, which is where the trigger's hinge
-and its 0..100° travel come from, so it is on disk to check them against. Three of the four
-meshes are leader-specific print parts; the fourth is the **STS3215 servo**,
-shared with the follower. It is not decoration — `wrist_roll` is a C-shaped
+and its 0..100° travel come from, so it is on disk to check them against. Three of
+the leader's four meshes are leader-specific print parts; the fourth is the
+**STS3215 servo**, shared with the follower. It is not decoration — `wrist_roll` is a C-shaped
 bracket that wraps the servo, so without it the assembly has an open notch where
 the motor belongs and reads as a broken asset.
 
 It declares **two** mocap bodies — the gripper and its trigger — because the
-trigger articulates; a jointed child of a mocap body would be a dynamic joint
-that `mj_step` integrates gravity into, and a mocap body is kinematic by
-construction.
+trigger articulates. A mocap body must be a jointless child of the world, so the
+trigger cannot be a hinged child of the gripper: its angle would live in `qpos`,
+which nothing here writes — this app never calls `mj_step` and drives the ghost
+through `mocap_*` alone — so the jaw would never swing.
 
 The ghost is **opaque**, and `test_ghost.py` asserts it. That removes the
 draw-order constraint (at alpha 1.0 the depth test decides everything) and the
-ghost-writes-depth-into-the-reprojection-buffer concern. A scene that puts a
-robot under the ghost and drops the alpha back takes both on again: `mjv_updateScene`
-emits in geom-id order, so the `<include>` must come **last**. Nothing asserts
-that ordering today — it only matters below alpha 1.0, so the test belongs with
-the scene that needs it.
+ghost-writes-depth-into-the-reprojection-buffer concern. This scene **does** now
+put a robot under the ghost — the follower — so opacity is the only thing still
+holding both off. `scene.xml` already `<include>`s the leader **last**, which is
+the order the draw would need (`mjv_updateScene` emits in geom-id order), but
+nothing asserts it: the assertion belongs with the first scene that drops the
+alpha back.
 
 **Pass MuJoCo an absolute scene path.** Measured on mujoco 3.11.0, a *relative*
-model path mis-composes the mesh paths of an `<include>`d file in a
-subdirectory and fails with `Error opening file '<a path that exists>'`.
+model path mis-composes an `<include>`d file's paths and fails with
+`Error opening file '<a path that exists>'` — with the follower's nested include
+it composes the directory onto itself and opens `<dir>/<dir>/so101_new_calib.xml`.
 `DEFAULT_SCENE` in `app.py` is absolute for this reason.
+
+**Visibility is `model.geom_group`, from Python.** Group 2 draws and group 3 does
+not (`mjv_defaultOption`), so hiding a tool is one write to a slice of
+`geom_group`. A hidden geom never becomes an `mjvGeom`, so it never reaches the
+draw loop and never writes depth — which is why this is a group switch and not an
+alpha. No C++ renderer change is needed or wanted for it.
 
 ## Tests
 

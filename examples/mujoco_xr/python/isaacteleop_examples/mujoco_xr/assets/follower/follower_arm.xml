@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+The SO-101 follower arm: what the operator drags before the clutch engages.
+A wrapper around upstream's own MJCF, which is fetched verbatim and NEVER
+edited -- scripts/fetch-so-arm.sh checksums it, so an edit here is a fetch
+failure on the next clone.
+
+Provenance: TheRobotStudio/SO-ARM100 at commit
+fda892cba81032c46c40976a48c9ceadbf40a9ca, Apache-2.0. The 13 meshes land FLAT
+beside this file, not under assets/: MuJoCo drops an included file's own
+`meshdir`, so upstream's `meshdir="assets"` is inert here and the paths resolve
+against this directory.
+
+follower.py repoints EVERY follower geom's `geom_matid` at this material at
+startup -- collision geoms included, so the rule has no exception to remember --
+replacing upstream's thirteen. One material is what lets the whole arm change
+colour in one write, the same way the leader ghost's does.
+
+The authored colour is the BLOCKED one, which is also where the arm starts;
+follower.py owns the engageable colour and restores this one from mat_rgba,
+alpha included -- it writes rgba[:3] only, so translucency survives both states.
+
+Translucent, unlike the leader ghost: this arm is a preview the operator looks
+PAST, so it must not hide what it is being aimed at. The cost is the draw-order
+and blending risk assets/leader/leader_gripper.xml avoids by staying opaque, over
+~30 overlapping geoms, and only a headset shows it.
+-->
+<mujoco model="so101 follower arm">
+  <asset>
+    <material name="follower_arm" rgba="0.45 0.45 0.45 0.6"/>
+  </asset>
+
+  <include file="so101_new_calib.xml"/>
+</mujoco>

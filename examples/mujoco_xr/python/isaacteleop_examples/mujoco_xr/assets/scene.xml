@@ -3,18 +3,17 @@
 SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
-The shipped scene: the SO-101 leader gripper ghost, and nothing else. No ground
-plane and no static furniture -- this is an AR scene and passthrough is the
+The shipped scene: the SO-101 follower arm and the leader gripper ghost. No
+ground plane and no furniture -- this is an AR scene and passthrough is the
 background.
 
-What a ghost-only scene cannot show: cpp/frames.hpp's constants place the ghost
-and the eye pose alike, so they cancel and it lands on the hand whatever they
-are. Only static content is placed by them, so adding any here puts
-kTransMjFromXr under test.
+cpp/frames.hpp's constants place the ghost and the eye pose alike, so they
+cancel and it lands on the hand whatever they are. The follower's base is static
+content and does not get that for free: follower.py authors its placement in the
+XR reference frame and pushes it through mj_from_xr at startup, so the constants
+cancel there too and kTransMjFromXr stays untuned.
 -->
 <mujoco model="mujoco_xr_scene">
-  <option timestep="0.002"/>
-
   <!-- A high ambient FLOOR, not a brighter light. Ambient is
        direction-independent, so it bounds how dark a surface can get (measured:
        0.40 of albedo, exactly the ambient term) while diffuse carries the shape.
@@ -26,5 +25,6 @@ kTransMjFromXr under test.
     <headlight ambient="0.4 0.4 0.4" diffuse="0.4 0.4 0.4" specular="0.3 0.3 0.3"/>
   </visual>
 
+  <include file="follower/follower_arm.xml"/>
   <include file="leader/leader_gripper.xml"/>
 </mujoco>

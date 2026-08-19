@@ -90,6 +90,7 @@ from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
+    BoolType,
     ControllerInput,
     ControllerInputIndex,
     DLDataType,
@@ -235,6 +236,8 @@ class SO101ClutchRetargeter(BaseRetargeter):
         - :data:`MEASURED_BASE_T_EE_INPUT` -- Optional ``base_T_ee`` 4x4 transform of the arm's
           *measured* EE pose. Only its translation block is read, and only on the engage frame.
           When absent, the home position falls back to the last commanded position.
+        - :data:`ENGAGE_PERMITTED_INPUT` -- Optional boolean gating the **latch**. Absent or
+          unwired is permitted, so this is backward compatible.
 
     Outputs:
         - ``ee_pose`` -- a single 7D ``[x, y, z, qx, qy, qz, qw]`` float32 ``NDArray``.
@@ -265,7 +268,26 @@ class SO101ClutchRetargeter(BaseRetargeter):
     #: ``TeleopSession`` validates every external leaf name is present in ``external_inputs`` on
     #: every step, independently of ``OptionalType``. Such a producer must send the key
     #: unconditionally, carrying an absent ``OptionalTensorGroup`` on frames with no pose.
+    #:
+    #: .. warning::
+    #:    **Position only.** ``_latch`` reads the translation block and always takes the
+    #:    orientation from ``_last_commanded_rot``, so an owner whose arm has rotated away
+    #:    from the configured home engages at the measured position and the stale
+    #:    orientation. When the achieved rotation matters, :meth:`set_home_base_T_ee` is the
+    #:    only route: it reads both blocks.
     MEASURED_BASE_T_EE_INPUT = "measured_base_T_ee"
+
+    #: Optional boolean input: may the clutch **latch** on this frame? Absent, unwired, or
+    #: ``True`` all mean permitted, so an existing consumer is unaffected.
+    #:
+    #: Read **only** where a latch is owed, so it gates the latch and never the engagement:
+    #: :attr:`is_engaged` stays exactly ``_origin is not None``, and revoking permission
+    #: mid-engagement does nothing. An **enable precondition, not a safety-rated stop**.
+    #: The same every-step ``ValueInput``-leaf rule as :data:`MEASURED_BASE_T_EE_INPUT`
+    #: applies. See ``docs/source/references/retargeting/so101.rst``.
+    ENGAGE_PERMITTED_INPUT = "engage_permitted"
+    #: Element index of the permission flag inside the input's tensor group.
+    PERMITTED_INDEX = 0
 
     def __init__(
         self,
@@ -273,6 +295,7 @@ class SO101ClutchRetargeter(BaseRetargeter):
         home_base_T_ee: np.ndarray,  # noqa: N803
         *,
         input_device: str = ControllersSource.RIGHT,
+        controller_pose: str = "grip",
         position_scale: float = 1.0,
         squeeze_threshold: float = 0.5,
     ) -> None:
@@ -287,7 +310,13 @@ class SO101ClutchRetargeter(BaseRetargeter):
                 pose a ``reset`` re-seeds to. When the pose is not known until after construction
                 (e.g. the graph is built before the arm is homed), pass a placeholder and call
                 :meth:`set_home_base_T_ee` before the first ``RUNNING`` frame.
-            input_device: Controller source key to read the grip pose from.
+            input_device: Controller source key to read the controller pose from.
+            controller_pose: Which standard OpenXR controller pose to clutch off, ``"grip"``
+                (default) or ``"aim"``. Translation only: the orientation delta is identical
+                either way, since for a fixed body-frame ``T``, ``(R T)(R_o T)^-1 == R R_o^-1``.
+                The two poses sit at different points on the device, so a wrist rotation sweeps
+                one origin about the other and that lever arm enters the engage-relative delta.
+                ``"grip"`` is the palm centroid, the conventional pivot for a held object.
             position_scale: Dimensionless controller-to-EE translation gain applied to the
                 engage-relative delta. ``1.0`` is 1:1 motion; a value ``< 1`` shrinks robot travel
                 relative to hand travel, which is what lets a comfortable operator arm sweep
@@ -309,6 +338,23 @@ class SO101ClutchRetargeter(BaseRetargeter):
                 ``home_base_T_ee`` is not a 4x4 transform with an orthonormal rotation block.
         """
         self._input_device = input_device
+        if controller_pose not in ("grip", "aim"):
+            raise ValueError(
+                f"controller_pose must be 'grip' or 'aim', got {controller_pose!r}."
+            )
+        self._pose_indices = (
+            (
+                ControllerInputIndex.GRIP_POSITION,
+                ControllerInputIndex.GRIP_ORIENTATION,
+                ControllerInputIndex.GRIP_IS_VALID,
+            )
+            if controller_pose == "grip"
+            else (
+                ControllerInputIndex.AIM_POSITION,
+                ControllerInputIndex.AIM_ORIENTATION,
+                ControllerInputIndex.AIM_IS_VALID,
+            )
+        )
 
         position_scale = float(position_scale)
         if not np.isfinite(position_scale) or position_scale <= 0.0:
@@ -361,9 +407,12 @@ class SO101ClutchRetargeter(BaseRetargeter):
         re-seeds to, so an owner that re-homes its arm mid-session should call this rather than
         letting reset drag the arm back to the construction-time pose.
 
-        Call this only while the clutch is not engaged -- typically while the session holds
-        ``STOPPED``, which makes latching impossible and so makes the ordering unambiguous: the new
-        home takes effect before the first ``RUNNING`` frame.
+        Call this only while the clutch is not engaged -- the rule is about the engaged
+        state, not the cadence. Once, while the session holds ``STOPPED``, makes the
+        ordering unambiguous. Calling it on **every** non-engaged frame of a ``RUNNING``
+        session is equally sound, and is what an owner whose arm moves while disengaged
+        wants: the home stays on the arm's live pose, so an engage from anywhere is
+        jump-free (``examples/mujoco_xr`` does this at frame rate).
 
         The pending latch is re-armed as a safety net rather than the call being rejected. Without
         it, a call made while engaged would leave the *old* controller origin latched against the
@@ -460,10 +509,13 @@ class SO101ClutchRetargeter(BaseRetargeter):
     # ------------------------------------------------------------------ specs
 
     def input_spec(self) -> RetargeterIOType:
-        """Controller grip pose (base frame) plus the optional measured EE pose for the home."""
+        """Controller grip pose (base frame), the optional measured EE pose, and latch permission."""
         return {
             self._input_device: OptionalType(ControllerInput()),
             self.MEASURED_BASE_T_EE_INPUT: OptionalType(TransformMatrix()),
+            self.ENGAGE_PERMITTED_INPUT: OptionalType(
+                TensorGroupType(self.ENGAGE_PERMITTED_INPUT, [BoolType("permitted")])
+            ),
         }
 
     def output_spec(self) -> RetargeterIOType:
@@ -480,6 +532,13 @@ class SO101ClutchRetargeter(BaseRetargeter):
         }
 
     # ---------------------------------------------------------------- compute
+
+    def _engage_permitted(self, inputs: RetargeterIO) -> bool:
+        """Whether a latch is allowed this frame. Fails **open**: unwired or absent is permitted."""
+        permitted = inputs.get(self.ENGAGE_PERMITTED_INPUT)
+        if permitted is None or permitted.is_none:
+            return True
+        return bool(permitted[self.PERMITTED_INDEX])
 
     def _latch(
         self, inputs: RetargeterIO, grip_pos: np.ndarray, grip_rot: np.ndarray
@@ -525,20 +584,17 @@ class SO101ClutchRetargeter(BaseRetargeter):
             ee_pose[0] = self._last_pose
             return
 
-        if not bool(inp[ControllerInputIndex.GRIP_IS_VALID]):
-            # Controller present but its grip pose is not localizable this frame (the OpenXR
+        position_index, orientation_index, valid_index = self._pose_indices
+        if not bool(inp[valid_index]):
+            # Controller present but the pose is not localizable this frame (the OpenXR
             # XR_SPACE_LOCATION_*_VALID_BITs are clear), so the source passes through an untrusted
             # pose. Treat it like a dropped frame and never latch the clutch origin off it.
             self._origin = None
             ee_pose[0] = self._last_pose
             return
 
-        grip_pos = np.from_dlpack(inp[ControllerInputIndex.GRIP_POSITION]).astype(
-            np.float64
-        )
-        grip_rot = np.from_dlpack(inp[ControllerInputIndex.GRIP_ORIENTATION]).astype(
-            np.float64
-        )  # XYZW
+        grip_pos = np.from_dlpack(inp[position_index]).astype(np.float64)
+        grip_rot = np.from_dlpack(inp[orientation_index]).astype(np.float64)  # XYZW
         squeeze = float(inp[ControllerInputIndex.SQUEEZE_VALUE])
 
         grip_norm = float(np.linalg.norm(grip_rot))
@@ -563,6 +619,13 @@ class SO101ClutchRetargeter(BaseRetargeter):
             return
 
         if self._origin is None:
+            if not self._engage_permitted(inputs):
+                # A latch is owed and the owner says not yet. Hold, and stay armed: the
+                # sentinel is untouched, so the latch fires on the first permitted frame.
+                # Checked HERE and nowhere else, which is what keeps a revoked permission
+                # from dropping a live engagement.
+                ee_pose[0] = self._last_pose
+                return
             self._latch(inputs, grip_pos, grip_rot)
 
         pos = self._home_pos + self._position_scale * (grip_pos - self._origin)

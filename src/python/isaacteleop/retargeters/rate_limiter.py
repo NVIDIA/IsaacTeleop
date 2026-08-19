@@ -284,19 +284,26 @@ def _clamp_orientation_step(
     if angle <= max_step or angle < _MIN_ANGLE_RAD:
         # Within the limit: emit the target, but from the shortest-arc branch so
         # consecutive emitted quaternions never flip hemisphere spuriously.
-        return _quat_mul(previous, q_rel)
-    axis = q_rel[:3] / sin_half
-    half = 0.5 * max_step
-    q_step = np.array(
-        [
-            axis[0] * np.sin(half),
-            axis[1] * np.sin(half),
-            axis[2] * np.sin(half),
-            np.cos(half),
-        ],
-        dtype=np.float64,
-    )
-    return _quat_mul(previous, q_step)
+        composed = _quat_mul(previous, q_rel)
+    else:
+        axis = q_rel[:3] / sin_half
+        half = 0.5 * max_step
+        q_step = np.array(
+            [
+                axis[0] * np.sin(half),
+                axis[1] * np.sin(half),
+                axis[2] * np.sin(half),
+                np.cos(half),
+            ],
+            dtype=np.float64,
+        )
+        composed = _quat_mul(previous, q_step)
+    # Renormalize: the result becomes the next frame's ``previous``, and the
+    # pass-through branch is prev (x) (prev^-1 (x) target), whose norm is |prev|^2. Fed
+    # back, that SQUARES the deviation from unit every frame, so float64's 1e-16 reaches
+    # float32 overflow in ~60 frames (0.9 s at 72 Hz). Do not drop this.
+    normalized = _quat_normalize(composed)
+    return previous if normalized is None else normalized
 
 
 class EePoseRateLimiter(BaseRetargeter):
