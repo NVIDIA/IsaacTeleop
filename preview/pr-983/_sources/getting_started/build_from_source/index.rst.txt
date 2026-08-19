@@ -56,7 +56,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf pkg-config
+   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf pkg-config glslang-tools
 
 Runtime-only dependencies (needed to actually run teleop, not to build):
 

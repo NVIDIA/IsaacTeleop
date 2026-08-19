@@ -484,7 +484,7 @@ naming it rather than quietly dropping the module. Most users do not need any of
 <p>Install build tools and dependencies, such as CMake, clang-format. See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a> in the GitHub repository for
 the list of dependencies. On <strong>Ubuntu</strong>, install build tools and clang-format:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache<span class="w"> </span>patchelf<span class="w"> </span>pkg-config
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache<span class="w"> </span>patchelf<span class="w"> </span>pkg-config<span class="w"> </span>glslang-tools
 </pre></div>
 </div>
 <p>Runtime-only dependencies (needed to actually run teleop, not to build):</p>

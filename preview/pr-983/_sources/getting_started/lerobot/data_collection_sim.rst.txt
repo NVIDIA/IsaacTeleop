@@ -120,7 +120,7 @@ Collect Teleop Data
       .. code-block:: bash
 
          sudo apt-get update
-         sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf pkg-config
+         sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf pkg-config glslang-tools
 
       Then clone, configure, build, and install (see
       :doc:`/getting_started/build_from_source/index` for the full prerequisite list and all
