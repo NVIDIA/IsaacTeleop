@@ -69,21 +69,32 @@ endif()
 # ImportError on the headset. MATCHALL because pyproject.toml carries the pin
 # twice and those must agree -- and because it would match a version written in
 # prose too, which is why those comments never restate the number.
-set(_mujoco_pin_files "pyproject.toml" "tests/pyproject.toml")
+set(_mujoco_pin_paths "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml")
+# The ctest pin lives in the repository's tests/ tree, which the standalone
+# wheel configure cannot see -- and has no ctest to keep in sync either.
+if(NOT _mujoco_xr_standalone)
+    list(APPEND _mujoco_pin_paths
+        "${CMAKE_SOURCE_DIR}/tests/python/examples/mujoco_xr/pyproject.toml")
+endif()
 set(_mujoco_pins "")
 set(_mujoco_pin_labels "")
-foreach(_pin_file IN LISTS _mujoco_pin_files)
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${_pin_file}" _pin_file_text)
+foreach(_pin_path IN LISTS _mujoco_pin_paths)
+    if(_pin_path STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/pyproject.toml")
+        set(_pin_label "pyproject.toml")
+    else()
+        set(_pin_label "tests/python/examples/mujoco_xr/pyproject.toml")
+    endif()
+    file(READ "${_pin_path}" _pin_file_text)
     string(REGEX MATCHALL "mujoco==[0-9][0-9a-zA-Z._-]*" _pin_matches "${_pin_file_text}")
     if(NOT _pin_matches)
-        message(FATAL_ERROR "mujoco_xr: ${_pin_file} declares no `mujoco==<version>` pin; "
+        message(FATAL_ERROR "mujoco_xr: ${_pin_label} declares no `mujoco==<version>` pin; "
                             "this file reads that pin instead of hardcoding one.")
     endif()
     foreach(_pin_match IN LISTS _pin_matches)
         # MATCHALL populates no CMAKE_MATCH_<n>, so strip the fixed prefix.
         string(REPLACE "mujoco==" "" _pin_version "${_pin_match}")
         list(APPEND _mujoco_pins "${_pin_version}")
-        list(APPEND _mujoco_pin_labels "${_pin_file}")
+        list(APPEND _mujoco_pin_labels "${_pin_label}")
     endforeach()
 endforeach()
 list(GET _mujoco_pins 0 _mujoco_declared_pin)
@@ -97,7 +108,7 @@ list(LENGTH _mujoco_distinct_pins _mujoco_distinct_pin_count)
 if(NOT _mujoco_distinct_pin_count EQUAL 1)
     message(FATAL_ERROR "mujoco_xr: the mujoco pins disagree -- pyproject.toml (both "
                         "build-system.requires and project.dependencies) and "
-                        "tests/pyproject.toml must all name the SAME mujoco version "
+                        "tests/python/examples/mujoco_xr/pyproject.toml must all name the SAME mujoco version "
                         "(exactly one libmujoco may be loaded in the process). "
                         "Found: ${_mujoco_pins} in ${_mujoco_pin_labels}")
 endif()
@@ -151,7 +162,7 @@ foreach(_pin_file _pin IN ZIP_LISTS _mujoco_pin_labels _mujoco_pins)
             "${_mujoco_version}. The C++ module and the Python app must load ONE libmujoco. Either "
             "install the declared pin (uv pip install --python ${Python3_EXECUTABLE} "
             "\"mujoco==${_pin}\") or update EVERY pin -- pyproject.toml carries it twice "
-            "(build-system.requires and project.dependencies) and tests/pyproject.toml once -- "
+            "(build-system.requires and project.dependencies) and tests/python/examples/mujoco_xr/pyproject.toml once -- "
             "to ${_mujoco_version}.")
     endif()
 endforeach()
@@ -179,12 +190,6 @@ message(STATUS "mujoco_xr: ON (mujoco=${_mujoco_version} lib=${_mujoco_library})
 set(_mujoco_xr_root "${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_subdirectory(cpp)
-
-# BUILD_TESTING is undefined standalone, so ctest entries are in-tree only --
-# which is right: they need the in-place extension and the repo's isaacteleop.
-if(BUILD_TESTING)
-    add_subdirectory(tests)
-endif()
 
 # No install() rules here, deliberately: the wheel is the only run path, and
 # standalone it is cpp/CMakeLists.txt's install(TARGETS) that fills it.

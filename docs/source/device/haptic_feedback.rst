@@ -95,5 +95,5 @@ See also
 --------
 
 - Example + tests: ``examples/haptic_feedback/python/`` and
-  ``src/core/retargeting_engine_tests/python/test_haptic_devices.py`` /
+  ``tests/python/core/retargeting_engine/test_haptic_devices.py`` /
   ``test_haptic_sink.py``.

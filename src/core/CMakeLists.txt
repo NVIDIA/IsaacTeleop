@@ -43,37 +43,3 @@ add_subdirectory(cloudxr)
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()
-
-# ==============================================================================
-# Tests
-# ==============================================================================
-
-if(BUILD_TESTING)
-    # Schema tests (C++ and Python)
-    add_subdirectory(schema_tests)
-
-    # Retargeting engine tests (Python)
-    add_subdirectory(retargeting_engine_tests)
-
-    # Teleop session manager tests (Python)
-    add_subdirectory(teleop_session_manager_tests)
-
-    # CloudXR tests (Python — requires the built wheel from python/)
-    if(BUILD_PYTHON_BINDINGS)
-        add_subdirectory(cloudxr_tests)
-    endif()
-
-    # Rig launcher tests (Python)
-    if(BUILD_PYTHON_BINDINGS)
-        add_subdirectory(rig_tests)
-    endif()
-
-    # MCAP tests (C++)
-    add_subdirectory(mcap_tests/cpp)
-
-    # Replay DeviceIO session tests (C++)
-    add_subdirectory(replay_deviceio_session_tests/cpp)
-
-    # Live trackers tests (C++)
-    add_subdirectory(live_trackers_tests/cpp)
-endif()
