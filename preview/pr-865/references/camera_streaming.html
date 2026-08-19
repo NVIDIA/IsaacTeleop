@@ -817,6 +817,9 @@ you’re sitting at, or use a video-capable remote desktop.</p></li>
 directory (<code class="docutils literal notranslate"><span class="pre">configs/</span></code>), not the directory you launched from.</p></li>
 <li><p><strong>A source fails asking for CuPy / CUDA</strong> — check <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> works and setup completed;
 all sources allocate their frame buffers on the GPU.</p></li>
+<li><p><strong>No video on Orin.</strong> When the CloudXR runtime runs on Jetson Orin, set
+<strong>Video Codec</strong> to <strong>H.264</strong> in the CloudXR web client. See
+<a class="reference internal" href="../getting_started/quick_start.html#connect-xr-headset"><span class="std std-ref">5. Connect an XR headset</span></a>.</p></li>
 <li><p><strong>Black camera plane on Orin</strong> — with the CloudXR experimental runtime on Orin, the default
 OpenXR compositor shows the camera plane but leaves its contents black. Under the camera’s
 <code class="docutils literal notranslate"><span class="pre">display.placements</span></code> entry, set <code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> (quads only). The same feed displays
@@ -1038,7 +1041,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 18, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 19, 2026.
       <br/>
     
   </p>
