@@ -577,7 +577,7 @@ symbols live in ``namespace viz``, and headers use nested include paths::
    #include <viz/layers/quad_layer.hpp>
    #include <viz/core/viz_buffer.hpp>
 
-``BUILD_VIZ`` auto-enables when Vulkan, the CUDA toolkit, and ``glslangValidator`` are detected
+``BUILD_VIZ`` auto-enables when Vulkan and the CUDA toolkit are detected
 (force it with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``); link the relevant CMake target:
 
 .. list-table::

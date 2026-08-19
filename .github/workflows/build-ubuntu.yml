@@ -18,7 +18,7 @@ concurrency:
 env:
   # Shared apt build dependencies. Each job installs these plus its own extras
   # (ccache, clang-format, the OAK camera autotools chain).
-  CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev wayland-protocols
+  CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev patchelf pkg-config wayland-protocols
   # Pin vcpkg to an immutable commit for reproducible, supply-chain-stable CI
   # instead of tracking its moving default branch. Port versions are fixed by the
   # consuming manifest's builtin-baseline (e.g. DepthAI's vcpkg.json), so this
@@ -58,19 +58,13 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y $CORE_APT_DEPS \
           ccache clang-format-14 \
-          autoconf automake libtool pkg-config libudev-dev
+          autoconf automake libtool libudev-dev
 
     - name: Install coverage tooling
       if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
       run: |
         sudo apt-get update
         sudo apt-get install -y gcovr
-
-    - name: Install patchelf (Release only)
-      if: ${{ matrix.build_type == 'Release' }}
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y patchelf
 
     # CUDA toolkit needed at link time for viz_core (device_image
     # links libcudart). The wheel itself excludes libcuda.so.1 via
@@ -320,7 +314,7 @@ jobs:
         sudo apt-get update
         # clang-format-14: the pip build enforces the clang-format gate (no
         # cmake.define override), so the tool must be present or the build FATALs.
-        sudo apt-get install -y $CORE_APT_DEPS ccache patchelf clang-format-14
+        sudo apt-get install -y $CORE_APT_DEPS ccache clang-format-14
 
     - name: Build sdist (validates backend config + metadata)
       run: |

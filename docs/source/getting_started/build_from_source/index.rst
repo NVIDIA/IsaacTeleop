@@ -28,22 +28,22 @@ Prerequisites
 
 .. note::
    **Optional — only needed to build the Televiz visualization module,** ``BUILD_VIZ``.
-   ``BUILD_VIZ`` is auto-detected: it defaults to ``ON`` when all three of the following are
-   found at configure time and to ``OFF`` otherwise, so a core-only source build still
-   configures on a machine without them. Watch the
-   ``-- BUILD_VIZ: <ON|OFF> (Vulkan=... CUDAToolkit=... glslang=...)`` configure line to see
-   which one is missing.
+   ``BUILD_VIZ`` is auto-detected from the GPU stack: it defaults to ``ON`` when both of the
+   following are found at configure time and to ``OFF`` otherwise, so a core-only source
+   build still configures on a machine without them. Watch the
+   ``-- BUILD_VIZ: <ON|OFF> (Vulkan=... CUDAToolkit=...)`` configure line to see which one
+   is missing.
 
    - **Vulkan headers + loader** — ``libvulkan-dev`` on Linux, the LunarG SDK on Windows.
    - **CUDA Toolkit** (cudart at link time) — ``nvidia-cuda-toolkit`` or the official NVIDIA
      installer.
-   - **glslangValidator** for compiling shaders to SPIR-V — ``glslang-tools`` on Linux,
-     ``brew install glslang`` on macOS; ships with the Vulkan SDK on Windows.
 
-   ``BUILD_VIZ=ON`` also pulls in GLFW, whose CMake uses ``pkg_check_modules()`` — install
-   ``pkg-config`` as well, or the configure fails before viz is reached. Most users do not
-   need any of this: ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz``
-   module. See `Other Build options`_ for the full option table.
+   ``BUILD_VIZ=ON`` additionally requires **glslangValidator** to compile shaders to SPIR-V
+   (``glslang-tools`` on Linux, ``brew install glslang`` on macOS; ships with the Vulkan SDK
+   on Windows). It does *not* gate the auto-default: if it is missing, the configure fails
+   naming it rather than quietly dropping the module. Most users do not need any of this:
+   ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module. See
+   `Other Build options`_ for the full option table.
 
 .. _one-time-setup:
 
@@ -56,7 +56,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
+   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf pkg-config
 
 Runtime-only dependencies (needed to actually run teleop, not to build):
 
@@ -234,7 +234,7 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
      - ``ON`` on Linux
    * - **Televiz visualization**
      - ``BUILD_VIZ``
-     - Auto: ``ON`` when Vulkan, the CUDA Toolkit, and ``glslangValidator`` are detected, else ``OFF``. Force with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``. (Most users don't need this — ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module.)
+     - Auto: ``ON`` when Vulkan and the CUDA Toolkit are detected, else ``OFF``. Force with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``. (Most users don't need this — ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module.)
 
 .. list-table:: Plugin Specific Options
    :widths: 26 34 40

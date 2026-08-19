@@ -3,9 +3,10 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# glslangValidator is part of the Vulkan SDK / glslang-tools package.
-# We don't FetchContent it — assume it's installed (libvulkan-dev pulls
-# it in on Ubuntu, brew install glslang on macOS).
+# glslangValidator is not fetched; it must be installed. On Ubuntu that is
+# glslang-tools -- libvulkan-dev does NOT pull it in. macOS: brew install
+# glslang. Windows: ships with the Vulkan SDK. Already resolved (and reported
+# against the apt package name) by cmake/CheckBuildDeps.cmake under BUILD_VIZ.
 find_program(GLSLANG_VALIDATOR glslangValidator REQUIRED)
 message(STATUS "Using glslangValidator: ${GLSLANG_VALIDATOR}")
 
