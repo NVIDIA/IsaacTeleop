@@ -62,19 +62,31 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
 
     native_.data.clear();
 
-    const MessageChannelStatus status = query_status();
-    if (status == MessageChannelStatus::DISCONNECTED)
+    try
     {
-        // Runtime/client disconnected: rebuild the channel object so it can reconnect.
-        try_reopen_channel();
+        const MessageChannelStatus status = query_status();
+        if (status == MessageChannelStatus::DISCONNECTED)
+        {
+            // Runtime/client disconnected: rebuild the channel object so it can reconnect.
+            try_reopen_channel();
+        }
+        else if (status == MessageChannelStatus::CONNECTED)
+        {
+            drain_messages();
+        }
+        // For other statuses (CONNECTING / SHUTTING / UNKNOWN), no messages
+        // are drained but the sentinel write below still advances the
+        // replay frame clock.
     }
-    else if (status == MessageChannelStatus::CONNECTED)
+    catch (...)
     {
-        drain_messages();
+        // Publish what was drained before the failure -- those messages came off the
+        // channel and are gone from it. Publishing is also what keeps them from being
+        // delivered twice: without it the handle still holds last frame's batch, and the
+        // next update clears `native_` and re-encodes it.
+        messages_ = pack<MessageChannelMessagesTracked>(native_);
+        throw;
     }
-    // For other statuses (CONNECTING / SHUTTING / UNKNOWN), no messages
-    // are drained but the sentinel write below still advances the
-    // replay frame clock.
 
     // Always encode, including for an empty drain: unlike the single-payload trackers,
     // `data` here is a list, and "no messages this frame" is an empty batch rather than

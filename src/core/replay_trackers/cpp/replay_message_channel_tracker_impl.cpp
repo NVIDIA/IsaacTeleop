@@ -47,25 +47,37 @@ void ReplayMessageChannelTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     // writes ≥1 record per session.update()).
     native_.data.clear();
 
-    if (!pending_record_)
+    try
     {
-        pending_record_ = mcap_viewers_->read(0);
-    }
-
-    if (pending_record_)
-    {
-        const int64_t frame_ns = record_monotonic_ns(*pending_record_);
-        while (pending_record_ && record_monotonic_ns(*pending_record_) == frame_ns)
+        if (!pending_record_)
         {
-            // Sentinel records carry no data and only exist to mark a
-            // frame boundary; skip them but still advance the iterator so
-            // the next update reads the following frame.
-            if (pending_record_->data)
-            {
-                native_.data.push_back(std::move(pending_record_->data));
-            }
             pending_record_ = mcap_viewers_->read(0);
         }
+
+        if (pending_record_)
+        {
+            const int64_t frame_ns = record_monotonic_ns(*pending_record_);
+            while (pending_record_ && record_monotonic_ns(*pending_record_) == frame_ns)
+            {
+                // Sentinel records carry no data and only exist to mark a
+                // frame boundary; skip them but still advance the iterator so
+                // the next update reads the following frame.
+                if (pending_record_->data)
+                {
+                    native_.data.push_back(std::move(pending_record_->data));
+                }
+                pending_record_ = mcap_viewers_->read(0);
+            }
+        }
+    }
+    catch (...)
+    {
+        // Publish the part of the frame that was read -- those records have been consumed
+        // from the viewer either way. Publishing is also what keeps them from being
+        // delivered twice: without it the handle still holds last frame's batch, and the
+        // next update clears `native_` and re-encodes it.
+        messages_ = pack<MessageChannelMessagesTracked>(native_);
+        throw;
     }
 
     // Always encode, including for an empty batch: `data` is a list here, so "no
