@@ -23,6 +23,8 @@ dev = [
     "scipy>=1.15",
     # hud.py draws the controls panel with PIL.
     "pillow>=10.0",
+    # sources/hvs2.py decodes the HEVC access units of an argus_sender capture.
+    "av>=13.0",
 ]
 gpu = [
     "cupy-cuda12x",
