@@ -86,6 +86,12 @@ public:
 
         if (mcap_channels_)
         {
+            // Unpack into a fresh native per sample so each record is exactly its sample:
+            // UnPackTo assigns scalars and vectors unconditionally, but leaves an absent
+            // string or nested table at whatever the previous unpack put there. A reused
+            // native therefore records fields the sample does not carry -- values from a
+            // producer that has since gone away, on the channel replay reads back.
+            std::shared_ptr<NativeDataT> latest;
             DeviceDataTimestamp last_timestamp{};
             for (const auto& sample : samples_)
             {
@@ -95,21 +101,18 @@ public:
                     continue;
                 }
 
-                if (!recording_scratch_)
-                {
-                    recording_scratch_ = std::make_shared<NativeDataT>();
-                }
-                fb->UnPackTo(recording_scratch_.get());
+                latest = std::make_shared<NativeDataT>();
+                fb->UnPackTo(latest.get());
                 last_timestamp = sample.timestamp;
 
-                // write() serializes synchronously and does not retain the shared_ptr,
-                // so reusing the scratch across loop iterations is safe.
-                mcap_channels_->write(mcap_channel_index_, sample.timestamp, recording_scratch_);
+                mcap_channels_->write(mcap_channel_index_, sample.timestamp, latest);
             }
 
-            if (mcap_channel_tracked_index_ && recording_scratch_)
+            // Null when every sample failed to resolve a root, which is the one case where
+            // there is no final sample to mark.
+            if (mcap_channel_tracked_index_ && latest)
             {
-                mcap_channels_->write(*mcap_channel_tracked_index_, last_timestamp, recording_scratch_);
+                mcap_channels_->write(*mcap_channel_tracked_index_, last_timestamp, latest);
             }
         }
 
@@ -124,9 +127,6 @@ private:
     size_t mcap_channel_index_;
     std::optional<size_t> mcap_channel_tracked_index_;
     std::vector<SampleResult> samples_;
-    // Unpack target for MCAP only -- McapTrackerChannels::write takes a native. Stays
-    // null while recording is disabled, which is what keeps the read path unpack-free.
-    std::shared_ptr<NativeDataT> recording_scratch_;
 };
 
 } // namespace core
