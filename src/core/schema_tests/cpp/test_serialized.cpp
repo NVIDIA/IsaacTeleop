@@ -11,6 +11,7 @@
 #include <schema/timestamp_generated.h>
 
 #include <memory>
+#include <utility>
 
 TEST_CASE("Narrowing to a nested table shares the parent buffer", "[serialized]")
 {
@@ -33,6 +34,28 @@ TEST_CASE("Narrowing to a nested table shares the parent buffer", "[serialized]"
     nested.reset();
     CHECK(!nested);
     CHECK(survivor->position() == 0.75f);
+}
+
+TEST_CASE("Moving a handle empties the source", "[serialized]")
+{
+    core::JointStateOutputT native;
+    native.joints.push_back(std::make_shared<core::JointStateT>());
+
+    auto output = core::pack<core::JointStateOutput>(native);
+    REQUIRE(output);
+
+    const core::Serialized<core::JointStateOutput> moved = std::move(output);
+    REQUIRE(moved);
+    CHECK(moved->joints()->size() == 1);
+    CHECK(!output);
+    CHECK(output.get() == nullptr);
+
+    auto source = core::pack<core::JointStateOutput>(native);
+    core::Serialized<core::JointStateOutput> target;
+    target = std::move(source);
+    CHECK(target);
+    CHECK(!source);
+    CHECK(source.get() == nullptr);
 }
 
 TEST_CASE("Narrowing an absent nested table yields an empty handle", "[serialized]")

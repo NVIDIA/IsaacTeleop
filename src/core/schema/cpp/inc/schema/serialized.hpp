@@ -69,6 +69,24 @@ public:
     {
     }
 
+    Serialized(const Serialized&) = default;
+    Serialized& operator=(const Serialized&) = default;
+
+    //! Moving empties the source, same as `reset()`. The compiler-generated versions would
+    //! move `owner_` out but copy `ptr_`, leaving a handle that tests true and dereferences
+    //! into a buffer it no longer has a claim on -- and that `narrow()` would hand an
+    //! owner-less pointer out of.
+    Serialized(Serialized&& other) noexcept : owner_(std::move(other.owner_)), ptr_(std::exchange(other.ptr_, nullptr))
+    {
+    }
+
+    Serialized& operator=(Serialized&& other) noexcept
+    {
+        owner_ = std::move(other.owner_);
+        ptr_ = std::exchange(other.ptr_, nullptr);
+        return *this;
+    }
+
     /*!
      * @brief Takes ownership of a finished builder's buffer, rooted at `T`.
      *
