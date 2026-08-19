@@ -1445,12 +1445,39 @@ class TestPluginInitialization:
 
         message = str(exc_info.value)
         assert (
-            "Required plugin 'required_plugin' has no existing search paths" in message
+            "Required plugin 'required_plugin' has no existing search directories"
+            in message
         )
         assert f"Configured search paths: ['{missing_path}']" in message
         assert session.plugin_managers == []
         assert session.oxr_session is None
         assert session._in_context is False
+
+    def test_required_regular_file_search_path_raises(self, tmp_path):
+        """Required plugin search paths must be directories, not regular files."""
+        pipeline = MockPipeline(leaf_nodes=[])
+        file_path = tmp_path / "not-a-directory"
+        file_path.write_text("")
+        plugin_config = PluginConfig(
+            plugin_name="required_plugin",
+            plugin_root_id="/root",
+            search_paths=[file_path],
+            required=True,
+        )
+
+        config = make_config(pipeline, plugins=[plugin_config])
+        with mock_session_dependencies():
+            session = TeleopSession(config)
+            with pytest.raises(RuntimeError) as exc_info:
+                session.__enter__()
+
+        message = str(exc_info.value)
+        assert (
+            "Required plugin 'required_plugin' has no existing search directories"
+            in message
+        )
+        assert f"Configured search paths: ['{file_path}']" in message
+        assert session.plugin_managers == []
 
     def test_no_plugins_configured(self):
         """Session works fine with no plugins configured."""

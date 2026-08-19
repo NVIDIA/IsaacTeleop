@@ -1075,7 +1075,7 @@ class TeleopSession:
             if not plugin_config.enabled:
                 continue
 
-            valid_paths = [p for p in plugin_config.search_paths if p.exists()]
+            valid_paths = [p for p in plugin_config.search_paths if p.is_dir()]
             if not valid_paths:
                 if plugin_config.required:
                     configured_paths = [
@@ -1083,7 +1083,7 @@ class TeleopSession:
                     ]
                     raise RuntimeError(
                         f"Required plugin {plugin_config.plugin_name!r} has no existing "
-                        f"search paths. Configured search paths: {configured_paths!r}. "
+                        f"search directories. Configured search paths: {configured_paths!r}. "
                         "Build or install the plugin, or correct PluginConfig.search_paths."
                     )
                 continue
