@@ -1318,7 +1318,7 @@ class TestPluginInitialization:
     """Test plugin initialization in __enter__."""
 
     def test_plugins_initialized(self, tmp_path):
-        """Enabled plugins with valid paths are started."""
+        """Required plugins with valid paths are started."""
         pipeline = MockPipeline(leaf_nodes=[])
 
         mock_pm = MockPluginManager(plugin_names=["test_plugin"])
@@ -1328,6 +1328,7 @@ class TestPluginInitialization:
             plugin_root_id="/root",
             search_paths=[tmp_path],
             enabled=True,
+            required=True,
         )
 
         config = make_config(pipeline, plugins=[plugin_config])
@@ -1338,7 +1339,7 @@ class TestPluginInitialization:
                 assert len(session.plugin_contexts) == 1
 
     def test_disabled_plugin_skipped(self, tmp_path):
-        """Disabled plugins are not started."""
+        """Disabled plugins are not started even when marked required."""
         pipeline = MockPipeline(leaf_nodes=[])
 
         mock_pm = MockPluginManager(plugin_names=["test_plugin"])
@@ -1348,6 +1349,7 @@ class TestPluginInitialization:
             plugin_root_id="/root",
             search_paths=[tmp_path],
             enabled=False,
+            required=True,
         )
 
         config = make_config(pipeline, plugins=[plugin_config])
@@ -1379,6 +1381,30 @@ class TestPluginInitialization:
                 assert len(session.plugin_managers) == 1
                 assert len(session.plugin_contexts) == 0
 
+    def test_required_missing_plugin_raises(self, tmp_path):
+        """Required plugins must be discovered in an existing search path."""
+        pipeline = MockPipeline(leaf_nodes=[])
+        mock_pm = MockPluginManager(plugin_names=["z_plugin", "a_plugin"])
+        plugin_config = PluginConfig(
+            plugin_name="required_plugin",
+            plugin_root_id="/root",
+            search_paths=[tmp_path],
+            required=True,
+        )
+
+        config = make_config(pipeline, plugins=[plugin_config])
+        with mock_session_dependencies(mock_pm=mock_pm):
+            session = TeleopSession(config)
+            with pytest.raises(RuntimeError) as exc_info:
+                session.__enter__()
+
+        message = str(exc_info.value)
+        assert "Required plugin 'required_plugin' was not discovered" in message
+        assert f"search paths ['{tmp_path}']" in message
+        assert "Discovered plugins: ['a_plugin', 'z_plugin']" in message
+        assert session.oxr_session is None
+        assert session._in_context is False
+
     def test_invalid_search_paths_skipped(self):
         """Plugins with no valid search paths are skipped entirely."""
         pipeline = MockPipeline(leaf_nodes=[])
@@ -1399,6 +1425,32 @@ class TestPluginInitialization:
                 # Skipped because no valid search paths
                 assert len(session.plugin_managers) == 0
                 assert len(session.plugin_contexts) == 0
+
+    def test_required_invalid_search_paths_raise(self, tmp_path):
+        """Required plugins must have at least one existing search path."""
+        pipeline = MockPipeline(leaf_nodes=[])
+        missing_path = tmp_path / "missing"
+        plugin_config = PluginConfig(
+            plugin_name="required_plugin",
+            plugin_root_id="/root",
+            search_paths=[missing_path],
+            required=True,
+        )
+
+        config = make_config(pipeline, plugins=[plugin_config])
+        with mock_session_dependencies():
+            session = TeleopSession(config)
+            with pytest.raises(RuntimeError) as exc_info:
+                session.__enter__()
+
+        message = str(exc_info.value)
+        assert (
+            "Required plugin 'required_plugin' has no existing search paths" in message
+        )
+        assert f"Configured search paths: ['{missing_path}']" in message
+        assert session.plugin_managers == []
+        assert session.oxr_session is None
+        assert session._in_context is False
 
     def test_no_plugins_configured(self):
         """Session works fine with no plugins configured."""
@@ -2519,7 +2571,7 @@ class TestConfiguration:
         assert not hasattr(teleop_session_manager, "RetargetingPacingConfig")
 
     def test_plugin_config_defaults(self, tmp_path):
-        """PluginConfig should have enabled=True by default."""
+        """PluginConfig should be enabled and optional by default."""
         config = PluginConfig(
             plugin_name="test",
             plugin_root_id="/root",
@@ -2527,17 +2579,20 @@ class TestConfiguration:
         )
 
         assert config.enabled is True
+        assert config.required is False
 
-    def test_plugin_config_disabled(self, tmp_path):
-        """PluginConfig can be created with enabled=False."""
+    def test_plugin_config_disabled_and_required(self, tmp_path):
+        """PluginConfig accepts explicit lifecycle policy flags."""
         config = PluginConfig(
             plugin_name="test",
             plugin_root_id="/root",
             search_paths=[tmp_path],
             enabled=False,
+            required=True,
         )
 
         assert config.enabled is False
+        assert config.required is True
 
 
 class TestSessionReuse:
