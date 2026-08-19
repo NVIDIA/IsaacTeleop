@@ -14,7 +14,7 @@
 
 #pragma once
 
-#include <schema/serialized.hpp>
+#include "serialized.hpp"
 
 namespace core
 {
