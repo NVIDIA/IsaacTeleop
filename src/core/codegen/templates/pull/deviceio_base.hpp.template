@@ -1,0 +1,14 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+#include <deviceio_base/tracker.hpp>
+namespace core
+{
+struct @TRACKED_TYPE@;
+class @IFACE@ : public ITrackerImpl
+{
+public:
+    virtual const @TRACKED_TYPE@& get_data() const = 0;
+};
+} // namespace core

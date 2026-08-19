@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pyproject for the mujoco_xr tests. It exists so that `uv run` resolves HERE
+# rather than walking up to examples/ and then to the repository root project
+# (which has no mujoco and entirely different deps). Precedent:
+# examples/camera_viz/tests/pyproject.toml.
+
+[project]
+# Cosmetic -- nothing reads it, and ../CMakeLists.txt's pin check reads this
+# file rather than this field.
+name = "isaacteleop-examples-mujoco-xr-tests"
+version = "0.0.0"
+# Pinned because these tests import the ABI-specific _mujoco_xr*.so built by the
+# preset's interpreter.
+requires-python = "==3.12.*"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "numpy",
+    # Keep in sync with the pin in ../pyproject.toml; ../CMakeLists.txt reads
+    # both files and fails the configure on a disagreement. It matches every
+    # `mujoco==` here, so do not restate the number in prose -- say "the pin
+    # below" or a comment edit becomes a configure failure.
+    "mujoco==3.11.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

@@ -39,7 +39,7 @@ export interface TeleopProjectNode {
 export type TeleopProjectRegistry = Record<string, TeleopProjectNode>;
 
 /** Default teleop path when nothing is resolvable from URL hash or localStorage. */
-export const DEFAULT_TELEOP_PATH = 'sim';
+export const DEFAULT_TELEOP_PATH = 'generic';
 
 /** localStorage key that remembers the last-used teleop path across reloads. */
 const PATH_STORAGE_KEY = 'cxr.isaac.teleopPath';
@@ -76,6 +76,10 @@ export function saveStoredTeleopPath(path: string): void {
  * layer and take priority over any registry defaults.
  */
 export const TELEOP_PROJECTS: TeleopProjectRegistry = {
+  generic: {
+    label: 'Generic',
+    settings: { panelHiddenAtStart: false, headless: false },
+  },
   sim: {
     label: 'Simulation',
     settings: { panelHiddenAtStart: false, headless: false },
@@ -88,7 +92,7 @@ export const TELEOP_PROJECTS: TeleopProjectRegistry = {
     label: 'Real Robot',
     settings: { panelHiddenAtStart: true, headless: false },
     children: {
-      ros: { label: 'ROS' },
+      ros2: { label: 'ROS2' },
       isaacros: { label: 'IsaacROS' },
       gear: {
         label: 'GEAR',

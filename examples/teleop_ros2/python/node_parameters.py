@@ -14,6 +14,7 @@ assembles a frozen ``NodeParameters`` snapshot.
 
 import itertools
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from rclpy.node import Node
 from rclpy.parameter import Parameter
 from scipy.spatial.transform import Rotation
 
+from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
 from isaacteleop.deviceio import McapReplayConfig
 from isaacteleop.retargeting_engine.deviceio_source_nodes.pedals_source import (
     DEFAULT_PEDAL_COLLECTION_ID,
@@ -49,6 +51,7 @@ class CloudXRParams:
 
     install_dir: str
     env_config: str | None
+    client_route: str
     accept_eula: bool
     setup_oob: bool
     usb_local: bool
@@ -99,6 +102,18 @@ def _load_cloudxr(node: Node) -> CloudXRParams:
                 "Optional CloudXR env file (KEY=value per line) passed to "
                 "CloudXRLauncher to override default CloudXR env vars. Empty "
                 "uses the built-in defaults."
+            ),
+        ),
+    )
+    node.declare_parameter(
+        "cloudxr_client_route",
+        os.environ.get(TELEOP_CLIENT_ROUTE_ENV, "/real/ros2"),
+        ParameterDescriptor(
+            type=ParameterType.PARAMETER_STRING,
+            description=(
+                "WebXR client route exported as TELEOP_CLIENT_ROUTE before CloudXR "
+                "launch. Defaults to the inherited environment value when set, "
+                "otherwise /real/ros2. Empty suppresses the URL route."
             ),
         ),
     )
@@ -160,6 +175,11 @@ def _load_cloudxr(node: Node) -> CloudXRParams:
             )
         env_config = str(env_config_path)
 
+    client_route = (
+        node.get_parameter("cloudxr_client_route")
+        .get_parameter_value()
+        .string_value.strip()
+    )
     accept_eula = (
         node.get_parameter("cloudxr_accept_eula").get_parameter_value().bool_value
     )
@@ -171,7 +191,14 @@ def _load_cloudxr(node: Node) -> CloudXRParams:
         raise ValueError(
             "Parameter 'cloudxr_usb_local' requires 'cloudxr_setup_oob' to be true"
         )
-    return CloudXRParams(install_dir, env_config, accept_eula, setup_oob, usb_local)
+    return CloudXRParams(
+        install_dir=install_dir,
+        env_config=env_config,
+        client_route=client_route,
+        accept_eula=accept_eula,
+        setup_oob=setup_oob,
+        usb_local=usb_local,
+    )
 
 
 def _load_config_asset_root(node: Node) -> Path:

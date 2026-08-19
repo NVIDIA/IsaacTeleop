@@ -6,4 +6,7 @@ set -e
 mkdir -p /openxr/.cloudxr/run
 printf 'accepted\n' > /openxr/.cloudxr/run/eula_accepted
 
-exec python -m isaacteleop.cloudxr
+# `run`, not `start`: the service must stay in the foreground as the
+# container's main process.  `start` detaches and returns, which would exit
+# the container and take the runtime with it.
+exec python -m isaacteleop.cloudxr.service run

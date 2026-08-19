@@ -90,7 +90,7 @@ export NV_CXR_RUNTIME_DIR="$CXR_HOST_VOLUME_PATH/run"
 # ---------------------------------------------------------------------------
 # Write cloudxr.env so other terminals can activate the CloudXR environment.
 # Mirrors the env file written by EnvConfig._resolve_and_apply() in the
-# native Python path (python -m isaacteleop.cloudxr).
+# native Python path (python -m isaacteleop.cloudxr.service run).
 # ---------------------------------------------------------------------------
 __cxr_to_bool() {
     case "$1" in

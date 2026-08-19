@@ -8,12 +8,13 @@ import errno
 import json
 import logging
 import os
+from http import HTTPStatus
 from urllib.parse import unquote, urlparse
-import shutil
 import ssl
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -94,6 +95,57 @@ def cert_paths_from_dir(cert_dir: Path) -> CertPaths:
     )
 
 
+def _generate_self_signed_cert(cert_paths: CertPaths) -> None:
+    """Generate a self-signed RSA certificate and private key using the cryptography package."""
+    import datetime
+    import ipaddress
+    import stat
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "localhost")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+        .not_valid_after(
+            datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
+        )
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [
+                    x509.DNSName("localhost"),
+                    x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+                ]
+            ),
+            critical=False,
+        )
+        .sign(key, hashes.SHA256())
+    )
+    key_pem = key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption(),
+    )
+    # Write the private key with mode 0o600 from the start to avoid a world-readable
+    # window between write_bytes() and a subsequent chmod().
+    key_fd = os.open(
+        cert_paths.key_file,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+        stat.S_IRUSR | stat.S_IWUSR,
+    )
+    with os.fdopen(key_fd, "wb") as f:
+        f.write(key_pem)
+    cert_paths.cert_file.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+
+
 def ensure_certificate(cert_paths: CertPaths) -> None:
     """Generate a self-signed certificate if one does not already exist."""
     cert_exists = cert_paths.cert_file.exists()
@@ -111,34 +163,18 @@ def ensure_certificate(cert_paths: CertPaths) -> None:
 
     log.info("Generating self-signed SSL certificate ...")
     cert_paths.cert_dir.mkdir(parents=True, exist_ok=True)
-    openssl_bin = shutil.which("openssl")
-    if not openssl_bin:
+    if not os.access(cert_paths.cert_dir, os.W_OK | os.X_OK):
         raise RuntimeError(
-            "OpenSSL executable not found on PATH; cannot generate TLS certificates."
+            f"Certificate directory {cert_paths.cert_dir} is not writable. "
+            f"Create it manually and retry: mkdir -p {cert_paths.cert_dir}"
         )
-
-    subprocess.run(
-        [
-            openssl_bin,
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:2048",
-            "-keyout",
-            str(cert_paths.key_file),
-            "-out",
-            str(cert_paths.cert_file),
-            "-days",
-            "365",
-            "-nodes",
-            "-subj",
-            "/CN=localhost",
-        ],
-        check=True,
-        capture_output=True,
-    )
-
-    cert_paths.key_file.chmod(0o600)
+    try:
+        _generate_self_signed_cert(cert_paths)
+    except PermissionError as exc:
+        raise RuntimeError(
+            f"Permission denied writing TLS certificate to {cert_paths.cert_dir}. "
+            f"Create it manually and retry: mkdir -p {cert_paths.cert_dir}"
+        ) from exc
     log.info("SSL certificate generated at %s", cert_paths.cert_file)
 
 
@@ -334,6 +370,18 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
         ):
+            # index.html asks for ``bundle.js`` relatively, which the browser
+            # resolves against ``/`` unless the directory URL ends in a slash.
+            # ``path`` is normalized, so the raw target decides slash presence.
+            target, _, query = raw_path.partition("?")
+            if path == "/client" and not target.endswith("/"):
+                location = "/client/" + (f"?{query}" if query else "")
+                return Response(
+                    HTTPStatus.FOUND,
+                    HTTPStatus.FOUND.phrase,
+                    Headers({"Location": location, **CORS_HEADERS}),
+                    b"",
+                )
             _MIME = {
                 "index.html": "text/html; charset=utf-8",
                 "bundle.js": "application/javascript; charset=utf-8",
@@ -521,8 +569,15 @@ async def run(
     setup_oob: bool = False,
     usb_local: bool = False,
     host_client: bool = False,
+    on_listening: Callable[[], None] | None = None,
 ) -> None:
-    """Start the WSS proxy server and run until *stop_future* is resolved."""
+    """Start the WSS proxy server and run until *stop_future* is resolved.
+
+    *on_listening* is called once the socket is bound and accepting, which is
+    the only point a caller in another thread can distinguish a proxy that is
+    serving from one still generating certificates or about to fail on a
+    taken port.
+    """
     logger = log
     logger.setLevel(logging.INFO)
     logger.propagate = False
@@ -600,6 +655,8 @@ async def run(
             close_timeout=10,
         ):
             log.info("WSS proxy listening on port %d", resolved_port)
+            if on_listening is not None:
+                on_listening()
 
             # ------------------------------------------------------------------
             # USB-local: separate HTTPS static client on 127.0.0.1:<usb_ui_port>

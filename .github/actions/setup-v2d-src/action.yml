@@ -68,15 +68,30 @@ runs:
       if: inputs.github-token != '' && steps.cache.outputs.cache-hit != 'true'
       shell: bash
       env:
-        GH_TOKEN: ${{ inputs.github-token }}
+        V2D_TOKEN: ${{ inputs.github-token }}
         V2D_REF: ${{ steps.pin.outputs.sha }}
       run: |
         set -euo pipefail
         rm -rf /tmp/v2d deps/v2d/src
         mkdir -p deps/v2d/src
+        trap 'rm -rf /tmp/v2d' EXIT
 
+        # git, not `gh repo clone`: this step also runs on the self-hosted GPU
+        # runners (test-teleop-ros2), which have no gh, and it is only reached on
+        # a cache miss -- so it stayed green until the cache was evicted. git is
+        # a dependency either way; the next line already uses it.
+        #
+        # Token goes in an http header, not the URL: argv and .git/config are
+        # readable by other users on the shared self-hosted runners. printf is a
+        # builtin, so the token stays out of argv here too.
+        #
         # Whole retargeter branch is ~25 MB so a normal clone is fine.
-        gh repo clone jiwenc-nv/v2d /tmp/v2d -- --branch retargeter
+        AUTH=$(printf 'x-access-token:%s' "${V2D_TOKEN}" | base64 -w0)
+        GIT_CONFIG_COUNT=1 \
+        GIT_CONFIG_KEY_0='http.https://github.com/.extraheader' \
+        GIT_CONFIG_VALUE_0="AUTHORIZATION: basic ${AUTH}" \
+        GIT_TERMINAL_PROMPT=0 \
+          git clone --branch retargeter https://github.com/jiwenc-nv/v2d.git /tmp/v2d
         git -C /tmp/v2d checkout "${V2D_REF}"
 
         cp -a \
@@ -84,8 +99,6 @@ runs:
           deps/v2d/src/robotic_grounding
         find deps/v2d/src/robotic_grounding -type d -name __pycache__ \
           -exec rm -rf {} + 2>/dev/null || true
-
-        rm -rf /tmp/v2d
 
     - name: Locate bundle
       id: locate

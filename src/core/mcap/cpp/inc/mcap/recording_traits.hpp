@@ -51,46 +51,14 @@ struct FullBodyRecordingTraits
 // FullBodyRecordingTraits.
 using FullBodyPicoRecordingTraits [[deprecated("renamed to core::FullBodyRecordingTraits")]] = FullBodyRecordingTraits;
 
-struct PedalRecordingTraits
-{
-    static constexpr std::string_view schema_name = "core.Generic3AxisPedalOutputRecord";
-    static constexpr std::array recording_channels = { "pedals", "pedals_tracked" };
-    static constexpr std::array replay_channels = { "pedals_tracked" };
-};
-
-struct OgloRecordingTraits
-{
-    static constexpr std::string_view schema_name = "core.OgloGloveSampleRecord";
-    static constexpr std::array recording_channels = { "oglo", "oglo_tracked" };
-    static constexpr std::array replay_channels = { "oglo_tracked" };
-};
-
-struct JointStateRecordingTraits
-{
-    static constexpr std::string_view schema_name = "core.JointStateOutputRecord";
-    static constexpr std::array recording_channels = { "joint_state", "joint_state_tracked" };
-    static constexpr std::array replay_channels = { "joint_state_tracked" };
-};
-
-struct Se3TrackerRecordingTraits
-{
-    static constexpr std::string_view schema_name = "core.Se3TrackerPoseRecord";
-    static constexpr std::array recording_channels = { "se3_tracker", "se3_tracker_tracked" };
-    static constexpr std::array replay_channels = { "se3_tracker_tracked" };
-};
-
-// No replay_channels yet: there is no replay OAK impl, so nothing would consume it.
-// It arrives with the generated replay half when this tracker moves to the manifest.
-struct OakRecordingTraits
-{
-    static constexpr std::string_view schema_name = "core.FrameMetadataOakRecord";
-    static constexpr std::array recording_channels = { "oak", "oak_tracked" };
-};
-
 struct MessageChannelRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.MessageChannelMessagesRecord";
     static constexpr std::array channels = { "message_channel" };
 };
+
+// Traits for trackers declared in deviceio_trackers/trackers.toml, emitted from their
+// channel/schema_name manifest keys. Add traits above by hand only for hand-written trackers.
+#include "generated_recording_traits.inc"
 
 } // namespace core

@@ -1,0 +1,12 @@
+    py::class_<core::@CLASS@, core::ITracker, std::shared_ptr<core::@CLASS@>> @NAME@_push(m, "@CLASS@");
+    @NAME@_push.attr("DEFAULT_MAX_PAYLOAD_SIZE") =
+        static_cast<std::size_t>(core::@CLASS@::DEFAULT_MAX_PAYLOAD_SIZE);
+    @NAME@_push
+        .def(py::init<std::string, std::string, std::size_t>(), py::arg("collection_id"), py::arg("tensor_identifier"),
+             py::arg("max_payload_size") = core::@CLASS@::DEFAULT_MAX_PAYLOAD_SIZE)
+        .def(
+            "push",
+            [](const core::@CLASS@& self, const core::ITrackerSession& session, const core::@DATA_TYPE@& data) {
+                self.push(session, data);
+            },
+            py::arg("session"), py::arg("data"));

@@ -11,21 +11,24 @@ import argparse
 import math
 import sys
 import time
-from typing import Callable
+from collections.abc import Callable
 
 import msgpack
 import rclpy
 from constants import TELEOP_MODES
 from geometry_msgs.msg import PoseStamped, TwistStamped
-from isaacteleop.retargeting_engine.tensor_types.indices import HandJointIndex
+from isaacteleop.retargeting_engine.tensor_types.indices import (
+    BodyJointIndex,
+    HandJointIndex,
+)
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
 from teleop_ros2_interfaces.msg import NamedPoseArray
 from tf2_msgs.msg import TFMessage
 
-
 _EXPECTED_TF_FRAMES = {"right_wrist", "left_wrist", "head"}
+_EXPECTED_BODY_JOINT_NAMES = [joint.name for joint in BodyJointIndex]
 _HAND_POSE_NAMES = [
     HandJointIndex(i).name
     for i in range(HandJointIndex.WRIST, HandJointIndex.LITTLE_TIP + 1)
@@ -89,6 +92,40 @@ def _assert_nonzero_pose_positions(msg: NamedPoseArray, label: str) -> None:
         raise ValueError(f"{label} positions are all zero")
 
 
+def _assert_noncollinear_positions(
+    positions: list[tuple[float, float, float]], label: str
+) -> None:
+    if len(positions) < 3:
+        raise ValueError(f"{label} needs at least three valid positions")
+
+    anchor = positions[0]
+    vectors = [
+        (
+            position[0] - anchor[0],
+            position[1] - anchor[1],
+            position[2] - anchor[2],
+        )
+        for position in positions[1:]
+    ]
+    for index, left in enumerate(vectors):
+        left_norm_sq = sum(value * value for value in left)
+        for right in vectors[index + 1 :]:
+            right_norm_sq = sum(value * value for value in right)
+            norm_product = left_norm_sq * right_norm_sq
+            if norm_product <= 1e-12:
+                continue
+            cross = (
+                left[1] * right[2] - left[2] * right[1],
+                left[2] * right[0] - left[0] * right[2],
+                left[0] * right[1] - left[1] * right[0],
+            )
+            cross_norm_sq = sum(value * value for value in cross)
+            if cross_norm_sq > norm_product * 1e-8:
+                return
+
+    raise ValueError(f"{label} positions are collinear")
+
+
 def _assert_ee_poses_array(msg: NamedPoseArray) -> None:
     _assert_named_pose_array(msg, ["left", "right"])
     if not all(bool(is_valid) for is_valid in msg.is_valid):
@@ -101,6 +138,18 @@ def _assert_hand_pose_array(msg: NamedPoseArray) -> None:
     if not any(bool(is_valid) for is_valid in msg.is_valid):
         raise ValueError("all hand joint poses are invalid")
     _assert_nonzero_pose_positions(msg, "hand joint pose")
+    poses_per_hand = len(_HAND_POSE_NAMES)
+    for side_index, side in enumerate(("left", "right")):
+        start = side_index * poses_per_hand
+        stop = start + poses_per_hand
+        positions = [
+            (pose.position.x, pose.position.y, pose.position.z)
+            for pose, is_valid in zip(
+                msg.pose[start:stop], msg.is_valid[start:stop], strict=True
+            )
+            if bool(is_valid)
+        ]
+        _assert_noncollinear_positions(positions, f"{side} hand joint")
 
 
 def _assert_pose_stamped(
@@ -181,8 +230,8 @@ def _assert_controller_payload(msg: ByteMultiArray) -> None:
 
 def _assert_full_body_payload(msg: ByteMultiArray) -> None:
     payload = _unpack_msgpack(msg)
-    if len(payload["joint_names"]) != 24:
-        raise ValueError("expected 24 full-body joint names")
+    if payload["joint_names"] != _EXPECTED_BODY_JOINT_NAMES:
+        raise ValueError("full-body joint names do not match the expected order")
     if len(payload["joint_positions"]) != 24:
         raise ValueError("expected 24 full-body joint positions")
     if len(payload["joint_orientations"]) != 24:
@@ -201,6 +250,14 @@ def _assert_full_body_payload(msg: ByteMultiArray) -> None:
             raise ValueError("full-body joint orientation must have 4 values")
         if not _is_finite_sequence(values):
             raise ValueError("full-body joint orientation contains non-finite values")
+    valid_positions = [
+        tuple(float(value) for value in position)
+        for position, is_valid in zip(
+            payload["joint_positions"], payload["joint_valid"], strict=True
+        )
+        if bool(is_valid)
+    ]
+    _assert_noncollinear_positions(valid_positions, "full-body joint")
 
 
 class TopicVerifier(Node):

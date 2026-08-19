@@ -44,6 +44,8 @@ inline constexpr std::size_t kManusFingerCount = 5;
 struct ManusPluginConfig
 {
     std::string app_name = "ManusHandPlugin";
+    std::string left_calibration_file;
+    std::string right_calibration_file;
     bool human = true; // OpenXR HandInjector
     bool sensors = true; // RawDeviceData -> SchemaPusher
     bool haptic = true; // inbound HapticCommandReaderTracker
@@ -91,6 +93,7 @@ private:
     void RegisterCallbacks();
     void ConnectToGloves() noexcept(false);
     void DisconnectFromGloves();
+    bool apply_glove_calibration(uint32_t glove_id, bool is_left);
     static void OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_info);
     static void OnLandscapeStream(const Landscape* landscape);
     static void OnRawDeviceDataStream(const RawDeviceDataInfo* raw_device_data_info);
@@ -121,6 +124,8 @@ private:
     mutable std::mutex landscape_mutex;
     std::optional<uint32_t> left_glove_id;
     std::optional<uint32_t> right_glove_id;
+    std::vector<unsigned char> m_left_calibration_file;
+    std::vector<unsigned char> m_right_calibration_file;
     bool is_connected = false;
 
     // Haptic state — the per-side log-once flags use std::atomic to stay

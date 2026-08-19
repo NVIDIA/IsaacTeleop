@@ -1,0 +1,5 @@
+std::unique_ptr<ITrackerImpl> try_create_@NAME@_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const @CLASS@*>(&tracker);
+    return typed ? factory.create_@NAME@_tracker_impl(typed) : nullptr;
+}

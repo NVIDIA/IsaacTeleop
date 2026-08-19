@@ -38,6 +38,7 @@ TF frames published in hand_teleop and controller_teleop modes (configurable via
   - world_frame -> head_frame
 """
 
+import os
 import time
 
 import rclpy
@@ -52,6 +53,7 @@ from teleop_ros2_interfaces.msg import NamedPoseArray
 from tf2_ros import TransformBroadcaster
 
 from isaacteleop.cloudxr import CloudXRLauncher
+from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
 from isaacteleop.teleop_session_manager import SessionMode, TeleopSession
 from messages import (
     build_controller_msg,
@@ -282,12 +284,17 @@ class TeleopRos2Node(Node):
         return 0
 
     def run(self) -> int:
-        # MCAP replay reads recorded tracker data and needs no live runtime; a
-        # live session needs the CloudXR runtime + WSS proxy, which the node now
-        # owns in-process via CloudXRLauncher (no separate runtime process).
+        # MCAP replay reads recorded tracker data and needs no live runtime.
+        #
+        # run_embedded: this node is the container's entrypoint, so there is no
+        # separate service to attach to and nothing else to outlive.  It owns
+        # the runtime and stops it on exit, and fails where one is already
+        # serving — host_client below configures a WSS proxy, which only the
+        # process that starts it can do.
         if self._params.session_mode != SessionMode.LIVE:
             return self._run_session_loop()
 
+        os.environ[TELEOP_CLIENT_ROUTE_ENV] = self._params.cloudxr_params.client_route
         with CloudXRLauncher(
             install_dir=self._params.cloudxr_params.install_dir,
             env_config=self._params.cloudxr_params.env_config,
@@ -295,6 +302,7 @@ class TeleopRos2Node(Node):
             setup_oob=self._params.cloudxr_params.setup_oob,
             usb_local=self._params.cloudxr_params.usb_local,
             host_client=True,
+            run_embedded=True,
         ) as launcher:
             self.get_logger().info(
                 "CloudXR runtime and WSS proxy started "

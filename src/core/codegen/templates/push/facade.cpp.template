@@ -1,0 +1,19 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include <deviceio_trackers/@HEADER@.hpp>
+
+namespace core
+{
+@CLASS@::@CLASS@(std::string collection_id, std::string tensor_identifier, std::size_t max_payload_size)
+    : collection_id_(std::move(collection_id)),
+      tensor_identifier_(std::move(tensor_identifier)),
+      max_payload_size_(max_payload_size)
+{
+    // No-op: members set in the initializer list.
+}
+void @CLASS@::push(const ITrackerSession& session, const @DATA_TYPE@& data) const
+{
+    static_cast<const @IFACE@&>(session.get_tracker_impl(*this)).push(data);
+}
+} // namespace core

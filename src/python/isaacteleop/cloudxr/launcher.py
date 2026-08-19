@@ -1,77 +1,143 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Programmatic launcher for the CloudXR runtime and WSS proxy.
+"""Programmatic access to a running CloudXR runtime and WSS proxy.
 
-Wraps the logic from ``python -m isaacteleop.cloudxr`` into a reusable
-start/stop API that can be called from embedding applications (e.g.
-Isaac Lab Teleop) without requiring a separate terminal.
+:class:`~isaacteleop.cloudxr.service.CloudXRService` owns them; this is the
+API embedding applications (e.g. Isaac Lab Teleop) use to reach one, and the
+CLI plumbing the examples share.
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
-import atexit
-import contextlib
 import logging
+import math
 import os
-import signal
-import subprocess
+import select
 import sys
-import threading
 import time
-from datetime import datetime, timezone
+import warnings
 from pathlib import Path
 
-from .env_config import EnvConfig
-from .runtime import (
-    RUNTIME_STARTUP_TIMEOUT_SEC,
-    RUNTIME_TERMINATE_TIMEOUT_SEC,
-    get_sdk_path,
-    resolve_cloudxr_runtime_module,
-    check_eula,
-    wait_for_runtime_ready_sync,
+try:  # POSIX only; without it the mismatch notice does not pause.
+    import termios
+    import tty
+except ImportError:  # pragma: no cover - Windows
+    termios = None
+    tty = None
+
+from . import background
+from .env_config import (
+    DEFAULT_DEVICE_PROFILE,
+    ENV_FILE_NAME,
+    EnvConfig,
+    read_exported_env,
 )
+from .runtime import check_eula, is_runtime_live, latest_wss_log
+from .service import CloudXRService
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DEVICE_PROFILE = "Quest3"
+_STARTED_SERVICE = """\
+\033[33mNo CloudXR service was running — started one (pid {pid}).\033[0m
+  logs: \033[90m{log}\033[0m
+  It outlives this script.  Stop it with:
+    \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m"""
 
-_RUNTIME_WORKER_CODE = """\
-import sys, os
-sys.path = [p for p in sys.path if p]
-from {runtime_mod}.runtime import run
-run()
-"""
+_ENV_CONFIG_IGNORED = """\
+\033[33m{path} is ignored: the CloudXR runtime already serving this host was \
+started with its own configuration.\033[0m
+{rows}
+  Restart the service to apply it:
+    \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m
+    \033[1;32mpython -m isaacteleop.cloudxr.service start --cloudxr-env-config \
+{path}\033[0m"""
+
+# No colour: this one is raised, not printed, so it lands in logs and captured
+# output as often as on a terminal.
+_RUN_EMBEDDED_REFUSED = """\
+A CloudXR runtime is already serving {run_dir}, so run_embedded cannot own one.
+
+  To own the runtime here, stop the running service first:
+    python -m isaacteleop.cloudxr.service stop
+
+  To use the running one, construct the launcher without run_embedded.
+  It then attaches, and setup_oob / usb_local / host_client belong to the
+  service that started the runtime — its WSS proxy is not this process's to
+  configure."""
+
+_ENV_CONFIG_ROW = (
+    "  {key}: \033[33m{requested}\033[0m requested, \033[36m{running}\033[0m in effect"
+)
+
+#: How long the mismatch notice holds the terminal before the caller continues.
+ENV_CONFIG_PAUSE_SEC = 5.0
+
+#: Redraw interval of the countdown, and so how fast the dots move.
+_PAUSE_TICK_SEC = 0.25
+
+_ENV_CONFIG_PAUSE = (
+    "  \033[33mContinuing with the running configuration in {seconds}s{dots} — "
+    "press any key to abort.\033[0m"
+)
+
+
+def _countdown(remaining: float, *, dots: int, redraw: bool = False) -> None:
+    """Draw one frame of the pause countdown on stderr.
+
+    Dots are padded to a fixed width so the text after them does not jitter
+    from frame to frame.
+    """
+    line = _ENV_CONFIG_PAUSE.format(
+        seconds=math.ceil(remaining), dots=("." * dots).ljust(3)
+    )
+    print(f"\r\033[K{line}" if redraw else line, end="", file=sys.stderr, flush=True)
+
+
+class NoopContext:
+    """Skip CloudXR start/attach; leave the process OpenXR environment alone.
+
+    Duck-typed subset of :class:`CloudXRLauncher` for ``with`` blocks:
+    ``owns_runtime``, ``wss_log_path``, ``stop``, ``health_check``.
+    """
+
+    @property
+    def owns_runtime(self) -> bool:
+        return False
+
+    @property
+    def wss_log_path(self) -> Path | None:
+        return None
+
+    def stop(self) -> None:
+        pass
+
+    def health_check(self) -> None:
+        pass
+
+    def __enter__(self) -> NoopContext:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        pass
 
 
 class CloudXRLauncher:
-    """Programmatic launcher for the CloudXR runtime and WSS proxy.
+    """Attaches to the CloudXR runtime and WSS proxy a service is running.
 
-    Manages the full lifecycle of a CloudXR runtime process and its
-    accompanying WSS TLS proxy.  The runtime and WSS proxy are started
-    immediately on construction; use :meth:`stop` or the context
-    manager protocol to shut them down.
-
-    The runtime is launched as a fully isolated subprocess (via
-    :class:`subprocess.Popen`) to avoid CUDA context conflicts with
-    host applications like Isaac Sim that have already initialized GPU
-    resources.
+    Owns nothing by default: it attaches to the runtime
+    :class:`~isaacteleop.cloudxr.service.CloudXRService` is serving, adopting
+    its environment so OpenXR resolves to it, and leaves it running on exit.
+    With no service running it starts a detached one — announced, because that
+    outlives this process.  ``run_embedded`` is the only way to own a runtime,
+    and it refuses to run beside one.
 
     Example::
 
         with CloudXRLauncher() as launcher:
-            # runtime + WSS proxy are running
+            # attached to `service start`'s runtime; still running afterwards
             ...
-
-    Or with explicit stop::
-
-        launcher = CloudXRLauncher(install_dir="~/.cloudxr")
-        try:
-            # ... use the running runtime ...
-        finally:
-            launcher.stop()
     """
 
     def __init__(
@@ -83,149 +149,287 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
-        start_wss_proxy: bool = True,
+        run_embedded: bool = False,
+        start_wss_proxy: bool | None = None,
     ) -> None:
-        """Launch the CloudXR runtime and optionally the WSS proxy.
-
-        Configures the environment, spawns the runtime subprocess, and
-        optionally starts the WSS TLS proxy.  Blocks until the runtime
-        signals readiness (up to
-        :data:`~isaacteleop.cloudxr.runtime.RUNTIME_STARTUP_TIMEOUT_SEC`)
-        or raises :class:`RuntimeError` on failure.
+        """Attach to the running runtime, or own one when *run_embedded*.
 
         Args:
-            install_dir: CloudXR install directory.
-            env_config: Optional path to a KEY=value env file for
-                CloudXR env-var overrides.
-            device_profile: CloudXR ``NV_DEVICE_PROFILE`` when not set in
-                *env_config* or the process environment (default: Quest3).
-            accept_eula: Accept the NVIDIA CloudXR EULA
-                non-interactively.  When ``False`` and the EULA marker
-                does not exist, the user is prompted on stdin.
-            setup_oob: Enable the OOB teleop control hub and USB
-                adb automation in the WSS proxy.
-            usb_local: Route teleop traffic over USB headset loopback via
-                ``adb reverse`` (requires *setup_oob*); also starts coturn
-                for WebRTC ICE relay and serves WebXR static files
-                (``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``,
-                fetched from GitHub Pages if missing) over HTTPS.  Ports
-                are overridable via ``USB_UI_PORT`` / ``USB_BACKEND_PORT``
-                / ``USB_TURN_PORT``.
-            host_client: Serve the web client at ``/client/`` on the WSS
-                proxy port.  Assets are fetched once from GitHub Pages into
-                ``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``.
-            start_wss_proxy: Start the in-process WSS TLS proxy after the
-                runtime is ready (default: ``True``).  Pass ``False`` when
-                an external proxy is already running or only the runtime
-                subprocess is needed.
+            run_embedded: Run a :class:`CloudXRService` inside this process
+                instead of starting a detached one.  This process then owns the
+                runtime and stops it on exit.  Refused where a runtime is
+                already serving *install_dir*, rather than quietly attaching
+                to one this process cannot configure.
+            start_wss_proxy: Deprecated no-op; the proxy always starts with
+                the runtime.
+
+        Every other argument is forwarded to :class:`CloudXRService` and only
+        applies when this process owns it.  When attaching they describe a
+        runtime that already exists, so a mismatch is reported rather than
+        applied.
 
         Raises:
-            RuntimeError: If the EULA is not accepted or the runtime
-                fails to start within the timeout.
-            ValueError: If *start_wss_proxy* is ``False`` while any WSS-only
-                option (*setup_oob*, *usb_local*, or *host_client*) is set.
+            RuntimeError: If the runtime fails to start or come up, or if
+                *run_embedded* is set while a runtime is already serving.
         """
-        self._install_dir = install_dir
-        self._env_config = str(env_config) if env_config is not None else None
-        self._device_profile = device_profile
-        self._accept_eula = accept_eula
-        self._setup_oob = setup_oob
-        self._usb_local = usb_local
-        self._host_client = host_client
-        self._start_wss_proxy = start_wss_proxy
+        if start_wss_proxy is not None:
+            self._warn_start_wss_proxy_deprecated()
 
-        if not self._start_wss_proxy and (
-            self._setup_oob or self._usb_local or self._host_client
-        ):
-            raise ValueError(
-                "start_wss_proxy=False is incompatible with setup_oob, "
-                "usb_local, and host_client (those features require the WSS proxy)"
+        self._run_dir = os.path.join(os.path.expanduser(install_dir), "run")
+        self._logs_dir = Path(os.path.expanduser(install_dir)) / "logs"
+        self._service: CloudXRService | None = None
+
+        if run_embedded:
+            self._refuse_beside_live_runtime()
+            self._service = CloudXRService(
+                install_dir=install_dir,
+                env_config=env_config,
+                device_profile=device_profile,
+                accept_eula=accept_eula,
+                setup_oob=setup_oob,
+                usb_local=usb_local,
+                host_client=host_client,
             )
+            return
 
-        if self._usb_local or self._host_client:
-            from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
+        if is_runtime_live(self._run_dir):
+            self._attach(device_profile, env_config)
+            return
 
-            require_web_client_static_dir()
+        started = self._start_service(
+            install_dir,
+            env_config,
+            device_profile,
+            accept_eula,
+            setup_oob,
+            usb_local,
+            host_client,
+        )
+        # env_config=None once we started it: that service was given this
+        # configuration, so there is nothing it ignored to report -- and
+        # telling the caller to restart it would be advice to undo their own
+        # settings.  A runtime that beat us to it did not get the config, so
+        # that one is reported like any other attach.
+        self._attach(device_profile, None if started else env_config)
 
-        self._runtime_proc: subprocess.Popen | None = None
-        self._wss_thread: threading.Thread | None = None
-        self._wss_loop: asyncio.AbstractEventLoop | None = None
-        self._wss_stop_future: asyncio.Future | None = None
-        self._wss_log_path: Path | None = None
-        self._atexit_registered = False
-        self._stopping = False
-        # sig -> (previous handler, launcher-installed wrapper)
-        self._prev_signal_handlers: dict[int, tuple[object, object]] = {}
+    def _refuse_beside_live_runtime(self) -> None:
+        """Reject ``run_embedded`` where a runtime is already serving.
 
-        env_cfg = EnvConfig.from_args(
-            self._install_dir,
-            self._env_config,
-            launcher_defaults={"NV_DEVICE_PROFILE": self._device_profile},
+        Attaching would answer a request to own with a runtime this process
+        cannot configure, and the WSS proxy options (``setup_oob``,
+        ``usb_local``, ``host_client``) never reach the env file, so the
+        mismatch could not even be reported.
+
+        Raises:
+            RuntimeError: If a runtime is already serving the run directory.
+        """
+        if not is_runtime_live(self._run_dir):
+            return
+        raise RuntimeError(_RUN_EMBEDDED_REFUSED.format(run_dir=self._run_dir))
+
+    def _start_service(
+        self,
+        install_dir: str,
+        env_config: str | Path | None,
+        device_profile: str,
+        accept_eula: bool,
+        setup_oob: bool,
+        usb_local: bool,
+        host_client: bool,
+    ) -> bool:
+        """Start a detached service, then leave it running for the next caller.
+
+        Announced rather than silent: it outlives this process, so a caller who
+        did not ask for one still needs to know it is there and how to stop it.
+
+        Returns whether this call is the one that started it.
+        """
+        # Accept here, where a terminal exists: the detached service inherits
+        # /dev/null on stdin and could not prompt.
+        check_eula(accept_eula=accept_eula or None, run_dir=self._run_dir)
+
+        flags = [
+            *(
+                ["--cloudxr-install-dir", install_dir]
+                if install_dir != "~/.cloudxr"
+                else []
+            ),
+            *(["--cloudxr-env-config", str(env_config)] if env_config else []),
+            *(["--setup-oob"] if setup_oob else []),
+            *(["--usb-local"] if usb_local else []),
+            *(["--host-client"] if host_client else []),
+        ]
+        # EnvConfig reads NV_DEVICE_PROFILE from the process environment, and
+        # an env file still overrides it — so the profile needs no CLI flag.
+        extra_env = (
+            {"NV_DEVICE_PROFILE": device_profile}
+            if device_profile != DEFAULT_DEVICE_PROFILE
+            else None
         )
         try:
-            check_eula(accept_eula=self._accept_eula or None)
-        except SystemExit as exc:
-            raise RuntimeError(
-                "CloudXR EULA was not accepted; cannot start the runtime"
-            ) from exc
-        logs_dir_path = env_cfg.ensure_logs_dir()
-
-        self._cleanup_stale_runtime(env_cfg)
-
-        # The worker imports asyncio (via isaacteleop.cloudxr.runtime), which imports
-        # Python's ssl and loads the SYSTEM OpenSSL before the native stack dlopens the
-        # bundled one. Two OpenSSL builds in one process crash (SIGSEGV) inside
-        # SSL_CTX_use_certificate when the DTLS transport comes up on client connect.
-        # LD_PRELOAD the bundled libraries so every OpenSSL symbol in the worker
-        # resolves to the version libNvStreamServer.so was built against.
-        worker_env = os.environ.copy()
-        runtime_mod = resolve_cloudxr_runtime_module()
-        sdk_dir = get_sdk_path()
-        logger.info("CloudXR Runtime: module=%s sdk_path=%s", runtime_mod, sdk_dir)
-        bundled_ssl = [
-            os.path.join(sdk_dir, lib)
-            for lib in ("libcrypto_nvst.so.3", "libssl_nvst.so.3")
-        ]
-        if all(os.path.isfile(lib) for lib in bundled_ssl):
-            preload = " ".join(bundled_ssl)
-            prev = worker_env.get("LD_PRELOAD")
-            worker_env["LD_PRELOAD"] = f"{preload} {prev}" if prev else preload
-
-        self._runtime_proc = subprocess.Popen(
-            [
-                sys.executable,
-                "-c",
-                _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
-            ],
-            env=worker_env,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
-        logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
-
-        if not self._atexit_registered:
-            atexit.register(self.stop)
-            self._atexit_registered = True
-        # SIGTERM/SIGINT do not run atexit; stop the session-scoped runtime first.
-        self._install_signal_handlers()
-
-        if not wait_for_runtime_ready_sync(is_process_alive=self._is_runtime_alive):
-            detail = self._collect_startup_failure_detail(logs_dir_path)
-            self.stop()
-            raise RuntimeError(
-                "CloudXR runtime failed to start within "
-                f"{RUNTIME_STARTUP_TIMEOUT_SEC}s.  {detail}"
+            pid, log = background.start_and_wait(
+                flags, self._run_dir, self._logs_dir, extra_env
             )
-        logger.info("CloudXR runtime ready")
+        except background.AlreadyServingError:
+            # Another caller won the race and is serving; attaching to it is
+            # what this path wanted.  Its configuration is not ours, though.
+            return False
+        print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
+        return True
 
-        if self._start_wss_proxy:
-            wss_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H%M%SZ")
-            wss_log_path = logs_dir_path / f"wss.{wss_ts}.log"
-            self._wss_log_path = wss_log_path
-            self._start_wss_proxy_thread(wss_log_path)
-            logger.info("CloudXR WSS proxy started (log=%s)", wss_log_path)
-        else:
-            logger.info("CloudXR WSS proxy disabled; runtime only")
+    def _attach(self, device_profile: str, env_config: str | Path | None) -> None:
+        """Adopt the running runtime's environment and report any mismatch.
+
+        The env file is applied, never re-resolved: resolving it would rewrite
+        the file out from under the service that owns it.
+        """
+        env = read_exported_env(self.env_file)
+        if not env:
+            raise RuntimeError(
+                f"A CloudXR runtime is serving {self._run_dir}, but its "
+                "environment file is missing or unreadable, so OpenXR cannot "
+                "be pointed at it.  Restart the service."
+            )
+        os.environ.update(env)
+        logger.info("Attached to the CloudXR runtime serving %s", self._run_dir)
+
+        # These configure a runtime at start-up; attaching cannot apply them,
+        # and a silently ignored device profile is the usual cause of a client
+        # failing with XR_ERROR_FORM_FACTOR_UNAVAILABLE (-35).
+        running = env.get("NV_DEVICE_PROFILE")
+        if running and running != device_profile:
+            logger.warning(
+                "Attached to a runtime started with NV_DEVICE_PROFILE=%s; the "
+                "requested %s is ignored.  Restart the service to change it.",
+                running,
+                device_profile,
+            )
+        if env_config is not None:
+            self._warn_env_config_ignored(env_config, env)
+
+    @staticmethod
+    def _warn_env_config_ignored(
+        env_config: str | Path, running: dict[str, str]
+    ) -> None:
+        """Report the settings a requested env config would have changed.
+
+        Only keys whose requested value differs from the runtime's resolved
+        environment are named: passing the same config on every run is how
+        this gets scripted, and warning when nothing conflicts trains people
+        to ignore the one case that matters.
+        """
+        try:
+            requested = EnvConfig._load_env_file(env_config)
+        except (OSError, RuntimeError) as exc:
+            logger.warning("%s is ignored, and could not be read: %s", env_config, exc)
+            return
+
+        rows = [
+            _ENV_CONFIG_ROW.format(
+                key=key,
+                requested=value,
+                running=running.get(key) or "(not set)",
+            )
+            for key, value in requested.items()
+            if running.get(key) != value
+        ]
+        if not rows:
+            return
+        print(
+            _ENV_CONFIG_IGNORED.format(path=env_config, rows="\n".join(rows)),
+            file=sys.stderr,
+        )
+        CloudXRLauncher._pause_for_abort()
+
+    @staticmethod
+    def _pause_for_abort(seconds: float = ENV_CONFIG_PAUSE_SEC) -> None:
+        """Hold the terminal briefly so the notice above is not scrolled past.
+
+        Continues on its own, and is skipped entirely when nobody could be
+        watching: this runs from container entrypoints and CI too, where
+        waiting for a keypress would hang the run instead of warning it.
+
+        Raises:
+            SystemExit: If a key is pressed before the deadline.
+        """
+        if termios is None or os.environ.get("CI") or not sys.stdin.isatty():
+            return
+        try:
+            fd = sys.stdin.fileno()
+            saved = termios.tcgetattr(fd)
+        except (OSError, ValueError):
+            # isatty() can be true for a stdin with no usable descriptor
+            # (notebooks, embedded consoles).  A cosmetic pause is never
+            # worth raising over.
+            return
+
+        # Redraw in place only on a terminal; into a redirected stderr the
+        # carriage returns would just pile up as one unreadable line.
+        animate = sys.stderr.isatty()
+        pressed = False
+        _countdown(seconds, dots=0)
+        try:
+            # cbreak so a bare keypress registers; a newline-terminated read
+            # would make "press any key" a lie.
+            tty.setcbreak(fd)
+            deadline = time.monotonic() + seconds
+            tick = 0
+            while True:
+                # Poll before testing the deadline, so a key already waiting
+                # aborts even when there is no time left to wait.
+                left = deadline - time.monotonic()
+                wait = max(0.0, min(_PAUSE_TICK_SEC, left))
+                if select.select([sys.stdin], [], [], wait)[0]:
+                    sys.stdin.read(1)
+                    pressed = True
+                    break
+                if left <= 0:
+                    break
+                tick += 1
+                if animate:
+                    _countdown(left, dots=1 + tick % 3, redraw=True)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, saved)
+
+        print("\r\033[K" if animate else "", file=sys.stderr)
+
+        if pressed:
+            raise SystemExit(
+                "Aborted: start the CloudXR service with this configuration, or "
+                "rerun without --cloudxr-env-config to use the running one."
+            )
+
+    @property
+    def run_dir(self) -> Path:
+        """The run directory of the runtime this is attached to."""
+        return Path(self._run_dir)
+
+    @property
+    def env_file(self) -> Path:
+        """The env file describing the running runtime.
+
+        Sourcing it points OpenXR at that runtime, which is how processes the
+        launcher cannot reach — native binaries, other shells — attach to it.
+        """
+        return Path(self._run_dir) / ENV_FILE_NAME
+
+    @property
+    def owns_runtime(self) -> bool:
+        """Whether this process started the runtime, and will stop it."""
+        return self._service is not None
+
+    # TODO(1.7): drop start_wss_proxy, --launch-wss-proxy and this helper.
+    @staticmethod
+    def _warn_start_wss_proxy_deprecated() -> None:
+        """Announce that the ``start_wss_proxy`` no-op is on its way out."""
+        message = (
+            "start_wss_proxy is deprecated and does nothing; the WSS proxy "
+            "always starts with the runtime.  It is removed in Isaac Teleop 1.7."
+        )
+        warnings.warn(message, DeprecationWarning, stacklevel=3)
+        # Python drops DeprecationWarning raised outside __main__, which is
+        # every --launch-wss-proxy run, so log it as well.
+        logger.warning(message)
 
     # ------------------------------------------------------------------
     # CLI helpers for embedding applications and examples
@@ -247,17 +451,18 @@ class CloudXRLauncher:
         """Register ``--launch-cloudxr-runtime`` on ``parser``.
 
         Uses :class:`argparse.BooleanOptionalAction`, so callers may pass
-        ``--no-launch-cloudxr-runtime`` when the runtime is already running
-        (for example after sourcing ``~/.cloudxr/run/cloudxr.env``).
+        ``--no-launch-cloudxr-runtime`` to use an already-configured OpenXR
+        runtime (system or sourced env) without attaching to or starting CloudXR.
         """
         parser.add_argument(
             "--launch-cloudxr-runtime",
             action=argparse.BooleanOptionalAction,
             default=True,
             help=(
-                "Launch the CloudXR runtime and WSS proxy in-process before running "
-                "(default: true). Pass --no-launch-cloudxr-runtime when the runtime is "
-                "already running (e.g. after sourcing ~/.cloudxr/run/cloudxr.env)."
+                "Attach to or start the CloudXR runtime before running "
+                "(default: true). Pass --no-launch-cloudxr-runtime to use the "
+                "OpenXR runtime already configured in this process "
+                "(e.g. XR_RUNTIME_JSON for a system runtime)."
             ),
         )
 
@@ -282,7 +487,8 @@ class CloudXRLauncher:
         """Register ``--cloudxr-env-config`` on ``parser`` (default: none).
 
         Points the launcher at a KEY=value env file of CloudXR runtime
-        overrides (see the ``env_config`` argument of :meth:`__init__`).
+        overrides (see the ``env_config`` argument of
+        :meth:`CloudXRService.__init__`).
         """
         parser.add_argument(
             "--cloudxr-env-config",
@@ -300,7 +506,7 @@ class CloudXRLauncher:
     def add_accept_eula_argument(parser: argparse.ArgumentParser) -> None:
         """Register ``--accept-eula`` on ``parser`` (default: false).
 
-        When omitted and no acceptance marker exists, the launcher prompts
+        When omitted and no acceptance marker exists, the service prompts
         on stdin before starting the runtime.
         """
         parser.add_argument(
@@ -314,20 +520,18 @@ class CloudXRLauncher:
 
     @staticmethod
     def add_launch_wss_proxy_argument(parser: argparse.ArgumentParser) -> None:
-        """Register ``--launch-wss-proxy`` on ``parser``.
+        """Register the deprecated no-op ``--launch-wss-proxy`` on ``parser``.
 
-        Uses :class:`argparse.BooleanOptionalAction`, so callers may pass
-        ``--no-launch-wss-proxy`` when an external WSS proxy is already
-        running or only the runtime subprocess is needed.
+        Defaults to ``None`` so an explicit flag is distinguishable from an
+        absent one and only the former warns.
         """
         parser.add_argument(
             "--launch-wss-proxy",
             action=argparse.BooleanOptionalAction,
-            default=True,
+            default=None,
             help=(
-                "Start the in-process WSS TLS proxy after the runtime is ready "
-                "(default: true). Pass --no-launch-wss-proxy when an external proxy "
-                "is already running or only the runtime subprocess is needed."
+                "Deprecated no-op, removed in 1.7: the WSS TLS proxy always "
+                "starts with the runtime."
             ),
         )
 
@@ -386,16 +590,6 @@ class CloudXRLauncher:
         return bool(getattr(args, "accept_eula", False))
 
     @staticmethod
-    def _resolve_start_wss_proxy(
-        args: argparse.Namespace,
-        start_wss_proxy: bool | None = None,
-    ) -> bool:
-        """Return ``start_wss_proxy`` or ``args.launch_wss_proxy`` when registered."""
-        if start_wss_proxy is not None:
-            return start_wss_proxy
-        return bool(getattr(args, "launch_wss_proxy", True))
-
-    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -406,22 +600,44 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
+        run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
-    ) -> contextlib.AbstractContextManager[CloudXRLauncher | None]:
-        """Start :class:`CloudXRLauncher` when ``args.launch_cloudxr_runtime`` is true.
+    ) -> CloudXRLauncher | NoopContext:
+        """Build a launcher context from parsed arguments.
 
-        Returns :func:`contextlib.nullcontext` when ``args.launch_cloudxr_runtime`` is
-        false so callers can always use ``with CloudXRLauncher.launch_context(args):``.
+        Returns :class:`NoopContext` when ``args.launch_cloudxr_runtime`` is
+        false so callers can always ``with CloudXRLauncher.launch_context(args):``.
 
-        ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``, and
-        ``start_wss_proxy`` default to the values registered by
-        :meth:`add_launcher_arguments` (``args.cloudxr_install_dir`` etc.); pass an
-        explicit keyword only to override what came in on the command line. For
-        ``accept_eula``, pass ``False`` to force-disable even when the CLI flag
-        is set.
+        ``install_dir``, ``env_config``, ``device_profile``, and ``accept_eula``
+        default to the values registered by :meth:`add_launcher_arguments`
+        (``args.cloudxr_install_dir`` etc.); pass an explicit keyword only to
+        override what came in on the command line. For ``accept_eula``, pass
+        ``False`` to force-disable even when the CLI flag is set.
+        ``run_embedded`` is forwarded to :class:`CloudXRLauncher`.
+        ``start_wss_proxy`` is a deprecated no-op removed in 1.7.
         """
-        if not args.launch_cloudxr_runtime:
-            return contextlib.nullcontext(None)
+        if (
+            start_wss_proxy is not None
+            or getattr(args, "launch_wss_proxy", None) is not None
+        ):
+            CloudXRLauncher._warn_start_wss_proxy_deprecated()
+        if not getattr(args, "launch_cloudxr_runtime", True):
+            ignored: list[str] = []
+            if run_embedded:
+                ignored.append("run_embedded")
+            if setup_oob:
+                ignored.append("setup_oob")
+            if usb_local:
+                ignored.append("usb_local")
+            if host_client:
+                ignored.append("host_client")
+            if ignored:
+                logger.warning(
+                    "--no-launch-cloudxr-runtime: ignoring CloudXR launcher "
+                    "options %s (no runtime is started or attached).",
+                    ", ".join(ignored),
+                )
+            return NoopContext()
         return CloudXRLauncher(
             install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
             env_config=CloudXRLauncher._resolve_env_config(args, env_config),
@@ -432,13 +648,11 @@ class CloudXRLauncher:
             setup_oob=setup_oob,
             usb_local=usb_local,
             host_client=host_client,
-            start_wss_proxy=CloudXRLauncher._resolve_start_wss_proxy(
-                args, start_wss_proxy
-            ),
+            run_embedded=run_embedded,
         )
 
     # ------------------------------------------------------------------
-    # Context manager
+    # Lifecycle — acts on the service only when this process owns it
     # ------------------------------------------------------------------
 
     def __enter__(self) -> CloudXRLauncher:
@@ -446,340 +660,37 @@ class CloudXRLauncher:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        """Stop the launcher on exiting the ``with`` block."""
+        """Stop the runtime on exit, if this process started it."""
         self.stop()
 
     def stop(self) -> None:
-        """Shut down the WSS proxy and terminate the runtime process.
+        """Stop the runtime and WSS proxy this process started.
 
-        Safe to call multiple times or when nothing is running.
-
-        Raises:
-            RuntimeError: If the runtime process could not be terminated.
-                The process handle is retained so callers can retry or
-                inspect the still-running process.
+        A no-op when attached: the service that owns the runtime outlives
+        every script that uses it.
         """
-        # Restore handlers only after teardown; _stopping blocks re-entrant stop().
-        if self._stopping:
-            return
-        self._stopping = True
-        try:
-            self._stop_wss_proxy()
-
-            if self._runtime_proc is not None:
-                try:
-                    self._terminate_runtime()
-                except RuntimeError:
-                    logger.warning(
-                        "Failed to cleanly terminate CloudXR runtime process "
-                        "(pid=%s); handle retained for later cleanup",
-                        self._runtime_proc.pid,
-                    )
-                    raise
-                self._runtime_proc = None
-                logger.info("CloudXR runtime process stopped")
-        finally:
-            self._restore_signal_handlers()
-            self._stopping = False
+        if self._service is not None:
+            self._service.stop()
 
     def health_check(self) -> None:
-        """Verify that the runtime process and WSS proxy are healthy.
-
-        Returns immediately when the runtime is running and, when the WSS
-        proxy was started, its background thread is alive.  Raises
-        :class:`RuntimeError` with diagnostic details when any monitored
-        component has stopped unexpectedly, allowing embedding applications
-        to perform a controlled teardown.
+        """Raise :class:`RuntimeError` if the runtime is no longer available.
 
         Raises:
-            RuntimeError: If the launcher has not been started, or if
-                the runtime process or (when enabled) the WSS proxy has stopped.
+            RuntimeError: If the owned runtime or WSS proxy has stopped, or
+                the runtime this attached to is gone.
         """
-        if self._runtime_proc is None:
-            raise RuntimeError("CloudXR launcher is not running")
-
-        exit_code = self._runtime_proc.poll()
-        if exit_code is not None:
+        if self._service is not None:
+            self._service.health_check()
+            return
+        if not is_runtime_live(self._run_dir):
             raise RuntimeError(
-                f"CloudXR runtime process exited unexpectedly (exit code {exit_code})"
+                f"The CloudXR runtime serving {self._run_dir} has stopped"
             )
-
-        if (
-            self._start_wss_proxy
-            and self._wss_thread is not None
-            and not self._wss_thread.is_alive()
-        ):
-            raise RuntimeError("CloudXR WSS proxy thread stopped unexpectedly")
 
     @property
     def wss_log_path(self) -> Path | None:
-        """Path to the WSS proxy log file, or ``None`` if not yet started."""
-        return self._wss_log_path
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
-    def _install_signal_handlers(self) -> None:
-        """Install SIGTERM/SIGINT handlers that call :meth:`stop`, then the prior handler."""
-        if threading.current_thread() is not threading.main_thread():
-            return
-
-        self._restore_signal_handlers()
-
-        def _make_handler(prev):
-            def _handler(signum, frame):
-                try:
-                    self.stop()
-                finally:
-                    if callable(prev):
-                        prev(signum, frame)
-                    else:
-                        signal.signal(signum, prev)
-                        if prev == signal.SIG_DFL:
-                            os.kill(os.getpid(), signum)
-
-            return _handler
-
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            try:
-                prev = signal.getsignal(sig)
-                handler = _make_handler(prev)
-                signal.signal(sig, handler)
-            except (ValueError, OSError):
-                continue
-            self._prev_signal_handlers[sig] = (prev, handler)
-
-    def _restore_signal_handlers(self) -> None:
-        """Restore handlers from :meth:`_install_signal_handlers` if still ours.
-
-        Skip overwrite when a host replaced the wrapper. Keep the entry if
-        restore fails (e.g. non-main thread) for a later attempt.
-        """
-        for sig in list(self._prev_signal_handlers):
-            prev, ours = self._prev_signal_handlers[sig]
-            try:
-                if signal.getsignal(sig) is not ours:
-                    del self._prev_signal_handlers[sig]
-                    continue
-                signal.signal(sig, prev)
-            except (ValueError, OSError):
-                continue
-            del self._prev_signal_handlers[sig]
-
-    @staticmethod
-    def _cleanup_stale_runtime(env_cfg: EnvConfig) -> None:
-        """Remove stale sentinel files from a previous runtime that wasn't cleaned up.
-
-        If the ``ipc_cloudxr`` socket still exists in the run directory, a
-        previous Monado/CloudXR process is likely still alive.  We send
-        SIGTERM to the process group that owns the socket, giving it a
-        chance to exit cleanly before we start a fresh runtime.
-        """
-        run_dir = env_cfg.openxr_run_dir()
-        ipc_socket = os.path.join(run_dir, "ipc_cloudxr")
-
-        if os.path.exists(ipc_socket):
-            logger.warning(
-                "Stale CloudXR IPC socket found at %s; attempting cleanup of previous runtime",
-                ipc_socket,
-            )
-            try:
-                result = subprocess.run(
-                    ["fuser", "-k", "-TERM", ipc_socket],
-                    capture_output=True,
-                    timeout=5,
-                )
-                if result.returncode == 0:
-                    time.sleep(1)
-                    logger.info("Sent SIGTERM to processes holding stale IPC socket")
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
-
-            try:
-                os.remove(ipc_socket)
-            except FileNotFoundError:
-                pass
-
-        for name in ("runtime_started", "monado.pid", "cloudxr.pid"):
-            try:
-                os.remove(os.path.join(run_dir, name))
-            except FileNotFoundError:
-                pass
-
-    def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
-        """Build a diagnostic string after a failed runtime startup.
-
-        Captures the process exit code, subprocess stderr pipe, the
-        runtime stderr log file (written by :func:`~.runtime.run`), and
-        the most recent CloudXR native server log.
-        """
-        _MAX_LOG_BYTES = 4096
-        parts: list[str] = []
-        proc = self._runtime_proc
-        if proc is not None:
-            exit_code = proc.poll()
-            if exit_code is not None:
-                parts.append(f"Process exited with code {exit_code}.")
-                stderr_pipe = getattr(proc, "stderr", None)
-                if stderr_pipe is not None:
-                    try:
-                        stderr_tail = stderr_pipe.read(_MAX_LOG_BYTES)
-                        if stderr_tail:
-                            parts.append(
-                                f"stderr: {stderr_tail.decode(errors='replace').strip()}"
-                            )
-                    except Exception:
-                        pass
-            else:
-                parts.append("Process is still running but did not signal readiness.")
-
-        for log_path in self._gather_diagnostic_logs(logs_dir):
-            try:
-                content = log_path.read_text(errors="replace").strip()
-                if not content:
-                    continue
-                if len(content) > _MAX_LOG_BYTES:
-                    content = "...\n" + content[-_MAX_LOG_BYTES:]
-                parts.append(f"{log_path.name}:\n{content}")
-            except Exception:
-                pass
-
-        parts.append(f"Check logs under {logs_dir} for details.")
-        return "  ".join(parts)
-
-    @staticmethod
-    def _gather_diagnostic_logs(logs_dir: Path) -> list[Path]:
-        """Return log files useful for diagnosing a startup failure."""
-        result: list[Path] = []
-
-        stderr_log = logs_dir / "runtime_stderr.log"
-        if stderr_log.is_file():
-            result.append(stderr_log)
-
-        cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
-        if cxr_logs:
-            result.append(cxr_logs[-1])
-
-        return result
-
-    def _is_runtime_alive(self) -> bool:
-        """Return whether the runtime subprocess is still running."""
-        return self._runtime_proc is not None and self._runtime_proc.poll() is None
-
-    def _terminate_runtime(self) -> None:
-        """Terminate the runtime subprocess and all its children.
-
-        On POSIX, the subprocess is launched with ``start_new_session=True``
-        so it leads its own process group; ``killpg`` tears down Monado and
-        other children.  Windows is not supported (see
-        :meth:`_terminate_runtime_windows`).
-        """
-        proc = self._runtime_proc
-        if proc is None or proc.poll() is not None:
-            return
-
-        if sys.platform == "win32":
-            self._terminate_runtime_windows(proc)
-            return
-
-        try:
-            pgid = os.getpgid(proc.pid)
-        except ProcessLookupError:
-            return
-
-        try:
-            os.killpg(pgid, signal.SIGTERM)
-        except ProcessLookupError:
-            return
-        try:
-            proc.wait(timeout=RUNTIME_TERMINATE_TIMEOUT_SEC)
-        except subprocess.TimeoutExpired:
-            pass
-
-        if proc.poll() is None:
-            try:
-                os.killpg(pgid, signal.SIGKILL)
-            except ProcessLookupError:
-                return
-            try:
-                proc.wait(timeout=RUNTIME_TERMINATE_TIMEOUT_SEC)
-            except subprocess.TimeoutExpired:
-                pass
-
-        if proc.poll() is None:
-            raise RuntimeError("Failed to terminate or kill runtime process group")
-
-    @staticmethod
-    def _terminate_runtime_windows(_proc: subprocess.Popen) -> None:
-        """Windows runtime termination is not supported."""
-        raise RuntimeError(
-            "CloudXR runtime process termination is not supported on Windows"
-        )
-
-    # ------------------------------------------------------------------
-    # WSS proxy (background thread with its own event loop)
-    # ------------------------------------------------------------------
-
-    def _start_wss_proxy_thread(self, log_path: Path) -> None:
-        """Launch the WSS proxy in a daemon thread."""
-        from .wss import run as wss_run
-
-        loop = asyncio.new_event_loop()
-        self._wss_loop = loop
-        stop_future = loop.create_future()
-        self._wss_stop_future = stop_future
-
-        setup_oob = self._setup_oob
-        usb_local = self._usb_local
-        host_client = self._host_client
-
-        def _run_wss() -> None:
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(
-                    wss_run(
-                        log_file_path=log_path,
-                        stop_future=stop_future,
-                        setup_oob=setup_oob,
-                        usb_local=usb_local,
-                        host_client=host_client,
-                    )
-                )
-            except Exception:
-                logger.exception("WSS proxy thread exited with error")
-            finally:
-                loop.close()
-
-        self._wss_thread = threading.Thread(
-            target=_run_wss, name="cloudxr-wss-proxy", daemon=True
-        )
-        self._wss_thread.start()
-
-    def _stop_wss_proxy(self) -> None:
-        """Signal the WSS proxy to shut down and wait for the thread."""
-        if self._wss_loop is not None and self._wss_stop_future is not None:
-            loop = self._wss_loop
-            future = self._wss_stop_future
-
-            def _set_result() -> None:
-                if not future.done():
-                    future.set_result(None)
-
-            if not loop.is_closed():
-                try:
-                    loop.call_soon_threadsafe(_set_result)
-                except RuntimeError:
-                    logger.debug(
-                        "WSS event loop closed before stop signal; "
-                        "proxy already shut down"
-                    )
-
-        if self._wss_thread is not None:
-            self._wss_thread.join(timeout=5)
-            if self._wss_thread.is_alive():
-                logger.warning("WSS proxy thread did not exit cleanly")
-
-        self._wss_thread = None
-        self._wss_loop = None
-        self._wss_stop_future = None
+        """Path to the WSS proxy log file, or ``None`` if there is none."""
+        if self._service is not None:
+            return self._service.wss_log_path
+        found = latest_wss_log(self._logs_dir)
+        return Path(found) if found else None

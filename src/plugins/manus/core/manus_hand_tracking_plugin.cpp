@@ -21,7 +21,9 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <fstream>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -69,6 +71,29 @@ SDKReturnCode get_raw_skeleton_node_count(uint32_t glove_id, uint32_t& node_coun
 
 // Must agree with JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE on the consumer side.
 constexpr size_t kSensorFlatbufferSize = 4096;
+
+std::vector<unsigned char> read_calibration_file(const std::string& path)
+{
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file)
+    {
+        throw std::runtime_error("Failed to open Manus calibration file: " + path);
+    }
+
+    const std::streamsize size = file.tellg();
+    if (size <= 0 || static_cast<uint64_t>(size) > std::numeric_limits<uint32_t>::max())
+    {
+        throw std::runtime_error("Invalid Manus calibration file size: " + path);
+    }
+
+    std::vector<unsigned char> data(static_cast<size_t>(size));
+    file.seekg(0, std::ios::beg);
+    if (!file.read(reinterpret_cast<char*>(data.data()), size))
+    {
+        throw std::runtime_error("Failed to read Manus calibration file: " + path);
+    }
+    return data;
+}
 
 } // anonymous namespace
 
@@ -213,6 +238,15 @@ ManusTracker::~ManusTracker()
 
 void ManusTracker::initialize() noexcept(false)
 {
+    if (!m_config.left_calibration_file.empty())
+    {
+        m_left_calibration_file = read_calibration_file(m_config.left_calibration_file);
+    }
+    if (!m_config.right_calibration_file.empty())
+    {
+        m_right_calibration_file = read_calibration_file(m_config.right_calibration_file);
+    }
+
     std::cout << "[Manus] Initializing SDK..." << std::endl;
     const SDKReturnCode t_InitializeResult = CoreSdk_InitializeIntegrated();
     if (t_InitializeResult != SDKReturnCode::SDKReturnCode_Success)
@@ -338,8 +372,7 @@ void ManusTracker::initialize() noexcept(false)
         }
 
         // Create session with required extensions - constructor automatically begins the session
-        const bool wait_for_openxr_system = true;
-        m_session = std::make_shared<core::OpenXRSession>(m_config.app_name, extensions, wait_for_openxr_system);
+        m_session = std::make_shared<core::OpenXRSession>(m_config.app_name, extensions);
         m_handles = m_session->get_handles();
 
         // Initialize time converter now that handles are ready
@@ -529,6 +562,30 @@ void ManusTracker::DisconnectFromGloves()
     }
 }
 
+bool ManusTracker::apply_glove_calibration(uint32_t glove_id, bool is_left)
+{
+    auto& calibration_file = is_left ? m_left_calibration_file : m_right_calibration_file;
+    if (calibration_file.empty())
+    {
+        return true;
+    }
+
+    SetGloveCalibrationReturnCode result = SetGloveCalibrationReturnCode_Error;
+    const SDKReturnCode rc = CoreSdk_SetGloveCalibration(
+        glove_id, calibration_file.data(), static_cast<uint32_t>(calibration_file.size()), &result);
+    if (rc != SDKReturnCode::SDKReturnCode_Success || result != SetGloveCalibrationReturnCode_Success)
+    {
+        std::cerr << "[Manus] Failed to apply " << (is_left ? "left" : "right")
+                  << " glove calibration file (glove id=" << glove_id << ", SDK code=" << static_cast<int>(rc)
+                  << ", result=" << static_cast<int>(result) << ")" << std::endl;
+        return false;
+    }
+
+    std::cout << "[Manus] Applied " << (is_left ? "left" : "right")
+              << " glove calibration file to glove id=" << glove_id << std::endl;
+    return true;
+}
+
 void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_info)
 {
     auto& tracker = instance();
@@ -608,8 +665,12 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
         const GloveLandscapeData& glove = gloves.gloves[i];
         if (glove.side == Side::Side_Left)
         {
-            tracker.left_glove_id = glove.id;
             left_present = true;
+            if (tracker.left_glove_id != glove.id)
+            {
+                tracker.left_glove_id = glove.id;
+                tracker.apply_glove_calibration(glove.id, true);
+            }
             // Fetch bone topology once on connect
             uint32_t nc = 0;
             if (get_raw_skeleton_node_count(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
@@ -623,8 +684,12 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
         }
         else if (glove.side == Side::Side_Right)
         {
-            tracker.right_glove_id = glove.id;
             right_present = true;
+            if (tracker.right_glove_id != glove.id)
+            {
+                tracker.right_glove_id = glove.id;
+                tracker.apply_glove_calibration(glove.id, false);
+            }
             uint32_t nc = 0;
             if (get_raw_skeleton_node_count(glove.id, nc) == SDKReturnCode::SDKReturnCode_Success && nc > 0)
             {
