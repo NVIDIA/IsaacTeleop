@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """NDArray tensor type with DLPack support for framework interoperability."""
@@ -145,12 +145,14 @@ class NDArrayType(TensorType):
                     dtype_code, dtype_bits = DLDataType.FLOAT, 32
                 elif "float64" in dtype_str or "f8" in dtype_str:
                     dtype_code, dtype_bits = DLDataType.FLOAT, 64
+                elif "uint32" in dtype_str or "u4" in dtype_str:
+                    dtype_code, dtype_bits = DLDataType.UINT, 32
+                elif "uint8" in dtype_str or "u1" in dtype_str:
+                    dtype_code, dtype_bits = DLDataType.UINT, 8
                 elif "int32" in dtype_str or "i4" in dtype_str:
                     dtype_code, dtype_bits = DLDataType.INT, 32
                 elif "int64" in dtype_str or "i8" in dtype_str:
                     dtype_code, dtype_bits = DLDataType.INT, 64
-                elif "uint8" in dtype_str or "u1" in dtype_str:
-                    dtype_code, dtype_bits = DLDataType.UINT, 8
                 else:
                     return None
 

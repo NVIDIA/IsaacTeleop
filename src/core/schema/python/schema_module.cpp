@@ -12,6 +12,8 @@
 #include "haptic_command_bindings.h"
 #include "head_bindings.h"
 #include "joint_state_bindings.h"
+#include "latency_probe_request_bindings.h"
+#include "latency_probe_response_bindings.h"
 #include "message_channel_bindings.h"
 #include "oak_bindings.h"
 #include "oglo_tactile_bindings.h"
@@ -49,6 +51,10 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind joint-state types (JointState, JointStateOutput tables) for generic joint-space devices.
     core::bind_joint_state(m);
+
+    // Latency probe sample schemas (bidirectional vendor I/O teaching plugin).
+    core::bind_latency_probe_request(m);
+    core::bind_latency_probe_response(m);
 
     // Bind SE3 tracker types (Se3TrackerPoseT table) for generic 6-DoF pose sources.
     core::bind_se3_tracker(m);

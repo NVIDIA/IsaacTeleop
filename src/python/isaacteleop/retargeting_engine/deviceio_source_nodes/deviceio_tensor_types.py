@@ -22,6 +22,7 @@ from isaacteleop.schema import (
     JointStateOutputTrackedT,
     FullBodyPoseTrackedT,
     MessageChannelMessagesTrackedT,
+    LatencyProbeRequestTrackedT,
 )
 
 
@@ -145,6 +146,26 @@ class FullBodyPoseTrackedType(TensorType):
             )
 
 
+class LatencyProbeRequestTrackedType(TensorType):
+    """LatencyProbeRequestTrackedT wrapper from DeviceIO LatencyProbeRequestTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, LatencyProbeRequestTrackedType):
+            raise TypeError(
+                f"Expected LatencyProbeRequestTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, LatencyProbeRequestTrackedT):
+            raise TypeError(
+                f"Expected LatencyProbeRequestTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
 class MessageChannelMessagesTrackedType(TensorType):
     """MessageChannelMessagesTrackedT wrapper type from DeviceIO MessageChannelTracker."""
 
@@ -258,6 +279,14 @@ def DeviceIOFullBodyPoseTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_full_body_pose",
         [FullBodyPoseTrackedType("full_body_tracked")],
+    )
+
+
+def DeviceIOLatencyProbeRequestTracked() -> TensorGroupType:
+    """Tracked latency probe request from DeviceIO LatencyProbeRequestTracker."""
+    return TensorGroupType(
+        "deviceio_latency_probe_request",
+        [LatencyProbeRequestTrackedType("probe_tracked")],
     )
 
 

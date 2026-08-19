@@ -21,6 +21,8 @@ from .message_channel_config import (
     messageChannelConfig,
 )
 from .haptic_sink import HapticSink
+from .device_output_sink import DeviceOutputSink
+from .latency_probe_source import LatencyProbeSource
 from .deviceio_tensor_types import (
     HeadPoseTrackedType,
     HandPoseTrackedType,
@@ -28,12 +30,14 @@ from .deviceio_tensor_types import (
     Generic3AxisPedalOutputTrackedType,
     JointStateOutputTrackedType,
     FullBodyPoseTrackedType,
+    LatencyProbeRequestTrackedType,
     DeviceIOHeadPoseTracked,
     DeviceIOHandPoseTracked,
     DeviceIOControllerSnapshotTracked,
     DeviceIOGeneric3AxisPedalOutputTracked,
     DeviceIOJointStateOutputTracked,
     DeviceIOFullBodyPoseTracked,
+    DeviceIOLatencyProbeRequestTracked,
     MessageChannelMessagesTrackedType,
     MessageChannelConnectionStatus,
     MessageChannelStatusType,
@@ -57,12 +61,15 @@ __all__ = [
     "message_channel_config",
     "messageChannelConfig",
     "HapticSink",
+    "DeviceOutputSink",
+    "LatencyProbeSource",
     "HeadPoseTrackedType",
     "HandPoseTrackedType",
     "ControllerSnapshotTrackedType",
     "Generic3AxisPedalOutputTrackedType",
     "JointStateOutputTrackedType",
     "FullBodyPoseTrackedType",
+    "LatencyProbeRequestTrackedType",
     "MessageChannelMessagesTrackedType",
     "MessageChannelConnectionStatus",
     "MessageChannelStatusType",
@@ -72,6 +79,7 @@ __all__ = [
     "DeviceIOGeneric3AxisPedalOutputTracked",
     "DeviceIOJointStateOutputTracked",
     "DeviceIOFullBodyPoseTracked",
+    "DeviceIOLatencyProbeRequestTracked",
     "DeviceIOMessageChannelMessagesTracked",
     "MessageChannelMessagesTrackedGroup",
     "MessageChannelStatusGroup",
