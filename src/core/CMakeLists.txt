@@ -21,11 +21,10 @@ add_subdirectory(oxr)
 # Build PusherIO library (depends on oxr for session management)
 add_subdirectory(pusherio)
 
-# DeviceIO: 4-module design
-#   1. deviceio_base           — abstract interfaces (ITracker, typed impl bases)
-#   2. deviceio_trackers       — public tracker classes (HeadTracker, HandTracker, etc.)
-#   3. live_trackers            — live OpenXR tracker impls (depends on trackers)
 #   4. deviceio_session        — DeviceIOSession (wires trackers to live factory)
+include(${CMAKE_SOURCE_DIR}/cmake/GenerateTrackers.cmake)
+isaac_teleop_generate_trackers()
+
 add_subdirectory(deviceio_base)
 add_subdirectory(deviceio_trackers)
 add_subdirectory(live_trackers)

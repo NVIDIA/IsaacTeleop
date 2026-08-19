@@ -14,6 +14,13 @@ import shlex
 import warnings
 from pathlib import Path
 
+DEFAULT_DEVICE_PROFILE = "Quest3"
+"""``NV_DEVICE_PROFILE`` used when no env file, process env, or caller sets one."""
+
+
+ENV_FILE_NAME = "cloudxr.env"
+"""Name of the env file the service writes under :meth:`EnvConfig.openxr_run_dir`."""
+
 
 class EnvConfig:
     """Singleton holding CloudXR env configuration and resolved state.
@@ -50,7 +57,7 @@ class EnvConfig:
         "NV_CXR_ENABLE_PUSH_DEVICES": "true",
         "NV_CXR_ENABLE_TENSOR_DATA": "true",
         "NV_CXR_FILE_LOGGING": "true",
-        "NV_DEVICE_PROFILE": "auto-webrtc",
+        "NV_DEVICE_PROFILE": DEFAULT_DEVICE_PROFILE,
     }
 
     def __new__(cls) -> "EnvConfig":
@@ -99,6 +106,12 @@ class EnvConfig:
         """Return the path to the env file."""
         return os.path.join(self.openxr_run_dir(), self._env_filename())
 
+    def resolved(self, key: str) -> str | None:
+        """Return the resolved value of ``key``, or ``None`` before resolution."""
+        if self._resolved_env is None:
+            return None
+        return self._resolved_env.get(key)
+
     # -------------------------------------------------------------------------
     # Private instance methods
     # -------------------------------------------------------------------------
@@ -121,7 +134,7 @@ class EnvConfig:
 
     def _env_filename(self) -> str:
         """Filename under openxr_run_dir() where the final env is written."""
-        return "cloudxr.env"
+        return ENV_FILE_NAME
 
     def _resolve_and_apply(self, env: dict[str, str]) -> dict[str, str]:
         """
@@ -247,6 +260,34 @@ class EnvConfig:
             if v is not None:
                 out[k] = v
         return out
+
+
+def read_exported_env(path: str | Path) -> dict[str, str]:
+    """Parse an env file written by :meth:`EnvConfig._resolve_and_apply`.
+
+    That file is shell format — ``export KEY='value'`` — so it cannot be read
+    back through :meth:`EnvConfig._load_env_file`, which would keep ``export``
+    as part of the name.  It is an output describing a running runtime; use
+    this to adopt its environment without re-resolving and overwriting it.
+
+    Returns an empty dict when the file is missing or unreadable.
+    """
+    result: dict[str, str] = {}
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return result
+    for line in text.splitlines():
+        name, sep, value = line.strip().removeprefix("export ").partition("=")
+        if not sep or not name.strip():
+            continue
+        try:
+            result[name.strip()] = next(iter(shlex.split(value)), "")
+        except ValueError:
+            # Unbalanced quoting.  Skip the entry rather than fail the whole
+            # read: the caller is trying to describe a live runtime.
+            continue
+    return result
 
 
 def get_env_config() -> EnvConfig:

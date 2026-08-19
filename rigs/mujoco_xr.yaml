@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run with: python -m isaacteleop.rig rigs/mujoco_xr.yaml
+#
+# Two panes, one declared: with no `runtime:` key the runtime pane comes from
+# DEFAULT_RUNTIME_COMMAND. No producers either -- the app opens the OpenXR
+# session itself and reads controllers straight from the runtime, so there is no
+# rendezvous and deliberately no `params:` / `collection_id:`.
+#
+# `{python}` expands to the launching interpreter, so both wheels must be
+# installed there rather than in a private .venv:
+#
+#   uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/ --reinstall
+#   uv pip install ./examples/mujoco_xr        # same environment
+#
+# See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
+name: mujoco_xr
+description: CloudXR runtime + MuJoCo scene in XR with the SO-101 leader gripper
+cwd: ..                        # -> Teleop repo root
+consumers:
+  - name: mujoco xr app (requires headset)
+    # Keep --no-launch-cloudxr-runtime. The runtime is a host singleton on WSS
+    # port 48322, so a second one kills this rig's own pane: the headset drops
+    # mid-session and reads as a runtime crash rather than a config edit.
+    # find_runtime_footguns() warns but never gates.
+    command: "{python} -m isaacteleop_examples.mujoco_xr --no-launch-cloudxr-runtime"

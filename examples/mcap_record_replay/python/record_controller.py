@@ -59,7 +59,7 @@ def main(argv: list[str]) -> int:
     )
 
     with CloudXRLauncher.launch_context(args) as launcher:
-        if launcher is not None:
+        if launcher.owns_runtime:
             print(
                 f"[record] CloudXR runtime started (WSS log: {launcher.wss_log_path})"
             )

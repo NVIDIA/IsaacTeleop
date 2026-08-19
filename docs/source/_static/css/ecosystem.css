@@ -1,0 +1,911 @@
+/*
+ * Ecosystem page: scope list, partner card grid, partnership CTA, and the supported
+ * device table. Markup comes from docs/source/_ext/partner_grid.py; colors come from
+ * the theme's --pst-* tokens so light and dark modes both work.
+ */
+
+/* ------------------------------------------------------------------ scope -- */
+
+.eco-scope {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.875rem;
+    margin: 1.75rem 0 0.5rem;
+}
+
+.eco-scope-item {
+    padding: 1rem 1rem 1.125rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+    background: var(--pst-color-surface);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--pst-color-text-muted);
+}
+
+.eco-scope-item p {
+    margin: 0;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+/* First paragraph is the panel's title. */
+.eco-scope-item p:first-child {
+    margin-bottom: 0.375rem;
+    color: var(--pst-color-text-base);
+}
+
+/* ------------------------------------------------------- section headings -- */
+
+/* The eyebrow labels the heading below it, so the separation from the previous
+   section belongs above the pair. The theme puts 44px on top of every h2, which
+   would otherwise open up between the eyebrow and the heading it introduces. */
+.eco-eyebrow {
+    margin-top: 2.75rem;
+    margin-bottom: 0.375rem !important;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--pst-color-primary);
+}
+
+/* Set on the section, not on `.eco-eyebrow + *`: an eyebrow written before an
+   underlined title parses as the *previous* section's last paragraph, so the two are
+   not always siblings. */
+.eco-section > h2 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+}
+
+/* The paragraph straight after the heading is the section's standfirst: smaller and
+   quieter than body copy, and measured so it does not run the full content width. */
+.eco-section > h2 + p {
+    max-width: 620px;
+    margin-bottom: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--pst-color-text-muted);
+}
+
+/* Rule closing the section header. Carried by the grid rather than the paragraph
+   above it so it spans the full content width while the text stays measured. */
+.eco-section > h2 + p + .partner-grid {
+    margin-top: 0.875rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--pst-color-border);
+}
+
+.eco-count {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.125rem 0.625rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    vertical-align: middle;
+    color: var(--pst-color-text-muted);
+}
+
+/* The pill is decoration for the heading, not for the table of contents. */
+.bd-toc .eco-count,
+.bd-sidebar-secondary .eco-count,
+.bd-sidebar-primary .eco-count {
+    display: none;
+}
+
+/* ------------------------------------------------------------ card grid --- */
+
+.partner-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(282px, 1fr));
+    gap: 1.25rem;
+    margin: 1.5rem 0 0;
+}
+
+.partner-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 8px;
+    background: var(--pst-color-background);
+    transition: box-shadow 0.15s ease-out, border-color 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.partner-card:hover {
+    border-color: var(--pst-color-primary);
+    box-shadow: 0 6px 18px var(--pst-color-shadow);
+    transform: translateY(-2px);
+}
+
+.partner-card.is-upcoming {
+    border-style: dashed;
+    background: var(--pst-color-surface);
+}
+
+/* First-party band: no logo panel and no status pill, so the rule carries the brand
+   the four repeated eye-marks used to. */
+.partner-card.is-platform {
+    border-top: 3px solid var(--pst-color-primary);
+}
+
+/* Card text is laid out with flex gap, so the theme's paragraph margins go. */
+.partner-card p {
+    margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .partner-card {
+        transition: none;
+    }
+    .partner-card:hover {
+        transform: none;
+    }
+}
+
+/* ---- status corner ---- */
+
+.partner-status {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 999px;
+    background: var(--pst-color-background);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* A dot plus the text label, so state never depends on color alone. */
+.partner-status::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentcolor;
+}
+
+.partner-status.is-maintained {
+    border-color: var(--pst-color-primary);
+    color: var(--pst-color-primary);
+}
+
+.partner-status.is-new {
+    border-color: var(--pst-color-primary);
+    background: var(--pst-color-primary);
+    color: #000;
+}
+
+.partner-status.is-upcoming {
+    border-color: var(--pst-color-attention);
+    color: var(--pst-color-attention);
+}
+
+.partner-status.is-deprecated {
+    color: var(--pst-color-text-muted);
+}
+
+/* ---- logo panel ---- */
+
+.partner-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Fixed height so wordmarks and symbols line up across a row. */
+    height: 104px;
+    padding: 1.125rem 1.375rem;
+    border-bottom: 1px solid var(--pst-color-border);
+    background: var(--pst-color-surface);
+}
+
+.partner-card.is-upcoming .partner-logo {
+    background: var(--pst-color-background);
+}
+
+.partner-logo-img {
+    display: block;
+    width: 100%;
+    line-height: 0;
+}
+
+/* Definite width and height plus object-fit, because an SVG carrying only a
+   viewBox has no intrinsic size and would otherwise lay out at zero here.
+   This is also what normalizes wordmarks and symbols to one shared box. */
+.partner-logo img {
+    width: 100%;
+    height: 68px;
+    object-fit: contain;
+    object-position: center;
+}
+
+/* No artwork: the organization name stands in as a wordmark, sized to carry the
+   panel the way a logo would. */
+.partner-logo-placeholder {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: var(--pst-color-text-base);
+}
+
+/* ---- card body ---- */
+
+.partner-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 1rem 1.125rem 1.125rem;
+}
+
+.partner-eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+.partner-name {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--pst-color-text-base);
+}
+
+/* A suffix to the name, not part of it. */
+.partner-version {
+    font-size: 0.8125rem;
+    font-weight: 400;
+    color: var(--pst-color-text-muted);
+}
+
+/* The paragraph only positions the chip; the chip is the <code> inside it. */
+.partner-handle {
+    line-height: 1;
+}
+
+.partner-handle code {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid rgba(118, 185, 0, 0.35);
+    border-radius: 4px;
+    background: rgba(118, 185, 0, 0.1);
+    font-family: var(--pst-font-family-monospace), monospace;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    color: #3f6100;
+    white-space: nowrap;
+}
+
+/* The green ink is unreadable on the dark surface; the tint carries over, the text
+   lightens. Not a --pst token: neither primary nor secondary clears 4.5:1 on the tint. */
+html[data-theme="dark"] .partner-handle code {
+    color: #a3d84d;
+}
+
+.partner-desc {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--pst-color-text-base);
+}
+
+/* ---- footer actions ---- */
+
+/* Tag name included so the auto margin outranks the `.partner-card p` reset above,
+   which would otherwise flatten it and leave footers at uneven heights. */
+.partner-card p.partner-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    /* Pushes the footer down so rows align despite uneven descriptions. */
+    margin-top: auto;
+    padding-top: 0.875rem;
+    border-top: 1px solid var(--pst-color-border);
+}
+
+/* A card with nothing to link keeps the rule that closes every other card. The empty
+   footer holds the line its links would have filled, so rules stay level across a row. */
+.partner-card p.partner-footer:empty::before {
+    content: "";
+    height: 1.25rem;
+}
+
+.partner-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--pst-color-text-base) !important;
+}
+
+.partner-link:hover,
+.partner-link:focus {
+    color: var(--pst-color-primary) !important;
+}
+
+.partner-link:focus-visible {
+    outline: 2px solid var(--pst-color-primary);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+/* Matches the mock: a 13px box against 13px text. Links that stay inside the docs or
+   the IsaacTeleop repository get no arrow, tracking links included. */
+.eco-link-arrow {
+    flex: none;
+    width: 13px;
+    height: 13px;
+}
+
+/* Tracking links read as a status, not an invitation, wherever they appear -- the
+   upcoming cards and the device table's planned line share the one style. */
+.partner-link.is-tracking,
+.device-planned-track {
+    font-weight: 500;
+    color: var(--pst-color-text-muted) !important;
+}
+
+.device-planned-track:hover,
+.device-planned-track:focus {
+    color: var(--pst-color-primary) !important;
+}
+
+/* ---- contact popover ---- */
+
+/* The trigger is a <button>, so it needs the font and chrome resets a link does not. */
+.partner-link.is-contact {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.partner-contact {
+    width: min(19rem, calc(100vw - 2rem));
+    padding: 0.875rem 1rem 1rem;
+    border: 1px solid var(--pst-color-primary);
+    border-radius: 8px;
+    background: var(--pst-color-background);
+    box-shadow: 0 8px 24px var(--pst-color-shadow);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--pst-color-text-base);
+}
+
+/* Only on :popover-open, never on .partner-contact itself: an author `display` would
+   outrank the UA's `[popover]:not(:popover-open) {display: none}` and leave every
+   panel permanently open. */
+.partner-contact:popover-open {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.partner-contact p {
+    margin: 0;
+}
+
+.partner-contact-title {
+    margin-bottom: 0.25rem !important;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+.partner-contact-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+}
+
+.partner-contact-row a {
+    color: var(--pst-color-text-base) !important;
+}
+
+.partner-contact-row a:hover,
+.partner-contact-row a:focus {
+    color: var(--pst-color-primary) !important;
+}
+
+/* Sit the panel on its own card. Without anchor positioning (Baseline only since
+   January 2026) the UA default centers it in the viewport, which dismisses the same
+   way and still reads as one small card. */
+@supports (anchor-name: --partner-card) {
+    .partner-card {
+        anchor-name: --partner-card;
+        anchor-scope: --partner-card;
+    }
+
+    .partner-contact {
+        position: absolute;
+        position-anchor: --partner-card;
+        /* The UA sheet centers popovers with `inset: 0; margin: auto`. Both have to go
+           first, or top/right survive and over-constrain the box back to the top of
+           the viewport. */
+        inset: auto;
+        /* Inset from the card's own edges so its border still frames the panel. */
+        margin: 0 0 0.5rem 0.5rem;
+        left: anchor(left);
+        bottom: anchor(bottom);
+        width: calc(anchor-size(width) - 1rem);
+    }
+}
+
+/* Pre-2024 browsers: no toggle, so show the contact inline rather than behind a
+   button that cannot open anything. */
+@supports not selector(:popover-open) {
+    .partner-link.is-contact {
+        display: none;
+    }
+
+    .partner-contact {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        width: auto;
+        margin: 0 1.125rem 1.125rem;
+        box-shadow: none;
+    }
+}
+
+/* Screen-reader only: sighted users get the arrow above, or nothing where an arrow on
+   every row of the device table would read as decoration. */
+.eco-link-external-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* -------------------------------------------------------------------- CTA -- */
+
+.eco-cta {
+    position: relative;
+    overflow: hidden;
+    margin-top: 2.5rem;
+    padding: 2.5rem 3rem;
+    border-radius: 12px;
+    background: linear-gradient(120deg, #111 0%, #1e1e1e 55%, #1b2a05 130%);
+    color: #fff;
+}
+
+.eco-cta::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(420px 220px at 88% 10%, rgba(118, 185, 0, 0.28), transparent 70%);
+    pointer-events: none;
+}
+
+.eco-cta > * {
+    position: relative;
+    z-index: 1;
+    max-width: 40rem;
+}
+
+.eco-cta p {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.eco-cta-title p {
+    margin: 0 0 0.75rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #fff;
+}
+
+.eco-cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.875rem;
+    margin-top: 1.5rem;
+}
+
+.eco-cta-actions p {
+    margin: 0;
+}
+
+.eco-cta-actions a {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.8125rem 1.375rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.eco-cta-actions p:first-child a {
+    background: var(--pst-color-primary);
+    color: #000 !important;
+}
+
+.eco-cta-actions p:first-child a:hover {
+    background: #8fd400;
+}
+
+/* Not :last-child -- a lone primary button is also the last, and would pick up the
+   secondary colours. */
+.eco-cta-actions p:not(:first-child) a {
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff !important;
+}
+
+.eco-cta-actions p:not(:first-child) a:hover {
+    border-color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.eco-cta-actions a:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.eco-cta-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem 1.375rem;
+    max-width: none;
+    margin: 1.875rem 0 0;
+    padding: 0;
+    counter-reset: eco-step;
+    list-style: none;
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.eco-cta-steps li {
+    display: flex;
+    align-items: center;
+    counter-increment: eco-step;
+}
+
+.eco-cta-steps li::marker {
+    content: "";
+}
+
+.eco-cta-steps li::before {
+    content: counter(eco-step);
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin-right: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 50%;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.eco-cta-steps li p {
+    margin: 0;
+    font-size: inherit;
+    color: inherit;
+}
+
+.eco-cta-steps strong {
+    color: #fff;
+    font-weight: 600;
+}
+
+/* --------------------------------------------------------- device table -- */
+
+/* Devices are looked up rather than browsed, so this section is a table. The visual
+   break from the card grids above is the point: it reads as reference. */
+
+/* Bottom margin because the table is the last thing on the page: without it the
+   planned line runs into the theme's previous/next pager. */
+.eco-section > h2 + p + .device-matrix {
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.device-grid {
+    display: grid;
+    /* device | input modes | Details button */
+    grid-template-columns: 220px 1fr 160px;
+    border-top: 2px solid var(--pst-color-text-base);
+}
+
+/* Cells are paragraphs, so the theme's vertical rhythm would break every row. */
+.device-grid p {
+    margin: 0;
+}
+
+.device-col {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--pst-color-border);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+/* The third column has no label: the buttons under it describe themselves. The cell
+   stays so the header rule runs the full width. */
+.device-col-action {
+    text-align: right;
+}
+
+/* Full-width heading row splitting the table into its two connection paths. Muted, not
+   green: in a table whose device names are already links, a green heading reads as one. */
+.device-group {
+    grid-column: 1 / -1;
+    padding: 1.375rem 0 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+.device-name,
+.device-modes,
+.device-action {
+    border-bottom: 1px solid var(--pst-color-border-muted);
+}
+
+.device-name,
+.device-modes {
+    padding: 0.875rem 1rem;
+}
+
+.device-name {
+    font-size: 0.9375rem;
+    font-weight: 500;
+}
+
+.device-modes {
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--pst-color-text-base);
+}
+
+/* Outer columns sit flush with the page text; only the gutters between them pad. */
+.device-col:first-child,
+.device-name,
+.device-group {
+    padding-left: 0;
+}
+
+.device-col-action,
+.device-action {
+    padding-right: 0;
+}
+
+/* ---- details disclosure ---- */
+
+/* The button sits in the third column and its panel spans the row underneath, rather
+   than floating like the partner cards' contact popover: a popover on the rightmost
+   column clips at the viewport edge, does not print, and breaks reading order. */
+.device-action {
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 0.625rem 0 0.625rem 1rem;
+}
+
+/* A native <details> holding nothing but its <summary>. It supplies the button
+   semantics, the keyboard handling, and -- through the shared `name` -- closing the open
+   panel when another opens, none of which we then have to write in JavaScript. The panel
+   is a sibling grid item, not a child, so it can span all three columns; that also keeps
+   the device name a plain link, since a link inside a <summary> both navigates and
+   toggles. */
+.device-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid rgba(118, 185, 0, 0.35);
+    border-radius: 3px;
+    background: rgba(118, 185, 0, 0.1);
+    font-size: 0.8125rem;
+    line-height: 1.2;
+    color: #3f6100;
+    white-space: nowrap;
+    cursor: pointer;
+    /* inline-flex already drops the marker in current browsers; the pseudo-element
+       covers Safari before 16. */
+    list-style: none;
+}
+
+.device-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.device-toggle:hover,
+.device-disclosure[open] .device-toggle {
+    border-color: rgba(118, 185, 0, 0.5);
+    background: rgba(118, 185, 0, 0.18);
+}
+
+.device-toggle:focus-visible {
+    outline: 2px solid var(--pst-color-primary);
+    outline-offset: 2px;
+}
+
+/* Same reason as the handle chip: green ink is unreadable on the dark surface. */
+html[data-theme="dark"] .device-toggle {
+    color: #a3d84d;
+}
+
+/* "Details ▾" closed, "Close ✕" open. Both labels are in the markup and CSS shows one,
+   so the swap needs no script. */
+.device-toggle-label::after {
+    content: " ▾";
+}
+
+.device-toggle-label.is-open::after {
+    content: " ✕";
+}
+
+.device-disclosure:not([open]) .device-toggle-label.is-open,
+.device-disclosure[open] .device-toggle-label:not(.is-open) {
+    display: none;
+}
+
+/* ---- details panel ---- */
+
+.device-panel {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    padding: 1.375rem 1.5rem;
+    border-bottom: 1px solid var(--pst-color-border-muted);
+    background: var(--pst-color-surface);
+}
+
+/* Collapsed unless its own row is open. Scoped to :has() support because that is what
+   ties the panel to a disclosure it is not nested in; where the selector is missing
+   every panel simply renders open, which is verbose but hides nothing. */
+@supports selector(:has(*)) {
+    .device-panel {
+        display: none;
+    }
+    .device-action:has(.device-disclosure[open]) + .device-panel {
+        display: grid;
+    }
+}
+
+/* Paper has no buttons to press, so the panels open. */
+@media print {
+    .device-panel {
+        display: grid !important;
+    }
+    .device-action {
+        display: none;
+    }
+}
+
+.device-panel h4.device-panel-heading {
+    margin: 0 0 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--pst-color-text-muted);
+}
+
+.device-panel p.device-panel-line {
+    margin: 0 0 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+}
+
+.device-panel p.device-panel-line:last-child {
+    margin-bottom: 0;
+}
+
+/* The arrow is spaced with a margin rather than by making the anchor a flex container:
+   Sphinx splits an obfuscated address into several spans, and a flex gap would push
+   every one of them apart -- "Veronica . li @ bytedance . com". */
+.device-panel-line .eco-link-arrow {
+    margin-left: 0.25rem;
+    vertical-align: -0.1em;
+}
+
+/* ---- planned line ---- */
+
+/* Not a row: a planned device has no input modes or setup path to put in one. */
+.device-matrix p.device-planned {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 1rem;
+    margin: 1.25rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--pst-color-text-muted);
+}
+
+.device-planned-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.device-planned-track {
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* Under 900px the three columns stop holding their content, so each device becomes a
+   stacked record: name, modes, then its button, all left-aligned. */
+@media (max-width: 900px) {
+    .device-grid {
+        grid-template-columns: 1fr;
+        border-top: none;
+    }
+    .device-col {
+        display: none;
+    }
+    .device-name {
+        padding: 0 0 0.25rem;
+        border-bottom: none;
+        font-size: 1rem;
+    }
+    .device-modes {
+        padding: 0.125rem 0;
+        border-bottom: none;
+    }
+    /* The column headers are gone with the columns, so each cell names its own field. */
+    .device-modes::before {
+        content: attr(data-label) " ";
+        font-size: 0.6875rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--pst-color-text-muted);
+    }
+    .device-action {
+        justify-content: flex-start;
+        padding: 0.5rem 0 0.875rem;
+    }
+    .device-panel {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+        padding: 1.125rem 0;
+    }
+    .device-planned-track {
+        margin-left: 0;
+    }
+}
+
+/* ------------------------------------------------------------ responsive -- */
+
+@media (max-width: 720px) {
+    .eco-scope {
+        grid-template-columns: 1fr;
+    }
+    .partner-grid {
+        grid-template-columns: 1fr;
+    }
+    .eco-cta {
+        padding: 1.75rem 1.5rem;
+    }
+}

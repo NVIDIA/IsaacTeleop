@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Default tracker manifest values. Placeholders use %key% or %key_CamelCase% / %key_UPPER%.
+# See src/core/codegen/manifest.py for resolution rules.
+
+[defaults]
+direction = "pull"
+shape = "single_collection"
+schema = "%name%"
+class = "%name_CamelCase%Tracker"
+tensor_identifier = "%name%"
+localized_name = "%class%"
+channel = "%name%"
+schema_name = "core.%table%Record"
+traits = "%channel_CamelCase%RecordingTraits"
+python_accessor = "get_data"
+max_flatbuffer_size = 512
+record = true
+facade_tensor_constant = false
+
+[defaults.pull]
+mcap_channels = ["%channel%", "%channel%_tracked"]
+replay_channels = ["%channel%_tracked"]
+
+[defaults.push]
+record = false
+class = "%table%PushTracker"
+python_accessor = "push"

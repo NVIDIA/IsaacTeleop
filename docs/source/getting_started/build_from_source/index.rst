@@ -26,6 +26,25 @@ Prerequisites
 - **uv** for Python dependency management and managed Python
 - **Internet connection** for downloading dependencies via CMake FetchContent
 
+.. note::
+   **Optional — only needed to build the Televiz visualization module,** ``BUILD_VIZ``.
+   ``BUILD_VIZ`` is auto-detected: it defaults to ``ON`` when all three of the following are
+   found at configure time and to ``OFF`` otherwise, so a core-only source build still
+   configures on a machine without them. Watch the
+   ``-- BUILD_VIZ: <ON|OFF> (Vulkan=... CUDAToolkit=... glslang=...)`` configure line to see
+   which one is missing.
+
+   - **Vulkan headers + loader** — ``libvulkan-dev`` on Linux, the LunarG SDK on Windows.
+   - **CUDA Toolkit** (cudart at link time) — ``nvidia-cuda-toolkit`` or the official NVIDIA
+     installer.
+   - **glslangValidator** for compiling shaders to SPIR-V — ``glslang-tools`` on Linux,
+     ``brew install glslang`` on macOS; ships with the Vulkan SDK on Windows.
+
+   ``BUILD_VIZ=ON`` also pulls in GLFW, whose CMake uses ``pkg_check_modules()`` — install
+   ``pkg-config`` as well, or the configure fails before viz is reached. Most users do not
+   need any of this: ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz``
+   module. See `Other Build options`_ for the full option table.
+
 .. _one-time-setup:
 
 One time setup
@@ -95,9 +114,10 @@ Sometimes NVIDIA might share early access CloudXR SDKs with you. In that case, y
 tarballs such as:
 
 - ``CloudXR-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (CloudXR Runtime SDK)
-- ``CloudXR-exp-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (optional experimental
-  runtime). Needed for Jetson Orin support (for example :doc:`/getting_started/televiz`)
-  until the default runtime covers those platforms.
+- ``CloudXR-exp-<version-for-runtime-sdk>-Linux-<arch>-sdk.tar.gz`` (experimental
+  runtime). Packaged by default as ``isaacteleop.cloudxr_exp``; needed for Jetson Orin
+  support (for example :doc:`/getting_started/televiz`) until the default runtime covers
+  those platforms.
 - ``nvidia-cloudxr-<version-for-web-sdk>.tgz`` (CloudXR Web SDK)
 
 You can place them in the :code-file:`deps/cloudxr/` directory and update the ``deps/cloudxr/.env``
@@ -109,8 +129,9 @@ like this:
    CXR_RUNTIME_SDK_VERSION=<version-for-runtime-sdk>
    CXR_WEB_SDK_VERSION=<version-for-web-sdk>
 
-To package the experimental runtime into the wheel as ``isaacteleop.cloudxr_exp``, configure with
-``-DENABLE_CLOUDXR_EXP_BUNDLE=ON``. Select it at runtime with ``ISAAC_TELEOP_CLOUDXR_EXP``.
+The experimental runtime is packaged into the wheel as ``isaacteleop.cloudxr_exp`` by default
+(``ENABLE_CLOUDXR_EXP_BUNDLE=ON``). Pass ``-DENABLE_CLOUDXR_EXP_BUNDLE=OFF`` to skip it.
+Select it at runtime with ``ISAAC_TELEOP_CLOUDXR_EXP``.
 See :ref:`dedicated-cloudxr-runtime`.
 
 2. CMake: Configure and build

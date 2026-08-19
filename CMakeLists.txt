@@ -91,7 +91,7 @@ option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build supp
 option(ENABLE_CLOUDXR_BUNDLE_CHECK "Enable CloudXR bundle check" OFF)
 
 # When ON, also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp.
-option(ENABLE_CLOUDXR_EXP_BUNDLE "Also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp" OFF)
+option(ENABLE_CLOUDXR_EXP_BUNDLE "Also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp" ON)
 
 ## Enforce clang-format on Linux builds by default
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -167,6 +167,7 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/haptic_feedback)
     if(BUILD_VIZ)
         add_subdirectory(examples/camera_viz/tests)
+        add_subdirectory(examples/mujoco_xr)
     endif()
 elseif(BUILD_EXAMPLE_TELEOP_ROS2)
     add_subdirectory(examples/teleop_ros2)

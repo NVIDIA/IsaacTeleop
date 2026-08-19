@@ -185,31 +185,26 @@ def main(argv: Optional[list[str]] = None) -> int:
     if effective_mode == "xr":
         cloudxr_settings = cloudxr_env.env_from_yaml(cfg.get("display", {}))
 
-    # In XR mode, launch the in-process CloudXR runtime (+ WSS proxy for
-    # headset clients) before creating the session — VizSession's OpenXR
-    # instance needs XR_RUNTIME_JSON + a running service, both of which the
-    # launcher provides. --no-launch-cloudxr-runtime skips this when a
-    # runtime is already up (e.g. after sourcing ~/.cloudxr/run/cloudxr.env).
-    # Window mode never launches a runtime.
+    # In XR mode, attach to the CloudXR runtime (+ WSS proxy for headset
+    # clients) before creating the session — VizSession's OpenXR instance
+    # needs XR_RUNTIME_JSON and a live runtime, both of which the launcher
+    # provides. Window mode never touches a runtime.
     # Entered manually (not ``with``) so the unclean-stop path below can
-    # SKIP the teardown: stopping the runtime while a worker thread is
-    # still inside session.render() would rip the OpenXR service out from
-    # under a live xrWaitFrame — the same hazard the skip-destroy
-    # mitigation exists for. The launcher registers an atexit stop, which
-    # fires once the stuck (non-daemon) thread finally exits.
+    # SKIP the teardown: stopping a runtime this process owns while a worker
+    # thread is still inside session.render() would rip the OpenXR service
+    # out from under a live xrWaitFrame.
     settings_stack = contextlib.ExitStack()
     if effective_mode == "xr" and not args.launch_cloudxr_runtime:
-        # Nothing is launched, so nothing carries these to the runtime that is
-        # already up -- it started with whatever environment it was given.
-        extra = set(cloudxr_settings) - set(cloudxr_env.DEFAULT_ENV)
-        if extra or cloudxr_settings != cloudxr_env.DEFAULT_ENV:
-            print(
-                "camera_viz: warning: display.cloudxr is ignored under "
-                "--no-launch-cloudxr-runtime; set those variables in the "
-                "environment of the runtime process instead",
-                file=sys.stderr,
-                flush=True,
-            )
+        # No runtime is started or attached, so nothing carries these anywhere.
+        # (The attach case warns for itself: CloudXRLauncher._attach reports an
+        # ignored --cloudxr-env-config against the runtime it adopted.)
+        print(
+            "camera_viz: warning: display.cloudxr is ignored under "
+            "--no-launch-cloudxr-runtime; set those variables in the "
+            "environment of the runtime process instead",
+            file=sys.stderr,
+            flush=True,
+        )
     if effective_mode == "xr" and args.launch_cloudxr_runtime:
         # An explicit --cloudxr-env-config is the operator overriding the
         # config file; do not overwrite it with the generated one.

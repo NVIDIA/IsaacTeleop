@@ -82,8 +82,6 @@ jobs:
     - name: Setup CloudXR SDK
       id: cloudxr-sdk
       uses: ./.github/actions/setup-cloudxr-sdk
-      with:
-        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     # robotic_grounding source bundle for the [grounding] extra (Sharpa retargeter).
     # Disabled on release branches (and PRs targeting them) to keep release
@@ -155,7 +153,6 @@ jobs:
           -DBUILD_PLUGIN_OAK_CAMERA=ON \
           -DBUILD_VIZ=ON \
           -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
-          -DENABLE_CLOUDXR_EXP_BUNDLE=ON \
           -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
           "${coverage_args[@]}"
@@ -675,8 +672,6 @@ jobs:
 
     - name: Setup CloudXR SDK
       uses: ./.github/actions/setup-cloudxr-sdk
-      with:
-        ngc-api-key: ${{ secrets.NGC_TELEOP_CORE_GITHUB_SERVICE_KEY }}
 
     - name: Build teleop_ros2 image
       run: |

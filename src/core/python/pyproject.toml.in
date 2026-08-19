@@ -66,8 +66,8 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "isaacteleop.plugin_manager" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.schema" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.cloudxr" = ["native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
-# Matches nothing unless ENABLE_CLOUDXR_EXP_BUNDLE=ON staged the experimental
-# runtime; the package's two .py ship either way.
+# Matches nothing when ENABLE_CLOUDXR_EXP_BUNDLE=OFF (default ON) skipped staging
+# the experimental runtime; the package's two .py ship either way.
 "isaacteleop.cloudxr_exp" = ["native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
 "isaacteleop.haptic_devices" = ["*.so", "*.pyd", "*.pyi"]
 # Keys for packages staged in only some configurations are inert in the rest:

@@ -28,7 +28,7 @@ on first run):
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr --accept-eula --setup-oob
+   python -m isaacteleop.cloudxr.service run --accept-eula --setup-oob
 
 This will:
 
@@ -45,7 +45,7 @@ and is **not compatible with** ``--usb-local``:
 
 .. code-block:: bash
 
-   TELEOP_OOB_HUB_ONLY=1 python -m isaacteleop.cloudxr --accept-eula --setup-oob
+   TELEOP_OOB_HUB_ONLY=1 python -m isaacteleop.cloudxr.service run --accept-eula --setup-oob
 
 You should see output confirming the hub is running:
 
@@ -185,7 +185,7 @@ Architecture
      - Registers with the hub via WebSocket, reports streaming metrics
        periodically (default every 500 ms), receives config pushes.
    * - **Streaming host**
-     - ``python -m isaacteleop.cloudxr --setup-oob``
+     - ``python -m isaacteleop.cloudxr.service run --setup-oob``
      - Runs CloudXR runtime + WSS proxy + OOB hub on a single TLS port.
        Opens the teleop page and clicks CONNECT via USB adb + CDP.
    * - **Operator / scripts**
@@ -505,7 +505,7 @@ coturn endpoint).  Always use both flags together:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr --accept-eula --setup-oob --usb-local
+   python -m isaacteleop.cloudxr.service run --accept-eula --setup-oob --usb-local
 
 On startup the launcher:
 
