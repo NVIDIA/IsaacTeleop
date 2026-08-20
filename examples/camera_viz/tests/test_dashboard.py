@@ -177,3 +177,26 @@ def test_a_note_without_a_panel_is_just_a_line():
     dash = Dashboard(stream=out)
     dash.note("[zed] reconnected")
     assert out.getvalue() == "[zed] reconnected\n"
+
+
+def test_a_note_after_close_is_dropped():
+    """Source threads can outlive runner.stop() and notify into a panel that
+    has already handed the cursor back."""
+    out = FakeTTY()
+    dash = Dashboard(stream=out, colour=False)
+    dash.show(_snapshot())
+    dash.close()
+    out.truncate(0), out.seek(0)
+
+    dash.note("[zed] stopped")
+    assert out.getvalue() == ""
+
+
+def test_close_is_idempotent():
+    out = FakeTTY()
+    dash = Dashboard(stream=out, colour=False)
+    dash.show(_snapshot())
+    dash.close()
+    out.truncate(0), out.seek(0)
+    dash.close()
+    assert out.getvalue() == ""

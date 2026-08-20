@@ -166,7 +166,10 @@ def _build_placement(
         if key in spec:
             cfg_kwargs[key] = spec[key]
     cfg = PlacementConfig(**cfg_kwargs)
-    lock_mode = spec.get("lock_mode", "lazy")
+    # The normalised form, not the raw one: the controls cycle it through
+    # LOCK_MODE_CYCLE.index(), so a config saying `WORLD` would validate here
+    # and then raise ValueError on the first press of A.
+    lock_mode = str(spec.get("lock_mode", "lazy")).lower()
     return build_placement(lock_mode, cfg), lock_mode, cfg
 
 
