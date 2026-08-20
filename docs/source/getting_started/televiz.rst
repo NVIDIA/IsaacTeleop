@@ -564,58 +564,6 @@ without it the fields read zero.
        print(f"{stats.render_fps:.1f}/{stats.target_fps:.0f} fps, "
              f"gpu {stats.gpu_time_ms:.2f} ms, stale layers {stats.stale_layers}")
 
-Latency budget
-^^^^^^^^^^^^^^
-
-Where the milliseconds go between a photon hitting the camera sensor and the operator seeing it:
-
-#. **Capture + decode** — the camera's own exposure and readout, USB / MIPI transfer, and any
-   decode. Sources vary by an order of magnitude here; this is usually the largest term and it is
-   entirely outside Televiz.
-#. **Color conversion + upload to VRAM** — the producer's own CUDA work, if the source doesn't
-   already deliver RGBA8 on the GPU.
-#. **submit()** — a device-to-device copy plus a stream synchronize, on the producer's thread.
-#. **Mailbox wait** — up to one display interval, since a frame published just after the renderer
-   sampled waits for the next one. Submitting faster than the display rate cuts this term but
-   drops the extra frames.
-#. **Composite** — Televiz's render pass. In XR, layers with ``openxr_composition`` left on are
-   handed to the runtime rather than drawn by Televiz, so this term barely exists; what shows up
-   in ``gpu_time_ms`` is mostly the built-in-compositor path (window, offscreen, and quads that
-   opted out).
-#. **Runtime present + transport** — the XR runtime's own composition and reprojection, and with
-   CloudXR the encode, network hop, and headset-side decode.
-
-Steps 3–5 are the part Televiz controls, and on a desktop dGPU they are small. Measured on an
-RTX 6000 Ada in offscreen mode, one quad layer with default mipmap generation, median over 180
-frames:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 24 22 24
-
-   * - Layer
-     - ``submit()``
-     - ``render()``
-     - GPU composite
-   * - 1920×1080 mono
-     - 0.10 ms
-     - 0.13 ms
-     - 0.02 ms
-   * - 1920×1080 stereo
-     - 0.12 ms
-     - 0.14 ms
-     - 0.03 ms
-   * - 3840×2160 mono
-     - 0.15 ms
-     - 0.15 ms
-     - 0.04 ms
-
-Read these as an order of magnitude rather than a promise: they scale with pixel count, they are
-larger on Jetson, and the ``render()`` column excludes the frame wait a real display imposes.
-Steps 1 and 6 dominate any real deployment — budget by measuring your source's
-capture-to-``submit`` time, and CloudXR's own latency reporting for the transport, rather than by
-assuming the compositor is the problem.
-
 Session state
 -------------
 
