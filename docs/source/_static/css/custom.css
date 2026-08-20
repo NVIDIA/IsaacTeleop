@@ -85,7 +85,7 @@ a:focus {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.35em 0.75em;
+    padding: 0.6em 0.75em;
     border: 1px solid var(--pst-color-border);
     border-radius: 1.5em;
     background: var(--pst-color-surface);
@@ -97,6 +97,9 @@ a:focus {
 .version-switcher__label {
     font-weight: 600;
     font-size: 0.9em;
+    /* The select's line box is the UA's ``normal``; a taller one here rounds the
+       two texts onto different baselines at fractional zoom. */
+    line-height: normal;
     color: var(--pst-color-text-muted);
     white-space: nowrap;
 }
