@@ -23,8 +23,10 @@ inline XrPosef to_xr_posef(const core::Pose& pose)
     return result;
 }
 
-// Convert core::ControllerPose (FlatBuffers) to XrPosef with validity check
-// Returns identity pose if invalid
+// Convert core::ControllerPose (FlatBuffers) to XrPosef, reporting validity through
+// out_valid. The pose is converted either way -- its contents are unspecified while
+// out_valid is false, per the rule the pose schemas state. Callers that need a defined
+// filler take identity_posef() below.
 inline XrPosef to_xr_posef(const core::ControllerPose& controller_pose, bool& out_valid)
 {
     out_valid = controller_pose.is_valid();

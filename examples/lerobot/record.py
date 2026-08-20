@@ -120,13 +120,15 @@ def main():
                         session.update()
 
                         # Get hand data
-                        left_tracked: schema.HandPose = hand_tracker.get_left_hand(
+                        left_tracked: schema.HandPose | None = (
+                            hand_tracker.get_left_hand(session)
+                        )
+                        right_tracked: schema.HandPose | None = (
+                            hand_tracker.get_right_hand(session)
+                        )
+                        head_tracked: schema.HeadPose | None = head_tracker.get_head(
                             session
                         )
-                        right_tracked: schema.HandPose = hand_tracker.get_right_hand(
-                            session
-                        )
-                        head_tracked: schema.HeadPose = head_tracker.get_head(session)
 
                         # Extract positions and orientations (with defaults for invalid data)
                         left_pos = np.zeros(3, dtype=np.float32)

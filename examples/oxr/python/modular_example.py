@@ -75,11 +75,11 @@ def main():
                         print(f"[{elapsed:4.1f}s] Frame {frame_count}")
 
                         # Get hand data
-                        left_tracked: schema.HandPose = hand_tracker.get_left_hand(
-                            session
+                        left_tracked: schema.HandPose | None = (
+                            hand_tracker.get_left_hand(session)
                         )
-                        right_tracked: schema.HandPose = hand_tracker.get_right_hand(
-                            session
+                        right_tracked: schema.HandPose | None = (
+                            hand_tracker.get_right_hand(session)
                         )
 
                         if left_tracked:
@@ -103,7 +103,9 @@ def main():
                             print("  Right hand:  inactive")
 
                         # Get head data
-                        head_tracked: schema.HeadPose = head_tracker.get_head(session)
+                        head_tracked: schema.HeadPose | None = head_tracker.get_head(
+                            session
+                        )
                         if head_tracked:
                             pos = head_tracked.pose.position
                             print(

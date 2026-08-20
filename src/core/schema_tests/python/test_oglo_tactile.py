@@ -6,7 +6,6 @@
 Tests the following FlatBuffers types:
 - OgloGloveSample: tactile glove sample (seq, device_time_us, 80 taxels, 6-axis IMU)
 - OgloGloveSampleRecord: record wrapper carrying DeviceDataTimestamp
-- OgloGloveSample: tracked wrapper (data is None when inactive)
 """
 
 from isaacteleop.schema import (

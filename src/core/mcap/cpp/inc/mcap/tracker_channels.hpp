@@ -114,19 +114,20 @@ private:
 };
 
 /**
- * @brief Type-safe MCAP channel reader returning deserialized Record native types.
+ * @brief Type-safe MCAP channel reader returning owning handles over the recorded records.
  *
  * @tparam RecordT The FlatBuffer record wrapper stored in MCAP (e.g. HeadPoseRecord).
  *                 Must expose NativeTableType with UnPackTo().
  *
  * Read-side counterpart to McapTrackerChannels. Owns an McapReader and iterates
- * all registered sub-channels through a single LinearMessageView. Each message
- * is deserialized (FlatBuffer UnPack) before the iterator advances, because the
- * underlying FileReader buffer is only valid until the next read() call.
+ * all registered sub-channels through a single LinearMessageView. Each message is
+ * verified and copied into a buffer the returned handle owns before the iterator
+ * advances, because the underlying FileReader buffer is only valid until the next
+ * read() call.
  *
  * When the iterator yields a message for a channel other than the one requested
- * by the caller, the deserialized record is buffered in the corresponding
- * ChannelBuffer and returned on a subsequent read() for that channel index.
+ * by the caller, that handle is buffered in the corresponding ChannelBuffer and
+ * returned on a subsequent read() for that channel index.
  */
 template <typename RecordT>
 class McapTrackerViewers

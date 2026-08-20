@@ -32,13 +32,13 @@ PYBIND11_MODULE(_schema, m)
     // Bind pose types (Point, Quaternion, Pose structs).
     core::bind_pose(m);
 
-    // Bind head types (HeadPoseT table).
+    // Bind head types (HeadPose table).
     core::bind_head(m);
 
-    // Bind hand types (HandJointPose, HandJoints structs, HandPoseT table).
+    // Bind hand types (HandJointPose, HandJoints structs, HandPose table).
     core::bind_hand(m);
 
-    // Bind controller types (ControllerInputState, ControllerPose structs, ControllerSnapshotT table, Hand enum).
+    // Bind controller types (ControllerInputState, ControllerPose structs, ControllerSnapshot table, Hand enum).
     core::bind_controller(m);
 
     // Bind pedals types (Generic3AxisPedalOutput table).
@@ -50,7 +50,7 @@ PYBIND11_MODULE(_schema, m)
     // Bind joint-state types (JointState, JointStateOutput tables) for generic joint-space devices.
     core::bind_joint_state(m);
 
-    // Bind SE3 tracker types (Se3TrackerPoseT table) for generic 6-DoF pose sources.
+    // Bind SE3 tracker types (Se3TrackerPose table) for generic 6-DoF pose sources.
     core::bind_se3_tracker(m);
 
     // Bind message channel types (MessageChannelMessages table).
@@ -62,6 +62,6 @@ PYBIND11_MODULE(_schema, m)
     // Bind OAK types (StreamType enum, FrameMetadataOak table).
     core::bind_oak(m);
 
-    // Bind full body types (BodyJointPose, BodyJoints structs, FullBodyPoseT table).
+    // Bind full body types (BodyJointPose, BodyJoints structs, FullBodyPose table).
     core::bind_full_body(m);
 }

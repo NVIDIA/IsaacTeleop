@@ -6,7 +6,6 @@
 Tests the following FlatBuffers types:
 - Generic3AxisPedalOutput: Table with left_pedal, right_pedal, and rudder
 - Generic3AxisPedalOutputRecord: Record wrapper carrying DeviceDataTimestamp
-- Generic3AxisPedalOutput: Tracked wrapper (data is None when inactive)
 
 Timestamps are carried by Generic3AxisPedalOutputRecord, not Generic3AxisPedalOutput.
 """
