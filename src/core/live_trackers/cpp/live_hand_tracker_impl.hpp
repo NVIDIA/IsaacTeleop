@@ -59,10 +59,7 @@ private:
     std::vector<XrHandTrackerEXT> right_hand_trackers_;
     XrXDevListMNDX xdev_list_;
 
-    // Assembly scratch for the OpenXR query, and the encoded snapshots published from
-    // it each frame. Only the latter leave this class.
-    std::shared_ptr<HandPoseT> left_native_;
-    std::shared_ptr<HandPoseT> right_native_;
+    // The snapshots published each frame, encoded from locals in update().
     Serialized<HandPose> left_tracked_;
     Serialized<HandPose> right_tracked_;
     int64_t last_update_time_ = 0;

@@ -63,9 +63,7 @@ public:
 private:
     static int64_t record_monotonic_ns(const MessageChannelMessagesRecordT& record);
 
-    // Assembly scratch for the frame's batch, and the encoded snapshot published
-    // from it. Only the latter leaves this class.
-    MessageChannelMessagesTrackedT native_;
+    // The frame's batch, encoded from a local in update().
     Serialized<MessageChannelMessagesTracked> messages_;
     std::unique_ptr<MessageChannelMcapViewers> mcap_viewers_;
     // Holds the first record of the next frame, peeked but not yet

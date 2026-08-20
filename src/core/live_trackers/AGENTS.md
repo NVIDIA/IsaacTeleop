@@ -61,7 +61,9 @@ When adding MCAP support to a new **hand-written** tracker impl, all of the foll
 
 ## Publishing tracker output
 
-- An impl may keep a `-T` as **assembly scratch** (name it `native_`), but what it publishes is a `Serialized<XPayload>` encoded once per `update()`. Getters return the published handle; the scratch never escapes.
+- An impl may build a `-T` as **assembly scratch** (name it `native`), but what it publishes is a `Serialized<XPayload>` encoded once per `update()`. Getters return the published handle; the scratch never escapes.
+- **The scratch is a local of `update()`, never a member.** It is a temporary of one frame, so give it the lifetime of one frame — pass it to a helper by reference rather than promoting it to state. A member would outlive the encode and become a second copy of the payload that every exit path has to keep in step with the published handle; that is exactly how a tracker ends up publishing last frame's values while its scratch says otherwise. Reusing one across frames buys nothing either: the impls allocate the nested `Pose` / `HandJoints` / `ControllerPose` members fresh on every tick regardless.
+- The same applies to any per-frame working buffer, not just the payload: if a member is cleared at the top of `update()` and dead by the end of it, it is a local.
 - **Encode on every exit path of `update()`**, including early returns and the throwing ones (limp mode, locate failure) — otherwise a consumer keeps reading last frame's snapshot after the device drops out.
 - Encode into a **new** buffer each frame rather than over the previous one. Consumers hold snapshots, so a caller that read last frame must keep seeing last frame's values; this is what removed the old "valid until the next `session.update()`" caveat.
 - `SchemaTracker` does this for tensor-sourced trackers, and does it without encoding at all: the wire already carries the payload table, so it **adopts the sample's buffer**. Do not reintroduce an unpack on that path — the only reason it materialises a native is MCAP recording, which is why that unpack is gated on `mcap_channels_`.

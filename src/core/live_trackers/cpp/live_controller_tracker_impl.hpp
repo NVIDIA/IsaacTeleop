@@ -90,10 +90,7 @@ private:
     XrSpacePtr left_aim_space_;
     XrSpacePtr right_aim_space_;
 
-    // Assembly scratch for the OpenXR query, and the encoded snapshots published from it
-    // each frame. Only the latter leave this class.
-    std::shared_ptr<ControllerSnapshotT> left_native_;
-    std::shared_ptr<ControllerSnapshotT> right_native_;
+    // The snapshots published each frame, encoded from locals in update().
     Serialized<ControllerSnapshot> left_tracked_;
     Serialized<ControllerSnapshot> right_tracked_;
     int64_t last_update_time_ = 0;

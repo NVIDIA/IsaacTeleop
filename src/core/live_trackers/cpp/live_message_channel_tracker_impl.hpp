@@ -55,7 +55,7 @@ private:
     void destroy_channel() noexcept;
     bool try_reopen_channel();
     XrUuidEXT make_uuid(const std::array<uint8_t, MessageChannelTracker::CHANNEL_UUID_SIZE>& channel_uuid) const;
-    void drain_messages();
+    void drain_messages(MessageChannelMessagesTrackedT& native);
 
     OpenXRSessionHandles handles_;
     const MessageChannelTracker* tracker_{ nullptr };
@@ -74,9 +74,7 @@ private:
     XrTimeConverter time_converter_;
     int64_t last_update_time_ = 0;
     mutable bool instance_lost_ = false;
-    // Assembly scratch for the drained batch, and the encoded snapshot published
-    // from it each frame. Only the latter leaves this class.
-    MessageChannelMessagesTrackedT native_;
+    // The drained batch published each frame, encoded from a local in update().
     Serialized<MessageChannelMessagesTracked> messages_;
     std::vector<uint8_t> receive_buffer_;
     std::unique_ptr<MessageChannelMcapChannels> mcap_channels_;

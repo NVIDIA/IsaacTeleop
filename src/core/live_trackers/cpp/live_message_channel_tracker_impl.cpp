@@ -60,7 +60,7 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
     last_update_time_ = monotonic_time_ns;
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
 
-    native_.data.clear();
+    MessageChannelMessagesTrackedT native;
 
     try
     {
@@ -72,7 +72,7 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
         }
         else if (status == MessageChannelStatus::CONNECTED)
         {
-            drain_messages();
+            drain_messages(native);
         }
         // For other statuses (CONNECTING / SHUTTING / UNKNOWN), no messages
         // are drained but the sentinel write below still advances the
@@ -83,15 +83,15 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
         // Publish what was drained before the failure -- those messages came off the
         // channel and are gone from it. Publishing is also what keeps them from being
         // delivered twice: without it the handle still holds last frame's batch, and the
-        // next update clears `native_` and re-encodes it.
-        messages_ = pack<MessageChannelMessagesTracked>(native_);
+        // next update assembles into a fresh local and re-encodes it.
+        messages_ = pack<MessageChannelMessagesTracked>(native);
         throw;
     }
 
     // Always encode, including for an empty drain: unlike the single-payload trackers,
     // `data` here is a list, and "no messages this frame" is an empty batch rather than
     // an absent one.
-    messages_ = pack<MessageChannelMessagesTracked>(native_);
+    messages_ = pack<MessageChannelMessagesTracked>(native);
 
     if (mcap_channels_)
     {
@@ -104,13 +104,13 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
         // the replay from the per-frame trackers (head / hand / ...)
         // by the duration of the gap.
         DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        if (native_.data.empty())
+        if (native.data.empty())
         {
             mcap_channels_->write(0, timestamp, nullptr);
         }
         else
         {
-            for (const auto& msg : native_.data)
+            for (const auto& msg : native.data)
             {
                 mcap_channels_->write(0, timestamp, msg);
             }
@@ -118,7 +118,7 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
     }
 }
 
-void LiveMessageChannelTrackerImpl::drain_messages()
+void LiveMessageChannelTrackerImpl::drain_messages(MessageChannelMessagesTrackedT& native)
 {
     while (true)
     {
@@ -190,7 +190,7 @@ void LiveMessageChannelTrackerImpl::drain_messages()
 
         auto message = std::make_shared<MessageChannelMessagesT>();
         message->payload.assign(receive_buffer_.begin(), receive_buffer_.begin() + read_count);
-        native_.data.push_back(message);
+        native.data.push_back(message);
     }
 }
 

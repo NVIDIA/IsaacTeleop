@@ -51,9 +51,7 @@ private:
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrBodyTrackerBD body_tracker_;
-    // Assembly scratch for the OpenXR query, and the encoded snapshot published from it
-    // each frame. Only the latter leaves this class.
-    std::shared_ptr<FullBodyPoseT> native_;
+    // The snapshot published each frame, encoded from a local in update().
     Serialized<FullBodyPose> tracked_;
     int64_t last_update_time_ = 0;
 

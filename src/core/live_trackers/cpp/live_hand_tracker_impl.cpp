@@ -177,17 +177,19 @@ void LiveHandTrackerImpl::update(int64_t monotonic_time_ns)
 {
     last_update_time_ = monotonic_time_ns;
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
-    update_hand(left_hand_trackers_, xr_time, left_native_);
-    update_hand(right_hand_trackers_, xr_time, right_native_);
+    std::shared_ptr<HandPoseT> left_native;
+    std::shared_ptr<HandPoseT> right_native;
+    update_hand(left_hand_trackers_, xr_time, left_native);
+    update_hand(right_hand_trackers_, xr_time, right_native);
 
-    left_tracked_ = pack_optional<HandPose>(left_native_);
-    right_tracked_ = pack_optional<HandPose>(right_native_);
+    left_tracked_ = pack_optional<HandPose>(left_native);
+    right_tracked_ = pack_optional<HandPose>(right_native);
 
     if (mcap_channels_)
     {
         DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        mcap_channels_->write(0, timestamp, left_native_);
-        mcap_channels_->write(1, timestamp, right_native_);
+        mcap_channels_->write(0, timestamp, left_native);
+        mcap_channels_->write(1, timestamp, right_native);
     }
 }
 

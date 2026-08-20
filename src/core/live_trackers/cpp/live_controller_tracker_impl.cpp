@@ -354,6 +354,8 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
     XrActionsSyncState2NV sync_state{ XR_TYPE_ACTIONS_SYNC_STATE_2_NV };
 
     XrResult result = XR_SUCCESS;
+    std::shared_ptr<ControllerSnapshotT> left_native;
+    std::shared_ptr<ControllerSnapshotT> right_native;
 
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
                                  std::shared_ptr<ControllerSnapshotT>& tracked)
@@ -439,29 +441,27 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
             throw std::runtime_error("[ControllerTracker] xrSyncActions2NV failed: " + std::to_string(result));
         }
 
-        update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_native_);
-        update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_native_);
+        update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_native);
+        update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_native);
     }
     catch (...)
     {
         // Nothing here reached the encode below, and a failure on the left hand leaves the
         // right one unqueried entirely, so both handles are stale rather than just the
-        // failing one. Drop all four so callers cannot observe last frame's poses.
-        left_native_.reset();
-        right_native_.reset();
+        // failing one. Drop both so callers cannot observe last frame's poses.
         left_tracked_.reset();
         right_tracked_.reset();
         throw;
     }
 
-    left_tracked_ = pack_optional<ControllerSnapshot>(left_native_);
-    right_tracked_ = pack_optional<ControllerSnapshot>(right_native_);
+    left_tracked_ = pack_optional<ControllerSnapshot>(left_native);
+    right_tracked_ = pack_optional<ControllerSnapshot>(right_native);
 
     if (mcap_channels_)
     {
         DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        mcap_channels_->write(0, timestamp, left_native_);
-        mcap_channels_->write(1, timestamp, right_native_);
+        mcap_channels_->write(0, timestamp, left_native);
+        mcap_channels_->write(1, timestamp, right_native);
     }
 }
 

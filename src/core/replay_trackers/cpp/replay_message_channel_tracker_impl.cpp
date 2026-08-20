@@ -45,7 +45,7 @@ void ReplayMessageChannelTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     // sharing the first pending record's timestamp. See the class
     // docstring for the invariant this relies on (the live recorder
     // writes ≥1 record per session.update()).
-    native_.data.clear();
+    MessageChannelMessagesTrackedT native;
 
     try
     {
@@ -64,7 +64,7 @@ void ReplayMessageChannelTrackerImpl::update(int64_t /*monotonic_time_ns*/)
                 // the next update reads the following frame.
                 if (pending_record_->data)
                 {
-                    native_.data.push_back(std::move(pending_record_->data));
+                    native.data.push_back(std::move(pending_record_->data));
                 }
                 pending_record_ = mcap_viewers_->read(0);
             }
@@ -75,14 +75,14 @@ void ReplayMessageChannelTrackerImpl::update(int64_t /*monotonic_time_ns*/)
         // Publish the part of the frame that was read -- those records have been consumed
         // from the viewer either way. Publishing is also what keeps them from being
         // delivered twice: without it the handle still holds last frame's batch, and the
-        // next update clears `native_` and re-encodes it.
-        messages_ = pack<MessageChannelMessagesTracked>(native_);
+        // next update assembles into a fresh local and re-encodes it.
+        messages_ = pack<MessageChannelMessagesTracked>(native);
         throw;
     }
 
     // Always encode, including for an empty batch: `data` is a list here, so "no
     // messages this frame" is an empty batch rather than an absent one.
-    messages_ = pack<MessageChannelMessagesTracked>(native_);
+    messages_ = pack<MessageChannelMessagesTracked>(native);
 }
 
 MessageChannelStatus ReplayMessageChannelTrackerImpl::get_status() const

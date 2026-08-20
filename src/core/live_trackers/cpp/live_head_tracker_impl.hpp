@@ -45,9 +45,7 @@ private:
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrSpacePtr view_space_;
-    // Assembly scratch for the OpenXR query, and the encoded snapshot published from it
-    // each frame. Only the latter leaves this class.
-    std::shared_ptr<HeadPoseT> native_;
+    // The snapshot published each frame, encoded from a local in update().
     Serialized<HeadPose> tracked_;
     int64_t last_update_time_ = 0;
     std::unique_ptr<HeadMcapChannels> mcap_channels_;
