@@ -35,7 +35,10 @@ def _font(path: str, size: int):
     try:
         return ImageFont.truetype(path, size)
     except OSError:
-        return ImageFont.load_default(size)
+        # No size argument: it arrived in Pillow 10.1 and the floor here is
+        # 10.0. The fallback bitmap font ignores size anyway, so asking for
+        # one only risks a TypeError on the version we claim to support.
+        return ImageFont.load_default()
 
 
 # One size for both lines: a smaller continuation line reads as a different
