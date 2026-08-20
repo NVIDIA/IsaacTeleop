@@ -12,8 +12,6 @@
                 {
                     throw py::value_error("push(): data must be a non-empty @FB_TABLE@");
                 }
-                core::@DATA_TYPE@ native;
-                data->UnPackTo(&native);
-                self.push(session, native);
+                self.push(session, data);
             },
             py::arg("session"), py::arg("data"), "Push one @FB_TABLE@ to the paired consumer.");

@@ -23,7 +23,7 @@ public:
     }
     @LIVE_IMPL@(const OpenXRSessionHandles& handles, const @CLASS@* tracker);
     void update(int64_t monotonic_time_ns) override;
-    void push(const @DATA_TYPE@& data) const override;
+    void push(const Serialized<@FB_TABLE@>& data) const override;
 
 private:
     mutable SchemaPusher pusher_;

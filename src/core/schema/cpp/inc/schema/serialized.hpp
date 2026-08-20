@@ -43,6 +43,8 @@
 
 #include <cassert>
 #include <memory>
+#include <span>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -76,7 +78,10 @@ public:
     //! move `owner_` out but copy `ptr_`, leaving a handle that tests true and dereferences
     //! into a buffer it no longer has a claim on -- and that `narrow()` would hand an
     //! owner-less pointer out of.
-    Serialized(Serialized&& other) noexcept : owner_(std::move(other.owner_)), ptr_(std::exchange(other.ptr_, nullptr))
+    Serialized(Serialized&& other) noexcept
+        : owner_(std::move(other.owner_)),
+          ptr_(std::exchange(other.ptr_, nullptr)),
+          buffer_(std::exchange(other.buffer_, {}))
     {
     }
 
@@ -84,6 +89,7 @@ public:
     {
         owner_ = std::move(other.owner_);
         ptr_ = std::exchange(other.ptr_, nullptr);
+        buffer_ = std::exchange(other.buffer_, {});
         return *this;
     }
 
@@ -96,7 +102,7 @@ public:
     static Serialized adopt(flatbuffers::FlatBufferBuilder& fbb)
     {
         auto owner = std::make_shared<const flatbuffers::DetachedBuffer>(fbb.Release());
-        return Serialized(owner, flatbuffers::GetRoot<T>(owner->data()));
+        return Serialized(owner, flatbuffers::GetRoot<T>(owner->data()), { owner->data(), owner->size() });
     }
 
     /*!
@@ -109,7 +115,23 @@ public:
     static Serialized adopt(std::vector<uint8_t>&& bytes)
     {
         auto owner = std::make_shared<const std::vector<uint8_t>>(std::move(bytes));
-        return Serialized(owner, flatbuffers::GetRoot<T>(owner->data()));
+        return Serialized(owner, flatbuffers::GetRoot<T>(owner->data()), { owner->data(), owner->size() });
+    }
+
+    /*!
+     * @brief The whole encoded buffer, when this handle is the one that adopted it.
+     *
+     * Lets already-encoded bytes reach a sink that takes a pointer and a length -- a
+     * tensor push, an MCAP write -- without decoding and re-encoding them on the way.
+     *
+     * Empty unless the handle came from `adopt()`. `narrow()` deliberately does not carry
+     * it: a narrowed handle points *inside* a buffer whose root is some other table, so
+     * those bytes are not a buffer rooted at `T` and handing them to a reader expecting
+     * one would be wrong.
+     */
+    std::span<const uint8_t> buffer() const noexcept
+    {
+        return buffer_;
     }
 
     //! Narrows to a table nested inside this buffer, sharing the owner. Null `ptr`
@@ -118,7 +140,23 @@ public:
     template <typename U>
     Serialized<U> narrow(const U* ptr) const
     {
-        return ptr != nullptr ? Serialized<U>(owner_, ptr) : Serialized<U>();
+        if (ptr == nullptr)
+        {
+            return Serialized<U>();
+        }
+
+        // Narrowing onto this handle's own table is a copy, so it keeps the bytes: they are
+        // still a buffer rooted at U. Only a narrow that re-points *inside* the buffer
+        // drops them, because from there they no longer delimit a buffer rooted at U.
+        if constexpr (std::is_same_v<U, T>)
+        {
+            if (ptr == ptr_)
+            {
+                return Serialized<U>(owner_, ptr, buffer_);
+            }
+        }
+
+        return Serialized<U>(owner_, ptr);
     }
 
     //! Encoded table, or null when this handle points at nothing.
@@ -153,11 +191,18 @@ public:
     {
         owner_.reset();
         ptr_ = nullptr;
+        buffer_ = {};
     }
 
 private:
+    Serialized(std::shared_ptr<const void> owner, const T* ptr, std::span<const uint8_t> buffer)
+        : owner_(std::move(owner)), ptr_(ptr), buffer_(buffer)
+    {
+    }
+
     std::shared_ptr<const void> owner_;
     const T* ptr_ = nullptr;
+    std::span<const uint8_t> buffer_;
 };
 
 /*!

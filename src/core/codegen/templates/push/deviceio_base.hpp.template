@@ -3,12 +3,13 @@
 
 #pragma once
 #include <deviceio_base/tracker.hpp>
+#include <schema/serialized.hpp>
 namespace core
 {
-struct @DATA_TYPE@;
+struct @FB_TABLE@;
 class @IFACE@ : public ITrackerImpl
 {
 public:
-    virtual void push(const @DATA_TYPE@& data) const = 0;
+    virtual void push(const Serialized<@FB_TABLE@>& data) const = 0;
 };
 } // namespace core

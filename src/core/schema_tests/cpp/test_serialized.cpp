@@ -124,3 +124,44 @@ TEST_CASE("Narrowing an absent nested table yields an empty handle", "[serialize
     REQUIRE(record->data() == nullptr);
     CHECK(!record.narrow(record->data()));
 }
+
+TEST_CASE("An adopted handle can hand over the bytes it owns", "[serialized]")
+{
+    const core::JointStateOutputT native = make_native();
+    const auto output = core::pack<core::JointStateOutput>(native);
+
+    // The whole encoded buffer, ready for a sink that takes a pointer and a length.
+    const auto bytes = output.buffer();
+    REQUIRE_FALSE(bytes.empty());
+    CHECK(flatbuffers::GetRoot<core::JointStateOutput>(bytes.data()) == output.get());
+
+    // Narrowing inside the buffer does not carry it: those bytes are a buffer rooted at
+    // JointStateOutput, not at the nested table, so handing them to a reader expecting one
+    // would be wrong.
+    const core::Serialized<core::JointState> nested = output.narrow(output->joints()->Get(0));
+    REQUIRE(nested);
+    CHECK(nested.buffer().empty());
+
+    // Narrowing onto the handle's own table re-points at nothing, so it is a copy and the
+    // bytes stay -- they are still a buffer rooted at JointStateOutput.
+    const auto self = output.narrow(output.get());
+    REQUIRE(self);
+    CHECK(self.get() == output.get());
+    CHECK(self.buffer().data() == bytes.data());
+    CHECK(self.buffer().size() == bytes.size());
+}
+
+TEST_CASE("Emptying a handle drops the bytes with it", "[serialized]")
+{
+    const core::JointStateOutputT native = make_native();
+
+    auto output = core::pack<core::JointStateOutput>(native);
+    REQUIRE_FALSE(output.buffer().empty());
+    output.reset();
+    CHECK(output.buffer().empty());
+
+    auto source = core::pack<core::JointStateOutput>(native);
+    const auto moved = std::move(source);
+    CHECK_FALSE(moved.buffer().empty());
+    CHECK(source.buffer().empty());
+}

@@ -12,7 +12,7 @@ namespace core
 {
     // No-op: members set in the initializer list.
 }
-void @CLASS@::push(const ITrackerSession& session, const @DATA_TYPE@& data) const
+void @CLASS@::push(const ITrackerSession& session, const Serialized<@FB_TABLE@>& data) const
 {
     static_cast<const @IFACE@&>(session.get_tracker_impl(*this)).push(data);
 }

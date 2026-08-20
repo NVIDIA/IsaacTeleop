@@ -3,8 +3,10 @@
 
 #include "@LIVE_IMPL_FILE@.hpp"
 
-#include <flatbuffers/flatbuffers.h>
 #include <oxr_utils/os_time.hpp>
+
+#include <span>
+#include <stdexcept>
 
 namespace core
 {
@@ -29,12 +31,16 @@ void @LIVE_IMPL@::update(int64_t monotonic_time_ns)
 {
     last_update_time_ns_ = monotonic_time_ns;
 }
-void @LIVE_IMPL@::push(const @DATA_TYPE@& data) const
+void @LIVE_IMPL@::push(const Serialized<@FB_TABLE@>& data) const
 {
-    flatbuffers::FlatBufferBuilder builder(pusher_.config().max_flatbuffer_size);
-    auto offset = @FB_TABLE@::Pack(builder, &data);
-    builder.Finish(offset);
+    // The handle already holds the wire payload, so this is a copy into the tensor and
+    // nothing else -- no unpack on the way in, no re-encode on the way out.
+    const std::span<const uint8_t> bytes = data.buffer();
+    if (bytes.empty())
+    {
+        throw std::invalid_argument("@CLASS@::push: data must be an encoded @FB_TABLE@");
+    }
     const int64_t now_ns = last_update_time_ns_ > 0 ? last_update_time_ns_ : core::os_monotonic_now_ns();
-    pusher_.push_buffer(builder.GetBufferPointer(), builder.GetSize(), now_ns, now_ns);
+    pusher_.push_buffer(bytes.data(), bytes.size(), now_ns, now_ns);
 }
 } // namespace core
