@@ -732,9 +732,15 @@ up faster.</p></li>
     <span class="n">search_paths</span><span class="o">=</span><span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="s2">"/path/to/plugins"</span><span class="p">)],</span>
     <span class="n">enabled</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="n">plugin_args</span><span class="o">=</span><span class="p">[</span><span class="s2">"--arg1=val1"</span><span class="p">,</span> <span class="s2">"--arg2=val2"</span><span class="p">],</span>
+    <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>
+<p>Plugins are optional by default: if none of their search paths exist or the
+configured plugin is not discovered, session startup continues without them.
+Set <code class="docutils literal notranslate"><span class="pre">required=True</span></code> to make either condition fail session startup with a
+<code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code>. Setting <code class="docutils literal notranslate"><span class="pre">enabled=False</span></code> always disables the plugin,
+regardless of <code class="docutils literal notranslate"><span class="pre">required</span></code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Any <code class="docutils literal notranslate"><span class="pre">--plugin-root-id=...</span></code> in <code class="docutils literal notranslate"><span class="pre">plugin_args</span></code> is ignored so that the
