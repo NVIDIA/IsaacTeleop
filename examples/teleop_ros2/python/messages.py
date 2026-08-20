@@ -28,6 +28,7 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
 from constants import BODY_JOINT_NAMES, HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES
 from geometry import (
     apply_manus_controller_to_hand_pose,
+    apply_relative_pose,
     apply_transform_to_pose,
     make_transform,
     to_pose,
@@ -235,6 +236,33 @@ def build_controller_msg(
     )
 
 
+def rebase_ee_poses_relative_to_head(
+    ee_poses_msg: NamedPoseArray,
+    head_msg: PoseStamped | None,
+    left_wrist_frame: str,
+    right_wrist_frame: str,
+) -> tuple[NamedPoseArray, list[TransformStamped]]:
+    relative_poses: list[Pose | None] = []
+    for pose, is_valid in zip(ee_poses_msg.pose, ee_poses_msg.is_valid):
+        if is_valid:
+            relative_poses.append(apply_relative_pose(head_msg.pose, pose))
+        else:
+            relative_poses.append(None)
+
+    rebased_msg = _compose_ee_msg(
+        relative_poses[0],
+        relative_poses[1],
+        ee_poses_msg.header.stamp,
+        "head",
+    )
+
+    return rebased_msg, _wrist_tfs_from_ee_msg(
+        rebased_msg,
+        left_wrist_frame,
+        right_wrist_frame,
+    )
+
+
 def build_ee_output_from_controllers(
     left_ctrl: OptionalTensorGroup,
     right_ctrl: OptionalTensorGroup,
@@ -278,6 +306,7 @@ def build_ee_output_from_hands(
     right_wrist_frame: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
+    reference_pose: Pose | None = None,
 ) -> tuple[NamedPoseArray, list[TransformStamped]]:
     """Build the hand-derived EE message and its valid wrist TFs."""
     left_pose = _compute_ee_pose_from_hand(
