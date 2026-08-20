@@ -547,6 +547,14 @@ QuadLayer / CylinderLayer / EquirectLayer
 
 - ``submit(left, right=None, stream=0)`` — submit a frame (mono: ``left`` only; stereo: both).
 - ``set_placement(placement)`` / ``placement()`` — placement swap, thread-safe vs the frame loop.
+- ``set_stereo_baseline_mm(mm)`` / ``stereo_baseline_mm`` — live per-eye offset, thread-safe vs
+  the frame loop; applies on the next frame. Inert while the layer is mono, since ``stereo`` is
+  fixed at construction. Raises ``ValueError`` on a non-finite value.
+- ``set_stereo_convergence_deg(deg)`` / ``stereo_convergence_deg`` (``CylinderLayer`` /
+  ``EquirectLayer``) — the same idea as a per-eye yaw instead of a translation. Prefer it on a
+  curved surface: translating one gives full disparity dead ahead and less toward the edges, and
+  none at all at infinite radius, while a rotation is uniform across the arc and works at any
+  radius.
   ``QuadLayer`` accepts ``None`` (fullscreen, window mode); the shaped layers validate and raise
   ``ValueError`` on bad shape parameters.
 - ``set_visible(visible)`` / ``is_visible()``.

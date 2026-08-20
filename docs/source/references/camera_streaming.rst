@@ -210,6 +210,50 @@ In XR, how a plane follows the operator's head is the per-camera ``lock_mode`` u
 Lazy-mode knobs live under ``placements.<name>``: ``look_away_angle_deg``,
 ``reposition_distance``, ``reposition_delay_s``, ``transition_duration_s``.
 
+Controller bindings
+^^^^^^^^^^^^^^^^^^^
+
+In XR the controllers retune the view live, without editing the YAML and restarting. The right
+hand changes how the feed looks; the left, what surface it is mapped onto:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+
+   * - Input
+     - Effect
+   * - Right stick ←/→
+     - Stereo plane gap — how far apart the two eyes' planes sit
+       (``placements.<cam>.stereo_plane_distance_cm``). Widening it pushes the scene back
+       instead of packing it into the space in front of the planes. Stereo cameras only; on
+       ``equirect``, which has no gap to set, the same stick pans the panorama.
+   * - Right stick click
+     - Recenter on your view: an ``equirect`` yaws so the middle of the panorama lands dead
+       ahead, and a placed surface re-snaps its anchor.
+   * - ``A``
+     - Cycle the lock mode: ``world`` → ``head`` → ``gimbal`` → ``lazy``.
+   * - ``B``
+     - Toggle mono / stereo. Stereo cameras only.
+   * - ``X``
+     - Cycle the shape: ``quad`` → ``cylinder`` → ``equirect``.
+   * - ``Y``
+     - Reset everything to the YAML values.
+   * - Left stick
+     - Retunes the active shape: ``quad`` size / vertical position, ``cylinder`` arc width /
+       vertical position, ``equirect`` horizontal / vertical span.
+
+Changes apply to every camera at once and appear both on the terminal status panel and on a
+head-locked panel in the headset that auto-hides shortly after. Neither toggle reallocates:
+``B`` sends the left frame to both eyes, and ``X`` flips visibility between shapes built at
+startup, so the extra shapes cost VRAM (reported at startup) rather than a stall on the press.
+
+The stereo gap is bounded below **divergent parallax** — a gap wider than your IPD would need
+the eyes to splay outward — and the headset's measured IPD sets that ceiling, not the config.
+The HUD suggests a gap derived from the plane distance and that IPD.
+
+Bindings, rates and limits live under ``display.controls``; see the
+:code-file:`README <examples/camera_viz/README.md>` for the full set.
+
 Display surfaces
 ----------------
 
@@ -232,7 +276,10 @@ panoramic sources look better on a curved surface: set ``shape`` per camera unde
        visor).
    * - ``equirect``
      - Full 360°×180° sphere around the operator, for equirectangular panorama / VR-video
-       sources. Lock modes don't apply.
+       sources. The middle of the texture points along ``equirect_yaw_deg`` (0 = the
+       direction the headset last recentered on, positive to the left), which is how a camera
+       mounted facing another way gets aimed. Lock modes don't apply — the sphere is centred
+       on the operator and follows them everywhere.
 
 Curved shapes exist only in XR mode — the viewer exits with an error in window mode. Stereo
 sources render per-eye textures on the same surface, and ``stereo_baseline_mm`` adds a per-eye
@@ -255,6 +302,31 @@ serving. Useful flags:
 - ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
+
+Runtime settings themselves are declared in the config rather than exported. The viewer ships
+defaults (pose wait off, runtime foveation on), and ``display.cloudxr`` overrides them per
+deployment — list only what you want to change:
+
+.. code-block:: yaml
+
+   display:
+     cloudxr:
+       NV_DEVICE_PROFILE: apple-vision-pro
+       NV_ENABLE_POSE_WAIT: null   # null drops a viewer default
+
+The viewer writes these to a generated ``--cloudxr-env-config`` file, which outranks the process
+environment — so a value left in your shell (for example after sourcing
+``~/.cloudxr/run/cloudxr.env``, as ``--no-launch-cloudxr-runtime`` suggests) cannot silently
+override the config, and neither can it override ``--cloudxr-device-profile``. Booleans are
+written in the lowercase spelling the runtime's parser recognises; the launcher-computed keys
+(``XR_RUNTIME_JSON``, ``NV_CXR_RUNTIME_DIR``, ``NV_CXR_OUTPUT_DIR``, ``XRT_NO_STDIN``) are
+rejected by name. Passing ``--cloudxr-env-config`` yourself takes precedence over the generated
+file.
+
+An unknown variable name warns with a suggestion before the runtime launches, and is passed
+through regardless — the runtime has more settings than the viewer lists. To confirm what the
+runtime resolved, read the settings dump at the top of the newest
+``~/.cloudxr/logs/cxr_server.*.log``.
 
 Split mode — robot → workstation over RTP
 -----------------------------------------
@@ -341,8 +413,9 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
          lock_mode: lazy         # world | head | lazy | gimbal
          distance: 1.5
          # size: [w_m, h_m]
-         # stereo_baseline_mm: 0
+         # stereo_plane_distance_cm: 0   # gap between the eyes' planes
          # shape: quad           # quad | cylinder | equirect (cylinder/equirect are XR-only)
+         # equirect_yaw_deg: 0.0  # equirect: heading the middle of the feed points at
          # compositor: openxr    # openxr (default) | televiz — quads only
          # cylinder_radius_m: 2.0
          # cylinder_angle_deg: 90
