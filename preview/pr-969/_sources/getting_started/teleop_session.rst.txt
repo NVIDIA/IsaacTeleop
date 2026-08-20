@@ -328,7 +328,14 @@ Configure plugins:
        search_paths=[Path("/path/to/plugins")],
        enabled=True,
        plugin_args=["--arg1=val1", "--arg2=val2"],
+       required=True,
    )
+
+Plugins are optional by default: if none of their search paths exist or the
+configured plugin is not discovered, session startup continues without them.
+Set ``required=True`` to make either condition fail session startup with a
+``RuntimeError``. Setting ``enabled=False`` always disables the plugin,
+regardless of ``required``.
 
 .. note::
 
