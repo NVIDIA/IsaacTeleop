@@ -37,17 +37,12 @@ __all__ = [
 ]
 
 
-#: Camera types whose ``path:`` points at a recording on disk.
-_FILE_SOURCE_TYPES = ("video", "hvs2")
-
-
 def resolve_video_paths(cfg: dict, base_dir) -> None:
-    """Expand ``~`` in every file source's ``path:`` and anchor relative ones
-    to the YAML file's directory (in place), so playback depends on neither
-    the shell that expanded the tilde nor the process CWD. Call right after
-    loading the config."""
+    """Anchor relative ``path:`` values of ``type: video`` cameras to the
+    YAML file's directory (in place), so playback doesn't depend on the
+    process CWD. Call right after loading the config."""
     for cam in cfg.get("cameras", []):
-        if cam.get("type") in _FILE_SOURCE_TYPES and "path" in cam:
+        if cam.get("type") == "video" and "path" in cam:
             p = Path(str(cam["path"])).expanduser()
             if not p.is_absolute():
                 p = Path(base_dir) / p
@@ -126,21 +121,6 @@ def build_local_camera(spec: dict) -> List[FrameSource]:
                 )
             return [PairedFrameSource(name=name, left=eyes[0], right=eyes[1])]
         return eyes
-    if kind == "hvs2":
-        # argus_sender's stereo wire format: one record per capture pair, so
-        # one source emits both eyes and eye sync is exact. Viewer-only,
-        # like the other replay sources.
-        from .hvs2 import DEFAULT_FPS, Hvs2Source
-
-        return [
-            Hvs2Source(
-                path=Path(spec["path"]),
-                name=name,
-                fps=float(spec.get("fps", DEFAULT_FPS)),
-                loop=bool(spec.get("loop", True)),
-                gpu_id=int(spec.get("gpu_id", 0)),
-            )
-        ]
     if kind == "video":
         # Stereo (side-by-side file) emits both eyes from one source, like
         # SyntheticStereoSource — viewer-only; camera_streamer's
