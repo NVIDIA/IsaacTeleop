@@ -95,6 +95,7 @@ class Dashboard:
         self._lock = threading.Lock()
         self._painted = 0
         self._columns = 0
+        self._closed = False
         self._live = self._out.isatty() if hasattr(self._out, "isatty") else False
         self._colour = self._live if colour is None else colour
 
@@ -150,6 +151,10 @@ class Dashboard:
             self._note(text)
 
     def _note(self, text: str) -> None:
+        if self._closed:
+            # A source thread can outlive runner.stop() and notify into a
+            # panel that has already handed the cursor back.
+            return
         if self._live and self._painted:
             self._out.write(f"\033[{self._painted}A")
             for _ in range(self._painted):
@@ -161,8 +166,9 @@ class Dashboard:
 
     def close(self) -> None:
         """Leave the cursor below the panel so a later print doesn't land in
-        the middle of it."""
+        the middle of it. Idempotent, and silences later notes."""
         with self._lock:
+            self._closed = True
             if self._live and self._painted:
                 self._out.write("\n")
                 self._out.flush()

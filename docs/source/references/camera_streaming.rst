@@ -435,7 +435,7 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
          lock_mode: lazy         # world | head | lazy | gimbal
          distance: 1.5
          # size: [w_m, h_m]
-         # stereo_baseline_mm: 0
+         # stereo_plane_distance_cm: 0   # gap between the eyes' planes
          # shape: quad           # quad | cylinder | equirect (cylinder/equirect are XR-only)
          # equirect_yaw_deg: 0.0  # equirect: heading the middle of the feed points at
          # compositor: openxr    # openxr (default) | televiz — quads only

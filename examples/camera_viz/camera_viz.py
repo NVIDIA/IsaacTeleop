@@ -333,6 +333,9 @@ def main(argv: Optional[list[str]] = None) -> int:
             # OS reaps at exit. Leave the CloudXR runtime up too (see the
             # launch_ctx comment above).
             clean = runner.stop()
+            # Unhook first: a source thread that outlives stop() would
+            # otherwise notify into a panel that has closed.
+            set_notify_sink(None)
             dashboard.close()
             if clean:
                 if controls is not None:
