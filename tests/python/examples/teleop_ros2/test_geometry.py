@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation
 
 from geometry import (
     apply_manus_controller_to_hand_pose,
+    apply_relative_pose,
     apply_transform_to_pose,
     to_pose,
 )
@@ -80,3 +81,55 @@ def test_manus_calibration_is_side_specific_and_finite() -> None:
 def test_manus_calibration_rejects_unknown_side() -> None:
     with pytest.raises(ValueError, match="side must be 'left' or 'right'"):
         apply_manus_controller_to_hand_pose(to_pose([0.0, 0.0, 0.0]), "center")
+
+
+def test_relative_pose_with_unrotated_reference_subtracts_position() -> None:
+    reference = to_pose([0.0, 0.10, 1.60])
+    pose = to_pose([-0.20, 0.15, 1.20])
+
+    relative = apply_relative_pose(reference, pose)
+
+    np.testing.assert_allclose(_position(relative), [-0.20, 0.05, -0.40], atol=1e-7)
+
+
+def test_relative_pose_rotates_the_offset_into_the_reference_basis() -> None:
+    # Subtracting positions alone would leave the offset unchanged, so a yawed
+    # reference is what distinguishes a correct implementation from that one.
+    reference = to_pose(
+        [0.0, 0.10, 1.60],
+        Rotation.from_euler("z", 90.0, degrees=True).as_quat(),
+    )
+    pose = to_pose([-0.20, 0.15, 1.20])
+
+    relative = apply_relative_pose(reference, pose)
+
+    np.testing.assert_allclose(_position(relative), [0.05, 0.20, -0.40], atol=1e-7)
+
+
+def test_relative_pose_composes_orientation_instead_of_changing_its_basis() -> None:
+    # Conjugation would return the pose orientation unchanged here; composition
+    # returns the reference's inverse.
+    reference_rotation = Rotation.from_euler("z", 40.0, degrees=True)
+    reference = to_pose([0.0, 0.0, 0.0], reference_rotation.as_quat())
+    pose = to_pose([0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
+
+    relative = apply_relative_pose(reference, pose)
+
+    np.testing.assert_allclose(
+        Rotation.from_quat(_orientation(relative)).as_matrix(),
+        reference_rotation.inv().as_matrix(),
+        atol=1e-7,
+    )
+
+
+def test_relative_pose_returns_a_new_pose_without_mutating_inputs() -> None:
+    reference = to_pose([1.0, 0.0, 0.0])
+    pose = to_pose([3.0, 0.0, 0.0])
+
+    relative = apply_relative_pose(reference, pose)
+
+    assert relative is not pose
+    assert relative is not reference
+    np.testing.assert_allclose(_position(reference), [1.0, 0.0, 0.0])
+    np.testing.assert_allclose(_position(pose), [3.0, 0.0, 0.0])
+    np.testing.assert_allclose(_position(relative), [2.0, 0.0, 0.0])
