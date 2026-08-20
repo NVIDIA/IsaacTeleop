@@ -33,8 +33,6 @@ standardizing high-fidelity human demo data collection; and foster device & data
 - Standardized device interface
 - Flexible retargeting framework
 
-See the [Ecosystem](https://nvidia.github.io/IsaacTeleop/main/overview/ecosystem.html) page for supported robotics stacks, devices, and retargeting details.
-
 ### Teleoperation Use Cases
 
 - Currently supported use cases

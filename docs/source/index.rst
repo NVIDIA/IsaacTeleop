@@ -42,7 +42,6 @@ Table of Contents
 
    Isaac Teleop <self>
    overview/architecture
-   overview/ecosystem
 
 .. toctree::
    :maxdepth: 2
