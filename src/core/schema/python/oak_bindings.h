@@ -10,7 +10,6 @@
 
 #include <pybind11/pybind11.h>
 #include <schema/oak_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <cstdint>
 #include <string>

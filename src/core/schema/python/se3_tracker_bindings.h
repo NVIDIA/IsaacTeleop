@@ -11,7 +11,6 @@
 
 #include <pybind11/pybind11.h>
 #include <schema/se3_tracker_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <memory>
 #include <string>

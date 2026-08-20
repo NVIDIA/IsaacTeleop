@@ -12,7 +12,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/joint_state_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <memory>
 #include <string>

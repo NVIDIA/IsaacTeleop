@@ -13,7 +13,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/full_body_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <array>
 #include <cstddef>

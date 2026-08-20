@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the vendor-neutral HapticCommand FlatBuffer schema.
-// Types: HapticCommand (table) and HapticCommandRecord.
+// Only HapticCommand is bound: this schema's Record wrapper exists to satisfy the
+// SchemaTracker<RecordT, DataTableT> template, and the tracker is push-direction with
+// recording disabled, so nothing ever hands one to Python.
 //
 // The constructor is the only producer-side entry point: it encodes, so the command
 // a caller builds is already the wire payload HapticCommandPushTracker.push() carries
@@ -38,8 +40,6 @@ inline void bind_haptic_command(py::module& m)
              py::arg("endpoint") = std::string{}, py::arg("values") = std::vector<float>{}, "Encode a haptic command.")
         .def_property_readonly("endpoint", string_field(&HapticCommand::endpoint))
         .def_property_readonly("values", vector_field(&HapticCommand::values));
-
-    bind_record<HapticCommandRecord, HapticCommand>(m, "HapticCommandRecord", "HapticCommand");
 }
 
 } // namespace core

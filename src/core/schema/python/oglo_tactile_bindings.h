@@ -11,7 +11,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/oglo_tactile_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <cstdint>
 #include <string>
