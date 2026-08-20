@@ -177,20 +177,14 @@ void LiveHandTrackerImpl::update(int64_t monotonic_time_ns)
 {
     last_update_time_ = monotonic_time_ns;
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
-    std::shared_ptr<HandPoseT> left_native;
-    std::shared_ptr<HandPoseT> right_native;
+    std::optional<HandPoseT> left_native;
+    std::optional<HandPoseT> right_native;
     update_hand(left_hand_trackers_, xr_time, left_native);
     update_hand(right_hand_trackers_, xr_time, right_native);
 
-    left_tracked_ = pack_optional<HandPose>(left_native);
-    right_tracked_ = pack_optional<HandPose>(right_native);
-
-    if (mcap_channels_)
-    {
-        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        mcap_channels_->write(0, timestamp, left_native);
-        mcap_channels_->write(1, timestamp, right_native);
-    }
+    const DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
+    left_tracked_ = publish_and_record(mcap_channels_.get(), 0, timestamp, value_ptr(left_native));
+    right_tracked_ = publish_and_record(mcap_channels_.get(), 1, timestamp, value_ptr(right_native));
 }
 
 const Serialized<HandPose>& LiveHandTrackerImpl::get_left_hand() const
@@ -368,11 +362,11 @@ void LiveHandTrackerImpl::destroy_xdev_list()
 
 void LiveHandTrackerImpl::update_hand(const std::vector<XrHandTrackerEXT>& trackers,
                                       XrTime time,
-                                      std::shared_ptr<HandPoseT>& tracked)
+                                      std::optional<HandPoseT>& tracked)
 {
     for (XrHandTrackerEXT tracker : trackers)
     {
-        std::shared_ptr<HandPoseT> candidate;
+        std::optional<HandPoseT> candidate;
         if (try_update_hand(tracker, time, candidate))
         {
             tracked = std::move(candidate);
@@ -383,7 +377,7 @@ void LiveHandTrackerImpl::update_hand(const std::vector<XrHandTrackerEXT>& track
     tracked.reset();
 }
 
-bool LiveHandTrackerImpl::try_update_hand(XrHandTrackerEXT tracker, XrTime time, std::shared_ptr<HandPoseT>& tracked)
+bool LiveHandTrackerImpl::try_update_hand(XrHandTrackerEXT tracker, XrTime time, std::optional<HandPoseT>& tracked)
 {
     if (tracker == XR_NULL_HANDLE)
     {
@@ -418,8 +412,8 @@ bool LiveHandTrackerImpl::try_update_hand(XrHandTrackerEXT tracker, XrTime time,
 
     // Scratch storage for this candidate: update_hand() only commits it once the locate
     // call succeeds, and update() encodes the winner into the published buffer.
-    auto data = std::make_shared<HandPoseT>();
-    data->joints = std::make_shared<HandJoints>();
+    HandPoseT data;
+    data.joints = std::make_shared<HandJoints>();
 
     for (uint32_t i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i)
     {
@@ -434,7 +428,7 @@ bool LiveHandTrackerImpl::try_update_hand(XrHandTrackerEXT tracker, XrTime time,
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
         HandJointPose joint_pose(pose, is_valid, joint_loc.radius);
-        data->joints->mutable_poses()->Mutate(i, joint_pose);
+        data.joints->mutable_poses()->Mutate(i, joint_pose);
     }
 
     tracked = std::move(data);

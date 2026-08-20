@@ -100,12 +100,12 @@ void write_head_frame(HeadChannels& ch, int64_t time_ns, float x, float y, float
     auto data = std::make_shared<core::HeadPoseT>();
     data->is_valid = true;
     data->pose = std::make_shared<core::Pose>(make_pose(x, y, z));
-    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
+    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
 }
 
 void write_hand_frame(HandChannels& ch, int64_t time_ns, size_t channel_index, std::shared_ptr<core::HandPoseT> data)
 {
-    ch.write(channel_index, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
+    ch.write(channel_index, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
 }
 
 // Mirror LiveSe3TrackerImpl's channel usage: per-sample writes go to index 0
@@ -116,15 +116,15 @@ void write_se3_tracker_frame(Se3TrackerChannels& ch, int64_t time_ns, float x, f
     auto data = std::make_shared<core::Se3TrackerPoseT>();
     data->is_valid = true;
     data->pose = std::make_shared<core::Pose>(make_pose(x, y, z));
-    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
-    ch.write(1, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
+    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
+    ch.write(1, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
 }
 
 void write_message_record(MessageChannelChannels& ch, int64_t time_ns, const std::string& payload)
 {
     auto data = std::make_shared<core::MessageChannelMessagesT>();
     data->payload.assign(payload.begin(), payload.end());
-    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data);
+    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
 }
 
 // Mirror LiveMessageChannelTrackerImpl::update's data-null sentinel: a

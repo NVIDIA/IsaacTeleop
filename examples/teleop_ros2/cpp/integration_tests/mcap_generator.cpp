@@ -242,13 +242,13 @@ void write_fixture(const std::filesystem::path& output_path, int frame_count)
     {
         const int64_t time_ns = static_cast<int64_t>(frame + 1) * kFramePeriodNs;
         const core::DeviceDataTimestamp timestamp(time_ns, time_ns, time_ns);
-        controller_channels.write(0, timestamp, make_controller_sample(true, frame));
-        controller_channels.write(1, timestamp, make_controller_sample(false, frame));
-        hand_channels.write(0, timestamp, make_hand_sample(true, frame));
-        hand_channels.write(1, timestamp, make_hand_sample(false, frame));
-        head_channels.write(0, timestamp, make_head_sample(frame));
-        pedal_channels.write(0, timestamp, make_pedal_sample(frame));
-        full_body_channels.write(0, timestamp, make_full_body_sample(frame));
+        controller_channels.write(0, timestamp, make_controller_sample(true, frame).get());
+        controller_channels.write(1, timestamp, make_controller_sample(false, frame).get());
+        hand_channels.write(0, timestamp, make_hand_sample(true, frame).get());
+        hand_channels.write(1, timestamp, make_hand_sample(false, frame).get());
+        head_channels.write(0, timestamp, make_head_sample(frame).get());
+        pedal_channels.write(0, timestamp, make_pedal_sample(frame).get());
+        full_body_channels.write(0, timestamp, make_full_body_sample(frame).get());
     }
 
     writer->close();

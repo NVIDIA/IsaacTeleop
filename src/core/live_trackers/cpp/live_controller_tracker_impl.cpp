@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 
 namespace core
@@ -354,11 +355,11 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
     XrActionsSyncState2NV sync_state{ XR_TYPE_ACTIONS_SYNC_STATE_2_NV };
 
     XrResult result = XR_SUCCESS;
-    std::shared_ptr<ControllerSnapshotT> left_native;
-    std::shared_ptr<ControllerSnapshotT> right_native;
+    std::optional<ControllerSnapshotT> left_native;
+    std::optional<ControllerSnapshotT> right_native;
 
     auto update_controller = [&](XrPath hand_path, const XrSpacePtr& grip_space, const XrSpacePtr& aim_space,
-                                 std::shared_ptr<ControllerSnapshotT>& tracked)
+                                 std::optional<ControllerSnapshotT>& tracked)
     {
         if (!get_pose_action_active(session_, core_funcs_, grip_pose_action_, hand_path))
         {
@@ -423,10 +424,7 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
         ControllerInputState inputs(primary_click, secondary_click, thumbstick_click, menu_click, thumbstick_x,
                                     thumbstick_y, squeeze_value, trigger_value);
 
-        if (!tracked)
-        {
-            tracked = std::make_shared<ControllerSnapshotT>();
-        }
+        tracked.emplace();
         tracked->grip_pose = std::make_shared<ControllerPose>(grip_pose);
         tracked->aim_pose = std::make_shared<ControllerPose>(aim_pose);
         tracked->inputs = std::make_shared<ControllerInputState>(inputs);
@@ -454,15 +452,9 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
         throw;
     }
 
-    left_tracked_ = pack_optional<ControllerSnapshot>(left_native);
-    right_tracked_ = pack_optional<ControllerSnapshot>(right_native);
-
-    if (mcap_channels_)
-    {
-        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        mcap_channels_->write(0, timestamp, left_native);
-        mcap_channels_->write(1, timestamp, right_native);
-    }
+    const DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
+    left_tracked_ = publish_and_record(mcap_channels_.get(), 0, timestamp, value_ptr(left_native));
+    right_tracked_ = publish_and_record(mcap_channels_.get(), 1, timestamp, value_ptr(right_native));
 }
 
 const Serialized<ControllerSnapshot>& LiveControllerTrackerImpl::get_left_controller() const

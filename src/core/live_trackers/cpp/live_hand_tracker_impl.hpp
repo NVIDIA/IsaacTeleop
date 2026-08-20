@@ -13,6 +13,7 @@
 #include <XR_MNDX_xdev_space.h>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,8 +50,8 @@ private:
     bool try_create_default_hand_tracker(XrSession session, XrHandEXT hand, std::vector<XrHandTrackerEXT>& trackers);
     void destroy_hand_trackers(std::vector<XrHandTrackerEXT>& trackers);
     void destroy_xdev_list();
-    void update_hand(const std::vector<XrHandTrackerEXT>& trackers, XrTime time, std::shared_ptr<HandPoseT>& tracked);
-    bool try_update_hand(XrHandTrackerEXT tracker, XrTime time, std::shared_ptr<HandPoseT>& tracked);
+    void update_hand(const std::vector<XrHandTrackerEXT>& trackers, XrTime time, std::optional<HandPoseT>& tracked);
+    bool try_update_hand(XrHandTrackerEXT tracker, XrTime time, std::optional<HandPoseT>& tracked);
 
     XrTimeConverter time_converter_;
     XrSpace base_space_;

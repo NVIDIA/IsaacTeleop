@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Unit tests for narrowing a Serialized<T> handle onto a table nested in its buffer.
-// The handle's other states (empty, packed, pack_optional) are covered in test_pedals.cpp.
+// The handle's other states (empty, packed) are covered in test_pedals.cpp.
 
 #include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/flatbuffers.h>

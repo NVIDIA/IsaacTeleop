@@ -8,6 +8,7 @@
 #include <mcap/writer.hpp>
 #include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
+#include <schema/tracked.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -67,7 +68,18 @@ public:
         }
     }
 
-    void write(size_t channel_index, const DeviceDataTimestamp& timestamp, const std::shared_ptr<NativeDataT>& data)
+    /*!
+     * @brief Encode `data` into a Record, write it, and hand back the encoded Record.
+     *
+     * Returned so a caller that also publishes the payload can `narrow_payload()` into
+     * these bytes rather than encoding the same fields a second time -- see
+     * publish_and_record(). Ignoring it costs one allocation (~16 ns) to own a buffer
+     * that is then freed, which is why there is no separate write-only overload.
+     *
+     * A null `data` writes a Record carrying only its timestamp: an inactive device
+     * still marks the frame.
+     */
+    Serialized<RecordT> write(size_t channel_index, const DeviceDataTimestamp& timestamp, const NativeDataT* data)
     {
         if (channel_index >= channel_ids_.size())
         {
@@ -79,14 +91,14 @@ public:
         flatbuffers::FlatBufferBuilder builder(256);
 
         flatbuffers::Offset<DataTableT> data_offset;
-        if (data)
+        if (data != nullptr)
         {
-            data_offset = DataTableT::Pack(builder, data.get());
+            data_offset = DataTableT::Pack(builder, data);
         }
 
         DeviceDataTimestamp ts = timestamp;
         typename RecordT::Builder record_builder(builder);
-        if (data)
+        if (data != nullptr)
         {
             record_builder.add_data(data_offset);
         }
@@ -105,6 +117,9 @@ public:
         {
             std::cerr << "McapTrackerChannels: write failed: " << status.message << std::endl;
         }
+
+        // Adopting releases the builder, so it has to follow the write that read from it.
+        return Serialized<RecordT>::adopt(builder);
     }
 
 private:
@@ -112,6 +127,41 @@ private:
     std::vector<mcap::ChannelId> channel_ids_;
     uint32_t sequence_ = 0;
 };
+
+//! Address of the contained value, or null when there is none -- the pointer form an
+//! optional payload takes at an API that spells absence with nullptr. `std::optional` has
+//! no accessor for this, and `&*value` is only valid once you have already tested it.
+template <typename T>
+const T* value_ptr(const std::optional<T>& value)
+{
+    return value ? &*value : nullptr;
+}
+
+/*!
+ * @brief Encode `native` once, record it when recording is on, and return the payload
+ *        handle to publish.
+ *
+ * Recording wraps the payload in a Record, and the payload sits inside those bytes, so
+ * there is no reason to encode it twice: with channels attached the published handle is
+ * a view into the record that was just written. With recording off there is no Record to
+ * write and the payload is encoded on its own. Either way `native` is encoded exactly
+ * once, which is what lets it stay a local of `update()`.
+ *
+ * A null `native` means the device is inactive: an empty handle comes back, and the
+ * record still goes out carrying only its timestamp.
+ */
+template <typename RecordT, typename DataTableT>
+Serialized<DataTableT> publish_and_record(McapTrackerChannels<RecordT, DataTableT>* channels,
+                                          size_t channel_index,
+                                          const DeviceDataTimestamp& timestamp,
+                                          const typename DataTableT::NativeTableType* native)
+{
+    if (channels == nullptr)
+    {
+        return native != nullptr ? pack<DataTableT>(*native) : Serialized<DataTableT>();
+    }
+    return narrow_payload(channels->write(channel_index, timestamp, native));
+}
 
 /**
  * @brief Type-safe MCAP channel reader returning owning handles over the recorded records.

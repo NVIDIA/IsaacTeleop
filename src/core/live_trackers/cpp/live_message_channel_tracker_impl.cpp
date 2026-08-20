@@ -112,7 +112,7 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
         {
             for (const auto& msg : native.data)
             {
-                mcap_channels_->write(0, timestamp, msg);
+                mcap_channels_->write(0, timestamp, msg.get());
             }
         }
     }

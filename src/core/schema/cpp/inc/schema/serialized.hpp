@@ -175,17 +175,4 @@ Serialized<T> pack(const typename T::NativeTableType& native)
     return Serialized<T>::adopt(fbb);
 }
 
-/*!
- * @brief Encodes `native` if it is present, otherwise yields an empty handle.
- *
- * The shape a producer of optional data needs: a device that went inactive, a sample
- * that never arrived, a replay gap. Absence stays one state rather than becoming a
- * present-but-empty buffer.
- */
-template <typename T>
-Serialized<T> pack_optional(const std::shared_ptr<typename T::NativeTableType>& native)
-{
-    return native ? pack<T>(*native) : Serialized<T>();
-}
-
 } // namespace core

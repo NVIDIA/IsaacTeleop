@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -85,15 +86,15 @@ TEST_CASE("McapTrackerChannels: typed write produces readable MCAP with correct 
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto head_data = std::make_shared<core::HeadPoseT>();
-    head_data->is_valid = true;
-    head_data->pose =
+    core::HeadPoseT head_data;
+    head_data.is_valid = true;
+    head_data.pose =
         std::make_shared<core::Pose>(core::Point(1.0f, 2.0f, 3.0f), core::Quaternion(0.0f, 0.0f, 0.707f, 0.707f));
 
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
-        ch.write(0, core::DeviceDataTimestamp(1000000, 1000000, 42), head_data);
+        ch.write(0, core::DeviceDataTimestamp(1000000, 1000000, 42), &head_data);
         writer->close();
     }
 
@@ -129,6 +130,95 @@ TEST_CASE("McapTrackerChannels: typed write produces readable MCAP with correct 
     reader.close();
 }
 
+TEST_CASE("publish_and_record encodes the payload alone when recording is off", "[mcap][tracker_channels]")
+{
+    core::HeadPoseT native;
+    native.is_valid = true;
+    native.pose = std::make_shared<core::Pose>(core::Point(1.0f, 2.0f, 3.0f), core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
+
+    // Null channels is how an impl spells "recording disabled": there is no Record to
+    // write, so the payload is encoded on its own and published from that buffer.
+    const auto published = core::publish_and_record<core::HeadPoseRecord, core::HeadPose>(
+        nullptr, 0, core::DeviceDataTimestamp(1, 1, 1), &native);
+    REQUIRE(published);
+    CHECK(published->is_valid() == true);
+    CHECK(published->pose()->position().y() == 2.0f);
+
+    // An inactive device lands on an empty handle whether or not anything is recording.
+    CHECK_FALSE(core::publish_and_record<core::HeadPoseRecord, core::HeadPose>(
+        nullptr, 0, core::DeviceDataTimestamp(1, 1, 1), nullptr));
+
+    const std::optional<core::HeadPoseT> absent;
+    CHECK_FALSE(core::publish_and_record<core::HeadPoseRecord, core::HeadPose>(
+        nullptr, 0, core::DeviceDataTimestamp(1, 1, 1), core::value_ptr(absent)));
+}
+
+TEST_CASE("McapTrackerChannels: write returns the record it wrote", "[mcap][tracker_channels]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto head_data = std::make_shared<core::HeadPoseT>();
+    head_data->is_valid = true;
+    head_data->pose =
+        std::make_shared<core::Pose>(core::Point(4.0f, 5.0f, 6.0f), core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
+
+    core::Serialized<core::HeadPose> published;
+    {
+        auto writer = open_writer(path);
+        HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+
+        const auto record = ch.write(0, core::DeviceDataTimestamp(7, 7, 9), head_data.get());
+        REQUIRE(record);
+        CHECK(record->timestamp()->sample_time_raw_device_clock() == 9);
+
+        // What a live impl does with it: publish a view into the recorded bytes instead of
+        // encoding the payload a second time. The record handle dies here, so the narrowed
+        // one is all that keeps the buffer alive.
+        published = core::narrow_payload(record);
+    }
+
+    REQUIRE(published);
+    CHECK(published->is_valid() == true);
+    CHECK(published->pose()->position().x() == 4.0f);
+    CHECK(published->pose()->position().z() == 6.0f);
+
+    // The published handle and the recorded message must be the same values -- one encode
+    // served both.
+    mcap::McapReader reader;
+    REQUIRE(reader.open(path).ok());
+    size_t msg_count = 0;
+    for (const auto& view : reader.readMessages())
+    {
+        auto record = flatbuffers::GetRoot<core::HeadPoseRecord>(view.message.data);
+        REQUIRE(record->data() != nullptr);
+        CHECK(record->data()->is_valid() == published->is_valid());
+        CHECK(record->data()->pose()->position().x() == published->pose()->position().x());
+        CHECK(record->data()->pose()->position().z() == published->pose()->position().z());
+        msg_count++;
+    }
+    CHECK(msg_count == 1);
+    reader.close();
+}
+
+TEST_CASE("McapTrackerChannels: write on null data yields an empty payload handle", "[mcap][tracker_channels]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+
+    auto writer = open_writer(path);
+    HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+
+    const auto record = ch.write(0, core::DeviceDataTimestamp(1, 1, 2), nullptr);
+    writer->close();
+
+    // The record itself is written -- an inactive device still advances the recording --
+    // but there is no payload to publish.
+    REQUIRE(record);
+    CHECK(record->data() == nullptr);
+    CHECK_FALSE(core::narrow_payload(record));
+}
+
 TEST_CASE("McapTrackerChannels: null data writes record with timestamp only", "[mcap][tracker_channels]")
 {
     auto path = get_temp_mcap_path();
@@ -137,7 +227,7 @@ TEST_CASE("McapTrackerChannels: null data writes record with timestamp only", "[
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
-        ch.write(0, core::DeviceDataTimestamp(500, 500, 10), std::shared_ptr<core::HeadPoseT>{ nullptr });
+        ch.write(0, core::DeviceDataTimestamp(500, 500, 10), nullptr);
         writer->close();
     }
 
@@ -164,13 +254,13 @@ TEST_CASE("McapTrackerChannels: multi-channel write routes to correct topics", "
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto data = std::make_shared<core::HeadPoseT>();
+    core::HeadPoseT data;
 
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "hands", core::HeadRecordingTraits::schema_name, { "left", "right" });
-        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), data);
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), &data);
+        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), &data);
         writer->close();
     }
 
@@ -194,11 +284,11 @@ TEST_CASE("McapTrackerChannels: out-of-range channel_index throws", "[mcap][trac
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto data = std::make_shared<core::HeadPoseT>();
+    core::HeadPoseT data;
 
     auto writer = open_writer(path);
     HeadChannels ch(*writer, "test", core::HeadRecordingTraits::schema_name, { "only" });
-    CHECK_THROWS_AS(ch.write(99, core::DeviceDataTimestamp(100, 100, 1), data), std::out_of_range);
+    CHECK_THROWS_AS(ch.write(99, core::DeviceDataTimestamp(100, 100, 1), &data), std::out_of_range);
     writer->close();
 }
 
@@ -207,14 +297,14 @@ TEST_CASE("McapTrackerChannels: sequence numbers increment across writes", "[mca
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto data = std::make_shared<core::HeadPoseT>();
+    core::HeadPoseT data;
 
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "seq", core::HeadRecordingTraits::schema_name, { "ch" });
-        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ch.write(0, core::DeviceDataTimestamp(200, 200, 2), data);
-        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), data);
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), &data);
+        ch.write(0, core::DeviceDataTimestamp(200, 200, 2), &data);
+        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), &data);
         writer->close();
     }
 
@@ -239,16 +329,16 @@ TEST_CASE("McapTrackerChannels: multiple same-type channel instances share one w
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto data = std::make_shared<core::HeadPoseT>();
+    core::HeadPoseT data;
 
     {
         auto writer = open_writer(path);
         HeadChannels head_ch(*writer, "head", core::HeadRecordingTraits::schema_name, { "pose" });
         HeadChannels ctrl_ch(*writer, "ctrl", core::HeadRecordingTraits::schema_name, { "left", "right" });
 
-        head_ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ctrl_ch.write(0, core::DeviceDataTimestamp(200, 200, 2), data);
-        ctrl_ch.write(1, core::DeviceDataTimestamp(300, 300, 3), data);
+        head_ch.write(0, core::DeviceDataTimestamp(100, 100, 1), &data);
+        ctrl_ch.write(0, core::DeviceDataTimestamp(200, 200, 2), &data);
+        ctrl_ch.write(1, core::DeviceDataTimestamp(300, 300, 3), &data);
         writer->close();
     }
 
@@ -277,16 +367,16 @@ TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tra
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto head_data = std::make_shared<core::HeadPoseT>();
-    head_data->is_valid = true;
-    head_data->pose =
+    core::HeadPoseT head_data;
+    head_data.is_valid = true;
+    head_data.pose =
         std::make_shared<core::Pose>(core::Point(1.0f, 2.0f, 3.0f), core::Quaternion(0.0f, 0.0f, 0.707f, 0.707f));
 
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
-        ch.write(0, core::DeviceDataTimestamp(1000000, 1000000, 42), head_data);
-        ch.write(0, core::DeviceDataTimestamp(2000000, 2000000, 84), head_data);
+        ch.write(0, core::DeviceDataTimestamp(1000000, 1000000, 42), &head_data);
+        ch.write(0, core::DeviceDataTimestamp(2000000, 2000000, 84), &head_data);
         writer->close();
     }
 
@@ -315,15 +405,15 @@ TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tra
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto data = std::make_shared<core::HeadPoseT>();
+    core::HeadPoseT data;
 
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "left", "right" });
-        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), data);
-        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), data);
-        ch.write(1, core::DeviceDataTimestamp(400, 400, 4), data);
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), &data);
+        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), &data);
+        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), &data);
+        ch.write(1, core::DeviceDataTimestamp(400, 400, 4), &data);
         writer->close();
     }
 
@@ -350,16 +440,16 @@ TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker
     auto path = get_temp_mcap_path();
     TempFileCleanup cleanup(path);
 
-    auto data = std::make_shared<core::HeadPoseT>();
-    data->is_valid = true;
+    core::HeadPoseT data;
+    data.is_valid = true;
 
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "left", "right" });
-        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
-        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), data);
-        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), data);
-        ch.write(1, core::DeviceDataTimestamp(400, 400, 4), data);
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), &data);
+        ch.write(1, core::DeviceDataTimestamp(200, 200, 2), &data);
+        ch.write(0, core::DeviceDataTimestamp(300, 300, 3), &data);
+        ch.write(1, core::DeviceDataTimestamp(400, 400, 4), &data);
         writer->close();
     }
 
@@ -387,7 +477,7 @@ TEST_CASE("McapTrackerViewers: out-of-range channel_index throws", "[mcap][track
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
-        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data);
+        ch.write(0, core::DeviceDataTimestamp(100, 100, 1), data.get());
         writer->close();
     }
 
@@ -403,7 +493,7 @@ TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewe
     {
         auto writer = open_writer(path);
         HeadChannels ch(*writer, "tracking", core::HeadRecordingTraits::schema_name, { "head" });
-        ch.write(0, core::DeviceDataTimestamp(500, 500, 10), std::shared_ptr<core::HeadPoseT>{ nullptr });
+        ch.write(0, core::DeviceDataTimestamp(500, 500, 10), nullptr);
         writer->close();
     }
 

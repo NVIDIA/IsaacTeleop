@@ -131,9 +131,9 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
         throw std::runtime_error("[FullBodyTracker] xrLocateBodyJointsBD failed: " + std::to_string(result));
     }
 
-    auto data = std::make_shared<FullBodyPoseT>();
-    data->all_joint_poses_tracked = locations.allJointPosesTracked;
-    data->joints = std::make_shared<BodyJoints>();
+    FullBodyPoseT data;
+    data.all_joint_poses_tracked = locations.allJointPosesTracked;
+    data.joints = std::make_shared<BodyJoints>();
 
     for (uint32_t i = 0; i < XR_BODY_JOINT_COUNT_BD; ++i)
     {
@@ -148,16 +148,11 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
                         (joint_loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT);
 
         BodyJointPose joint_pose(pose, is_valid);
-        data->joints->mutable_joints()->Mutate(i, joint_pose);
+        data.joints->mutable_joints()->Mutate(i, joint_pose);
     }
 
-    tracked_ = pack<FullBodyPose>(*data);
-
-    if (mcap_channels_)
-    {
-        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        mcap_channels_->write(0, timestamp, data);
-    }
+    const DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
+    tracked_ = publish_and_record(mcap_channels_.get(), 0, timestamp, &data);
 }
 
 const Serialized<FullBodyPose>& LiveFullBodyTrackerPicoImpl::get_body_pose() const

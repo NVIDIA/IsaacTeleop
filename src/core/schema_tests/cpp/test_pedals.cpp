@@ -106,19 +106,6 @@ TEST_CASE("Serialized pedal output can be returned to empty", "[pedals][tracked]
     CHECK_FALSE(static_cast<bool>(data));
 }
 
-TEST_CASE("pack_optional maps a null payload onto an empty handle", "[pedals][tracked]")
-{
-    const std::shared_ptr<core::Generic3AxisPedalOutputT> absent;
-    CHECK_FALSE(static_cast<bool>(core::pack_optional<core::Generic3AxisPedalOutput>(absent)));
-
-    auto present = std::make_shared<core::Generic3AxisPedalOutputT>();
-    present->rudder = 0.25f;
-    const auto data = core::pack_optional<core::Generic3AxisPedalOutput>(present);
-
-    REQUIRE(static_cast<bool>(data));
-    CHECK(data->rudder() == Catch::Approx(0.25f));
-}
-
 TEST_CASE("Generic3AxisPedalOutputRecord serialization with tracked data", "[pedals][tracked][serialize]")
 {
     flatbuffers::FlatBufferBuilder builder;

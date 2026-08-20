@@ -91,7 +91,7 @@ public:
             // string or nested table at whatever the previous unpack put there. A reused
             // native therefore records fields the sample does not carry -- values from a
             // producer that has since gone away, on the channel replay reads back.
-            std::shared_ptr<NativeDataT> latest;
+            std::optional<NativeDataT> latest;
             DeviceDataTimestamp last_timestamp{};
             for (const auto& sample : samples_)
             {
@@ -101,18 +101,18 @@ public:
                     continue;
                 }
 
-                latest = std::make_shared<NativeDataT>();
-                fb->UnPackTo(latest.get());
+                latest.emplace();
+                fb->UnPackTo(&*latest);
                 last_timestamp = sample.timestamp;
 
-                mcap_channels_->write(mcap_channel_index_, sample.timestamp, latest);
+                mcap_channels_->write(mcap_channel_index_, sample.timestamp, &*latest);
             }
 
             // Null when every sample failed to resolve a root, which is the one case where
             // there is no final sample to mark.
             if (mcap_channel_tracked_index_ && latest)
             {
-                mcap_channels_->write(*mcap_channel_tracked_index_, last_timestamp, latest);
+                mcap_channels_->write(*mcap_channel_tracked_index_, last_timestamp, &*latest);
             }
         }
 
