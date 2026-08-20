@@ -40,6 +40,21 @@ function(isaac_teleop_check_build_deps)
         endif()
     endif()
 
+    # wayland-scanner generates the protocol sources for GLFW's Wayland backend,
+    # which GLFW 3.4 builds by default on Linux and hard-fails without. The cache
+    # entry is GLFW's own, so resolving it here also satisfies its find_program.
+    # libwayland-dev is the package to name: it pulls in libwayland-bin, which
+    # owns the binary, plus the wayland-client/cursor/egl .pc files that same
+    # backend pkg_check_modules(... REQUIRED).
+    if(BUILD_VIZ AND (NOT DEFINED GLFW_BUILD_WAYLAND OR GLFW_BUILD_WAYLAND))
+        find_program(WAYLAND_SCANNER_EXECUTABLE wayland-scanner)
+        if(NOT WAYLAND_SCANNER_EXECUTABLE)
+            list(APPEND _missing_tools "wayland-scanner  (BUILD_VIZ=ON -- GLFW Wayland backend)")
+            list(APPEND _missing_pkgs "libwayland-dev")
+            set(_wayland_gap TRUE)
+        endif()
+    endif()
+
     # glslangValidator compiles src/viz's GLSL to SPIR-V. Caching it here also
     # satisfies the find_program(... REQUIRED) in src/viz/shaders/cpp.
     if(BUILD_VIZ)
@@ -67,8 +82,13 @@ function(isaac_teleop_check_build_deps)
     list(JOIN _missing_tools "\n  " _tools)
     list(JOIN _missing_pkgs " " _pkgs)
     set(_viz_hint "")
-    if(BUILD_VIZ AND (NOT GLSLANG_VALIDATOR OR NOT PkgConfig_FOUND))
-        set(_viz_hint "Or build Isaac Teleop without Televiz:\n  cmake -B build -DBUILD_VIZ=OFF\n")
+    # Dropping Wayland keeps Televiz -- GLFW's X11 backend is a complete build --
+    # so offer that before offering to drop the module.
+    if(_wayland_gap)
+        set(_viz_hint "Or build Televiz against X11 only:\n  cmake -B build -DGLFW_BUILD_WAYLAND=OFF\n")
+    endif()
+    if(BUILD_VIZ AND (NOT GLSLANG_VALIDATOR OR NOT PkgConfig_FOUND OR _wayland_gap))
+        string(APPEND _viz_hint "Or build Isaac Teleop without Televiz:\n  cmake -B build -DBUILD_VIZ=OFF\n")
     endif()
     # Single newlines only: message() already blank-lines between unindented lines
     # and keeps 2-space-indented runs together, so "\n\n" renders as three blanks.
