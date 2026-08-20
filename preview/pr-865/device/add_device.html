@@ -334,7 +334,6 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -604,7 +603,9 @@ collection empties it.</p></li>
 </ul>
 <p>Recording needs no per-tracker serialization code: <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> writes through
 <code class="docutils literal notranslate"><span class="pre">McapTrackerChannels</span></code>, which wraps the payload in the Record type with its
-<code class="docutils literal notranslate"><span class="pre">DeviceDataTimestamp</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">DeviceDataTimestamp</span></code>. It writes two sub-channels, and replay reads only the
+second – see <a class="reference internal" href="trackers.html#tracked-sub-channel"><span class="std std-ref">The _tracked recording sub-channel</span></a> before overriding <code class="docutils literal notranslate"><span class="pre">mcap_channels</span></code> in a
+manifest entry.</p>
 <p>Reference implementation — generated <code class="docutils literal notranslate"><span class="pre">SchemaTracker</span></code> reader and a hand-written OpenXR
 locate tracker:</p>
 <ul class="simple">
@@ -829,7 +830,7 @@ trackers during the update loop.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 19, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 20, 2026.
       <br/>
     
   </p>

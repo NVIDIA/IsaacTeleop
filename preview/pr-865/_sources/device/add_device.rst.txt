@@ -185,7 +185,9 @@ In the **Impl**:
 
 Recording needs no per-tracker serialization code: ``SchemaTracker`` writes through
 ``McapTrackerChannels``, which wraps the payload in the Record type with its
-``DeviceDataTimestamp``.
+``DeviceDataTimestamp``. It writes two sub-channels, and replay reads only the
+second -- see :ref:`tracked-sub-channel` before overriding ``mcap_channels`` in a
+manifest entry.
 
 Reference implementation — generated ``SchemaTracker`` reader and a hand-written OpenXR
 locate tracker:

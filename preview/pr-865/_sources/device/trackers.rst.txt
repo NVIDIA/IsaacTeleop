@@ -61,6 +61,33 @@ Every tracker's data is defined by a FlatBuffers schema under
        timestamp: DeviceDataTimestamp (id: 1);
    }
 
+.. _tracked-sub-channel:
+
+The ``_tracked`` recording sub-channel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A tracker that reads from a tensor collection can see **several samples per
+frame**, and it records both views of that: every sample goes to ``<channel>``,
+while only the final sample of each ``update()`` -- the one the live consumer
+actually observed -- goes to ``<channel>_tracked``. Both carry the same
+``XxxRecord`` root type; they differ only in which samples reach them.
+
+Replay reads ``<channel>_tracked`` **exclusively**, so that a replayed session
+yields exactly the values the live session did rather than the intermediate
+samples. The per-sample channel is there for offline analysis.
+
+Both names come from :code-file:`src/core/deviceio_trackers/defaults.toml` and
+apply to every generated pull tracker:
+
+.. code-block:: toml
+
+   mcap_channels = ["%channel%", "%channel%_tracked"]
+   replay_channels = ["%channel%_tracked"]
+
+A manifest entry that overrides ``mcap_channels`` must keep the ``_tracked``
+entry and list it in ``replay_channels``. Recording still succeeds without it,
+but the resulting file cannot be replayed.
+
    root_type XxxRecord;
 
 - **Payload table** (e.g. ``HeadPose``, ``HandPose``, ``ControllerSnapshot``) --
@@ -87,15 +114,24 @@ the accessor returns ``None``.
 Each ``session.update()`` publishes a *new* buffer rather than refilling the
 previous one, so a handle read this frame keeps its values after the next update.
 
-To build a payload from Python, pass every field to its constructor -- these
-views are immutable, so there are no setters.
+To build a payload from Python, pass every field to its constructor -- the view
+classes expose no setters.
+
+.. warning::
+
+   Immutability is a **contract, not an enforcement**. The joint-array properties
+   hand out *writable* NumPy views, because NumPy cannot export a read-only array
+   over DLPack before 2.1. Writing through one changes what every holder of that
+   buffer sees, including handles read on earlier frames. Copy first if you mean
+   to modify.
 
 .. note::
 
    ``MessageChannelMessagesTracked`` wraps its payload in a table, because that
-   payload is a **list** and something has to hold the vector. ``get_messages()``
-   always returns a non-empty handle; an absent ``data`` vector means no messages
-   arrived this frame.
+   payload is a **list** and something has to hold the vector. Once a tracker has
+   run one ``update()`` the handle is non-empty for the rest of the session, and
+   an empty ``data`` vector -- not an empty handle -- means no messages arrived
+   this frame. Before that first update the handle is empty like any other.
 
 Shared Types
 ~~~~~~~~~~~~
