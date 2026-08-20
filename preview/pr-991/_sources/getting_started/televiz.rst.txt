@@ -559,10 +559,16 @@ without it the fields read zero.
 
 .. code-block:: python
 
-   stats = session.get_frame_timing_stats()
-   if stats.missed_frames > last_missed or stats.stale_layers:
-       print(f"{stats.render_fps:.1f}/{stats.target_fps:.0f} fps, "
-             f"gpu {stats.gpu_time_ms:.2f} ms, stale layers {stats.stale_layers}")
+   last_missed = 0
+
+   while running:
+       session.render()
+
+       stats = session.get_frame_timing_stats()
+       if stats.missed_frames > last_missed or stats.stale_layers:
+           print(f"{stats.render_fps:.1f}/{stats.target_fps:.0f} fps, "
+                 f"gpu {stats.gpu_time_ms:.2f} ms, stale layers {stats.stale_layers}")
+       last_missed = stats.missed_frames
 
 Session state
 -------------
