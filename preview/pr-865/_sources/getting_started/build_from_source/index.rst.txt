@@ -40,8 +40,10 @@ Prerequisites
 
    ``BUILD_VIZ=ON`` additionally requires **glslangValidator** to compile shaders to SPIR-V
    (``glslang-tools`` on Linux, ``brew install glslang`` on macOS; ships with the Vulkan SDK
-   on Windows). It does *not* gate the auto-default: if it is missing, the configure fails
-   naming it rather than quietly dropping the module. Most users do not need any of this:
+   on Windows), and on Linux **wayland-scanner** (``libwayland-dev``) for GLFW's Wayland
+   backend — pass ``-DGLFW_BUILD_WAYLAND=OFF`` to build Televiz against X11 only instead.
+   Neither gates the auto-default: if one is missing, the configure fails naming it rather
+   than quietly dropping the module. Most users do not need any of this:
    ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module. See
    `Other Build options`_ for the full option table.
 
@@ -56,7 +58,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf pkg-config glslang-tools
+   sudo apt-get install -y build-essential cmake libx11-dev libwayland-dev clang-format-14 ccache patchelf pkg-config glslang-tools
 
 Runtime-only dependencies (needed to actually run teleop, not to build):
 
