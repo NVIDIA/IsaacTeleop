@@ -32,8 +32,10 @@ from isaacteleop.teleop_session_manager import SessionMode
 from constants import (
     HAND_RETARGETERS,
     TELEOP_MODES,
+    EE_POSE_FRAMES,
     HandRetargeter,
     TeleopMode,
+    EePoseFrame,
     resolve_hand_retargeter,
     uses_hands_source_for_controller,
 )
@@ -76,6 +78,7 @@ class NodeParameters:
     transform_rotation: Rotation | None
     left_finger_joint_name_aliases: list[str] | None
     right_finger_joint_name_aliases: list[str] | None
+    ee_poses_frame: EePoseFrame
 
 
 def _load_cloudxr(node: Node) -> CloudXRParams:
@@ -363,6 +366,30 @@ def _load_mode(node: Node) -> TeleopMode:
     return mode
 
 
+def _load_ee_poses_frame(node: Node) -> EePoseFrame:
+    node.declare_parameter(
+        "ee_poses_frame",
+        EePoseFrame.WORLD.value,
+        ParameterDescriptor(
+            description=(
+                "Reference frame of the published end effector poses. "
+                "'world' (default) publishes absolute poses in world_frame; "
+                "'head' publishes poses relative to head_frame."
+            )
+        ),
+    )
+    raw_frame = node.get_parameter("ee_poses_frame").get_parameter_value().string_value
+    try:
+        ee_poses_frame = EePoseFrame(raw_frame)
+    except ValueError as exc:
+        raise ValueError(
+            f"Parameter 'ee_poses_frame' must be one of {EE_POSE_FRAMES}, "
+            f"got {raw_frame!r}"
+        ) from exc
+    node.get_logger().info(f"EE poses frame: {ee_poses_frame}")
+    return ee_poses_frame
+
+
 def _load_pedal_collection_id(node: Node) -> str:
     node.declare_parameter(
         "pedal_collection_id",
@@ -477,6 +504,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
     transform_rotation = _load_transform_rotation(node)
     left_finger_joint_name_aliases = _load_finger_joint_name_aliases(node, "left")
     right_finger_joint_name_aliases = _load_finger_joint_name_aliases(node, "right")
+    ee_poses_frame = _load_ee_poses_frame(node)
 
     return NodeParameters(
         mode=mode,
@@ -497,4 +525,5 @@ def create_node_parameters(node: Node) -> NodeParameters:
         transform_rotation=transform_rotation,
         left_finger_joint_name_aliases=left_finger_joint_name_aliases,
         right_finger_joint_name_aliases=right_finger_joint_name_aliases,
+        ee_poses_frame=ee_poses_frame,
     )

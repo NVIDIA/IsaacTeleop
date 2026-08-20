@@ -36,6 +36,7 @@ TF frames published in hand_teleop and controller_teleop modes (configurable via
   - world_frame -> right_wrist_frame
   - world_frame -> left_wrist_frame
   - world_frame -> head_frame
+  - (With ee_poses_frame=head, world_frame -> head_frame -> left/right_wrist_frame)
 """
 
 import time
@@ -62,6 +63,7 @@ from messages import (
     build_hand_msg,
     build_head_output,
     build_root_command_output,
+    rebase_ee_poses_relative_to_head,
 )
 from teleop_profiles import (
     PublishType,
@@ -111,7 +113,9 @@ class TeleopRos2Node(Node):
         )
         self._pub_head = self.create_publisher(PoseStamped, "xr_teleop/head_pose", 10)
 
-    def _publish_ee_poses_from_controllers(self, result: SessionResult, now) -> None:
+    def _publish_ee_poses_from_controllers(
+        self, result: SessionResult, now, head_msg: PoseStamped | None
+    ) -> None:
         ee_poses_msg, wrist_tfs = build_ee_output_from_controllers(
             result["controller_left"],
             result["controller_right"],
@@ -123,6 +127,20 @@ class TeleopRos2Node(Node):
             self._params.transform_translation,
             self._params.controller_uses_hands_source,
         )
+        if self._params.ee_poses_frame.value == "head":
+            if head_msg is None:
+                self.get_logger().warn(
+                    "ee_poses_frame is 'head' but no head pose is available; "
+                    "publishing ee_poses_frame in default frame 'world'.",
+                    throttle_duration_sec=5.0,
+                )
+            else:
+                ee_poses_msg, wrist_tfs = rebase_ee_poses_relative_to_head(
+                    ee_poses_msg,
+                    head_msg,
+                    self._params.left_wrist_frame,
+                    self._params.right_wrist_frame,
+                )
         self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
@@ -161,7 +179,9 @@ class TeleopRos2Node(Node):
         )
         self._pub_hand.publish(hand_msg)
 
-    def _publish_ee_poses_from_hands(self, result: SessionResult, now) -> None:
+    def _publish_ee_poses_from_hands(
+        self, result: SessionResult, now, head_msg: PoseStamped | None
+    ) -> None:
         ee_poses_msg, wrist_tfs = build_ee_output_from_hands(
             result["hand_left"],
             result["hand_right"],
@@ -172,11 +192,25 @@ class TeleopRos2Node(Node):
             self._params.transform_rotation,
             self._params.transform_translation,
         )
+        if self._params.ee_poses_frame.value == "head":
+            if head_msg is None:
+                self.get_logger().warn(
+                    "ee_poses_frame is 'head' but no head pose is available;"
+                    "publishing ee_poses_frame in default frame 'world'.",
+                    throttle_duration_sec=5.0,
+                )
+            else:
+                ee_poses_msg, wrist_tfs = rebase_ee_poses_relative_to_head(
+                    ee_poses_msg,
+                    head_msg,
+                    self._params.left_wrist_frame,
+                    self._params.right_wrist_frame,
+                )
         self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:
             self._tf_broadcaster.sendTransform(wrist_tfs)
 
-    def _publish_head(self, result: SessionResult, now) -> None:
+    def _publish_head(self, result: SessionResult, now) -> PoseStamped | None:
         maybe_head_output = build_head_output(
             result["head"],
             now,
@@ -191,6 +225,8 @@ class TeleopRos2Node(Node):
         head_msg, head_tf = maybe_head_output
         self._pub_head.publish(head_msg)
         self._tf_broadcaster.sendTransform(head_tf)
+
+        return head_msg
 
     def _publish_root_command(self, result: SessionResult, now) -> None:
         maybe_root_output = build_root_command_output(
@@ -235,16 +271,22 @@ class TeleopRos2Node(Node):
 
                         now = self.get_clock().now().to_msg()
 
+                        if PublishType.HEAD in self._profile_spec.publish_types:
+                            head_messages = self._publish_head(result, now)
                         if (
                             PublishType.EE_FROM_HANDS
                             in self._profile_spec.publish_types
                         ):
-                            self._publish_ee_poses_from_hands(result, now)
+                            self._publish_ee_poses_from_hands(
+                                result, now, head_messages
+                            )
                         if (
                             PublishType.EE_FROM_CONTROLLERS
                             in self._profile_spec.publish_types
                         ):
-                            self._publish_ee_poses_from_controllers(result, now)
+                            self._publish_ee_poses_from_controllers(
+                                result, now, head_messages
+                            )
                         if PublishType.HAND_POSES in self._profile_spec.publish_types:
                             self._publish_hand_poses(result, now)
                         if PublishType.ROOT_COMMAND in self._profile_spec.publish_types:
@@ -254,8 +296,6 @@ class TeleopRos2Node(Node):
                             in self._profile_spec.publish_types
                         ):
                             self._publish_finger_joints(result, now)
-                        if PublishType.HEAD in self._profile_spec.publish_types:
-                            self._publish_head(result, now)
                         if (
                             PublishType.CONTROLLER_PAYLOAD
                             in self._profile_spec.publish_types

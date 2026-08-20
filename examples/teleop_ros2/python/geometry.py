@@ -11,6 +11,47 @@ from geometry_msgs.msg import Pose, TransformStamped
 from scipy.spatial.transform import Rotation
 
 
+def apply_relative_pose(reference: Pose, pose: Pose) -> Pose:
+    """
+    Transform ``pose`` in ``reference``'s frame, both poses needs to be
+    initially in the same frame.
+
+    This is equivalent to:
+
+        T_reference_pose = inv(T_world_reference) @ T_world_pose
+    """
+    reference_pos = np.array(
+        [reference.position.x, reference.position.y, reference.position.z],
+        dtype=float,
+    )
+    reference_rot = Rotation.from_quat(
+        [
+            reference.orientation.x,
+            reference.orientation.y,
+            reference.orientation.z,
+            reference.orientation.w,
+        ]
+    )
+    pos = np.array(
+        [pose.position.x, pose.position.y, pose.position.z],
+        dtype=float,
+    )
+    rot = Rotation.from_quat(
+        [
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        ]
+    )
+
+    reference_rot_inv = reference_rot.inv()
+    return to_pose(
+        reference_rot_inv.apply(pos - reference_pos),
+        (reference_rot_inv * rot).as_quat(),
+    )
+
+
 def apply_manus_controller_to_hand_pose(pose: Pose, side: str) -> Pose:
     """
     Apply MANUS controller-to-hand calibration in the pose's current frame.

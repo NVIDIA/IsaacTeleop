@@ -73,6 +73,7 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
   - `world_frame` → `right_wrist_frame`: Right wrist transform (published in `controller_teleop` and `hand_teleop` modes)
   - `world_frame` → `left_wrist_frame`: Left wrist transform (published in `controller_teleop` and `hand_teleop` modes)
   - `world_frame` → `head_frame`: Head transform (published in `controller_teleop` and `hand_teleop` modes)
+  - With `ee_poses_frame:=head` the wrist transforms are parented to `head_frame` instead of `world_frame`
 
 ## Run in Docker
 
@@ -125,7 +126,7 @@ docker run --rm --gpus all --net=host --ipc=host \
   -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `ee_poses_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 
@@ -143,6 +144,29 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 | `full_body` | `full_body` and `controller_data` |
 
 Example: `--ros-args -p mode:=controller_raw`
+
+### EE Poses Frame
+
+The `ee_poses_frame` parameter selects the reference frame of `xr_teleop/ee_poses`:
+
+| Value | Behavior |
+|-------|----------|
+| `world` (default) | Absolute poses in `world_frame`; wrist TFs parented to `world_frame` |
+| `head` | Poses relative to the headset, stamped `head_frame`; wrist TFs parented to `head_frame` |
+
+Head-relative poses stay fixed when the operator walks or turns, so they track the
+hands as the robot's end effectors see them rather than as the session origin does.
+When no head pose is available the node warns and publishes in `world_frame`.
+
+```bash
+docker run --rm --gpus all --net=host --ipc=host \
+  -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
+  -e ROS_LOCALHOST_ONLY=1 \
+  -v $HOME/.cloudxr:/root/.cloudxr \
+  --name teleop_ros2_ref \
+  teleop_ros2_ref --ros-args -p cloudxr_accept_eula:=true \
+  -p ee_poses_frame:=head
+```
 
 ### OOB Teleop Control
 
