@@ -11,7 +11,7 @@
 #include <memory>
 #include <thread>
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** argv)
 try
 {
     std::cout << "OpenXR Session Sharing Example" << std::endl;
