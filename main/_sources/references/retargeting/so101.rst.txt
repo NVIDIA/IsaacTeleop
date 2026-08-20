@@ -36,7 +36,8 @@ At a glance
      - Same output contract as ``Se3AbsRetargeter``, but clutches the **full pose**: re-latches
        both the home position and the home orientation on every engage, composing the orientation
        delta on the **left** (base frame) with no fixed offset. Engages on
-       ``RUNNING`` **and** ``squeeze > squeeze_threshold``.
+       ``RUNNING`` **and** ``squeeze > squeeze_threshold``, and only latches on a frame the owner
+       permits.
    * - ``SO101GripperRetargeter``
      - 1 float ``gripper_command`` ``c`` in ``[0, 1]``
      - Trigger -> jaw closedness (``0`` = open, ``1`` = closed), with a released-end deadzone.
@@ -82,7 +83,9 @@ conjuncts are different things and both are load-bearing: ``squeeze`` is *operat
 should hold ``STOPPED`` so a squeeze cannot latch a home the arm has not reached yet -- which also
 makes it safe to supply the real home late, via
 :meth:`~isaacteleop.retargeters.SO101ClutchRetargeter.set_home_base_T_ee`, when the retargeting
-graph must be built before the arm is homed.
+graph must be built before the arm is homed. Calling that method on every disengaged frame of a
+``RUNNING`` session is equally sound, and is what an owner whose arm moves while disengaged wants;
+see its own documentation, where the constraint is the engaged state rather than the cadence.
 
 Latching uses a **pending-latch sentinel**: the latch is *owed* until a frame arrives that can be
 trusted, and it is re-armed on every disengaged, dropped, invalid or degenerate frame. Both halves
@@ -113,6 +116,14 @@ an arm that sagged while disengaged is not snapped back to a stale command), whi
 softly, so latching the measured orientation would inject that tracking offset into the command on
 every re-clutch.
 
+.. warning::
+   The consequence is that ``MEASURED_BASE_T_EE_INPUT`` **cannot deliver rotation**. An owner
+   whose arm has rotated away from the configured home engages at the measured position and the
+   *stale* orientation -- see the attribute's own documentation for the measured figure. When the
+   arm's achieved rotation is what must be engaged against,
+   :meth:`~isaacteleop.retargeters.SO101ClutchRetargeter.set_home_base_T_ee` is not the preferred
+   route, it is the only one: it reads both blocks.
+
 ``MEASURED_BASE_T_EE_INPUT`` is declared ``OptionalType`` and a consumer **may omit it entirely**
 from ``connect()`` -- optional inputs are exempt from the missing-input check. A consumer whose
 owning task slews the arm to a known configured home (Isaac Lab) legitimately leaves it unwired
@@ -124,6 +135,26 @@ is connected to a ``ValueInput`` leaf, that leaf is an external graph input, and
 validates every external leaf name is present in ``external_inputs`` on **every** step,
 independently of ``OptionalType``. Such a producer must send the key unconditionally, carrying an
 absent ``OptionalTensorGroup`` on frames with no pose.
+
+Latch permission
+^^^^^^^^^^^^^^^^
+
+:data:`~isaacteleop.retargeters.SO101ClutchRetargeter.ENGAGE_PERMITTED_INPUT` is an optional
+boolean the owner sets when a jump-free engage is possible *right now*. It is read **only** on a
+frame where a latch is owed, so it gates the **latch** and never the engagement: revoking it
+mid-engagement does nothing, and :attr:`~isaacteleop.retargeters.SO101ClutchRetargeter.is_engaged`
+remains exactly ``_origin is not None``. Absent, unwired, or ``True`` all mean permitted, so an
+existing consumer is unaffected.
+
+It is an **enable precondition, not a safety-rated stop**. Denial does not disengage and does not
+re-arm anything; it holds the pending latch until a permitted frame arrives, and the latch then
+fires against *that* frame's controller pose, not the one it was first squeezed at. The same
+``ValueInput``-leaf rule as ``MEASURED_BASE_T_EE_INPUT`` applies: a producer that wires it must
+send the key on every step.
+
+The motivating consumer is ``examples/mujoco_xr``, whose owner shows the operator an SO-101
+follower before engaging and withholds permission until the operator's wrist is turned the way
+that arm is -- see that example's README.
 
 Reset
 ^^^^^

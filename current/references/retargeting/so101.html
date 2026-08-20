@@ -470,7 +470,8 @@ closedness from the controller trigger.</p></li>
 <td><p>Same output contract as <code class="docutils literal notranslate"><span class="pre">Se3AbsRetargeter</span></code>, but clutches the <strong>full pose</strong>: re-latches
 both the home position and the home orientation on every engage, composing the orientation
 delta on the <strong>left</strong> (base frame) with no fixed offset. Engages on
-<code class="docutils literal notranslate"><span class="pre">RUNNING</span></code> <strong>and</strong> <code class="docutils literal notranslate"><span class="pre">squeeze</span> <span class="pre">&gt;</span> <span class="pre">squeeze_threshold</span></code>.</p></td>
+<code class="docutils literal notranslate"><span class="pre">RUNNING</span></code> <strong>and</strong> <code class="docutils literal notranslate"><span class="pre">squeeze</span> <span class="pre">&gt;</span> <span class="pre">squeeze_threshold</span></code>, and only latches on a frame the owner
+permits.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SO101GripperRetargeter</span></code></p></td>
 <td><p>1 float <code class="docutils literal notranslate"><span class="pre">gripper_command</span></code> <code class="docutils literal notranslate"><span class="pre">c</span></code> in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code></p></td>
@@ -515,7 +516,9 @@ conjuncts are different things and both are load-bearing: <code class="docutils 
 should hold <code class="docutils literal notranslate"><span class="pre">STOPPED</span></code> so a squeeze cannot latch a home the arm has not reached yet – which also
 makes it safe to supply the real home late, via
 <code class="xref py py-meth docutils literal notranslate"><span class="pre">set_home_base_T_ee()</span></code>, when the retargeting
-graph must be built before the arm is homed.</p>
+graph must be built before the arm is homed. Calling that method on every disengaged frame of a
+<code class="docutils literal notranslate"><span class="pre">RUNNING</span></code> session is equally sound, and is what an owner whose arm moves while disengaged wants;
+see its own documentation, where the constraint is the engaged state rather than the cadence.</p>
 <p>Latching uses a <strong>pending-latch sentinel</strong>: the latch is <em>owed</em> until a frame arrives that can be
 trusted, and it is re-armed on every disengaged, dropped, invalid or degenerate frame. Both halves
 matter. Re-arming on dropped frames in particular is what prevents a jump when the operator
@@ -541,6 +544,15 @@ an arm that sagged while disengaged is not snapped back to a stale command), whi
 <em>orientation</em> is always the last commanded rotation. The 5-DOF wrist tracks orientation only
 softly, so latching the measured orientation would inject that tracking offset into the command on
 every re-clutch.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The consequence is that <code class="docutils literal notranslate"><span class="pre">MEASURED_BASE_T_EE_INPUT</span></code> <strong>cannot deliver rotation</strong>. An owner
+whose arm has rotated away from the configured home engages at the measured position and the
+<em>stale</em> orientation – see the attribute’s own documentation for the measured figure. When the
+arm’s achieved rotation is what must be engaged against,
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">set_home_base_T_ee()</span></code> is not the preferred
+route, it is the only one: it reads both blocks.</p>
+</div>
 <p><code class="docutils literal notranslate"><span class="pre">MEASURED_BASE_T_EE_INPUT</span></code> is declared <code class="docutils literal notranslate"><span class="pre">OptionalType</span></code> and a consumer <strong>may omit it entirely</strong>
 from <code class="docutils literal notranslate"><span class="pre">connect()</span></code> – optional inputs are exempt from the missing-input check. A consumer whose
 owning task slews the arm to a known configured home (Isaac Lab) legitimately leaves it unwired
@@ -551,6 +563,23 @@ is connected to a <code class="docutils literal notranslate"><span class="pre">V
 validates every external leaf name is present in <code class="docutils literal notranslate"><span class="pre">external_inputs</span></code> on <strong>every</strong> step,
 independently of <code class="docutils literal notranslate"><span class="pre">OptionalType</span></code>. Such a producer must send the key unconditionally, carrying an
 absent <code class="docutils literal notranslate"><span class="pre">OptionalTensorGroup</span></code> on frames with no pose.</p>
+</section>
+<section id="latch-permission">
+<h3>Latch permission<a class="headerlink" href="#latch-permission" title="Link to this heading">#</a></h3>
+<p><code class="xref py py-data docutils literal notranslate"><span class="pre">ENGAGE_PERMITTED_INPUT</span></code> is an optional
+boolean the owner sets when a jump-free engage is possible <em>right now</em>. It is read <strong>only</strong> on a
+frame where a latch is owed, so it gates the <strong>latch</strong> and never the engagement: revoking it
+mid-engagement does nothing, and <code class="xref py py-attr docutils literal notranslate"><span class="pre">is_engaged</span></code>
+remains exactly <code class="docutils literal notranslate"><span class="pre">_origin</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">None</span></code>. Absent, unwired, or <code class="docutils literal notranslate"><span class="pre">True</span></code> all mean permitted, so an
+existing consumer is unaffected.</p>
+<p>It is an <strong>enable precondition, not a safety-rated stop</strong>. Denial does not disengage and does not
+re-arm anything; it holds the pending latch until a permitted frame arrives, and the latch then
+fires against <em>that</em> frame’s controller pose, not the one it was first squeezed at. The same
+<code class="docutils literal notranslate"><span class="pre">ValueInput</span></code>-leaf rule as <code class="docutils literal notranslate"><span class="pre">MEASURED_BASE_T_EE_INPUT</span></code> applies: a producer that wires it must
+send the key on every step.</p>
+<p>The motivating consumer is <code class="docutils literal notranslate"><span class="pre">examples/mujoco_xr</span></code>, whose owner shows the operator an SO-101
+follower before engaging and withholds permission until the operator’s wrist is turned the way
+that arm is – see that example’s README.</p>
 </section>
 <section id="reset">
 <h3>Reset<a class="headerlink" href="#reset" title="Link to this heading">#</a></h3>
@@ -728,6 +757,7 @@ binary <code class="docutils literal notranslate"><span class="pre">+1</span> <s
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#frames">Frames</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#engaging">Engaging</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-home">The home</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#latch-permission">Latch permission</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reset">Reset</a></li>
 </ul>
 </li>
@@ -816,7 +846,7 @@ binary <code class="docutils literal notranslate"><span class="pre">+1</span> <s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 19, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 20, 2026.
       <br/>
     
   </p>
