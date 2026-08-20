@@ -334,7 +334,6 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -768,7 +767,9 @@ pose shift (no effect on the equirect sphere at its default infinite radius).</p
 <p>Surfaces are composited by the OpenXR runtime, which keeps them sharp under head motion and lets
 CloudXR stream them efficiently (see
 <a class="reference internal" href="../getting_started/televiz.html#openxr-composition-layers"><span class="std std-ref">OpenXR composition layers</span></a>). For flat planes only,
-<code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> opts a camera back into Televiz’s built-in compositor.</p>
+<code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> opts a camera back into Televiz’s built-in compositor. On Jetson Orin
+(CloudXR experimental runtime), set <code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> so the plane is not left black; see
+Troubleshooting below.</p>
 </section>
 <section id="cloudxr-runtime-flags">
 <h2><a class="toc-backref" href="#id10" role="doc-backlink">CloudXR runtime flags</a><a class="headerlink" href="#cloudxr-runtime-flags" title="Link to this heading">#</a></h2>
@@ -779,6 +780,27 @@ serving. Useful flags:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">--cloudxr-device-profile</span> <span class="pre">PROFILE</span></code> — <code class="docutils literal notranslate"><span class="pre">NV_DEVICE_PROFILE</span></code> (default <code class="docutils literal notranslate"><span class="pre">Quest3</span></code>).</p></li>
 </ul>
 <p>Run <code class="docutils literal notranslate"><span class="pre">camera_viz.py</span> <span class="pre">--help</span></code> for the rest (install dir, env-config file, WSS proxy toggle).</p>
+<p>Runtime settings themselves are declared in the config rather than exported. The viewer ships
+defaults (pose wait off, runtime foveation on), and <code class="docutils literal notranslate"><span class="pre">display.cloudxr</span></code> overrides them per
+deployment — list only what you want to change:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">display</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">cloudxr</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">NV_DEVICE_PROFILE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apple-vision-pro</span>
+<span class="w">    </span><span class="nt">NV_ENABLE_POSE_WAIT</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w">   </span><span class="c1"># null drops a viewer default</span>
+</pre></div>
+</div>
+<p>The viewer writes these to a generated <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> file, which outranks the process
+environment — so a value left in your shell (for example after sourcing
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/run/cloudxr.env</span></code>, as <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> suggests) cannot silently
+override the config, and neither can it override <code class="docutils literal notranslate"><span class="pre">--cloudxr-device-profile</span></code>. Booleans are
+written in the lowercase spelling the runtime’s parser recognises; the launcher-computed keys
+(<code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code>, <code class="docutils literal notranslate"><span class="pre">NV_CXR_RUNTIME_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">NV_CXR_OUTPUT_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">XRT_NO_STDIN</span></code>) are
+rejected by name. Passing <code class="docutils literal notranslate"><span class="pre">--cloudxr-env-config</span></code> yourself takes precedence over the generated
+file.</p>
+<p>An unknown variable name warns with a suggestion before the runtime launches, and is passed
+through regardless — the runtime has more settings than the viewer lists. To confirm what the
+runtime resolved, read the settings dump at the top of the newest
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr/logs/cxr_server.*.log</span></code>.</p>
 </section>
 <section id="split-mode-robot-workstation-over-rtp">
 <h2><a class="toc-backref" href="#id11" role="doc-backlink">Split mode — robot → workstation over RTP</a><a class="headerlink" href="#split-mode-robot-workstation-over-rtp" title="Link to this heading">#</a></h2>
@@ -867,7 +889,7 @@ YAML per source kind.</p>
 </section>
 <section id="troubleshooting">
 <h2><a class="toc-backref" href="#id14" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
-<ul class="simple">
+<ul>
 <li><p><strong>The XR session fails to create</strong> — check <code class="docutils literal notranslate"><span class="pre">~/.cloudxr/logs/cxr_server.*.log</span></code> and
 <code class="docutils literal notranslate"><span class="pre">runtime_stderr.log</span></code> for the startup failure. Pass <code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">window</span></code> to render to a
 desktop window instead (no runtime involved).</p></li>
@@ -877,6 +899,20 @@ you’re sitting at, or use a video-capable remote desktop.</p></li>
 directory (<code class="docutils literal notranslate"><span class="pre">configs/</span></code>), not the directory you launched from.</p></li>
 <li><p><strong>A source fails asking for CuPy / CUDA</strong> — check <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code> works and setup completed;
 all sources allocate their frame buffers on the GPU.</p></li>
+<li><p><strong>No video on Orin.</strong> When the CloudXR runtime runs on Jetson Orin, set
+<strong>Video Codec</strong> to <strong>H.264</strong> in the CloudXR web client. See
+<a class="reference internal" href="../getting_started/quick_start.html#connect-xr-headset"><span class="std std-ref">5. Connect an XR headset</span></a>.</p></li>
+<li><p><strong>Black camera plane on Orin</strong> — with the CloudXR experimental runtime on Orin, the default
+OpenXR compositor shows the camera plane but leaves its contents black. Under the camera’s
+<code class="docutils literal notranslate"><span class="pre">display.placements</span></code> entry, set <code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> (quads only). The same feed displays
+correctly with this workaround:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">display</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">placements</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">cam</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">compositor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">televiz</span>
+</pre></div>
+</div>
+</li>
 <li><p><strong>Split mode renders nothing</strong> — check the sender is up (<code class="docutils literal notranslate"><span class="pre">./camera_viz.sh</span> <span class="pre">service-status</span></code>),
 <code class="docutils literal notranslate"><span class="pre">$STREAMING_HOST</span></code> was the workstation’s IP at deploy time, and UDP ports (default 5000+)
 aren’t firewalled.</p></li>
@@ -1090,7 +1126,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 20, 2026.
       <br/>
     
   </p>

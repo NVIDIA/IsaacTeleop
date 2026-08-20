@@ -334,7 +334,6 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/architecture.html">Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="current nav bd-sidenav">
@@ -544,7 +543,7 @@ step has not been completed.</p>
 <p>Install the build prerequisites first — a missing <code class="docutils literal notranslate"><span class="pre">clang-format-14</span></code> is the most common
 cause of a failed build, because the format check is enforced by default on Linux:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache<span class="w"> </span>patchelf
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache<span class="w"> </span>patchelf<span class="w"> </span>pkg-config<span class="w"> </span>glslang-tools
 </pre></div>
 </div>
 <p>Then clone, configure, build, and install (see
@@ -857,7 +856,7 @@ branch in Isaac Lab, which targets a different task and must be adapted.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 20, 2026.
       <br/>
     
   </p>

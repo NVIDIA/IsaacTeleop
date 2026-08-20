@@ -334,7 +334,6 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -493,10 +492,9 @@ soon as the CloudXR environment is loaded, each pane prints a banner
 <kbd class="kbd docutils literal notranslate">Enter</kbd> needed. When the command exits, the pane reports
 <code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">N</span> <span class="pre">—</span> <span class="pre">press</span> <span class="pre">Enter</span> <span class="pre">to</span> <span class="pre">rerun</span></code> and drops
 to an interactive shell with the same command pre-typed at the prompt.
-Anything that calls <code class="docutils literal notranslate"><span class="pre">xrGetSystem</span></code> before a headset connects exits with
-<code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">get</span> <span class="pre">OpenXR</span> <span class="pre">system</span></code> — so if a pane’s app started before you
-connected the headset to the printed URL, connect it and press
-<kbd class="kbd docutils literal notranslate">Enter</kbd> in that pane to rerun. If the CloudXR environment fails to
+An app that reaches <code class="docutils literal notranslate"><span class="pre">xrGetSystem</span></code> before a headset connects waits there
+(<code class="docutils literal notranslate"><span class="pre">waiting</span> <span class="pre">for</span> <span class="pre">a</span> <span class="pre">system...</span></code>) and carries on by itself once you connect
+one to the printed URL — no rerun needed. If the CloudXR environment fails to
 load, the pane does <em>not</em> run the command; it prints a remedy and leaves
 the command pre-typed instead.</p></li>
 <li><p>The launcher then switches you to the rig window. Run from inside tmux,
@@ -662,13 +660,18 @@ the pane does not run its command. Check the error printed above
 the message, <code class="docutils literal notranslate"><span class="pre">source</span></code> the file as the message says, then press
 <kbd class="kbd docutils literal notranslate">Enter</kbd> — the command is already pre-typed.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">...</span></code> right after launch</p></td>
-<td><p>The app auto-ran before the headset connected (classic:
-<code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">get</span> <span class="pre">OpenXR</span> <span class="pre">system</span></code>); connect the headset to the
-runtime’s URL, then press <kbd class="kbd docutils literal notranslate">Enter</kbd> in the pane — the command is
-already pre-typed at the prompt.</p></td>
+<tr class="row-even"><td><p>A pane sits at <code class="docutils literal notranslate"><span class="pre">waiting</span> <span class="pre">for</span> <span class="pre">a</span> <span class="pre">system...</span></code></p></td>
+<td><p>Normal until a headset connects to the runtime’s URL; the app goes on
+by itself once one does. Nothing times this out, so a pane that never
+moves is usually a device-profile mismatch — check it with
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr.service</span> <span class="pre">status</span></code>.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Edits to the rig file seem ignored</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">...</span></code> right after launch</p></td>
+<td><p>The command failed on its own account; a late headset is no longer
+such an exit. Read the pane’s output, then press <kbd class="kbd docutils literal notranslate">Enter</kbd> to
+rerun — the command is already pre-typed at the prompt.</p></td>
+</tr>
+<tr class="row-even"><td><p>Edits to the rig file seem ignored</p></td>
 <td><p>The rig was already running; relaunch after
 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">&lt;rig.yaml&gt;</span> <span class="pre">--kill</span></code>.</p></td>
 </tr>
@@ -814,7 +817,7 @@ already pre-typed at the prompt.</p></td>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 17, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 20, 2026.
       <br/>
     
   </p>

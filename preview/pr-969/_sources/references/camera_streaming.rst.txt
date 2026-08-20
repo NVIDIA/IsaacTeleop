@@ -288,7 +288,9 @@ pose shift (no effect on the equirect sphere at its default infinite radius).
 Surfaces are composited by the OpenXR runtime, which keeps them sharp under head motion and lets
 CloudXR stream them efficiently (see
 :ref:`OpenXR composition layers <openxr-composition-layers>`). For flat planes only,
-``compositor: televiz`` opts a camera back into Televiz's built-in compositor.
+``compositor: televiz`` opts a camera back into Televiz's built-in compositor. On Jetson Orin
+(CloudXR experimental runtime), set ``compositor: televiz`` so the plane is not left black; see
+Troubleshooting below.
 
 CloudXR runtime flags
 ---------------------
@@ -300,6 +302,31 @@ serving. Useful flags:
 - ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
+
+Runtime settings themselves are declared in the config rather than exported. The viewer ships
+defaults (pose wait off, runtime foveation on), and ``display.cloudxr`` overrides them per
+deployment — list only what you want to change:
+
+.. code-block:: yaml
+
+   display:
+     cloudxr:
+       NV_DEVICE_PROFILE: apple-vision-pro
+       NV_ENABLE_POSE_WAIT: null   # null drops a viewer default
+
+The viewer writes these to a generated ``--cloudxr-env-config`` file, which outranks the process
+environment — so a value left in your shell (for example after sourcing
+``~/.cloudxr/run/cloudxr.env``, as ``--no-launch-cloudxr-runtime`` suggests) cannot silently
+override the config, and neither can it override ``--cloudxr-device-profile``. Booleans are
+written in the lowercase spelling the runtime's parser recognises; the launcher-computed keys
+(``XR_RUNTIME_JSON``, ``NV_CXR_RUNTIME_DIR``, ``NV_CXR_OUTPUT_DIR``, ``XRT_NO_STDIN``) are
+rejected by name. Passing ``--cloudxr-env-config`` yourself takes precedence over the generated
+file.
+
+An unknown variable name warns with a suggestion before the runtime launches, and is passed
+through regardless — the runtime has more settings than the viewer lists. To confirm what the
+runtime resolved, read the settings dump at the top of the newest
+``~/.cloudxr/logs/cxr_server.*.log``.
 
 Split mode — robot → workstation over RTP
 -----------------------------------------
@@ -408,6 +435,21 @@ Troubleshooting
   directory (``configs/``), not the directory you launched from.
 - **A source fails asking for CuPy / CUDA** — check ``nvidia-smi`` works and setup completed;
   all sources allocate their frame buffers on the GPU.
+- **No video on Orin.** When the CloudXR runtime runs on Jetson Orin, set
+  **Video Codec** to **H.264** in the CloudXR web client. See
+  :ref:`connect-xr-headset`.
+- **Black camera plane on Orin** — with the CloudXR experimental runtime on Orin, the default
+  OpenXR compositor shows the camera plane but leaves its contents black. Under the camera's
+  ``display.placements`` entry, set ``compositor: televiz`` (quads only). The same feed displays
+  correctly with this workaround:
+
+  .. code-block:: yaml
+
+     display:
+       placements:
+         cam:
+           compositor: televiz
+
 - **Split mode renders nothing** — check the sender is up (``./camera_viz.sh service-status``),
   ``$STREAMING_HOST`` was the workstation's IP at deploy time, and UDP ports (default 5000+)
   aren't firewalled.
