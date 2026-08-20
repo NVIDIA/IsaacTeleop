@@ -236,6 +236,12 @@ Controller bindings
 In XR the controllers retune the view live, without editing the YAML and restarting. The right
 hand changes how the feed looks; the left, what surface it is mapped onto:
 
+.. figure:: ../_static/camera-viz-controls.svg
+   :alt: camera_viz controller bindings, left and right
+   :width: 100%
+
+   Bindings at a glance. The table below is the same thing in words.
+
 .. list-table::
    :header-rows: 1
    :widths: 22 78
