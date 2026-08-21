@@ -4,7 +4,9 @@
 """
 Keyboard Source Node - DeviceIO to Retargeting Engine converter.
 
-Converts raw KeyboardOutput flatbuffer data to standard KeyboardInput tensor format.
+Converts raw KeyboardOutput flatbuffer data (a set of held evdev key codes, see
+linux/input-event-codes.h) to two standard outputs: the fixed 13-key subset used
+by SE3 retargeting, and a 256-entry bitmap covering every standard key.
 """
 
 from __future__ import annotations
@@ -13,8 +15,8 @@ from typing import Any, TYPE_CHECKING
 from .interface import IDeviceIOSource
 from ..interface.retargeter_core_types import RetargeterIO, RetargeterIOType
 from ..interface.tensor_group import TensorGroup
-from ..tensor_types import KeyboardInput, KeyboardInputIndex
-from ..interface.tensor_group_type import OptionalType
+from ..tensor_types import KeyboardInput, KeyboardInputIndex, NDArrayType, DLDataType
+from ..interface.tensor_group_type import OptionalType, TensorGroupType
 from .deviceio_tensor_types import DeviceIOKeyboardOutputTracked
 
 if TYPE_CHECKING:
@@ -27,6 +29,28 @@ if TYPE_CHECKING:
 # Default collection_id matching the keyboard plugin and KeyboardTracker.
 DEFAULT_KEYBOARD_COLLECTION_ID = "keyboard"
 
+# Evdev key codes (linux/input-event-codes.h) for the fixed SE3-relevant subset.
+KEY_CODES_BY_INDEX = {
+    KeyboardInputIndex.KEY_W: 17,
+    KeyboardInputIndex.KEY_A: 30,
+    KeyboardInputIndex.KEY_S: 31,
+    KeyboardInputIndex.KEY_D: 32,
+    KeyboardInputIndex.KEY_Q: 16,
+    KeyboardInputIndex.KEY_E: 18,
+    KeyboardInputIndex.KEY_Z: 44,
+    KeyboardInputIndex.KEY_X: 45,
+    KeyboardInputIndex.KEY_T: 20,
+    KeyboardInputIndex.KEY_G: 34,
+    KeyboardInputIndex.KEY_C: 46,
+    KeyboardInputIndex.KEY_V: 47,
+    KeyboardInputIndex.KEY_K: 37,
+}
+
+# Every standard PC keyboard key (letters, digits, function keys, navigation,
+# modifiers, numpad, punctuation) fits under evdev code 255; anything above that
+# is an exotic/vendor key not tracked here.
+ALL_KEYS_BITMAP_SIZE = 256
+
 
 class KeyboardSource(IDeviceIOSource):
     """
@@ -36,7 +60,12 @@ class KeyboardSource(IDeviceIOSource):
         - "deviceio_keyboard": Raw KeyboardOutput flatbuffer from KeyboardTracker
 
     Outputs (Optional — absent when the keyboard plugin has not yet streamed):
-        - "keyboard": OptionalTensorGroup (check ``.is_none`` before access)
+        - "keyboard": OptionalTensorGroup, the fixed 13-key SE3-relevant subset
+          (check ``.is_none`` before access)
+        - "keyboard_all_keys": OptionalTensorGroup, a 256-entry uint8 bitmap
+          indexed by evdev key code (1 = held, 0 = released) covering every
+          standard key, for consumers that want full keyboard visibility
+          rather than the SE3-specific subset.
 
     Usage:
         # In TeleopSession, the keyboard tracker is discovered from the pipeline;
@@ -96,37 +125,52 @@ class KeyboardSource(IDeviceIOSource):
         """Declare standard keyboard input output (Optional — may be absent)."""
         return {
             "keyboard": OptionalType(KeyboardInput()),
+            "keyboard_all_keys": OptionalType(
+                TensorGroupType(
+                    "keyboard_all_keys",
+                    [
+                        NDArrayType(
+                            "bitmap",
+                            shape=(ALL_KEYS_BITMAP_SIZE,),
+                            dtype=DLDataType.UINT,
+                            dtype_bits=8,
+                        )
+                    ],
+                )
+            ),
         }
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
-        Convert DeviceIO KeyboardOutputTrackedT to standard KeyboardInput tensor.
+        Convert DeviceIO KeyboardOutputTrackedT to the standard keyboard outputs.
 
-        Calls ``set_none()`` on the output when the keyboard plugin has not yet streamed.
+        Calls ``set_none()`` on both outputs when the keyboard plugin has not yet
+        streamed.
 
         Args:
             inputs: Dict with "deviceio_keyboard" containing KeyboardOutputTrackedT wrapper
-            outputs: Dict with "keyboard" OptionalTensorGroup
+            outputs: Dict with "keyboard" and "keyboard_all_keys" OptionalTensorGroups
             context: Shared ComputeContext for the current step (carries GraphTime).
         """
+        import numpy as np
+
         tracked: "KeyboardOutputTrackedT" = inputs["deviceio_keyboard"][0]
         keys: KeyboardOutput | None = tracked.data
 
         out = outputs["keyboard"]
+        all_keys_out = outputs["keyboard_all_keys"]
         if keys is None:
             out.set_none()
+            all_keys_out.set_none()
             return
 
-        out[KeyboardInputIndex.KEY_W] = bool(keys.key_w)
-        out[KeyboardInputIndex.KEY_A] = bool(keys.key_a)
-        out[KeyboardInputIndex.KEY_S] = bool(keys.key_s)
-        out[KeyboardInputIndex.KEY_D] = bool(keys.key_d)
-        out[KeyboardInputIndex.KEY_Q] = bool(keys.key_q)
-        out[KeyboardInputIndex.KEY_E] = bool(keys.key_e)
-        out[KeyboardInputIndex.KEY_Z] = bool(keys.key_z)
-        out[KeyboardInputIndex.KEY_X] = bool(keys.key_x)
-        out[KeyboardInputIndex.KEY_T] = bool(keys.key_t)
-        out[KeyboardInputIndex.KEY_G] = bool(keys.key_g)
-        out[KeyboardInputIndex.KEY_C] = bool(keys.key_c)
-        out[KeyboardInputIndex.KEY_V] = bool(keys.key_v)
-        out[KeyboardInputIndex.KEY_K] = bool(keys.key_k)
+        pressed = set(keys.pressed_keys)
+
+        for index, code in KEY_CODES_BY_INDEX.items():
+            out[index] = code in pressed
+
+        bitmap = np.zeros(ALL_KEYS_BITMAP_SIZE, dtype=np.uint8)
+        for code in pressed:
+            if code < ALL_KEYS_BITMAP_SIZE:
+                bitmap[code] = 1
+        all_keys_out[0] = bitmap

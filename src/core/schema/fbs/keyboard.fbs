@@ -5,28 +5,18 @@ include "timestamp.fbs";
 
 namespace core;
 
-// Raw press state of a fixed set of keyboard keys. Carries no semantic mapping --
+// Raw press state of a keyboard: the set of currently-held Linux evdev key codes
+// (see linux/input-event-codes.h, e.g. KEY_W = 17). Carries no semantic mapping --
 // which keys mean what (an axis, a toggle, a mode switch) is entirely up to the
-// consuming retargeter. Validated against a standard US QWERTY layout.
+// consuming retargeter.
 //
 // All fields are always present when the parent Tracked/Record wrapper's data is non-null.
 table KeyboardOutput {
-    key_w: bool (id: 0);
-    key_a: bool (id: 1);
-    key_s: bool (id: 2);
-    key_d: bool (id: 3);
-    key_q: bool (id: 4);
-    key_e: bool (id: 5);
-    key_z: bool (id: 6);
-    key_x: bool (id: 7);
-    key_t: bool (id: 8);
-    key_g: bool (id: 9);
-    key_c: bool (id: 10);
-    key_v: bool (id: 11);
-    key_k: bool (id: 12);
+    // Evdev key codes currently held down, in no particular order.
+    pressed_keys: [ushort] (id: 0);
 
     // Whether the tracker has emitted at least one sample.
-    is_valid: bool (id: 13);
+    is_valid: bool (id: 1);
 }
 
 // Tracked wrapper for the in-memory tracker API (data is null when no sample is available).

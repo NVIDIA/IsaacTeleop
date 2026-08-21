@@ -25,7 +25,7 @@ namespace
 {
 
 constexpr size_t kInputEventSize = sizeof(input_event);
-constexpr size_t kMaxFlatbufferSize = 256;
+constexpr size_t kMaxFlatbufferSize = 2048;
 
 } // namespace
 
@@ -96,62 +96,17 @@ void KeyboardPlugin::update()
             return;
         }
 
-        // value: 0 = release, 1 = press, 2 = autorepeat (ignored -- press state is already true).
+        // value: 0 = release, 1 = press, 2 = autorepeat (ignored -- key is already tracked as held).
         if (event.type == EV_KEY && event.value != 2)
         {
-            apply_key_event(event.code, event.value != 0);
+            if (event.value != 0)
+                pressed_keys_.insert(event.code);
+            else
+                pressed_keys_.erase(event.code);
         }
     }
 
     push_current_state();
-}
-
-void KeyboardPlugin::apply_key_event(unsigned short code, bool pressed)
-{
-    switch (code)
-    {
-    case KEY_W:
-        key_w_ = pressed;
-        break;
-    case KEY_A:
-        key_a_ = pressed;
-        break;
-    case KEY_S:
-        key_s_ = pressed;
-        break;
-    case KEY_D:
-        key_d_ = pressed;
-        break;
-    case KEY_Q:
-        key_q_ = pressed;
-        break;
-    case KEY_E:
-        key_e_ = pressed;
-        break;
-    case KEY_Z:
-        key_z_ = pressed;
-        break;
-    case KEY_X:
-        key_x_ = pressed;
-        break;
-    case KEY_T:
-        key_t_ = pressed;
-        break;
-    case KEY_G:
-        key_g_ = pressed;
-        break;
-    case KEY_C:
-        key_c_ = pressed;
-        break;
-    case KEY_V:
-        key_v_ = pressed;
-        break;
-    case KEY_K:
-        key_k_ = pressed;
-        break;
-    default:
-        break;
-    }
 }
 
 bool KeyboardPlugin::open_device()
@@ -173,24 +128,15 @@ void KeyboardPlugin::close_device()
 
     close(device_fd_);
     device_fd_ = -1;
+    // A closed device can no longer report releases -- forget everything it
+    // last reported as held so a stale key doesn't stick "pressed" forever.
+    pressed_keys_.clear();
 }
 
 void KeyboardPlugin::push_current_state()
 {
     core::KeyboardOutputT out;
-    out.key_w = key_w_;
-    out.key_a = key_a_;
-    out.key_s = key_s_;
-    out.key_d = key_d_;
-    out.key_q = key_q_;
-    out.key_e = key_e_;
-    out.key_z = key_z_;
-    out.key_x = key_x_;
-    out.key_t = key_t_;
-    out.key_g = key_g_;
-    out.key_c = key_c_;
-    out.key_v = key_v_;
-    out.key_k = key_k_;
+    out.pressed_keys.assign(pressed_keys_.begin(), pressed_keys_.end());
     out.is_valid = true;
 
     auto sample_time_ns = core::os_monotonic_now_ns();

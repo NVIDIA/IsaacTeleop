@@ -31,7 +31,7 @@ python_accessor = "get_pedal_data"
 [[tracker]]
 name = "keyboard"
 table = "KeyboardOutput"
-max_flatbuffer_size = 256
+max_flatbuffer_size = 2048
 python_accessor = "get_keyboard_data"
 
 [[tracker]]
