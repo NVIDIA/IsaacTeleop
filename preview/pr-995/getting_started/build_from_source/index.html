@@ -486,8 +486,8 @@ than quietly dropping the module. Most users do not need any of this:
 <a class="reference internal" href="#other-build-options">Other Build options</a> for the full option table.</p>
 <p>On <strong>Linux</strong>, <code class="docutils literal notranslate"><span class="pre">BUILD_VIZ=ON</span></code> also builds the robot twin’s scene backend
 (<code class="xref py py-class docutils literal notranslate"><span class="pre">isaacteleop.viz.robot.SceneTwin</span></code>). There is no separate flag. It compiles
-MuJoCo from source and links it statically with its symbols hidden, so it is unrelated
-to whatever <code class="docutils literal notranslate"><span class="pre">mujoco</span></code> the environment has – any version, or none. It needs <strong>EGL’s
+MuJoCo from source and ships it under a private name, so it is unrelated to whatever
+<code class="docutils literal notranslate"><span class="pre">mujoco</span></code> the environment has – any version, or none. It needs <strong>EGL’s
 headers</strong> (<code class="docutils literal notranslate"><span class="pre">libegl-dev</span></code>) for its headless OpenGL context, fetches MuJoCo and six
 vendored dependencies from GitHub on the first configure, and costs about 40 s of
 build time on 12 cores. A Windows Televiz build omits it: the headless context is EGL.</p>
@@ -498,10 +498,7 @@ build time on 12 cores. A Windows Televiz build omits it: the headless context i
 <p>Install build tools and dependencies, such as CMake, clang-format. See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/.github/workflows/build-ubuntu.yml" rel="noopener noreferrer" target="_blank">build-ubuntu.yml</a> in the GitHub repository for
 the list of dependencies. On <strong>Ubuntu</strong>, install build tools and clang-format:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
-sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libx11-dev<span class="w"> </span>libwayland-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache<span class="w"> </span>patchelf<span class="w"> </span>pkg-config<span class="w"> </span>glslang-tools
-
-<span class="c1"># Only for -DBUILD_VIZ=ON, which on Linux also builds the robot twin:</span>
-sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>libegl-dev
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>build-essential<span class="w"> </span>cmake<span class="w"> </span>libegl-dev<span class="w"> </span>libx11-dev<span class="w"> </span>libwayland-dev<span class="w"> </span>clang-format-14<span class="w"> </span>ccache<span class="w"> </span>patchelf<span class="w"> </span>pkg-config<span class="w"> </span>glslang-tools
 </pre></div>
 </div>
 <p>Runtime-only dependencies (needed to actually run teleop, not to build):</p>

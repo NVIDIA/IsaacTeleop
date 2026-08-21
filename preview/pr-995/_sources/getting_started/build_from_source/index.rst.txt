@@ -49,8 +49,8 @@ Prerequisites
 
    On **Linux**, ``BUILD_VIZ=ON`` also builds the robot twin's scene backend
    (:class:`isaacteleop.viz.robot.SceneTwin`). There is no separate flag. It compiles
-   MuJoCo from source and links it statically with its symbols hidden, so it is unrelated
-   to whatever ``mujoco`` the environment has -- any version, or none. It needs **EGL's
+   MuJoCo from source and ships it under a private name, so it is unrelated to whatever
+   ``mujoco`` the environment has -- any version, or none. It needs **EGL's
    headers** (``libegl-dev``) for its headless OpenGL context, fetches MuJoCo and six
    vendored dependencies from GitHub on the first configure, and costs about 40 s of
    build time on 12 cores. A Windows Televiz build omits it: the headless context is EGL.
@@ -66,10 +66,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev libwayland-dev clang-format-14 ccache patchelf pkg-config glslang-tools
-
-   # Only for -DBUILD_VIZ=ON, which on Linux also builds the robot twin:
-   sudo apt-get install -y libegl-dev
+   sudo apt-get install -y build-essential cmake libegl-dev libx11-dev libwayland-dev clang-format-14 ccache patchelf pkg-config glslang-tools
 
 Runtime-only dependencies (needed to actually run teleop, not to build):
 
