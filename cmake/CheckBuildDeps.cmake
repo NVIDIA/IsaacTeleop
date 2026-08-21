@@ -65,6 +65,17 @@ function(isaac_teleop_check_build_deps)
         endif()
     endif()
 
+    # EGL's headers, for the robot twin's headless OpenGL context. This function has
+    # already returned on anything but Linux, so BUILD_VIZ is the whole gate. Only the
+    # headers: gl_context.cpp dlopens libEGL, so the wheel carries no NEEDED entry.
+    if(BUILD_VIZ)
+        find_path(EGL_INCLUDE_DIR "EGL/eglext.h")
+        if(NOT EGL_INCLUDE_DIR)
+            list(APPEND _missing_tools "EGL/eglext.h     (BUILD_VIZ=ON -- the robot twin's headless OpenGL context)")
+            list(APPEND _missing_pkgs "libegl-dev")
+        endif()
+    endif()
+
     # patchelf strips the spurious libssl.so.3 NEEDED entry from libcloudxr.so
     # (src/core/cloudxr/python/CMakeLists.txt). Checked unconditionally: the SDK
     # tarball that triggers it is downloaded *during* configure, so whether it

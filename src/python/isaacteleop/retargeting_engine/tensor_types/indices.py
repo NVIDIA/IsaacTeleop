@@ -14,7 +14,7 @@ to ensure they always match the schema.
 
 import warnings
 from typing import Any
-from enum import IntEnum
+from enum import Enum, IntEnum
 from .standard_types import (
     HandInput,
     HeadInput,
@@ -47,6 +47,37 @@ Generic3AxisPedalInputIndex: Any = _create_index_enum(
 FullBodyInputIndex: Any = _create_index_enum(
     "FullBodyInputIndex", FullBodyInput(), "body_"
 )
+
+
+class HandPose(Enum):
+    """Which standard OpenXR controller pose a consumer drives from.
+
+    Different frames for different jobs, per the OpenXR spec. Grip is the palm centroid,
+    for rendering a held object; its -Z runs little finger to thumb, through the fist,
+    and is not a pointing direction. Aim's -Z is the pointing ray. A facing read off grip
+    therefore turns 1:1 with the hand but has an arbitrary zero.
+
+    The values are the strings the retargeters spell this choice with -- notably
+    ``SO101ClutchRetargeter(controller_pose=...)`` -- so one enum switches a whole app.
+    """
+
+    GRIP = "grip"
+    AIM = "aim"
+
+    @property
+    def indices(self) -> tuple[int, int, int]:
+        """``(position, orientation, is_valid)`` in :func:`ControllerInput` for this pose."""
+        if self is HandPose.GRIP:
+            return (
+                ControllerInputIndex.GRIP_POSITION,
+                ControllerInputIndex.GRIP_ORIENTATION,
+                ControllerInputIndex.GRIP_IS_VALID,
+            )
+        return (
+            ControllerInputIndex.AIM_POSITION,
+            ControllerInputIndex.AIM_ORIENTATION,
+            ControllerInputIndex.AIM_IS_VALID,
+        )
 
 
 class HandJointIndex(IntEnum):

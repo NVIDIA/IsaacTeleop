@@ -180,6 +180,10 @@ class TeleopSession:
         self.plugin_managers: List[pm.PluginManager] = []
         self.plugin_contexts: List[Any] = []
 
+        # The robot twin's render thread, when config.joint_publisher is set.
+        self._twin_runner: Optional[Any] = None
+        self._twin_teardown_clean: Optional[bool] = None
+
         # Exit stack for RAII resource management
         self._exit_stack = ExitStack()
 
@@ -220,6 +224,48 @@ class TeleopSession:
     def oxr_session(self) -> Optional[oxr.OpenXRSession]:
         """The internal OpenXR session, or ``None`` when using external handles or after the context manager exits (read-only)."""
         return self._oxr_session
+
+    @property
+    def twin_teardown_clean(self) -> Optional[bool]:
+        """Did the robot twin's render thread shut down cleanly?
+
+        ``None`` when no twin was configured or the session has not exited yet. **False
+        means the compositor session was not destroyed and is still live**: a thread is
+        somewhere inside the OpenXR runtime, and only that thread may destroy what it
+        made. A caller that owns the runtime -- one that launched CloudXR itself --
+        must NOT stop it on that path; the non-daemon thread keeps the process alive
+        and the OS reaps everything at exit.
+
+        ``__exit__`` does not raise on False. There is nothing the caller can do about
+        it that the caller is not already better placed to decide.
+        """
+        return self._twin_teardown_clean
+
+    @property
+    def twin_resolution(self) -> Optional[Any]:
+        """Per-view resolution the twin was built at, or ``None`` without one."""
+        return None if self._twin_runner is None else self._twin_runner.resolution
+
+    @property
+    def twin_head_pose(self) -> Optional[Any]:
+        """The last rendered frame's 7-D head pose ``[x, y, z, qx, qy, qz, qw]``.
+
+        ``None`` without a twin, and before its first rendered frame. Read from the
+        control thread; it is whatever the render thread last saw, not a pose belonging
+        to this step. Anchoring content to where the operator stood is what it is for --
+        an app deriving per-frame motion from it is reading the wrong clock.
+        """
+        return None if self._twin_runner is None else self._twin_runner.head_pose
+
+    @property
+    def twin_rendering(self) -> bool:
+        """Whether the twin's frame loop is still running.
+
+        Goes False when the runtime asks the session to close, which is the operator
+        taking the headset off or the runtime going away -- an app that wants to stop
+        on that has to poll it, because nothing else reports it.
+        """
+        return self._twin_runner is not None and self._twin_runner.rendering
 
     @property
     def last_context(self) -> Optional[ComputeContext]:
@@ -982,6 +1028,7 @@ class TeleopSession:
         # Reset run-scoped plugin containers on each context entry.
         self.plugin_managers = []
         self.plugin_contexts = []
+        self._twin_teardown_clean = None
 
         # Auto-populate mcap_config from pipeline sources if recording or replaying.
         mcap_config = None
@@ -1041,6 +1088,10 @@ class TeleopSession:
             # Resolve OpenXR handles
             if self.config.oxr_handles is not None:
                 handles = self.config.oxr_handles
+            elif self.config.joint_publisher is not None:
+                handles = oxr.OpenXRSessionHandles(
+                    *self._start_twin(stack, required_extensions)
+                )
             else:
                 self._oxr_session = stack.enter_context(
                     oxr.OpenXRSession(self.config.app_name, required_extensions)
@@ -1057,6 +1108,15 @@ class TeleopSession:
         # Initialize plugins (if any)
         self._start_configured_plugins(stack)
 
+        if self._twin_runner is not None:
+            # After DeviceIOSession, so the first rendered frame cannot precede a
+            # tracker that answers on the same handles. Registered here rather than
+            # inside _start_twin so the ExitStack unwinds it BEFORE DeviceIOSession:
+            # the loop must be out of the runtime before the trackers sharing its
+            # handles go away.
+            stack.callback(self._stop_twin_rendering)
+            self._twin_runner.begin_rendering()
+
         # Initialize runtime state
         self.frame_count = 0
         self.start_time = time.time()
@@ -1065,6 +1125,53 @@ class TeleopSession:
         self._last_execution_state = None
         self._async_runner = None
         self._active_retargeting_execution_mode = self.config.retargeting_execution.mode
+
+    def _start_twin(
+        self, stack: ExitStack, required_extensions: List[str]
+    ) -> Tuple[int, int, int, int]:
+        """Bring up the robot twin's render thread and return its OpenXR handles.
+
+        The same aggregated ``required_extensions`` every tracker asked for: this is
+        the ``xrCreateInstance`` call, so an extension discovered afterwards cannot be
+        added and the tracker needing it would be silently dead rather than an error.
+        ``get_required_oxr_extensions_from_pipeline`` exists so an *external* viz owner
+        can precompute that list; this path already has it.
+        """
+        # Imported here, not at module scope: it reaches isaacteleop.viz, which a build
+        # with BUILD_VIZ=OFF does not ship.
+        from .twin_runner import TwinRunner
+
+        view = self.config.twin_render
+        runner = TwinRunner(
+            self.config.joint_publisher,
+            app_name=self.config.app_name,
+            required_extensions=required_extensions,
+            near_z=view.near_z,
+            far_z=view.far_z,
+            layer_name=view.layer_name,
+            join_timeout_s=view.join_timeout_s,
+        )
+        # Registered before start(), so a failure part-way through creating the session
+        # still joins the thread; and first of everything in _enter_resources, so it
+        # unwinds LAST -- the compositor session outlives the trackers borrowing its
+        # handles.
+        stack.callback(self._destroy_twin)
+        self._twin_runner = runner
+        runner.start()
+        return runner.oxr_handles
+
+    def _stop_twin_rendering(self) -> None:
+        """Leave the frame loop; record whether it got out."""
+        if self._twin_runner is not None:
+            self._twin_teardown_clean = self._twin_runner.stop_rendering()
+
+    def _destroy_twin(self) -> None:
+        """Tear the twin's session down on its own thread, and drop the runner."""
+        runner, self._twin_runner = self._twin_runner, None
+        if runner is None:
+            return
+        joined = runner.destroy()
+        self._twin_teardown_clean = bool(self._twin_teardown_clean) and joined
 
     def _start_configured_plugins(self, stack: ExitStack) -> None:
         """Start ``config.plugins`` and register them on ``stack`` for cleanup."""

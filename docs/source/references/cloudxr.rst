@@ -200,7 +200,7 @@ accept ``--no-launch-cloudxr-runtime``. That returns a :class:`~isaacteleop.clou
 the process does not start or attach to CloudXR and leaves ``XR_RUNTIME_JSON`` and
 related environment variables unchanged. Use this when another runtime is already
 configured (for example Monado) or when a host singleton must not be duplicated
-(see ``examples/mujoco_xr/README.md`` and ``--no-launch-cloudxr-runtime`` there).
+(see ``examples/robot_viz/README.md`` and ``--no-launch-cloudxr-runtime`` there).
 
 .. code-block:: bash
 

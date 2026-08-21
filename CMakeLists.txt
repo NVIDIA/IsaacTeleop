@@ -172,7 +172,11 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/haptic_feedback)
     if(BUILD_VIZ)
         add_subdirectory(examples/camera_viz/tests)
-        add_subdirectory(examples/mujoco_xr)
+    endif()
+    # Pure Python, but its tests import the robot twin, which ships with Televiz on
+    # Linux (src/viz/CMakeLists.txt says why not on Windows).
+    if(BUILD_VIZ AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        add_subdirectory(examples/robot_viz)
     endif()
 elseif(BUILD_EXAMPLE_TELEOP_ROS2)
     add_subdirectory(examples/teleop_ros2)

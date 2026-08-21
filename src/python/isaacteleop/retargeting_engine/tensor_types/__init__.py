@@ -8,6 +8,8 @@ import warnings
 from .scalar_types import FloatType, IntType, BoolType
 from .ndarray_types import NDArrayType, DLDeviceType, DLDataType
 from .standard_types import (
+    BoolFlag,
+    EngagePermission,
     HandInput,
     HeadInput,
     ControllerInput,
@@ -30,6 +32,7 @@ from .tactile_types import (
 )
 from .indices import (
     HandInputIndex,
+    HandPose,
     HeadInputIndex,
     ControllerInputIndex,
     Generic3AxisPedalInputIndex,
@@ -49,6 +52,8 @@ __all__ = [
     "DLDeviceType",
     "DLDataType",
     # Standard types
+    "BoolFlag",
+    "EngagePermission",
     "HandInput",
     "HeadInput",
     "ControllerInput",
@@ -69,6 +74,7 @@ __all__ = [
     "NUM_END_EFFECTOR_FORCE_AXES",
     # Indices
     "HandInputIndex",
+    "HandPose",
     "HeadInputIndex",
     "ControllerInputIndex",
     "Generic3AxisPedalInputIndex",
