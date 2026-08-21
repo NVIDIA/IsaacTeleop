@@ -40,13 +40,12 @@ inline void bind_oak(py::module& m)
         .def_property_readonly("stream", field(&FrameMetadataOak::stream), "The stream type that produced this frame")
         .def_property_readonly(
             "sequence_number", field(&FrameMetadataOak::sequence_number), "The per-stream sequence number")
-        .def("__repr__", view_repr<FrameMetadataOak>(
-                             "FrameMetadataOak",
-                             [](const FrameMetadataOak& self)
-                             {
-                                 return "FrameMetadataOak(stream=" + std::string(EnumNameStreamType(self.stream())) +
-                                        ", sequence_number=" + std::to_string(self.sequence_number()) + ")";
-                             }));
+        .def("__repr__",
+             [](const Serialized<FrameMetadataOak>& self)
+             {
+                 return "FrameMetadataOak(stream=" + std::string(EnumNameStreamType(self->stream())) +
+                        ", sequence_number=" + std::to_string(self->sequence_number()) + ")";
+             });
 
     bind_record<FrameMetadataOakRecord, FrameMetadataOak>(m, "FrameMetadataOakRecord", "FrameMetadataOak");
 }

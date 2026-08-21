@@ -35,14 +35,13 @@ inline void bind_pedals(py::module& m)
         .def_property_readonly("left_pedal", field(&Generic3AxisPedalOutput::left_pedal))
         .def_property_readonly("right_pedal", field(&Generic3AxisPedalOutput::right_pedal))
         .def_property_readonly("rudder", field(&Generic3AxisPedalOutput::rudder))
-        .def("__repr__", view_repr<Generic3AxisPedalOutput>(
-                             "Generic3AxisPedalOutput",
-                             [](const Generic3AxisPedalOutput& self)
-                             {
-                                 return "Generic3AxisPedalOutput(left_pedal=" + std::to_string(self.left_pedal()) +
-                                        ", right_pedal=" + std::to_string(self.right_pedal()) +
-                                        ", rudder=" + std::to_string(self.rudder()) + ")";
-                             }));
+        .def("__repr__",
+             [](const Serialized<Generic3AxisPedalOutput>& self)
+             {
+                 return "Generic3AxisPedalOutput(left_pedal=" + std::to_string(self->left_pedal()) +
+                        ", right_pedal=" + std::to_string(self->right_pedal()) +
+                        ", rudder=" + std::to_string(self->rudder()) + ")";
+             });
 
     bind_record<Generic3AxisPedalOutputRecord, Generic3AxisPedalOutput>(
         m, "Generic3AxisPedalOutputRecord", "Generic3AxisPedalOutput");

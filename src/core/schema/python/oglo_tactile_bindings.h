@@ -53,15 +53,14 @@ inline void bind_oglo_tactile(py::module& m)
         .def_property_readonly("gyro_x", field(&OgloGloveSample::gyro_x))
         .def_property_readonly("gyro_y", field(&OgloGloveSample::gyro_y))
         .def_property_readonly("gyro_z", field(&OgloGloveSample::gyro_z))
-        .def("__repr__", view_repr<OgloGloveSample>(
-                             "OgloGloveSample",
-                             [](const OgloGloveSample& self)
-                             {
-                                 const auto* taxels = self.taxels();
-                                 return "OgloGloveSample(seq=" + std::to_string(self.seq()) +
-                                        ", device_time_us=" + std::to_string(self.device_time_us()) +
-                                        ", taxels=" + std::to_string(taxels != nullptr ? taxels->size() : 0) + ")";
-                             }));
+        .def("__repr__",
+             [](const Serialized<OgloGloveSample>& self)
+             {
+                 const auto* taxels = self->taxels();
+                 return "OgloGloveSample(seq=" + std::to_string(self->seq()) +
+                        ", device_time_us=" + std::to_string(self->device_time_us()) +
+                        ", taxels=" + std::to_string(taxels != nullptr ? taxels->size() : 0) + ")";
+             });
 
     bind_record<OgloGloveSampleRecord, OgloGloveSample>(m, "OgloGloveSampleRecord", "OgloGloveSample");
 }

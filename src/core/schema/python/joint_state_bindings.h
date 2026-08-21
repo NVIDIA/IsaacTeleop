@@ -45,13 +45,12 @@ inline void bind_joint_state(py::module& m)
         .def_property_readonly("effort", field(&JointState::effort))
         .def_property_readonly("valid", field(&JointState::valid))
         .def("__repr__",
-             view_repr<JointState>("JointState",
-                                   [](const JointState& self)
-                                   {
-                                       const auto* name = self.name();
-                                       return "JointState(name=" + (name != nullptr ? name->str() : std::string{}) +
-                                              ", position=" + std::to_string(self.position()) + ")";
-                                   }));
+             [](const Serialized<JointState>& self)
+             {
+                 const auto* name = self->name();
+                 return "JointState(name=" + (name != nullptr ? name->str() : std::string{}) +
+                        ", position=" + std::to_string(self->position()) + ")";
+             });
 
     // Per-frame device state: a list of named joints plus identity / capability flags.
     serialized_class<JointStateOutput>(
@@ -83,15 +82,13 @@ inline void bind_joint_state(py::module& m)
         .def_property_readonly("ee_pose", field(&JointStateOutput::ee_pose), py::return_value_policy::reference_internal)
         .def_property_readonly("ee_pose_valid", field(&JointStateOutput::ee_pose_valid))
         .def("__repr__",
-             view_repr<JointStateOutput>(
-                 "JointStateOutput",
-                 [](const JointStateOutput& self)
-                 {
-                     const auto* device_id = self.device_id();
-                     const auto* joints = self.joints();
-                     return "JointStateOutput(device_id=" + (device_id != nullptr ? device_id->str() : std::string{}) +
-                            ", joints=" + std::to_string(joints != nullptr ? joints->size() : 0) + ")";
-                 }));
+             [](const Serialized<JointStateOutput>& self)
+             {
+                 const auto* device_id = self->device_id();
+                 const auto* joints = self->joints();
+                 return "JointStateOutput(device_id=" + (device_id != nullptr ? device_id->str() : std::string{}) +
+                        ", joints=" + std::to_string(joints != nullptr ? joints->size() : 0) + ")";
+             });
 
     bind_record<JointStateOutputRecord, JointStateOutput>(m, "JointStateOutputRecord", "JointStateOutput");
 }

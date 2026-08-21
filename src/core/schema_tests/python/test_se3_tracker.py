@@ -88,8 +88,8 @@ class TestSe3TrackerPoseRecordTimestamp:
         assert record.timestamp.sample_time_raw_device_clock == 3000000000
         assert record.data.is_valid is True
 
-    def test_default_construction(self):
-        """Default Se3TrackerPoseRecord has no data and no timestamp."""
-        record = Se3TrackerPoseRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = Se3TrackerPoseRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
-        assert record.timestamp is None
+        assert record.timestamp.available_time_local_common_clock == 1

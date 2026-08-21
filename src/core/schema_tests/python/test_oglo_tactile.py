@@ -9,6 +9,7 @@ Tests the following FlatBuffers types:
 """
 
 from isaacteleop.schema import (
+    DeviceDataTimestamp,
     OgloGloveSampleRecord,
     OgloGloveSample,
 )
@@ -52,8 +53,12 @@ class TestOgloGloveSample:
 class TestOgloGloveSampleRecord:
     """Tests for the MCAP record wrapper."""
 
-    def test_default_construction(self):
-        assert OgloGloveSampleRecord().data is None
+    def test_payload_less_record(self):
+        record = OgloGloveSampleRecord(None, DeviceDataTimestamp(1, 2, 3))
+        assert record.data is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_repr(self):
-        assert "OgloGloveSampleRecord" in repr(OgloGloveSampleRecord())
+        assert "OgloGloveSampleRecord" in repr(
+            OgloGloveSampleRecord(None, DeviceDataTimestamp(1, 2, 3))
+        )

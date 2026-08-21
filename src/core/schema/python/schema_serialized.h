@@ -40,29 +40,23 @@ namespace core
 template <typename T>
 py::class_<Serialized<T>> serialized_class(py::module& m, const char* name, const char* doc)
 {
-    return py::class_<Serialized<T>>(m, name, doc)
-        // Always true in practice: an absent payload reaches Python as None, never as an
-        // empty view. Kept so that a view which somehow arrived empty still reports it
-        // rather than silently answering field reads with defaults.
-        .def(
-            "__bool__", [](const Serialized<T>& self) { return static_cast<bool>(self); },
-            "False when the payload is absent.");
+    return py::class_<Serialized<T>>(m, name, doc);
 }
 
 /*!
- * @brief Reads `getter` through the handle, answering the field's zero value on an empty one.
+ * @brief Reads `getter` through the handle.
  *
  * Covers scalars, enums and bools, and the nested struct fields whose accessor returns a
- * pointer (`R{}` is null there, which pybind hands to Python as None -- pair those with
+ * pointer (null there, which pybind hands to Python as None -- pair those with
  * `py::return_value_policy::reference_internal`, since the struct lives in this buffer).
  *
- * Writing the guard once is the point: what an empty view reads as is one decision rather
- * than one per field. Per `serialized_class` above, that case does not arise in practice.
+ * No emptiness guard: absence is answered at the boundary, so every view Python holds
+ * points at a table. An empty one would trip the assert in `Serialized::operator*`.
  */
 template <typename T, typename R>
 auto field(R (T::*getter)() const)
 {
-    return [getter](const Serialized<T>& self) -> R { return self ? (self.get()->*getter)() : R{}; };
+    return [getter](const Serialized<T>& self) -> R { return ((*self).*getter)(); };
 }
 
 //! `field()` for a string field, which reads as "" rather than as None when absent.
@@ -71,7 +65,7 @@ auto string_field(const flatbuffers::String* (T::*getter)() const)
 {
     return [getter](const Serialized<T>& self)
     {
-        const auto* value = self ? (self.get()->*getter)() : nullptr;
+        const auto* value = ((*self).*getter)();
         return value != nullptr ? value->str() : std::string{};
     };
 }
@@ -87,7 +81,7 @@ auto vector_field(const flatbuffers::Vector<E>* (T::*getter)() const)
 {
     return [getter](const Serialized<T>& self)
     {
-        const auto* values = self ? (self.get()->*getter)() : nullptr;
+        const auto* values = ((*self).*getter)();
         return values != nullptr ? std::vector<E>(values->begin(), values->end()) : std::vector<E>{};
     };
 }
@@ -113,14 +107,6 @@ std::vector<Serialized<U>> narrow_vector(const Serialized<T>& self,
         }
     }
     return handles;
-}
-
-//! `__repr__` answering "<name>(<empty>)" for an empty handle, and deferring to `body`
-//! otherwise, so each table only has to describe the fields it wants to show.
-template <typename T, typename Body>
-auto view_repr(const char* name, Body body)
-{
-    return [name, body](const Serialized<T>& self) { return self ? body(*self) : std::string(name) + "(<empty>)"; };
 }
 
 /*!
@@ -158,7 +144,6 @@ template <typename RecordT, typename DataT>
 void bind_record(py::module& m, const char* name, const char* data_name)
 {
     serialized_class<RecordT>(m, name, "Encoded MCAP record: a payload plus the timestamp it was captured at.")
-        .def(py::init<>(), "Construct an empty record (.data and .timestamp are None).")
         .def(py::init(
                  [](const Serialized<DataT>* data, const DeviceDataTimestamp& timestamp)
                  {
@@ -175,9 +160,9 @@ void bind_record(py::module& m, const char* name, const char* data_name)
              "Encode a record from a payload and its timestamp. `data` may be None: MCAP "
              "carries payload-less records, such as the message channel's frame sentinel.")
 
-        // Unlike Tracked, a Record cannot fold its no-arg form into defaults: `timestamp` is a
-        // struct with no meaningful default, and an empty record is a distinct thing from one
-        // stamped at time zero.
+        // No no-arg form: `timestamp` is a struct with no meaningful default, and a record
+        // without one is not a thing MCAP stores. A payload-less record -- the message
+        // channel's frame sentinel -- is spelled `Record(None, timestamp)`.
         .def_property_readonly(
             "data",
             [](const Serialized<RecordT>& self) -> py::object
@@ -187,7 +172,7 @@ void bind_record(py::module& m, const char* name, const char* data_name)
             },
             "The recorded payload, or None when absent.")
         .def_property_readonly(
-            "timestamp", [](const Serialized<RecordT>& self) { return self ? self->timestamp() : nullptr; },
+            "timestamp", [](const Serialized<RecordT>& self) { return self->timestamp(); },
             py::return_value_policy::reference_internal, "Capture timestamp, or None when absent.")
         .def("__repr__",
              [name, data_name](const Serialized<RecordT>& self)

@@ -95,11 +95,11 @@ class TestHeadPoseRecordTimestamp:
         assert record.data.is_valid is True
         assert record.data.is_tracked is True
 
-    def test_default_construction(self):
-        """Test default HeadPoseRecord has no data."""
-        record = HeadPoseRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = HeadPoseRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
-        assert record.timestamp is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""

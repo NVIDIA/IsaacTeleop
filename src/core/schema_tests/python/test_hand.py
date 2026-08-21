@@ -299,11 +299,11 @@ class TestHandPoseRecordTimestamp:
         assert record.timestamp.sample_time_raw_device_clock == 3000000000
         assert record.data is not None
 
-    def test_default_construction(self):
-        """Test default HandPoseRecord has no data."""
-        record = HandPoseRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = HandPoseRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
-        assert record.timestamp is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""

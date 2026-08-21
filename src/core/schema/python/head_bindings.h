@@ -37,15 +37,14 @@ inline void bind_head(py::module& m)
         .def_property_readonly("pose", field(&HeadPose::pose), py::return_value_policy::reference_internal)
         .def_property_readonly("is_valid", field(&HeadPose::is_valid))
         .def_property_readonly("is_tracked", field(&HeadPose::is_tracked))
-        .def("__repr__", view_repr<HeadPose>("HeadPose",
-                                             [](const HeadPose& self)
-                                             {
-                                                 const Pose* pose = self.pose();
-                                                 const std::string pose_str = pose != nullptr ? pose_repr(*pose) : "None";
-                                                 return "HeadPose(pose=" + pose_str +
-                                                        ", is_valid=" + (self.is_valid() ? "True" : "False") +
-                                                        ", is_tracked=" + (self.is_tracked() ? "True" : "False") + ")";
-                                             }));
+        .def("__repr__",
+             [](const Serialized<HeadPose>& self)
+             {
+                 const Pose* pose = self->pose();
+                 const std::string pose_str = pose != nullptr ? pose_repr(*pose) : "None";
+                 return "HeadPose(pose=" + pose_str + ", is_valid=" + (self->is_valid() ? "True" : "False") +
+                        ", is_tracked=" + (self->is_tracked() ? "True" : "False") + ")";
+             });
 
     bind_record<HeadPoseRecord, HeadPose>(m, "HeadPoseRecord", "HeadPose");
 }

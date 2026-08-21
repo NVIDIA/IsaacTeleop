@@ -82,19 +82,17 @@ inline void bind_controller(py::module& m)
             "aim_pose", field(&ControllerSnapshot::aim_pose), py::return_value_policy::reference_internal)
         .def_property_readonly("inputs", field(&ControllerSnapshot::inputs), py::return_value_policy::reference_internal)
         .def("__repr__",
-             view_repr<ControllerSnapshot>(
-                 "ControllerSnapshot",
-                 [](const ControllerSnapshot& self)
+             [](const Serialized<ControllerSnapshot>& self)
+             {
+                 auto pose_str = [](const ControllerPose* pose)
                  {
-                     auto pose_str = [](const ControllerPose* pose)
-                     {
-                         return pose != nullptr ?
-                                    "ControllerPose(is_valid=" + std::string(pose->is_valid() ? "True" : "False") + ")" :
-                                    std::string("None");
-                     };
-                     return "ControllerSnapshot(grip_pose=" + pose_str(self.grip_pose()) +
-                            ", aim_pose=" + pose_str(self.aim_pose()) + ")";
-                 }));
+                     return pose != nullptr ?
+                                "ControllerPose(is_valid=" + std::string(pose->is_valid() ? "True" : "False") + ")" :
+                                std::string("None");
+                 };
+                 return "ControllerSnapshot(grip_pose=" + pose_str(self->grip_pose()) +
+                        ", aim_pose=" + pose_str(self->aim_pose()) + ")";
+             });
 
     bind_record<ControllerSnapshotRecord, ControllerSnapshot>(m, "ControllerSnapshotRecord", "ControllerSnapshot");
 }

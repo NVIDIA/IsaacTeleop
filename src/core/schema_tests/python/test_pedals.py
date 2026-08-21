@@ -195,10 +195,11 @@ class TestGeneric3AxisPedalOutputRecordTimestamp:
         assert record.data.right_pedal == pytest.approx(0.2)
         assert record.data.rudder == pytest.approx(0.5)
 
-    def test_default_construction(self):
-        """Test default Generic3AxisPedalOutputRecord has no data."""
-        record = Generic3AxisPedalOutputRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = Generic3AxisPedalOutputRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""

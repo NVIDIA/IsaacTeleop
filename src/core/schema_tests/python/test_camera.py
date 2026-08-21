@@ -151,11 +151,11 @@ class TestFrameMetadataOakRecordTimestamp:
         assert record.data.stream == StreamType.MonoLeft
         assert record.data.sequence_number == 42
 
-    def test_default_construction(self):
-        """Test default FrameMetadataOakRecord has no data and no timestamp."""
-        record = FrameMetadataOakRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = FrameMetadataOakRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
-        assert record.timestamp is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""

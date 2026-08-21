@@ -145,15 +145,13 @@ inline void bind_full_body(py::module& m)
              "Encode a body pose. Defaults to all-zero joints.")
         .def_property_readonly("joints", field(&FullBodyPose::joints), py::return_value_policy::reference_internal)
         .def_property_readonly("all_joint_poses_tracked", field(&FullBodyPose::all_joint_poses_tracked))
-        .def("__repr__", view_repr<FullBodyPose>("FullBodyPose",
-                                                 [](const FullBodyPose& self)
-                                                 {
-                                                     const std::string joints_str =
-                                                         self.joints() != nullptr ?
-                                                             "BodyJoints(joints=[...24 entries...])" :
-                                                             "None";
-                                                     return "FullBodyPose(joints=" + joints_str + ")";
-                                                 }));
+        .def("__repr__",
+             [](const Serialized<FullBodyPose>& self)
+             {
+                 const std::string joints_str =
+                     self->joints() != nullptr ? "BodyJoints(joints=[...24 entries...])" : "None";
+                 return "FullBodyPose(joints=" + joints_str + ")";
+             });
 
     bind_record<FullBodyPoseRecord, FullBodyPose>(m, "FullBodyPoseRecord", "FullBodyPose");
 }
