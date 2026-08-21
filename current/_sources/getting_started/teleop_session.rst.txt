@@ -12,7 +12,7 @@ examples more readable by focusing on **what** you want to do rather than
 Overview
 --------
 
-The main component is :code-file:`TeleopSession <src/python/isaacteleop/teleop_session_manager/teleop_session.py>`, which manages the complete lifecycle
+The main component is :code-file:`TeleopSession <src/core/teleop_session_manager/python/teleop_session.py>`, which manages the complete lifecycle
 of a teleop session. It wraps the lower-level
 :code-file:`DeviceIOSession <src/core/deviceio_session/cpp/inc/deviceio_session/deviceio_session.hpp>`
 and :doc:`device trackers <../device/trackers>` so that callers don't need to
@@ -328,14 +328,7 @@ Configure plugins:
        search_paths=[Path("/path/to/plugins")],
        enabled=True,
        plugin_args=["--arg1=val1", "--arg2=val2"],
-       required=True,
    )
-
-Plugins are optional by default: if none of their search paths exist or the
-configured plugin is not discovered, session startup continues without them.
-Set ``required=True`` to make either condition fail session startup with a
-``RuntimeError``. Setting ``enabled=False`` always disables the plugin,
-regardless of ``required``.
 
 .. note::
 
