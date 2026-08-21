@@ -36,7 +36,7 @@ const Serialized<HeadPose>& ReplayHeadTrackerImpl::get_head() const
 
 void ReplayHeadTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    auto record = mcap_viewers_->read_serialized(0);
+    auto record = mcap_viewers_->read(0);
     if (record)
     {
         tracked_ = narrow_payload(record);

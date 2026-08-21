@@ -9,7 +9,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -61,16 +60,14 @@ public:
     void send_message(const std::vector<uint8_t>& payload) const override;
 
 private:
-    static int64_t record_monotonic_ns(const MessageChannelMessagesRecordT& record);
-
-    // The frame's batch, encoded from a local in update().
+    // The frame's batch, encoded from a builder local to update().
     Serialized<MessageChannelMessagesTracked> messages_;
     std::unique_ptr<MessageChannelMcapViewers> mcap_viewers_;
     // Holds the first record of the next frame, peeked but not yet
     // consumed. McapTrackerViewers::read() advances the underlying
     // LinearMessageView, so detecting a timestamp boundary requires
     // buffering one record across update() calls.
-    std::optional<MessageChannelMessagesRecordT> pending_record_;
+    Serialized<MessageChannelMessagesRecord> pending_record_;
 };
 
 } // namespace core

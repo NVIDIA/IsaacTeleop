@@ -383,21 +383,21 @@ TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tra
     HeadViewers viewers(open_reader(path), "tracking", { "head" });
 
     auto record1 = viewers.read(0);
-    REQUIRE(record1.has_value());
-    REQUIRE(record1->data);
-    CHECK(record1->data->is_valid == true);
-    REQUIRE(record1->data->pose);
-    CHECK(record1->data->pose->position().x() == 1.0f);
-    REQUIRE(record1->timestamp);
-    CHECK(record1->timestamp->sample_time_raw_device_clock() == 42);
+    REQUIRE(record1);
+    REQUIRE(record1->data() != nullptr);
+    CHECK(record1->data()->is_valid() == true);
+    REQUIRE(record1->data()->pose() != nullptr);
+    CHECK(record1->data()->pose()->position().x() == 1.0f);
+    REQUIRE(record1->timestamp() != nullptr);
+    CHECK(record1->timestamp()->sample_time_raw_device_clock() == 42);
 
     auto record2 = viewers.read(0);
-    REQUIRE(record2.has_value());
-    REQUIRE(record2->data);
-    REQUIRE(record2->timestamp);
-    CHECK(record2->timestamp->sample_time_raw_device_clock() == 84);
+    REQUIRE(record2);
+    REQUIRE(record2->data() != nullptr);
+    REQUIRE(record2->timestamp() != nullptr);
+    CHECK(record2->timestamp()->sample_time_raw_device_clock() == 84);
 
-    CHECK_FALSE(viewers.read(0).has_value());
+    CHECK_FALSE(viewers.read(0));
 }
 
 TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tracker_viewers]")
@@ -420,19 +420,19 @@ TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tra
     HeadViewers viewers(open_reader(path), "tracking", { "left", "right" });
 
     auto left1 = viewers.read(0);
-    REQUIRE(left1.has_value());
+    REQUIRE(left1);
 
     auto right1 = viewers.read(1);
-    REQUIRE(right1.has_value());
+    REQUIRE(right1);
 
     auto left2 = viewers.read(0);
-    REQUIRE(left2.has_value());
+    REQUIRE(left2);
 
     auto right2 = viewers.read(1);
-    REQUIRE(right2.has_value());
+    REQUIRE(right2);
 
-    CHECK_FALSE(viewers.read(0).has_value());
-    CHECK_FALSE(viewers.read(1).has_value());
+    CHECK_FALSE(viewers.read(0));
+    CHECK_FALSE(viewers.read(1));
 }
 
 TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker_viewers]")
@@ -456,15 +456,15 @@ TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker
     HeadViewers viewers(open_reader(path), "tracking", { "right" });
 
     auto r1 = viewers.read(0);
-    REQUIRE(r1.has_value());
-    REQUIRE(r1->data);
-    CHECK(r1->data->is_valid == true);
+    REQUIRE(r1);
+    REQUIRE(r1->data() != nullptr);
+    CHECK(r1->data()->is_valid() == true);
 
     auto r2 = viewers.read(0);
-    REQUIRE(r2.has_value());
-    REQUIRE(r2->data);
+    REQUIRE(r2);
+    REQUIRE(r2->data() != nullptr);
 
-    CHECK_FALSE(viewers.read(0).has_value());
+    CHECK_FALSE(viewers.read(0));
 }
 
 TEST_CASE("McapTrackerViewers: out-of-range channel_index throws", "[mcap][tracker_viewers]")
@@ -500,10 +500,10 @@ TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewe
     HeadViewers viewers(open_reader(path), "tracking", { "head" });
 
     auto record = viewers.read(0);
-    REQUIRE(record.has_value());
-    CHECK(record->data == nullptr);
-    REQUIRE(record->timestamp);
-    CHECK(record->timestamp->sample_time_raw_device_clock() == 10);
+    REQUIRE(record);
+    CHECK(record->data() == nullptr);
+    REQUIRE(record->timestamp() != nullptr);
+    CHECK(record->timestamp()->sample_time_raw_device_clock() == 10);
 
-    CHECK_FALSE(viewers.read(0).has_value());
+    CHECK_FALSE(viewers.read(0));
 }

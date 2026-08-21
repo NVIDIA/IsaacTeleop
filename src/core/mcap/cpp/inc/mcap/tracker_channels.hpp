@@ -167,7 +167,6 @@ Serialized<DataTableT> publish_and_record(McapTrackerChannels<RecordT, DataTable
  * @brief Type-safe MCAP channel reader returning owning handles over the recorded records.
  *
  * @tparam RecordT The FlatBuffer record wrapper stored in MCAP (e.g. HeadPoseRecord).
- *                 Must expose NativeTableType with UnPackTo().
  *
  * Read-side counterpart to McapTrackerChannels. Owns an McapReader and iterates
  * all registered sub-channels through a single LinearMessageView. Each message is
@@ -183,8 +182,6 @@ template <typename RecordT>
 class McapTrackerViewers
 {
 public:
-    using NativeRecordT = typename RecordT::NativeTableType;
-
     McapTrackerViewers(const McapTrackerViewers&) = delete;
     McapTrackerViewers& operator=(const McapTrackerViewers&) = delete;
     McapTrackerViewers(McapTrackerViewers&&) = delete;
@@ -231,7 +228,7 @@ public:
      * consumers read, so a caller narrows to it rather than unpacking: `record.narrow(...)`
      * shares this buffer instead of allocating a second one.
      */
-    Serialized<RecordT> read_serialized(size_t channel_index)
+    Serialized<RecordT> read(size_t channel_index)
     {
         if (channel_index >= channels_.size())
         {
@@ -266,30 +263,6 @@ public:
         }
 
         return Serialized<RecordT>();
-    }
-
-    /**
-     * @brief Read the next record as an object-API value.
-     * @param channel_index Index into the sub_channels list passed at construction.
-     * @return The deserialized Record (data member is null when the tracker
-     *         was inactive), or std::nullopt when no more messages remain.
-     *
-     * For callers that compose a new table out of what they read and so need owning,
-     * mutable members; a `-T` is not nullable, so this one does need the optional.
-     * Prefer read_serialized() when the recorded payload is what gets published: this
-     * unpacks it.
-     */
-    std::optional<NativeRecordT> read(size_t channel_index)
-    {
-        const Serialized<RecordT> record = read_serialized(channel_index);
-        if (!record)
-        {
-            return std::nullopt;
-        }
-
-        NativeRecordT native;
-        record->UnPackTo(&native);
-        return native;
     }
 
 private:

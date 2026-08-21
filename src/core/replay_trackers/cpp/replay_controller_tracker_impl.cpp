@@ -42,8 +42,8 @@ const Serialized<ControllerSnapshot>& ReplayControllerTrackerImpl::get_right_con
 
 void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
-    auto left_record = mcap_viewers_->read_serialized(0);
-    auto right_record = mcap_viewers_->read_serialized(1);
+    auto left_record = mcap_viewers_->read(0);
+    auto right_record = mcap_viewers_->read(1);
     if (left_record)
     {
         left_tracked_ = narrow_payload(left_record);
