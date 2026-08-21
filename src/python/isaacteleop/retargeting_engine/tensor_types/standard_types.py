@@ -304,6 +304,44 @@ def RobotHandJoints(name: str, joint_names: list[str]) -> TensorGroupType:
 # ============================================================================
 
 
+def KeyboardInput() -> TensorGroupType:
+    """
+    Standard TensorGroupType for raw keyboard press state.
+
+    Matches the KeyboardOutput schema from keyboard.fbs. Carries no semantic mapping --
+    which keys mean what (an axis, a toggle) is entirely up to the consuming retargeter
+    (e.g. KeyboardToSe3RelRetargeter).
+
+    Fields:
+        - key_w, key_a, key_s, key_d, key_q, key_e: bool - position keys
+        - key_z, key_x, key_t, key_g, key_c, key_v: bool - rotation keys
+        - key_k: bool - gripper toggle key
+
+    Returns:
+        TensorGroupType for keyboard data
+
+    Schema reference: TeleopCore/src/core/schema/fbs/keyboard.fbs
+    """
+    return TensorGroupType(
+        "keyboard",
+        [
+            BoolType("keyboard_key_w"),
+            BoolType("keyboard_key_a"),
+            BoolType("keyboard_key_s"),
+            BoolType("keyboard_key_d"),
+            BoolType("keyboard_key_q"),
+            BoolType("keyboard_key_e"),
+            BoolType("keyboard_key_z"),
+            BoolType("keyboard_key_x"),
+            BoolType("keyboard_key_t"),
+            BoolType("keyboard_key_g"),
+            BoolType("keyboard_key_c"),
+            BoolType("keyboard_key_v"),
+            BoolType("keyboard_key_k"),
+        ],
+    )
+
+
 def Generic3AxisPedalInput() -> TensorGroupType:
     """
     Standard TensorGroupType for generic 3-axis foot pedal data.

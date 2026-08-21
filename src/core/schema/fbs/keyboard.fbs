@@ -1,0 +1,47 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Raw press state of a fixed set of keyboard keys. Carries no semantic mapping --
+// which keys mean what (an axis, a toggle, a mode switch) is entirely up to the
+// consuming retargeter. Validated against a standard US QWERTY layout.
+//
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+table KeyboardOutput {
+    key_w: bool (id: 0);
+    key_a: bool (id: 1);
+    key_s: bool (id: 2);
+    key_d: bool (id: 3);
+    key_q: bool (id: 4);
+    key_e: bool (id: 5);
+    key_z: bool (id: 6);
+    key_x: bool (id: 7);
+    key_t: bool (id: 8);
+    key_g: bool (id: 9);
+    key_c: bool (id: 10);
+    key_v: bool (id: 11);
+    key_k: bool (id: 12);
+
+    // Whether the tracker has emitted at least one sample.
+    is_valid: bool (id: 13);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no sample is available).
+table KeyboardOutputTracked {
+    data: KeyboardOutput (id: 0);
+}
+
+// MCAP recording wrapper for KeyboardOutput.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table KeyboardOutputRecord {
+    data: KeyboardOutput (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type KeyboardOutputRecord;
