@@ -73,6 +73,9 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 # Keys for packages staged in only some configurations are inert in the rest:
 # package-data for a package `find` did not discover matches nothing.
 "isaacteleop.viz" = ["*.so", "*.pyd", "*.pyi"]
+# The robot twin's backend, plus the libisaacteleop_mujoco.so it loads. Not staged on
+# Windows, where the twin is not built.
+"isaacteleop.viz.robot" = ["*.so", "*.pyd", "*.pyi"]
 robotic_grounding = ["assets/xmls/sharpawave/*.xml"]
 
 [tool.uv]

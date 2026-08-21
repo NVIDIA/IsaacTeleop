@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pure Python -- nothing here is compiled. The scene backend lives in
+# isaacteleop.viz.robot, which ships with Televiz on Linux.
+#
+#     uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/
+#     uv pip install -e ./examples/robot_viz
+#     python -m isaacteleop_examples.robot_viz          # needs a headset
+#
+# setuptools rather than no build backend at all: the neighbouring examples are `uv run`
+# manifests and are not installable, but this one is a package, and a pyproject that
+# installs to an EMPTY wheel is worse than one that refuses. `-e` is supported and is the
+# way to iterate -- there is no extension to go stale.
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaacteleop-examples-robot-viz"
+version = "0.0.0"  # Internal example - not versioned
+description = "A robot's digital twin rendered into an Isaac Teleop Televiz XR session"
+# Bounds match ISAAC_TELEOP_PYTHON_VERSION_MIN / _MAX_EXCLUSIVE in the root CMakeLists.
+requires-python = ">=3.11,<3.14"
+
+dependencies = [
+    # Unversioned, and a live hazard: a published isaacteleop exists on PyPI, so this
+    # resolves happily against a release that is not this checkout's viz -- and against
+    # one with no robot twin at all. Install the locally built wheel first.
+    "isaacteleop",
+    # app.py imports numpy directly.
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "numpy"]
+
+# `namespaces = true` is load-bearing: isaacteleop_examples is a PEP 420 namespace with
+# no __init__.py, shared with every other example. Do not add one to make a discovery
+# problem go away -- it would stop a second example sharing the namespace.
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["isaacteleop_examples*"]
+namespaces = true
+
+# The scene and its meshes. The meshes are fetched by scripts/fetch-so-arm.sh and are
+# gitignored, so a wheel built before that step ships a scene it cannot load -- which is
+# what app.py's asset preflight reports.
+[tool.setuptools.package-data]
+"isaacteleop_examples.robot_viz" = ["assets/**"]
+
+[tool.pytest.ini_options]
+pythonpath = ["python"]

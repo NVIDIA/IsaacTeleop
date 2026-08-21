@@ -47,6 +47,14 @@ Prerequisites
    ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module. See
    `Other Build options`_ for the full option table.
 
+   On **Linux**, ``BUILD_VIZ=ON`` also builds the robot twin's scene backend
+   (:class:`isaacteleop.viz.robot.SceneTwin`). There is no separate flag. It compiles
+   MuJoCo from source and ships it under a private name, so it is unrelated to whatever
+   ``mujoco`` the environment has -- any version, or none. It needs **EGL's
+   headers** (``libegl-dev``) for its headless OpenGL context, fetches MuJoCo and six
+   vendored dependencies from GitHub on the first configure, and costs about 40 s of
+   build time on 12 cores. A Windows Televiz build omits it: the headless context is EGL.
+
 .. _one-time-setup:
 
 One time setup
@@ -58,7 +66,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev libwayland-dev clang-format-14 ccache patchelf pkg-config glslang-tools
+   sudo apt-get install -y build-essential cmake libegl-dev libx11-dev libwayland-dev clang-format-14 ccache patchelf pkg-config glslang-tools
 
 Runtime-only dependencies (needed to actually run teleop, not to build):
 
@@ -236,7 +244,7 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
      - ``ON`` on Linux
    * - **Televiz visualization**
      - ``BUILD_VIZ``
-     - Auto: ``ON`` when Vulkan and the CUDA Toolkit are detected, else ``OFF``. Force with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``. (Most users don't need this — ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module.)
+     - Auto: ``ON`` when Vulkan and the CUDA Toolkit are detected, else ``OFF``. Force with ``-DBUILD_VIZ=ON`` / ``-DBUILD_VIZ=OFF``. On Linux it also builds the robot twin's scene backend, which needs ``libegl-dev`` and fetches MuJoCo on the first configure. (Most users don't need this — ``pip install isaacteleop`` already ships the compiled ``isaacteleop.viz`` module.)
 
 .. list-table:: Plugin Specific Options
    :widths: 26 34 40

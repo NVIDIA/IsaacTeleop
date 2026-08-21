@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run with: python -m isaacteleop.rig rigs/robot_viz.yaml
+#
+# Two panes, one declared: with no `runtime:` key the runtime pane comes from
+# DEFAULT_RUNTIME_COMMAND. No producers either -- the app opens the OpenXR
+# session itself and reads controllers straight from the runtime, so there is no
+# rendezvous and deliberately no `params:` / `collection_id:`.
+#
+# `{python}` expands to the launching interpreter, so the wheel must be installed
+# there rather than in a private .venv, and it must be a Televiz build -- the robot
+# twin ships with BUILD_VIZ on Linux:
+#
+#   uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/ --reinstall
+#
+# The example itself is pure Python and is reached from the source tree, hence
+# PYTHONPATH below rather than a second wheel.
+#
+# See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
+name: robot_viz
+description: CloudXR runtime + a robot twin in XR with the SO-101 leader gripper
+cwd: ..                        # -> Teleop repo root
+consumers:
+  - name: robot viz app (requires headset)
+    # Keep --no-launch-cloudxr-runtime. The runtime is a host singleton on WSS
+    # port 48322, so a second one kills this rig's own pane: the headset drops
+    # mid-session and reads as a runtime crash rather than a config edit.
+    # find_runtime_footguns() warns but never gates.
+    # PYTHONPATH inline: the rig schema takes only {name, command}, and the example
+    # is pure Python read straight from the source tree rather than a second wheel.
+    command: "PYTHONPATH=examples/robot_viz/python {python} -m isaacteleop_examples.robot_viz --no-launch-cloudxr-runtime"

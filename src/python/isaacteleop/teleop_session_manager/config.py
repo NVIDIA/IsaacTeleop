@@ -292,6 +292,39 @@ class PluginConfig:
 
 
 @dataclass
+class TwinRenderConfig:
+    """How a session-owned robot twin is rendered.
+
+    Only reaches a twin when :attr:`TeleopSessionConfig.joint_publisher` is set.
+
+    Attributes:
+        near_z: Near clip plane [m]. Handed to the compositor **and** to the twin, from
+            here, because a twin projecting against a different pair renders geometry
+            the runtime then reprojects wrongly.
+        far_z: Far clip plane [m].
+        layer_name: Name of the projection layer the twin is drawn into.
+        join_timeout_s: How long teardown waits for the render thread at each step
+            before declaring the teardown unclean and leaving the session alive.
+    """
+
+    near_z: float = 0.05
+    far_z: float = 50.0
+    layer_name: str = "robot_twin"
+    join_timeout_s: float = 5.0
+
+    def __post_init__(self) -> None:
+        """Reject clip planes no projection could be built from.
+
+        Raises:
+            ValueError: If the planes are not ``0 < near_z < far_z``.
+        """
+        if not 0.0 < self.near_z < self.far_z:
+            raise ValueError(
+                f"require 0 < near_z < far_z, got {self.near_z} and {self.far_z}"
+            )
+
+
+@dataclass
 class TeleopSessionConfig:
     """Complete configuration for a teleop session.
 
@@ -344,6 +377,15 @@ class TeleopSessionConfig:
         retargeting_execution: Synchronous vs. pipelined execution settings for
             the main retargeting pipeline. Defaults to synchronous exact-current-frame
             behavior; set ``mode="pipelined"`` to opt into background execution.
+        joint_publisher: Optional
+            :class:`~isaacteleop.viz.robot.RobotTwinPublisher` -- a digital twin of the
+            robot being teleoperated, drawn into the operator's headset. Setting it
+            makes the session create its own compositor session (so ``oxr_handles``
+            must be left unset), own a render thread, and tear both down; no viewer
+            type becomes public. Publish joints onto the object you passed in, from
+            the control thread; the render thread draws the latest.
+        twin_render: Clip planes, layer name and teardown budget for that twin. Ignored
+            when ``joint_publisher`` is None.
 
     Example (auto-discovery):
         # Source creates its own tracker automatically!
@@ -394,11 +436,28 @@ class TeleopSessionConfig:
     retargeting_execution: RetargetingExecutionConfig = field(
         default_factory=RetargetingExecutionConfig
     )
+    joint_publisher: Optional[Any] = None
+    twin_render: TwinRenderConfig = field(default_factory=TwinRenderConfig)
 
     def __post_init__(self) -> None:
         """Validate configuration consistency."""
         if self.mode == SessionMode.REPLAY and self.mcap_config is None:
             raise ValueError("mcap_config is required when mode is SessionMode.REPLAY")
+
+        if self.joint_publisher is not None:
+            # The twin's compositor session IS the OpenXR session, so there is nothing
+            # for caller-supplied handles to mean here: one of the two would have to be
+            # ignored, and either choice is a silently different session.
+            if self.oxr_handles is not None:
+                raise ValueError(
+                    "joint_publisher and oxr_handles are mutually exclusive: the twin "
+                    "creates the OpenXR session that the trackers then share."
+                )
+            if self.mode == SessionMode.REPLAY:
+                raise ValueError(
+                    "joint_publisher requires a live session; REPLAY has no headset "
+                    "to render into."
+                )
 
         self._validate_sinks()
 

@@ -31,6 +31,24 @@ cmake_minimum_required(VERSION 3.20)
 # Core: Vulkan/CUDA infrastructure and foundational types.
 add_subdirectory(core)
 
+# Robot twin: MuJoCo's renderer read back into CUDA, over a MuJoCo of its own that the
+# rest of the process cannot see. It links no viz target and meets the compositor through
+# __cuda_array_interface__ alone, so it is a sub-module here only by where it ships.
+#
+# There is no option for it: a Televiz build has it. Linux only, and that is a fact
+# rather than a knob -- gl_context.cpp makes its OpenGL context through EGL's device
+# platform, which is how it renders with no display, and Windows has no equivalent yet.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # MuJoCo itself. Included here rather than at the root so the decision and the
+    # dependency sit together; include_guard(GLOBAL) means robot_twin_tests below can
+    # rely on isaacteleop_link_mujoco() existing.
+    include("${CMAKE_SOURCE_DIR}/cmake/Mujoco.cmake")
+    add_subdirectory(robot_twin)
+    if(BUILD_TESTING)
+        add_subdirectory(robot_twin_tests)
+    endif()
+endif()
+
 # XR: OpenXR-bound graphics session + XrBackend.
 add_subdirectory(xr)
 

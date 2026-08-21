@@ -90,10 +90,10 @@ from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
-    BoolType,
     ControllerInput,
     ControllerInputIndex,
     DLDataType,
+    EngagePermission,
     NDArrayType,
     TransformMatrix,
 )
@@ -412,7 +412,7 @@ class SO101ClutchRetargeter(BaseRetargeter):
         ordering unambiguous. Calling it on **every** non-engaged frame of a ``RUNNING``
         session is equally sound, and is what an owner whose arm moves while disengaged
         wants: the home stays on the arm's live pose, so an engage from anywhere is
-        jump-free (``examples/mujoco_xr`` does this at frame rate).
+        jump-free (``examples/robot_viz`` does this at frame rate).
 
         The pending latch is re-armed as a safety net rather than the call being rejected. Without
         it, a call made while engaged would leave the *old* controller origin latched against the
@@ -513,9 +513,7 @@ class SO101ClutchRetargeter(BaseRetargeter):
         return {
             self._input_device: OptionalType(ControllerInput()),
             self.MEASURED_BASE_T_EE_INPUT: OptionalType(TransformMatrix()),
-            self.ENGAGE_PERMITTED_INPUT: OptionalType(
-                TensorGroupType(self.ENGAGE_PERMITTED_INPUT, [BoolType("permitted")])
-            ),
+            self.ENGAGE_PERMITTED_INPUT: OptionalType(EngagePermission()),
         }
 
     def output_spec(self) -> RetargeterIOType:

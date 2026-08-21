@@ -152,7 +152,15 @@ fires against *that* frame's controller pose, not the one it was first squeezed 
 ``ValueInput``-leaf rule as ``MEASURED_BASE_T_EE_INPUT`` applies: a producer that wires it must
 send the key on every step.
 
-The motivating consumer is ``examples/mujoco_xr``, whose owner shows the operator an SO-101
+:class:`~isaacteleop.retargeters.EngageAlignmentGate` is the shipped producer: a graph node that
+compares the controller's orientation against a reference pose the owner supplies, with hysteresis
+and a dwell, and emits straight into this input. Because the graph is a pull-based DAG it cannot
+read the clutch it feeds, so the owner hands back one bool -- ``is_engaged``, as of the previous
+frame -- on :data:`~isaacteleop.retargeters.EngageAlignmentGate.ENGAGED_INPUT`. That disjunction is
+load-bearing: during a tracking dropout the clutch disarms and owes a latch on recovery, and a gate
+answering "not aligned" there would stop the arm mid-engagement.
+
+The motivating consumer is ``examples/robot_viz``, whose owner shows the operator an SO-101
 follower before engaging and withholds permission until the operator's wrist is turned the way
 that arm is -- see that example's README.
 

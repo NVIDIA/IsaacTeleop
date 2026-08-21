@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -111,6 +111,26 @@ def transform_positions_batch(
 # ============================================================================
 # Quaternion helpers (pure numpy, no scipy)
 # ============================================================================
+
+
+def quat_xyzw_to_rotation_matrix(q: np.ndarray) -> np.ndarray:
+    """
+    Convert a UNIT quaternion in [x, y, z, w] format to a 3x3 rotation matrix.
+
+    Args:
+        q: (4,) unit quaternion [x, y, z, w]. Not normalised here.
+
+    Returns:
+        (3, 3) rotation matrix.
+    """
+    x, y, z, w = q
+    return np.array(
+        [
+            [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+            [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+            [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+        ]
+    )
 
 
 def _rotation_matrix_to_quat_xyzw(R: np.ndarray) -> np.ndarray:

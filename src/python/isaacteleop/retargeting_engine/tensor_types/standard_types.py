@@ -279,6 +279,44 @@ def TransformMatrix() -> TensorGroupType:
 
 
 # ============================================================================
+# Flag Types
+# ============================================================================
+
+
+def BoolFlag(name: str, field: str = "flag") -> TensorGroupType:
+    """
+    Standard TensorGroupType for a single boolean carried through the graph.
+
+    Fields:
+        - <field>: bool
+
+    Args:
+        name: Group name, which is also the input key it is normally wired to.
+        field: Name of the single boolean field.
+
+    Returns:
+        TensorGroupType holding one bool
+    """
+    return TensorGroupType(name, [BoolType(field)])
+
+
+def EngagePermission() -> TensorGroupType:
+    """
+    Standard TensorGroupType for "may a clutch latch on this frame?".
+
+    The type of :data:`~isaacteleop.retargeters.SO101.clutch_retargeter.SO101ClutchRetargeter.ENGAGE_PERMITTED_INPUT`,
+    and of what :class:`~isaacteleop.retargeters.engage_gate.EngageAlignmentGate` emits.
+
+    Fields:
+        - permitted: bool
+
+    Returns:
+        TensorGroupType holding one bool
+    """
+    return BoolFlag("engage_permitted", "permitted")
+
+
+# ============================================================================
 # Robot Types
 # ============================================================================
 
