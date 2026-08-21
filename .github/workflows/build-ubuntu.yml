@@ -700,10 +700,20 @@ jobs:
           --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
           "source /usr/local/bin/teleop-env-setup && exec /opt/isaacteleop/install/examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator '$REPLAY_MCAP'"
 
-        for mode in controller_teleop hand_teleop controller_raw full_body; do
-          echo "Testing mode: $mode"
-          LOG_FILE="${LOG_FILE_BASE}_${mode}.log"
-          RUN_NAME="teleop-ros2-${PROJECT_NAME}-${mode//_/-}"
+        scenarios=(
+          "controller_teleop mode_default"
+          "hand_teleop mode_default"
+          "controller_raw mode_default"
+          "full_body mode_default"
+          "controller_teleop wuji"
+          "hand_teleop wuji"
+        )
+        for scenario in "${scenarios[@]}"; do
+          read -r mode hand_retargeter <<< "$scenario"
+          scenario_name="${mode}_${hand_retargeter}"
+          echo "Testing mode: $mode (hand_retargeter=$hand_retargeter)"
+          LOG_FILE="${LOG_FILE_BASE}_${scenario_name}.log"
+          RUN_NAME="teleop-ros2-${PROJECT_NAME}-${scenario_name//_/-}"
           verifier_rc=0
           docker_rc=0
           started=false
@@ -716,7 +726,7 @@ jobs:
             -v /tmp:/tmp \
             -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
+            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p hand_retargeter:=$hand_retargeter -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -742,7 +752,7 @@ jobs:
             if docker exec \
               -e PYTHONUNBUFFERED=1 \
               "$RUN_NAME" bash -c \
-              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode"; then
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode --hand-retargeter $hand_retargeter"; then
               verifier_rc=0
             else
               verifier_rc=$?
@@ -753,11 +763,11 @@ jobs:
           else
             running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
             if [ "$running" = "true" ]; then
-              echo "Error: TeleopSession did not report readiness within ${READINESS_TIMEOUT_SEC}s in mode $mode"
+              echo "Error: TeleopSession did not report readiness within ${READINESS_TIMEOUT_SEC}s for $scenario_name"
               docker stop --time 5 "$RUN_NAME" >/dev/null || true
               docker wait "$RUN_NAME" >/dev/null || true
             else
-              echo "Error: teleop_ros2_node exited before readiness in mode $mode (exit code $docker_rc)"
+              echo "Error: teleop_ros2_node exited before readiness for $scenario_name (exit code $docker_rc)"
             fi
           fi
 
@@ -773,7 +783,7 @@ jobs:
             exit 1
           fi
           if [ "$verifier_rc" -ne 0 ]; then
-            echo "Error: topic verifier failed in mode $mode (exit code $verifier_rc)"
+            echo "Error: topic verifier failed for $scenario_name (exit code $verifier_rc)"
             exit "$verifier_rc"
           fi
         done

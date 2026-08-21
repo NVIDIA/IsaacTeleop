@@ -7,12 +7,15 @@
 from types import SimpleNamespace
 
 import pytest
-
 import session_config
 from constants import (
+    LEFT_WUJI_HAND_JOINT_NAMES,
+    RIGHT_WUJI_HAND_JOINT_NAMES,
     TELEOP_MODES,
+    WUJI_HAND_JOINT_COUNT,
     HandRetargeter,
     TeleopMode,
+    applies_manus_controller_to_hand_transform,
     resolve_hand_retargeter,
 )
 from session_config import validate_joint_name_alias_count
@@ -68,6 +71,9 @@ def test_controller_profile_spec_is_resolved_for_selected_retargeter() -> None:
     hands_spec = resolve_teleop_profile_spec(
         TeleopMode.CONTROLLER_TELEOP, HandRetargeter.DEXPILOT
     )
+    wuji_spec = resolve_teleop_profile_spec(
+        TeleopMode.CONTROLLER_TELEOP, HandRetargeter.WUJI
+    )
 
     assert "hand_left" not in controller_spec.required_result_keys
     assert "hand_right" not in controller_spec.required_result_keys
@@ -75,14 +81,27 @@ def test_controller_profile_spec_is_resolved_for_selected_retargeter() -> None:
 
     assert {"hand_left", "hand_right"} <= hands_spec.required_result_keys
     assert PublishType.HAND_POSES in hands_spec.publish_types
+    assert {"hand_left", "hand_right"} <= wuji_spec.required_result_keys
+    assert PublishType.EE_FROM_HANDS in wuji_spec.publish_types
+    assert PublishType.EE_FROM_CONTROLLERS not in wuji_spec.publish_types
 
 
 @pytest.mark.parametrize(
     ("retargeter", "expected_profile"),
     (
         (HandRetargeter.TRIHAND, TeleopProfile.CONTROLLER_TELEOP),
-        (HandRetargeter.DEXPILOT, TeleopProfile.CONTROLLER_TELEOP_WITH_HANDS),
-        (HandRetargeter.PINK_IK, TeleopProfile.CONTROLLER_TELEOP_WITH_HANDS),
+        (
+            HandRetargeter.DEXPILOT,
+            TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE,
+        ),
+        (
+            HandRetargeter.PINK_IK,
+            TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE,
+        ),
+        (
+            HandRetargeter.WUJI,
+            TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE,
+        ),
     ),
 )
 def test_controller_profile_spec_resolution(
@@ -131,9 +150,46 @@ def test_trihand_is_rejected_for_hand_teleop() -> None:
         resolve_hand_retargeter(TeleopMode.HAND_TELEOP, HandRetargeter.TRIHAND)
 
 
+def test_manus_transform_is_not_applied_to_wuji() -> None:
+    assert applies_manus_controller_to_hand_transform(
+        TeleopMode.CONTROLLER_TELEOP, HandRetargeter.DEXPILOT
+    )
+    assert applies_manus_controller_to_hand_transform(
+        TeleopMode.CONTROLLER_TELEOP, HandRetargeter.PINK_IK
+    )
+    assert not applies_manus_controller_to_hand_transform(
+        TeleopMode.CONTROLLER_TELEOP, HandRetargeter.WUJI
+    )
+
+
 def test_joint_alias_count_validation() -> None:
     validate_joint_name_alias_count("left_finger_joint_names", None, 2)
     validate_joint_name_alias_count("left_finger_joint_names", ["a", "b"], 2)
 
     with pytest.raises(ValueError, match="must contain exactly 2"):
         validate_joint_name_alias_count("left_finger_joint_names", ["a"], 2)
+
+
+def test_wuji_default_joint_names_are_side_qualified_and_unique() -> None:
+    assert WUJI_HAND_JOINT_COUNT == 20
+    assert len(LEFT_WUJI_HAND_JOINT_NAMES) == WUJI_HAND_JOINT_COUNT
+    assert len(RIGHT_WUJI_HAND_JOINT_NAMES) == WUJI_HAND_JOINT_COUNT
+    names = LEFT_WUJI_HAND_JOINT_NAMES + RIGHT_WUJI_HAND_JOINT_NAMES
+    assert len(set(names)) == 2 * WUJI_HAND_JOINT_COUNT
+    assert names[0] == "left_thumb_j0"
+    assert names[-1] == "right_pinky_j3"
+
+
+def test_wuji_joint_alias_count_validation() -> None:
+    validate_joint_name_alias_count(
+        "left_finger_joint_names",
+        [f"left_joint_{index}" for index in range(WUJI_HAND_JOINT_COUNT)],
+        WUJI_HAND_JOINT_COUNT,
+    )
+
+    with pytest.raises(ValueError, match="must contain exactly 20"):
+        validate_joint_name_alias_count(
+            "left_finger_joint_names",
+            ["left_joint"] * (WUJI_HAND_JOINT_COUNT - 1),
+            WUJI_HAND_JOINT_COUNT,
+        )

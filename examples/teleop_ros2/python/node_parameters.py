@@ -19,26 +19,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from rcl_interfaces.msg import ParameterDescriptor, ParameterType
-from rclpy.node import Node
-from rclpy.parameter import Parameter
-from scipy.spatial.transform import Rotation
-
+from constants import (
+    HAND_RETARGETERS,
+    TELEOP_MODES,
+    WUJI_HAND_MODELS,
+    HandRetargeter,
+    TeleopMode,
+    applies_manus_controller_to_hand_transform,
+    resolve_hand_retargeter,
+)
 from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
 from isaacteleop.deviceio import McapReplayConfig
 from isaacteleop.retargeting_engine.deviceio_source_nodes.pedals_source import (
     DEFAULT_PEDAL_COLLECTION_ID,
 )
 from isaacteleop.teleop_session_manager import SessionMode
-
-from constants import (
-    HAND_RETARGETERS,
-    TELEOP_MODES,
-    HandRetargeter,
-    TeleopMode,
-    resolve_hand_retargeter,
-    uses_hands_source_for_controller,
-)
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rclpy.node import Node
+from rclpy.parameter import Parameter
+from scipy.spatial.transform import Rotation
 
 
 @dataclass(frozen=True)
@@ -65,7 +64,8 @@ class NodeParameters:
     sleep_period_s: float
     hand_retargeter: HandRetargeter
     resolved_hand_retargeter: HandRetargeter
-    controller_uses_hands_source: bool
+    apply_manus_controller_to_hand_transform: bool
+    wuji_hand_model: str
     config_asset_root: Path
     session_mode: SessionMode
     mcap_config: McapReplayConfig | None
@@ -321,7 +321,7 @@ def _load_hand_retargeter(
                 "Hand retargeter backend. 'mode_default' resolves to "
                 "'trihand' in controller_teleop and 'dexpilot' in "
                 "hand_teleop. Valid values: 'mode_default', 'trihand', "
-                "'pink_ik', or 'dexpilot'."
+                "'pink_ik', 'dexpilot', or 'wuji'."
             )
         ),
     )
@@ -336,16 +336,16 @@ def _load_hand_retargeter(
             f"got {raw_hand_retargeter!r}"
         ) from exc
     resolved_hand_retargeter = resolve_hand_retargeter(mode, hand_retargeter)
-    controller_uses_hands_source = uses_hands_source_for_controller(
+    apply_manus_transform = applies_manus_controller_to_hand_transform(
         mode, resolved_hand_retargeter
     )
     if mode in (TeleopMode.HAND_TELEOP, TeleopMode.CONTROLLER_TELEOP):
         node.get_logger().info(f"Hand retargeter: {resolved_hand_retargeter}")
-    if controller_uses_hands_source:
+    if apply_manus_transform:
         node.get_logger().info(
             "Applying MANUS controller-to-hand transform after pose transform."
         )
-    return hand_retargeter, resolved_hand_retargeter, controller_uses_hands_source
+    return hand_retargeter, resolved_hand_retargeter, apply_manus_transform
 
 
 def _load_mcap_replay(
@@ -486,6 +486,30 @@ def _load_transform_translation(node: Node) -> list[float] | None:
     return [float(x) for x in transform_trans_arr]
 
 
+def _load_wuji_hand_model(node: Node) -> str:
+    parameter_name = "wuji_hand_model"
+    node.declare_parameter(
+        parameter_name,
+        "wuji_hand_2",
+        ParameterDescriptor(
+            description=(
+                "Wuji model used for left- and right-hand retargeting. "
+                "Valid values: 'wuji_hand' or 'wuji_hand_2'."
+            ),
+            additional_constraints=f"Must be one of {WUJI_HAND_MODELS}.",
+        ),
+    )
+    model = (
+        node.get_parameter(parameter_name).get_parameter_value().string_value.strip()
+    )
+    if model not in WUJI_HAND_MODELS:
+        raise ValueError(
+            f"Parameter '{parameter_name}' must be one of {WUJI_HAND_MODELS}, "
+            f"got {model!r}"
+        )
+    return model
+
+
 def create_node_parameters(node: Node) -> NodeParameters:
     """Declare every ROS parameter on ``node``, validate, and return the snapshot."""
     rate_hz = _load_rate_hz(node)
@@ -493,8 +517,9 @@ def create_node_parameters(node: Node) -> NodeParameters:
     (
         hand_retargeter,
         resolved_hand_retargeter,
-        controller_uses_hands_source,
+        apply_manus_controller_to_hand_transform,
     ) = _load_hand_retargeter(node, mode)
+    wuji_hand_model = _load_wuji_hand_model(node)
     config_asset_root = _load_config_asset_root(node)
     session_mode, mcap_config = _load_mcap_replay(node)
     cloudxr_params = _load_cloudxr(node)
@@ -510,7 +535,10 @@ def create_node_parameters(node: Node) -> NodeParameters:
         sleep_period_s=1.0 / rate_hz,
         hand_retargeter=hand_retargeter,
         resolved_hand_retargeter=resolved_hand_retargeter,
-        controller_uses_hands_source=controller_uses_hands_source,
+        apply_manus_controller_to_hand_transform=(
+            apply_manus_controller_to_hand_transform
+        ),
+        wuji_hand_model=wuji_hand_model,
         config_asset_root=config_asset_root,
         session_mode=session_mode,
         mcap_config=mcap_config,

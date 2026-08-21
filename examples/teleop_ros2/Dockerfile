@@ -172,6 +172,7 @@ ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
 COPY src/core/python/requirements.txt \
      src/core/python/requirements-retargeters.txt \
      src/core/python/requirements-grounding.txt \
+     src/core/python/requirements-wuji.txt \
      src/core/python/requirements-cloudxr.txt \
      /tmp/
 RUN uv venv --python=${PYTHON_VERSION} && \
@@ -180,11 +181,13 @@ RUN uv venv --python=${PYTHON_VERSION} && \
         -r /tmp/requirements.txt \
         -r /tmp/requirements-retargeters.txt \
         -r /tmp/requirements-grounding.txt \
+        -r /tmp/requirements-wuji.txt \
         -r /tmp/requirements-cloudxr.txt \
         msgpack msgpack-numpy && \
     rm /tmp/requirements.txt \
        /tmp/requirements-retargeters.txt \
        /tmp/requirements-grounding.txt \
+       /tmp/requirements-wuji.txt \
        /tmp/requirements-cloudxr.txt
 
 COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install

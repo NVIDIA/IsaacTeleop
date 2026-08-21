@@ -4,16 +4,27 @@
 
 """TeleopSession graph assembly for teleop_ros2_node."""
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
-    ControllersSource,
-    FullBodySource,
-    Generic3AxisPedalSource,
-    HandsSource,
-    HeadSource,
+from assets import (
+    resolve_dex_sharpa_config,
+    resolve_dex_sharpa_urdf,
+    resolve_sharpa_mjcf,
 )
-from isaacteleop.retargeting_engine.interface import OutputCombiner
+from constants import (
+    DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM,
+    LEFT_FINGER_JOINT_NAMES,
+    LEFT_SHARPA_WAVE_JOINT_NAMES,
+    LEFT_WUJI_HAND_JOINT_NAMES,
+    RIGHT_FINGER_JOINT_NAMES,
+    RIGHT_SHARPA_WAVE_JOINT_NAMES,
+    RIGHT_WUJI_HAND_JOINT_NAMES,
+    SHARPA_FINGER_JOINT_COUNT,
+    TRACKED_HAND_RETARGETERS,
+    WUJI_HAND_JOINT_COUNT,
+    HandRetargeter,
+    TeleopMode,
+)
 from isaacteleop.retargeters import (
     DexHandRetargeter,
     DexHandRetargeterConfig,
@@ -24,26 +35,17 @@ from isaacteleop.retargeters import (
     TriHandMotionControllerConfig,
     TriHandMotionControllerRetargeter,
 )
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    ControllersSource,
+    FullBodySource,
+    Generic3AxisPedalSource,
+    HandsSource,
+    HeadSource,
+)
+from isaacteleop.retargeting_engine.interface import OutputCombiner
 from isaacteleop.teleop_session_manager import TeleopSessionConfig
-from teleop_ros2_retargeters import JointNameAliasRetargeter
-
-from assets import (
-    resolve_dex_sharpa_config,
-    resolve_dex_sharpa_urdf,
-    resolve_sharpa_mjcf,
-)
-from constants import (
-    DEX_HANDTRACKING_TO_BASELINK_FRAME_TRANSFORM,
-    HandRetargeter,
-    LEFT_FINGER_JOINT_NAMES,
-    LEFT_SHARPA_WAVE_JOINT_NAMES,
-    RIGHT_FINGER_JOINT_NAMES,
-    RIGHT_SHARPA_WAVE_JOINT_NAMES,
-    SHARPA_FINGER_JOINT_COUNT,
-    SHARPA_HAND_RETARGETERS,
-    TeleopMode,
-)
 from node_parameters import NodeParameters
+from teleop_ros2_retargeters import JointNameAliasRetargeter
 from tensor_group_helpers import joint_names_from_group_type
 
 
@@ -130,20 +132,12 @@ def build_controller_teleop_config(params: NodeParameters) -> TeleopSessionConfi
                 "finger_joints_right": right_hand_connected.output("hand_joints"),
             }
         )
-    elif params.resolved_hand_retargeter in SHARPA_HAND_RETARGETERS:
-        validate_joint_name_alias_count(
-            "left_finger_joint_names",
-            params.left_finger_joint_name_aliases,
-            SHARPA_FINGER_JOINT_COUNT,
-        )
-        validate_joint_name_alias_count(
-            "right_finger_joint_names",
-            params.right_finger_joint_name_aliases,
-            SHARPA_FINGER_JOINT_COUNT,
-        )
+    elif params.resolved_hand_retargeter in TRACKED_HAND_RETARGETERS:
         hands = HandsSource(name="hands")
-        left_finger_joints, right_finger_joints = build_sharpa_finger_joint_outputs(
-            hands, params, TeleopMode.CONTROLLER_TELEOP.value
+        left_finger_joints, right_finger_joints = (
+            build_tracked_hand_finger_joint_outputs(
+                hands, params, TeleopMode.CONTROLLER_TELEOP.value
+            )
         )
         pipeline_outputs.update(
             {
@@ -156,7 +150,7 @@ def build_controller_teleop_config(params: NodeParameters) -> TeleopSessionConfi
     else:
         raise ValueError(
             "controller_teleop requires hand_retargeter to resolve to "
-            f"'trihand', 'dexpilot', or 'pink_ik', got "
+            f"'trihand', 'dexpilot', 'pink_ik', or 'wuji', got "
             f"{params.resolved_hand_retargeter!r}"
         )
 
@@ -190,17 +184,6 @@ def build_full_body_config(params: NodeParameters) -> TeleopSessionConfig:
 
 
 def build_hand_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
-    validate_joint_name_alias_count(
-        "left_finger_joint_names",
-        params.left_finger_joint_name_aliases,
-        SHARPA_FINGER_JOINT_COUNT,
-    )
-    validate_joint_name_alias_count(
-        "right_finger_joint_names",
-        params.right_finger_joint_name_aliases,
-        SHARPA_FINGER_JOINT_COUNT,
-    )
-
     hands = HandsSource(name="hands")
     head = HeadSource(name="head")
     pedals = Generic3AxisPedalSource(
@@ -211,7 +194,7 @@ def build_hand_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
         name="foot_pedal",
     )
     locomotion_connected = locomotion.connect({"pedals": pedals.output("pedals")})
-    left_finger_joints, right_finger_joints = build_sharpa_finger_joint_outputs(
+    left_finger_joints, right_finger_joints = build_tracked_hand_finger_joint_outputs(
         hands, params, TeleopMode.HAND_TELEOP.value
     )
 
@@ -246,11 +229,32 @@ def build_session_config(params: NodeParameters) -> TeleopSessionConfig:
     raise ValueError(f"Unsupported mode {params.mode!r}")
 
 
-def build_sharpa_finger_joint_outputs(
+def build_tracked_hand_finger_joint_outputs(
     hands: HandsSource,
     params: NodeParameters,
     mode_name: str,
 ):
+    if params.resolved_hand_retargeter not in TRACKED_HAND_RETARGETERS:
+        raise ValueError(
+            f"Tracked-hand retargeting requires one of {TRACKED_HAND_RETARGETERS}, "
+            f"got {params.resolved_hand_retargeter!r}"
+        )
+    expected_joint_count = (
+        WUJI_HAND_JOINT_COUNT
+        if params.resolved_hand_retargeter == HandRetargeter.WUJI
+        else SHARPA_FINGER_JOINT_COUNT
+    )
+    validate_joint_name_alias_count(
+        "left_finger_joint_names",
+        params.left_finger_joint_name_aliases,
+        expected_joint_count,
+    )
+    validate_joint_name_alias_count(
+        "right_finger_joint_names",
+        params.right_finger_joint_name_aliases,
+        expected_joint_count,
+    )
+
     if params.resolved_hand_retargeter == HandRetargeter.PINK_IK:
         try:
             from isaacteleop.retargeters import (
@@ -280,6 +284,8 @@ def build_sharpa_finger_joint_outputs(
         )
         left_alias_name = "sharpa_left_joint_aliases"
         right_alias_name = "sharpa_right_joint_aliases"
+        left_output_joint_names = params.left_finger_joint_name_aliases
+        right_output_joint_names = params.right_finger_joint_name_aliases
     elif params.resolved_hand_retargeter == HandRetargeter.DEXPILOT:
         left_hand_retargeter = DexHandRetargeter(
             DexHandRetargeterConfig(
@@ -319,9 +325,46 @@ def build_sharpa_finger_joint_outputs(
         )
         left_alias_name = "dex_sharpa_left_joint_aliases"
         right_alias_name = "dex_sharpa_right_joint_aliases"
+        left_output_joint_names = params.left_finger_joint_name_aliases
+        right_output_joint_names = params.right_finger_joint_name_aliases
+    elif params.resolved_hand_retargeter == HandRetargeter.WUJI:
+        try:
+            from isaacteleop.retargeters import (
+                WujiHandRetargeter,
+                WujiHandRetargeterConfig,
+            )
+        except ModuleNotFoundError as exc:
+            raise ModuleNotFoundError(
+                f"{mode_name} with hand_retargeter:=wuji requires Wuji "
+                "retargeting dependencies. Install/use a build with "
+                "isaacteleop[wuji]."
+            ) from exc
+
+        left_hand_retargeter = WujiHandRetargeter(
+            WujiHandRetargeterConfig(
+                model=params.wuji_hand_model,
+                hand_side="left",
+            ),
+            name="wuji_left",
+        )
+        right_hand_retargeter = WujiHandRetargeter(
+            WujiHandRetargeterConfig(
+                model=params.wuji_hand_model,
+                hand_side="right",
+            ),
+            name="wuji_right",
+        )
+        left_alias_name = "wuji_left_joint_aliases"
+        right_alias_name = "wuji_right_joint_aliases"
+        left_output_joint_names = (
+            params.left_finger_joint_name_aliases or LEFT_WUJI_HAND_JOINT_NAMES
+        )
+        right_output_joint_names = (
+            params.right_finger_joint_name_aliases or RIGHT_WUJI_HAND_JOINT_NAMES
+        )
     else:
         raise ValueError(
-            f"Sharpa hand retargeting requires one of {SHARPA_HAND_RETARGETERS}, "
+            f"Tracked-hand retargeting requires one of {TRACKED_HAND_RETARGETERS}, "
             f"got {params.resolved_hand_retargeter!r}"
         )
 
@@ -334,13 +377,13 @@ def build_sharpa_finger_joint_outputs(
     left_finger_joints = maybe_alias_hand_joints(
         left_hand_connected,
         joint_names_from_group_type(left_hand_retargeter.output_spec()["hand_joints"]),
-        params.left_finger_joint_name_aliases,
+        left_output_joint_names,
         left_alias_name,
     )
     right_finger_joints = maybe_alias_hand_joints(
         right_hand_connected,
         joint_names_from_group_type(right_hand_retargeter.output_spec()["hand_joints"]),
-        params.right_finger_joint_name_aliases,
+        right_output_joint_names,
         right_alias_name,
     )
     return left_finger_joints, right_finger_joints
