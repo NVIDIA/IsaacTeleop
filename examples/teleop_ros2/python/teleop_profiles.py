@@ -4,12 +4,12 @@
 
 """Resolved runtime profiles for teleoperation session results and publishing."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, TypedDict, cast
-
-from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+from typing import TypedDict, cast
 
 from constants import SHARPA_HAND_RETARGETERS, HandRetargeter, StrEnum, TeleopMode
+from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
 
 
 class PublishType(StrEnum):
@@ -25,7 +25,10 @@ class PublishType(StrEnum):
 
 class TeleopProfile(StrEnum):
     CONTROLLER_TELEOP = "controller_teleop"
-    CONTROLLER_TELEOP_WITH_HANDS = "controller_teleop_with_hands"
+    CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE = (
+        "controller_teleop_with_hand_controller_ee"
+    )
+    CONTROLLER_TELEOP_WITH_HAND_WRIST_EE = "controller_teleop_with_hand_wrist_ee"
     HAND_TELEOP = "hand_teleop"
     CONTROLLER_RAW = "controller_raw"
     FULL_BODY = "full_body"
@@ -75,7 +78,7 @@ TELEOP_PROFILE_SPECS = {
             }
         ),
     ),
-    TeleopProfile.CONTROLLER_TELEOP_WITH_HANDS: TeleopProfileSpec(
+    TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE: TeleopProfileSpec(
         mode=TeleopMode.CONTROLLER_TELEOP,
         required_result_keys=frozenset(
             {
@@ -93,6 +96,31 @@ TELEOP_PROFILE_SPECS = {
             {
                 PublishType.CONTROLLER_PAYLOAD,
                 PublishType.EE_FROM_CONTROLLERS,
+                PublishType.FINGER_JOINTS,
+                PublishType.HAND_POSES,
+                PublishType.HEAD,
+                PublishType.ROOT_COMMAND,
+            }
+        ),
+    ),
+    TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE: TeleopProfileSpec(
+        mode=TeleopMode.CONTROLLER_TELEOP,
+        required_result_keys=frozenset(
+            {
+                "controller_left",
+                "controller_right",
+                "finger_joints_left",
+                "finger_joints_right",
+                "hand_left",
+                "hand_right",
+                "head",
+                "root_command",
+            }
+        ),
+        publish_types=frozenset(
+            {
+                PublishType.CONTROLLER_PAYLOAD,
+                PublishType.EE_FROM_HANDS,
                 PublishType.FINGER_JOINTS,
                 PublishType.HAND_POSES,
                 PublishType.HEAD,
@@ -148,9 +176,14 @@ def resolve_teleop_profile_spec(
     """Resolve user-facing settings to one complete immutable runtime profile."""
     if (
         mode == TeleopMode.CONTROLLER_TELEOP
+        and resolved_hand_retargeter == HandRetargeter.WUJI
+    ):
+        profile = TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE
+    elif (
+        mode == TeleopMode.CONTROLLER_TELEOP
         and resolved_hand_retargeter in SHARPA_HAND_RETARGETERS
     ):
-        profile = TeleopProfile.CONTROLLER_TELEOP_WITH_HANDS
+        profile = TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE
     else:
         profile = TeleopProfile(mode.value)
     return TELEOP_PROFILE_SPECS[profile]

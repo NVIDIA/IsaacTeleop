@@ -20,8 +20,8 @@ publisher uses a different ID.
 
 ## Prerequisite: Hand Retargeting
 
-`hand_teleop` and the Sharpa variants of `controller_teleop` retarget OpenXR
-hand tracking to Sharpa hand joint commands via the `hand_retargeter`
+`hand_teleop` and the tracked-hand variants of `controller_teleop` retarget
+OpenXR hand tracking to robot hand joint commands via the `hand_retargeter`
 parameter:
 
 - `hand_retargeter:=mode_default` (default): keeps the mode-specific default
@@ -40,11 +40,26 @@ parameter:
 - `hand_retargeter:=pink_ik`: uses `SharpaHandRetargeter`. It requires the
   `isaacteleop[grounding]` runtime dependencies and the bundled
   `robotic_grounding` package data that provides the Sharpa MJCF assets.
+- `hand_retargeter:=wuji`: uses `WujiHandRetargeter` and requires
+  `isaacteleop[wuji]`. `wuji_hand_model` selects `wuji_hand` or `wuji_hand_2`
+  for both sides and defaults to `wuji_hand_2`. Each side publishes 20
+  firmware-order joints named `left_thumb_j0` through
+  `left_pinky_j3` and `right_thumb_j0` through `right_pinky_j3`. Missing or
+  invalid tracking currently publishes zero joint values, matching the other
+  retargeters in this example.
 
 In `controller_teleop`, explicitly setting `hand_retargeter:=dexpilot` or
 `hand_retargeter:=pink_ik` keeps XR controllers responsible for EE poses, wrist
 TFs, locomotion, and `controller_data`, while Manus/OpenXR hand data drives
 `xr_teleop/hand` and Sharpa `xr_teleop/finger_joints`.
+
+With `controller_teleop` and `hand_retargeter:=wuji`, controllers still provide
+locomotion and `controller_data`, while the ROS node obtains
+`xr_teleop/hand`, `xr_teleop/finger_joints`, EE poses, and wrist TFs from the
+Wuji plugin-injected OpenXR hand stream. The injected wrist pose comes from
+optical hand tracking when available, or from the controller aim pose plus the
+configured aim-to-wrist transform as fallback. The ROS node therefore does not
+apply the MANUS mount transform to this already-calibrated wrist pose.
 
 The Docker build fetches the pinned official Sharpa Wave URDFs and installs them
 at `/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
@@ -55,6 +70,41 @@ python3 examples/teleop_ros2/scripts/fetch_sharpa_wave_urdfs.py
 ```
 
 Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
+
+### Wuji glove input plugin
+
+The Wuji hand retargeter accepts any OpenXR hand-tracking source. To use a Wuji
+glove, build its external input plugin from the repository root:
+
+```bash
+./src/plugins/wuji_glove/install.sh
+```
+
+Start `teleop_ros2_node.py` first so its CloudXR runtime is available. Then, in
+the shell that launches the plugin, source that same runtime environment and
+start the plugin:
+
+```bash
+source ~/.cloudxr/run/cloudxr.env
+./build/src/plugins/wuji_glove/wuji_glove_plugin
+```
+
+The node and plugin must share the CloudXR runtime files and network namespace,
+and the gloves must be reachable from the plugin host. With the Docker command
+below, keep the `$HOME/.cloudxr` mount and host networking so an external plugin
+process can use the generated environment. The current ROS image installs the
+Wuji Python retargeting dependency, but it does not build or auto-launch the
+C++ glove plugin.
+
+The plugin defaults to automatic wrist-source selection: optical hand tracking
+is preferred, with the mounted controller as fallback. Set
+`WUJI_GLOVE_WRIST_SOURCE` to `hand_tracking` or `controller` to force one source.
+Override mount calibration when needed:
+
+```bash
+export WUJI_GLOVE_AIM_TO_WRIST_LEFT="px,py,pz,qx,qy,qz,qw"
+export WUJI_GLOVE_AIM_TO_WRIST_RIGHT="px,py,pz,qx,qy,qz,qw"
+```
 
 ## Published Topics
 
@@ -68,7 +118,7 @@ Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
   - Head pose
 - `xr_teleop/controller_data` (`std_msgs/ByteMultiArray`, msgpack-encoded dictionary)
 - `xr_teleop/finger_joints` (`sensor_msgs/JointState`)
-  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (TriHand in default `controller_teleop`, selected Sharpa retargeter in `hand_teleop`, or explicit Sharpa retargeter in `controller_teleop`)
+  - Retargeted finger joint angles for the robot; contains joint names and position arrays corresponding to the robot finger joints (TriHand in default `controller_teleop`, or the selected Sharpa/Wuji retargeter in tracked-hand modes)
 - `/tf` (`tf2_msgs/TFMessage`)
   - `world_frame` → `right_wrist_frame`: Right wrist transform (published in `controller_teleop` and `hand_teleop` modes)
   - `world_frame` → `left_wrist_frame`: Left wrist transform (published in `controller_teleop` and `hand_teleop` modes)
@@ -125,7 +175,7 @@ docker run --rm --gpus all --net=host --ipc=host \
   -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_client_route`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `wuji_hand_model`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_client_route`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 
@@ -137,7 +187,7 @@ The `mode` parameter selects the teleoperation scenario and which topics are pub
 
 | Mode | Topics published |
 |------|------------------|
-| `controller_teleop` (default) | `ee_poses` (from controller aim poses), `root_twist`, `root_pose`, `head_pose`, `finger_joints` (TriHand by default; Sharpa from Manus/OpenXR hands when `hand_retargeter:=dexpilot` or `hand_retargeter:=pink_ik`), `controller_data`, `tf` (from controller aim poses and head pose), and `hand` only for the explicit Sharpa retargeter path |
+| `controller_teleop` (default) | `ee_poses`, `root_twist`, `root_pose`, `head_pose`, `finger_joints`, `controller_data`, and `tf`; TriHand uses controller-derived finger joints and EE poses, explicit Sharpa retargeters add `hand` and use controller-derived EE poses with the MANUS mount transform, and Wuji adds `hand` while using the plugin-injected OpenXR wrist for EE poses and wrist TFs |
 | `hand_teleop` | `ee_poses` (from hand tracking wrists), `hand` (named left and right joint poses), `finger_joints` (finger joints in joint space), `root_twist`, `root_pose`, `head_pose`, `tf` (from hand tracking wrists and head pose); locomotion comes from the configured foot pedal collection |
 | `controller_raw` | `controller_data` only |
 | `full_body` | `full_body` and `controller_data` |
