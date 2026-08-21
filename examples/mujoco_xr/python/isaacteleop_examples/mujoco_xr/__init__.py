@@ -28,7 +28,7 @@ if _mujoco.mj_versionString() != _mujoco_xr.mujoco_version():
         "and project.dependencies) must name one version, and reinstalling recompiles against it: "
         "uv pip install --reinstall ./examples/mujoco_xr. (If you hit this from the in-tree ctest "
         "path instead, the extension came from the root build: install that same version into "
-        "build/<preset-dir>/teleop_build_venv/bin/python and re-run cmake --preset.) "
+        "build/teleop_build_venv/bin/python and re-run cmake -B build.) "
         "mjModel* / mjData* pointers cannot cross this boundary otherwise."
     )
 

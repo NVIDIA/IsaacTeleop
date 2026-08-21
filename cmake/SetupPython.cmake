@@ -83,9 +83,9 @@ if(ISAAC_TELEOP_PYTHON_CONFIGURED AND
     message(FATAL_ERROR
         "This build directory is configured for Python ${ISAAC_TELEOP_PYTHON_CONFIGURED}, "
         "but ISAAC_TELEOP_PYTHON_VERSION is now ${ISAAC_TELEOP_PYTHON_VERSION}. The Python "
-        "version is baked into the CMake cache and the build venv; configure a different "
-        "build directory instead (cmake -B build-py${ISAAC_TELEOP_PYTHON_VERSION} "
-        "-DISAAC_TELEOP_PYTHON_VERSION=${ISAAC_TELEOP_PYTHON_VERSION}), or delete this one.")
+        "version is baked into the CMake cache and the build venv; delete this build "
+        "directory and configure again with "
+        "-DISAAC_TELEOP_PYTHON_VERSION=${ISAAC_TELEOP_PYTHON_VERSION}.")
 endif()
 
 # Guard to prevent multiple inclusions from overwriting our settings

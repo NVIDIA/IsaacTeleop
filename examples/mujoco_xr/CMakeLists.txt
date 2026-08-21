@@ -126,7 +126,7 @@ if(NOT _mujoco_probe_rc EQUAL 0)
     # example, so it names the exact command. Configure CREATES that
     # interpreter, hence the re-configure step in the README.
     message(STATUS "mujoco_xr: skipped -- '${Python3_EXECUTABLE}' cannot import mujoco. "
-                   "Install it and re-run cmake --preset with: "
+                   "Install it and re-run cmake -B ${CMAKE_BINARY_DIR} with: "
                    "uv pip install --python ${Python3_EXECUTABLE} \"mujoco==${_mujoco_declared_pin}\"")
     return()
 endif()
