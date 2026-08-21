@@ -63,15 +63,13 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
         # Test 6: Check initial body tracking state
         print("[Test 6] Checking body tracking state...")
         body_tracked = body_tracker.get_body_pose(session)
-        print(
-            f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
-        )
+        print(f"  Body tracking active: {'YES' if body_tracked else 'NO'}")
 
-        if body_tracked.data is not None:
+        if body_tracked:
             valid_count = sum(
                 1
                 for i in range(schema.BodyJoint.NUM_JOINTS)
-                if body_tracked.data.joints.joints(i).is_valid
+                if body_tracked.joints.joints(i).is_valid
             )
             print(f"  Valid joints: {valid_count}/{schema.BodyJoint.NUM_JOINTS}")
         print()
@@ -94,11 +92,11 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
                 elapsed = current_time - start_time
                 body_tracked = body_tracker.get_body_pose(session)
 
-                if body_tracked.data is not None:
-                    pelvis_pos = body_tracked.data.joints.joints(
+                if body_tracked:
+                    pelvis_pos = body_tracked.joints.joints(
                         int(schema.BodyJoint.PELVIS)
                     ).pose.position
-                    head_pos = body_tracked.data.joints.joints(
+                    head_pos = body_tracked.joints.joints(
                         int(schema.BodyJoint.HEAD)
                     ).pose.position
                     print(
@@ -121,15 +119,13 @@ with oxr.OpenXRSession("FullBodyTrackerTest", required_extensions) as oxr_sessio
         print("[Test 8] Final body pose state...")
         body_tracked = body_tracker.get_body_pose(session)
 
-        print(
-            f"  Body tracking active: {'YES' if body_tracked.data is not None else 'NO'}"
-        )
+        print(f"  Body tracking active: {'YES' if body_tracked else 'NO'}")
 
-        if body_tracked.data is not None:
+        if body_tracked:
             print()
             print("  Joint positions:")
             for i in range(schema.BodyJoint.NUM_JOINTS):
-                joint = body_tracked.data.joints.joints(i)
+                joint = body_tracked.joints.joints(i)
                 name = schema.BodyJoint(i).name
                 pos = joint.pose.position
                 rot = joint.pose.orientation

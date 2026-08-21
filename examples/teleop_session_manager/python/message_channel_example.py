@@ -21,7 +21,7 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     message_channel_config,
 )
 from isaacteleop.retargeting_engine.interface import TensorGroup
-from isaacteleop.schema import MessageChannelMessages, MessageChannelMessagesTrackedT
+from isaacteleop.schema import MessageChannelMessages, MessageChannelMessagesTracked
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 
@@ -50,7 +50,7 @@ def _parse_uuid_bytes(uuid_text: str) -> bytes:
 def _enqueue_outbound_message(sink, payload: bytes) -> None:
     """Push one outbound message through MessageChannelSink."""
     tg = TensorGroup(sink.input_spec()["messages_tracked"])
-    tg[0] = MessageChannelMessagesTrackedT([MessageChannelMessages(payload)])
+    tg[0] = MessageChannelMessagesTracked([MessageChannelMessages(payload)])
     sink.compute({"messages_tracked": tg}, {})
 
 

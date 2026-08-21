@@ -26,6 +26,7 @@
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 #include <schema/full_body_generated.h>
+#include <schema/serialized.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -70,12 +71,12 @@ std::string resolve_output_path(const std::string& arg)
     return arg;
 }
 
-uint32_t count_valid_joints(const core::FullBodyPoseT& data)
+uint32_t count_valid_joints(const core::FullBodyPose& data)
 {
     uint32_t valid_count = 0;
     for (uint32_t i = 0; i < core::FullBodyTracker::JOINT_COUNT; ++i)
     {
-        if ((*data.joints->joints())[i]->is_valid())
+        if ((*data.joints()->joints())[i]->is_valid())
         {
             ++valid_count;
         }
@@ -123,12 +124,11 @@ try
 
         if (frame_count % 60 == 0)
         {
-            const auto& tracked = tracker->get_body_pose(*session);
+            const auto* body = tracker->get_body_pose(*session).get();
             std::cout << "[record] t=" << std::fixed << std::setprecision(2) << elapsed_s << "s  frame=" << frame_count;
-            if (tracked.data)
+            if (body != nullptr)
             {
-                std::cout << "  joints=" << count_valid_joints(*tracked.data) << "/"
-                          << core::FullBodyTracker::JOINT_COUNT;
+                std::cout << "  joints=" << count_valid_joints(*body) << "/" << core::FullBodyTracker::JOINT_COUNT;
             }
             else
             {

@@ -10,12 +10,12 @@ void ReplayHapticCommandReaderTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
 }
 
-const HapticCommandTrackedT& ReplayHapticCommandReaderTrackerImpl::get_data() const
+const Serialized<HapticCommand>& ReplayHapticCommandReaderTrackerImpl::get_data() const
 {
     return tracked_;
 }
 
-const HapticCommandTrackedT& ReplayHapticCommandReaderTrackerImpl::get_data(std::string_view /*endpoint*/) const
+const Serialized<HapticCommand>& ReplayHapticCommandReaderTrackerImpl::get_data(std::string_view /*endpoint*/) const
 {
     return tracked_;
 }

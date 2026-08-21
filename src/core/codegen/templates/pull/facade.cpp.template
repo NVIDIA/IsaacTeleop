@@ -10,7 +10,7 @@ namespace core
 {
     // No-op: members set in the initializer list.
 }
-const @TRACKED_TYPE@& @CLASS@::get_data(const ITrackerSession& session) const
+const Serialized<@FB_TABLE@>& @CLASS@::get_data(const ITrackerSession& session) const
 {
     return static_cast<const @IFACE@&>(session.get_tracker_impl(*this)).get_data();
 }

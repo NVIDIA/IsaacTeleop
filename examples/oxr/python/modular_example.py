@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -75,15 +75,15 @@ def main():
                         print(f"[{elapsed:4.1f}s] Frame {frame_count}")
 
                         # Get hand data
-                        left_tracked: schema.HandPoseTrackedT = (
+                        left_tracked: schema.HandPose | None = (
                             hand_tracker.get_left_hand(session)
                         )
-                        right_tracked: schema.HandPoseTrackedT = (
+                        right_tracked: schema.HandPose | None = (
                             hand_tracker.get_right_hand(session)
                         )
 
-                        if left_tracked.data is not None:
-                            pos = left_tracked.data.joints.poses(
+                        if left_tracked:
+                            pos = left_tracked.joints.poses(
                                 deviceio.JOINT_WRIST
                             ).pose.position
                             print(
@@ -92,8 +92,8 @@ def main():
                         else:
                             print("  Left hand:   inactive")
 
-                        if right_tracked.data is not None:
-                            pos = right_tracked.data.joints.poses(
+                        if right_tracked:
+                            pos = right_tracked.joints.poses(
                                 deviceio.JOINT_WRIST
                             ).pose.position
                             print(
@@ -103,11 +103,11 @@ def main():
                             print("  Right hand:  inactive")
 
                         # Get head data
-                        head_tracked: schema.HeadPoseTrackedT = head_tracker.get_head(
+                        head_tracked: schema.HeadPose | None = head_tracker.get_head(
                             session
                         )
-                        if head_tracked.data is not None:
-                            pos = head_tracked.data.pose.position
+                        if head_tracked:
+                            pos = head_tracked.pose.position
                             print(
                                 f"  Head pos:    [{pos.x:6.3f}, {pos.y:6.3f}, {pos.z:6.3f}]"
                             )

@@ -2,17 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the vendor-neutral HapticCommand FlatBuffer schema.
-// Types: HapticCommand (table) + a pack helper that serialises it to the
-// bytes a TensorPushTracker pushes to a peer-process device plugin.
+// Only HapticCommand is bound: this schema's Record wrapper exists to satisfy the
+// SchemaTracker<RecordT, DataTableT> template, and the tracker is push-direction with
+// recording disabled, so nothing ever hands one to Python.
+//
+// The constructor is the only producer-side entry point: it encodes, so the command
+// a caller builds is already the wire payload HapticCommandPushTracker.push() carries
+// to a peer-process device plugin.
 
 #pragma once
 
-#include <flatbuffers/flatbuffers.h>
+#include "schema_serialized.h"
+
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/haptic_command_generated.h>
 
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -23,41 +28,18 @@ namespace core
 
 inline void bind_haptic_command(py::module& m)
 {
-    py::class_<HapticCommandT, std::shared_ptr<HapticCommandT>>(m, "HapticCommand")
-        .def(py::init([]() { return std::make_shared<HapticCommandT>(); }))
+    serialized_class<HapticCommand>(m, "HapticCommand", "Encoded haptic command for one named actuator endpoint.")
         .def(py::init(
                  [](const std::string& endpoint, const std::vector<float>& values)
                  {
-                     auto obj = std::make_shared<HapticCommandT>();
-                     obj->endpoint = endpoint;
-                     obj->values = values;
-                     return obj;
+                     HapticCommandT native;
+                     native.endpoint = endpoint;
+                     native.values = values;
+                     return pack<HapticCommand>(native);
                  }),
-             py::arg("endpoint"), py::arg("values"))
-        .def_property(
-            "endpoint", [](const HapticCommandT& self) { return self.endpoint; },
-            [](HapticCommandT& self, const std::string& v) { self.endpoint = v; })
-        .def_property(
-            "values", [](const HapticCommandT& self) { return self.values; },
-            [](HapticCommandT& self, const std::vector<float>& v) { self.values = v; });
-
-    // Producer-side encode: serialise a HapticCommand (endpoint + values) to
-    // the FlatBuffer bytes that TensorPushTracker.push() carries to the
-    // consumer. Uses the generated Pack so the wire layout always matches the
-    // C++ SchemaTracker reader.
-    m.def(
-        "pack_haptic_command",
-        [](const std::string& endpoint, const std::vector<float>& values) -> py::bytes
-        {
-            HapticCommandT cmd;
-            cmd.endpoint = endpoint;
-            cmd.values = values;
-            flatbuffers::FlatBufferBuilder fbb;
-            fbb.Finish(HapticCommand::Pack(fbb, &cmd));
-            return py::bytes(reinterpret_cast<const char*>(fbb.GetBufferPointer()), fbb.GetSize());
-        },
-        py::arg("endpoint"), py::arg("values"),
-        "Serialise a HapticCommand (endpoint, values) to FlatBuffer bytes for TensorPushTracker.push().");
+             py::arg("endpoint") = std::string{}, py::arg("values") = std::vector<float>{}, "Encode a haptic command.")
+        .def_property_readonly("endpoint", string_field(&HapticCommand::endpoint))
+        .def_property_readonly("values", vector_field(&HapticCommand::values));
 }
 
 } // namespace core

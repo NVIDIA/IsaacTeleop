@@ -2,16 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the OGLO tactile glove FlatBuffer schema.
-// Types: OgloGloveSample (table), OgloGloveSampleRecord, OgloGloveSampleTrackedT.
+// Types: OgloGloveSample (table) and OgloGloveSampleRecord, exposed as encoded views.
 
 #pragma once
+
+#include "schema_serialized.h"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/oglo_tactile_generated.h>
-#include <schema/timestamp_generated.h>
 
-#include <memory>
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace py = pybind11;
 
@@ -20,60 +23,46 @@ namespace core
 
 inline void bind_oglo_tactile(py::module& m)
 {
-    py::class_<OgloGloveSampleT, std::shared_ptr<OgloGloveSampleT>>(m, "OgloGloveSample")
-        .def(py::init([]() { return std::make_shared<OgloGloveSampleT>(); }))
-        .def_property(
-            "seq", [](const OgloGloveSampleT& s) { return s.seq; }, [](OgloGloveSampleT& s, uint32_t v) { s.seq = v; })
-        .def_property(
-            "device_time_us", [](const OgloGloveSampleT& s) { return s.device_time_us; },
-            [](OgloGloveSampleT& s, uint32_t v) { s.device_time_us = v; })
-        .def_property(
-            "taxels", [](const OgloGloveSampleT& s) { return s.taxels; },
-            [](OgloGloveSampleT& s, std::vector<uint16_t> v) { s.taxels = std::move(v); },
-            "80 raw 12-bit taxels (0..4095) in finger,row,col order")
-        .def_property(
-            "accel_x", [](const OgloGloveSampleT& s) { return s.accel_x; },
-            [](OgloGloveSampleT& s, int16_t v) { s.accel_x = v; })
-        .def_property(
-            "accel_y", [](const OgloGloveSampleT& s) { return s.accel_y; },
-            [](OgloGloveSampleT& s, int16_t v) { s.accel_y = v; })
-        .def_property(
-            "accel_z", [](const OgloGloveSampleT& s) { return s.accel_z; },
-            [](OgloGloveSampleT& s, int16_t v) { s.accel_z = v; })
-        .def_property(
-            "gyro_x", [](const OgloGloveSampleT& s) { return s.gyro_x; },
-            [](OgloGloveSampleT& s, int16_t v) { s.gyro_x = v; })
-        .def_property(
-            "gyro_y", [](const OgloGloveSampleT& s) { return s.gyro_y; },
-            [](OgloGloveSampleT& s, int16_t v) { s.gyro_y = v; })
-        .def_property(
-            "gyro_z", [](const OgloGloveSampleT& s) { return s.gyro_z; },
-            [](OgloGloveSampleT& s, int16_t v) { s.gyro_z = v; })
+    serialized_class<OgloGloveSample>(m, "OgloGloveSample", "Encoded tactile glove sample.")
+        .def(py::init(
+                 [](uint32_t seq, uint32_t device_time_us, std::vector<uint16_t> taxels, int16_t accel_x,
+                    int16_t accel_y, int16_t accel_z, int16_t gyro_x, int16_t gyro_y, int16_t gyro_z)
+                 {
+                     OgloGloveSampleT native;
+                     native.seq = seq;
+                     native.device_time_us = device_time_us;
+                     native.taxels = std::move(taxels);
+                     native.accel_x = accel_x;
+                     native.accel_y = accel_y;
+                     native.accel_z = accel_z;
+                     native.gyro_x = gyro_x;
+                     native.gyro_y = gyro_y;
+                     native.gyro_z = gyro_z;
+                     return pack<OgloGloveSample>(native);
+                 }),
+             py::arg("seq") = 0, py::arg("device_time_us") = 0, py::arg("taxels") = std::vector<uint16_t>{},
+             py::arg("accel_x") = 0, py::arg("accel_y") = 0, py::arg("accel_z") = 0, py::arg("gyro_x") = 0,
+             py::arg("gyro_y") = 0, py::arg("gyro_z") = 0, "Encode a tactile glove sample.")
+        .def_property_readonly("seq", field(&OgloGloveSample::seq))
+        .def_property_readonly("device_time_us", field(&OgloGloveSample::device_time_us))
+        .def_property_readonly(
+            "taxels", vector_field(&OgloGloveSample::taxels), "80 raw 12-bit taxels (0..4095) in finger,row,col order")
+        .def_property_readonly("accel_x", field(&OgloGloveSample::accel_x))
+        .def_property_readonly("accel_y", field(&OgloGloveSample::accel_y))
+        .def_property_readonly("accel_z", field(&OgloGloveSample::accel_z))
+        .def_property_readonly("gyro_x", field(&OgloGloveSample::gyro_x))
+        .def_property_readonly("gyro_y", field(&OgloGloveSample::gyro_y))
+        .def_property_readonly("gyro_z", field(&OgloGloveSample::gyro_z))
         .def("__repr__",
-             [](const OgloGloveSampleT& s)
+             [](const Serialized<OgloGloveSample>& self)
              {
-                 return "OgloGloveSample(seq=" + std::to_string(s.seq) +
-                        ", device_time_us=" + std::to_string(s.device_time_us) +
-                        ", taxels=" + std::to_string(s.taxels.size()) + ")";
+                 const auto* taxels = self->taxels();
+                 return "OgloGloveSample(seq=" + std::to_string(self->seq()) +
+                        ", device_time_us=" + std::to_string(self->device_time_us()) +
+                        ", taxels=" + std::to_string(taxels != nullptr ? taxels->size() : 0) + ")";
              });
 
-    py::class_<OgloGloveSampleRecordT, std::shared_ptr<OgloGloveSampleRecordT>>(m, "OgloGloveSampleRecord")
-        .def(py::init<>())
-        .def_property_readonly(
-            "data", [](const OgloGloveSampleRecordT& self) -> std::shared_ptr<OgloGloveSampleT> { return self.data; })
-        .def_readonly("timestamp", &OgloGloveSampleRecordT::timestamp)
-        .def("__repr__", [](const OgloGloveSampleRecordT& self)
-             { return "OgloGloveSampleRecord(data=" + std::string(self.data ? "OgloGloveSample(...)" : "None") + ")"; });
-
-    py::class_<OgloGloveSampleTrackedT, std::shared_ptr<OgloGloveSampleTrackedT>>(m, "OgloGloveSampleTrackedT")
-        .def(py::init<>())
-        .def_property_readonly(
-            "data", [](const OgloGloveSampleTrackedT& self) -> std::shared_ptr<OgloGloveSampleT> { return self.data; })
-        .def("__repr__",
-             [](const OgloGloveSampleTrackedT& self) {
-                 return std::string("OgloGloveSampleTrackedT(data=") + (self.data ? "OgloGloveSample(...)" : "None") +
-                        ")";
-             });
+    bind_record<OgloGloveSampleRecord, OgloGloveSample>(m, "OgloGloveSampleRecord", "OgloGloveSample");
 }
 
 } // namespace core

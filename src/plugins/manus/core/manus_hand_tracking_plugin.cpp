@@ -128,12 +128,13 @@ void ManusTracker::update()
         for (const std::string_view endpoint : { std::string_view("left"), std::string_view("right") })
         {
             const auto& tracked = m_haptic_reader->get_data(*m_deviceio_session, endpoint);
-            if (tracked.data && tracked.data->values.size() == kManusFingerCount)
+            const core::HapticCommand* command = tracked.get();
+            if (command != nullptr && command->values() != nullptr && command->values()->size() == kManusFingerCount)
             {
                 std::array<float, kManusFingerCount> powers{};
                 for (size_t i = 0; i < kManusFingerCount; ++i)
                 {
-                    powers[i] = tracked.data->values[i];
+                    powers[i] = command->values()->Get(i);
                 }
                 apply_haptic_command(endpoint == "left", powers);
             }
@@ -1054,13 +1055,13 @@ bool ManusTracker::get_controller_wrist_pose(bool is_left, XrPosef& out_wrist_po
     const auto& tracked = is_left ? m_controller_tracker->get_left_controller(*m_deviceio_session) :
                                     m_controller_tracker->get_right_controller(*m_deviceio_session);
 
-    if (!tracked.data)
+    if (!tracked)
     {
         return false;
     }
 
     bool aim_valid = false;
-    XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked.data, aim_valid);
+    XrPosef raw_pose = oxr_utils::get_aim_pose(*tracked, aim_valid);
 
     if (!aim_valid)
     {

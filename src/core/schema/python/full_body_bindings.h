@@ -6,18 +6,20 @@
 
 #pragma once
 
+#include "pose_bindings.h"
 #include "schema_array_views.h"
+#include "schema_serialized.h"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/full_body_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace py = pybind11;
@@ -79,14 +81,8 @@ inline void bind_full_body(py::module& m)
         .def("__repr__",
              [](const BodyJointPose& self)
              {
-                 return "BodyJointPose(pose=Pose(position=Point(x=" + std::to_string(self.pose().position().x()) +
-                        ", y=" + std::to_string(self.pose().position().y()) +
-                        ", z=" + std::to_string(self.pose().position().z()) +
-                        "), orientation=Quaternion(x=" + std::to_string(self.pose().orientation().x()) +
-                        ", y=" + std::to_string(self.pose().orientation().y()) +
-                        ", z=" + std::to_string(self.pose().orientation().z()) +
-                        ", w=" + std::to_string(self.pose().orientation().w()) +
-                        ")), is_valid=" + (self.is_valid() ? "True" : "False") + ")";
+                 return "BodyJointPose(pose=" + pose_repr(self.pose()) +
+                        ", is_valid=" + (self.is_valid() ? "True" : "False") + ")";
              });
 
     // Bind BodyJoints struct (fixed-size array of 24 BodyJointPose).
@@ -136,68 +132,28 @@ inline void bind_full_body(py::module& m)
             "caveats.")
         .def("__repr__", [](const BodyJoints&) { return "BodyJoints(joints=[...24 BodyJointPose entries...])"; });
 
-    // Bind FullBodyPoseT class (FlatBuffers object API for tables).
-    py::class_<FullBodyPoseT, std::shared_ptr<FullBodyPoseT>>(m, "FullBodyPoseT")
+    serialized_class<FullBodyPose>(m, "FullBodyPose", "Encoded full body pose: 24 joints in BodyJoint order.")
         .def(py::init(
-            []()
-            {
-                auto obj = std::make_shared<FullBodyPoseT>();
-                obj->joints = std::make_shared<BodyJoints>();
-                return obj;
-            }))
-        .def(py::init(
-                 [](const BodyJoints& joints)
+                 [](const BodyJoints& joints, bool all_joint_poses_tracked)
                  {
-                     auto obj = std::make_shared<FullBodyPoseT>();
-                     obj->joints = std::make_shared<BodyJoints>(joints);
-                     return obj;
+                     FullBodyPoseT native;
+                     native.joints = std::make_shared<BodyJoints>(joints);
+                     native.all_joint_poses_tracked = all_joint_poses_tracked;
+                     return pack<FullBodyPose>(native);
                  }),
-             py::arg("joints"))
-        .def_property_readonly(
-            "joints", [](const FullBodyPoseT& self) -> const BodyJoints* { return self.joints.get(); },
-            py::return_value_policy::reference_internal)
+             py::arg("joints") = BodyJoints(), py::arg("all_joint_poses_tracked") = false,
+             "Encode a body pose. Defaults to all-zero joints.")
+        .def_property_readonly("joints", field(&FullBodyPose::joints), py::return_value_policy::reference_internal)
+        .def_property_readonly("all_joint_poses_tracked", field(&FullBodyPose::all_joint_poses_tracked))
         .def("__repr__",
-             [](const FullBodyPoseT& self)
+             [](const Serialized<FullBodyPose>& self)
              {
-                 std::string joints_str = "None";
-                 if (self.joints)
-                 {
-                     joints_str = "BodyJoints(joints=[...24 entries...])";
-                 }
-                 return "FullBodyPoseT(joints=" + joints_str + ")";
+                 const std::string joints_str =
+                     self->joints() != nullptr ? "BodyJoints(joints=[...24 entries...])" : "None";
+                 return "FullBodyPose(joints=" + joints_str + ")";
              });
 
-    py::class_<FullBodyPoseRecordT, std::shared_ptr<FullBodyPoseRecordT>>(m, "FullBodyPoseRecord")
-        .def(py::init<>())
-        .def(py::init(
-                 [](const FullBodyPoseT& data, const DeviceDataTimestamp& timestamp)
-                 {
-                     auto obj = std::make_shared<FullBodyPoseRecordT>();
-                     obj->data = std::make_shared<FullBodyPoseT>(data);
-                     obj->timestamp = std::make_shared<core::DeviceDataTimestamp>(timestamp);
-                     return obj;
-                 }),
-             py::arg("data"), py::arg("timestamp"))
-        .def_property_readonly(
-            "data", [](const FullBodyPoseRecordT& self) -> std::shared_ptr<FullBodyPoseT> { return self.data; })
-        .def_readonly("timestamp", &FullBodyPoseRecordT::timestamp)
-        .def("__repr__", [](const FullBodyPoseRecordT& self)
-             { return "FullBodyPoseRecord(data=" + std::string(self.data ? "FullBodyPoseT(...)" : "None") + ")"; });
-
-    py::class_<FullBodyPoseTrackedT, std::shared_ptr<FullBodyPoseTrackedT>>(m, "FullBodyPoseTrackedT")
-        .def(py::init<>())
-        .def(py::init(
-                 [](const FullBodyPoseT& data)
-                 {
-                     auto obj = std::make_shared<FullBodyPoseTrackedT>();
-                     obj->data = std::make_shared<FullBodyPoseT>(data);
-                     return obj;
-                 }),
-             py::arg("data"))
-        .def_property_readonly(
-            "data", [](const FullBodyPoseTrackedT& self) -> std::shared_ptr<FullBodyPoseT> { return self.data; })
-        .def("__repr__", [](const FullBodyPoseTrackedT& self)
-             { return std::string("FullBodyPoseTrackedT(data=") + (self.data ? "FullBodyPoseT(...)" : "None") + ")"; });
+    bind_record<FullBodyPoseRecord, FullBodyPose>(m, "FullBodyPoseRecord", "FullBodyPose");
 }
 
 } // namespace core

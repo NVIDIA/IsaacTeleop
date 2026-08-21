@@ -17,24 +17,19 @@ namespace core;
 //   XR-sourced producers MUST express the pose in the OpenXR session base reference
 //   space (the XrSpace in OpenXRSessionHandles::space — the same space the head and
 //   controller channels are located in).
-// - Two-level validity: the parent Tracked wrapper's data is null when no sample has
-//   arrived yet or the source collection is unavailable; is_valid is false when the
+// - Two-level validity: this table is absent when no sample has arrived yet or the
+//   source collection is unavailable; is_valid is false when the
 //   producer is streaming but tracking is lost. When is_valid is false the pose
 //   contents are UNSPECIFIED (producers may send an identity filler) — consumers must
 //   gate on is_valid and freeze, never act on the pose value.
 //
-// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+// All fields are always present whenever this table itself is present.
 table Se3TrackerPose {
     // The concrete pose data
     pose: Pose (id: 0);
 
     // Whether the pose data is valid (false = producer streaming, tracking lost)
     is_valid: bool (id: 1);
-}
-
-// Tracked wrapper for the in-memory tracker API (data is null when no sample is available).
-table Se3TrackerPoseTracked {
-    data: Se3TrackerPose (id: 0);
 }
 
 // MCAP recording wrapper for Se3TrackerPose.

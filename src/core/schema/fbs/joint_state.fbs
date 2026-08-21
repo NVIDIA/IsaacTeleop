@@ -30,8 +30,8 @@ table JointState {
 }
 
 // Per-frame state of a generic joint-space input device (leader arm, exoskeleton, glove, or
-// any joint-encoder source), as name:value joint records. All fields are present when the
-// parent Tracked/Record wrapper's data is non-null.
+// any joint-encoder source), as name:value joint records.
+// All fields are always present whenever this table itself is present.
 table JointStateOutput {
   // One entry per actuated DOF, keyed by JointState.name. The reference JointStateSource maps
   // these into the configured joint order BY NAME (so wire order does not matter). `name` is a
@@ -53,11 +53,6 @@ table JointStateOutput {
   // adopted without a schema change. Position [m], orientation quaternion [x, y, z, w].
   ee_pose: Pose (id: 4);
   ee_pose_valid: bool (id: 5);
-}
-
-// Tracked wrapper for the in-memory tracker API (data is null when the device is inactive).
-table JointStateOutputTracked {
-  data: JointStateOutput (id: 0);
 }
 
 // MCAP recording wrapper for JointStateOutput.

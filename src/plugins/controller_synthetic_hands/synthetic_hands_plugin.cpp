@@ -69,8 +69,8 @@ void SyntheticHandsPlugin::worker_thread()
 
     while (m_running)
     {
-        core::ControllerSnapshotTrackedT left_tracked;
-        core::ControllerSnapshotTrackedT right_tracked;
+        core::Serialized<core::ControllerSnapshot> left_tracked;
+        core::Serialized<core::ControllerSnapshot> right_tracked;
         try
         {
             // Update DeviceIOSession (handles time and tracker updates)
@@ -103,10 +103,10 @@ void SyntheticHandsPlugin::worker_thread()
         float left_target = 0.0f;
         float right_target = 0.0f;
 
-        if (left_tracked.data)
-            left_target = left_tracked.data->inputs->trigger_value();
-        if (right_tracked.data)
-            right_target = right_tracked.data->inputs->trigger_value();
+        if (left_tracked)
+            left_target = left_tracked->inputs()->trigger_value();
+        if (right_tracked)
+            right_target = right_tracked->inputs()->trigger_value();
 
         // Smoothly interpolate
         float curl_delta = CURL_SPEED * FRAME_TIME;
@@ -133,12 +133,12 @@ void SyntheticHandsPlugin::worker_thread()
         // injector. A different plugin could choose a different policy — for example, a
         // plugin with independent joint data (e.g. a glove) could keep pushing joints
         // even when no controller pose is available.
-        if (m_left_enabled && left_tracked.data)
+        if (m_left_enabled && left_tracked)
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(*left_tracked.data, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked.data, aim_valid);
+            oxr_utils::get_grip_pose(*left_tracked, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked, aim_valid);
 
             if (grip_valid && aim_valid)
             {
@@ -159,12 +159,12 @@ void SyntheticHandsPlugin::worker_thread()
             m_left_injector.reset();
         }
 
-        if (m_right_enabled && right_tracked.data)
+        if (m_right_enabled && right_tracked)
         {
             bool grip_valid = false;
             bool aim_valid = false;
-            oxr_utils::get_grip_pose(*right_tracked.data, grip_valid);
-            XrPosef wrist = oxr_utils::get_aim_pose(*right_tracked.data, aim_valid);
+            oxr_utils::get_grip_pose(*right_tracked, grip_valid);
+            XrPosef wrist = oxr_utils::get_aim_pose(*right_tracked, aim_valid);
 
             if (grip_valid && aim_valid)
             {

@@ -6,7 +6,12 @@
              py::arg("max_payload_size") = core::@CLASS@::DEFAULT_MAX_PAYLOAD_SIZE)
         .def(
             "push",
-            [](const core::@CLASS@& self, const core::ITrackerSession& session, const core::@DATA_TYPE@& data) {
+            [](const core::@CLASS@& self, const core::ITrackerSession& session,
+               const core::Serialized<core::@FB_TABLE@>& data) {
+                if (!data)
+                {
+                    throw py::value_error("push(): data must be a non-empty @FB_TABLE@");
+                }
                 self.push(session, data);
             },
-            py::arg("session"), py::arg("data"));
+            py::arg("session"), py::arg("data"), "Push one @FB_TABLE@ to the paired consumer.");

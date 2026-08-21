@@ -730,8 +730,7 @@ class NoitomG1Retargeter(BaseRetargeter):
         if context.execution_events.reset:
             self.clear_calibration()
 
-        tracked = inputs["full_body_tracked"][0]
-        frame = tracked.data
+        frame = inputs["full_body_tracked"][0]
 
         if frame is not None:
             if self._calibration is None:

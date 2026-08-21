@@ -4,6 +4,6 @@
         .def(
             "@PYTHON_ACCESSOR@",
             [](const core::@CLASS@& self, const core::ITrackerSession& session)
-            { return share_tracked(self.get_data(session)); },
+            { return to_python(self.get_data(session)); },
             py::arg("session"),
-            "Get the current tracked state (data is None when no data available)" TRACKED_LIFETIME_DOC);
+            "Get the current state (None when no data available)");

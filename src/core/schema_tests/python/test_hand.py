@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for HandPoseT and related types in isaacteleop.schema.
+"""Unit tests for HandPose and related types in isaacteleop.schema.
 
-HandPoseT is a FlatBuffers table that represents hand pose data:
+HandPose is a FlatBuffers table that represents hand pose data:
 - joints: HandJoints struct with a fixed-size poses array (length HandJoint.NUM_JOINTS; OpenXR order)
 
 HandJoints is a struct with a fixed-size array of HandJointPose (length HandJoint.NUM_JOINTS).
@@ -13,7 +13,7 @@ HandJointPose is a struct containing:
 - is_valid: Whether this joint data is valid
 - radius: The radius of the joint (from OpenXR)
 
-Timestamps are carried by HandPoseRecord, not HandPoseT.
+Timestamps are carried by HandPoseRecord, not HandPose.
 """
 
 import gc
@@ -27,7 +27,7 @@ from isaacteleop.schema import (
     HandJointPose,
     HandJoints,
     HandPoseRecord,
-    HandPoseT,
+    HandPose,
     Point,
     Pose,
     Quaternion,
@@ -216,7 +216,7 @@ class TestHandJointsFieldViews:
 
     def test_views_keep_owner_alive(self):
         """A view outlives the last direct reference to the table it came from."""
-        pose = HandPoseT()
+        pose = HandPose()
         positions = pose.joints.positions
         expected = np.arange(int(HandJoint.NUM_JOINTS) * 3, dtype=np.float32).reshape(
             -1, 3
@@ -250,11 +250,11 @@ class TestHandJointsRepr:
 
 
 class TestHandPoseTConstruction:
-    """Tests for HandPoseT construction and basic properties."""
+    """Tests for HandPose construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates HandPoseT with pre-populated joints."""
-        hand_pose = HandPoseT()
+        """Test default construction creates HandPose with pre-populated joints."""
+        hand_pose = HandPose()
 
         assert hand_pose is not None
         assert hand_pose.joints is not None
@@ -262,27 +262,27 @@ class TestHandPoseTConstruction:
     def test_parameterized_construction(self):
         """Test construction with joints."""
         joints = HandJoints()
-        hand_pose = HandPoseT(joints)
+        hand_pose = HandPose(joints)
 
         assert hand_pose.joints is not None
 
 
 class TestHandPoseTRepr:
-    """Tests for HandPoseT __repr__ method."""
+    """Tests for HandPose __repr__ method."""
 
     def test_repr_default(self):
         """Test __repr__ with default construction."""
-        hand_pose = HandPoseT()
+        hand_pose = HandPose()
 
         repr_str = repr(hand_pose)
-        assert "HandPoseT" in repr_str
+        assert "HandPose" in repr_str
 
     def test_repr_with_values(self):
         """Test __repr__ with joints set."""
-        hand_pose = HandPoseT(HandJoints())
+        hand_pose = HandPose(HandJoints())
 
         repr_str = repr(hand_pose)
-        assert "HandPoseT" in repr_str
+        assert "HandPose" in repr_str
 
 
 class TestHandPoseRecordTimestamp:
@@ -290,7 +290,7 @@ class TestHandPoseRecordTimestamp:
 
     def test_construction_with_timestamp(self):
         """Test HandPoseRecord carries DeviceDataTimestamp."""
-        data = HandPoseT(HandJoints())
+        data = HandPose(HandJoints())
         ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
         record = HandPoseRecord(data, ts)
 
@@ -299,15 +299,15 @@ class TestHandPoseRecordTimestamp:
         assert record.timestamp.sample_time_raw_device_clock == 3000000000
         assert record.data is not None
 
-    def test_default_construction(self):
-        """Test default HandPoseRecord has no data."""
-        record = HandPoseRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = HandPoseRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
-        assert record.timestamp is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""
-        data = HandPoseT()
+        data = HandPose()
         ts = DeviceDataTimestamp(111, 222, 333)
         record = HandPoseRecord(data, ts)
 

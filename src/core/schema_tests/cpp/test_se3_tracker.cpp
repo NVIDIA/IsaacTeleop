@@ -24,7 +24,6 @@
 static_assert(core::Se3TrackerPose::VT_POSE == VT(0));
 static_assert(core::Se3TrackerPose::VT_IS_VALID == VT(1));
 
-static_assert(core::Se3TrackerPoseTracked::VT_DATA == VT(0));
 
 static_assert(core::Se3TrackerPoseRecord::VT_DATA == VT(0));
 static_assert(core::Se3TrackerPoseRecord::VT_TIMESTAMP == VT(1));

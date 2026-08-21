@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -23,26 +23,46 @@ inline XrPosef to_xr_posef(const core::Pose& pose)
     return result;
 }
 
-// Convert core::ControllerPose (FlatBuffers) to XrPosef with validity check
-// Returns identity pose if invalid
+// Convert core::ControllerPose (FlatBuffers) to XrPosef, reporting validity through
+// out_valid. The pose is converted either way -- its contents are unspecified while
+// out_valid is false, per the rule the pose schemas state. Callers that need a defined
+// filler take identity_posef() below.
 inline XrPosef to_xr_posef(const core::ControllerPose& controller_pose, bool& out_valid)
 {
     out_valid = controller_pose.is_valid();
     return to_xr_posef(controller_pose.pose());
 }
 
-// Convert core::ControllerSnapshotT to get aim pose as XrPosef
-inline XrPosef get_aim_pose(const core::ControllerSnapshotT& snapshot, bool& out_valid)
+// Identity filler returned alongside out_valid=false, matching the "pose contents are
+// unspecified while invalid" rule the pose schemas state.
+inline XrPosef identity_posef()
 {
-    out_valid = snapshot.aim_pose->is_valid();
-    return to_xr_posef(snapshot.aim_pose->pose());
+    return XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
 }
 
-// Convert core::ControllerSnapshotT to get grip pose as XrPosef
-inline XrPosef get_grip_pose(const core::ControllerSnapshotT& snapshot, bool& out_valid)
+// Nullable overload. Reading a snapshot through its encoded accessors makes each nested
+// table independently optional at the format level, so absence is answered here -- once --
+// rather than left for every caller to null-check.
+inline XrPosef to_xr_posef(const core::ControllerPose* controller_pose, bool& out_valid)
 {
-    out_valid = snapshot.grip_pose->is_valid();
-    return to_xr_posef(snapshot.grip_pose->pose());
+    if (controller_pose == nullptr)
+    {
+        out_valid = false;
+        return identity_posef();
+    }
+    return to_xr_posef(*controller_pose, out_valid);
+}
+
+// Convert core::ControllerSnapshot to get aim pose as XrPosef.
+inline XrPosef get_aim_pose(const core::ControllerSnapshot& snapshot, bool& out_valid)
+{
+    return to_xr_posef(snapshot.aim_pose(), out_valid);
+}
+
+// Convert core::ControllerSnapshot to get grip pose as XrPosef.
+inline XrPosef get_grip_pose(const core::ControllerSnapshot& snapshot, bool& out_valid)
+{
+    return to_xr_posef(snapshot.grip_pose(), out_valid);
 }
 
 } // namespace oxr_utils

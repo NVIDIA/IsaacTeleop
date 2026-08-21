@@ -25,11 +25,11 @@
 namespace
 {
 
-using ControllerChannels = core::McapTrackerChannels<core::ControllerSnapshotRecord, core::ControllerSnapshot>;
-using HandChannels = core::McapTrackerChannels<core::HandPoseRecord, core::HandPose>;
-using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
-using PedalChannels = core::McapTrackerChannels<core::Generic3AxisPedalOutputRecord, core::Generic3AxisPedalOutput>;
-using FullBodyChannels = core::McapTrackerChannels<core::FullBodyPoseRecord, core::FullBodyPose>;
+using ControllerChannels = core::McapTrackerChannels<core::ControllerSnapshotRecord>;
+using HandChannels = core::McapTrackerChannels<core::HandPoseRecord>;
+using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord>;
+using PedalChannels = core::McapTrackerChannels<core::Generic3AxisPedalOutputRecord>;
+using FullBodyChannels = core::McapTrackerChannels<core::FullBodyPoseRecord>;
 
 constexpr int kDefaultFrameCount = 1800;
 constexpr int64_t kFramePeriodNs = 16'666'667;
@@ -242,13 +242,17 @@ void write_fixture(const std::filesystem::path& output_path, int frame_count)
     {
         const int64_t time_ns = static_cast<int64_t>(frame + 1) * kFramePeriodNs;
         const core::DeviceDataTimestamp timestamp(time_ns, time_ns, time_ns);
-        controller_channels.write(0, timestamp, make_controller_sample(true, frame));
-        controller_channels.write(1, timestamp, make_controller_sample(false, frame));
-        hand_channels.write(0, timestamp, make_hand_sample(true, frame));
-        hand_channels.write(1, timestamp, make_hand_sample(false, frame));
-        head_channels.write(0, timestamp, make_head_sample(frame));
-        pedal_channels.write(0, timestamp, make_pedal_sample(frame));
-        full_body_channels.write(0, timestamp, make_full_body_sample(frame));
+        controller_channels.write(
+            0, core::pack_record<core::ControllerSnapshotRecord>(make_controller_sample(true, frame).get(), timestamp));
+        controller_channels.write(
+            1, core::pack_record<core::ControllerSnapshotRecord>(make_controller_sample(false, frame).get(), timestamp));
+        hand_channels.write(0, core::pack_record<core::HandPoseRecord>(make_hand_sample(true, frame).get(), timestamp));
+        hand_channels.write(1, core::pack_record<core::HandPoseRecord>(make_hand_sample(false, frame).get(), timestamp));
+        head_channels.write(0, core::pack_record<core::HeadPoseRecord>(make_head_sample(frame).get(), timestamp));
+        pedal_channels.write(
+            0, core::pack_record<core::Generic3AxisPedalOutputRecord>(make_pedal_sample(frame).get(), timestamp));
+        full_body_channels.write(
+            0, core::pack_record<core::FullBodyPoseRecord>(make_full_body_sample(frame).get(), timestamp));
     }
 
     writer->close();

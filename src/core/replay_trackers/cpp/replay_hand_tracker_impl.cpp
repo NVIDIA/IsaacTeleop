@@ -5,6 +5,7 @@
 
 #include <mcap/recording_traits.hpp>
 #include <schema/hand_bfbs_generated.h>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
 
 #include <cassert>
@@ -27,12 +28,12 @@ ReplayHandTrackerImpl::ReplayHandTrackerImpl(std::unique_ptr<mcap::McapReader> r
 {
 }
 
-const HandPoseTrackedT& ReplayHandTrackerImpl::get_left_hand() const
+const Serialized<HandPose>& ReplayHandTrackerImpl::get_left_hand() const
 {
     return left_tracked_;
 }
 
-const HandPoseTrackedT& ReplayHandTrackerImpl::get_right_hand() const
+const Serialized<HandPose>& ReplayHandTrackerImpl::get_right_hand() const
 {
     return right_tracked_;
 }
@@ -43,22 +44,22 @@ void ReplayHandTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     auto right_record = mcap_viewers_->read(1);
     if (left_record)
     {
-        left_tracked_.data = std::move(left_record->data);
+        left_tracked_ = left_record.narrow(left_record->data());
     }
     else
     {
         std::cerr << "ReplayHandTrackerImpl: left hand data not found" << std::endl;
-        left_tracked_.data.reset();
+        left_tracked_.reset();
     }
 
     if (right_record)
     {
-        right_tracked_.data = std::move(right_record->data);
+        right_tracked_ = right_record.narrow(right_record->data());
     }
     else
     {
         std::cerr << "ReplayHandTrackerImpl: right hand data not found" << std::endl;
-        right_tracked_.data.reset();
+        right_tracked_.reset();
     }
 }
 

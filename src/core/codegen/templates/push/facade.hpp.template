@@ -21,7 +21,7 @@ public:
     {
         return TRACKER_NAME;
     }
-    void push(const ITrackerSession& session, const @DATA_TYPE@& data) const;
+    void push(const ITrackerSession& session, const Serialized<@FB_TABLE@>& data) const;
     const std::string& collection_id() const
     {
         return collection_id_;

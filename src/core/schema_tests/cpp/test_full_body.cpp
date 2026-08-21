@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 // Unit tests for the generated FullBodyPose FlatBuffer message.
@@ -64,8 +64,6 @@ static_assert(sizeof(core::BodyJoints) == 24 * sizeof(core::BodyJointPose),
 // Type aliases resolve to the renamed generated types.
 static_assert(std::is_same_v<core::FullBodyPosePico, core::FullBodyPose>);
 static_assert(std::is_same_v<core::FullBodyPosePicoT, core::FullBodyPoseT>);
-static_assert(std::is_same_v<core::FullBodyPosePicoTracked, core::FullBodyPoseTracked>);
-static_assert(std::is_same_v<core::FullBodyPosePicoTrackedT, core::FullBodyPoseTrackedT>);
 static_assert(std::is_same_v<core::FullBodyPosePicoRecord, core::FullBodyPoseRecord>);
 static_assert(std::is_same_v<core::FullBodyPosePicoRecordT, core::FullBodyPoseRecordT>);
 static_assert(std::is_same_v<core::BodyJointsPico, core::BodyJoints>);

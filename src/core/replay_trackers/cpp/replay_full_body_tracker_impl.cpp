@@ -5,6 +5,7 @@
 
 #include <mcap/recording_traits.hpp>
 #include <schema/full_body_bfbs_generated.h>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
 
 #include <cassert>
@@ -27,7 +28,7 @@ ReplayFullBodyTrackerImpl::ReplayFullBodyTrackerImpl(std::unique_ptr<mcap::McapR
 {
 }
 
-const FullBodyPoseTrackedT& ReplayFullBodyTrackerImpl::get_body_pose() const
+const Serialized<FullBodyPose>& ReplayFullBodyTrackerImpl::get_body_pose() const
 {
     return tracked_;
 }
@@ -37,12 +38,12 @@ void ReplayFullBodyTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     auto record = mcap_viewers_->read(0);
     if (record)
     {
-        tracked_.data = std::move(record->data);
+        tracked_ = record.narrow(record->data());
     }
     else
     {
         std::cerr << "ReplayFullBodyTrackerImpl: body data not found" << std::endl;
-        tracked_.data.reset();
+        tracked_.reset();
     }
 }
 

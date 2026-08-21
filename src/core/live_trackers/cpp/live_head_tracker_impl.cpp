@@ -6,6 +6,7 @@
 #include <mcap/recording_traits.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <schema/head_bfbs_generated.h>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
 
 #include <cstring>
@@ -37,13 +38,15 @@ LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles,
                                        { .type = XR_TYPE_REFERENCE_SPACE_CREATE_INFO,
                                          .referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW,
                                          .poseInReferenceSpace = { .orientation = { 0, 0, 0, 1 } } })),
-      tracked_{},
       mcap_channels_(std::move(mcap_channels))
 {
 }
 
 void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
 {
+    // Invalidate first, publish last: the encode below is the only writer, so no exit path
+    // can leave a caller reading last frame's pose.
+    tracked_.reset();
     last_update_time_ = monotonic_time_ns;
 
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
@@ -53,7 +56,6 @@ void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
 
     if (XR_FAILED(result))
     {
-        tracked_.data.reset();
         throw std::runtime_error("[HeadTracker] xrLocateSpace failed: " + std::to_string(result));
     }
 
@@ -64,36 +66,30 @@ void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
     const bool position_tracked = (location.locationFlags & XR_SPACE_LOCATION_POSITION_TRACKED_BIT) != 0;
     const bool orientation_tracked = (location.locationFlags & XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT) != 0;
 
-    if (!tracked_.data)
-    {
-        tracked_.data = std::make_shared<HeadPoseT>();
-    }
+    HeadPoseT native;
 
-    tracked_.data->is_valid = position_valid && orientation_valid;
-    tracked_.data->is_tracked = tracked_.data->is_valid && position_tracked && orientation_tracked;
+    native.is_valid = position_valid && orientation_valid;
+    native.is_tracked = native.is_valid && position_tracked && orientation_tracked;
 
-    if (tracked_.data->is_valid)
+    if (native.is_valid)
     {
         // Pose is readable whenever VALID (including untracked placeholder / last pose).
         Point position(location.pose.position.x, location.pose.position.y, location.pose.position.z);
         Quaternion orientation(location.pose.orientation.x, location.pose.orientation.y, location.pose.orientation.z,
                                location.pose.orientation.w);
-        tracked_.data->pose = std::make_shared<Pose>(position, orientation);
+        native.pose = std::make_shared<Pose>(position, orientation);
     }
     else
     {
         // is_valid=false: pose contents are unspecified; leave a default filler.
-        tracked_.data->pose = std::make_shared<Pose>();
+        native.pose = std::make_shared<Pose>();
     }
 
-    if (mcap_channels_)
-    {
-        DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
-        mcap_channels_->write(0, timestamp, tracked_.data);
-    }
+    const DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
+    tracked_ = publish_and_record(mcap_channels_.get(), 0, timestamp, &native);
 }
 
-const HeadPoseTrackedT& LiveHeadTrackerImpl::get_head() const
+const Serialized<HeadPose>& LiveHeadTrackerImpl::get_head() const
 {
     return tracked_;
 }

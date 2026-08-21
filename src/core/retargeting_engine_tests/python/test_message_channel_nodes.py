@@ -3,14 +3,18 @@
 
 from collections import deque
 
+import pytest
+
 from isaacteleop.schema import (
     MessageChannelMessages,
-    MessageChannelMessagesTrackedT,
+    MessageChannelMessagesTracked,
 )
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    HandPoseTrackedType,
     MessageChannelConnectionStatus,
     MessageChannelSink,
     MessageChannelSource,
+    MessageChannelStatusType,
 )
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
 from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
@@ -21,7 +25,7 @@ class DummyTracker:
 
     def __init__(self):
         self.sent_payloads = []
-        self._drained = MessageChannelMessagesTrackedT()
+        self._drained = MessageChannelMessagesTracked()
         self.connected = True
 
     def send_message(self, session, payload):
@@ -51,7 +55,7 @@ def test_message_channel_source_active_message():
     tracker = DummyTracker()
     source = MessageChannelSource("msg_source", tracker, deque())
     message = MessageChannelMessages(b"hello")
-    tracker._drained = MessageChannelMessagesTrackedT([message])
+    tracker._drained = MessageChannelMessagesTracked([message])
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -66,7 +70,7 @@ def test_message_channel_source_active_message():
 def test_message_channel_source_inactive_message():
     tracker = DummyTracker()
     source = MessageChannelSource("msg_source", tracker, deque())
-    tracker._drained = MessageChannelMessagesTrackedT()
+    tracker._drained = MessageChannelMessagesTracked()
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -77,13 +81,37 @@ def test_message_channel_source_inactive_message():
     assert outputs["status"][0] == MessageChannelConnectionStatus.CONNECTED
 
 
+def test_message_channel_sink_rejects_none_batch():
+    # None is a legal payload for a device tracker (the device is inactive) but not for
+    # the message channel, and the sink enqueues its input unchecked. A None reaching the
+    # outbound queue is unrecoverable: poll_tracker reads the head batch's `data` before
+    # it dequeues, so every later poll fails on the same entry.
+    sink = MessageChannelSink("msg_sink", deque())
+
+    with pytest.raises(TypeError):
+        _make_inputs(sink, {"messages_tracked": [None]})
+
+
+def test_message_channel_status_rejects_none():
+    status_type = MessageChannelStatusType("status")
+
+    with pytest.raises(TypeError):
+        status_type.validate_value(None)
+
+    status_type.validate_value(MessageChannelConnectionStatus.CONNECTED)
+
+
+def test_device_payload_accepts_none_when_inactive():
+    HandPoseTrackedType("hand_tracked").validate_value(None)
+
+
 def test_message_channel_sink_enqueues_message():
     outbound_queue = deque()
     sink = MessageChannelSink("msg_sink", outbound_queue)
     m1 = MessageChannelMessages(b"echo")
     m2 = MessageChannelMessages(b"pong")
 
-    batch = MessageChannelMessagesTrackedT([m1, m2])
+    batch = MessageChannelMessagesTracked([m1, m2])
     inputs = _make_inputs(sink, {"messages_tracked": [batch]})
     outputs = {k: _make_output_group(v) for k, v in sink.output_spec().items()}
     sink.compute(inputs, outputs)
@@ -102,7 +130,7 @@ def test_message_channel_source_returns_all_drained_messages():
     source = MessageChannelSource("msg_source_list", tracker, deque())
     m1 = MessageChannelMessages(b"x")
     m2 = MessageChannelMessages(b"y")
-    tracker._drained = MessageChannelMessagesTrackedT([m1, m2])
+    tracker._drained = MessageChannelMessagesTracked([m1, m2])
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -122,12 +150,8 @@ def test_message_channel_source_keeps_outbound_queue_while_disconnected():
     outbound_queue = deque()
     source = MessageChannelSource("msg_source_disconnected", tracker, outbound_queue)
 
-    outbound_queue.append(
-        MessageChannelMessagesTrackedT([MessageChannelMessages(b"a")])
-    )
-    outbound_queue.append(
-        MessageChannelMessagesTrackedT([MessageChannelMessages(b"b")])
-    )
+    outbound_queue.append(MessageChannelMessagesTracked([MessageChannelMessages(b"a")]))
+    outbound_queue.append(MessageChannelMessagesTracked([MessageChannelMessages(b"b")]))
 
     inputs = source.poll_tracker(deviceio_session=object())
     outputs = {k: _make_output_group(v) for k, v in source.output_spec().items()}
@@ -156,9 +180,9 @@ def test_message_channel_sink_bounded_queue_drops_oldest():
     m2 = MessageChannelMessages(b"2")
     m3 = MessageChannelMessages(b"3")
 
-    b1 = MessageChannelMessagesTrackedT([m1])
-    b2 = MessageChannelMessagesTrackedT([m2])
-    b3 = MessageChannelMessagesTrackedT([m3])
+    b1 = MessageChannelMessagesTracked([m1])
+    b2 = MessageChannelMessagesTracked([m2])
+    b3 = MessageChannelMessagesTracked([m3])
     outputs = {k: _make_output_group(v) for k, v in sink.output_spec().items()}
     sink.compute(_make_inputs(sink, {"messages_tracked": [b1]}), outputs)
     sink.compute(_make_inputs(sink, {"messages_tracked": [b2]}), outputs)

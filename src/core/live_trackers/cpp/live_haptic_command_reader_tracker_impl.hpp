@@ -40,8 +40,8 @@ public:
     LiveHapticCommandReaderTrackerImpl& operator=(LiveHapticCommandReaderTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const HapticCommandTrackedT& get_data() const override;
-    const HapticCommandTrackedT& get_data(std::string_view endpoint) const override;
+    const Serialized<HapticCommand>& get_data() const override;
+    const Serialized<HapticCommand>& get_data(std::string_view endpoint) const override;
 
 private:
     HapticCommandSchemaTracker schema_reader_;
@@ -49,7 +49,7 @@ private:
     // endpoint's command (each tagged by HapticCommand.endpoint); bucketing by
     // that tag keeps concurrent endpoints (e.g. left/right) from overwriting one
     // another the way a single latest-sample slot would.
-    std::map<std::string, HapticCommandTrackedT, std::less<>> tracked_by_endpoint_;
+    std::map<std::string, Serialized<HapticCommand>, std::less<>> tracked_by_endpoint_;
     // Endpoint of the most recently drained sample, backing the no-arg get_data().
     std::string latest_endpoint_;
     std::vector<SchemaTrackerBase::SampleResult> samples_;

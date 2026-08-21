@@ -64,14 +64,14 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
         right_b = controller_tracker_b.get_right_controller(session)
 
         def assert_trackers_consistent(label, ta, tb):
-            a_active = ta.data is not None and ta.data.grip_pose.is_valid
-            b_active = tb.data is not None and tb.data.grip_pose.is_valid
+            a_active = ta is not None and ta.grip_pose.is_valid
+            b_active = tb is not None and tb.grip_pose.is_valid
             assert a_active == b_active, (
                 f"{label}: A active={a_active} but B active={b_active}"
             )
             if a_active:
-                pa = ta.data.grip_pose.pose.position
-                pb = tb.data.grip_pose.pose.position
+                pa = ta.grip_pose.pose.position
+                pb = tb.grip_pose.pose.position
                 tol = 0.01
                 assert abs(pa.x - pb.x) < tol, f"{label} x: {pa.x} vs {pb.x}"
                 assert abs(pa.y - pb.y) < tol, f"{label} y: {pa.y} vs {pb.y}"
@@ -111,8 +111,8 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
                 print(f"  [{elapsed:5.2f}s] Frame {frame_count:4d}")
 
-                left_data = left_tracked.data
-                if left_data is not None:
+                left_data = left_tracked
+                if left_data:
                     li = left_data.inputs
                     print(
                         f"    L: Trig={li.trigger_value:.2f} Sq={li.squeeze_value:.2f}"
@@ -122,8 +122,8 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
                 else:
                     print("    L: INACTIVE")
 
-                right_data = right_tracked.data
-                if right_data is not None:
+                right_data = right_tracked
+                if right_data:
                     ri = right_data.inputs
                     print(
                         f"    R: Trig={ri.trigger_value:.2f} Sq={ri.squeeze_value:.2f}"
@@ -146,12 +146,12 @@ with oxr.OpenXRSession("ControllerTrackerTest", required_extensions) as oxr_sess
 
         def print_controller_summary(hand_name, tracked):
             print(f"  {hand_name} Controller:")
-            if tracked.data is not None:
-                pos = tracked.data.grip_pose.pose.position
+            if tracked:
+                pos = tracked.grip_pose.pose.position
                 print(f"    Grip position: [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]")
-                pos = tracked.data.aim_pose.pose.position
+                pos = tracked.aim_pose.pose.position
                 print(f"    Aim position:  [{pos.x:+.3f}, {pos.y:+.3f}, {pos.z:+.3f}]")
-                inputs = tracked.data.inputs
+                inputs = tracked.inputs
                 print(f"    Trigger: {inputs.trigger_value:.2f}")
                 print(f"    Squeeze: {inputs.squeeze_value:.2f}")
                 print(

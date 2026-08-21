@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -19,7 +19,7 @@
 namespace core
 {
 
-using HeadMcapChannels = McapTrackerChannels<HeadPoseRecord, HeadPose>;
+using HeadMcapChannels = McapTrackerChannels<HeadPoseRecord>;
 
 class LiveHeadTrackerImpl : public IHeadTrackerImpl
 {
@@ -38,14 +38,15 @@ public:
     LiveHeadTrackerImpl& operator=(LiveHeadTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const HeadPoseTrackedT& get_head() const override;
+    const Serialized<HeadPose>& get_head() const override;
 
 private:
     const OpenXRCoreFunctions core_funcs_;
     XrTimeConverter time_converter_;
     XrSpace base_space_;
     XrSpacePtr view_space_;
-    HeadPoseTrackedT tracked_;
+    // The snapshot published each frame, encoded from a local in update().
+    Serialized<HeadPose> tracked_;
     int64_t last_update_time_ = 0;
     std::unique_ptr<HeadMcapChannels> mcap_channels_;
 };

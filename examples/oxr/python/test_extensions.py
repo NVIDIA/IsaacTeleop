@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
@@ -91,13 +91,13 @@ with oxr.OpenXRSession("ExtensionTest", required_exts) as oxr_session:
         left_tracked = hand.get_left_hand(session)
         head_tracked = head.get_head(session)
         print("  ✅ Update successful")
-        if left_tracked.data is not None:
-            pos = left_tracked.data.joints.poses(deviceio.JOINT_WRIST).pose.position
+        if left_tracked:
+            pos = left_tracked.joints.poses(deviceio.JOINT_WRIST).pose.position
             print(f"    Left wrist: [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         else:
             print("    Left hand:  inactive")
-        if head_tracked.data is not None:
-            pos = head_tracked.data.pose.position
+        if head_tracked:
+            pos = head_tracked.pose.position
             print(f"    Head pos:   [{pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f}]")
         else:
             print("    Head:       inactive")

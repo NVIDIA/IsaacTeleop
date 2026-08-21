@@ -54,7 +54,7 @@ struct BodyJoints {
 }
 
 // Full body pose data (XR_BD_body_tracking joint layout, vendor-neutral).
-// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+// All fields are always present whenever this table itself is present.
 table FullBodyPose {
     // Vector of BodyJointPose.
     // For XR_BD_body_tracking, this is 24 joints.
@@ -62,13 +62,8 @@ table FullBodyPose {
 
     // allJointPosesTracked from the OpenXR extension — quality flag only.
     // When false, individual joint is_valid flags should be consulted.
-    // Does not affect whether the data pointer is null; see the Tracked wrapper.
+    // Does not affect whether this table is present at all.
     all_joint_poses_tracked: bool (id: 1);
-}
-
-// Tracked wrapper for the in-memory tracker API (data is null when body tracking is inactive).
-table FullBodyPoseTracked {
-    data: FullBodyPose (id: 0);
 }
 
 // MCAP recording wrapper for FullBodyPose.

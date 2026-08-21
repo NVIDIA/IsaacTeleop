@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for FullBodyPoseT and related types in isaacteleop.schema.
+"""Unit tests for FullBodyPose and related types in isaacteleop.schema.
 
-FullBodyPoseT is a FlatBuffers table that represents full body pose data:
+FullBodyPose is a FlatBuffers table that represents full body pose data:
 - joints: BodyJoints struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
 
 BodyJoints is a struct with a fixed-size array of 24 BodyJointPose entries.
@@ -12,7 +12,7 @@ BodyJointPose is a struct containing:
 - pose: The Pose (position and orientation)
 - is_valid: Whether this joint data is valid
 
-Timestamps are carried by FullBodyPoseRecord, not FullBodyPoseT.
+Timestamps are carried by FullBodyPoseRecord, not FullBodyPose.
 
 Joint indices follow XrBodyJointBD enum:
   0: Pelvis, 1-2: Left/Right Hip, 3: Spine1, 4-5: Left/Right Knee,
@@ -27,7 +27,7 @@ import numpy as np
 import pytest
 
 from isaacteleop.schema import (
-    FullBodyPoseT,
+    FullBodyPose,
     FullBodyPoseRecord,
     BodyJoints,
     BodyJointPose,
@@ -202,7 +202,7 @@ class TestBodyJointsFieldViews:
 
     def test_views_keep_owner_alive(self):
         """A view outlives the last direct reference to the table it came from."""
-        pose = FullBodyPoseT()
+        pose = FullBodyPose()
         positions = pose.joints.positions
         expected = np.arange(int(BodyJoint.NUM_JOINTS) * 3, dtype=np.float32).reshape(
             -1, 3
@@ -236,11 +236,11 @@ class TestBodyJointsRepr:
 
 
 class TestFullBodyPoseTConstruction:
-    """Tests for FullBodyPoseT construction and basic properties."""
+    """Tests for FullBodyPose construction and basic properties."""
 
     def test_default_construction(self):
-        """Test default construction creates FullBodyPoseT with pre-populated joints."""
-        body_pose = FullBodyPoseT()
+        """Test default construction creates FullBodyPose with pre-populated joints."""
+        body_pose = FullBodyPose()
 
         assert body_pose is not None
         assert body_pose.joints is not None
@@ -248,20 +248,20 @@ class TestFullBodyPoseTConstruction:
     def test_parameterized_construction(self):
         """Test construction with joints."""
         joints = BodyJoints()
-        body_pose = FullBodyPoseT(joints)
+        body_pose = FullBodyPose(joints)
 
         assert body_pose.joints is not None
 
 
 class TestFullBodyPoseTRepr:
-    """Tests for FullBodyPoseT __repr__ method."""
+    """Tests for FullBodyPose __repr__ method."""
 
     def test_repr_default(self):
         """Test __repr__ with default construction."""
-        body_pose = FullBodyPoseT()
+        body_pose = FullBodyPose()
 
         repr_str = repr(body_pose)
-        assert "FullBodyPoseT" in repr_str
+        assert "FullBodyPose" in repr_str
 
 
 class TestBodyJointEnum:
@@ -369,7 +369,7 @@ class TestFullBodyPoseRecordTimestamp:
 
     def test_construction_with_timestamp(self):
         """Test FullBodyPoseRecord carries DeviceDataTimestamp."""
-        data = FullBodyPoseT()
+        data = FullBodyPose()
         ts = DeviceDataTimestamp(1000000000, 2000000000, 3000000000)
         record = FullBodyPoseRecord(data, ts)
 
@@ -378,14 +378,15 @@ class TestFullBodyPoseRecordTimestamp:
         assert record.timestamp.sample_time_raw_device_clock == 3000000000
         assert record.data is not None
 
-    def test_default_construction(self):
-        """Test default FullBodyPoseRecord has no data."""
-        record = FullBodyPoseRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = FullBodyPoseRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""
-        data = FullBodyPoseT()
+        data = FullBodyPose()
         ts = DeviceDataTimestamp(111, 222, 333)
         record = FullBodyPoseRecord(data, ts)
 
@@ -403,8 +404,7 @@ class TestDeprecatedPicoAliases:
         from isaacteleop import schema
 
         cases = [
-            ("FullBodyPosePicoT", "FullBodyPoseT"),
-            ("FullBodyPosePicoTrackedT", "FullBodyPoseTrackedT"),
+            ("FullBodyPosePicoT", "FullBodyPose"),
             ("FullBodyPosePicoRecord", "FullBodyPoseRecord"),
             ("BodyJointsPico", "BodyJoints"),
             ("BodyJointPico", "BodyJoint"),

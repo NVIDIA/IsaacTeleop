@@ -11,6 +11,9 @@ SPDX-License-Identifier: Apache-2.0
 
 - **`ITrackerImpl::update`** takes **`int64_t monotonic_time_ns`** (system monotonic clock, same domain as `core::os_monotonic_now_ns()`).
 - **Do not** use `XrTime`, `<openxr/openxr.h>`, or OpenXR link targets in this library. Keep the tracker abstraction runtime-agnostic.
+- **Query accessors return `Serialized<XPayload>`, never a generated `-T` and never a wrapper table.** The object-API types are an implementation detail of whoever assembles the payload; they must not appear in any `ITrackerImpl` or `ITracker` signature. See `<schema/serialized.hpp>`.
+- **Keep `Serialized<T>` schema-agnostic.** It owns a buffer and re-points within it; it knows nothing about any field, so reaching one is the caller's job: `record.narrow(record->data())`. Narrow from the same handle you read the field through — `narrow()` pairs whatever pointer it is given with *this* handle's owner, so narrowing one wrapper onto another's field compiles and yields a handle owning the wrong buffer.
+- **An empty handle is the absent payload** — device inactive, no sample yet, replay gap. Consumers test one condition (`if (handle)`). Do **not** reintroduce a wrapper table to carry optionality: that was what the `Tracked` tables did before the handle became nullable, and it made every read a two-step null check. The exception is the message channel, whose payload is a **list**: a batch needs a table to hold the vector, and "nothing this frame" is an empty batch rather than an absent one.
 
 ## Generated `I<Name>TrackerImpl` headers
 

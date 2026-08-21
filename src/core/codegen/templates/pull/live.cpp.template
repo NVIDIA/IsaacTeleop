@@ -37,9 +37,9 @@ std::unique_ptr<@MCAP_CHANNELS_TYPE@> @LIVE_IMPL@::create_mcap_channels(mcap::Mc
 }
 void @LIVE_IMPL@::update(int64_t /*monotonic_time_ns*/)
 {
-    m_schema_reader.update(m_tracked.data);
+    m_schema_reader.update(m_tracked);
 }
-const @TRACKED_TYPE@& @LIVE_IMPL@::get_data() const
+const Serialized<@FB_TABLE@>& @LIVE_IMPL@::get_data() const
 {
     return m_tracked;
 }

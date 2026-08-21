@@ -4,7 +4,7 @@
 """
 Hands Source Node - DeviceIO to Retargeting Engine converter.
 
-Converts raw HandPoseT flatbuffer data to standard HandInput tensor format.
+Converts raw HandPose flatbuffer data to standard HandInput tensor format.
 """
 
 from typing import Any, TYPE_CHECKING
@@ -22,16 +22,16 @@ from .deviceio_tensor_types import DeviceIOHandPoseTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import HandPoseT, HandPoseTrackedT
+    from isaacteleop.schema import HandPose
 
 
 class HandsSource(IDeviceIOSource):
     """
-    Stateless converter: DeviceIO HandPoseT → HandInput tensors.
+    Stateless converter: DeviceIO HandPose → HandInput tensors.
 
     Inputs:
-        - "deviceio_hand_left": Raw HandPoseT flatbuffer for left hand
-        - "deviceio_hand_right": Raw HandPoseT flatbuffer for right hand
+        - "deviceio_hand_left": Raw HandPose flatbuffer for left hand
+        - "deviceio_hand_right": Raw HandPose flatbuffer for right hand
 
     Outputs (Optional — absent when tracking is inactive):
         - "hand_left": OptionalTensorGroup (check ``.is_none`` before access)
@@ -79,7 +79,7 @@ class HandsSource(IDeviceIOSource):
 
         Returns:
             Dict with "deviceio_hand_left" and "deviceio_hand_right" TensorGroups
-            containing HandPoseTrackedT wrappers.
+            containing a HandPose payload each, or None when that hand is inactive.
         """
         left_tracked = self._hand_tracker.get_left_hand(deviceio_session)
         right_tracked = self._hand_tracker.get_right_hand(deviceio_session)
@@ -110,23 +110,23 @@ class HandsSource(IDeviceIOSource):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
-        Convert DeviceIO HandPoseTrackedT to standard HandInput tensors.
+        Convert DeviceIO HandPose to standard HandInput tensors.
 
         Calls ``set_none()`` on the output when the corresponding hand is inactive.
 
         Args:
-            inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" HandPoseTrackedT wrappers
+            inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" HandPose payloads
             outputs: Dict with "hand_left" and "hand_right" OptionalTensorGroups
             context: ComputeContext (unused by this converter node).
         """
-        left_tracked: "HandPoseTrackedT" = inputs["deviceio_hand_left"][0]
-        right_tracked: "HandPoseTrackedT" = inputs["deviceio_hand_right"][0]
+        left_tracked: "HandPose | None" = inputs["deviceio_hand_left"][0]
+        right_tracked: "HandPose | None" = inputs["deviceio_hand_right"][0]
 
-        self._update_hand_data(outputs["hand_left"], left_tracked.data)
-        self._update_hand_data(outputs["hand_right"], right_tracked.data)
+        self._update_hand_data(outputs["hand_left"], left_tracked)
+        self._update_hand_data(outputs["hand_right"], right_tracked)
 
     def _update_hand_data(
-        self, group: OptionalTensorGroup, hand_data: "HandPoseT | None"
+        self, group: OptionalTensorGroup, hand_data: "HandPose | None"
     ) -> None:
         """Helper to convert hand data for a single hand."""
         if hand_data is None:

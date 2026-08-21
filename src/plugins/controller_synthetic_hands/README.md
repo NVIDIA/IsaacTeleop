@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 -->
 
@@ -108,13 +108,13 @@ while (running) {
     deviceio_session->update();
 
     const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
-    if (left_tracked.data) {
+    if (left_tracked) {
         bool grip_valid, aim_valid;
-        oxr_utils::get_grip_pose(*left_tracked.data, grip_valid);
-        XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked.data, aim_valid);
+        oxr_utils::get_grip_pose(*left_tracked, grip_valid);
+        XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked, aim_valid);
 
         if (grip_valid && aim_valid) {
-            float trigger = left_tracked.data->inputs().trigger_value();
+            float trigger = left_tracked->inputs().trigger_value();
             hands.generate(joints, wrist, true, trigger);
             left_injector.push(joints, time);
         }
@@ -149,7 +149,7 @@ auto deviceio_session = core::DeviceIOSession::run(trackers, handles);
 deviceio_session->update();
 const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
 const auto& right_tracked = controller_tracker->get_right_controller(*deviceio_session);
-// Use left_tracked.data and right_tracked.data (null when inactive)
+// Dereference left_tracked / right_tracked (empty handles when inactive)
 ```
 
 #### Hand Generation

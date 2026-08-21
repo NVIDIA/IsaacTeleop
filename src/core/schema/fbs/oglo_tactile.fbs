@@ -39,12 +39,6 @@ table OgloGloveSample {
   gyro_z: int16 (id: 8);
 }
 
-// Tracked wrapper for the in-memory tracker API (data is null when no glove
-// sample is available, e.g. the glove is disconnected).
-table OgloGloveSampleTracked {
-  data: OgloGloveSample (id: 0);
-}
-
 // MCAP recording wrapper. Record types are the root types written to MCAP
 // channels; trackers serialize into Record types in serialize_all().
 table OgloGloveSampleRecord {

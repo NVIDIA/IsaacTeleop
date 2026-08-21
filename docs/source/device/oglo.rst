@@ -28,7 +28,7 @@ Components
 ----------
 
 - **Schema** — :code-file:`src/core/schema/fbs/oglo_tactile.fbs`
-  (``OgloGloveSample`` / ``OgloGloveSampleTracked`` / ``OgloGloveSampleRecord``).
+  (``OgloGloveSample`` / ``OgloGloveSampleRecord``).
 - **Plugin** — :code-dir:`src/plugins/oglo_tactile` (BLE read → parse → OpenXR push).
 - **Tracker** — ``OgloTactileTracker``
   (:code-file:`src/core/deviceio_trackers/cpp/inc/deviceio_trackers/oglo_tactile_tracker.hpp`)

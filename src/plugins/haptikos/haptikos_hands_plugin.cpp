@@ -65,11 +65,11 @@ void HaptikosHandsPlugin::worker_thread()
     {
         auto frame_start = std::chrono::steady_clock::now();
 
-        core::ControllerSnapshotTrackedT left_tracked;
-        core::ControllerSnapshotTrackedT right_tracked;
+        core::Serialized<core::ControllerSnapshot> left_tracked;
+        core::Serialized<core::ControllerSnapshot> right_tracked;
 
-        core::HandPoseTrackedT left_hand;
-        core::HandPoseTrackedT rigth_hand;
+        core::Serialized<core::HandPose> left_hand;
+        core::Serialized<core::HandPose> rigth_hand;
 
         try
         {
@@ -101,11 +101,11 @@ void HaptikosHandsPlugin::worker_thread()
 
 
         bool rigth_published = false;
-        if (right_tracked.data)
+        if (right_tracked)
         {
             Haptikos::HandData right_data = m_client.GetData(true, Haptikos::GlobalToWrist, true, true, false);
             bool valid_wrist = false;
-            XrPosef rigth_controller = oxr_utils::get_aim_pose(*right_tracked.data, valid_wrist);
+            XrPosef rigth_controller = oxr_utils::get_aim_pose(*right_tracked, valid_wrist);
 
             if (right_data.IsValid() == 1 && valid_wrist)
             {
@@ -130,11 +130,11 @@ void HaptikosHandsPlugin::worker_thread()
 
 
         bool left_published = false;
-        if (left_tracked.data)
+        if (left_tracked)
         {
             Haptikos::HandData left_data = m_client.GetData(false, Haptikos::GlobalToWrist, true, true, false);
             bool valid_wrist = false;
-            XrPosef left_controller = oxr_utils::get_aim_pose(*left_tracked.data, valid_wrist);
+            XrPosef left_controller = oxr_utils::get_aim_pose(*left_tracked, valid_wrist);
 
             if (left_data.IsValid() == 1 && valid_wrist)
             {

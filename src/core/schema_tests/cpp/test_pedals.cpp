@@ -9,6 +9,7 @@
 
 // Include generated FlatBuffer headers.
 #include <schema/pedals_generated.h>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
 
 // =============================================================================
@@ -64,37 +65,45 @@ TEST_CASE("Generic3AxisPedalOutputT can store full output", "[pedals][native]")
 }
 
 // =============================================================================
-// Generic3AxisPedalOutputTrackedT Tests
+// Optionality Tests
+//
+// A tracker expresses "no pedal data" with an empty Serialized handle rather than a
+// wrapper table holding a null payload, so these cover the handle's absent state.
 // =============================================================================
-TEST_CASE("Generic3AxisPedalOutputTrackedT default construction has null data", "[pedals][tracked]")
+TEST_CASE("Serialized pedal output is empty by default", "[pedals][tracked]")
 {
-    core::Generic3AxisPedalOutputTrackedT tracked;
+    core::Serialized<core::Generic3AxisPedalOutput> data;
 
-    CHECK(tracked.data == nullptr);
+    CHECK_FALSE(static_cast<bool>(data));
+    CHECK(data.get() == nullptr);
 }
 
-TEST_CASE("Generic3AxisPedalOutputTrackedT with data assigned", "[pedals][tracked]")
+TEST_CASE("Serialized pedal output round-trips its fields", "[pedals][tracked]")
 {
-    core::Generic3AxisPedalOutputTrackedT tracked;
-    tracked.data = std::make_shared<core::Generic3AxisPedalOutputT>();
-    tracked.data->left_pedal = 0.5f;
-    tracked.data->right_pedal = 0.3f;
-    tracked.data->rudder = -0.2f;
+    core::Generic3AxisPedalOutputT native;
+    native.left_pedal = 0.5f;
+    native.right_pedal = 0.3f;
+    native.rudder = -0.2f;
 
-    CHECK(tracked.data->left_pedal == Catch::Approx(0.5f));
-    CHECK(tracked.data->right_pedal == Catch::Approx(0.3f));
-    CHECK(tracked.data->rudder == Catch::Approx(-0.2f));
+    const auto data = core::pack<core::Generic3AxisPedalOutput>(native);
+
+    REQUIRE(static_cast<bool>(data));
+    CHECK(data->left_pedal() == Catch::Approx(0.5f));
+    CHECK(data->right_pedal() == Catch::Approx(0.3f));
+    CHECK(data->rudder() == Catch::Approx(-0.2f));
 }
 
-TEST_CASE("Generic3AxisPedalOutputTrackedT data can be reset to null", "[pedals][tracked]")
+TEST_CASE("Serialized pedal output can be returned to empty", "[pedals][tracked]")
 {
-    core::Generic3AxisPedalOutputTrackedT tracked;
-    tracked.data = std::make_shared<core::Generic3AxisPedalOutputT>();
-    tracked.data->left_pedal = 0.8f;
+    core::Generic3AxisPedalOutputT native;
+    native.left_pedal = 0.8f;
 
-    tracked.data.reset();
+    auto data = core::pack<core::Generic3AxisPedalOutput>(native);
+    REQUIRE(static_cast<bool>(data));
 
-    CHECK(tracked.data == nullptr);
+    data = core::Serialized<core::Generic3AxisPedalOutput>();
+
+    CHECK_FALSE(static_cast<bool>(data));
 }
 
 TEST_CASE("Generic3AxisPedalOutputRecord serialization with tracked data", "[pedals][tracked][serialize]")

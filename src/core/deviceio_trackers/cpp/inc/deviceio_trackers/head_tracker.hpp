@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -19,9 +19,9 @@ public:
     }
 
     // Query method:
-    // - tracked.data is null when no head sample is available for the frame.
-    // - when tracked.data is non-null, nested fields in HeadPoseT are safe to read.
-    const HeadPoseTrackedT& get_head(const ITrackerSession& session) const;
+    // - the handle is empty when no head sample is available for the frame.
+    // - when it is non-empty, nested fields in HeadPose are safe to read.
+    const Serialized<HeadPose>& get_head(const ITrackerSession& session) const;
 
 private:
     static constexpr const char* TRACKER_NAME = "HeadTracker";

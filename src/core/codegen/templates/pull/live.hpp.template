@@ -13,7 +13,7 @@
 #include <vector>
 namespace core
 {
-using @MCAP_CHANNELS_TYPE@ = McapTrackerChannels<@RECORD_TYPE@, @FB_TABLE@>;
+using @MCAP_CHANNELS_TYPE@ = McapTrackerChannels<@RECORD_TYPE@>;
 using @SCHEMA_TRACKER_TYPE@ = SchemaTracker<@RECORD_TYPE@, @FB_TABLE@>;
 class @LIVE_IMPL@ : public @IFACE@
 {
@@ -28,11 +28,11 @@ public:
                 const @CLASS@* tracker,
                 std::unique_ptr<@MCAP_CHANNELS_TYPE@> mcap_channels);
     void update(int64_t monotonic_time_ns) override;
-    const @TRACKED_TYPE@& get_data() const override;
+    const Serialized<@FB_TABLE@>& get_data() const override;
 
 private:
     std::unique_ptr<@MCAP_CHANNELS_TYPE@> mcap_channels_;
     @SCHEMA_TRACKER_TYPE@ m_schema_reader;
-    @TRACKED_TYPE@ m_tracked;
+    Serialized<@FB_TABLE@> m_tracked;
 };
 } // namespace core

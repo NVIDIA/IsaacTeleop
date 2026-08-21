@@ -17,12 +17,6 @@ table HapticCommand {
     values: [float] (id: 1);
 }
 
-// Tracked wrapper for the in-memory reader API; data is null until the
-// first sample arrives or after the producer collection disappears.
-table HapticCommandTracked {
-    data: HapticCommand (id: 0);
-}
-
 // MCAP recording wrapper required by the SchemaTracker<RecordT, DataTableT>
 // template. Recording is disabled here -- the live reader passes
 // mcap_channels=nullptr.

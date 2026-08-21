@@ -20,8 +20,7 @@ from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g
 )
 from isaacteleop.schema import (
     BodyJoint,
-    FullBodyPoseT,
-    FullBodyPoseTrackedT,
+    FullBodyPose,
 )
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     DeviceIOFullBodyPoseTracked,
@@ -468,8 +467,7 @@ class NoitomG1ActionSource(IDeviceIOSource):
             )
 
         # Read the raw tracked data from DeviceIO
-        tracked: FullBodyPoseTrackedT = inputs[_FULL_BODY_INPUT][0]
-        frame: FullBodyPoseT | None = tracked.data
+        frame: FullBodyPose | None = inputs[_FULL_BODY_INPUT][0]
 
         # --- First-frame diagnostic ---
         if not self._first_frame_printed:
@@ -553,7 +551,7 @@ class NoitomG1ActionSource(IDeviceIOSource):
         self._print_status(frame, body_yaw_delta, context)
 
     def _print_status(
-        self, frame: FullBodyPoseT, body_yaw_delta: float, context: ComputeContext
+        self, frame: FullBodyPose, body_yaw_delta: float, context: ComputeContext
     ) -> None:
         if self._print_period_s <= 0.0:
             return
@@ -648,7 +646,7 @@ class _NoitomReferenceVisualizer:
 
     def update(
         self,
-        frame: FullBodyPoseT,
+        frame: FullBodyPose,
         retargeter: NoitomG1Retargeter,
     ) -> None:
         if not self._enabled:
@@ -792,7 +790,7 @@ class _NoitomReferenceVisualizer:
 
     def _reference_positions(
         self,
-        frame: FullBodyPoseT,
+        frame: FullBodyPose,
         calib_view: Any | None,
     ) -> dict[int, np.ndarray]:
         if self._pelvis_relative:
@@ -868,7 +866,7 @@ class _NoitomReferenceVisualizer:
         return starts, ends, colors
 
 
-def _joint_position_map(frame: FullBodyPoseT) -> dict[int, np.ndarray]:
+def _joint_position_map(frame: FullBodyPose) -> dict[int, np.ndarray]:
     positions: dict[int, np.ndarray] = {}
     if frame.joints is None:
         return positions
@@ -879,7 +877,7 @@ def _joint_position_map(frame: FullBodyPoseT) -> dict[int, np.ndarray]:
     return positions
 
 
-def _joint_position(frame: FullBodyPoseT, joint_index: int) -> np.ndarray | None:
+def _joint_position(frame: FullBodyPose, joint_index: int) -> np.ndarray | None:
     if frame.joints is None:
         return None
     joint = frame.joints.joints(int(joint_index))
@@ -891,7 +889,7 @@ def _joint_position(frame: FullBodyPoseT, joint_index: int) -> np.ndarray | None
     return None
 
 
-def _valid_joint_count(frame: FullBodyPoseT) -> int:
+def _valid_joint_count(frame: FullBodyPose) -> int:
     if frame.joints is None:
         return 0
     count = 0
@@ -901,7 +899,7 @@ def _valid_joint_count(frame: FullBodyPoseT) -> int:
     return count
 
 
-def _raw_full_body_status(frame: FullBodyPoseT) -> str:
+def _raw_full_body_status(frame: FullBodyPose) -> str:
     left_wrist = _joint_position(frame, BodyJoint.LEFT_WRIST)
     right_wrist = _joint_position(frame, BodyJoint.RIGHT_WRIST)
     pelvis = _joint_position(frame, BodyJoint.PELVIS)
@@ -941,7 +939,7 @@ def _raw_full_body_status(frame: FullBodyPoseT) -> str:
     )
 
 
-def _calibration_diagnostics(frame: FullBodyPoseT) -> str:
+def _calibration_diagnostics(frame: FullBodyPose) -> str:
     """Detailed calibration diagnostics: which joints are valid/invalid."""
     pelvis = _joint_position(frame, BodyJoint.PELVIS)
     spine3 = _joint_position(frame, BodyJoint.SPINE3)

@@ -3,6 +3,7 @@
 
 #include "replay_message_channel_tracker_impl.hpp"
 
+#include <flatbuffers/flatbuffers.h>
 #include <mcap/reader.hpp>
 #include <mcap/recording_traits.hpp>
 #include <schema/message_channel_bfbs_generated.h>
@@ -10,9 +11,34 @@
 
 #include <iostream>
 #include <utility>
+#include <vector>
 
 namespace core
 {
+namespace
+{
+
+int64_t record_monotonic_ns(const MessageChannelMessagesRecord& record)
+{
+    // ``timestamp`` is an optional field, so the accessor returns null when the writer
+    // dropped it; fall back to 0 so a malformed file does not stall the grouping loop
+    // (the consequence is all timestamp-less records collapsing into one synthetic
+    // "frame 0", which is the most forgiving behavior for malformed inputs).
+    if (record.timestamp() == nullptr)
+    {
+        return 0;
+    }
+    return record.timestamp()->available_time_local_common_clock();
+}
+
+Serialized<MessageChannelMessagesTracked> finish_batch(
+    flatbuffers::FlatBufferBuilder& builder, const std::vector<flatbuffers::Offset<MessageChannelMessages>>& messages)
+{
+    builder.Finish(CreateMessageChannelMessagesTracked(builder, builder.CreateVector(messages)));
+    return Serialized<MessageChannelMessagesTracked>::adopt(builder);
+}
+
+} // namespace
 
 ReplayMessageChannelTrackerImpl::ReplayMessageChannelTrackerImpl(std::unique_ptr<mcap::McapReader> reader,
                                                                  std::string_view base_name)
@@ -24,50 +50,58 @@ ReplayMessageChannelTrackerImpl::ReplayMessageChannelTrackerImpl(std::unique_ptr
 {
 }
 
-int64_t ReplayMessageChannelTrackerImpl::record_monotonic_ns(const MessageChannelMessagesRecordT& record)
-{
-    // ``timestamp`` is a flatbuffer struct stored as a shared_ptr in
-    // the unpacked record. A missing pointer means the writer dropped
-    // the field; fall back to 0 so a malformed file does not stall the
-    // grouping loop (the consequence is all timestamp-less records
-    // collapsing into one synthetic "frame 0", which is the most
-    // forgiving behavior for malformed inputs).
-    if (!record.timestamp)
-    {
-        return 0;
-    }
-    return record.timestamp->available_time_local_common_clock();
-}
-
 void ReplayMessageChannelTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 {
     // Each update consumes exactly one recorded frame: all records
     // sharing the first pending record's timestamp. See the class
     // docstring for the invariant this relies on (the live recorder
-    // writes ≥1 record per session.update()).
-    messages_.data.clear();
+    // writes >=1 record per session.update()).
+    //
+    // The records stay in wire form and the batch is built straight from their encoded
+    // payloads, so each payload is copied once -- into this builder -- rather than into
+    // an unpacked record first and out of it again.
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<flatbuffers::Offset<MessageChannelMessages>> messages;
 
-    if (!pending_record_)
+    try
     {
-        pending_record_ = mcap_viewers_->read(0);
-    }
-    if (!pending_record_)
-    {
-        return;
-    }
-
-    const int64_t frame_ns = record_monotonic_ns(*pending_record_);
-    while (pending_record_ && record_monotonic_ns(*pending_record_) == frame_ns)
-    {
-        // Sentinel records carry no data and only exist to mark a
-        // frame boundary; skip them but still advance the iterator so
-        // the next update reads the following frame.
-        if (pending_record_->data)
+        if (!pending_record_)
         {
-            messages_.data.push_back(std::move(pending_record_->data));
+            pending_record_ = mcap_viewers_->read(0);
         }
-        pending_record_ = mcap_viewers_->read(0);
+
+        if (pending_record_)
+        {
+            const int64_t frame_ns = record_monotonic_ns(*pending_record_);
+            while (pending_record_ && record_monotonic_ns(*pending_record_) == frame_ns)
+            {
+                // Sentinel records carry no data and only exist to mark a
+                // frame boundary; skip them but still advance the iterator so
+                // the next update reads the following frame.
+                const MessageChannelMessages* message = pending_record_->data();
+                if (message != nullptr && message->payload() != nullptr)
+                {
+                    const auto* payload = message->payload();
+                    messages.push_back(
+                        CreateMessageChannelMessages(builder, builder.CreateVector(payload->data(), payload->size())));
+                }
+                pending_record_ = mcap_viewers_->read(0);
+            }
+        }
     }
+    catch (...)
+    {
+        // Publish the part of the frame that was read -- those records have been consumed
+        // from the viewer either way. Publishing is also what keeps them from being
+        // delivered twice: without it the handle still holds last frame's batch, and the
+        // next update starts from a fresh builder.
+        messages_ = finish_batch(builder, messages);
+        throw;
+    }
+
+    // Always encode, including for an empty batch: `data` is a list here, so "no
+    // messages this frame" is an empty batch rather than an absent one.
+    messages_ = finish_batch(builder, messages);
 }
 
 MessageChannelStatus ReplayMessageChannelTrackerImpl::get_status() const
@@ -78,7 +112,7 @@ MessageChannelStatus ReplayMessageChannelTrackerImpl::get_status() const
     return MessageChannelStatus::CONNECTED;
 }
 
-const MessageChannelMessagesTrackedT& ReplayMessageChannelTrackerImpl::get_messages() const
+const Serialized<MessageChannelMessagesTracked>& ReplayMessageChannelTrackerImpl::get_messages() const
 {
     return messages_;
 }

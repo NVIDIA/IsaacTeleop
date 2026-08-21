@@ -20,7 +20,7 @@
 namespace core
 {
 
-using MessageChannelMcapChannels = McapTrackerChannels<MessageChannelMessagesRecord, MessageChannelMessages>;
+using MessageChannelMcapChannels = McapTrackerChannels<MessageChannelMessagesRecord>;
 
 class LiveMessageChannelTrackerImpl : public IMessageChannelTrackerImpl
 {
@@ -44,7 +44,7 @@ public:
 
     void update(int64_t monotonic_time_ns) override;
     MessageChannelStatus get_status() const override;
-    const MessageChannelMessagesTrackedT& get_messages() const override;
+    const Serialized<MessageChannelMessagesTracked>& get_messages() const override;
     void send_message(const std::vector<uint8_t>& payload) const override;
 
 private:
@@ -55,7 +55,7 @@ private:
     void destroy_channel() noexcept;
     bool try_reopen_channel();
     XrUuidEXT make_uuid(const std::array<uint8_t, MessageChannelTracker::CHANNEL_UUID_SIZE>& channel_uuid) const;
-    void drain_messages();
+    void drain_messages(MessageChannelMessagesTrackedT& native);
 
     OpenXRSessionHandles handles_;
     const MessageChannelTracker* tracker_{ nullptr };
@@ -74,7 +74,8 @@ private:
     XrTimeConverter time_converter_;
     int64_t last_update_time_ = 0;
     mutable bool instance_lost_ = false;
-    MessageChannelMessagesTrackedT messages_;
+    // The drained batch published each frame, encoded from a local in update().
+    Serialized<MessageChannelMessagesTracked> messages_;
     std::vector<uint8_t> receive_buffer_;
     std::unique_ptr<MessageChannelMcapChannels> mcap_channels_;
 };

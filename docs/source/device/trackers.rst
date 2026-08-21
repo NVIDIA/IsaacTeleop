@@ -44,43 +44,94 @@ Data Schema Convention
 ----------------------
 
 Every tracker's data is defined by a FlatBuffers schema under
-:code-dir:`src/core/schema/fbs`. Each schema follows a three-tier convention:
+:code-dir:`src/core/schema/fbs`. Each schema follows a two-tier convention:
 
 .. code-block:: idl
 
-   // 1. Inner data table -- the actual payload
+   // 1. Payload table -- the actual data, and what trackers hand to consumers.
    table Xxx {
        field_a: SomeType (id: 0);
        field_b: AnotherType (id: 1);
    }
 
-   // 2. Tracked wrapper -- used by the in-memory tracker API.
-   //    data is null when the tracked entity is inactive.
-   table XxxTracked {
-       data: Xxx (id: 0);
-   }
-
-   // 3. Record wrapper -- used as the MCAP recording root type.
+   // 2. Record wrapper -- used as the MCAP recording root type.
    //    Adds a DeviceDataTimestamp alongside the payload.
    table XxxRecord {
        data: Xxx (id: 0);
        timestamp: DeviceDataTimestamp (id: 1);
    }
 
+.. _tracked-sub-channel:
+
+The ``_tracked`` recording sub-channel
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A tracker that reads from a tensor collection can see **several samples per
+frame**, and it records both views of that: every sample goes to ``<channel>``,
+while only the final sample of each ``update()`` -- the one the live consumer
+actually observed -- goes to ``<channel>_tracked``. Both carry the same
+``XxxRecord`` root type; they differ only in which samples reach them.
+
+Replay reads ``<channel>_tracked`` **exclusively**, so that a replayed session
+yields exactly the values the live session did rather than the intermediate
+samples. The per-sample channel is there for offline analysis.
+
+Both names come from :code-file:`src/core/deviceio_trackers/defaults.toml` and
+apply to every generated pull tracker:
+
+.. code-block:: toml
+
+   mcap_channels = ["%channel%", "%channel%_tracked"]
+   replay_channels = ["%channel%_tracked"]
+
+A manifest entry that overrides ``mcap_channels`` must keep the ``_tracked``
+entry and list it in ``replay_channels``. Recording still succeeds without it,
+but the resulting file cannot be replayed.
+
    root_type XxxRecord;
 
-- **Inner data table** (e.g. ``HeadPose``, ``HandPose``, ``ControllerSnapshot``) --
-  contains the device-specific fields. All fields are present when the parent
-  wrapper's ``data`` pointer is non-null.
+- **Payload table** (e.g. ``HeadPose``, ``HandPose``, ``ControllerSnapshot``) --
+  contains the device-specific fields. All fields are present whenever the table
+  itself is present.
 
-- **Tracked wrapper** (e.g. ``HeadPoseTracked``) -- wraps the inner data in an
-  optional ``data`` field. The in-memory ``get_*()`` accessors return a reference
-  to this wrapper. When ``data`` is ``nullptr`` (C++) or ``None`` (Python), the
-  device is inactive or no sample has arrived yet.
-
-- **Record wrapper** (e.g. ``HeadPoseRecord``) -- wraps the inner data plus a
+- **Record wrapper** (e.g. ``HeadPoseRecord``) -- wraps the payload plus a
   ``DeviceDataTimestamp``. This is the ``root_type`` written to MCAP channels by
-  the recorder via ``serialize_all()``.
+  the recorder.
+
+Reading a payload
+~~~~~~~~~~~~~~~~~
+
+The ``get_*()`` accessors hand out the payload table itself as an owning handle
+over the encoded bytes -- ``Serialized<HeadPose>`` in C++
+(:code-file:`src/core/schema/cpp/inc/schema/serialized.hpp`), a read-only view
+class (``HeadPose``) in Python. Reads go straight into the buffer, so there is no
+unpack step and joint arrays come back as zero-copy NumPy views.
+
+An **empty handle is the absent payload**: the device is inactive, no sample has
+arrived yet, or replay hit a gap. Test it with ``if (handle)`` in C++; in Python
+the accessor returns ``None``.
+
+Each ``session.update()`` publishes a *new* buffer rather than refilling the
+previous one, so a handle read this frame keeps its values after the next update.
+
+To build a payload from Python, pass every field to its constructor -- the view
+classes expose no setters.
+
+.. warning::
+
+   Immutability is a **contract, not an enforcement**. The joint-array properties
+   hand out *writable* NumPy views, because NumPy cannot export a read-only array
+   over DLPack before 2.1. Writing through one changes what every holder of that
+   buffer sees, including handles read on earlier frames. Copy first if you mean
+   to modify.
+
+.. note::
+
+   ``MessageChannelMessagesTracked`` wraps its payload in a table, because that
+   payload is a **list** and something has to hold the vector. Once a tracker has
+   run one ``update()`` the handle is non-empty for the rest of the session, and
+   an empty ``data`` vector -- not an empty handle -- means no messages arrived
+   this frame. Before that first update the handle is empty like any other.
 
 Shared Types
 ~~~~~~~~~~~~

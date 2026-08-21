@@ -6,13 +6,12 @@
 Tests the following FlatBuffers types:
 - OgloGloveSample: tactile glove sample (seq, device_time_us, 80 taxels, 6-axis IMU)
 - OgloGloveSampleRecord: record wrapper carrying DeviceDataTimestamp
-- OgloGloveSampleTrackedT: tracked wrapper (data is None when inactive)
 """
 
 from isaacteleop.schema import (
-    OgloGloveSample,
+    DeviceDataTimestamp,
     OgloGloveSampleRecord,
-    OgloGloveSampleTrackedT,
+    OgloGloveSample,
 )
 
 NUM_TAXELS = 80
@@ -28,12 +27,17 @@ class TestOgloGloveSample:
         assert list(s.taxels) == []
 
     def test_field_round_trip(self):
-        s = OgloGloveSample()
-        s.seq = 12345
-        s.device_time_us = 6_000_000
-        s.taxels = list(range(NUM_TAXELS))
-        s.accel_x, s.accel_y, s.accel_z = 100, -200, 4000
-        s.gyro_x, s.gyro_y, s.gyro_z = 1, -2, 3
+        s = OgloGloveSample(
+            seq=12345,
+            device_time_us=6_000_000,
+            taxels=list(range(NUM_TAXELS)),
+            accel_x=100,
+            accel_y=-200,
+            accel_z=4000,
+            gyro_x=1,
+            gyro_y=-2,
+            gyro_z=3,
+        )
 
         assert s.seq == 12345
         assert s.device_time_us == 6_000_000
@@ -46,21 +50,15 @@ class TestOgloGloveSample:
         assert "OgloGloveSample" in repr(OgloGloveSample())
 
 
-class TestOgloGloveSampleTrackedT:
-    """Tests for the tracked wrapper."""
-
-    def test_default_construction_inactive(self):
-        assert OgloGloveSampleTrackedT().data is None
-
-    def test_repr_inactive(self):
-        assert "None" in repr(OgloGloveSampleTrackedT())
-
-
 class TestOgloGloveSampleRecord:
     """Tests for the MCAP record wrapper."""
 
-    def test_default_construction(self):
-        assert OgloGloveSampleRecord().data is None
+    def test_payload_less_record(self):
+        record = OgloGloveSampleRecord(None, DeviceDataTimestamp(1, 2, 3))
+        assert record.data is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_repr(self):
-        assert "OgloGloveSampleRecord" in repr(OgloGloveSampleRecord())
+        assert "OgloGloveSampleRecord" in repr(
+            OgloGloveSampleRecord(None, DeviceDataTimestamp(1, 2, 3))
+        )

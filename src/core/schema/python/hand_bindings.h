@@ -6,12 +6,13 @@
 
 #pragma once
 
+#include "pose_bindings.h"
 #include "schema_array_views.h"
+#include "schema_serialized.h"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/hand_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <array>
 #include <cstddef>
@@ -84,14 +85,8 @@ inline void bind_hand(py::module& m)
         .def("__repr__",
              [](const HandJointPose& self)
              {
-                 return "HandJointPose(pose=Pose(position=Point(x=" + std::to_string(self.pose().position().x()) +
-                        ", y=" + std::to_string(self.pose().position().y()) +
-                        ", z=" + std::to_string(self.pose().position().z()) +
-                        "), orientation=Quaternion(x=" + std::to_string(self.pose().orientation().x()) +
-                        ", y=" + std::to_string(self.pose().orientation().y()) +
-                        ", z=" + std::to_string(self.pose().orientation().z()) +
-                        ", w=" + std::to_string(self.pose().orientation().w()) +
-                        ")), is_valid=" + (self.is_valid() ? "True" : "False") +
+                 return "HandJointPose(pose=" + pose_repr(self.pose()) +
+                        ", is_valid=" + (self.is_valid() ? "True" : "False") +
                         ", radius=" + std::to_string(self.radius()) + ")";
              });
 
@@ -158,68 +153,25 @@ inline void bind_hand(py::module& m)
         .def("__repr__",
              [](const HandJoints&) { return "HandJoints(poses=[...HandJoint.NUM_JOINTS HandJointPose entries...])"; });
 
-    // Bind HandPoseT class (FlatBuffers object API for tables).
-    py::class_<HandPoseT, std::shared_ptr<HandPoseT>>(m, "HandPoseT")
-        .def(py::init(
-            []()
-            {
-                auto obj = std::make_shared<HandPoseT>();
-                obj->joints = std::make_shared<HandJoints>();
-                return obj;
-            }))
+    serialized_class<HandPose>(m, "HandPose", "Encoded hand pose: 26 joints in HandJoint / OpenXR order.")
         .def(py::init(
                  [](const HandJoints& joints)
                  {
-                     auto obj = std::make_shared<HandPoseT>();
-                     obj->joints = std::make_shared<HandJoints>(joints);
-                     return obj;
+                     HandPoseT native;
+                     native.joints = std::make_shared<HandJoints>(joints);
+                     return pack<HandPose>(native);
                  }),
-             py::arg("joints"))
-        .def_property_readonly(
-            "joints", [](const HandPoseT& self) -> const HandJoints* { return self.joints.get(); },
-            py::return_value_policy::reference_internal)
+             py::arg("joints") = HandJoints(), "Encode a hand pose. Defaults to all-zero joints.")
+        .def_property_readonly("joints", field(&HandPose::joints), py::return_value_policy::reference_internal)
         .def("__repr__",
-             [](const HandPoseT& self)
+             [](const Serialized<HandPose>& self)
              {
-                 std::string joints_str = "None";
-                 if (self.joints)
-                 {
-                     joints_str = "HandJoints(poses=[...26 entries...])";
-                 }
-                 return "HandPoseT(joints=" + joints_str + ")";
+                 const std::string joints_str =
+                     self->joints() != nullptr ? "HandJoints(poses=[...26 entries...])" : "None";
+                 return "HandPose(joints=" + joints_str + ")";
              });
 
-    py::class_<HandPoseRecordT, std::shared_ptr<HandPoseRecordT>>(m, "HandPoseRecord")
-        .def(py::init<>())
-        .def(py::init(
-                 [](const HandPoseT& data, const DeviceDataTimestamp& timestamp)
-                 {
-                     auto obj = std::make_shared<HandPoseRecordT>();
-                     obj->data = std::make_shared<HandPoseT>(data);
-                     obj->timestamp = std::make_shared<core::DeviceDataTimestamp>(timestamp);
-                     return obj;
-                 }),
-             py::arg("data"), py::arg("timestamp"))
-        .def_property_readonly(
-            "data", [](const HandPoseRecordT& self) -> std::shared_ptr<HandPoseT> { return self.data; })
-        .def_readonly("timestamp", &HandPoseRecordT::timestamp)
-        .def("__repr__", [](const HandPoseRecordT& self)
-             { return "HandPoseRecord(data=" + std::string(self.data ? "HandPoseT(...)" : "None") + ")"; });
-
-    py::class_<HandPoseTrackedT, std::shared_ptr<HandPoseTrackedT>>(m, "HandPoseTrackedT")
-        .def(py::init<>())
-        .def(py::init(
-                 [](const HandPoseT& data)
-                 {
-                     auto obj = std::make_shared<HandPoseTrackedT>();
-                     obj->data = std::make_shared<HandPoseT>(data);
-                     return obj;
-                 }),
-             py::arg("data"))
-        .def_property_readonly(
-            "data", [](const HandPoseTrackedT& self) -> std::shared_ptr<HandPoseT> { return self.data; })
-        .def("__repr__", [](const HandPoseTrackedT& self)
-             { return std::string("HandPoseTrackedT(data=") + (self.data ? "HandPoseT(...)" : "None") + ")"; });
+    bind_record<HandPoseRecord, HandPose>(m, "HandPoseRecord", "HandPose");
 }
 
 } // namespace core

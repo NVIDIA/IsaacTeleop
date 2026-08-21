@@ -21,7 +21,7 @@
 namespace core
 {
 
-using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord, ControllerSnapshot>;
+using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord>;
 
 class LiveControllerTrackerImpl : public IControllerTrackerImpl
 {
@@ -42,8 +42,8 @@ public:
     LiveControllerTrackerImpl& operator=(LiveControllerTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const ControllerSnapshotTrackedT& get_left_controller() const override;
-    const ControllerSnapshotTrackedT& get_right_controller() const override;
+    const Serialized<ControllerSnapshot>& get_left_controller() const override;
+    const Serialized<ControllerSnapshot>& get_right_controller() const override;
     void apply_left_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
     void apply_right_haptic_feedback(float amplitude, float frequency_hz, float duration_s) const override;
 
@@ -90,8 +90,9 @@ private:
     XrSpacePtr left_aim_space_;
     XrSpacePtr right_aim_space_;
 
-    ControllerSnapshotTrackedT left_tracked_;
-    ControllerSnapshotTrackedT right_tracked_;
+    // The snapshots published each frame, encoded from locals in update().
+    Serialized<ControllerSnapshot> left_tracked_;
+    Serialized<ControllerSnapshot> right_tracked_;
     int64_t last_update_time_ = 0;
 
     // Once-per-side log gates for OpenXR haptic call failures. Indexed by

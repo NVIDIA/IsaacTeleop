@@ -22,6 +22,7 @@
 #include <deviceio_trackers/full_body_tracker.hpp>
 #include <oxr/oxr_session.hpp>
 #include <schema/full_body_generated.h>
+#include <schema/serialized.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -51,9 +52,9 @@ void print_joint(const char* label, const core::BodyJointPose& joint)
     }
 }
 
-void print_body_pose(const core::FullBodyPoseT& data, size_t sample_count)
+void print_body_pose(const core::FullBodyPose& data, size_t sample_count)
 {
-    const auto& joints = *data.joints->joints();
+    const auto& joints = *data.joints()->joints();
 
     uint32_t valid_count = 0;
     for (uint32_t i = 0; i < core::FullBodyTracker::JOINT_COUNT; ++i)
@@ -112,12 +113,12 @@ try
         // Update session (this calls update on all trackers).
         session->update();
 
-        // Print current data if available. tracked.data is null only in limp mode (body tracking
+        // Print current data if available. The handle is empty only in limp mode (body tracking
         // unsupported); a supported-but-untracked body still delivers data with valid=0/24 joints.
         const auto& tracked = tracker->get_body_pose(*session);
-        if (tracked.data)
+        if (const auto* body = tracked.get())
         {
-            print_body_pose(*tracked.data, received_count++);
+            print_body_pose(*body, received_count++);
         }
         else if (tick_count % 30 == 0)
         {

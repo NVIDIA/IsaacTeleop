@@ -390,7 +390,6 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
         ControllerInputState,
         ControllerPose,
         ControllerSnapshot,
-        ControllerSnapshotTrackedT,
         Point,
         Pose,
         Quaternion,
@@ -410,7 +409,7 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
             squeeze_value=0.0,
             trigger_value=trigger,
         )
-        return ControllerSnapshotTrackedT(ControllerSnapshot(pose, pose, state))
+        return ControllerSnapshot(pose, pose, state)
 
     from isaacteleop.retargeting_engine.interface import ValueInput
 

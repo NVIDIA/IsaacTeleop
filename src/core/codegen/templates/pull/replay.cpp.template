@@ -21,7 +21,7 @@ namespace core
 {
     // No-op: members set in the initializer list.
 }
-const @TRACKED_TYPE@& @REPLAY_IMPL@::get_data() const
+const Serialized<@FB_TABLE@>& @REPLAY_IMPL@::get_data() const
 {
     return tracked_;
 }
@@ -30,7 +30,7 @@ void @REPLAY_IMPL@::update(int64_t /*monotonic_time_ns*/)
     auto record = mcap_viewers_->read(0);
     if (record)
     {
-        tracked_.data = std::move(record->data);
+        tracked_ = record.narrow(record->data());
         warned_no_data_ = false;
     }
     else
@@ -40,7 +40,7 @@ void @REPLAY_IMPL@::update(int64_t /*monotonic_time_ns*/)
             std::cerr << no_data_message_ << std::endl;
             warned_no_data_ = true;
         }
-        tracked_.data.reset();
+        tracked_.reset();
     }
 }
 } // namespace core

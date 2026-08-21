@@ -4,7 +4,7 @@
 """
 Full Body Source Node - DeviceIO to Retargeting Engine converter.
 
-Converts raw FullBodyPoseT flatbuffer data to standard FullBodyInput tensor format.
+Converts raw FullBodyPose flatbuffer data to standard FullBodyInput tensor format.
 """
 
 import numpy as np
@@ -22,15 +22,15 @@ from .deviceio_tensor_types import DeviceIOFullBodyPoseTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker, TrackerVendor
-    from isaacteleop.schema import FullBodyPoseT, FullBodyPoseTrackedT
+    from isaacteleop.schema import FullBodyPose
 
 
 class FullBodySource(IDeviceIOSource):
     """
-    Stateless converter: DeviceIO FullBodyPoseT -> FullBodyInput tensors.
+    Stateless converter: DeviceIO FullBodyPose -> FullBodyInput tensors.
 
     Inputs:
-        - "deviceio_full_body": Raw FullBodyPoseT flatbuffer
+        - "deviceio_full_body": Raw FullBodyPose flatbuffer
 
     Outputs (Optional — absent when body tracking is inactive):
         - "full_body": OptionalTensorGroup (check ``.is_none`` before access)
@@ -78,7 +78,7 @@ class FullBodySource(IDeviceIOSource):
 
         Returns:
             Dict with "deviceio_full_body" TensorGroup containing raw
-            FullBodyPoseT data.
+            FullBodyPose data.
         """
         body_pose = self._body_tracker.get_body_pose(deviceio_session)
         source_inputs = self.input_spec()
@@ -103,17 +103,16 @@ class FullBodySource(IDeviceIOSource):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
-        Convert DeviceIO FullBodyPoseT to standard FullBodyInput tensors.
+        Convert DeviceIO FullBodyPose to standard FullBodyInput tensors.
 
         Calls ``set_none()`` on the output when body tracking is inactive.
 
         Args:
-            inputs: Dict with "deviceio_full_body" containing FullBodyPoseTrackedT wrapper
+            inputs: Dict with "deviceio_full_body" containing a FullBodyPose payload
             outputs: Dict with "full_body" OptionalTensorGroup
             context: Shared ComputeContext for the current step (carries GraphTime).
         """
-        tracked: "FullBodyPoseTrackedT" = inputs["deviceio_full_body"][0]
-        body_pose: "FullBodyPoseT | None" = tracked.data
+        body_pose: "FullBodyPose | None" = inputs["deviceio_full_body"][0]
 
         if body_pose is None:
             outputs["full_body"].set_none()

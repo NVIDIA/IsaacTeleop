@@ -9,7 +9,7 @@ void @REPLAY_IMPL@::update(int64_t /*monotonic_time_ns*/)
 {
     // No-op: out-direction trackers have no replay stream.
 }
-void @REPLAY_IMPL@::push(const @DATA_TYPE@&) const
+void @REPLAY_IMPL@::push(const Serialized<@FB_TABLE@>&) const
 {
     // No-op: out-direction trackers have no replay stream.
 }

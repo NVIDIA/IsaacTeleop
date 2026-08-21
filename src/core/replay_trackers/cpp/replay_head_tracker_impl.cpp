@@ -5,6 +5,7 @@
 
 #include <mcap/recording_traits.hpp>
 #include <schema/head_bfbs_generated.h>
+#include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
 
 #include <cassert>
@@ -27,7 +28,7 @@ ReplayHeadTrackerImpl::ReplayHeadTrackerImpl(std::unique_ptr<mcap::McapReader> r
 {
 }
 
-const HeadPoseTrackedT& ReplayHeadTrackerImpl::get_head() const
+const Serialized<HeadPose>& ReplayHeadTrackerImpl::get_head() const
 {
     return tracked_;
 }
@@ -37,12 +38,12 @@ void ReplayHeadTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     auto record = mcap_viewers_->read(0);
     if (record)
     {
-        tracked_.data = std::move(record->data);
+        tracked_ = record.narrow(record->data());
     }
     else
     {
         std::cerr << "ReplayHeadTrackerImpl: head data not found" << std::endl;
-        tracked_.data.reset();
+        tracked_.reset();
     }
 }
 

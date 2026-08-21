@@ -3,8 +3,13 @@
 
 """Isaac Teleop Schema - FlatBuffer message types for teleoperation.
 
-This module provides Python bindings for FlatBuffer-based message types
-used in teleoperation, including poses, and controller data.
+This module provides Python bindings for FlatBuffer-based message types used in
+teleoperation, including poses and controller data.
+
+Each table is a read-only view over its encoded bytes: attribute reads go straight
+into the buffer, and joint arrays come back as zero-copy NumPy views. To produce one,
+call its constructor -- that encodes the arguments and hands back the view, which is
+the only way to build these from Python.
 """
 
 import warnings
@@ -17,69 +22,68 @@ from ._schema import (
     Quaternion,
     Pose,
     # Head-related types.
-    HeadPoseT,
-    HeadPoseTrackedT,
+    HeadPose,
     HeadPoseRecord,
     # Hand-related types.
     HandJoint,
     HandJointPose,
     HandJoints,
-    HandPoseT,
-    HandPoseTrackedT,
+    HandPose,
     HandPoseRecord,
     # Controller-related types.
     ControllerInputState,
     ControllerPose,
     ControllerSnapshot,
-    ControllerSnapshotTrackedT,
     ControllerSnapshotRecord,
     # Pedals-related types.
     Generic3AxisPedalOutput,
-    Generic3AxisPedalOutputTrackedT,
     Generic3AxisPedalOutputRecord,
     # OGLO tactile glove types.
     OgloGloveSample,
-    OgloGloveSampleTrackedT,
     OgloGloveSampleRecord,
     # Joint-state types (generic joint-space devices: leader arms, exoskeletons, ...).
     JointState,
     JointStateOutput,
-    JointStateOutputTrackedT,
     JointStateOutputRecord,
     # SE3 tracker types (generic 6-DoF pose sources: tracker pucks, mocap rigid bodies, ...).
-    # Record classes drop the T suffix in Python by family convention.
-    Se3TrackerPoseT,
-    Se3TrackerPoseTrackedT,
+    Se3TrackerPose,
     Se3TrackerPoseRecord,
     # Message channel types.
     MessageChannelMessages,
-    MessageChannelMessagesTrackedT,
+    MessageChannelMessagesTracked,
     MessageChannelMessagesRecord,
     # Haptic command types (vendor-neutral cross-process device output).
     HapticCommand,
-    pack_haptic_command,
     # Camera-related types.
     StreamType,
     FrameMetadataOak,
-    FrameMetadataOakTrackedT,
     FrameMetadataOakRecord,
     # Full body-related types.
     BodyJoint,
     BodyJointPose,
     BodyJoints,
-    FullBodyPoseT,
-    FullBodyPoseTrackedT,
+    FullBodyPose,
     FullBodyPoseRecord,
 )
 
-# Deprecated aliases for the renamed full-body schema types, resolved lazily via
-# __getattr__ so accessing them emits a DeprecationWarning. Omitted from __all__.
+# Deprecated aliases, resolved lazily via __getattr__ so accessing them emits a
+# DeprecationWarning. Omitted from __all__.
+#
+# The `...T` spellings name the FlatBuffers object-API types, which Python does not see;
+# each alias resolves to the encoded view instead. Reads are identical, but the view is
+# immutable and is built by passing every field to the constructor rather than by
+# assigning attributes afterwards.
+#
 _DEPRECATED_ALIASES = {
     "BodyJointPico": "BodyJoint",
     "BodyJointsPico": "BodyJoints",
-    "FullBodyPosePicoT": "FullBodyPoseT",
-    "FullBodyPosePicoTrackedT": "FullBodyPoseTrackedT",
+    "FullBodyPosePicoT": "FullBodyPose",
     "FullBodyPosePicoRecord": "FullBodyPoseRecord",
+    "HeadPoseT": "HeadPose",
+    "HandPoseT": "HandPose",
+    "Se3TrackerPoseT": "Se3TrackerPose",
+    "MessageChannelMessagesTrackedT": "MessageChannelMessagesTracked",
+    "FullBodyPoseT": "FullBodyPose",
 }
 
 
@@ -103,56 +107,46 @@ __all__ = [
     "Quaternion",
     "Pose",
     # Head types.
-    "HeadPoseT",
-    "HeadPoseTrackedT",
+    "HeadPose",
     "HeadPoseRecord",
     # Hand types.
     "HandJoint",
     "HandJointPose",
     "HandJoints",
-    "HandPoseT",
-    "HandPoseTrackedT",
+    "HandPose",
     "HandPoseRecord",
     # Controller types.
     "ControllerInputState",
     "ControllerPose",
     "ControllerSnapshot",
-    "ControllerSnapshotTrackedT",
     "ControllerSnapshotRecord",
     # Pedals types.
     "Generic3AxisPedalOutput",
-    "Generic3AxisPedalOutputTrackedT",
     "Generic3AxisPedalOutputRecord",
     # OGLO tactile glove types.
     "OgloGloveSample",
-    "OgloGloveSampleTrackedT",
     "OgloGloveSampleRecord",
     # Joint-state types (generic joint-space devices).
     "JointState",
     "JointStateOutput",
-    "JointStateOutputTrackedT",
     "JointStateOutputRecord",
     # SE3 tracker types (generic 6-DoF pose sources).
-    "Se3TrackerPoseT",
-    "Se3TrackerPoseTrackedT",
+    "Se3TrackerPose",
     "Se3TrackerPoseRecord",
     # Message channel types.
     "MessageChannelMessages",
-    "MessageChannelMessagesTrackedT",
+    "MessageChannelMessagesTracked",
     "MessageChannelMessagesRecord",
     # Haptic command types.
     "HapticCommand",
-    "pack_haptic_command",
     # Camera types.
     "StreamType",
     "FrameMetadataOak",
-    "FrameMetadataOakTrackedT",
     "FrameMetadataOakRecord",
     # Full body types.
     "BodyJointPose",
     "BodyJoint",
     "BodyJoints",
-    "FullBodyPoseT",
-    "FullBodyPoseTrackedT",
+    "FullBodyPose",
     "FullBodyPoseRecord",
 ]

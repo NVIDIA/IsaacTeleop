@@ -1,10 +1,11 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <oxr/oxr_session.hpp>
+#include <schema/serialized.hpp>
 
 #include <iostream>
 #include <memory>
@@ -84,14 +85,13 @@ try
         const auto& head_tracked = head_tracker->get_head(*session);
 
         std::cout << "Frame " << i << ":" << std::endl;
-        std::cout << "  Left hand:  " << (left_tracked.data ? "ACTIVE" : "INACTIVE") << std::endl;
-        std::cout << "  Right hand: " << (right_tracked.data ? "ACTIVE" : "INACTIVE") << std::endl;
-        std::cout << "  Head pose:  " << ((head_tracked.data && head_tracked.data->is_valid) ? "VALID" : "INVALID")
-                  << std::endl;
+        std::cout << "  Left hand:  " << (left_tracked ? "ACTIVE" : "INACTIVE") << std::endl;
+        std::cout << "  Right hand: " << (right_tracked ? "ACTIVE" : "INACTIVE") << std::endl;
+        std::cout << "  Head pose:  " << ((head_tracked && head_tracked->is_valid()) ? "VALID" : "INVALID") << std::endl;
 
-        if (head_tracked.data && head_tracked.data->is_valid)
+        if (head_tracked && head_tracked->is_valid())
         {
-            const auto& pos = head_tracked.data->pose->position();
+            const auto& pos = head_tracked->pose()->position();
             std::cout << "    Position: [" << pos.x() << ", " << pos.y() << ", " << pos.z() << "]" << std::endl;
         }
         std::cout << std::endl;

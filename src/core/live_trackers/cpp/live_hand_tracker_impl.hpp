@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -13,6 +13,7 @@
 #include <XR_MNDX_xdev_space.h>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,7 +21,7 @@
 namespace core
 {
 
-using HandMcapChannels = McapTrackerChannels<HandPoseRecord, HandPose>;
+using HandMcapChannels = McapTrackerChannels<HandPoseRecord>;
 
 class LiveHandTrackerImpl : public IHandTrackerImpl
 {
@@ -37,8 +38,8 @@ public:
     LiveHandTrackerImpl& operator=(LiveHandTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const HandPoseTrackedT& get_left_hand() const override;
-    const HandPoseTrackedT& get_right_hand() const override;
+    const Serialized<HandPose>& get_left_hand() const override;
+    const Serialized<HandPose>& get_right_hand() const override;
 
 private:
     void initialize_xdev_hand_trackers(const OpenXRSessionHandles& handles);
@@ -49,8 +50,8 @@ private:
     bool try_create_default_hand_tracker(XrSession session, XrHandEXT hand, std::vector<XrHandTrackerEXT>& trackers);
     void destroy_hand_trackers(std::vector<XrHandTrackerEXT>& trackers);
     void destroy_xdev_list();
-    void update_hand(const std::vector<XrHandTrackerEXT>& trackers, XrTime time, HandPoseTrackedT& tracked);
-    bool try_update_hand(XrHandTrackerEXT tracker, XrTime time, HandPoseTrackedT& tracked);
+    void update_hand(const std::vector<XrHandTrackerEXT>& trackers, XrTime time, std::optional<HandPoseT>& tracked);
+    bool try_update_hand(XrHandTrackerEXT tracker, XrTime time, std::optional<HandPoseT>& tracked);
 
     XrTimeConverter time_converter_;
     XrSpace base_space_;
@@ -59,8 +60,9 @@ private:
     std::vector<XrHandTrackerEXT> right_hand_trackers_;
     XrXDevListMNDX xdev_list_;
 
-    HandPoseTrackedT left_tracked_;
-    HandPoseTrackedT right_tracked_;
+    // The snapshots published each frame, encoded from locals in update().
+    Serialized<HandPose> left_tracked_;
+    Serialized<HandPose> right_tracked_;
     int64_t last_update_time_ = 0;
 
     PFN_xrCreateHandTrackerEXT pfn_create_hand_tracker_;

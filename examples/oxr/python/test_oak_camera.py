@@ -95,12 +95,11 @@ def _run_schema_pusher(
                 elapsed = time.time() - start_time
                 for name, tracker in trackers.items():
                     tracked = tracker.get_data(session)
-                    if (
-                        tracked.data is not None
-                        and tracked.data.sequence_number != last_seq.get(name, -1)
+                    if tracked is not None and tracked.sequence_number != last_seq.get(
+                        name, -1
                     ):
                         metadata_samples[name] = metadata_samples.get(name, 0) + 1
-                        last_seq[name] = tracked.data.sequence_number
+                        last_seq[name] = tracked.sequence_number
 
                 if int(elapsed) > last_print_time:
                     last_print_time = int(elapsed)

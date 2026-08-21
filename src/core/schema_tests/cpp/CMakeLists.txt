@@ -12,6 +12,7 @@ add_executable(schema_tests
   test_controller.cpp
   test_pedals.cpp
   test_se3_tracker.cpp
+  test_serialized.cpp
 )
 target_link_libraries(schema_tests PRIVATE
   isaacteleop_schema

@@ -2,17 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Python bindings for the JointState FlatBuffer schema.
-// Types: JointState (table), JointStateOutput (table), and the Tracked / Record wrappers.
+// Types: JointState (table), JointStateOutput (table) and JointStateOutputRecord,
+// all exposed as encoded views.
 
 #pragma once
+
+#include "schema_serialized.h"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/joint_state_generated.h>
-#include <schema/timestamp_generated.h>
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace py = pybind11;
 
@@ -22,95 +25,72 @@ namespace core
 inline void bind_joint_state(py::module& m)
 {
     // One named DOF (name -> position [+ optional velocity/effort/valid]).
-    py::class_<JointStateT, std::shared_ptr<JointStateT>>(m, "JointState")
-        .def(py::init([]() { return std::make_shared<JointStateT>(); }))
+    serialized_class<JointState>(m, "JointState", "Encoded state of one named joint.")
         .def(py::init(
                  [](const std::string& name, float position, float velocity, float effort, bool valid)
                  {
-                     auto obj = std::make_shared<JointStateT>();
-                     obj->name = name;
-                     obj->position = position;
-                     obj->velocity = velocity;
-                     obj->effort = effort;
-                     obj->valid = valid;
-                     return obj;
+                     JointStateT native;
+                     native.name = name;
+                     native.position = position;
+                     native.velocity = velocity;
+                     native.effort = effort;
+                     native.valid = valid;
+                     return pack<JointState>(native);
                  }),
              py::arg("name"), py::arg("position") = 0.0f, py::arg("velocity") = 0.0f, py::arg("effort") = 0.0f,
-             py::arg("valid") = true)
-        .def_property(
-            "name", [](const JointStateT& self) { return self.name; },
-            [](JointStateT& self, const std::string& val) { self.name = val; })
-        .def_property(
-            "position", [](const JointStateT& self) { return self.position; },
-            [](JointStateT& self, float val) { self.position = val; })
-        .def_property(
-            "velocity", [](const JointStateT& self) { return self.velocity; },
-            [](JointStateT& self, float val) { self.velocity = val; })
-        .def_property(
-            "effort", [](const JointStateT& self) { return self.effort; },
-            [](JointStateT& self, float val) { self.effort = val; })
-        .def_property(
-            "valid", [](const JointStateT& self) { return self.valid; },
-            [](JointStateT& self, bool val) { self.valid = val; })
-        .def("__repr__", [](const JointStateT& self)
-             { return "JointState(name=" + self.name + ", position=" + std::to_string(self.position) + ")"; });
+             py::arg("valid") = true, "Encode one joint's state.")
+        .def_property_readonly("name", string_field(&JointState::name))
+        .def_property_readonly("position", field(&JointState::position))
+        .def_property_readonly("velocity", field(&JointState::velocity))
+        .def_property_readonly("effort", field(&JointState::effort))
+        .def_property_readonly("valid", field(&JointState::valid))
+        .def("__repr__",
+             [](const Serialized<JointState>& self)
+             {
+                 const auto* name = self->name();
+                 return "JointState(name=" + (name != nullptr ? name->str() : std::string{}) +
+                        ", position=" + std::to_string(self->position()) + ")";
+             });
 
     // Per-frame device state: a list of named joints plus identity / capability flags.
-    py::class_<JointStateOutputT, std::shared_ptr<JointStateOutputT>>(m, "JointStateOutput")
-        .def(py::init([]() { return std::make_shared<JointStateOutputT>(); }))
-        .def_property(
-            "joints", [](const JointStateOutputT& self) { return self.joints; },
-            [](JointStateOutputT& self, std::vector<std::shared_ptr<JointStateT>> val) { self.joints = std::move(val); })
-        .def_property(
-            "device_id", [](const JointStateOutputT& self) { return self.device_id; },
-            [](JointStateOutputT& self, const std::string& val) { self.device_id = val; })
-        .def_property(
-            "has_velocity", [](const JointStateOutputT& self) { return self.has_velocity; },
-            [](JointStateOutputT& self, bool val) { self.has_velocity = val; })
-        .def_property(
-            "has_effort", [](const JointStateOutputT& self) { return self.has_effort; },
-            [](JointStateOutputT& self, bool val) { self.has_effort = val; })
-        .def_property(
-            "ee_pose_valid", [](const JointStateOutputT& self) { return self.ee_pose_valid; },
-            [](JointStateOutputT& self, bool val) { self.ee_pose_valid = val; })
+    serialized_class<JointStateOutput>(
+        m, "JointStateOutput", "Encoded joint-space device state: named joints plus capability flags.")
+        .def(py::init(
+                 [](const std::vector<Serialized<JointState>>& joints, const std::string& device_id, bool has_velocity,
+                    bool has_effort, const Pose* ee_pose, bool ee_pose_valid)
+                 {
+                     JointStateOutputT native;
+                     native.joints = to_native_vector(joints, "joints");
+                     native.device_id = device_id;
+                     native.has_velocity = has_velocity;
+                     native.has_effort = has_effort;
+                     if (ee_pose != nullptr)
+                     {
+                         native.ee_pose = std::make_shared<Pose>(*ee_pose);
+                     }
+                     native.ee_pose_valid = ee_pose_valid;
+                     return pack<JointStateOutput>(native);
+                 }),
+             py::arg("joints") = std::vector<Serialized<JointState>>{}, py::arg("device_id") = std::string{},
+             py::arg("has_velocity") = false, py::arg("has_effort") = false, py::arg("ee_pose") = nullptr,
+             py::arg("ee_pose_valid") = false, "Encode a joint-space device state.")
+        .def_property_readonly("joints", [](const Serialized<JointStateOutput>& self)
+                               { return narrow_vector(self, self ? self->joints() : nullptr); })
+        .def_property_readonly("device_id", string_field(&JointStateOutput::device_id))
+        .def_property_readonly("has_velocity", field(&JointStateOutput::has_velocity))
+        .def_property_readonly("has_effort", field(&JointStateOutput::has_effort))
+        .def_property_readonly("ee_pose", field(&JointStateOutput::ee_pose), py::return_value_policy::reference_internal)
+        .def_property_readonly("ee_pose_valid", field(&JointStateOutput::ee_pose_valid))
         .def("__repr__",
-             [](const JointStateOutputT& self) {
-                 return "JointStateOutput(device_id=" + self.device_id +
-                        ", joints=" + std::to_string(self.joints.size()) + ")";
+             [](const Serialized<JointStateOutput>& self)
+             {
+                 const auto* device_id = self->device_id();
+                 const auto* joints = self->joints();
+                 return "JointStateOutput(device_id=" + (device_id != nullptr ? device_id->str() : std::string{}) +
+                        ", joints=" + std::to_string(joints != nullptr ? joints->size() : 0) + ")";
              });
 
-    py::class_<JointStateOutputRecordT, std::shared_ptr<JointStateOutputRecordT>>(m, "JointStateOutputRecord")
-        .def(py::init<>())
-        .def(py::init(
-                 [](const JointStateOutputT& data, const DeviceDataTimestamp& timestamp)
-                 {
-                     auto obj = std::make_shared<JointStateOutputRecordT>();
-                     obj->data = std::make_shared<JointStateOutputT>(data);
-                     obj->timestamp = std::make_shared<core::DeviceDataTimestamp>(timestamp);
-                     return obj;
-                 }),
-             py::arg("data"), py::arg("timestamp"))
-        .def_property_readonly(
-            "data", [](const JointStateOutputRecordT& self) -> std::shared_ptr<JointStateOutputT> { return self.data; })
-        .def_readonly("timestamp", &JointStateOutputRecordT::timestamp);
-
-    py::class_<JointStateOutputTrackedT, std::shared_ptr<JointStateOutputTrackedT>>(m, "JointStateOutputTrackedT")
-        .def(py::init<>())
-        .def(py::init(
-                 [](const JointStateOutputT& data)
-                 {
-                     auto obj = std::make_shared<JointStateOutputTrackedT>();
-                     obj->data = std::make_shared<JointStateOutputT>(data);
-                     return obj;
-                 }),
-             py::arg("data"))
-        .def_property_readonly(
-            "data", [](const JointStateOutputTrackedT& self) -> std::shared_ptr<JointStateOutputT> { return self.data; })
-        .def("__repr__",
-             [](const JointStateOutputTrackedT& self) {
-                 return std::string("JointStateOutputTrackedT(data=") + (self.data ? "JointStateOutput(...)" : "None") +
-                        ")";
-             });
+    bind_record<JointStateOutputRecord, JointStateOutput>(m, "JointStateOutputRecord", "JointStateOutput");
 }
 
 } // namespace core

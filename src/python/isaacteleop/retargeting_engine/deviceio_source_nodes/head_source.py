@@ -4,7 +4,7 @@
 """
 Head Source Node - DeviceIO to Retargeting Engine converter.
 
-Converts raw HeadPoseT flatbuffer data to standard HeadInput tensor format.
+Converts raw HeadPose flatbuffer data to standard HeadInput tensor format.
 """
 
 import numpy as np
@@ -23,17 +23,18 @@ from .deviceio_tensor_types import DeviceIOHeadPoseTracked
 
 if TYPE_CHECKING:
     from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import HeadPoseT, HeadPoseTrackedT
+
+    from isaacteleop.schema import HeadPose
 
 
 class HeadSource(IDeviceIOSource):
     """
-    Stateless converter: DeviceIO HeadPoseT → HeadInput tensor.
+    Stateless converter: schema HeadPose → HeadInput tensor.
 
     Inputs:
-        - "deviceio_head": Raw HeadPoseTrackedT wrapper from DeviceIO
+        - "deviceio_head": Raw HeadPose flatbuffer object from DeviceIO
 
-    Outputs (Optional — absent only when ``tracked.data is None``):
+    Outputs (Optional — absent only when the head payload is None):
         - "head": OptionalTensorGroup. When present, consumers must check
           ``HeadInputIndex.IS_VALID`` before reading the pose, and
           ``HeadInputIndex.IS_TRACKED`` before treating it as live tracking.
@@ -74,7 +75,7 @@ class HeadSource(IDeviceIOSource):
             deviceio_session: The active DeviceIO session.
 
         Returns:
-            Dict with "deviceio_head" TensorGroup containing HeadPoseTrackedT.
+            Dict with "deviceio_head" TensorGroup containing HeadPose.
         """
         tracked = self._head_tracker.get_head(deviceio_session)
         source_inputs = self.input_spec()
@@ -95,19 +96,18 @@ class HeadSource(IDeviceIOSource):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """
-        Convert DeviceIO HeadPoseTrackedT to standard HeadInput tensor.
+        Convert DeviceIO HeadPose to standard HeadInput tensor.
 
-        Calls ``set_none()`` on the output only when ``tracked.data is None``.
+        Calls ``set_none()`` on the output only when the head payload is None.
         When data is present, pose/is_valid/is_tracked are always emitted —
         consumers must gate on ``IS_VALID`` / ``IS_TRACKED`` before use.
 
         Args:
-            inputs: Dict with "deviceio_head" containing HeadPoseTrackedT wrapper
+            inputs: Dict with "deviceio_head" containing a HeadPose payload
             outputs: Dict with "head" OptionalTensorGroup
             context: ComputeContext (unused by this converter node).
         """
-        tracked: "HeadPoseTrackedT" = inputs["deviceio_head"][0]
-        head_pose: "HeadPoseT | None" = tracked.data
+        head_pose: "HeadPose | None" = inputs["deviceio_head"][0]
 
         output = outputs["head"]
         if head_pose is None:

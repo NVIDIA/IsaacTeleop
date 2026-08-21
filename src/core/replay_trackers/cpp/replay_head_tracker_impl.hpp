@@ -27,10 +27,10 @@ public:
     ReplayHeadTrackerImpl& operator=(ReplayHeadTrackerImpl&&) = delete;
 
     void update(int64_t monotonic_time_ns) override;
-    const HeadPoseTrackedT& get_head() const override;
+    const Serialized<HeadPose>& get_head() const override;
 
 private:
-    HeadPoseTrackedT tracked_;
+    Serialized<HeadPose> tracked_;
     std::unique_ptr<HeadMcapViewers> mcap_viewers_;
 };
 

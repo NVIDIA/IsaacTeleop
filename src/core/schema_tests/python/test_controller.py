@@ -343,10 +343,11 @@ class TestControllerSnapshotRecordTimestamp:
         assert record.data is not None
         assert record.data.inputs.primary_click is True
 
-    def test_default_construction(self):
-        """Test default ControllerSnapshotRecord has no data."""
-        record = ControllerSnapshotRecord()
+    def test_payload_less_record(self):
+        """A record may carry a timestamp and no payload: MCAP's frame sentinel."""
+        record = ControllerSnapshotRecord(None, DeviceDataTimestamp(1, 2, 3))
         assert record.data is None
+        assert record.timestamp.available_time_local_common_clock == 1
 
     def test_timestamp_fields(self):
         """Test all three DeviceDataTimestamp fields are accessible."""

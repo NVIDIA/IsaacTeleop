@@ -14,6 +14,6 @@ class @REPLAY_IMPL@ : public @IFACE@
 public:
     @REPLAY_IMPL@() = default;
     void update(int64_t monotonic_time_ns) override;
-    void push(const @DATA_TYPE@&) const override;
+    void push(const Serialized<@FB_TABLE@>&) const override;
 };
 } // namespace core

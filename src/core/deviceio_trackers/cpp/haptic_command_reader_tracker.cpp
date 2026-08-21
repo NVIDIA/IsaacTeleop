@@ -21,13 +21,13 @@ HapticCommandReaderTracker::HapticCommandReaderTracker(const std::string& collec
     }
 }
 
-const HapticCommandTrackedT& HapticCommandReaderTracker::get_data(const ITrackerSession& session) const
+const Serialized<HapticCommand>& HapticCommandReaderTracker::get_data(const ITrackerSession& session) const
 {
     return static_cast<const IHapticCommandReaderTrackerImpl&>(session.get_tracker_impl(*this)).get_data();
 }
 
-const HapticCommandTrackedT& HapticCommandReaderTracker::get_data(const ITrackerSession& session,
-                                                                  std::string_view endpoint) const
+const Serialized<HapticCommand>& HapticCommandReaderTracker::get_data(const ITrackerSession& session,
+                                                                      std::string_view endpoint) const
 {
     return static_cast<const IHapticCommandReaderTrackerImpl&>(session.get_tracker_impl(*this)).get_data(endpoint);
 }

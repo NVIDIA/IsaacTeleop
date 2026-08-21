@@ -5,14 +5,15 @@
 
 #include "tracker.hpp"
 
+#include <schema/serialized.hpp>
+
 #include <cstdint>
 #include <vector>
 
 namespace core
 {
 
-struct MessageChannelMessagesT;
-struct MessageChannelMessagesTrackedT;
+struct MessageChannelMessagesTracked;
 
 enum class MessageChannelStatus : int32_t
 {
@@ -27,7 +28,7 @@ class IMessageChannelTrackerImpl : public ITrackerImpl
 {
 public:
     virtual MessageChannelStatus get_status() const = 0;
-    virtual const MessageChannelMessagesTrackedT& get_messages() const = 0;
+    virtual const Serialized<MessageChannelMessagesTracked>& get_messages() const = 0;
     virtual void send_message(const std::vector<uint8_t>& payload) const = 0;
 };
 
