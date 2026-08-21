@@ -90,6 +90,7 @@ def main():
     with CloudXRLauncher.launch_context(args):
         with TeleopSession(session_config) as session:
             start_time = time.time()
+            prev_pressed: set[str] = set()
 
             while time.time() - start_time < 30.0:
                 result = session.step()
@@ -102,14 +103,27 @@ def main():
                         end="\r",
                         flush=True,
                     )
-                else:
-                    pressed = [name for name, index in _PRINT_KEYS if bool(keys[index])]
-                    print(
-                        f"[{elapsed:5.1f}s] Pressed: {' '.join(pressed) or '-'}"
-                        + " " * 20,
-                        end="\r",
-                        flush=True,
-                    )
+                    time.sleep(0.01)
+                    continue
+
+                pressed = {name for name, index in _PRINT_KEYS if bool(keys[index])}
+
+                # Live status line (overwritten each frame).
+                print(
+                    f"[{elapsed:5.1f}s] Held: {' '.join(sorted(pressed)) or '-'}"
+                    + " " * 20,
+                    end="\r",
+                    flush=True,
+                )
+
+                # Permanent, scrollable log of every press/release transition -- a
+                # quick tap can flash by on the status line above before you notice
+                # it, but every transition is logged here.
+                for name in sorted(pressed - prev_pressed):
+                    print(f"[{elapsed:5.1f}s] {name} down")
+                for name in sorted(prev_pressed - pressed):
+                    print(f"[{elapsed:5.1f}s] {name} up")
+                prev_pressed = pressed
 
                 time.sleep(0.01)  # ~100 FPS
 
