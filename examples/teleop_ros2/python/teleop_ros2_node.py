@@ -16,7 +16,7 @@ published:
                        and TF transforms for left/right wrists and head
   - hand_teleop: ee_poses (from hand tracking wrists), hand (named left and
                  right joint poses),
-                 finger_joints (retargeted Sharpa joint angles),
+                 finger_joints (retargeted Sharpa or Wuji joint angles),
                  root_twist/root_pose (from foot pedal locomotion), head_pose,
                  and TF transforms for left/right wrists and head
   - controller_raw: controller_data only
@@ -123,7 +123,7 @@ class TeleopRos2Node(Node):
             self._params.right_wrist_frame,
             self._params.transform_rotation,
             self._params.transform_translation,
-            self._params.controller_uses_hands_source,
+            self._params.apply_manus_controller_to_hand_transform,
         )
         self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:

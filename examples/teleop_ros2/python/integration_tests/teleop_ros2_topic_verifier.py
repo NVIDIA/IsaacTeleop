@@ -12,10 +12,16 @@ import math
 import sys
 import time
 from collections.abc import Callable
+from functools import partial
 
 import msgpack
 import rclpy
-from constants import TELEOP_MODES
+from constants import (
+    HAND_RETARGETERS,
+    LEFT_WUJI_HAND_JOINT_NAMES,
+    RIGHT_WUJI_HAND_JOINT_NAMES,
+    TELEOP_MODES,
+)
 from geometry_msgs.msg import PoseStamped, TwistStamped
 from isaacteleop.retargeting_engine.tensor_types.indices import (
     BodyJointIndex,
@@ -172,15 +178,27 @@ def _assert_pose_stamped(
         raise ValueError("PoseStamped position is all zero")
 
 
-def _assert_joint_state(msg: JointState) -> None:
+def _assert_joint_state(
+    msg: JointState,
+    *,
+    expected_names: list[str] | None = None,
+    require_nonzero: bool = False,
+) -> None:
     if msg.header.frame_id != "world":
         raise ValueError(f"unexpected frame_id {msg.header.frame_id!r}")
-    if not msg.name:
+    names = list(msg.name)
+    if not names:
         raise ValueError("JointState names are empty")
-    if len(msg.position) != len(msg.name):
+    if len(set(names)) != len(names):
+        raise ValueError("JointState names are not unique")
+    if expected_names is not None and names != expected_names:
+        raise ValueError("JointState names do not match the expected order")
+    if len(msg.position) != len(names):
         raise ValueError("JointState names and positions differ in length")
     if not _is_finite_sequence(msg.position):
         raise ValueError("JointState positions contain non-finite values")
+    if require_nonzero and not any(abs(float(value)) > 1e-6 for value in msg.position):
+        raise ValueError("JointState positions are all zero")
 
 
 def _assert_twist(msg: TwistStamped) -> None:
@@ -260,16 +278,28 @@ def _assert_full_body_payload(msg: ByteMultiArray) -> None:
     _assert_noncollinear_positions(valid_positions, "full-body joint")
 
 
+def _finger_joint_validator(hand_retargeter: str) -> Callable:
+    if hand_retargeter == "wuji":
+        return partial(
+            _assert_joint_state,
+            expected_names=(LEFT_WUJI_HAND_JOINT_NAMES + RIGHT_WUJI_HAND_JOINT_NAMES),
+            require_nonzero=True,
+        )
+    return _assert_joint_state
+
+
 class TopicVerifier(Node):
     """Small ROS 2 node that waits for mode-specific verified messages."""
 
-    def __init__(self, mode: str) -> None:
+    def __init__(self, mode: str, hand_retargeter: str) -> None:
         super().__init__("teleop_ros2_topic_verifier")
         self._pending: set[str] = set()
         self._errors: dict[str, str] = {}
         self._seen_tf_frames: set[str] = set()
 
-        for name, topic, msg_type, validator in self._expected_subscriptions(mode):
+        for name, topic, msg_type, validator in self._expected_subscriptions(
+            mode, hand_retargeter
+        ):
             self._pending.add(name)
             self.create_subscription(
                 msg_type, topic, self._make_callback(name, validator), 10
@@ -315,10 +345,10 @@ class TopicVerifier(Node):
         self._pending.discard("tf")
 
     def _expected_subscriptions(
-        self, mode: str
+        self, mode: str, hand_retargeter: str
     ) -> list[tuple[str, str, type, Callable]]:
         if mode == "controller_teleop":
-            return [
+            subscriptions = [
                 (
                     "ee_poses",
                     "xr_teleop/ee_poses",
@@ -332,7 +362,7 @@ class TopicVerifier(Node):
                     "finger_joints",
                     "xr_teleop/finger_joints",
                     JointState,
-                    _assert_joint_state,
+                    _finger_joint_validator(hand_retargeter),
                 ),
                 (
                     "controller_data",
@@ -341,6 +371,17 @@ class TopicVerifier(Node):
                     _assert_controller_payload,
                 ),
             ]
+            if hand_retargeter in ("dexpilot", "pink_ik", "wuji"):
+                subscriptions.insert(
+                    0,
+                    (
+                        "hand",
+                        "xr_teleop/hand",
+                        NamedPoseArray,
+                        _assert_hand_pose_array,
+                    ),
+                )
+            return subscriptions
         if mode == "hand_teleop":
             return [
                 (
@@ -362,7 +403,7 @@ class TopicVerifier(Node):
                     "finger_joints",
                     "xr_teleop/finger_joints",
                     JointState,
-                    _assert_joint_state,
+                    _finger_joint_validator(hand_retargeter),
                 ),
             ]
         if mode == "controller_raw":
@@ -395,6 +436,11 @@ class TopicVerifier(Node):
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=TELEOP_MODES, required=True)
+    parser.add_argument(
+        "--hand-retargeter",
+        choices=HAND_RETARGETERS,
+        default="mode_default",
+    )
     parser.add_argument("--timeout", type=float, default=20.0)
     return parser.parse_args()
 
@@ -402,7 +448,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     rclpy.init()
-    verifier = TopicVerifier(args.mode)
+    verifier = TopicVerifier(args.mode, args.hand_retargeter)
     try:
         deadline = time.monotonic() + args.timeout
         while verifier.pending and time.monotonic() < deadline:
@@ -417,7 +463,10 @@ def main() -> int:
                 print(f"  {name}: {error}", file=sys.stderr)
             return 1
 
-        print(f"Verified teleop_ros2 topics for mode {args.mode}")
+        print(
+            "Verified teleop_ros2 topics for "
+            f"mode {args.mode} and hand retargeter {args.hand_retargeter}"
+        )
         return 0
     finally:
         verifier.destroy_node()

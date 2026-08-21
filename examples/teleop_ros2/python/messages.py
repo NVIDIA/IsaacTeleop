@@ -67,7 +67,7 @@ def _compute_ee_pose_from_controller(
     side: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
-    controller_uses_hands_source: bool = False,
+    apply_manus_controller_to_hand_transform: bool = False,
 ) -> Pose | None:
     if not controller_aim_is_valid(ctrl):
         return None
@@ -79,7 +79,7 @@ def _compute_ee_pose_from_controller(
     if transform_rot is not None or transform_trans is not None:
         pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
 
-    if controller_uses_hands_source:
+    if apply_manus_controller_to_hand_transform:
         pose = apply_manus_controller_to_hand_pose(pose, side)
 
     return pose
@@ -244,7 +244,7 @@ def build_ee_output_from_controllers(
     right_wrist_frame: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
-    controller_uses_hands_source: bool = False,
+    apply_manus_controller_to_hand_transform: bool = False,
 ) -> tuple[NamedPoseArray, list[TransformStamped]]:
     """Build the controller-derived EE message and its valid wrist TFs."""
     left_pose = _compute_ee_pose_from_controller(
@@ -252,14 +252,14 @@ def build_ee_output_from_controllers(
         "left",
         transform_rot,
         transform_trans,
-        controller_uses_hands_source,
+        apply_manus_controller_to_hand_transform,
     )
     right_pose = _compute_ee_pose_from_controller(
         right_ctrl,
         "right",
         transform_rot,
         transform_trans,
-        controller_uses_hands_source,
+        apply_manus_controller_to_hand_transform,
     )
     ee_msg = _compose_ee_msg(left_pose, right_pose, now, frame_id)
     return ee_msg, _wrist_tfs_from_ee_msg(
