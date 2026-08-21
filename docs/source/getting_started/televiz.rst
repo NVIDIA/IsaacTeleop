@@ -64,9 +64,7 @@ Four layer types are available:
   ``(color, depth)`` buffers. Use it to present a rendered 3D scene from the current head pose.
 
 A session holds **either** one ``ProjectionLayer`` **or** any number of texture layers
-(``QuadLayer`` / ``CylinderLayer`` / ``EquirectLayer``), not both. The texture layers share one
-submission API and differ only in the surface the texture is mapped onto; a projection layer is
-presented directly (see `ProjectionLayer`_).
+(``QuadLayer`` / ``CylinderLayer`` / ``EquirectLayer``), never both — see `Layers`_.
 
 All symbols are imported from the top-level module::
 
@@ -176,14 +174,58 @@ Construct the session with the factory; never call the class directly:
 Layers
 ------
 
+Layers come in two families, and a session holds one family or the other:
+
+* **Texture layers** — ``QuadLayer``, ``CylinderLayer``, ``EquirectLayer``. A session can hold any
+  number of them. All three take the same configuration, are fed by the same ``submit()``, and are
+  composited the same way; they differ *only* in the surface the texture is mapped onto — a flat
+  plane, a curved arc, or a sphere. The three sections at the end of this chapter cover just that
+  difference; everything before them applies to all of them.
+* **Projection layer** — one ``ProjectionLayer``, a full-view RGBD layer for an in-loop renderer.
+  A session holds at most one, and never alongside a texture layer. See `ProjectionLayer`_.
+
 Layers render in **insertion order** — the first added renders first (underneath). A layer is owned
 by the session; ``add_quad_layer`` returns a **non-owning** handle, so don't keep it past the
 session's lifetime.
 
-QuadLayer
-^^^^^^^^^
+.. _openxr-composition-layers:
 
-A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
+Composition model
+^^^^^^^^^^^^^^^^^
+
+In XR, each texture layer is handed to the OpenXR runtime as its own composition layer
+(``XrCompositionLayerQuad`` / ``CylinderKHR`` / ``Equirect2KHR``) rather than drawn by Televiz; the
+runtime places, samples, and reprojects it at display rate. That keeps text and fine detail sharp
+under head motion, and it lets CloudXR stream color-only video when every visible layer is
+runtime-composited and opaque — the headset then rebuilds the composition from the layer geometry
+at lower bandwidth.
+
+Three consequences, in rough order of how often they bite:
+
+* **Runtime-composited layers carry no depth.** They blend in insertion order, so a foreground
+  overlay added before a camera feed renders *behind* it no matter where the two sit in 3D. Add
+  backgrounds — an ``EquirectLayer`` panorama, say — first.
+* **Alpha is ignored unless you ask for it.** ``alpha_blend`` (default off) makes the runtime honor
+  the texture's alpha channel — turn it on for translucent content such as a HUD. Keep it off on
+  opaque camera feeds: as long as no visible layer uses source alpha, CloudXR can stream the layers
+  themselves and let the headset rebuild the composition, rather than sending a fully composited
+  stereo frame. That is less to encode and less on the wire every frame — lower bandwidth, and
+  lower latency on a constrained link. A single visible alpha-blended layer disqualifies the whole
+  frame.
+* **Mipmaps only exist on the built-in path.** ``generate_mipmaps`` applies when Televiz does the
+  drawing; the runtime samples native layers itself. On the default XR path the flag has no effect.
+
+``QuadLayer`` is the one layer with a choice, which is why ``openxr_composition`` and
+``generate_mipmaps`` appear on its config and on no other. Set ``openxr_composition = False`` to
+draw the quad with Televiz's built-in compositor instead, where 3D-placed quads depth-test against
+each other in a shared render target — the way out of the no-depth constraint above. Cylinder and
+equirect layers have no such switch: they exist only as native runtime layers, and therefore only in
+XR. Window and offscreen modes always use the built-in compositor.
+
+Shared configuration
+^^^^^^^^^^^^^^^^^^^^
+
+``QuadLayerConfig``, ``CylinderLayerConfig``, and ``EquirectLayerConfig`` all carry these fields:
 
 .. list-table::
    :header-rows: 1
@@ -203,30 +245,93 @@ A 2D plane fed by a CUDA buffer. Configure it with ``QuadLayerConfig``:
      - ``PixelFormat`` of the source (typically ``kRGBA8``).
    * - ``placement``
      - —
-     - Optional ``QuadLayerPlacement`` (``pose`` + ``size_meters``) for 3D placement in XR.
+     - Where and how big the surface is. Each layer has its own placement type describing its own
+       geometry — see the per-layer sections below.
    * - ``stereo``
      - ``False``
      - Per-eye stereo. When ``True``, ``submit`` requires both eyes' buffers; view 0 (left) samples
        the left buffer, view 1 (right) the right. Memory doubles.
    * - ``stereo_baseline_mm``
      - ``0``
-     - Horizontal disparity between the left/right planes (mm), along the placement's local +x axis.
-       ``0`` → both eyes see the same world quad. XR + stereo only.
-   * - ``generate_mipmaps``
-     - ``True``
-     - Allocate + regenerate a capped mip chain each frame; sampler uses trilinear filtering.
-   * - ``openxr_composition``
-     - ``True``
-     - Who composites the quad in XR: ``True`` = the OpenXR runtime (submitted as an
-       ``XrCompositionLayerQuad``), ``False`` = Televiz's built-in compositor (shared render
-       target, where 3D-placed quads depth-test against each other). See
-       `OpenXR composition layers`_.
+     - Horizontal disparity between the per-eye surfaces (mm), along the placement's local +x axis.
+       ``0`` → both eyes see the same surface in the world, and any parallax comes from the frames
+       themselves. XR + stereo only, and no effect on an infinite-radius equirect sphere.
    * - ``alpha_blend``
      - ``False``
-     - Honor the texture's alpha channel (translucent content). OpenXR composition only;
-       ignored on the built-in compositor path.
+     - Honor the texture's alpha channel (translucent content). Runtime composition only; ignored
+       on the built-in compositor path.
 
-Submit and place a frame:
+Stereo works the same way on every surface, following the VR-video convention: per-eye textures on
+the *same* surface, with ``stereo_baseline_mm`` adding an optional per-eye pose shift on top.
+
+Submitting frames
+^^^^^^^^^^^^^^^^^
+
+Every texture layer (``QuadLayer`` / ``CylinderLayer`` / ``EquirectLayer``) takes content through
+the same ``submit()``. What a frame must be:
+
+* **GPU-resident.** A ``VizBuffer`` in device memory, or any object exposing
+  ``__cuda_array_interface__`` (CuPy, PyTorch, Numba). A host buffer is rejected — the teleop hot
+  path never round-trips through system memory.
+* **RGBA8**, matching the layer's ``format``.
+* **Exactly the layer's resolution.** Submitted dimensions are checked against ``resolution``, not
+  scaled — resize upstream.
+
+Three properties of ``submit()`` decide how you structure the producer around it:
+
+**It is a latest-wins mailbox, not a queue.** Each layer owns a small ring of device images.
+``submit()`` copies your pixels into a slot no in-flight frame is reading, then publishes it; the
+renderer always picks up the most recent completed publish. A producer faster than the display
+rate therefore **drops** frames rather than queueing or blocking, and a producer slower than the
+display rate has its last frame re-presented. Neither side waits on the other, and no frame is
+ever shown half-updated.
+
+**It blocks until the copy completes.** ``submit()`` synchronizes ``stream`` before returning, so
+your source buffer is free to reuse the moment it does — no fences to manage, no lifetime rules
+past the call. The cost lands on the calling thread (see `Performance and diagnostics`_), not on
+the render path, which is why capture threads should call ``submit()`` directly rather than
+funnelling frames to the render thread.
+
+**One producer per layer.** ``submit()`` is safe against the renderer consuming the same layer
+concurrently, but *not* against a second thread submitting to the same layer. Give each producer
+its own layer.
+
+.. warning::
+
+   **Stereo submits carry a stream precondition.** ``submit(left, right, stream=...)`` copies both
+   eyes on the single ``stream`` you pass. CUDA orders work only within one stream, so if either
+   buffer was produced on a *different* stream, synchronize that stream first — either
+   ``cudaStreamSynchronize`` on the producer stream, or record an event there and
+   ``cudaStreamWaitEvent`` it on ``stream``. Skip it and that eye can be copied mid-write: torn or
+   stale pixels, with no error raised. The in-tree ZED and OAK-D sources synchronize per eye
+   before publishing, which is what makes their plain ``submit(left, right)`` (stream 0) safe.
+
+
+QuadLayer
+^^^^^^^^^
+
+A flat plane — the default surface, and the right one for normal-FOV camera feeds. Beyond the
+`Shared configuration`_ fields, ``QuadLayerConfig`` adds the two composition knobs, which exist here
+because the quad is the only layer that can be drawn either way:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 14 60
+
+   * - Field
+     - Default
+     - Description
+   * - ``generate_mipmaps``
+     - ``True``
+     - Allocate + regenerate a capped mip chain each frame; sampler uses trilinear filtering. Only
+       applies on the built-in compositor path.
+   * - ``openxr_composition``
+     - ``True``
+     - ``True`` = the OpenXR runtime composites the quad, ``False`` = Televiz's built-in
+       compositor. See `Composition model`_.
+
+Its placement is a ``QuadLayerPlacement`` — a ``pose`` plus ``size_meters``. It is optional:
+a quad with no placement fills the window in window mode.
 
 .. code-block:: python
 
@@ -244,23 +349,16 @@ Submit and place a frame:
    layer.set_placement(placement)
    layer.set_visible(True)
 
-``submit(left, right=None, stream=0)`` accepts a ``VizBuffer`` or any
-``__cuda_array_interface__`` object; the binding converts it and releases the GIL across the copy.
-For a stereo layer both buffers are copied on the same stream and signaled together, so the renderer
-never sees a half-matched pair. Lock-mode placement strategies (``world`` / ``head`` / ``lazy`` / ``gimbal``) are
-**application policy** and ship in the sample, not in the module.
+Lock-mode placement strategies (``world`` / ``head`` / ``lazy`` / ``gimbal``) are **application
+policy** and ship in the sample, not in the module.
 
 CylinderLayer
 ^^^^^^^^^^^^^
 
-The same CUDA-fed texture, curved onto the inside of a vertical cylinder arc. Every point on the
-surface sits at the same distance from the cylinder's axis, which makes it the natural surface for
-wide-FOV camera feeds — a flat quad wide enough for a 110° image would put its edges much farther
-from the eye than its center.
-
-``CylinderLayerConfig`` carries the same ``name`` / ``resolution`` / ``format`` / ``stereo`` /
-``stereo_baseline_mm`` / ``alpha_blend`` fields as ``QuadLayerConfig``, plus a
-``CylinderLayerPlacement`` describing the arc:
+The texture curved onto the inside of a vertical cylinder arc. Every point on the surface sits at
+the same distance from the cylinder's axis, which makes it the natural surface for wide-FOV camera
+feeds — a flat quad wide enough for a 110° image would put its edges much farther from the eye than
+its center. ``CylinderLayerPlacement`` describes the arc:
 
 .. list-table::
    :header-rows: 1
@@ -282,22 +380,15 @@ from the eye than its center.
      - ``0``
      - Arc width / height. ``0`` derives it from ``resolution`` (square texels).
 
-Cylinder layers exist only in XR: they are composited by the OpenXR runtime (see
-`OpenXR composition layers`_), so they require ``DisplayMode.kXr`` and a runtime with
-``XR_KHR_composition_layer_cylinder`` (CloudXR supports it). ``add_cylinder_layer`` raises
-``ValueError`` otherwise. ``submit`` and ``set_visible`` work exactly as on ``QuadLayer``.
+XR only, and the runtime must support ``XR_KHR_composition_layer_cylinder`` (CloudXR does).
+``add_cylinder_layer`` raises ``ValueError`` otherwise.
 
 EquirectLayer
 ^^^^^^^^^^^^^
 
 An equirectangular texture mapped onto the inside of a sphere centered on (by default) the
-operator, for 360°/180° panoramas and VR-video sources. Like ``CylinderLayer`` it is XR-only and
-composited by the OpenXR runtime — here the required extension is
-``XR_KHR_composition_layer_equirect2``.
-
-``EquirectLayerConfig`` carries the same common fields plus an ``EquirectLayerPlacement``. The
-defaults describe a full 360°×180° sphere at infinite radius, so a panorama needs no placement at
-all:
+operator, for 360°/180° panoramas and VR-video sources. The ``EquirectLayerPlacement`` defaults
+describe a full 360°×180° sphere at infinite radius, so a panorama needs no placement at all:
 
 .. list-table::
    :header-rows: 1
@@ -319,7 +410,11 @@ all:
      - ``π/2`` / ``−π/2``
      - Vertical span from the horizon, upper > lower.
 
-Combining the two — a panorama background with a camera feed on an arc in front of it:
+XR only, like the cylinder; the required extension here is
+``XR_KHR_composition_layer_equirect2``.
+
+Combining the two — a panorama background with a camera feed on an arc in front of it, background
+added first so it composites underneath:
 
 .. code-block:: python
 
@@ -338,34 +433,6 @@ Combining the two — a panorama background with a camera feed on an arc in fron
        sky.submit(panorama_rgba)
        cam.submit(camera_rgba)
        session.render()
-
-.. _openxr-composition-layers:
-
-OpenXR composition layers
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-In XR mode, texture layers are not drawn by Televiz — each one is submitted to the OpenXR runtime
-as its own composition layer (``XrCompositionLayerQuad`` / ``CylinderKHR`` / ``Equirect2KHR``),
-and the runtime places, samples, and reprojects it at display rate. This keeps text and fine
-detail sharp under head motion, and it lets CloudXR stream color-only video when every visible
-layer is runtime-composited and opaque — the headset then rebuilds the composition from the layer
-geometry at lower bandwidth.
-
-Two things follow from handing composition to the runtime:
-
-* Runtime-composited layers carry no depth; they blend in **insertion order**. Add backgrounds
-  (e.g. an ``EquirectLayer`` panorama) before foreground layers.
-* ``alpha_blend`` (default off) makes the runtime honor the texture's alpha channel — use it for
-  translucent HUDs. Leave it off for opaque feeds so CloudXR's color-only streaming stays
-  available.
-
-``QuadLayer`` is the one layer with a choice: set ``openxr_composition = False`` to draw the quad
-with Televiz's built-in compositor instead, where 3D-placed quads depth-test against each other in
-a shared render target. Window and offscreen modes always use the built-in compositor.
-
-For stereo, all texture layers follow the VR-video convention: per-eye textures on the *same*
-surface, with ``stereo_baseline_mm`` adding an optional per-eye pose shift on top (no effect on an
-infinite-radius equirect sphere).
 
 ProjectionLayer
 ^^^^^^^^^^^^^^^
@@ -456,6 +523,52 @@ skip expensive decode when not visible):
 XR), ``delta_time`` (CPU wall-clock seconds — usable without any XR knowledge), ``should_render``,
 ``resolution``, and ``views``. Each ``ViewInfo`` in ``views`` has ``viewport``, ``fov``, and
 ``pose`` — 2 entries in XR stereo, 1 (identity pose) in window / offscreen.
+
+Performance and diagnostics
+---------------------------
+
+``get_frame_timing_stats()`` is the first thing to reach for when the view stutters. It costs
+nothing to call and needs no configuration:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 76
+
+   * - Field
+     - Meaning
+   * - ``render_fps``
+     - Smoothed frame rate over a recent window — what you are actually achieving.
+   * - ``target_fps``
+     - What you should be achieving: the headset's display rate in XR (60 / 72 / 90 / 120), the
+       vsync rate in window mode.
+   * - ``missed_frames``
+     - Cumulative count of frames whose GPU work didn't finish inside the budget. Rising while
+       ``render_fps`` holds means you are on the edge; rising with ``render_fps`` below
+       ``target_fps`` means you are over it.
+   * - ``avg_frame_time_ms``
+     - Mean total frame time.
+   * - ``gpu_time_ms``
+     - Last frame's GPU-side render time.
+   * - ``stale_layers``
+     - Layers whose producer missed the stale timeout this frame — the signal that a *capture*
+       thread, not the compositor, is behind. Non-zero here points you upstream.
+
+``get_gpu_timing()`` breaks the GPU side into ``total_ms`` / ``render_pass_ms`` / ``post_pass_ms``.
+It requires ``gpu_timing = True`` on ``VizSessionConfig`` (timestamp queries are off by default);
+without it the fields read zero.
+
+.. code-block:: python
+
+   last_missed = 0
+
+   while running:
+       session.render()
+
+       stats = session.get_frame_timing_stats()
+       if stats.missed_frames > last_missed or stats.stale_layers:
+           print(f"{stats.render_fps:.1f}/{stats.target_fps:.0f} fps, "
+                 f"gpu {stats.gpu_time_ms:.2f} ms, stale layers {stats.stale_layers}")
+       last_missed = stats.missed_frames
 
 Session state
 -------------
