@@ -3,9 +3,12 @@
 SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: Apache-2.0
 
-Standalone preview of one Ecosystem partner card, for partners to check their own logo
-and copy before sending it to us. Open the file directly -- no server, no build, and
-nothing is uploaded: logos are read with FileReader and stay in the tab.
+Standalone preview of one Ecosystem supported-device info card, so whoever fills it in can
+check their own logo and copy before sending it to us. Open the file directly -- no server,
+no build, and nothing is uploaded: logos are read with FileReader and stay in the tab.
+
+Visible copy stays factual device information: no programme names, and nothing that reads
+as an announcement. The class names below mirror ecosystem.css and cannot change.
 
 The card markup and CSS below are a copy of what the docs build produces
 (docs/source/_ext/partner_grid.py + docs/source/_static/css/ecosystem.css) and of the
@@ -20,7 +23,7 @@ single column on a phone.
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Isaac Teleop — Ecosystem partner card preview</title>
+<title>Isaac Teleop — Ecosystem supported device info card preview</title>
 <style>
 /* ------------------------------------------------------------------ fonts --
    Same sources the docs site uses, so an online preview gets NVIDIA Sans and an
@@ -617,14 +620,14 @@ pre.out {
 <div class="wrap">
 
 <header class="tool-head">
-    <p class="tool-title"><span class="eyebrow">Isaac Teleop</span> Ecosystem partner card preview</p>
+    <p class="tool-title"><span class="eyebrow">Isaac Teleop</span> Ecosystem supported device info card preview</p>
     <p class="tool-lede">
-        Fill in the fields, drop in your logo, and this page draws your card exactly as it
-        will appear in the Ecosystem partner grid — same width, same type, same light and
-        dark themes. <strong>Everything stays on your computer:</strong> this is a single
-        HTML file with no network calls except the NVIDIA brand font, and your logo is read
-        in the browser, never uploaded. When it looks right, download the archive at the
-        bottom and send it to us through the upload form.
+        Fill in the device details, drop in your logo, and this page draws the info card
+        exactly as it would appear in the Ecosystem grid — same width, same type, same
+        light and dark themes. <strong>Everything stays on your computer:</strong> this is a
+        single HTML file with no network calls except the NVIDIA brand font, and your logo
+        is read in the browser, never uploaded. When the details are right, download the
+        archive at the bottom and send it to us through the upload form.
     </p>
 </header>
 
@@ -639,7 +642,7 @@ pre.out {
             <div class="field">
                 <label for="f-section">Card type</label>
                 <select id="f-section">
-                    <option value="active">Integrated partner (logo, description, links)</option>
+                    <option value="active">Supported device (logo, description, links)</option>
                     <option value="upcoming">Coming soon (wordmark and category only)</option>
                 </select>
             </div>
@@ -797,7 +800,7 @@ pre.out {
                 </span>
             </p>
             <p class="panel-note">
-                <code id="zip-filename">partner.zip</code> is everything we need in one
+                <code id="zip-filename">card.zip</code> is everything we need in one
                 attachment: this record, your logo files renamed to match it, and a plain-text
                 summary. The record is what we paste into the site, so anything you change here
                 lands on the page as written. Save the archive first, then attach it in the
@@ -915,7 +918,7 @@ function toast(message) {
 
 function slug(text) {
     return String(text).toLowerCase().trim()
-        .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "partner";
+        .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "card";
 }
 
 /* ------------------------------------------------------------------- card -- */
@@ -990,7 +993,7 @@ function neighborHtml() {
         '<div class="partner-body">' +
         '<p class="partner-eyebrow">Motion Capture \u00b7 Full-Body Tracking</p>' +
         '<p class="partner-name">Neighbour Mocap Suit</p>' +
-        '<p class="partner-desc">Pioneering the future of motion capture.</p>' +
+        '<p class="partner-desc">Full-body motion capture over the Neighbour SDK.</p>' +
         '<p class="partner-footer">' +
         '<a class="partner-link is-external" href="#"><span class="partner-link-text">Overview</span>' + ARROW + "</a>" +
         '<a class="partner-link is-internal" href="#"><span class="partner-link-text">Integration</span></a>' +
@@ -1072,7 +1075,7 @@ function runChecks(card) {
     if (!upcoming) {
         const chars = state.description.trim().length;
         const descLines = lines(card.querySelector(".partner-desc"), 19.5);
-        if (!chars) add("bad", "Description is empty. Every integrated partner card carries one or two sentences.");
+        if (!chars) add("bad", "Description is empty. Every supported-device card carries one or two sentences.");
         else if (chars > DESC_LIMIT) add("warn", "The description is " + chars + " characters, over the " + DESC_LIMIT + "-character limit, and will make your card noticeably taller than its neighbours.");
         else if (chars < 40) add("warn", "The description is very short (" + chars + " characters) — say what the product does, not just what it is.");
         else add("ok", "Description fits in " + descLines + " lines.");
@@ -1161,7 +1164,7 @@ function wrapText(text, width, indent) {
     return rows.map((r) => indent + r).join("\n");
 }
 
-/* Partners type their own punctuation, and a colon or a leading dash in a company name
+/* Senders type their own punctuation, and a colon or a leading dash in a company name
    would break the file we paste into the repo. Quote anything that is not a safe plain
    scalar, including words YAML 1.1 reads as booleans -- a company called "On" is a
    string, not true. */
@@ -1187,7 +1190,7 @@ function yamlScalar(value) {
 function yamlText() {
     const upcoming = state.section === "upcoming";
     const id = slug(state.product || state.organization);
-    // Per logo, not once: a partner may send an SVG light mark and a PNG dark one, and
+    // Per logo, not once: a sender may send an SVG light mark and a PNG dark one, and
     // these names have to match the files zipPackage() writes beside this record.
     const extension = (logo) => (logo.isSvg ? ".svg" : ".png");
     const lines = [];
@@ -1224,7 +1227,7 @@ function yamlText() {
     return lines.join("\n");
 }
 
-/* The partner's own local date, not UTC: it records the day they filled the card in. */
+/* The sender's own local date, not UTC: it records the day they filled the card in. */
 function dateStamp() {
     const now = new Date();
     const pad = (value) => String(value).padStart(2, "0");
@@ -1232,13 +1235,13 @@ function dateStamp() {
 }
 
 /* The clipboard copy is a fragment to paste under an existing `partners:` key; the file
-   in the archive carries that key itself, so it is a valid YAML document a partner can
+   in the archive carries that key itself, so it is a valid YAML document a sender can
    open, lint, or diff on their side. */
 function yamlFile() {
     return [
-        "# Isaac Teleop — Ecosystem partner card",
-        "# Written by partner-card-preview.html. Send this file, with your logo, to the",
-        "# Isaac Teleop team: it is one record from docs/source/_data/partners.yaml.",
+        "# Isaac Teleop — Ecosystem supported device info card",
+        "# Written by the Ecosystem device info card preview. Send this file, with your",
+        "# logo, to the Isaac Teleop team: it is one record of the site's card data.",
         "partners:",
         yamlText(),
         "",
@@ -1343,7 +1346,7 @@ function zipBlob(entries) {
     return new Blob(body.concat(central, [new Uint8Array(end.buffer)]), { type: "application/zip" });
 }
 
-/* The logo goes into the archive as the exact bytes the browser holds, so a partner's own
+/* The logo goes into the archive as the exact bytes the browser holds, so a sender's own
    file arrives untouched apart from its name. */
 function dataUrlBytes(dataUrl) {
     const comma = dataUrl.indexOf(",");
@@ -1358,7 +1361,7 @@ function dataUrlBytes(dataUrl) {
 }
 
 /* Company name plus the day, because the archive lands in our inbox next to a dozen others
-   and a partner often sends a second revision: "Hugging Face" -> hugging-face-20260814.
+   and a sender often sends a second revision: "Hugging Face" -> hugging-face-20260814.
    `slug` drops everything that is not a letter or a digit, which keeps the name safe on
    every filesystem. */
 function packageBase() {

@@ -268,9 +268,9 @@ Troubleshooting below.
 CloudXR runtime flags
 ---------------------
 
-In XR mode the viewer launches the CloudXR runtime and WSS proxy itself. Useful flags:
+In XR mode the viewer attaches to the running CloudXR runtime, or starts one if none is
+serving. Useful flags:
 
-- ``--no-launch-cloudxr-runtime`` — reuse an already-running runtime.
 - ``--accept-eula`` — accept the CloudXR EULA non-interactively (first run only).
 - ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
 
@@ -375,16 +375,18 @@ YAML per source kind.
 Troubleshooting
 ---------------
 
-- **The XR session fails to create** — the viewer launches the CloudXR runtime itself; check
-  ``~/.cloudxr/logs/cxr_server.*.log`` and ``runtime_stderr.log`` for the startup failure. If a
-  runtime is already running from another app, pass ``--no-launch-cloudxr-runtime``. Pass
-  ``--mode window`` to render to a desktop window instead (no runtime involved).
+- **The XR session fails to create** — check ``~/.cloudxr/logs/cxr_server.*.log`` and
+  ``runtime_stderr.log`` for the startup failure. Pass ``--mode window`` to render to a
+  desktop window instead (no runtime involved).
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's
   directory (``configs/``), not the directory you launched from.
 - **A source fails asking for CuPy / CUDA** — check ``nvidia-smi`` works and setup completed;
   all sources allocate their frame buffers on the GPU.
+- **No video on Orin.** When the CloudXR runtime runs on Jetson Orin, set
+  **Video Codec** to **H.264** in the CloudXR web client. See
+  :ref:`connect-xr-headset`.
 - **Black camera plane on Orin** — with the CloudXR experimental runtime on Orin, the default
   OpenXR compositor shows the camera plane but leaves its contents black. Under the camera's
   ``display.placements`` entry, set ``compositor: televiz`` (quads only). The same feed displays
