@@ -174,23 +174,23 @@ wheel is there.
 ```bash
 # 1. Configure once to create the build venv. This first pass necessarily
 #    reports `-- mujoco_xr: skipped ...` — expected, not a failure.
-cmake --preset py3.12 -DBUILD_VIZ=ON
+cmake -B build -DBUILD_VIZ=ON
 
 # 2. Install mujoco into the interpreter configure just created. `python -m pip`
 #    does not work: that venv has no pip.
-uv pip install --python build/cmake-cpython-312/teleop_build_venv/bin/python "mujoco==3.11.0"
+uv pip install --python build/teleop_build_venv/bin/python "mujoco==3.11.0"
 
 # 3. Re-configure. NOW the probe finds mujoco and the example is added.
-cmake --preset py3.12 -DBUILD_VIZ=ON
+cmake -B build -DBUILD_VIZ=ON
 
 # 4. Build. There is no `cmake --install` step for this example.
-cmake --build --preset py3.12 --parallel
+cmake --build build --parallel
 ```
 
 A green build does **not** mean this example compiled. The reliable check:
 
 ```bash
-cmake --preset py3.12 -DBUILD_VIZ=ON 2>&1 | grep '^-- mujoco_xr:'
+cmake -B build -DBUILD_VIZ=ON 2>&1 | grep '^-- mujoco_xr:'
 ```
 
 The `ON` line names the exact `libmujoco.so.*` that was linked. There is no
@@ -820,7 +820,7 @@ alpha. No C++ renderer change is needed or wanted for it.
 ## Tests
 
 ```bash
-ctest --test-dir build/cmake-cpython-312 -L mujoco_xr --output-on-failure
+ctest --test-dir build -L mujoco_xr --output-on-failure
 ```
 
 | file | covers |
