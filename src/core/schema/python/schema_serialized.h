@@ -167,7 +167,7 @@ void bind_record(py::module& m, const char* name, const char* data_name)
             "data",
             [](const Serialized<RecordT>& self) -> py::object
             {
-                const DataT* data = payload(self);
+                const DataT* data = self->data();
                 return data != nullptr ? py::cast(self.narrow(data)) : py::none();
             },
             "The recorded payload, or None when absent.")
@@ -175,10 +175,9 @@ void bind_record(py::module& m, const char* name, const char* data_name)
             "timestamp", [](const Serialized<RecordT>& self) { return self->timestamp(); },
             py::return_value_policy::reference_internal, "Capture timestamp, or None when absent.")
         .def("__repr__",
-             [name, data_name](const Serialized<RecordT>& self)
-             {
+             [name, data_name](const Serialized<RecordT>& self) {
                  return std::string(name) +
-                        "(data=" + (payload(self) != nullptr ? std::string(data_name) + "(...)" : "None") + ")";
+                        "(data=" + (self->data() != nullptr ? std::string(data_name) + "(...)" : "None") + ")";
              });
 }
 

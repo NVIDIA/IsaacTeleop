@@ -34,8 +34,7 @@
 // by-reference returns and default-constructibility the tracker impls rely on.
 //
 // This type is deliberately schema-agnostic: it knows how to own and re-point a buffer
-// and nothing about any field. Helpers for this repo's Tracked/Record wrapper shape
-// live in <schema/tracked.hpp>.
+// and nothing about any field.
 
 #pragma once
 

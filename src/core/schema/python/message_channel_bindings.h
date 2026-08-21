@@ -63,11 +63,11 @@ inline void bind_message_channel(py::module& m)
              py::arg("data") = std::vector<Serialized<MessageChannelMessages>>{},
              "Encode a batch of messages. Omit `data` for an empty batch.")
         .def_property_readonly("data", [](const Serialized<MessageChannelMessagesTracked>& self)
-                               { return narrow_vector(self, payload(self)); })
+                               { return narrow_vector(self, self->data()); })
         .def("__repr__",
              [](const Serialized<MessageChannelMessagesTracked>& self)
              {
-                 const auto* encoded = payload(self);
+                 const auto* encoded = self->data();
                  return "MessageChannelMessagesTracked(data=[" +
                         std::to_string(encoded != nullptr ? encoded->size() : 0) + " messages])";
              });

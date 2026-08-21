@@ -149,7 +149,7 @@ std::vector<std::string> to_string_vec(auto traits_channels)
 // absent `data` field is how a drained-nothing frame arrives.
 size_t message_count(const core::Serialized<core::MessageChannelMessagesTracked>& msgs)
 {
-    const auto* messages = payload(msgs);
+    const auto* messages = msgs->data();
     return messages != nullptr ? messages->size() : 0;
 }
 
@@ -157,7 +157,7 @@ size_t message_count(const core::Serialized<core::MessageChannelMessagesTracked>
 // each re-spell the vector shape. Precondition: message_count(msgs) > index.
 std::string message_at(const core::Serialized<core::MessageChannelMessagesTracked>& msgs, size_t index)
 {
-    const auto* msg = payload(msgs)->Get(index);
+    const auto* msg = msgs->data()->Get(index);
     return std::string(msg->payload()->begin(), msg->payload()->end());
 }
 
