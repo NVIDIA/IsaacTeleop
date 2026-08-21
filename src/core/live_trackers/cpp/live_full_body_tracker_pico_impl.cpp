@@ -101,12 +101,14 @@ LiveFullBodyTrackerPicoImpl::~LiveFullBodyTrackerPicoImpl()
 
 void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
 {
+    // Invalidate first, publish last: the encode below is the only writer, so no exit path
+    // can leave a caller reading last frame's joints.
+    tracked_.reset();
     last_update_time_ = monotonic_time_ns;
 
     if (body_tracker_ == XR_NULL_HANDLE)
     {
         // Policy: limp mode (feature unsupported/unavailable) is non-fatal.
-        tracked_.reset();
         return;
     }
 
@@ -127,7 +129,6 @@ void LiveFullBodyTrackerPicoImpl::update(int64_t monotonic_time_ns)
     XrResult result = pfn_locate_body_joints_(body_tracker_, &locate_info, &locations);
     if (XR_FAILED(result))
     {
-        tracked_.reset();
         throw std::runtime_error("[FullBodyTracker] xrLocateBodyJointsBD failed: " + std::to_string(result));
     }
 

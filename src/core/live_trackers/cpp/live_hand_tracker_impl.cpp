@@ -175,6 +175,10 @@ LiveHandTrackerImpl::~LiveHandTrackerImpl()
 
 void LiveHandTrackerImpl::update(int64_t monotonic_time_ns)
 {
+    // Invalidate first, publish last: the encodes below are the only writers, so no exit
+    // path can leave a caller reading last frame's joints.
+    left_tracked_.reset();
+    right_tracked_.reset();
     last_update_time_ = monotonic_time_ns;
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
     std::optional<HandPoseT> left_native;

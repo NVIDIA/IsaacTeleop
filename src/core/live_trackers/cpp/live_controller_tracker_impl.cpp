@@ -341,6 +341,11 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
 
 void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
 {
+    // Invalidate first, publish last: the encodes below are the only writers, so no exit
+    // path can leave a caller reading last frame's poses. That matters for both hands at
+    // once here -- a locate failure on the left aborts before the right is even queried.
+    left_tracked_.reset();
+    right_tracked_.reset();
     last_update_time_ = monotonic_time_ns;
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
 
@@ -354,7 +359,13 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
 
     XrActionsSyncState2NV sync_state{ XR_TYPE_ACTIONS_SYNC_STATE_2_NV };
 
-    XrResult result = XR_SUCCESS;
+    XrResult result = action_ctx_funcs_.sync_actions_2(session_, &sync_info, &sync_state);
+    if (XR_FAILED(result))
+    {
+        // Policy: action sync failure is a critical tracker/runtime error.
+        throw std::runtime_error("[ControllerTracker] xrSyncActions2NV failed: " + std::to_string(result));
+    }
+
     std::optional<ControllerSnapshotT> left_native;
     std::optional<ControllerSnapshotT> right_native;
 
@@ -430,27 +441,8 @@ void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
         tracked->inputs = std::make_shared<ControllerInputState>(inputs);
     };
 
-    try
-    {
-        // Policy: action sync failure is a critical tracker/runtime error.
-        result = action_ctx_funcs_.sync_actions_2(session_, &sync_info, &sync_state);
-        if (XR_FAILED(result))
-        {
-            throw std::runtime_error("[ControllerTracker] xrSyncActions2NV failed: " + std::to_string(result));
-        }
-
-        update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_native);
-        update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_native);
-    }
-    catch (...)
-    {
-        // Nothing here reached the encode below, and a failure on the left hand leaves the
-        // right one unqueried entirely, so both handles are stale rather than just the
-        // failing one. Drop both so callers cannot observe last frame's poses.
-        left_tracked_.reset();
-        right_tracked_.reset();
-        throw;
-    }
+    update_controller(left_hand_path_, left_grip_space_, left_aim_space_, left_native);
+    update_controller(right_hand_path_, right_grip_space_, right_aim_space_, right_native);
 
     const DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
     left_tracked_ = publish_and_record(mcap_channels_.get(), 0, timestamp, value_ptr(left_native));

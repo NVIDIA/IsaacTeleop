@@ -44,6 +44,9 @@ LiveHeadTrackerImpl::LiveHeadTrackerImpl(const OpenXRSessionHandles& handles,
 
 void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
 {
+    // Invalidate first, publish last: the encode below is the only writer, so no exit path
+    // can leave a caller reading last frame's pose.
+    tracked_.reset();
     last_update_time_ = monotonic_time_ns;
 
     const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);
@@ -53,7 +56,6 @@ void LiveHeadTrackerImpl::update(int64_t monotonic_time_ns)
 
     if (XR_FAILED(result))
     {
-        tracked_.reset();
         throw std::runtime_error("[HeadTracker] xrLocateSpace failed: " + std::to_string(result));
     }
 
