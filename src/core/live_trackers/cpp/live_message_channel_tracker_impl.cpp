@@ -106,13 +106,13 @@ void LiveMessageChannelTrackerImpl::update(int64_t monotonic_time_ns)
         DeviceDataTimestamp timestamp(last_update_time_, last_update_time_, xr_time);
         if (native.data.empty())
         {
-            mcap_channels_->write(0, timestamp, nullptr);
+            mcap_channels_->write(0, pack_record<MessageChannelMessagesRecord>(nullptr, timestamp));
         }
         else
         {
             for (const auto& msg : native.data)
             {
-                mcap_channels_->write(0, timestamp, msg.get());
+                mcap_channels_->write(0, pack_record<MessageChannelMessagesRecord>(msg.get(), timestamp));
             }
         }
     }

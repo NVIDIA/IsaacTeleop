@@ -20,7 +20,7 @@
 namespace core
 {
 
-using FullBodyMcapChannels = McapTrackerChannels<FullBodyPoseRecord, FullBodyPose>;
+using FullBodyMcapChannels = McapTrackerChannels<FullBodyPoseRecord>;
 using FullBodyNoitomSchemaTracker = SchemaTracker<FullBodyPoseRecord, FullBodyPose>;
 
 class LiveFullBodyTrackerNoitomImpl : public IFullBodyTrackerImpl

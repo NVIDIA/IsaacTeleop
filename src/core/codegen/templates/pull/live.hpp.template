@@ -13,7 +13,7 @@
 #include <vector>
 namespace core
 {
-using @MCAP_CHANNELS_TYPE@ = McapTrackerChannels<@RECORD_TYPE@, @FB_TABLE@>;
+using @MCAP_CHANNELS_TYPE@ = McapTrackerChannels<@RECORD_TYPE@>;
 using @SCHEMA_TRACKER_TYPE@ = SchemaTracker<@RECORD_TYPE@, @FB_TABLE@>;
 class @LIVE_IMPL@ : public @IFACE@
 {

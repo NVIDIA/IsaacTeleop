@@ -19,7 +19,7 @@
 namespace core
 {
 
-using HeadMcapChannels = McapTrackerChannels<HeadPoseRecord, HeadPose>;
+using HeadMcapChannels = McapTrackerChannels<HeadPoseRecord>;
 
 class LiveHeadTrackerImpl : public IHeadTrackerImpl
 {

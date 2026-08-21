@@ -17,9 +17,11 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace core
@@ -33,20 +35,16 @@ inline std::string mcap_topic(std::string_view base_name, const std::string& sub
 /**
  * @brief Type-safe MCAP channel writer for FlatBuffer record types.
  *
- * @tparam RecordT   The FlatBuffer record wrapper type (e.g. HeadPoseRecord).
- *                   Must expose Builder, BinarySchema, and VT_DATA/VT_TIMESTAMP.
- * @tparam DataTableT The FlatBuffer data table type (e.g. HeadPose).
- *                   Must expose Pack() and NativeTableType.
+ * @tparam RecordT The FlatBuffer record wrapper type (e.g. HeadPoseRecord).
+ *                 Must expose BinarySchema; records are encoded by pack_record().
  *
  * The factory creates a unique_ptr<McapTrackerChannels<...>> only when recording
  * is active and passes it to the impl. Impls null-check before calling write().
  */
-template <typename RecordT, typename DataTableT>
+template <typename RecordT>
 class McapTrackerChannels
 {
 public:
-    using NativeDataT = typename DataTableT::NativeTableType;
-
     McapTrackerChannels(mcap::McapWriter& writer,
                         std::string_view base_name,
                         std::string_view schema_name,
@@ -69,17 +67,10 @@ public:
     }
 
     /*!
-     * @brief Encode `data` into a Record, write it, and hand back the encoded Record.
+     * @brief Write a Record that is already encoded.
      *
-     * Returned so a caller that also publishes the payload can `narrow_payload()` into
-     * these bytes rather than encoding the same fields a second time -- see
-     * publish_and_record(). Ignoring it costs one allocation (~16 ns) to own a buffer
-     * that is then freed, which is why there is no separate write-only overload.
-     *
-     * A null `data` writes a Record carrying only its timestamp: an inactive device
-     * still marks the frame.
      */
-    Serialized<RecordT> write(size_t channel_index, const DeviceDataTimestamp& timestamp, const NativeDataT* data)
+    void write(size_t channel_index, const Serialized<RecordT>& record)
     {
         if (channel_index >= channel_ids_.size())
         {
@@ -88,38 +79,26 @@ public:
                 std::to_string(channel_ids_.size()) + " channels registered");
         }
 
-        flatbuffers::FlatBufferBuilder builder(256);
-
-        flatbuffers::Offset<DataTableT> data_offset;
-        if (data != nullptr)
+        const std::span<const uint8_t> bytes = record.buffer();
+        if (bytes.empty())
         {
-            data_offset = DataTableT::Pack(builder, data);
+            throw std::invalid_argument("McapTrackerChannels: write called with a record that owns no buffer");
         }
 
-        DeviceDataTimestamp ts = timestamp;
-        typename RecordT::Builder record_builder(builder);
-        if (data != nullptr)
-        {
-            record_builder.add_data(data_offset);
-        }
-        record_builder.add_timestamp(&ts);
-        builder.Finish(record_builder.Finish());
-
+        const auto* timestamp = record->timestamp();
         mcap::Message msg;
         msg.channelId = channel_ids_[channel_index];
-        msg.logTime = static_cast<mcap::Timestamp>(timestamp.available_time_local_common_clock());
+        msg.logTime =
+            timestamp != nullptr ? static_cast<mcap::Timestamp>(timestamp->available_time_local_common_clock()) : 0;
         msg.publishTime = msg.logTime;
         msg.sequence = sequence_++;
-        msg.data = reinterpret_cast<const std::byte*>(builder.GetBufferPointer());
-        msg.dataSize = builder.GetSize();
+        msg.data = reinterpret_cast<const std::byte*>(bytes.data());
+        msg.dataSize = bytes.size();
         auto status = writer_->write(msg);
         if (!status.ok())
         {
             std::cerr << "McapTrackerChannels: write failed: " << status.message << std::endl;
         }
-
-        // Adopting releases the builder, so it has to follow the write that read from it.
-        return Serialized<RecordT>::adopt(builder);
     }
 
 private:
@@ -127,6 +106,48 @@ private:
     std::vector<mcap::ChannelId> channel_ids_;
     uint32_t sequence_ = 0;
 };
+
+//! The payload a Record wraps, as its object-API type. Every generated Record native
+//! holds its payload in a `std::shared_ptr<PayloadT> data`, which is what lets the payload
+//! be named from the Record type alone -- and so lets an absent one be spelled `nullptr`.
+template <typename RecordT>
+using record_payload_t = typename decltype(std::declval<typename RecordT::NativeTableType>().data)::element_type;
+
+/*!
+ * @brief Encodes a payload and its timestamp into the Record type MCAP stores.
+ *
+ * The encode lives here rather than on the writer so that McapTrackerChannels only ever
+ * moves bytes: a caller that also publishes the payload keeps the record and narrows into
+ * it, and one that needs the same record on two channels writes it twice.
+ *
+ * A null `data` records the timestamp alone -- an inactive device, or a frame marker on a
+ * channel whose tracker drained nothing. The payload type comes from `RecordT`, so only
+ * the Record has to be named at the call site.
+ */
+template <typename RecordT>
+Serialized<RecordT> pack_record(const record_payload_t<RecordT>* data, const DeviceDataTimestamp& timestamp)
+{
+    using DataTableT = typename record_payload_t<RecordT>::TableType;
+
+    flatbuffers::FlatBufferBuilder builder(256);
+
+    flatbuffers::Offset<DataTableT> data_offset;
+    if (data != nullptr)
+    {
+        data_offset = DataTableT::Pack(builder, data);
+    }
+
+    DeviceDataTimestamp ts = timestamp;
+    typename RecordT::Builder record_builder(builder);
+    if (data != nullptr)
+    {
+        record_builder.add_data(data_offset);
+    }
+    record_builder.add_timestamp(&ts);
+    builder.Finish(record_builder.Finish());
+
+    return Serialized<RecordT>::adopt(builder);
+}
 
 //! Address of the contained value, or null when there is none -- the pointer form an
 //! optional payload takes at an API that spells absence with nullptr. `std::optional` has
@@ -150,17 +171,22 @@ const T* value_ptr(const std::optional<T>& value)
  * A null `native` means the device is inactive: an empty handle comes back, and the
  * record still goes out carrying only its timestamp.
  */
-template <typename RecordT, typename DataTableT>
-Serialized<DataTableT> publish_and_record(McapTrackerChannels<RecordT, DataTableT>* channels,
-                                          size_t channel_index,
-                                          const DeviceDataTimestamp& timestamp,
-                                          const typename DataTableT::NativeTableType* native)
+template <typename RecordT>
+Serialized<typename record_payload_t<RecordT>::TableType> publish_and_record(McapTrackerChannels<RecordT>* channels,
+                                                                             size_t channel_index,
+                                                                             const DeviceDataTimestamp& timestamp,
+                                                                             const record_payload_t<RecordT>* native)
 {
+    using DataTableT = typename record_payload_t<RecordT>::TableType;
+
     if (channels == nullptr)
     {
         return native != nullptr ? pack<DataTableT>(*native) : Serialized<DataTableT>();
     }
-    return narrow_payload(channels->write(channel_index, timestamp, native));
+
+    const auto record = pack_record<RecordT>(native, timestamp);
+    channels->write(channel_index, record);
+    return narrow_payload(record);
 }
 
 /**

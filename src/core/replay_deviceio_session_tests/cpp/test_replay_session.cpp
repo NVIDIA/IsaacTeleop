@@ -85,11 +85,10 @@ core::Pose make_pose(float x, float y, float z, float qw = 1.0f)
 // Channel type aliases
 // ============================================================================
 
-using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord, core::HeadPose>;
-using HandChannels = core::McapTrackerChannels<core::HandPoseRecord, core::HandPose>;
-using MessageChannelChannels =
-    core::McapTrackerChannels<core::MessageChannelMessagesRecord, core::MessageChannelMessages>;
-using Se3TrackerChannels = core::McapTrackerChannels<core::Se3TrackerPoseRecord, core::Se3TrackerPose>;
+using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord>;
+using HandChannels = core::McapTrackerChannels<core::HandPoseRecord>;
+using MessageChannelChannels = core::McapTrackerChannels<core::MessageChannelMessagesRecord>;
+using Se3TrackerChannels = core::McapTrackerChannels<core::Se3TrackerPoseRecord>;
 
 // ============================================================================
 // Write helpers
@@ -100,12 +99,14 @@ void write_head_frame(HeadChannels& ch, int64_t time_ns, float x, float y, float
     auto data = std::make_shared<core::HeadPoseT>();
     data->is_valid = true;
     data->pose = std::make_shared<core::Pose>(make_pose(x, y, z));
-    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
+    ch.write(
+        0, core::pack_record<core::HeadPoseRecord>(data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
 }
 
 void write_hand_frame(HandChannels& ch, int64_t time_ns, size_t channel_index, std::shared_ptr<core::HandPoseT> data)
 {
-    ch.write(channel_index, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
+    ch.write(channel_index,
+             core::pack_record<core::HandPoseRecord>(data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
 }
 
 // Mirror LiveSe3TrackerImpl's channel usage: per-sample writes go to index 0
@@ -116,15 +117,18 @@ void write_se3_tracker_frame(Se3TrackerChannels& ch, int64_t time_ns, float x, f
     auto data = std::make_shared<core::Se3TrackerPoseT>();
     data->is_valid = true;
     data->pose = std::make_shared<core::Pose>(make_pose(x, y, z));
-    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
-    ch.write(1, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
+    ch.write(0, core::pack_record<core::Se3TrackerPoseRecord>(
+                    data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
+    ch.write(1, core::pack_record<core::Se3TrackerPoseRecord>(
+                    data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
 }
 
 void write_message_record(MessageChannelChannels& ch, int64_t time_ns, const std::string& payload)
 {
     auto data = std::make_shared<core::MessageChannelMessagesT>();
     data->payload.assign(payload.begin(), payload.end());
-    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), data.get());
+    ch.write(0, core::pack_record<core::MessageChannelMessagesRecord>(
+                    data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
 }
 
 // Mirror LiveMessageChannelTrackerImpl::update's data-null sentinel: a
@@ -132,7 +136,8 @@ void write_message_record(MessageChannelChannels& ch, int64_t time_ns, const std
 // the message channel's own frame clock.
 void write_message_sentinel(MessageChannelChannels& ch, int64_t time_ns)
 {
-    ch.write(0, core::DeviceDataTimestamp(time_ns, time_ns, time_ns), nullptr);
+    ch.write(0, core::pack_record<core::MessageChannelMessagesRecord>(
+                    nullptr, core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
 }
 
 std::vector<std::string> to_string_vec(auto traits_channels)

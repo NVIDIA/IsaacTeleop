@@ -30,7 +30,7 @@ class SchemaTracker : public SchemaTrackerBase
 {
 public:
     using NativeDataT = typename DataTableT::NativeTableType;
-    using Channels = McapTrackerChannels<RecordT, DataTableT>;
+    using Channels = McapTrackerChannels<RecordT>;
 
     /**
      * @param mcap_channels Non-owning pointer to the MCAP channel writer. Must outlive
@@ -86,13 +86,7 @@ public:
 
         if (mcap_channels_)
         {
-            // Unpack into a fresh native per sample so each record is exactly its sample:
-            // UnPackTo assigns scalars and vectors unconditionally, but leaves an absent
-            // string or nested table at whatever the previous unpack put there. A reused
-            // native therefore records fields the sample does not carry -- values from a
-            // producer that has since gone away, on the channel replay reads back.
-            std::optional<NativeDataT> latest;
-            DeviceDataTimestamp last_timestamp{};
+            Serialized<RecordT> last_record;
             for (const auto& sample : samples_)
             {
                 auto fb = flatbuffers::GetRoot<DataTableT>(sample.buffer.data());
@@ -101,18 +95,20 @@ public:
                     continue;
                 }
 
-                latest.emplace();
-                fb->UnPackTo(&*latest);
-                last_timestamp = sample.timestamp;
+                NativeDataT latest;
+                fb->UnPackTo(&latest);
 
-                mcap_channels_->write(mcap_channel_index_, sample.timestamp, &*latest);
+                last_record = pack_record<RecordT>(&latest, sample.timestamp);
+                mcap_channels_->write(mcap_channel_index_, last_record);
             }
 
-            // Null when every sample failed to resolve a root, which is the one case where
-            // there is no final sample to mark.
-            if (mcap_channel_tracked_index_ && latest)
+            // The tracked channel marks the final sample of the tick, which is the record
+            // just written: same payload, same timestamp, so the bytes are identical and
+            // this is a second write rather than a second encode. Empty when every sample
+            // failed to resolve a root, the one case where there is no final sample.
+            if (mcap_channel_tracked_index_ && last_record)
             {
-                mcap_channels_->write(*mcap_channel_tracked_index_, last_timestamp, &*latest);
+                mcap_channels_->write(*mcap_channel_tracked_index_, last_record);
             }
         }
 

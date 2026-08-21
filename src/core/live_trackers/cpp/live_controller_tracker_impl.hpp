@@ -21,7 +21,7 @@
 namespace core
 {
 
-using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord, ControllerSnapshot>;
+using ControllerMcapChannels = McapTrackerChannels<ControllerSnapshotRecord>;
 
 class LiveControllerTrackerImpl : public IControllerTrackerImpl
 {

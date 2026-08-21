@@ -21,7 +21,7 @@
 namespace core
 {
 
-using HandMcapChannels = McapTrackerChannels<HandPoseRecord, HandPose>;
+using HandMcapChannels = McapTrackerChannels<HandPoseRecord>;
 
 class LiveHandTrackerImpl : public IHandTrackerImpl
 {

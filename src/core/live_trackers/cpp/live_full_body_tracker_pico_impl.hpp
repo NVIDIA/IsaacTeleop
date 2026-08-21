@@ -19,7 +19,7 @@
 namespace core
 {
 
-using FullBodyMcapChannels = McapTrackerChannels<FullBodyPoseRecord, FullBodyPose>;
+using FullBodyMcapChannels = McapTrackerChannels<FullBodyPoseRecord>;
 
 // Live full-body impl for the "body.pico-xr" vendor: sources joints directly from
 // the native PICO XR_BD_body_tracking extension.

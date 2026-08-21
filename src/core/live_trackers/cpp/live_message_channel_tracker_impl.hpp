@@ -20,7 +20,7 @@
 namespace core
 {
 
-using MessageChannelMcapChannels = McapTrackerChannels<MessageChannelMessagesRecord, MessageChannelMessages>;
+using MessageChannelMcapChannels = McapTrackerChannels<MessageChannelMessagesRecord>;
 
 class LiveMessageChannelTrackerImpl : public IMessageChannelTrackerImpl
 {
