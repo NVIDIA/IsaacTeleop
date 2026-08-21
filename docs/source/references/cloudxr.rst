@@ -13,15 +13,15 @@ and the headset connection — outlives the application using it.
 
 The teleop examples start a service themselves if none is running (see
 :ref:`run-cloudxr-server` in the quick start), and print a notice when they do,
-because that service keeps running after the example exits. Start it yourself
-when you want to:
+because that service keeps running after the example exits. Examples that use
+``CloudXRLauncher`` host CloudXR.js at ``https://<host>:48322/client/`` by
+default when they start that service. Start it yourself when you want to:
 
 - keep the headset connected while you restart a teleop application repeatedly
   during development,
 - point OpenXR applications that do not embed ``CloudXRLauncher`` at CloudXR,
-- use launch modes that only the service exposes, such as serving the web
-  client locally (``--host-client``) or the out-of-band automation flags
-  (``--setup-oob``, ``--usb-local``).
+- use the out-of-band automation flags (``--setup-oob``, ``--usb-local``)
+  that only the service exposes.
 
 .. contents:: Sections
    :local:
@@ -232,9 +232,9 @@ instead of running a second one beside it — construct
 ``CloudXRLauncher(run_embedded=True)``, as the ROS 2 example node does. It
 refuses to start where a runtime is already serving the install directory:
 the options that configure the WSS proxy (``host_client``, ``setup_oob``,
-``usb_local``) only apply to a proxy the process starts itself, so attaching
-would drop them with nothing to report it. Stop that service, or drop
-``run_embedded`` to attach.
+``usb_local``) only apply to a proxy the process starts itself. Attaching can
+report a ``host_client`` mismatch, but it cannot change the running proxy.
+Stop that service, or drop ``run_embedded`` to attach.
 
 To let other containers attach, share the run directory as a volume and point
 them at it with ``XR_RUNTIME_JSON`` and ``NV_CXR_RUNTIME_DIR``;
@@ -261,6 +261,12 @@ These configure a runtime as it starts, so they belong to the service that owns
 it. An application that attaches to a running runtime cannot apply them: it
 compares the requested settings against the runtime's resolved environment,
 reports the ones that would have changed, and uses the running configuration.
+
+``--host-client`` / ``--no-host-client`` follow the same rule. They apply when
+the launcher starts a service. When attaching, the launcher recovers the
+detached service flags from its command line and reports a mismatch when the
+running hosting differs. A foreground service leaves no recoverable flags, so
+that case stays quiet. Restart the service to change the hosting.
 
 .. code-block:: text
 
