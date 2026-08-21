@@ -7,8 +7,9 @@ Camera Streaming
 ``camera_viz`` is the reference camera-streaming sample built on :doc:`Televiz
 </getting_started/televiz>` (``isaacteleop.viz``). It captures frames from one or more cameras
 and streams them to an XR headset — one plane per camera, aspect-fit — either directly or from a
-robot to a workstation over the network (split mode). For development and debugging it can also
-replay a video file in place of a camera, and render to a desktop window instead of the headset.
+robot to a workstation over the network (split mode). It can also stream :ref:`recorded camera
+data <recorded-camera-streaming>` — a video file replayed in place of a live camera — and render
+to a desktop window instead of the headset.
 
 The sample lives at :code-dir:`examples/camera_viz/ <examples/camera_viz>`. This page walks you
 from setup and a hardware-free first run to real cameras and the robot → workstation split mode.
@@ -50,29 +51,15 @@ run the sample's one-time setup:
    examples/camera_viz/camera_viz.sh setup
    source examples/camera_viz/.venv/bin/activate
 
-There is no need to install the ``isaacteleop`` pip package yourself — ``setup`` creates the
-sample's own environment: it installs ``isaacteleop[cloudxr]`` (which bundles Televiz) and every
-other Python dependency into ``.venv/`` via ``uv``, then probes the system packages it needs
-(cairo / girepository headers, GStreamer plugins and the native NVENC/NVDEC codec under
-``--with-rtp``, JetPack ``cuda-nvrtc`` + ``ld.so`` wiring). When something is missing it prints
-the exact ``apt-get`` line and prompts ``[y/N]`` — answering ``n`` or running non-interactively
-aborts. The ``cloudxr`` extra is not optional for this sample: XR is the default display mode
-and the viewer launches the CloudXR runtime itself.
-
-camera_viz needs an ``isaacteleop`` new enough to carry the features it uses, so ``setup`` works
-down a ladder to get one:
-
-#. the newest **final release** on the package index, if one meets that minimum;
-#. otherwise the newest **release candidate** — Isaac Teleop publishes an rc from every
-   release-branch commit, and PEP 440 keeps pre-releases out of a plain minimum-version
-   specifier;
-#. otherwise a **source build** of the surrounding checkout, after asking. This is a full
-   C++ / CUDA / Vulkan build and needs CMake, the CUDA toolkit, Vulkan headers,
-   ``glslangValidator``, and ``clang-format-14``.
-
-The ladder is automatic, so ``setup`` starts preferring final releases the moment one qualifies.
-Override it with ``--wheel PATH`` or ``--build-from-source``. The minimum version itself lives in
-:code-file:`scripts/_install_deps.sh <examples/camera_viz/scripts/_install_deps.sh>`.
+There is no need to install the ``isaacteleop`` pip package yourself. ``setup`` builds the
+sample's own environment: ``isaacteleop[cloudxr]`` — the ``cloudxr`` extra is not optional here,
+since XR is the default display mode and the viewer launches the runtime itself — plus every
+other Python dependency, into ``.venv/`` via ``uv``. It resolves a version new enough for the
+sample on its own, falling back to a release candidate and then, after asking, to a source build
+of the surrounding checkout (:code-file:`scripts/_install_deps.sh
+<examples/camera_viz/scripts/_install_deps.sh>` holds the minimum; ``--wheel`` and
+``--build-from-source`` override the choice). Finally it probes the system packages it needs and
+prints the exact ``apt-get`` line to approve — declining, or a non-interactive run, aborts.
 
 By default ``setup`` provisions the direct-mode path — USB / UVC and OAK-D camera support. Split
 mode (RTP) and ZED support are opt-in, since both pull in dependencies the direct path never
@@ -103,18 +90,22 @@ needs. Flags trim or extend that:
      - Install into an existing virtual environment instead of creating ``.venv/``.
    * - ``--wheel PATH``
      - Install a locally built ``isaacteleop`` wheel instead of resolving one from the index — for
-       developing Isaac Teleop itself (see :doc:`/getting_started/build_from_source/index`).
+       developing Isaac Teleop itself.
    * - ``--build-from-source``
-     - Skip the index entirely and build ``isaacteleop`` from the surrounding checkout, and
-       answer step 3's prompt without asking.
+     - Skip the package index and build ``isaacteleop`` from the surrounding checkout without
+       prompting — a full C++ / CUDA / Vulkan build (see
+       :doc:`/getting_started/build_from_source/index`).
 
-First run — no camera required
-------------------------------
+.. _recorded-camera-streaming:
 
-The video-replay source (``type: video``) plays a recording through exactly the same path a live
-camera uses, so it doubles as the quickest end-to-end check and as a stand-in feed while the real
-camera isn't available. A test clip ships with the repo and ``configs/replay.yaml`` already points
-at it:
+First run — a recording, no camera required
+-------------------------------------------
+
+The recorded-camera source (``type: video``) replays a video file through exactly the same
+source → layer → Televiz path a live camera uses. It is the supported way to stream recorded
+camera data, it needs no extra setup, and it is the quickest end-to-end check. A test clip ships
+with the repo, and :code-file:`configs/replay.yaml <examples/camera_viz/configs/replay.yaml>`
+already points at it:
 
 .. code-block:: bash
 
@@ -134,10 +125,38 @@ coming up::
 and the clip looping on a plane in the headset once it connects — or in a desktop window
 (``mode=window, xr=False``) with the ``--mode window`` override, which starts no runtime.
 
-To replay your own video, set a custom ``path:`` in :code-file:`configs/replay.yaml
-<examples/camera_viz/configs/replay.yaml>` — relative paths resolve against the YAML's directory.
-``loop: false`` holds the last frame instead of rewinding; ``stereo: true`` replays a side-by-side
-recording (e.g. from a ZED) as stereo, splitting each frame into per-eye views (direct mode only).
+Replaying your own recording
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Point ``path`` at any file OpenCV's FFmpeg backend reads — mp4 / mkv / webm carrying H.264,
+HEVC, AV1, and so on. The file is probed once at startup for its size and frame rate (a missing
+or absurd rate falls back to 30 fps); a missing or unreadable file is a configuration error and
+fails immediately instead of retrying like a camera would. A complete config:
+
+.. code-block:: yaml
+
+   source: local
+
+   cameras:
+     - name: replay
+       enabled: true
+       type: video
+       path: ../test_data/recording.mp4   # required; relative to this YAML's directory
+       loop: true                         # false = hold the last frame at end of file
+       fps: 0                             # 0 = the file's native rate
+       stereo: false                      # true = split a side-by-side recording into eyes
+       # width/height default to the file's native size (per eye when stereo)
+
+   display:
+     mode: xr                             # or: window
+     placements:
+       replay: { lock_mode: lazy, distance: 1.5 }
+
+With ``source: rtp``, ``width``, ``height``, and ``fps`` become required — the sender paces its
+encode loop at ``fps`` and the receiver sizes its decoder from the config — and ``stereo`` is
+rejected, since the sender needs per-eye streams. A mono recording is otherwise a fine capture
+side for :ref:`split mode <split-mode>` and for ``loopback``, which exercises the whole
+encode → UDP → decode path with no camera attached.
 
 Supported sources
 -----------------
@@ -158,8 +177,9 @@ The source kind is selected by the ``type`` field of each entry in the YAML ``ca
    * - ``zed``
      - ZED 2 / Mini / X One; mono or ``stereo: true`` (per-eye SDK retrieve, zero-copy on the GPU).
    * - ``video``
-     - Video-file replay (anything OpenCV's FFmpeg backend reads). Loops by default;
-       ``stereo: true`` splits side-by-side recordings into eyes (viewer only).
+     - Recorded camera data — video-file replay (anything OpenCV's FFmpeg backend reads). Loops
+       by default; ``stereo: true`` splits side-by-side recordings into eyes (viewer only). See
+       :ref:`recorded-camera-streaming`.
    * - ``synthetic``
      - Debugging tool — GPU-generated test pattern, no hardware or file.
 
@@ -255,6 +275,8 @@ serving. Useful flags:
 - ``--cloudxr-device-profile PROFILE`` — ``NV_DEVICE_PROFILE`` (default ``Quest3``).
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
+
+.. _split-mode:
 
 Split mode — robot → workstation over RTP
 -----------------------------------------
