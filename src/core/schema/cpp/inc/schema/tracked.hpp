@@ -4,11 +4,7 @@
 // Helper for the wrapper tables in `fbs/` that front a payload behind a `data` field:
 // the `Record` family that MCAP writes, and `MessageChannelMessagesTracked`.
 //
-// Wrappers used to front the tracker query API too, expressing "no data" with a null
-// `data`. `Serialized<T>` says that with an empty handle, so those are gone and trackers
-// hand out their payload table directly. The message-channel batch survives because its
-// `data` is a *list*: a drained batch needs a table to hold the vector, and "no messages
-// this frame" is an empty batch rather than an absent one.
+// A `Record` carries a timestamp alongside the payload.
 //
 // Including this header is the signal that a translation unit depends on that shape.
 

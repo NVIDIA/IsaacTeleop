@@ -69,13 +69,11 @@ from ._schema import (
 # Deprecated aliases, resolved lazily via __getattr__ so accessing them emits a
 # DeprecationWarning. Omitted from __all__.
 #
-# The `...T` spellings named the FlatBuffers object-API types these tables used to be
-# bound to. Python no longer sees those at all, so the alias resolves to the encoded
-# view: reads are unchanged, but the objects are immutable and are built by passing
-# every field to the constructor rather than by assigning attributes afterwards.
+# The `...T` spellings name the FlatBuffers object-API types, which Python does not see;
+# each alias resolves to the encoded view instead. Reads are identical, but the view is
+# immutable and is built by passing every field to the constructor rather than by
+# assigning attributes afterwards.
 #
-# The Tracked wrappers have no alias: trackers now hand out the payload table itself
-# and express "no data" with an empty view, so there is no object to redirect to.
 _DEPRECATED_ALIASES = {
     "BodyJointPico": "BodyJoint",
     "BodyJointsPico": "BodyJoints",

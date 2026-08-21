@@ -5,8 +5,8 @@
 Tests for DeviceIO source nodes - ControllersSource, HandsSource, HeadSource.
 
 Tests the stateless converters that transform raw DeviceIO flatbuffer data
-into standard retargeting engine tensor formats, using real schema types
-(Tracked wrappers and their payload tables) constructed via Python bindings.
+into standard retargeting engine tensor formats, using real payload tables
+constructed via Python bindings.
 """
 
 import pytest
@@ -131,7 +131,7 @@ class TestControllersSource:
         """Test that ControllersSource converts DeviceIO data correctly."""
         source = ControllersSource(name="controllers")
 
-        # Create raw DeviceIO flatbuffer inputs wrapped in Tracked types
+        # Create the encoded payloads a controller tracker would hand out
         left_snapshot = create_controller_snapshot(
             grip_pos=(0.1, 0.2, 0.3), aim_pos=(0.4, 0.5, 0.6), trigger_val=0.5
         )
@@ -139,7 +139,7 @@ class TestControllersSource:
             grip_pos=(0.4, 0.5, 0.6), aim_pos=(0.7, 0.8, 0.9), trigger_val=0.8
         )
 
-        # Prepare input dict with Tracked wrappers (active controllers)
+        # Prepare the input dict: a payload per slot means both controllers are active
         inputs = _make_inputs(
             source,
             {
