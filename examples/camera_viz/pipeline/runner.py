@@ -203,7 +203,7 @@ class VizRunner:
         with self._error_lock:
             if self._error is None:
                 self._error = exc
-        logger.error("VizRunner %s thread failed: %s", where, exc, exc_info=True)
+        logger.error("VizRunner %s thread failed: %s", where, exc, exc_info=exc)
         self._stop.set()
         with self._data_cond:
             self._data_cond.notify_all()

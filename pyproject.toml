@@ -131,3 +131,72 @@ packages = { isaacteleop = "src/python/isaacteleop" }
 [tool.scikit-build.editable]
 mode = "redirect"
 rebuild = false
+
+# ==============================================================================
+# Ruff
+# ==============================================================================
+# The ruff + ruff-format pre-commit hooks previously ran with no configuration at
+# all, i.e. only ruff's built-in default rules (E4/E7/E9 + F). The `select` below
+# widens that to the correctness-oriented rule groups; formatting stays on
+# ruff-format's defaults (88 cols), which is what the tree is already formatted to.
+#
+# Everything in `select` is currently clean, so the hook is enforceable as-is.
+# Each `ignore` is a deliberate call, not a backlog marker -- see its comment.
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E4", "E7", "E9",  # pycodestyle errors (ruff's default subset)
+    "F",               # pyflakes
+    "B",               # flake8-bugbear -- real bug shapes
+    "C4",              # flake8-comprehensions
+    "PIE",             # flake8-pie
+    "PERF",            # perflint
+    "PLE", "PLW",      # pylint errors + warnings
+    "LOG", "G",        # logging correctness
+    "ASYNC",           # async pitfalls
+    "RUF",             # ruff-specific
+]
+
+ignore = [
+    # Adding strict= to a zip() converts a silent truncation into a runtime
+    # exception, so it is a behaviour change per call site, not a mechanical fix.
+    # Worth adopting deliberately (15 sites) rather than in a lint sweep.
+    "B905",
+    # Style-only rewrites of code that is already correct and readable:
+    # RUF005 turns `a + [b]` into `[*a, b]`, C408 turns dict(a=1) into {"a": 1},
+    # and RUF007 turns zip(x[:-1], x[1:]) into itertools.pairwise(x). Enforcing
+    # any of them means churning working call sites for no behaviour change, so
+    # they are left to author preference.
+    "RUF005", "C408", "RUF007",
+    # Sorting __all__ alphabetically destroys the semantic grouping comments the
+    # package __init__ files use ("# Hand types.", "# Controller types.", ...).
+    "RUF022",
+    # RUF100 is evaluated against `select` above, so it flags every noqa written
+    # for a rule this config does not (yet) enable -- BLE001, PLC0415, N803 and
+    # friends. Re-enable once those groups are adopted.
+    "RUF100",
+    # The tree deliberately uses en/em dashes and arrows in prose and comments.
+    "RUF001", "RUF002", "RUF003",
+    # Module-level singletons (EnvConfig, the CloudXR runtime handles) are an
+    # intentional design choice here.
+    "PLW0603",
+    # Rebinding a loop variable to its normalized form, and small wrapper lambdas,
+    # both read better than the suggested rewrites in the places they occur.
+    "PLW2901", "PLW0108",
+    # The suggested comprehensions inline filtering logic that is clearer as an
+    # explicit loop (see EnvConfig._merge_env).
+    "PERF401", "PERF403",
+    # Targets trio/anyio. The one flagged call is a sub-millisecond os.path.isfile
+    # in an asyncio poll loop that already sleeps between iterations; routing it
+    # through an executor would cost more than the stat it replaces.
+    "ASYNC240",
+    # Flags any async def taking a `timeout` parameter; that is the established
+    # signature for the adb/runtime helpers and their callers.
+    "ASYNC109",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately assert on private state and re-import inside test bodies.
+"**/tests/**" = ["SLF001"]
