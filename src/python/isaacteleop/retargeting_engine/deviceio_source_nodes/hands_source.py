@@ -79,7 +79,7 @@ class HandsSource(IDeviceIOSource):
 
         Returns:
             Dict with "deviceio_hand_left" and "deviceio_hand_right" TensorGroups
-            containing HandPose wrappers.
+            containing a HandPose payload each, or None when that hand is inactive.
         """
         left_tracked = self._hand_tracker.get_left_hand(deviceio_session)
         right_tracked = self._hand_tracker.get_right_hand(deviceio_session)
@@ -115,7 +115,7 @@ class HandsSource(IDeviceIOSource):
         Calls ``set_none()`` on the output when the corresponding hand is inactive.
 
         Args:
-            inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" HandPose wrappers
+            inputs: Dict with "deviceio_hand_left" and "deviceio_hand_right" HandPose payloads
             outputs: Dict with "hand_left" and "hand_right" OptionalTensorGroups
             context: ComputeContext (unused by this converter node).
         """

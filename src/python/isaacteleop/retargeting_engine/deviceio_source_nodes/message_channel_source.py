@@ -4,7 +4,7 @@
 """
 Message channel source node.
 
-Converts DeviceIO MessageChannelMessagesTracked wrapper data for graph use.
+Converts a DeviceIO MessageChannelMessagesTracked batch for graph use.
 """
 
 from collections import deque

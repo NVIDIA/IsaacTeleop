@@ -197,7 +197,7 @@ def DeviceIOFullBodyPoseTracked() -> TensorGroupType:
 
 
 def DeviceIOMessageChannelMessagesTracked() -> TensorGroupType:
-    """Tracked message wrapper from DeviceIO MessageChannelTracker."""
+    """Message batch from DeviceIO MessageChannelTracker."""
     return TensorGroupType(
         "deviceio_message_channel_messages_tracked",
         [MessageChannelMessagesTrackedType("messages_tracked")],

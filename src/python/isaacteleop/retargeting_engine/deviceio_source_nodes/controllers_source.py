@@ -80,7 +80,8 @@ class ControllersSource(IDeviceIOSource):
 
         Returns:
             Dict with "deviceio_controller_left" and "deviceio_controller_right"
-            TensorGroups containing ControllerSnapshot wrappers.
+            TensorGroups containing a ControllerSnapshot payload each, or None when
+            that controller is inactive.
         """
         left_tracked = self._controller_tracker.get_left_controller(deviceio_session)
         right_tracked = self._controller_tracker.get_right_controller(deviceio_session)
@@ -116,7 +117,8 @@ class ControllersSource(IDeviceIOSource):
         Calls ``set_none()`` on the output when the corresponding controller is inactive.
 
         Args:
-            inputs: Dict with "deviceio_controller_left" and "deviceio_controller_right" Tracked wrappers
+            inputs: Dict with "deviceio_controller_left" and "deviceio_controller_right"
+                ControllerSnapshot payloads
             outputs: Dict with "controller_left" and "controller_right" OptionalTensorGroups
             context: ComputeContext (unused by this converter node).
         """

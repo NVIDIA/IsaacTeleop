@@ -108,7 +108,7 @@ class FullBodySource(IDeviceIOSource):
         Calls ``set_none()`` on the output when body tracking is inactive.
 
         Args:
-            inputs: Dict with "deviceio_full_body" containing FullBodyPose wrapper
+            inputs: Dict with "deviceio_full_body" containing a FullBodyPose payload
             outputs: Dict with "full_body" OptionalTensorGroup
             context: Shared ComputeContext for the current step (carries GraphTime).
         """

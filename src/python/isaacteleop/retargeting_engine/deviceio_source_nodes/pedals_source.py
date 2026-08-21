@@ -104,7 +104,7 @@ class Generic3AxisPedalSource(IDeviceIOSource):
         Calls ``set_none()`` on the output when pedal data is inactive.
 
         Args:
-            inputs: Dict with "deviceio_pedals" containing Generic3AxisPedalOutput wrapper
+            inputs: Dict with "deviceio_pedals" containing a Generic3AxisPedalOutput payload
             outputs: Dict with "pedals" OptionalTensorGroup
             context: Shared ComputeContext for the current step (carries GraphTime).
         """

@@ -103,7 +103,7 @@ class HeadSource(IDeviceIOSource):
         consumers must gate on ``IS_VALID`` / ``IS_TRACKED`` before use.
 
         Args:
-            inputs: Dict with "deviceio_head" containing HeadPose wrapper
+            inputs: Dict with "deviceio_head" containing a HeadPose payload
             outputs: Dict with "head" OptionalTensorGroup
             context: ComputeContext (unused by this converter node).
         """
