@@ -8,7 +8,6 @@
 #include <mcap/writer.hpp>
 #include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
-#include <schema/tracked.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -186,7 +185,7 @@ Serialized<typename record_payload_t<RecordT>::TableType> publish_and_record(Mca
 
     const auto record = pack_record<RecordT>(native, timestamp);
     channels->write(channel_index, record);
-    return narrow_payload(record);
+    return record.narrow(record->data());
 }
 
 /**

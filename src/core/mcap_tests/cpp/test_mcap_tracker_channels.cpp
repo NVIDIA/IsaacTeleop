@@ -223,7 +223,7 @@ TEST_CASE("McapTrackerChannels: write returns the record it wrote", "[mcap][trac
         // What a live impl does with it: publish a view into the recorded bytes instead of
         // encoding the payload a second time. The record handle dies here, so the narrowed
         // one is all that keeps the buffer alive.
-        published = core::narrow_payload(record);
+        published = record.narrow(record->data());
     }
 
     REQUIRE(published);
@@ -258,7 +258,7 @@ TEST_CASE("pack_record on an absent payload yields an empty payload handle", "[m
     REQUIRE(record);
     CHECK(record->timestamp()->sample_time_raw_device_clock() == 2);
     CHECK(record->data() == nullptr);
-    CHECK_FALSE(core::narrow_payload(record));
+    CHECK_FALSE(record.narrow(record->data()));
 }
 
 TEST_CASE("McapTrackerChannels: null data writes record with timestamp only", "[mcap][tracker_channels]")

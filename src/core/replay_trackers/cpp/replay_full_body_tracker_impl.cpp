@@ -7,7 +7,6 @@
 #include <schema/full_body_bfbs_generated.h>
 #include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
-#include <schema/tracked.hpp>
 
 #include <cassert>
 #include <cstring>
@@ -39,7 +38,7 @@ void ReplayFullBodyTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     auto record = mcap_viewers_->read(0);
     if (record)
     {
-        tracked_ = narrow_payload(record);
+        tracked_ = record.narrow(record->data());
     }
     else
     {

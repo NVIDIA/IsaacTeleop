@@ -13,7 +13,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <schema/message_channel_generated.h>
-#include <schema/tracked.hpp>
 
 #include <memory>
 #include <string>

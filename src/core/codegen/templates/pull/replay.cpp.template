@@ -5,7 +5,6 @@
 
 #include <mcap/recording_traits.hpp>
 #include <schema/@SCHEMA@_bfbs_generated.h>
-#include <schema/tracked.hpp>
 
 #include <iostream>
 #include <utility>
@@ -31,7 +30,7 @@ void @REPLAY_IMPL@::update(int64_t /*monotonic_time_ns*/)
     auto record = mcap_viewers_->read(0);
     if (record)
     {
-        tracked_ = narrow_payload(record);
+        tracked_ = record.narrow(record->data());
         warned_no_data_ = false;
     }
     else

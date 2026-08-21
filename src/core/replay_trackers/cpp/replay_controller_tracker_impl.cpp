@@ -7,7 +7,6 @@
 #include <schema/controller_bfbs_generated.h>
 #include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
-#include <schema/tracked.hpp>
 
 #include <cassert>
 #include <cstring>
@@ -46,7 +45,7 @@ void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     auto right_record = mcap_viewers_->read(1);
     if (left_record)
     {
-        left_tracked_ = narrow_payload(left_record);
+        left_tracked_ = left_record.narrow(left_record->data());
     }
     else
     {
@@ -56,7 +55,7 @@ void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
 
     if (right_record)
     {
-        right_tracked_ = narrow_payload(right_record);
+        right_tracked_ = right_record.narrow(right_record->data());
     }
     else
     {

@@ -17,7 +17,6 @@
 #include <schema/head_generated.h>
 #include <schema/message_channel_generated.h>
 #include <schema/se3_tracker_generated.h>
-#include <schema/tracked.hpp>
 
 #include <array>
 #include <atomic>
