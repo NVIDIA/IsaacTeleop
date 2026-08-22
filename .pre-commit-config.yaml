@@ -59,3 +59,11 @@ repos:
         # COMMIT_EDITMSG path (outside the work tree), which makes the script's
         # `git check-attr` fail with "outside repository" (exit 128).
         stages: [pre-commit]
+      - id: check-doc-refs
+        name: "Check :code-file:/:code-dir: targets exist in the tree"
+        entry: python3 scripts/check_doc_refs.py
+        language: system
+        # The roles in docs/source/conf.py build a github.com URL from the target
+        # without validating it, so a moved file ships a live 404 and the Sphinx
+        # build still passes. Only .rst carries these roles.
+        files: ^docs/source/.*\.rst$
