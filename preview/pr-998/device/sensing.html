@@ -1,0 +1,980 @@
+
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>SENSING GMSL Camera Plugin &#8212; Isaac Teleop Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+
+
+    <script src="../_static/documentation_options.js?v=04dcff72"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=2c21a7a3"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'device/sensing';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+
+    <link rel="icon" href="../_static/favicon.ico"/>
+
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Wuji Glove" href="wuji_glove.html" />
+    <link rel="prev" title="OGLO Tactile Glove Plugin" href="oglo.html" />
+
+
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="1.5.x" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+
+
+  </head>
+
+  <body data-default-mode="">
+
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="Isaac Teleop Documentation - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="Isaac Teleop Documentation - Home"/>
+  
+  
+    <p class="title logo__title">Isaac Teleop Documentation</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+      
+        <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/nvidia-logo-horiz-rgb-blk-for-screen.svg" class="logo__image only-light" alt="Isaac Teleop Documentation - Home"/>
+    <img src="../_static/nvidia-logo-horiz-rgb-wht-for-screen.svg" class="logo__image only-dark pst-js-only" alt="Isaac Teleop Documentation - Home"/>
+  
+  
+    <p class="title logo__title">Isaac Teleop Documentation</p>
+  
+</a>
+
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+        
+          <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/NVIDIA/IsaacTeleop" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://docs.nvidia.com/cloudxr-sdk" title="CloudXR" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/CloudXR-6.2-green.svg" class="icon-link-image" alt="CloudXR"/></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://isaac-sim.github.io/IsaacLab" title="Isaac Lab" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacLab-3.0-silver.svg" class="icon-link-image" alt="Isaac Lab"/></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Table of Contents">
+  <p class="bd-links__title" role="heading" aria-level="1">Table of Contents</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">Overview</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/build_from_source/index.html">Build from Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_session.html">Teleop Session</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/teleop_control_state_machine.html">Teleop Control State Machine</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/televiz.html">Televiz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/lerobot/index.html">LeRobot and SO-101</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/contributing.html">Contributing</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Devices</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="trackers.html">Device Trackers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="add_device.html">Add a New Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="joint_space.html">Generic Joint-Space Device</a></li>
+<li class="toctree-l1"><a class="reference internal" href="body_tracking.html">Body Tracking</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptic_feedback.html">Haptic Feedback</a></li>
+<li class="toctree-l1"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oglo.html">OGLO Tactile Glove Plugin</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">SENSING GMSL Camera Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="wuji_glove.html">Wuji Glove</a></li>
+<li class="toctree-l1"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../references/requirements.html">System Requirements</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/generated_trackers.html">Generated Tracker Code</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/retargeting/index.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/camera_streaming.html">Camera Streaming</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/cloudxr.html">CloudXR Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/rig.html">Rig Launcher</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references/license.html">License</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">SENSING GMSL Camera Plugin</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="sensing-gmsl-camera-plugin">
+<h1>SENSING GMSL Camera Plugin<a class="headerlink" href="#sensing-gmsl-camera-plugin" title="Link to this heading">#</a></h1>
+<p>C++ plugin that captures from SENSING GMSL2 cameras through <strong>libargus</strong> on a
+Jetson AGX Orin, and either encodes H.264 on the Jetson’s V4L2 engine or hands
+frames to another process as CUDA device memory. Source and plugin README:
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/README.md" rel="noopener noreferrer" target="_blank">src/plugins/sensing/README.md</a>.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#supported-hardware" id="id1">Supported hardware</a></p></li>
+<li><p><a class="reference internal" href="#setup" id="id2">Setup</a></p>
+<ul>
+<li><p><a class="reference internal" href="#host-first-install" id="id3">Host — first install</a></p></li>
+<li><p><a class="reference internal" href="#host-every-boot" id="id4">Host — every boot</a></p></li>
+<li><p><a class="reference internal" href="#container" id="id5">Container</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#build" id="id6">Build</a></p>
+<ul>
+<li><p><a class="reference internal" href="#sensor-ids-are-not-dev-video-numbers" id="id7">Sensor ids are not <code class="docutils literal notranslate"><span class="pre">/dev/video</span></code> numbers</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#recording-h-264" id="id8">Recording H.264</a></p>
+<ul>
+<li><p><a class="reference internal" href="#metadata" id="id9">Metadata</a></p></li>
+<li><p><a class="reference internal" href="#playback" id="id10">Playback</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#live-streaming-with-camera-viz" id="id11">Live streaming with camera_viz</a></p>
+<ul>
+<li><p><a class="reference internal" href="#testing-without-a-camera" id="id12">Testing without a camera</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id13">Troubleshooting</a></p></li>
+</ul>
+</nav>
+<section id="supported-hardware">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Supported hardware</a><a class="headerlink" href="#supported-hardware" title="Link to this heading">#</a></h2>
+<p>This plugin is developed and verified against exactly one configuration:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p>Host</p></td>
+<td><p>NVIDIA Jetson AGX Orin</p></td>
+</tr>
+<tr class="row-even"><td><p>Software</p></td>
+<td><p>JetPack 6.2 / L4T R36.4.3, kernel <code class="docutils literal notranslate"><span class="pre">5.15.148-tegra</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Carrier</p></td>
+<td><p>SENSING <strong>SG10A-AGON-G2M-A1</strong> (GMSL2)</p></td>
+</tr>
+<tr class="row-even"><td><p>Camera</p></td>
+<td><p>Orbbec Astra <strong>S56C</strong>, 1920×1080 &#64; 30 fps, <code class="docutils literal notranslate"><span class="pre">sensor_mode=0</span></code> (its only mode)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Device tree</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Jetson</span> <span class="pre">Sensing</span> <span class="pre">SG10A_AGON_G2M_A1</span> <span class="pre">S56Cx1</span> <span class="pre">SHF3Lx6</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The carrier also takes up to six SHF3L/SHF3H modules. Those are <strong>out of scope</strong>
+for this plugin — they are already ISP-processed on the module and stream YUV
+over plain V4L2, so <code class="docutils literal notranslate"><span class="pre">examples/camera_viz/configs/v4l2.yaml</span></code> reads them
+directly. The S56C emits 10-bit Bayer and <em>must</em> go through the ISP, which is
+why it needs Argus.</p>
+<p>Drivers come from the vendor package,
+<a class="reference external" href="https://github.com/SENSING-Technology/nvidia-jetson-camera-drivers" rel="noopener noreferrer" target="_blank">nvidia-jetson-camera-drivers</a>
+(kernel <code class="docutils literal notranslate"><span class="pre">Image</span></code>, sensor <code class="docutils literal notranslate"><span class="pre">.ko</span></code> files, <code class="docutils literal notranslate"><span class="pre">.dtbo</span></code> overlays, ISP tuning). The
+scripts below wrap it; they do not replace it.</p>
+</section>
+<section id="setup">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Setup</a><a class="headerlink" href="#setup" title="Link to this heading">#</a></h2>
+<p>Bring-up is two-sided and neither half can do the other’s job: kernel modules,
+the device-tree overlay and the POC/PWM register writes only exist on the host,
+while the Argus client socket and the build headers only matter inside the
+devcontainer.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup.sh<span class="w">      </span><span class="c1"># on the Jetson host    -&gt; setup_host.sh</span>
+src/plugins/sensing/setup.sh<span class="w">      </span><span class="c1"># in the devcontainer   -&gt; setup_container.sh</span>
+src/plugins/sensing/verify.sh<span class="w">     </span><span class="c1"># anywhere, read-only</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">setup.sh</span></code> auto-detects the context; <code class="docutils literal notranslate"><span class="pre">--host</span></code> / <code class="docutils literal notranslate"><span class="pre">--container</span></code> override it.
+Each script prints every privileged action it will take before the first
+<code class="docutils literal notranslate"><span class="pre">sudo</span></code> prompt and asks again per optional action. <code class="docutils literal notranslate"><span class="pre">--yes</span></code> accepts them all;
+non-interactive stdin declines them all.</p>
+<section id="host-first-install">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Host — first install</a><a class="headerlink" href="#host-first-install" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh<span class="w"> </span>--install-drivers
+</pre></div>
+</div>
+<p>This runs the vendor <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> and stops. Select the overlay and reboot
+before continuing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>/opt/nvidia/jetson-io/jetson-io.py<span class="w">   </span><span class="c1"># Configure Jetson AGX CSI Connector</span>
+<span class="w">                                          </span><span class="c1"># -&gt; Jetson Sensing SG10A_AGON_G2M_A1 S56Cx1 SHF3Lx6</span>
+</pre></div>
+</div>
+<p>The package is autodetected under <code class="docutils literal notranslate"><span class="pre">~/Sensing/</span></code>, <code class="docutils literal notranslate"><span class="pre">~</span></code>, <code class="docutils literal notranslate"><span class="pre">/home/*/Sensing/</span></code>
+and <code class="docutils literal notranslate"><span class="pre">/opt/sensing/</span></code>; <code class="docutils literal notranslate"><span class="pre">--pkg</span></code> or <code class="docutils literal notranslate"><span class="pre">$SENSING_PKG_DIR</span></code> overrides.</p>
+</section>
+<section id="host-every-boot">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Host — every boot</a><a class="headerlink" href="#host-every-boot" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh<span class="w"> </span><span class="o">[</span>--fps<span class="w"> </span><span class="m">30</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--free-run<span class="p">|</span>--trigger-sync<span class="o">]</span><span class="w"> </span><span class="o">[</span>--service<span class="o">]</span>
+</pre></div>
+</div>
+<p>The vendor <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> never copies the sensor <code class="docutils literal notranslate"><span class="pre">.ko</span></code> files into
+<code class="docutils literal notranslate"><span class="pre">/lib/modules</span></code>, so nothing auto-loads them and <code class="docutils literal notranslate"><span class="pre">/dev/video*</span></code> is empty after
+every reboot. That is the most common cause of “the cameras stopped working”.
+<code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> loads them, then offers to install <code class="docutils literal notranslate"><span class="pre">sensing-camera.service</span></code>
+so it happens at boot.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The unit is ordered <code class="docutils literal notranslate"><span class="pre">Before=nvargus-daemon.service</span></code>, <strong>not</strong>
+<code class="docutils literal notranslate"><span class="pre">After=multi-user.target</span></code>. <code class="docutils literal notranslate"><span class="pre">nvargus-daemon</span></code> is itself part of
+<code class="docutils literal notranslate"><span class="pre">multi-user.target</span></code>; a daemon that starts before the sensors exist
+enumerates an empty camera list and never retries.</p>
+</div>
+<p>The vendor default slaves every sensor to the carrier’s PWM trigger, which only
+fires when <strong>J19 pins 2 and 4 are strapped together</strong> — without the strap the
+camera opens fine and then delivers no frames, which looks like a software
+hang. <code class="docutils literal notranslate"><span class="pre">--free-run</span></code> (the default) clears the trigger mode. Use
+<code class="docutils literal notranslate"><span class="pre">--trigger-sync</span></code> only when the strap is fitted and you need cross-camera sync.</p>
+</section>
+<section id="container">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Container</a><a class="headerlink" href="#container" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_container.sh<span class="w"> </span><span class="o">[</span>--argus-include<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--yes<span class="o">]</span>
+</pre></div>
+</div>
+<p>One thing the container cannot fix for itself: <code class="docutils literal notranslate"><span class="pre">libnvargus_socketclient</span></code>
+reaches <code class="docutils literal notranslate"><span class="pre">nvargus-daemon</span></code> through <code class="docutils literal notranslate"><span class="pre">/tmp/argus_socket</span></code>, and a container gets
+its own <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>. Add the bind mount to <code class="docutils literal notranslate"><span class="pre">runArgs</span></code> and rebuild:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="s2">"-v"</span><span class="p">,</span><span class="w"> </span><span class="s2">"/tmp/argus_socket:/tmp/argus_socket"</span>
+</pre></div>
+</div>
+<p>The script also checks for the Argus headers (<code class="docutils literal notranslate"><span class="pre">v4l-utils</span></code>, EGL headers,
+<code class="docutils literal notranslate"><span class="pre">nvcc</span></code>), and offers to symlink an Argus tree it finds to
+<code class="docutils literal notranslate"><span class="pre">/usr/src/jetson_multimedia_api/argus</span></code>.</p>
+</section>
+</section>
+<section id="build">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Build</a><a class="headerlink" href="#build" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PLUGIN_SENSING<span class="o">=</span>ON
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>camera_plugin_sensing<span class="w"> </span>--parallel
+</pre></div>
+</div>
+<p>Both dependencies live outside the repo. On a Jetson host they come from
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt</span> <span class="pre">install</span> <span class="pre">nvidia-l4t-jetson-multimedia-api</span></code>. In a container, copy the
+tree in and point CMake at it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PLUGIN_SENSING<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-DARGUS_INCLUDE_DIRS<span class="o">=</span><span class="nv">$HOME</span>/Sensing/argus/include<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-DJETSON_MMAPI_DIR<span class="o">=</span><span class="nv">$HOME</span>/Sensing/jetson_multimedia_api
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Argus needs NVIDIA’s EGL. GLVND picks the EGL vendor from <code class="docutils literal notranslate"><span class="pre">DISPLAY</span></code>, and
+Tegra’s EGL cannot drive an Xvfb or forwarded X server, so it loses the probe
+to Mesa and every Argus-to-CUDA path fails. The plugin clears <code class="docutils literal notranslate"><span class="pre">DISPLAY</span></code>
+itself before the first EGL call and refuses to start on a non-NVIDIA vendor,
+but anything else in the process that renders will be affected by this.</p>
+</div>
+<section id="sensor-ids-are-not-dev-video-numbers">
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Sensor ids are not <code class="docutils literal notranslate"><span class="pre">/dev/video</span></code> numbers</a><a class="headerlink" href="#sensor-ids-are-not-dev-video-numbers" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">sensor=</span></code> in <code class="docutils literal notranslate"><span class="pre">--add-stream</span></code> is the <strong>Argus sensor id</strong>, which follows
+device-tree module order. On this overlay ids 0–3 are the S56C group and 4–9 the
+SHF3L ports. Re-derive after any overlay change:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="k">$(</span>seq<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">9</span><span class="k">)</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s '</span><span class="w"> </span><span class="s2">"</span><span class="nv">$i</span><span class="s2">"</span>
+<span class="w">  </span>cat<span class="w"> </span>/proc/device-tree/tegra-camera-platform/modules/module<span class="nv">$i</span>/badge
+<span class="w">  </span><span class="nb">echo</span>
+<span class="k">done</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="recording-h-264">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Recording H.264</a><a class="headerlink" href="#recording-h-264" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">output=&lt;path&gt;</span></code> on a stream encodes that sensor on the Jetson V4L2 M2M engine
+and writes raw Annex-B H.264 — no container, no timestamps. <code class="docutils literal notranslate"><span class="pre">--add-stream</span></code> is
+repeatable, one per sensor:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build/src/plugins/sensing/camera_plugin_sensing<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--add-stream<span class="o">=</span><span class="nv">sensor</span><span class="o">=</span><span class="m">2</span>,output<span class="o">=</span>./left.h264<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--add-stream<span class="o">=</span><span class="nv">sensor</span><span class="o">=</span><span class="m">3</span>,output<span class="o">=</span>./right.h264<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--mcap-filename<span class="o">=</span>./meta.mcap
+</pre></div>
+</div>
+<p>Press <code class="docutils literal notranslate"><span class="pre">Ctrl+C</span></code> to stop. Run with <code class="docutils literal notranslate"><span class="pre">--help</span></code> for the full list; the knobs that
+matter most:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 15.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--add-stream=sensor=&lt;id&gt;[,output=&lt;path&gt;][,ipc=&lt;socket&gt;]</span></code></p></td>
+<td><p>(at least one required)</p></td>
+<td><p>Add a capture stream. At least one of <code class="docutils literal notranslate"><span class="pre">output</span></code> / <code class="docutils literal notranslate"><span class="pre">ipc</span></code> is required;
+both may be given. Repeatable.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--sensor-mode=N</span></code></p></td>
+<td><p>0</p></td>
+<td><p>Argus sensor mode. The S56C has only mode 0.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--width=N</span></code> / <code class="docutils literal notranslate"><span class="pre">--height=N</span></code></p></td>
+<td><p>1920 / 1080</p></td>
+<td><p>Capture resolution</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--fps=N</span></code></p></td>
+<td><p>30</p></td>
+<td><p>Frame rate for all streams</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--bitrate=N</span></code></p></td>
+<td><p>20000000</p></td>
+<td><p>H.264 bitrate (bps)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--gop=N</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">fps*5</span></code></p></td>
+<td><p>IDR period in frames</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--mcap-filename=PATH</span></code></p></td>
+<td><p>none</p></td>
+<td><p>Record per-frame metadata to an MCAP file</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--collection-prefix=PREFIX</span></code></p></td>
+<td><p>none</p></td>
+<td><p>Push the same metadata over OpenXR instead. Mutually exclusive with
+<code class="docutils literal notranslate"><span class="pre">--mcap-filename</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="metadata">
+<h3><a class="toc-backref" href="#id9" role="doc-backlink">Metadata</a><a class="headerlink" href="#metadata" title="Link to this heading">#</a></h3>
+<p>Each frame emits a <code class="docutils literal notranslate"><span class="pre">core.FrameMetadataSensingRecord</span></code> (sequence number,
+timestamps). <code class="docutils literal notranslate"><span class="pre">--mcap-filename</span></code> writes it to channel
+<code class="docutils literal notranslate"><span class="pre">sensing_metadata/sensor&lt;N&gt;</span></code>; the binary schema is embedded, so <code class="docutils literal notranslate"><span class="pre">mcap</span> <span class="pre">cat</span>
+<span class="pre">--json</span> <span class="pre">meta.mcap</span></code> decodes it without any Isaac headers.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--collection-prefix</span></code> pushes it via OpenXR <code class="docutils literal notranslate"><span class="pre">SchemaPusher</span></code> instead, for
+recording into the same MCAP as the rest of a teleop session. The wiring is the
+same as the OAK plugin’s — see <a class="reference internal" href="oak.html"><span class="doc">OAK Camera Plugin</span></a> and <a class="reference internal" href="trackers.html"><span class="doc">Device Trackers</span></a>.</p>
+</section>
+<section id="playback">
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">Playback</a><a class="headerlink" href="#playback" title="Link to this heading">#</a></h3>
+<p>Since the file carries no timestamps, a player has to be told the frame rate:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ffplay<span class="w"> </span>-f<span class="w"> </span>h264<span class="w"> </span>left.h264
+ffmpeg<span class="w"> </span>-f<span class="w"> </span>h264<span class="w"> </span>-framerate<span class="w"> </span><span class="m">30</span><span class="w"> </span>-i<span class="w"> </span>left.h264<span class="w"> </span>-c<span class="w"> </span>copy<span class="w"> </span>left.mp4<span class="w">   </span><span class="c1"># -framerate must match --fps</span>
+
+<span class="c1"># on the Jetson, decoded on the hardware engine that wrote it</span>
+gst-launch-1.0<span class="w"> </span>filesrc<span class="w"> </span><span class="nv">location</span><span class="o">=</span>left.h264<span class="w"> </span>!<span class="w"> </span>h264parse<span class="w"> </span>!<span class="w"> </span>nvv4l2decoder<span class="w"> </span>!<span class="w"> </span>nv3dsink
+</pre></div>
+</div>
+<p>To sanity-check a file with no tools installed, the 5th byte after each <code class="docutils literal notranslate"><span class="pre">00</span> <span class="pre">00</span>
+<span class="pre">01</span></code> start code carries the NAL type in its low 5 bits — a healthy recording
+opens <code class="docutils literal notranslate"><span class="pre">67</span></code> (SPS), <code class="docutils literal notranslate"><span class="pre">68</span></code> (PPS), <code class="docutils literal notranslate"><span class="pre">65</span></code> (IDR): <code class="docutils literal notranslate"><span class="pre">xxd</span> <span class="pre">-l</span> <span class="pre">16</span> <span class="pre">left.h264</span></code>.</p>
+</section>
+</section>
+<section id="live-streaming-with-camera-viz">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Live streaming with camera_viz</a><a class="headerlink" href="#live-streaming-with-camera-viz" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ipc=&lt;socket&gt;</span></code> serves a sensor’s frames to another process as <strong>CUDA device
+memory</strong> — RGBA8, no encode, no host round-trip — and
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/camera_viz/README.md" rel="noopener noreferrer" target="_blank">camera_viz</a> consumes it with
+<code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">cuda_ipc</span></code>. It is independent of <code class="docutils literal notranslate"><span class="pre">output=</span></code>; an <code class="docutils literal notranslate"><span class="pre">ipc</span></code>-only stream
+never starts an encoder. Measured on an AGX Orin at 1920×1080: <strong>~1 ms</strong> from
+producer timestamp to consumer receipt, sustained at 60 fps.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># terminal 1 — producer</span>
+./build/src/plugins/sensing/camera_plugin_sensing<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--add-stream<span class="o">=</span><span class="nv">sensor</span><span class="o">=</span><span class="m">2</span>,ipc<span class="o">=</span>/tmp/sensing2.sock<span class="w"> </span>--width<span class="o">=</span><span class="m">1920</span><span class="w"> </span>--height<span class="o">=</span><span class="m">1080</span>
+
+<span class="c1"># terminal 2 — viewer</span>
+<span class="nb">cd</span><span class="w"> </span>examples/camera_viz
+./camera_viz.sh<span class="w"> </span>setup<span class="w">                                     </span><span class="c1"># one-time</span>
+./camera_viz.sh<span class="w"> </span>run<span class="w"> </span>configs/cuda_ipc.yaml<span class="w"> </span>--mode<span class="w"> </span>window<span class="w">   </span><span class="c1"># desktop window</span>
+./camera_viz.sh<span class="w"> </span>run<span class="w"> </span>configs/cuda_ipc.yaml<span class="w">                 </span><span class="c1"># XR headset</span>
+</pre></div>
+</div>
+<p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/camera_viz/configs/cuda_ipc.yaml" rel="noopener noreferrer" target="_blank">configs/cuda_ipc.yaml</a>
+needs only the socket path and the frame size:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">cameras</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cam</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cuda_ipc</span>
+<span class="w">    </span><span class="nt">socket</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/sensing2.sock</span><span class="w">   </span><span class="c1"># must match the producer's ipc= path</span>
+<span class="w">    </span><span class="nt">width</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1920</span><span class="w">                  </span><span class="c1"># must match what the producer serves</span>
+<span class="w">    </span><span class="nt">height</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1080</span>
+</pre></div>
+</div>
+<p>Order does not matter — the source retries until the socket appears and survives
+the producer restarting under it. <code class="docutils literal notranslate"><span class="pre">width</span></code>/<code class="docutils literal notranslate"><span class="pre">height</span></code> are checked during the
+handshake and a mismatch is refused rather than rendered at the wrong stride.
+<strong>One consumer at a time</strong>: the producer serves whoever connected most recently,
+so a second viewer silently takes the feed from the first.</p>
+<section id="testing-without-a-camera">
+<h3><a class="toc-backref" href="#id12" role="doc-backlink">Testing without a camera</a><a class="headerlink" href="#testing-without-a-camera" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">sensing_ipc_testsrc</span></code> publishes an animated pattern over the same protocol. It
+needs CUDA only — no Argus, no encoder — so the viewer can be developed with
+nothing attached:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>sensing_ipc_testsrc
+./build/src/plugins/sensing/sensing_ipc_testsrc<span class="w"> </span>--socket<span class="o">=</span>/tmp/sensing2.sock<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--width<span class="o">=</span><span class="m">1920</span><span class="w"> </span>--height<span class="o">=</span><span class="m">1080</span><span class="w"> </span>--fps<span class="o">=</span><span class="m">60</span>
+</pre></div>
+</div>
+<p>Each frame carries its 16-bit frame number as a binary bar across the top, so a
+stale or torn frame is visible rather than merely suspected.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Legacy CUDA IPC does not work on Tegra and fails misleadingly:
+<code class="docutils literal notranslate"><span class="pre">cudaIpcGetMemHandle</span></code> returns <code class="docutils literal notranslate"><span class="pre">cudaSuccess</span></code> in the producer, then the
+consumer’s <code class="docutils literal notranslate"><span class="pre">cudaIpcOpenMemHandle</span></code> fails with <code class="docutils literal notranslate"><span class="pre">cudaErrorInvalidValue</span></code>. The
+transport therefore uses the virtual-memory-management API — <code class="docutils literal notranslate"><span class="pre">cuMemCreate</span></code>
+plus <code class="docutils literal notranslate"><span class="pre">cuMemExportToShareableHandle</span></code> to a POSIX fd, passed over the Unix
+socket with <code class="docutils literal notranslate"><span class="pre">SCM_RIGHTS</span></code>. Do not rewrite it back to
+<code class="docutils literal notranslate"><span class="pre">cudaIpcMemHandle_t</span></code>. The wire format lives in
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/core/cuda_ipc_protocol.hpp" rel="noopener noreferrer" target="_blank">src/plugins/sensing/core/cuda_ipc_protocol.hpp</a> and is
+re-declared by the consumer in
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/camera_viz/sources/cuda_ipc.py" rel="noopener noreferrer" target="_blank">examples/camera_viz/sources/cuda_ipc.py</a>, so the two change
+together.</p>
+</div>
+</section>
+</section>
+<section id="troubleshooting">
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<p>Run <code class="docutils literal notranslate"><span class="pre">verify.sh</span></code> first — it names the fixing script for each failure.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 45.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Symptom</p></th>
+<th class="head"><p>Cause and fix</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>No <code class="docutils literal notranslate"><span class="pre">/dev/video*</span></code> after reboot</p></td>
+<td><p>Drivers not loaded. Run <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code>, then install the service.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Camera opens, no frames</p></td>
+<td><p>Sensor slaved to an absent trigger. <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span> <span class="pre">--free-run</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p>Argus finds no cameras</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">nvargus-daemon</span></code> started before the drivers.
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">nvargus-daemon</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">EGL_NO_STREAM_KHR</span></code>, or <code class="docutils literal notranslate"><span class="pre">NvBufSurfaceMapEglImage</span></code> “Failed to create
+EGLImage”</p></td>
+<td><p>EGL resolved to Mesa, not NVIDIA. Unset <code class="docutils literal notranslate"><span class="pre">DISPLAY</span></code>, or point it at an X
+server Tegra EGL can drive.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Connection</span> <span class="pre">refused</span></code> on every Argus call right after restarting
+<code class="docutils literal notranslate"><span class="pre">nvargus-daemon</span></code></p></td>
+<td><p>The container bind-mounts <code class="docutils literal notranslate"><span class="pre">/tmp/argus_socket</span></code> as a <em>file</em>; the daemon
+unlinks and recreates it, so the mount pins a deleted inode
+(<code class="docutils literal notranslate"><span class="pre">grep</span> <span class="pre">argus</span> <span class="pre">/proc/self/mountinfo</span></code> shows <code class="docutils literal notranslate"><span class="pre">//deleted</span></code>). Mount the
+host’s <code class="docutils literal notranslate"><span class="pre">/tmp</span></code> and symlink instead, or restart the container.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/tmp/argus_socket</span></code> is a <em>directory</em></p></td>
+<td><p>The container started before <code class="docutils literal notranslate"><span class="pre">nvargus-daemon</span></code>, so Docker created the
+missing bind source.
+<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">rmdir</span> <span class="pre">/tmp/argus_socket</span> <span class="pre">&amp;&amp;</span> <span class="pre">sudo</span> <span class="pre">systemctl</span> <span class="pre">restart</span> <span class="pre">nvargus-daemon</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">insmod:</span> <span class="pre">invalid</span> <span class="pre">module</span> <span class="pre">format</span></code></p></td>
+<td><p>Kernel is not <code class="docutils literal notranslate"><span class="pre">5.15.148-tegra</span></code>; the prebuilt <code class="docutils literal notranslate"><span class="pre">.ko</span></code> files will not
+load.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">argus_camera:</span> <span class="pre">command</span> <span class="pre">not</span> <span class="pre">found</span></code> in the container</p></td>
+<td><p>It is installed at <code class="docutils literal notranslate"><span class="pre">/usr/local/bin</span></code> on the <em>host</em>.
+<code class="docutils literal notranslate"><span class="pre">setup_container.sh</span></code> offers to link a built copy.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="oglo.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">OGLO Tactile Glove Plugin</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="wuji_glove.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Wuji Glove</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+
+
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-hardware">Supported hardware</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#setup">Setup</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#host-first-install">Host — first install</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#host-every-boot">Host — every boot</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#container">Container</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build">Build</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sensor-ids-are-not-dev-video-numbers">Sensor ids are not <code class="docutils literal notranslate"><span class="pre">/dev/video</span></code> numbers</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-h-264">Recording H.264</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#metadata">Metadata</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#playback">Playback</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#live-streaming-with-camera-viz">Live streaming with camera_viz</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-without-a-camera">Testing without a camera</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+<a class="footer-brand logo" href="https://www.nvidia.com">
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-blk-for-screen.svg" class="logo__image only-light" alt="NVIDIA"/>
+  <img src="../_static/nvidia-logo-horiz-rgb-1c-wht-for-screen.svg" class="logo__image only-dark" alt="NVIDIA"/>
+</a></div>
+      
+        <div class="footer-item">
+
+<div class="footer-links">
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-policy/">Privacy Policy</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/privacy-center/">Your Privacy Choices</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/terms-of-service/">Terms of Service</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/accessibility/">Accessibility</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/about-nvidia/company-policies/">Corporate Policies</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/product-security/">Product Security</a>
+   | 
+  
+  
+  
+  <a class="external" href="https://www.nvidia.com/en-us/contact/">Contact</a>
+  
+  
+  
+</div>
+</div>
+      
+        <div class="footer-item">
+
+
+
+
+  <p class="copyright">
+    
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 22, 2026.
+      <br/>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+</div>
+
+  </footer>
+  </body>
+</html>
