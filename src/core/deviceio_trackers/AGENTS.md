@@ -27,7 +27,7 @@ under `${CMAKE_BINARY_DIR}/generated/trackers/`, **not** in `cpp/`.
   blocks, MCAP recording traits, and the Python `__all__` are emitted as `.inc` fragments that the
   hand-written files `#include`; adding a row yourself produces a duplicate definition.
 - **`__init__.py` needs no edit for new manifest trackers.**
-  [`../../../python/isaacteleop/deviceio_trackers/__init__.py`](../../../python/isaacteleop/deviceio_trackers/__init__.py)
+  [`../../python/isaacteleop/deviceio_trackers/__init__.py`](../../python/isaacteleop/deviceio_trackers/__init__.py)
   star-imports `_generated_tracker_exports` (staged from configure-time codegen into the wheel
   tree; for scikit-build-core / editable installs it is also installed via ``isaacteleop_wheel``
   because it is not authored under ``src/python/``) and splices its ``__all__``. The legacy `isaacteleop.deviceio` shim is a **frozen** compat
