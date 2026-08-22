@@ -32,7 +32,7 @@ if TYPE_CHECKING:
         McapRecordingConfig,
         McapReplayConfig,
     )
-    from teleopcore.oxr import OpenXRSessionHandles
+    from isaacteleop.oxr import OpenXRSessionHandles
 
 
 class SessionMode(Enum):
@@ -369,7 +369,7 @@ class TeleopSessionConfig:
                 left_gripper = result["gripper_left"][0]
 
     Example (external OpenXR handles from Kit):
-        from teleopcore.oxr import OpenXRSessionHandles
+        from isaacteleop.oxr import OpenXRSessionHandles
 
         handles = OpenXRSessionHandles(
             instance_handle, session_handle, space_handle, proc_addr

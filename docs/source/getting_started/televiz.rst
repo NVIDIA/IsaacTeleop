@@ -606,7 +606,7 @@ extensions automatically), then pass the handles through:
    import isaacteleop.viz as televiz
    from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
    from isaacteleop.deviceio import DeviceIOSession
-   from teleopcore.oxr import OpenXRSessionHandles
+   from isaacteleop.oxr import OpenXRSessionHandles
 
    viz_cfg = televiz.VizSessionConfig()
    viz_cfg.mode = televiz.DisplayMode.kXr
