@@ -84,6 +84,7 @@ Table of Contents
    references/rig
    references/oob_teleop_control
    references/egocentric_hand_reconstruction
+   references/oss_license_vulnerability_report
    references/license
 
 Indices and tables
