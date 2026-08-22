@@ -150,7 +150,9 @@ def _module_exists(root: Path, module: str) -> bool:
     """Return whether an isaacteleop.* dotted path resolves under src/python/."""
     base = root.joinpath(PYTHON_ROOT, *module.split("."))
     return (
-        base.is_dir() or base.with_suffix(".py").is_file() or (base / "__init__.py").is_file()
+        base.is_dir()
+        or base.with_suffix(".py").is_file()
+        or (base / "__init__.py").is_file()
     )
 
 
@@ -229,14 +231,10 @@ def main(argv: list[str]) -> int:
     if args.all:
         # Only meaningful for a full sweep: a partial run simply did not visit them.
         stale = {
-            target
-            for target in KNOWN_BROKEN
-            if (root / target.rstrip("/")).exists()
+            target for target in KNOWN_BROKEN if (root / target.rstrip("/")).exists()
         }
         stale |= {
-            module
-            for module in KNOWN_BROKEN_IMPORTS
-            if _module_exists(root, module)
+            module for module in KNOWN_BROKEN_IMPORTS if _module_exists(root, module)
         }
         if stale:
             print("KNOWN_BROKEN entries that now resolve — delete them from the hook:")
