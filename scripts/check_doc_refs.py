@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
-"""Pre-commit hook: :code-file:/:code-dir: targets in docs must exist in the tree."""
+"""Pre-commit hook: docs must not point at code that is not there.
+
+Two checks, both deliberately exact rather than heuristic:
+
+1. `:code-file:` / `:code-dir:` targets must exist, with the shape the role
+   implies. The roles in docs/source/conf.py build a github.com blob/tree URL
+   out of whatever string they are given and validate nothing, so a moved file
+   ships a live 404 while the Sphinx build stays green.
+2. `isaacteleop.*` imports inside documented Python must resolve to a real
+   module under src/python/. A renamed package leaves examples that raise
+   ModuleNotFoundError on the reader's first paste.
+
+Prose and shell paths are out of scope: matching those needs heuristics, and a
+doc-wide sweep of them produced mostly false positives (build artifacts,
+`cd`-relative paths, other repos' trees). A committer-facing gate has to be
+right every time to stay worth having.
+"""
 
 from __future__ import annotations
 
@@ -11,15 +27,25 @@ import subprocess
 import sys
 from pathlib import Path
 
-# The roles build a github.com blob/tree URL out of whatever string they are given
-# (docs/source/conf.py). Nothing validates the path, so a moved or mistyped target
-# ships a live link to a 404 and the Sphinx build still passes. This hook is that
-# missing validation.
 ROLE_RE = re.compile(r":code-(file|dir):`([^`]*)`", re.S)
+
+# `.. code-block:: python` (reST) and ```python (Markdown).
+RST_PY_BLOCK_RE = re.compile(
+    r"^([ \t]*)\.\. code-block:: *(?:python|py)\s*$", re.MULTILINE
+)
+MD_PY_BLOCK_RE = re.compile(r"^```+ *(?:python|py)\s*$(.*?)^```+\s*$", re.M | re.S)
+
+IMPORT_RE = re.compile(
+    r"^\s*(?:from\s+(isaacteleop(?:\.[\w.]+)?)\s+import\b"
+    r"|import\s+(isaacteleop(?:\.[\w.]+)?))",
+    re.MULTILINE,
+)
+
+PYTHON_ROOT = "src/python"
 
 # Targets that are known to be wrong and are not fixed yet. Keep the reason, and
 # delete the entry rather than let it settle in: every line here is a 404 on the
-# published docs. See docs/AGENTS.md for the audit that found them.
+# published docs.
 KNOWN_BROKEN = {
     "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/oglo_tactile_tracker.hpp": (
         "generated at configure time into ${CMAKE_BINARY_DIR}/generated/trackers/; "
@@ -38,6 +64,18 @@ KNOWN_BROKEN = {
         "generated at configure time; see the oglo_tactile_tracker.hpp entry. "
         "The generator emits both .hpp and .cpp (generate_trackers.py:59,62), "
         "so the extension is right and only the location is wrong."
+    ),
+}
+
+
+# Documented imports that are known wrong and not fixed yet, for the same reason
+# as KNOWN_BROKEN: the fix is not mechanical. Each value says why.
+KNOWN_BROKEN_IMPORTS = {
+    "isaacteleop.retargeting_engine.examples": (
+        "GripperRetargeter is exported from isaacteleop.retargeters. The import is "
+        "only one of four faults in that block — the call also omits the required "
+        "config arg and uses port names no longer in input_spec/output_spec — so "
+        "the example needs an author rewrite, not a one-line import swap."
     ),
 }
 
@@ -67,79 +105,143 @@ def _parse_role(text: str) -> str:
     return text
 
 
-def _targets(path: Path) -> list[tuple[int, str, str]]:
-    """Return (line, kind, target) for every code-file/code-dir role in path."""
+def _role_targets(source: str) -> list[tuple[int, str, str]]:
+    """Return (line, kind, target) for every code-file/code-dir role."""
+    found: list[tuple[int, str, str]] = []
+    for match in ROLE_RE.finditer(source):
+        target = _parse_role(match.group(2))
+        if target:
+            line = source.count("\n", 0, match.start()) + 1
+            found.append((line, match.group(1), target))
+    return found
+
+
+def _rst_python_blocks(source: str) -> list[tuple[int, str]]:
+    """Return (start_line, body) for each reST python code-block."""
+    lines = source.splitlines()
+    blocks: list[tuple[int, str]] = []
+    for match in RST_PY_BLOCK_RE.finditer(source):
+        indent = len(match.group(1))
+        start = source.count("\n", 0, match.start()) + 1
+        body: list[str] = []
+        for index in range(start, len(lines)):
+            line = lines[index]
+            if not line.strip():
+                body.append("")
+                continue
+            if len(line) - len(line.lstrip()) <= indent:
+                break
+            body.append(line.strip())
+        blocks.append((start, "\n".join(body)))
+    return blocks
+
+
+def _python_blocks(path: Path, source: str) -> list[tuple[int, str]]:
+    """Return (start_line, body) for each documented Python block in path."""
+    if path.suffix == ".rst":
+        return _rst_python_blocks(source)
+    return [
+        (source.count("\n", 0, m.start()) + 1, m.group(1))
+        for m in MD_PY_BLOCK_RE.finditer(source)
+    ]
+
+
+def _module_exists(root: Path, module: str) -> bool:
+    """Return whether an isaacteleop.* dotted path resolves under src/python/."""
+    base = root.joinpath(PYTHON_ROOT, *module.split("."))
+    return (
+        base.is_dir() or base.with_suffix(".py").is_file() or (base / "__init__.py").is_file()
+    )
+
+
+def _check(root: Path, path: Path) -> list[str]:
+    """Return one message per broken reference in path."""
     try:
         source = path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return []
 
-    found: list[tuple[int, str, str]] = []
-    for match in ROLE_RE.finditer(source):
-        kind = match.group(1)
-        target = _parse_role(match.group(2))
-        if not target:
-            continue
-        line = source.count("\n", 0, match.start()) + 1
-        found.append((line, kind, target))
-    return found
+    rel = path.relative_to(root) if path.is_absolute() else path
+    problems: list[str] = []
 
+    if path.suffix == ".rst":
+        for line, kind, target in _role_targets(source):
+            if target in KNOWN_BROKEN:
+                continue
+            resolved = root / target.rstrip("/")
+            if resolved.is_dir() if kind == "dir" else resolved.is_file():
+                continue
+            problems.append(
+                f"{rel}:{line}: :code-{kind}: target does not exist: {target}"
+            )
 
-def _resolve(root: Path, kind: str, target: str) -> bool:
-    """Return whether target exists in the tree with the shape its role implies."""
-    resolved = root / target.rstrip("/")
-    if kind == "dir":
-        return resolved.is_dir()
-    return resolved.is_file()
+    for start, body in _python_blocks(path, source):
+        for match in IMPORT_RE.finditer(body):
+            module = match.group(1) or match.group(2)
+            if module in KNOWN_BROKEN_IMPORTS or _module_exists(root, module):
+                continue
+            line = start + body.count("\n", 0, match.start())
+            problems.append(
+                f"{rel}:{line}: documented import does not resolve under "
+                f"{PYTHON_ROOT}/: {module}"
+            )
+    return problems
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description="Check doc references.")
     parser.add_argument("filenames", nargs="*", help="files to check (from pre-commit)")
     parser.add_argument(
         "--all",
         action="store_true",
-        help="check every .rst under docs/source instead of the passed filenames",
+        help="sweep every doc in the tree instead of the passed filenames",
     )
     args = parser.parse_args(argv)
 
     root = _repo_root()
     if args.all:
         paths = sorted(root.glob("docs/source/**/*.rst"))
+        paths += [
+            path
+            for path in root.glob("**/*.md")
+            if not any(
+                part in {".git", "build", "_build", ".venv", "node_modules"}
+                for part in path.parts
+            )
+        ]
     else:
-        paths = [Path(name) for name in args.filenames if name.endswith(".rst")]
+        paths = [
+            Path(name) for name in args.filenames if name.endswith((".rst", ".md"))
+        ]
     if not paths:
         return 0
 
     violations: list[str] = []
-    stale_allowlist = set(KNOWN_BROKEN)
     for path in paths:
-        for line, kind, target in _targets(path):
-            if _resolve(root, kind, target):
-                continue
-            stale_allowlist.discard(target)
-            if target in KNOWN_BROKEN:
-                continue
-            rel = path.relative_to(root) if path.is_absolute() else path
-            violations.append(
-                f"{rel}:{line}: :code-{kind}: target does not exist: {target}"
-            )
+        violations.extend(_check(root, path))
 
     if violations:
-        print("Docs reference paths that are not in the tree.", file=sys.stderr)
-        print(
-            "These roles render as github.com links, so each one ships a 404.",
-            file=sys.stderr,
-        )
+        print("Docs reference code that is not in the tree.", file=sys.stderr)
         for violation in violations:
             print(f"  {violation}", file=sys.stderr)
         return 1
 
-    # Only meaningful for a full sweep: a partial run simply did not visit them.
-    if args.all and stale_allowlist:
-        print("KNOWN_BROKEN entries that now resolve — delete them from the hook:")
-        for target in sorted(stale_allowlist):
-            print(f"  {target}")
+    if args.all:
+        # Only meaningful for a full sweep: a partial run simply did not visit them.
+        stale = {
+            target
+            for target in KNOWN_BROKEN
+            if (root / target.rstrip("/")).exists()
+        }
+        stale |= {
+            module
+            for module in KNOWN_BROKEN_IMPORTS
+            if _module_exists(root, module)
+        }
+        if stale:
+            print("KNOWN_BROKEN entries that now resolve — delete them from the hook:")
+            for target in sorted(stale):
+                print(f"  {target}")
 
     return 0
 
