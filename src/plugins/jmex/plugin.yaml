@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 j-mex. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: jmex
+description: "j-mex AgileMaster motion capture: robot joint angles as JointStateOutput"
+command: "./jmex_plugin"
+version: "1.0.0"
+# The plugin's own defaults, stated where an integrator can see and override them: PluginConfig's
+# plugin_args are appended after these and the last value of a flag wins.
+# Channel 1 is the live default. Player's file replay is fixed on 255, so verifying from a capture
+# means overriding this one.
+args:
+  - "--channel=1"
+  - "--collection-id=jmex"
+devices:
+  - path: "/robot/jmex"
+    type: "joint_state"
+    description: "MOXI Player robot-dialect channel (per-joint angles and angular velocities)"
