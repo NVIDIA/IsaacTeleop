@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# SENSING Astra S56C stereo pair on the SG10A carrier (AGX Orin, JetPack 6.2).
+#
+# The S56C is a RAW/Bayer sensor, so it has to go through Argus/ISP — the plain
+# ``type: v4l2`` source cannot debayer it. Requires the native Argus module
+# (examples/camera_viz/argus, built by ``camera_viz.sh setup --with-argus``).
+#
+# sensor_id is the Argus index, which follows the device-tree module order — not
+# the /dev/video number. On this overlay:
+#   0 cam7_frontright   1 cam6_frontleft   2 cam9_topcenter   3 cam8_bottomcenter
+# Modules 0-3 are the S56C group (J27 -> video0/1, J29 -> video2/3); 4-9 are the
+# six SHF3L ports. Re-derive after any overlay change with:
+#   for i in $(seq 0 9); do
+#     cat /proc/device-tree/tegra-camera-platform/modules/module$i/badge; echo
+#   done
+#
+# Ids 2/3 are the J29 pair. Only one S56C is supported at a time, so confirm
+# which port yours is on before trusting these — a sensor that has streamed
+# logs its AE loop:
+#   sudo dmesg | grep -oE 's56-shw3g 12-00[0-9a-f]+: sensor_set_gain' | sort -u
+# and 12-001b/1c/1d/1e map to cam_6/7/8/9 = ids 1/0/3/2 respectively.
+# The left/right assignment below is not verified: swap if stereo looks inverted.
+#
+# Copy into examples/camera_viz/configs/ (or pass the path directly) and run:
+#   ./camera_viz.sh run <this file>
+
+source: local
+streaming:
+  host: 127.0.0.1
+encoder: auto
+
+cameras:
+  - name: s56c
+    enabled: true
+    type: argus
+    stereo: true
+    # Independent Argus sessions per sensor: the GMSL driver does not support a
+    # dual-sensor session, and a shared one fails to open.
+    sync_session: false
+    pair_emit_mode: both
+    sensor_id_left: 2           # cam9_topcenter   (J29, /dev/video2)
+    sensor_id_right: 3          # cam8_bottomcenter (J29, /dev/video3)
+    sensor_mode: 0              # 1920x1080, the only S56C mode
+    width: 1920
+    height: 1080
+    fps: 30                     # must match setup_host.sh --fps when trigger-synced
+    gpu_id: 0
+    repeat_capture: true
+    full_range: false
+    swap_uv: true
+    rtp:
+      port: 5000
+      port_right: 5001
+      bitrate_mbps: 20
+
+display:
+  mode: xr
+  window:
+    width: 1920
+    height: 1080
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.0, 0.0, 0.0, 0.0]
+  placements:
+    s56c:
+      lock_mode: lazy
+      distance: 0.5
+      stereo_baseline_mm: 50.0

@@ -1,0 +1,31 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Per-frame metadata pushed by the SENSING camera plugin (one per stream).
+// Streams are keyed by Argus sensor id rather than an enum: the SG10A carrier
+// exposes ten sensors and the populated set varies per rig.
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+table FrameMetadataSensing {
+  // Argus sensor id, which follows device-tree module order (not /dev/videoN).
+  sensor_id: uint32 (id: 0);
+
+  // Per-stream frame sequence number, counted by the plugin from Argus publishes.
+  sequence_number: uint64 (id: 1);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no metadata available).
+table FrameMetadataSensingTracked {
+    data: FrameMetadataSensing (id: 0);
+}
+
+// MCAP recording wrapper for FrameMetadataSensing.
+table FrameMetadataSensingRecord {
+    data: FrameMetadataSensing (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type FrameMetadataSensingRecord;

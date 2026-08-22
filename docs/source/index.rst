@@ -67,6 +67,7 @@ Table of Contents
    device/manus
    device/oak
    device/oglo
+   device/sensing
    device/wuji_glove
    device/haptikos
 
