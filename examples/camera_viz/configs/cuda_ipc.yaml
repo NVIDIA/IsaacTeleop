@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# CUDA IPC source — frames arrive as GPU memory mapped straight out of the
+# producer process. No encode, no decode, no host copy.
+#
+# Producer is the sensing plugin:
+#   camera_plugin_sensing --add-stream=sensor=2,ipc=/tmp/sensing2.sock \
+#                         --width=1920 --height=1080
+#
+# Or, with no camera attached:
+#   sensing_ipc_testsrc --socket=/tmp/sensing2.sock --width=1920 --height=1080
+#
+# Then, in a second terminal:
+#   ./camera_viz.sh run configs/cuda_ipc.yaml --mode window   # desktop window
+#   ./camera_viz.sh run configs/cuda_ipc.yaml                 # XR headset
+#
+# ``width``/``height`` must match what the producer serves; the handshake
+# rejects a mismatch rather than rendering garbage. Order does not matter —
+# the source retries until the socket appears, and survives it restarting.
+
+source: local
+
+cameras:
+  - name: cam
+    enabled: true
+    type: cuda_ipc
+    socket: /tmp/sensing2.sock
+    width: 1920
+    height: 1080
+
+display:
+  mode: xr                      # xr | window (xr is the default)
+  window:
+    width: 1920
+    height: 1080
+  xr:
+    near_z: 0.05
+    far_z: 100.0
+  clear_color: [0.0, 0.0, 0.0, 0.0]
+  placements:
+    cam:
+      lock_mode: lazy
+      distance: 1.0

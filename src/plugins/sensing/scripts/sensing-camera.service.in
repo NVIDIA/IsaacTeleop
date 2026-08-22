@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# sensing-camera.service — installed by `setup_host.sh`.
+# Placeholders are substituted at install time; do not hand-edit on the robot.
+
+[Unit]
+Description=SENSING GMSL camera drivers (SG10A)
+# basic.target, not multi-user.target: the loader has to finish before
+# nvargus-daemon starts, and nvargus-daemon is itself part of multi-user.target.
+After=basic.target
+Before=nvargus-daemon.service
+Wants=nvargus-daemon.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{PKG_DIR}}
+ExecStart={{LOADER}} --pkg {{PKG_DIR}} --fps {{FPS}}{{FREE_RUN}}
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
