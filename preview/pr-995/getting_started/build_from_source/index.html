@@ -484,13 +484,6 @@ Neither gates the auto-default: if one is missing, the configure fails naming it
 than quietly dropping the module. Most users do not need any of this:
 <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> already ships the compiled <code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code> module. See
 <a class="reference internal" href="#other-build-options">Other Build options</a> for the full option table.</p>
-<p>On <strong>Linux</strong>, <code class="docutils literal notranslate"><span class="pre">BUILD_VIZ=ON</span></code> also builds the robot twin’s scene backend
-(<code class="xref py py-class docutils literal notranslate"><span class="pre">isaacteleop.viz.robot.SceneTwin</span></code>). There is no separate flag. It compiles
-MuJoCo from source and ships it under a private name, so it is unrelated to whatever
-<code class="docutils literal notranslate"><span class="pre">mujoco</span></code> the environment has – any version, or none. It needs <strong>EGL’s
-headers</strong> (<code class="docutils literal notranslate"><span class="pre">libegl-dev</span></code>) for its headless OpenGL context, fetches MuJoCo and six
-vendored dependencies from GitHub on the first configure, and costs about 40 s of
-build time on 12 cores. A Windows Televiz build omits it: the headless context is EGL.</p>
 </div>
 </section>
 <section id="one-time-setup">
@@ -681,7 +674,7 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 </tr>
 <tr class="row-odd"><td><p><strong>Televiz visualization</strong></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">BUILD_VIZ</span></code></p></td>
-<td><p>Auto: <code class="docutils literal notranslate"><span class="pre">ON</span></code> when Vulkan and the CUDA Toolkit are detected, else <code class="docutils literal notranslate"><span class="pre">OFF</span></code>. Force with <code class="docutils literal notranslate"><span class="pre">-DBUILD_VIZ=ON</span></code> / <code class="docutils literal notranslate"><span class="pre">-DBUILD_VIZ=OFF</span></code>. On Linux it also builds the robot twin’s scene backend, which needs <code class="docutils literal notranslate"><span class="pre">libegl-dev</span></code> and fetches MuJoCo on the first configure. (Most users don’t need this — <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> already ships the compiled <code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code> module.)</p></td>
+<td><p>Auto: <code class="docutils literal notranslate"><span class="pre">ON</span></code> when Vulkan and the CUDA Toolkit are detected, else <code class="docutils literal notranslate"><span class="pre">OFF</span></code>. Force with <code class="docutils literal notranslate"><span class="pre">-DBUILD_VIZ=ON</span></code> / <code class="docutils literal notranslate"><span class="pre">-DBUILD_VIZ=OFF</span></code>. (Most users don’t need this — <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> already ships the compiled <code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code> module.)</p></td>
 </tr>
 </tbody>
 </table>
@@ -1013,7 +1006,7 @@ targets, install the <code class="docutils literal notranslate"><span class="pre
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 23, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 24, 2026.
       <br/>
     
   </p>
