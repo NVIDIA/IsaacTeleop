@@ -16,6 +16,7 @@ namespace core
     : mcap_viewers_(std::make_unique<@MCAP_VIEWERS_TYPE@>(
           std::move(reader),
           base_name,
+          @TRAITS@::schema_name,
           std::vector<std::string>(@TRAITS@::replay_channels.begin(), @TRAITS@::replay_channels.end()))),
       no_data_message_("@REPLAY_IMPL@[" + std::string(base_name) + "]: no data (EOF or gap)")
 {

@@ -23,6 +23,7 @@ ReplayFullBodyTrackerImpl::ReplayFullBodyTrackerImpl(std::unique_ptr<mcap::McapR
     : mcap_viewers_(std::make_unique<FullBodyMcapViewers>(
           std::move(reader),
           base_name,
+          FullBodyRecordingTraits::schema_name,
           std::vector<std::string>(
               FullBodyRecordingTraits::replay_channels.begin(), FullBodyRecordingTraits::replay_channels.end())))
 {

@@ -423,7 +423,7 @@ TEST_CASE("McapTrackerViewers: reads records from a single channel", "[mcap][tra
         writer->close();
     }
 
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
 
     auto record1 = viewers.read(0);
     REQUIRE(record1);
@@ -460,7 +460,7 @@ TEST_CASE("McapTrackerViewers: multi-channel reads filter by index", "[mcap][tra
         writer->close();
     }
 
-    HeadViewers viewers(open_reader(path), "tracking", { "left", "right" });
+    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "left", "right" });
 
     auto left1 = viewers.read(0);
     REQUIRE(left1);
@@ -496,7 +496,7 @@ TEST_CASE("McapTrackerViewers: read subset of written channels", "[mcap][tracker
         writer->close();
     }
 
-    HeadViewers viewers(open_reader(path), "tracking", { "right" });
+    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "right" });
 
     auto r1 = viewers.read(0);
     REQUIRE(r1);
@@ -524,7 +524,7 @@ TEST_CASE("McapTrackerViewers: out-of-range channel_index throws", "[mcap][track
         writer->close();
     }
 
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
     CHECK_THROWS_AS(viewers.read(99), std::out_of_range);
 }
 
@@ -540,7 +540,7 @@ TEST_CASE("McapTrackerViewers: handles null data records", "[mcap][tracker_viewe
         writer->close();
     }
 
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
 
     auto record = viewers.read(0);
     REQUIRE(record);
