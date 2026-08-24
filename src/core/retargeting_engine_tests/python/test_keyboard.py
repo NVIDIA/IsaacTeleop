@@ -1,0 +1,155 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+End-to-end tests for the keyboard device: raw evdev key codes (constructed via the
+real schema Python bindings, no live device/plugin/OpenXR session involved) flowing
+through KeyboardSource into KeyboardToSe3RelRetargeter and KeyboardGripperRetargeter.
+
+These exercise the full feature as a whole -- schema -> source -> retargeters -- so a
+regression anywhere in that chain (a field rename, an index drift, a sign flip) fails
+here, rather than testing each stage's internals in isolation.
+"""
+
+import numpy as np
+import pytest
+
+from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource
+from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
+from isaacteleop.retargeters import (
+    KeyboardGripperRetargeter,
+    KeyboardToSe3RelRetargeter,
+    KeyboardToSe3RelRetargeterConfig,
+)
+from isaacteleop.schema import KeyboardOutput, KeyboardOutputTrackedT
+
+# Evdev key codes (linux/input-event-codes.h), matching keyboard_plugin.cpp / KeyboardSource.
+KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E = 17, 30, 31, 32, 16, 18
+KEY_K = 37  # gripper toggle
+KEY_F1 = 59  # not part of the SE3-relevant subset -- exercises "every key" coverage
+
+
+def _keyboard_source():
+    return KeyboardSource(name="keyboard")
+
+
+def _run_source(src, pressed_keys: list[int] | None):
+    """Feed raw pressed_keys (None = inactive device) through KeyboardSource.compute()."""
+    if pressed_keys is None:
+        tracked = KeyboardOutputTrackedT()  # data is None -> inactive
+    else:
+        tracked = KeyboardOutputTrackedT(KeyboardOutput(pressed_keys, True))
+
+    input_spec = src.input_spec()
+    tg = TensorGroup(input_spec["deviceio_keyboard"])
+    tg[0] = tracked
+
+    outputs = {name: _make_output_group(gt) for name, gt in src.output_spec().items()}
+    src.compute({"deviceio_keyboard": tg}, outputs)
+    return outputs
+
+
+class TestKeyboardEndToEnd:
+    def test_source_creates_real_tracker(self):
+        src = _keyboard_source()
+        tracker = src.get_tracker()
+        assert tracker is not None
+        assert tracker.get_name() == "KeyboardTracker"
+
+    def test_movement_key_produces_ee_delta(self):
+        """W held -> KeyboardSource -> KeyboardToSe3RelRetargeter -> +X delta."""
+        src = _keyboard_source()
+        src_outputs = _run_source(src, [KEY_W])
+        assert not src_outputs["keyboard"].is_none
+
+        retargeter = KeyboardToSe3RelRetargeter(
+            KeyboardToSe3RelRetargeterConfig(), name="se3"
+        )
+        out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
+        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+
+        delta = np.asarray(out["ee_delta"][0])
+        assert delta[0] == pytest.approx(0.4)  # default pos_sensitivity
+        assert np.allclose(delta[1:], 0.0)
+
+    def test_opposing_keys_combine(self):
+        """W (+X) and Q (+Z) held together combine on independent axes."""
+        src = _keyboard_source()
+        src_outputs = _run_source(src, [KEY_W, KEY_Q])
+
+        retargeter = KeyboardToSe3RelRetargeter(
+            KeyboardToSe3RelRetargeterConfig(), name="se3"
+        )
+        out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
+        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+
+        delta = np.asarray(out["ee_delta"][0])
+        assert delta[0] == pytest.approx(0.4)  # W: +X
+        assert delta[2] == pytest.approx(0.4)  # Q: +Z
+        assert delta[1] == pytest.approx(0.0)
+        assert np.allclose(delta[3:], 0.0)  # no rotation keys held
+
+    def test_gripper_toggles_on_rising_edge_only(self):
+        """K press/release/press across three frames toggles exactly on each rising edge."""
+        src = _keyboard_source()
+        retargeter = KeyboardGripperRetargeter(name="gripper")
+
+        def step(pressed_keys):
+            src_outputs = _run_source(src, pressed_keys)
+            out = {
+                "gripper_command": _make_output_group(
+                    retargeter.output_spec()["gripper_command"]
+                )
+            }
+            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+            return float(out["gripper_command"][0])
+
+        assert step([]) == pytest.approx(1.0)  # open (default)
+        assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
+        assert step([KEY_K]) == pytest.approx(
+            -1.0
+        )  # held -> stays closed, no re-toggle
+        assert step([]) == pytest.approx(-1.0)  # release -> stays closed
+        assert step([KEY_K]) == pytest.approx(1.0)  # rising edge again -> open
+
+    def test_inactive_device_yields_safe_defaults(self):
+        """No sample yet (tracker/plugin not streaming) -> zero delta, no gripper state change."""
+        src = _keyboard_source()
+        src_outputs = _run_source(src, None)
+        assert src_outputs["keyboard"].is_none
+        assert src_outputs["keyboard_all_keys"].is_none
+
+        se3 = KeyboardToSe3RelRetargeter(KeyboardToSe3RelRetargeterConfig(), name="se3")
+        se3_out = {"ee_delta": _make_output_group(se3.output_spec()["ee_delta"])}
+        se3.compute({"keyboard": src_outputs["keyboard"]}, se3_out)
+        assert np.allclose(np.asarray(se3_out["ee_delta"][0]), 0.0)
+
+        gripper = KeyboardGripperRetargeter(name="gripper")
+        gripper_out = {
+            "gripper_command": _make_output_group(
+                gripper.output_spec()["gripper_command"]
+            )
+        }
+        gripper.compute({"keyboard": src_outputs["keyboard"]}, gripper_out)
+        assert float(gripper_out["gripper_command"][0]) == pytest.approx(
+            1.0
+        )  # default open
+
+    def test_all_keys_bitmap_covers_keys_outside_se3_subset(self):
+        """F1 (not part of the 13-key SE3 subset) shows up in keyboard_all_keys but not ee_delta."""
+        src = _keyboard_source()
+        src_outputs = _run_source(src, [KEY_F1])
+
+        bitmap = np.asarray(src_outputs["keyboard_all_keys"][0])
+        assert bitmap[KEY_F1] == 1
+        assert bitmap.sum() == 1  # only F1 is set
+
+        retargeter = KeyboardToSe3RelRetargeter(
+            KeyboardToSe3RelRetargeterConfig(), name="se3"
+        )
+        out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
+        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+        assert np.allclose(
+            np.asarray(out["ee_delta"][0]), 0.0
+        )  # F1 is not a motion key
