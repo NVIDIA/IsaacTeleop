@@ -36,14 +36,28 @@ Here's a minimal example:
        TeleopSessionConfig,
    )
    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-   from isaacteleop.retargeting_engine.examples import GripperRetargeter
+   from isaacteleop.retargeting_engine.interface import OutputCombiner
+   from isaacteleop.retargeters import GripperRetargeter, GripperRetargeterConfig
 
-   # Create source and build pipeline
+   # Create source and build pipeline (one GripperRetargeter per side)
    controllers = ControllersSource(name="controllers")
-   gripper = GripperRetargeter(name="gripper")
-   pipeline = gripper.connect({
-       "controller_left": controllers.output("controller_left"),
-       "controller_right": controllers.output("controller_right")
+   gripper_left = GripperRetargeter(
+       GripperRetargeterConfig(hand_side="left"),
+       name="gripper_left",
+   )
+   connected_left = gripper_left.connect({
+       ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
+   })
+   gripper_right = GripperRetargeter(
+       GripperRetargeterConfig(hand_side="right"),
+       name="gripper_right",
+   )
+   connected_right = gripper_right.connect({
+       ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT),
+   })
+   pipeline = OutputCombiner({
+       "gripper_left": connected_left.output("gripper_command"),
+       "gripper_right": connected_right.output("gripper_command"),
    })
 
    # Configure session
@@ -462,8 +476,24 @@ Before vs After
 
    # Setup pipeline
    controllers = ControllersSource(name="controllers")
-   gripper = GripperRetargeter(name="gripper")
-   pipeline = gripper.connect({...})
+   gripper_left = GripperRetargeter(
+       GripperRetargeterConfig(hand_side="left"),
+       name="gripper_left",
+   )
+   connected_left = gripper_left.connect({
+       ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
+   })
+   gripper_right = GripperRetargeter(
+       GripperRetargeterConfig(hand_side="right"),
+       name="gripper_right",
+   )
+   connected_right = gripper_right.connect({
+       ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT),
+   })
+   pipeline = OutputCombiner({
+       "gripper_left": connected_left.output("gripper_command"),
+       "gripper_right": connected_right.output("gripper_command"),
+   })
 
    # Main loop
    while True:
