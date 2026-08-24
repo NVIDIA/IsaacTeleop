@@ -36,14 +36,18 @@ Here's a minimal example:
        TeleopSessionConfig,
    )
    from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-   from isaacteleop.retargeting_engine.examples import GripperRetargeter
+   from isaacteleop.retargeters import (
+       GripperRetargeter,
+       GripperRetargeterConfig,
+   )
 
    # Create source and build pipeline
    controllers = ControllersSource(name="controllers")
-   gripper = GripperRetargeter(name="gripper")
-   pipeline = gripper.connect({
-       "controller_left": controllers.output("controller_left"),
-       "controller_right": controllers.output("controller_right")
+
+   # A gripper retargeter handles one hand; build the left one here
+   gripper_left = GripperRetargeter(GripperRetargeterConfig(hand_side="left"), name="gripper_left")
+   pipeline = gripper_left.connect({
+       ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
    })
 
    # Configure session
@@ -58,8 +62,7 @@ Here's a minimal example:
        while True:
            result = session.step()
            # Access outputs
-           left = result["gripper_left"][0]
-           right = result["gripper_right"][0]
+           left = result["gripper_command"][0]
 
 Configuration Classes
 ---------------------
@@ -81,6 +84,8 @@ The main configuration object:
        app_name: str                            # OpenXR application name
        pipeline: Any                            # Connected retargeting pipeline
        mode: SessionMode = SessionMode.LIVE     # LIVE or REPLAY
+       teleop_control_pipeline: Optional[...] = None  # Control pipeline (optional)
+       sinks: List[Any] = []                    # Device-output sinks (optional)
        trackers: List[Any] = []                 # Tracker instances (optional)
        plugins: List[PluginConfig] = []         # Plugin configurations (optional)
        verbose: bool = True                     # Print progress info
@@ -104,7 +109,7 @@ argument is a ``uint64`` handle value.
 
 .. code-block:: python
 
-   from teleopcore.oxr import OpenXRSessionHandles
+   from isaacteleop.oxr import OpenXRSessionHandles
 
    handles = OpenXRSessionHandles(
        instance_handle, session_handle, space_handle, proc_addr
@@ -430,9 +435,13 @@ Examples
 Complete Examples
 ^^^^^^^^^^^^^^^^^
 
-#. **Simplified Gripper Example**: ``examples/retargeting/python/gripper_retargeting_simple.py``
+#. **Simplified Gripper Example**: ``examples/teleop/python/gripper_retargeting_example_simple.py``
    -- Shows the minimal configuration approach and demonstrates auto-creation
    of input sources.
+
+#. **Two-Sided Gripper Example**: ``examples/teleop/python/gripper_retargeting_example.py``
+   -- Builds one ``GripperRetargeter`` per hand and merges them with
+   ``OutputCombiner`` into ``gripper_left`` / ``gripper_right``.
 
 Before vs After
 ^^^^^^^^^^^^^^^
@@ -441,14 +450,15 @@ Before vs After
 
 .. code-block:: python
 
-   # Create trackers
-   controller_tracker = deviceio.ControllerTracker()
+   # Create sources; each source owns the tracker it needs
+   controllers = ControllersSource(name="controllers")
+   controller_tracker = controllers.get_tracker()
 
    # Get extensions
    required_extensions = deviceio.DeviceIOSession.get_required_extensions([controller_tracker])
 
    # Create OpenXR session
-   oxr_session = oxr.OpenXRSession.create("MyApp", required_extensions)
+   oxr_session = oxr.OpenXRSession("MyApp", required_extensions)
    oxr_session.__enter__()
 
    # Create DeviceIO session
@@ -461,22 +471,20 @@ Before vs After
    plugin_context = plugin_manager.start(...)
 
    # Setup pipeline
-   controllers = ControllersSource(name="controllers")
-   gripper = GripperRetargeter(name="gripper")
-   pipeline = gripper.connect({...})
+   gripper_left = GripperRetargeter(
+       GripperRetargeterConfig(hand_side="left"), name="gripper_left"
+   )
+   gripper_right = GripperRetargeter(
+       GripperRetargeterConfig(hand_side="right"), name="gripper_right"
+   )
+   pipeline = OutputCombiner({...})
 
    # Main loop
    while True:
        deviceio_session.update()
-       # Manual data injection needed for new sources
-       left_controller = controller_tracker.get_left_controller(deviceio_session)
-       right_controller = controller_tracker.get_right_controller(deviceio_session)
-       inputs = {
-           "controllers": {
-               "deviceio_controller_left": [left_controller],
-               "deviceio_controller_right": [right_controller]
-           }
-       }
+       # Manual data injection needed for new sources; poll_tracker() wraps the
+       # tracked snapshots in the TensorGroups the pipeline expects
+       inputs = {"controllers": controllers.poll_tracker(deviceio_session)}
        result = pipeline(inputs)
        # ... error handling, cleanup ...
 
