@@ -12,16 +12,18 @@ Each binding generates its own code from them.
 agreed revision. These are byte-for-byte the bytes `McapTrackerChannels` embeds in every
 recording, so an existing `.mcap` on disk carries one of them.
 
-They are deliberately **not** in LFS, unlike the binary assets in `.gitattributes`. Every
-build reads them, and a clone that skipped `git lfs pull` would hand the test a pointer
-file to parse as a schema — reported as an unparseable schema rather than a missing
-fetch. At a couple of KB each, changing only when a schema does, plain git objects cost
-nothing.
+They are deliberately **not** in LFS, unlike the binary assets in `.gitattributes`. The
+test suite reads them, and a clone that skipped `git lfs pull` would hand the test a
+pointer file to parse as a schema — reported as an unparseable schema rather than a
+missing fetch. At a couple of KB each, changing only when a schema does, plain git
+objects cost nothing.
 
 The `[schema_conform]` cases in `schema_tests` compare what the schemas compile to *now*
 against the goldens, and fail when a change would make existing recordings unreadable.
-That is the build-time half of the check `McapTrackerViewers` performs at replay time;
-both call `check_schema_compat()`, so they agree on what "unreadable" means.
+That is the CI-time half of the check `McapTrackerViewers` performs at replay time; both
+call `check_schema_compat()`, so they agree on what "unreadable" means. Note that it is a
+test, not a build step: a plain `cmake --build` will not catch a breaking schema edit, but
+`ctest` will.
 
 ## Adding a field
 

@@ -23,7 +23,6 @@ ReplayHandTrackerImpl::ReplayHandTrackerImpl(std::unique_ptr<mcap::McapReader> r
     : mcap_viewers_(
           std::make_unique<HandMcapViewers>(std::move(reader),
                                             base_name,
-                                            HandRecordingTraits::schema_name,
                                             std::vector<std::string>(HandRecordingTraits::replay_channels.begin(),
                                                                      HandRecordingTraits::replay_channels.end())))
 {

@@ -24,7 +24,6 @@ ReplayControllerTrackerImpl::ReplayControllerTrackerImpl(std::unique_ptr<mcap::M
     : mcap_viewers_(std::make_unique<ControllerMcapViewers>(
           std::move(reader),
           base_name,
-          ControllerRecordingTraits::schema_name,
           std::vector<std::string>(
               ControllerRecordingTraits::replay_channels.begin(), ControllerRecordingTraits::replay_channels.end())))
 {

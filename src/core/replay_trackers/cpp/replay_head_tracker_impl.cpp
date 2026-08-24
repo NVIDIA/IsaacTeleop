@@ -23,7 +23,6 @@ ReplayHeadTrackerImpl::ReplayHeadTrackerImpl(std::unique_ptr<mcap::McapReader> r
     : mcap_viewers_(
           std::make_unique<HeadMcapViewers>(std::move(reader),
                                             base_name,
-                                            HeadRecordingTraits::schema_name,
                                             std::vector<std::string>(HeadRecordingTraits::replay_channels.begin(),
                                                                      HeadRecordingTraits::replay_channels.end())))
 {

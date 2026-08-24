@@ -13,7 +13,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 
 namespace core
 {
@@ -26,25 +25,6 @@ std::string root_table_name(const reflection::Schema& schema)
 {
     const auto* root = schema.root_table();
     return root != nullptr && root->name() != nullptr ? root->name()->str() : "<none>";
-}
-
-std::unordered_map<std::string_view, const reflection::Object*> objects_by_name(const reflection::Schema& schema)
-{
-    std::unordered_map<std::string_view, const reflection::Object*> by_name;
-    const auto* objects = schema.objects();
-    if (objects == nullptr)
-    {
-        return by_name;
-    }
-
-    for (const auto* object : *objects)
-    {
-        if (object != nullptr && object->name() != nullptr)
-        {
-            by_name.emplace(object->name()->string_view(), object);
-        }
-    }
-    return by_name;
 }
 
 /*!
@@ -62,33 +42,23 @@ std::unordered_map<std::string_view, const reflection::Object*> objects_by_name(
  */
 std::string struct_layout_conflict(const reflection::Schema& recorded, const reflection::Schema& compiled)
 {
-    const auto recorded_objects = objects_by_name(recorded);
-
-    const auto* compiled_objects = compiled.objects();
-    if (compiled_objects == nullptr)
+    // reflection.fbs declares `objects` sorted and keyed on `name`, so this is a binary
+    // search rather than an index built per call.
+    for (const auto* compiled_object : *compiled.objects())
     {
-        return {};
-    }
-
-    for (const auto* compiled_object : *compiled_objects)
-    {
-        if (compiled_object == nullptr || compiled_object->name() == nullptr)
+        const auto* match = recorded.objects()->LookupByKey(compiled_object->name()->c_str());
+        if (match == nullptr)
         {
             continue;
         }
+        const reflection::Object& recorded_object = *match;
 
-        const auto match = recorded_objects.find(compiled_object->name()->string_view());
-        if (match == recorded_objects.end())
-        {
-            continue;
-        }
-        const reflection::Object& recorded_object = *match->second;
-
-        const std::string name = compiled_object->name()->str();
         if (!recorded_object.is_struct() && !compiled_object->is_struct())
         {
             continue;
         }
+
+        const std::string name = compiled_object->name()->str();
         if (recorded_object.is_struct() != compiled_object->is_struct())
         {
             return name + " is a " + (recorded_object.is_struct() ? "struct" : "table") + " in the recording and a " +
@@ -111,6 +81,16 @@ std::string struct_layout_conflict(const reflection::Schema& recorded, const ref
 
 } // namespace
 
+std::string schema_root_name(std::span<const uint8_t> bfbs)
+{
+    flatbuffers::Verifier verifier(bfbs.data(), bfbs.size());
+    if (!reflection::VerifySchemaBuffer(verifier))
+    {
+        throw std::logic_error("schema_root_name: not a valid FlatBuffers binary schema");
+    }
+    return root_table_name(*reflection::GetSchema(bfbs.data()));
+}
+
 SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded,
                                        std::span<const uint8_t> compiled,
                                        std::string_view expected_root)
@@ -121,13 +101,24 @@ SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded,
         return { SchemaCompat::Identical, {} };
     }
 
-    flatbuffers::Verifier verifier(recorded.data(), recorded.size());
-    if (!reflection::VerifySchemaBuffer(verifier))
+    // Verifying up front is what lets everything below walk both schemas without null
+    // checks: reflection.fbs marks `objects`, and an object's `name`, as required.
+    flatbuffers::Verifier recorded_verifier(recorded.data(), recorded.size());
+    if (!reflection::VerifySchemaBuffer(recorded_verifier))
     {
         return { SchemaCompat::Incompatible, "embedded schema is not a valid FlatBuffers binary schema" };
     }
 
+    flatbuffers::Verifier compiled_verifier(compiled.data(), compiled.size());
+    if (!reflection::VerifySchemaBuffer(compiled_verifier))
+    {
+        throw std::logic_error("check_schema_compat: compiled-in binary schema for '" + std::string(expected_root) +
+                               "' is not a valid binary schema");
+    }
+
     const reflection::Schema& recorded_schema = *reflection::GetSchema(recorded.data());
+    const reflection::Schema& compiled_schema = *reflection::GetSchema(compiled.data());
+
     const std::string recorded_root = root_table_name(recorded_schema);
     if (recorded_root != expected_root)
     {
@@ -135,7 +126,7 @@ SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded,
                  "recorded root type is '" + recorded_root + "', reader expects '" + std::string(expected_root) + "'" };
     }
 
-    const std::string layout_conflict = struct_layout_conflict(recorded_schema, *reflection::GetSchema(compiled.data()));
+    const std::string layout_conflict = struct_layout_conflict(recorded_schema, compiled_schema);
     if (!layout_conflict.empty())
     {
         return { SchemaCompat::Incompatible, layout_conflict };
@@ -143,15 +134,16 @@ SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded,
 
     // ConformTo answers "is the compiled-in schema a safe evolution of the recorded one",
     // which is the read-compatibility question. It only runs once the bytes already differ,
-    // so the Parser cost stays off the path a matching build takes.
+    // so the Parser cost stays off the path a matching build takes. Deserializing from the
+    // verified Schema rather than the bytes skips the verify Parser would repeat.
     flatbuffers::Parser recorded_parser;
-    if (!recorded_parser.Deserialize(recorded.data(), recorded.size()))
+    if (!recorded_parser.Deserialize(&recorded_schema))
     {
         return { SchemaCompat::Incompatible, "embedded schema could not be deserialized" };
     }
 
     flatbuffers::Parser compiled_parser;
-    if (!compiled_parser.Deserialize(compiled.data(), compiled.size()))
+    if (!compiled_parser.Deserialize(&compiled_schema))
     {
         throw std::logic_error("check_schema_compat: compiled-in binary schema for '" + std::string(expected_root) +
                                "' failed to deserialize");

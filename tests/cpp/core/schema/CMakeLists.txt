@@ -25,7 +25,7 @@ target_link_libraries(schema_tests PRIVATE
 )
 
 # test_schema_conform.cpp reads these directories at run time.
-add_dependencies(schema_tests schema_binary_schemas)
+add_dependencies(schema_tests schema_header_generation)
 target_compile_definitions(schema_tests PRIVATE
   SCHEMA_FBS_DIR="${SCHEMA_FBS_DIR}"
   SCHEMA_BFBS_DIR="${SCHEMA_BFBS_DIR}"

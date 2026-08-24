@@ -220,9 +220,10 @@ public:
 
     McapTrackerViewers(std::unique_ptr<mcap::McapReader> reader,
                        std::string_view base_name,
-                       std::string_view schema_name,
                        const std::vector<std::string>& sub_channels)
-        : reader_(std::move(reader)), schema_name_(schema_name)
+        : reader_(std::move(reader)),
+          schema_name_(
+              schema_root_name(std::span<const uint8_t>(RecordT::BinarySchema::data(), RecordT::BinarySchema::size())))
     {
         for (const auto& sub : sub_channels)
         {
@@ -330,24 +331,32 @@ private:
     /*!
      * @brief Compare the schema a message was recorded under against RecordT's.
      *
-     * A schema id joins the list only once enforce_schema_compat() has returned without
-     * throwing, so the two outcomes fall out of the order alone: a warning is emitted
-     * once and then skipped, while a schema that cannot be read never joins the list and
-     * so is compared -- and thrown on -- again on every later read().
+     * An entry is marked accepted only once enforce_schema_compat() has returned without
+     * throwing, so the two outcomes fall out of that flag alone: a warning is emitted once
+     * and then skipped, while a schema that cannot be read stays unaccepted and is thrown
+     * on again by every later read(). The comparison itself is cached either way -- it
+     * deserializes both schemas, which is far too much to repeat per frame.
      *
-     * Every channel a tracker reads shares the one schema its writer registered, so once
-     * a recording is accepted this is a lookup in a one-element vector.
+     * Every channel a tracker reads shares the one schema its writer registered, so this
+     * is a lookup in a one-element vector.
      */
     void ensure_schema_checked(const mcap::MessageView& view)
     {
         const mcap::SchemaId schema_id = view.channel->schemaId;
-        if (std::find(validated_.begin(), validated_.end(), schema_id) != validated_.end())
+        auto entry = std::find_if(
+            checked_.begin(), checked_.end(), [schema_id](const CheckedSchema& c) { return c.id == schema_id; });
+        if (entry == checked_.end())
+        {
+            checked_.push_back({ schema_id, compare_schema(view.schema.get()), false });
+            entry = std::prev(checked_.end());
+        }
+        else if (entry->accepted)
         {
             return;
         }
 
-        enforce_schema_compat(compare_schema(view.schema.get()), view.channel->topic);
-        validated_.push_back(schema_id);
+        enforce_schema_compat(entry->result, view.channel->topic);
+        entry->accepted = true;
     }
 
     SchemaCompatResult compare_schema(const mcap::Schema* recorded) const
@@ -388,12 +397,20 @@ private:
         return Serialized<RecordT>::adopt(std::vector<uint8_t>(bytes, bytes + msg.dataSize));
     }
 
+    //! One recorded schema graded against RecordT::BinarySchema.
+    struct CheckedSchema
+    {
+        mcap::SchemaId id;
+        SchemaCompatResult result;
+        //! enforce_schema_compat() has already returned normally for `result`.
+        bool accepted;
+    };
+
     std::unique_ptr<mcap::McapReader> reader_;
     std::string schema_name_;
     std::vector<ChannelBuffer> channels_;
     std::unique_ptr<TrackerView> tracker_view_;
-    //! Schema ids compared against RecordT::BinarySchema and accepted.
-    std::vector<mcap::SchemaId> validated_;
+    std::vector<CheckedSchema> checked_;
 };
 
 } // namespace core

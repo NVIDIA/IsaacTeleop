@@ -11,38 +11,29 @@ cmake_minimum_required(VERSION 3.20)
 
 include(${CMAKE_SOURCE_DIR}/cmake/GenerateFlatBuffers.cmake)
 
+# The same flatc pass emits the standalone .bfbs used by the golden comparison in
+# tests/cpp/core/schema/test_schema_conform.cpp.
 generate_flatbuffer_headers(
   SCHEMA_GENERATED_HEADERS
   ${SCHEMA_FBS_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}/generated/schema
+  SCHEMA_GENERATED_BFBS
 )
 
 add_custom_target(schema_header_generation
-  DEPENDS ${SCHEMA_GENERATED_HEADERS}
+  DEPENDS ${SCHEMA_GENERATED_HEADERS} ${SCHEMA_GENERATED_BFBS}
 )
 
-# Standalone .bfbs alongside the embedded headers, for the golden comparison in
-# tests/cpp/core/schema/test_schema_conform.cpp.
-generate_binary_schemas(
-  SCHEMA_GENERATED_BFBS
-  ${SCHEMA_FBS_DIR}
-  ${CMAKE_CURRENT_BINARY_DIR}/generated/bfbs
-)
-
-add_custom_target(schema_binary_schemas
-  DEPENDS ${SCHEMA_GENERATED_BFBS}
-)
-
-set(SCHEMA_BFBS_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/bfbs CACHE INTERNAL
+set(SCHEMA_BFBS_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/schema CACHE INTERNAL
     "Directory holding the .bfbs built from ${SCHEMA_FBS_DIR}")
 
 # Refresh the goldens after an intentional schema change: cmake --build . --target
 # schema_golden_update. Review the resulting diff -- a change that reaches here has
 # already been judged unreadable for existing recordings.
 add_custom_target(schema_golden_update
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${SCHEMA_BFBS_DIR} ${SCHEMA_GOLDEN_DIR}
-  DEPENDS schema_binary_schemas
-  COMMENT "Copying ${SCHEMA_BFBS_DIR} over ${SCHEMA_GOLDEN_DIR}"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SCHEMA_GENERATED_BFBS} ${SCHEMA_GOLDEN_DIR}
+  DEPENDS schema_header_generation
+  COMMENT "Copying the freshly built .bfbs over ${SCHEMA_GOLDEN_DIR}"
 )
 
 add_library(isaacteleop_schema INTERFACE)

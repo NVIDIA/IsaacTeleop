@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -444,7 +445,7 @@ TEST_CASE("McapTrackerViewers rejects a channel that declares no schema", "[unit
     const TempFileCleanup cleanup(path);
     write_head_records(path, std::nullopt);
 
-    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
     CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
 }
 
@@ -454,7 +455,7 @@ TEST_CASE("McapTrackerViewers rejects a schema that is not flatbuffer-encoded", 
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs(), "protobuf"));
 
-    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
     CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
 }
 
@@ -464,7 +465,7 @@ TEST_CASE("McapTrackerViewers rejects a schema named for another record type", "
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema("core.HandPoseRecord", faithful_head_bfbs()));
 
-    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
     CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
 }
 
@@ -477,7 +478,7 @@ TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3);
 
-    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
     const CapturedCerr log;
     for (int record = 0; record < 3; ++record)
     {
@@ -492,7 +493,7 @@ TEST_CASE("McapTrackerViewers keeps throwing after a swallowed mismatch", "[unit
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, grown_stamp_head_bfbs()), 3);
 
-    HeadViewers viewers(open_reader(path), "tracking", core::HeadRecordingTraits::schema_name, { "head" });
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
     CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
     CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
     CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
