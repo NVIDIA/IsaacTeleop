@@ -152,9 +152,9 @@ exec "$@"
 EOF
 
 # -----------------------------------------------------------------------------
-# Stage 3: runtime image (install tree only)
+# Stage 3: runtime base (install tree only)
 # -----------------------------------------------------------------------------
-FROM base
+FROM base AS runtime_base
 ARG PYTHON_VERSION
 
 WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
@@ -219,6 +219,13 @@ RUN set -eu; \
     version=$(basename "$wheel" | sed -E 's/^isaacteleop-([^-]+)-.*$/\1/'); \
     echo "== pinning isaacteleop==${version} =="; \
     uv sync --no-dev --upgrade-package "isaacteleop==${version}"
+
+# Test-only image: keep the production runtime free of source tests.
+FROM runtime_base AS test
+COPY tests/python/examples/teleop_ros2/ tests/
+
+# Production image.
+FROM runtime_base AS runtime
 
 # Use --no-sync because the venv is already provisioned above.
 ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "--no-sync", "teleop_ros2_node.py"]

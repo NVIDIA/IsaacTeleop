@@ -3,6 +3,10 @@
 
 add_subdirectory(core)
 
+if(BUILD_EXAMPLE_TELEOP_ROS2)
+    add_subdirectory(examples/teleop_ros2)
+endif()
+
 if(BUILD_VIZ AND BUILD_PYTHON_BINDINGS)
     add_subdirectory(viz)
 endif()

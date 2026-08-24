@@ -673,6 +673,25 @@ jobs:
           --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
 
+    - name: Run teleop_ros2 Python unit tests
+      run: |
+        set -euo pipefail
+        TEST_IMAGE="teleop_ros2_ref-tests:${{ env.ROS_DISTRO }}"
+        trap 'docker image rm -f "$TEST_IMAGE" >/dev/null 2>&1 || true' EXIT
+
+        docker build -f examples/teleop_ros2/Dockerfile \
+          --target test \
+          --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
+          --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
+          --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
+          -t "$TEST_IMAGE" .
+
+        docker run --rm \
+          -e PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+          --entrypoint bash "$TEST_IMAGE" -c \
+          "source /usr/local/bin/teleop-env-setup && \
+           exec uv run --with pytest --no-sync pytest -v --tb=short tests"
+
     # MCAP replay path: feed a recorded fixture through the node
     # (SessionMode.REPLAY, no CloudXR runtime / GPU) across all teleop modes and
     # verify the published topics. The cheaper, deterministic check; runs before
