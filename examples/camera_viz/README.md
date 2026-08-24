@@ -198,7 +198,7 @@ Only one OpenXR session is allowed per process. `VizSession` can own it and hand
 
 ```python
 import isaacteleop.viz as viz
-from teleopcore.oxr import OpenXRSessionHandles
+from isaacteleop.oxr import OpenXRSessionHandles
 
 cfg = viz.VizSessionConfig()
 cfg.mode = viz.DisplayMode.kXr
