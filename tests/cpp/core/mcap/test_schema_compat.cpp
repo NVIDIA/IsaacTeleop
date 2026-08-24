@@ -153,7 +153,8 @@ std::vector<uint8_t> faithful_head_bfbs()
     return bfbs_from(head_schema_source(kRealStampFields).c_str());
 }
 
-//! DeviceDataTimestamp with a fourth clock field: inline struct, so every byte after it moves.
+//! DeviceDataTimestamp with a fourth clock field: resizing an inline struct, which a
+//! reader cannot detect from the message bytes.
 std::vector<uint8_t> grown_stamp_head_bfbs()
 {
     return bfbs_from(head_schema_source(std::string(kRealStampFields) + "sample_time_extra_clock: long;").c_str());

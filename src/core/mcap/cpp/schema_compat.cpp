@@ -50,10 +50,13 @@ std::unordered_map<std::string_view, const reflection::Object*> objects_by_name(
 /*!
  * @brief Compare the footprint of every struct the two schemas share.
  *
- * A struct is stored inline at a fixed offset with no vtable, so a change to its size
- * or alignment shifts everything laid out after it and cannot be detected from the
- * message bytes. Parser::ConformTo compares the offsets of a struct's fields but never
- * the struct's own size, so a struct that gained a trailing field passes it.
+ * A struct is stored inline with no vtable, and its size is baked into every layout that
+ * encloses it: where the members after it sit inside a parent struct, a vector's element
+ * stride, and how many bytes a table field read consumes. Resizing one therefore either
+ * misreads the members that follow it or runs off the end of the recorded value, and
+ * neither shows up in the message bytes. Parser::ConformTo compares the offsets of a
+ * struct's fields but never the struct's own size, so one that gained a trailing field
+ * passes it.
  *
  * @return Empty when every shared struct still has the same layout.
  */
