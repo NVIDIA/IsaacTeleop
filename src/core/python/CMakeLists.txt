@@ -113,10 +113,16 @@ if(BUILD_VIZ)
     list(APPEND STUBGEN_MODULES isaacteleop.viz._viz)
 endif()
 
+# --unset=VIRTUAL_ENV: an activated venv in the developer's shell is inherited
+# here, and any uv run that resolves no project falls back to it -- where
+# pybind11-stubgen is absent, so stub generation dies on ModuleNotFoundError.
+# --project makes current uv ignore VIRTUAL_ENV, but that is uv's guarantee to
+# withdraw, not the build's to rely on.
 set(STUBGEN_COMMANDS)
 foreach(_module IN LISTS STUBGEN_MODULES)
     list(APPEND STUBGEN_COMMANDS
-        COMMAND uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
+        COMMAND ${CMAKE_COMMAND} -E env --unset=VIRTUAL_ENV
+            uv run --project "${CMAKE_BINARY_DIR}/stubgen" --python ${ISAAC_TELEOP_PYTHON_VERSION}
             python "${STUBGEN_SCRIPT}" ${_module} "${STUBGEN_PACKAGE_DIR}"
     )
 endforeach()

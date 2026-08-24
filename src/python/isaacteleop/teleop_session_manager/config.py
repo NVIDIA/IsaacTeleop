@@ -280,6 +280,7 @@ class PluginConfig:
         search_paths: List of directories to search for plugins
         enabled: Whether to load and use this plugin
         plugin_args: Optional list of arguments passed to the plugin process
+        required: Whether session startup should fail if the plugin cannot be found
     """
 
     plugin_name: str
@@ -287,6 +288,7 @@ class PluginConfig:
     search_paths: List[Path]
     enabled: bool = True
     plugin_args: List[str] = field(default_factory=list)
+    required: bool = False
 
 
 @dataclass

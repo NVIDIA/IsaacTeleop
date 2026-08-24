@@ -95,6 +95,34 @@ def _countdown(remaining: float, *, dots: int, redraw: bool = False) -> None:
     print(f"\r\033[K{line}" if redraw else line, end="", file=sys.stderr, flush=True)
 
 
+class NoopContext:
+    """Skip CloudXR start/attach; leave the process OpenXR environment alone.
+
+    Duck-typed subset of :class:`CloudXRLauncher` for ``with`` blocks:
+    ``owns_runtime``, ``wss_log_path``, ``stop``, ``health_check``.
+    """
+
+    @property
+    def owns_runtime(self) -> bool:
+        return False
+
+    @property
+    def wss_log_path(self) -> Path | None:
+        return None
+
+    def stop(self) -> None:
+        pass
+
+    def health_check(self) -> None:
+        pass
+
+    def __enter__(self) -> NoopContext:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        pass
+
+
 class CloudXRLauncher:
     """Attaches to the CloudXR runtime and WSS proxy a service is running.
 
@@ -418,36 +446,25 @@ class CloudXRLauncher:
             help="CloudXR install directory (default: ~/.cloudxr)",
         )
 
-    # TODO(1.7): drop --launch-cloudxr-runtime and this helper.
     @staticmethod
     def add_launch_cloudxr_runtime_argument(parser: argparse.ArgumentParser) -> None:
-        """Register the deprecated no-op ``--launch-cloudxr-runtime`` on ``parser``.
+        """Register ``--launch-cloudxr-runtime`` on ``parser``.
 
-        Defaults to ``None`` so an explicit flag is distinguishable from an
-        absent one and only the former warns.
+        Uses :class:`argparse.BooleanOptionalAction`, so callers may pass
+        ``--no-launch-cloudxr-runtime`` to use an already-configured OpenXR
+        runtime (system or sourced env) without attaching to or starting CloudXR.
         """
         parser.add_argument(
             "--launch-cloudxr-runtime",
             action=argparse.BooleanOptionalAction,
-            default=None,
+            default=True,
             help=(
-                "Deprecated no-op, removed in 1.7: a running runtime is always "
-                "attached to, and one is started only when none is serving the "
-                "install dir."
+                "Attach to or start the CloudXR runtime before running "
+                "(default: true). Pass --no-launch-cloudxr-runtime to use the "
+                "OpenXR runtime already configured in this process "
+                "(e.g. XR_RUNTIME_JSON for a system runtime)."
             ),
         )
-
-    # TODO(1.7): drop this helper with the flag.
-    @staticmethod
-    def _warn_launch_runtime_deprecated() -> None:
-        """Announce that the ``--launch-cloudxr-runtime`` no-op is on its way out."""
-        message = (
-            "--no-launch-cloudxr-runtime is deprecated and does nothing; a "
-            "running runtime is attached to automatically.  It is removed in "
-            "Isaac Teleop 1.7."
-        )
-        warnings.warn(message, DeprecationWarning, stacklevel=3)
-        logger.warning(message)
 
     @staticmethod
     def add_cloudxr_device_profile_argument(parser: argparse.ArgumentParser) -> None:
@@ -585,8 +602,11 @@ class CloudXRLauncher:
         host_client: bool = False,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
-    ) -> CloudXRLauncher:
-        """Build a :class:`CloudXRLauncher` from parsed arguments.
+    ) -> CloudXRLauncher | NoopContext:
+        """Build a launcher context from parsed arguments.
+
+        Returns :class:`NoopContext` when ``args.launch_cloudxr_runtime`` is
+        false so callers can always ``with CloudXRLauncher.launch_context(args):``.
 
         ``install_dir``, ``env_config``, ``device_profile``, and ``accept_eula``
         default to the values registered by :meth:`add_launcher_arguments`
@@ -601,8 +621,23 @@ class CloudXRLauncher:
             or getattr(args, "launch_wss_proxy", None) is not None
         ):
             CloudXRLauncher._warn_start_wss_proxy_deprecated()
-        if getattr(args, "launch_cloudxr_runtime", None) is not None:
-            CloudXRLauncher._warn_launch_runtime_deprecated()
+        if not getattr(args, "launch_cloudxr_runtime", True):
+            ignored: list[str] = []
+            if run_embedded:
+                ignored.append("run_embedded")
+            if setup_oob:
+                ignored.append("setup_oob")
+            if usb_local:
+                ignored.append("usb_local")
+            if host_client:
+                ignored.append("host_client")
+            if ignored:
+                logger.warning(
+                    "--no-launch-cloudxr-runtime: ignoring CloudXR launcher "
+                    "options %s (no runtime is started or attached).",
+                    ", ".join(ignored),
+                )
+            return NoopContext()
         return CloudXRLauncher(
             install_dir=CloudXRLauncher._resolve_install_dir(args, install_dir),
             env_config=CloudXRLauncher._resolve_env_config(args, env_config),

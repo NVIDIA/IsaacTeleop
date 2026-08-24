@@ -61,7 +61,10 @@ def main(argv: list[str]) -> int:
     )
 
     with CloudXRLauncher.launch_context(args) as launcher:
-        print(f"[record] CloudXR runtime started (WSS log: {launcher.wss_log_path})")
+        if launcher.owns_runtime:
+            print(
+                f"[record] CloudXR runtime started (WSS log: {launcher.wss_log_path})"
+            )
         with TeleopSession(config) as session:
             start = time.time()
             while time.time() - start < duration_s:

@@ -2,9 +2,11 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
 {% if versions %}
-<div class="version-switcher">
-  <label for="version-select" class="version-switcher__label">Version</label>
-  <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
+<!-- The theme mirrors every navbar item into the mobile drawer, so this renders
+     twice per page: label implicitly, or the two copies collide on one id. -->
+<label class="version-switcher">
+  <span class="version-switcher__label">Version</span>
+  <select class="version-switcher__select" onchange="location = this.value;">
     {%- for item in versions.branches %}
     <option value="{{ item.url }}" {% if item == current_version %}selected{% endif %}>{{ item.name }}</option>
     {%- endfor %}
@@ -12,5 +14,5 @@
     <option value="{{ item.url }}" {% if item == current_version %}selected{% endif %}>{{ item.name }}</option>
     {%- endfor %}
   </select>
-</div>
+</label>
 {% endif %}

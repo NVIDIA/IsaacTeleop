@@ -18,7 +18,7 @@ concurrency:
 env:
   # Shared apt build dependencies. Each job installs these plus its own extras
   # (ccache, clang-format, the OAK camera autotools chain).
-  CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev wayland-protocols
+  CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev patchelf pkg-config wayland-protocols
   # Pin vcpkg to an immutable commit for reproducible, supply-chain-stable CI
   # instead of tracking its moving default branch. Port versions are fixed by the
   # consuming manifest's builtin-baseline (e.g. DepthAI's vcpkg.json), so this
@@ -58,19 +58,13 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y $CORE_APT_DEPS \
           ccache clang-format-14 \
-          autoconf automake libtool pkg-config libudev-dev
+          autoconf automake libtool libudev-dev
 
     - name: Install coverage tooling
       if: ${{ matrix.build_type == 'Debug' && matrix.python_version == '3.11' && matrix.arch == 'x64' }}
       run: |
         sudo apt-get update
         sudo apt-get install -y gcovr
-
-    - name: Install patchelf (Release only)
-      if: ${{ matrix.build_type == 'Release' }}
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y patchelf
 
     # CUDA toolkit needed at link time for viz_core (device_image
     # links libcudart). The wheel itself excludes libcuda.so.1 via
@@ -179,9 +173,7 @@ jobs:
           --gcov-exclude "${BUILD_DIR}/CMakeFiles/.*/CompilerId.*/.*"
           --exclude-directories "${BUILD_DIR}/CMakeFiles"
           --filter "src/"
-          --exclude "src/.*/.*_tests/.*"
-          --exclude "src/.*/tests/.*"
-          --exclude "src/.*/python_tests/.*"
+          --exclude "tests/.*"
         )
 
         gcovr "${gcovr_args[@]}" --txt --output coverage/summary.txt --print-summary | tee coverage/totals.txt
@@ -229,10 +221,10 @@ jobs:
         mkdir -p viz-tests-pkg
         # Glob all viz_*_tests executables (covers viz_core_tests today, and
         # viz_layers_tests / viz_session_tests / viz_xr_tests as they ship).
-        find "${BUILD_DIR}/src/viz" -name 'viz_*_tests' -type f -executable \
+        find "${BUILD_DIR}/tests/cpp/viz" -name 'viz_*_tests' -type f -executable \
           -exec cp -v {} viz-tests-pkg/ \;
         if ! ls viz-tests-pkg/viz_*_tests >/dev/null 2>&1; then
-          echo "No viz test binaries found under ${BUILD_DIR}/src/viz/"
+          echo "No viz test binaries found under ${BUILD_DIR}/tests/cpp/viz/"
           exit 1
         fi
         tar -cvzf viz-tests.tar.gz -C viz-tests-pkg .
@@ -320,7 +312,7 @@ jobs:
         sudo apt-get update
         # clang-format-14: the pip build enforces the clang-format gate (no
         # cmake.define override), so the tool must be present or the build FATALs.
-        sudo apt-get install -y $CORE_APT_DEPS ccache patchelf clang-format-14
+        sudo apt-get install -y $CORE_APT_DEPS ccache clang-format-14
 
     - name: Build sdist (validates backend config + metadata)
       run: |
@@ -499,7 +491,7 @@ jobs:
                  --with pytest \
                  --with numpy \
                  --with cupy-cuda12x \
-                 pytest -v --tb=short src/viz/python_tests/
+                 pytest -v --tb=short tests/python/viz/
         }
         if ! run_pytest; then
           echo "::warning::viz_python GPU tests failed on first attempt; retrying after 5s"

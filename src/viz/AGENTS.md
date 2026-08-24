@@ -12,8 +12,8 @@ mandatory **`AGENTS.md` preflight** in [`../../AGENTS.md`](../../AGENTS.md)
 ## Package shape
 
 `src/viz/` mirrors **`src/core/`**: a peer container of sub-modules, not a
-single sub-module. Each sub-module is its own static library with its own
-sibling `<sub-module>_tests/` directory:
+single sub-module. Each sub-module is its own static library. Tests live under
+[`../../../tests/`](../../../tests/) — see [`tests/AGENTS.md`](../../../tests/AGENTS.md).
 
 - **`viz/core/`** — foundational types + Vulkan/CUDA infrastructure.
   Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `Pose3D`,
@@ -51,7 +51,7 @@ sibling `<sub-module>_tests/` directory:
   questions are captured under "Future: zero-copy acquire/release"
   in `DESIGN.md`.
   Test-only fixture layers (`ClearRectLayer`, `ThrowingLayer`) live in
-  `viz/layers_tests/cpp/inc/viz/layers/testing/` and are exposed via
+  `tests/cpp/viz/support/layers_testing/inc/viz/layers/testing/` and are exposed via
   the `viz::layers_testing` static library — used by `viz_session_tests`
   to compose into a `VizSession`.
 - **`viz/session/`** — `VizSession`, `VizCompositor`, `FrameInfo`,
@@ -73,9 +73,9 @@ sibling `<sub-module>_tests/` directory:
   `viz/shaders/cpp/` and calling `compile_shader(<name>.vert kVarName)`
   in the local CMakeLists.
 
-Test directories follow the same per-module pattern:
-`viz/core_tests/`, `viz/layers_tests/`, `viz/session_tests/`,
-`viz/shaders_tests/`, `viz/xr_tests/`.
+Catch2 and pytest suites for viz live under `tests/cpp/viz/<sub-module>/`
+and `tests/python/viz/` respectively (one Catch2 executable per sub-module:
+`viz_core_tests`, `viz_layers_tests`, …).
 
 `src/viz/CMakeLists.txt` is an **orchestrator only** — it adds the
 sub-module sub-directories. Sub-module `CMakeLists.txt` files build the
@@ -162,17 +162,16 @@ Beyond happy-path coverage, every new feature MUST add tests for:
 ### Test fixtures
 
 Test-only `LayerBase` subclasses and helpers live in
-`viz/layers_tests/cpp/inc/viz/layers/testing/` and ship via the
+`tests/cpp/viz/support/layers_testing/inc/viz/layers/testing/` and ship via the
 `viz::layers_testing` static library. Other test executables link
 that library to compose fixtures. Today:
 - `ClearRectLayer` — paints a rect via `vkCmdClearAttachments` (no
   shaders); used to verify compositor dispatch produces real pixels.
 - `ThrowingLayer` — throws from `record()` on a configurable schedule;
   used for exception-recovery tests.
-- Test files live alongside the code they test, in
-  `<sub-module>_tests/cpp/`. One executable per sub-module
-  (`viz_core_tests`, `viz_layers_tests`, ...). Do **not** dump tests
-  into a top-level `viz_tests/` directory.
+- Catch2 sources live under `tests/cpp/viz/<sub-module>/`. One executable
+  per sub-module (`viz_core_tests`, `viz_layers_tests`, …). Do **not**
+  collapse viz tests into a single mega-target.
 
 ## CI coverage
 

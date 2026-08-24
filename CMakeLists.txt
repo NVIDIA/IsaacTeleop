@@ -66,23 +66,23 @@ option(BUILD_EXAMPLES "Build examples" ON)
 option(BUILD_EXAMPLE_TELEOP_ROS2 "Build only the teleop_ros2 ROS 2 reference integration (e.g. for Docker)" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
 # Televiz (src/viz) needs Vulkan, the CUDA Toolkit, and glslangValidator.
-# Default BUILD_VIZ ON when all three are present (so it builds out of the box)
-# and OFF otherwise (so a core-only source build still configures on machines
-# without them). Override explicitly with -DBUILD_VIZ=ON/OFF.
+# Only Vulkan and CUDA gate the default -- without them the machine cannot build
+# viz at all, so a core-only source build still configures. glslangValidator is
+# an apt package, not a GPU stack, so CheckBuildDeps fails on a missing one
+# rather than dropping the module. Override with -DBUILD_VIZ=ON/OFF.
 find_package(Vulkan QUIET)
 find_package(CUDAToolkit QUIET)
-find_program(_viz_glslang NAMES glslangValidator)
-if(Vulkan_FOUND AND CUDAToolkit_FOUND AND _viz_glslang)
+if(Vulkan_FOUND AND CUDAToolkit_FOUND)
     set(_viz_default ON)
 else()
     set(_viz_default OFF)
 endif()
-option(BUILD_VIZ "Build Televiz visualization module (auto-ON when Vulkan + CUDA + glslang are found)" ${_viz_default})
-if(BUILD_VIZ AND NOT (Vulkan_FOUND AND CUDAToolkit_FOUND AND _viz_glslang))
-    message(WARNING "BUILD_VIZ=ON but not all of Vulkan / CUDA Toolkit / glslangValidator were detected; "
-                    "the viz build may fail. Install the deps or pass -DBUILD_VIZ=OFF.")
+option(BUILD_VIZ "Build Televiz visualization module (auto-ON when Vulkan + CUDA are found)" ${_viz_default})
+if(BUILD_VIZ AND NOT (Vulkan_FOUND AND CUDAToolkit_FOUND))
+    message(WARNING "BUILD_VIZ=ON but Vulkan / the CUDA Toolkit were not detected; the viz build "
+                    "may fail. Install the deps or pass -DBUILD_VIZ=OFF.")
 endif()
-message(STATUS "BUILD_VIZ: ${BUILD_VIZ} (Vulkan=${Vulkan_FOUND} CUDAToolkit=${CUDAToolkit_FOUND} glslang=${_viz_glslang})")
+message(STATUS "BUILD_VIZ: ${BUILD_VIZ} (Vulkan=${Vulkan_FOUND} CUDAToolkit=${CUDAToolkit_FOUND})")
 option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build support (source code only)" OFF)
 
 # Note: This is used to check if the CloudXR bundle is available to be bundled with Isaac Teleop.
@@ -130,6 +130,11 @@ if(WIN32)
     endif()
 endif()
 
+# Fail on missing build tools now, while the feature set is known and before
+# any FetchContent, rather than 60 s deep in a fetched dependency.
+include(cmake/CheckBuildDeps.cmake)
+isaac_teleop_check_build_deps()
+
 # Build dependencies (OpenXR SDK, etc.)
 add_subdirectory(deps)
 
@@ -166,7 +171,6 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples/deviceio_live_view)
     add_subdirectory(examples/haptic_feedback)
     if(BUILD_VIZ)
-        add_subdirectory(examples/camera_viz/tests)
         add_subdirectory(examples/mujoco_xr)
     endif()
 elseif(BUILD_EXAMPLE_TELEOP_ROS2)
@@ -198,6 +202,11 @@ if(BUILD_PLUGINS)
     if(BUILD_PLUGIN_WUJI_GLOVE)
         add_subdirectory(src/plugins/wuji_glove)
     endif()
+endif()
+
+# Tests (pytest + Catch2/CTest). After production libs so link targets exist.
+if(BUILD_TESTING)
+    add_subdirectory(tests)
 endif()
 
 # Formatting enforcement (runs on Linux by default)

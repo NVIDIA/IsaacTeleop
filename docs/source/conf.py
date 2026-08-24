@@ -68,7 +68,16 @@ extensions = [
     "partner_grid",
 ]
 
-exclude_patterns = ["build", "_templates", "_data", "_ext", "Thumbs.db", ".DS_Store"]
+# overview/ecosystem.rst is unpublished on purpose; drop it from this list to restore.
+exclude_patterns = [
+    "build",
+    "_templates",
+    "_data",
+    "_ext",
+    "overview/ecosystem.rst",
+    "Thumbs.db",
+    ".DS_Store",
+]
 
 # sphinx-copybutton only targets highlighted blocks (``div.highlight pre``) by default,
 # which skips ``parsed-literal`` (rendered as a bare ``pre.literal-block``).  Commands
@@ -163,13 +172,17 @@ html_theme_options = {
             "type": "url",
         },
     ],
-    "navbar_end": ["theme-switcher"],
+    # The nvidia theme defaults navbar_center to its own version switcher, which
+    # needs a switcher JSON; sphinx-multiversion feeds ``versioning.html`` instead.
+    "navbar_center": [],
+    "navbar_end": ["versioning.html", "search-button-field", "theme-switcher"],
+    # Below 960px the theme hides navbar_end, so search survives as this magnifier.
     "navbar_persistent": ["search-button"],
 }
 
-# Primary sidebar (left): icon links row, search, then TOC (like Isaac Lab)
+# Primary sidebar (left): icon links row, then TOC (like Isaac Lab)
 html_sidebars = {
-    "**": ["versioning.html", "icon-links", "search-field", "sidebar-nav-bs"],
+    "**": ["icon-links", "sidebar-nav-bs"],
 }
 
 # Edit page button: link to GitHub so users can suggest edits (PyData theme uses html_context)

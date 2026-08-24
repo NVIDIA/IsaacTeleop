@@ -58,6 +58,8 @@ Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--
 
 Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `realsense.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `synthetic_xr_3up.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
 
+> **Jetson Orin:** when the CloudXR runtime runs on Orin, set **Video Codec** to **H.264** in the CloudXR web client.
+
 ## Mode 2 — Split (robot → workstation, RTP)
 
 > ⚠ **Wired only.** No retransmit / FEC; one lost packet = one corrupted frame until the next IDR (default 5 s).
@@ -140,6 +142,10 @@ display:                      # camera_viz only
 Multiple cameras → multiple `cameras:` entries; each gets its own `rtp.port` (plus `port_right` if stereo) and renders as its own plane.
 
 ## Known issues
+
+### No video on Orin
+
+When the CloudXR runtime runs on Jetson Orin, set **Video Codec** to **H.264** in the CloudXR web client.
 
 ### Black camera plane on Orin
 

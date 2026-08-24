@@ -1075,15 +1075,31 @@ class TeleopSession:
             if not plugin_config.enabled:
                 continue
 
-            valid_paths = [p for p in plugin_config.search_paths if p.exists()]
+            valid_paths = [p for p in plugin_config.search_paths if p.is_dir()]
             if not valid_paths:
+                if plugin_config.required:
+                    configured_paths = [
+                        str(path) for path in plugin_config.search_paths
+                    ]
+                    raise RuntimeError(
+                        f"Required plugin {plugin_config.plugin_name!r} has no existing "
+                        f"search directories. Configured search paths: {configured_paths!r}. "
+                        "Build or install the plugin, or correct PluginConfig.search_paths."
+                    )
                 continue
 
             manager = pm.PluginManager([str(p) for p in valid_paths])
             self.plugin_managers.append(manager)
 
-            plugins = manager.get_plugin_names()
+            plugins = sorted(manager.get_plugin_names())
             if plugin_config.plugin_name not in plugins:
+                if plugin_config.required:
+                    raise RuntimeError(
+                        f"Required plugin {plugin_config.plugin_name!r} was not discovered "
+                        f"in search paths {[str(path) for path in valid_paths]!r}. "
+                        f"Discovered plugins: {plugins!r}. Build or install the plugin, "
+                        "or correct PluginConfig.plugin_name or PluginConfig.search_paths."
+                    )
                 continue
 
             context = manager.start(

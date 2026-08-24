@@ -9,10 +9,8 @@ a session of its own (also named after the rig). The CloudXR runtime pane
 starts immediately; each producer/consumer pane waits for the runtime to
 come up, sources the CloudXR env it writes, and then RUNS its command
 automatically.
-When the command exits (the classic early exit: started before a headset
-connected, so 'Failed to get OpenXR system'), the pane prints the exit
-status and drops to an interactive shell with the same command pre-typed —
-recovery is one Enter.
+When the command exits, the pane prints the exit status and drops to an
+interactive shell with the same command pre-typed — recovery is one Enter.
 
 Each pane is spawned RUNNING a small POSIX wrapper (its tmux shell-command)
 instead of having setup lines typed into a starting shell — typed setup
