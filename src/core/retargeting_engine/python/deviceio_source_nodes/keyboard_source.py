@@ -52,6 +52,21 @@ KEY_CODES_BY_INDEX = {
 ALL_KEYS_BITMAP_SIZE = 256
 
 
+def KeyboardAllKeysType() -> TensorGroupType:
+    """Type for the "keyboard_all_keys" output: a 256-entry uint8 bitmap indexed by evdev key code."""
+    return TensorGroupType(
+        "keyboard_all_keys",
+        [
+            NDArrayType(
+                "bitmap",
+                shape=(ALL_KEYS_BITMAP_SIZE,),
+                dtype=DLDataType.UINT,
+                dtype_bits=8,
+            )
+        ],
+    )
+
+
 class KeyboardSource(IDeviceIOSource):
     """
     Stateless converter: DeviceIO KeyboardOutput → KeyboardInput tensors.
@@ -125,19 +140,7 @@ class KeyboardSource(IDeviceIOSource):
         """Declare standard keyboard input output (Optional — may be absent)."""
         return {
             "keyboard": OptionalType(KeyboardInput()),
-            "keyboard_all_keys": OptionalType(
-                TensorGroupType(
-                    "keyboard_all_keys",
-                    [
-                        NDArrayType(
-                            "bitmap",
-                            shape=(ALL_KEYS_BITMAP_SIZE,),
-                            dtype=DLDataType.UINT,
-                            dtype_bits=8,
-                        )
-                    ],
-                )
-            ),
+            "keyboard_all_keys": OptionalType(KeyboardAllKeysType()),
         }
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
