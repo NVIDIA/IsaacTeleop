@@ -520,7 +520,7 @@ supplied handles instead of creating its own OpenXR session. The caller is
 responsible for the external session’s lifetime. Construct handles with
 <code class="docutils literal notranslate"><span class="pre">OpenXRSessionHandles(instance,</span> <span class="pre">session,</span> <span class="pre">space,</span> <span class="pre">proc_addr)</span></code> where each
 argument is a <code class="docutils literal notranslate"><span class="pre">uint64</span></code> handle value.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">teleopcore.oxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRSessionHandles</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.oxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRSessionHandles</span>
 
 <span class="n">handles</span> <span class="o">=</span> <span class="n">OpenXRSessionHandles</span><span class="p">(</span>
     <span class="n">instance_handle</span><span class="p">,</span> <span class="n">session_handle</span><span class="p">,</span> <span class="n">space_handle</span><span class="p">,</span> <span class="n">proc_addr</span>

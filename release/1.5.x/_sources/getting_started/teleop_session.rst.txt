@@ -104,7 +104,7 @@ argument is a ``uint64`` handle value.
 
 .. code-block:: python
 
-   from teleopcore.oxr import OpenXRSessionHandles
+   from isaacteleop.oxr import OpenXRSessionHandles
 
    handles = OpenXRSessionHandles(
        instance_handle, session_handle, space_handle, proc_addr
