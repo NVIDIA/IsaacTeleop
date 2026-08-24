@@ -156,6 +156,28 @@ def _module_exists(root: Path, module: str) -> bool:
     )
 
 
+def _references(path: Path) -> tuple[set[str], set[str]]:
+    """Return (role targets, imported modules) named anywhere in path.
+
+    Every reference, not just the broken ones: a full sweep uses this to find
+    allowlist entries nothing points at any more.
+    """
+    try:
+        source = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return set(), set()
+
+    targets = (
+        {t for _, _, t in _role_targets(source)} if path.suffix == ".rst" else set()
+    )
+    modules = {
+        match.group(1) or match.group(2)
+        for _, body in _python_blocks(path, source)
+        for match in IMPORT_RE.finditer(body)
+    }
+    return targets, modules
+
+
 def _check(root: Path, path: Path) -> list[str]:
     """Return one message per broken reference in path."""
     try:
@@ -229,8 +251,14 @@ def main(argv: list[str]) -> int:
         return 0
 
     violations: list[str] = []
+    seen_targets: set[str] = set()
+    seen_modules: set[str] = set()
     for path in paths:
         violations.extend(_check(root, path))
+        if args.all:
+            targets, modules = _references(path)
+            seen_targets |= targets
+            seen_modules |= modules
 
     if violations:
         print("Docs reference code that is not in the tree.", file=sys.stderr)
@@ -238,17 +266,33 @@ def main(argv: list[str]) -> int:
             print(f"  {violation}", file=sys.stderr)
         return 1
 
+    # Both checks below are only meaningful for a full sweep: a partial run
+    # simply did not visit the docs that would have justified an entry.
     if args.all:
-        # Only meaningful for a full sweep: a partial run simply did not visit them.
-        stale = {
+        fixed = {
             target for target in KNOWN_BROKEN if (root / target.rstrip("/")).exists()
         }
-        stale |= {
+        fixed |= {
             module for module in KNOWN_BROKEN_IMPORTS if _module_exists(root, module)
         }
-        if stale:
-            print("KNOWN_BROKEN entries that now resolve — delete them from the hook:")
-            for target in sorted(stale):
+        if fixed:
+            print("Allowlisted entries that now resolve — delete them from the hook:")
+            for target in sorted(fixed):
+                print(f"  {target}")
+
+        # An entry can also go stale by losing its last reference rather than by
+        # starting to resolve — a doc that stops linking a generated file leaves
+        # one behind, and the check above never fires because the path is still
+        # absent. Without this, a dead allowlist reads as unpaid debt forever.
+        unreferenced = (set(KNOWN_BROKEN) - seen_targets) | (
+            set(KNOWN_BROKEN_IMPORTS) - seen_modules
+        )
+        # An entry can qualify both ways. Reporting it twice under two headings
+        # reads as two problems; "now resolves" is the more actionable reason.
+        unreferenced -= fixed
+        if unreferenced:
+            print("Allowlisted entries no longer referenced by any doc — delete them:")
+            for target in sorted(unreferenced):
                 print(f"  {target}")
 
     return 0
