@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.20)
 
 add_executable(mcap_tests
     test_mcap_tracker_channels.cpp
+    test_schema_compat.cpp
 )
 
 target_link_libraries(mcap_tests PRIVATE
