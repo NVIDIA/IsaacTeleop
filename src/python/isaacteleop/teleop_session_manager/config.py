@@ -349,11 +349,24 @@ class TeleopSessionConfig:
         # Source creates its own tracker automatically!
         controllers = ControllersSource(name="controllers")
 
-        # Build retargeting pipeline
-        gripper = GripperRetargeter(name="gripper")
-        pipeline = gripper.connect({
-            "controller_left": controllers.output("controller_left"),
-            "controller_right": controllers.output("controller_right")
+        # Build retargeting pipeline (one GripperRetargeter per side)
+        gripper_left = GripperRetargeter(
+            GripperRetargeterConfig(hand_side="left"),
+            name="gripper_left",
+        )
+        connected_left = gripper_left.connect({
+            ControllersSource.LEFT: controllers.output(ControllersSource.LEFT),
+        })
+        gripper_right = GripperRetargeter(
+            GripperRetargeterConfig(hand_side="right"),
+            name="gripper_right",
+        )
+        connected_right = gripper_right.connect({
+            ControllersSource.RIGHT: controllers.output(ControllersSource.RIGHT),
+        })
+        pipeline = OutputCombiner({
+            "gripper_left": connected_left.output("gripper_command"),
+            "gripper_right": connected_right.output("gripper_command"),
         })
 
         # Configure session - NO TRACKERS NEEDED!
