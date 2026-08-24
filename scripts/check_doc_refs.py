@@ -45,27 +45,9 @@ PYTHON_ROOT = "src/python"
 
 # Targets that are known to be wrong and are not fixed yet. Keep the reason, and
 # delete the entry rather than let it settle in: every line here is a 404 on the
-# published docs.
-KNOWN_BROKEN = {
-    "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/oglo_tactile_tracker.hpp": (
-        "generated at configure time into ${CMAKE_BINARY_DIR}/generated/trackers/; "
-        "never in the repo. Needs an author decision on what to link instead."
-    ),
-    "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp": (
-        "generated at configure time; see the oglo_tactile_tracker.hpp entry."
-    ),
-    "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/joint_state_tracker.hpp": (
-        "generated at configure time; see the oglo_tactile_tracker.hpp entry."
-    ),
-    "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/se3_tracker.hpp": (
-        "generated at configure time; see the oglo_tactile_tracker.hpp entry."
-    ),
-    "src/core/live_trackers/cpp/live_oglo_tactile_tracker_impl.cpp": (
-        "generated at configure time; see the oglo_tactile_tracker.hpp entry. "
-        "The generator emits both .hpp and .cpp (generate_trackers.py:59,62), "
-        "so the extension is right and only the location is wrong."
-    ),
-}
+# published docs. A --all sweep reports entries that start resolving and entries
+# nothing references any more, so this cannot quietly outlive its problem.
+KNOWN_BROKEN: dict[str, str] = {}
 
 
 # Documented imports that are known wrong and not fixed yet, for the same reason
