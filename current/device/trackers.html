@@ -468,41 +468,83 @@ device trackers and retargeters to work together.</p>
 <section id="data-schema-convention">
 <span id="id1"></span><h2>Data Schema Convention<a class="headerlink" href="#data-schema-convention" title="Link to this heading">#</a></h2>
 <p>Every tracker’s data is defined by a FlatBuffers schema under
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/schema/fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs</a>. Each schema follows a three-tier convention:</p>
-<div class="highlight-idl notranslate"><div class="highlight"><pre><span></span><span class="o">//</span><span class="w"> </span><span class="mi">1</span>.<span class="w"> </span>Inner<span class="w"> </span>data<span class="w"> </span>table<span class="w"> </span><span class="o">--</span><span class="w"> </span>the<span class="w"> </span>actual<span class="w"> </span>payload
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/schema/fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs</a>. Each schema follows a two-tier convention:</p>
+<div class="highlight-idl notranslate"><div class="highlight"><pre><span></span><span class="o">//</span><span class="w"> </span><span class="mi">1</span>.<span class="w"> </span>Payload<span class="w"> </span>table<span class="w"> </span><span class="o">--</span><span class="w"> </span>the<span class="w"> </span>actual<span class="w"> </span>data,<span class="w"> </span><span class="k">and</span><span class="w"> </span>what<span class="w"> </span>trackers<span class="w"> </span>hand<span class="w"> </span>to<span class="w"> </span>consumers.
 table<span class="w"> </span>Xxx<span class="w"> </span>{
 <span class="w">    </span>field_a<span class="o">:</span><span class="w"> </span>SomeType<span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">0</span>);
 <span class="w">    </span>field_b<span class="o">:</span><span class="w"> </span>AnotherType<span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">1</span>);
 }
 
-<span class="o">//</span><span class="w"> </span><span class="mi">2</span>.<span class="w"> </span>Tracked<span class="w"> </span>wrapper<span class="w"> </span><span class="o">--</span><span class="w"> </span>used<span class="w"> </span>by<span class="w"> </span>the<span class="w"> </span>in<span class="o">-</span><span class="nb">memory</span><span class="w"> </span>tracker<span class="w"> </span>API.
-<span class="o">//</span><span class="w">    </span>data<span class="w"> </span>is<span class="w"> </span>null<span class="w"> </span>when<span class="w"> </span>the<span class="w"> </span>tracked<span class="w"> </span>entity<span class="w"> </span>is<span class="w"> </span>inactive.
-table<span class="w"> </span>XxxTracked<span class="w"> </span>{
-<span class="w">    </span>data<span class="o">:</span><span class="w"> </span>Xxx<span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">0</span>);
-}
-
-<span class="o">//</span><span class="w"> </span><span class="mi">3</span>.<span class="w"> </span>Record<span class="w"> </span>wrapper<span class="w"> </span><span class="o">--</span><span class="w"> </span>used<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span>MCAP<span class="w"> </span>recording<span class="w"> </span>root<span class="w"> </span>type.
+<span class="o">//</span><span class="w"> </span><span class="mi">2</span>.<span class="w"> </span>Record<span class="w"> </span>wrapper<span class="w"> </span><span class="o">--</span><span class="w"> </span>used<span class="w"> </span>as<span class="w"> </span>the<span class="w"> </span>MCAP<span class="w"> </span>recording<span class="w"> </span>root<span class="w"> </span>type.
 <span class="o">//</span><span class="w">    </span>Adds<span class="w"> </span>a<span class="w"> </span>DeviceDataTimestamp<span class="w"> </span>alongside<span class="w"> </span>the<span class="w"> </span>payload.
 table<span class="w"> </span>XxxRecord<span class="w"> </span>{
 <span class="w">    </span>data<span class="o">:</span><span class="w"> </span>Xxx<span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">0</span>);
 <span class="w">    </span>timestamp<span class="o">:</span><span class="w"> </span>DeviceDataTimestamp<span class="w"> </span>(id<span class="o">:</span><span class="w"> </span><span class="mi">1</span>);
 }
-
-root_type<span class="w"> </span>XxxRecord;
 </pre></div>
 </div>
+<section id="the-tracked-recording-sub-channel">
+<span id="tracked-sub-channel"></span><h3>The <code class="docutils literal notranslate"><span class="pre">_tracked</span></code> recording sub-channel<a class="headerlink" href="#the-tracked-recording-sub-channel" title="Link to this heading">#</a></h3>
+<p>A tracker that reads from a tensor collection can see <strong>several samples per
+frame</strong>, and it records both views of that: every sample goes to <code class="docutils literal notranslate"><span class="pre">&lt;channel&gt;</span></code>,
+while only the final sample of each <code class="docutils literal notranslate"><span class="pre">update()</span></code> – the one the live consumer
+actually observed – goes to <code class="docutils literal notranslate"><span class="pre">&lt;channel&gt;_tracked</span></code>. Both carry the same
+<code class="docutils literal notranslate"><span class="pre">XxxRecord</span></code> root type; they differ only in which samples reach them.</p>
+<p>Replay reads <code class="docutils literal notranslate"><span class="pre">&lt;channel&gt;_tracked</span></code> <strong>exclusively</strong>, so that a replayed session
+yields exactly the values the live session did rather than the intermediate
+samples. The per-sample channel is there for offline analysis.</p>
+<p>Both names come from <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/defaults.toml" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/defaults.toml</a> and
+apply to every generated pull tracker:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="n">mcap_channels</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"%channel%"</span><span class="p">,</span><span class="w"> </span><span class="s2">"%channel%_tracked"</span><span class="p">]</span>
+<span class="n">replay_channels</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"%channel%_tracked"</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>A manifest entry that overrides <code class="docutils literal notranslate"><span class="pre">mcap_channels</span></code> must keep the <code class="docutils literal notranslate"><span class="pre">_tracked</span></code>
+entry and list it in <code class="docutils literal notranslate"><span class="pre">replay_channels</span></code>. Recording still succeeds without it,
+but the resulting file cannot be replayed.</p>
+<blockquote>
+<div><p>root_type XxxRecord;</p>
+</div></blockquote>
 <ul class="simple">
-<li><p><strong>Inner data table</strong> (e.g. <code class="docutils literal notranslate"><span class="pre">HeadPose</span></code>, <code class="docutils literal notranslate"><span class="pre">HandPose</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllerSnapshot</span></code>) –
-contains the device-specific fields. All fields are present when the parent
-wrapper’s <code class="docutils literal notranslate"><span class="pre">data</span></code> pointer is non-null.</p></li>
-<li><p><strong>Tracked wrapper</strong> (e.g. <code class="docutils literal notranslate"><span class="pre">HeadPoseTracked</span></code>) – wraps the inner data in an
-optional <code class="docutils literal notranslate"><span class="pre">data</span></code> field. The in-memory <code class="docutils literal notranslate"><span class="pre">get_*()</span></code> accessors return a reference
-to this wrapper. When <code class="docutils literal notranslate"><span class="pre">data</span></code> is <code class="docutils literal notranslate"><span class="pre">nullptr</span></code> (C++) or <code class="docutils literal notranslate"><span class="pre">None</span></code> (Python), the
-device is inactive or no sample has arrived yet.</p></li>
-<li><p><strong>Record wrapper</strong> (e.g. <code class="docutils literal notranslate"><span class="pre">HeadPoseRecord</span></code>) – wraps the inner data plus a
+<li><p><strong>Payload table</strong> (e.g. <code class="docutils literal notranslate"><span class="pre">HeadPose</span></code>, <code class="docutils literal notranslate"><span class="pre">HandPose</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllerSnapshot</span></code>) –
+contains the device-specific fields. All fields are present whenever the table
+itself is present.</p></li>
+<li><p><strong>Record wrapper</strong> (e.g. <code class="docutils literal notranslate"><span class="pre">HeadPoseRecord</span></code>) – wraps the payload plus a
 <code class="docutils literal notranslate"><span class="pre">DeviceDataTimestamp</span></code>. This is the <code class="docutils literal notranslate"><span class="pre">root_type</span></code> written to MCAP channels by
-the recorder via <code class="docutils literal notranslate"><span class="pre">serialize_all()</span></code>.</p></li>
+the recorder.</p></li>
 </ul>
+</section>
+<section id="reading-a-payload">
+<h3>Reading a payload<a class="headerlink" href="#reading-a-payload" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">get_*()</span></code> accessors hand out the payload table itself as an owning handle
+over the encoded bytes – <code class="docutils literal notranslate"><span class="pre">Serialized&lt;HeadPose&gt;</span></code> in C++
+(<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/cpp/inc/schema/serialized.hpp" rel="noopener noreferrer" target="_blank">src/core/schema/cpp/inc/schema/serialized.hpp</a>), a read-only view
+class (<code class="docutils literal notranslate"><span class="pre">HeadPose</span></code>) in Python. Reads go straight into the buffer, so there is no
+unpack step and joint arrays come back as zero-copy NumPy views.</p>
+<p>An <strong>empty handle is the absent payload</strong>: the device is inactive, no sample has
+arrived yet, or replay hit a gap. Test it with <code class="docutils literal notranslate"><span class="pre">if</span> <span class="pre">(handle)</span></code> in C++; in Python
+the accessor returns <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<p>Each <code class="docutils literal notranslate"><span class="pre">session.update()</span></code> publishes a <em>new</em> buffer rather than refilling the
+previous one, so a handle read this frame keeps its values after the next update.</p>
+<p>To build a payload from Python, pass every field to its constructor – the view
+classes expose no setters.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Immutability is a <strong>contract, not an enforcement</strong>. The joint-array properties
+hand out <em>writable</em> NumPy views, because NumPy cannot export a read-only array
+over DLPack before 2.1. Writing through one changes what every holder of that
+buffer sees, including handles read on earlier frames. Copy first if you mean
+to modify.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">MessageChannelMessagesTracked</span></code> wraps its payload in a table, because that
+payload is a <strong>list</strong> and something has to hold the vector. Once a tracker has
+run one <code class="docutils literal notranslate"><span class="pre">update()</span></code> the handle is non-empty for the rest of the session, and
+an empty <code class="docutils literal notranslate"><span class="pre">data</span></code> vector – not an empty handle – means no messages arrived
+this frame. Before that first update the handle is empty like any other.</p>
+</div>
+</section>
 <section id="shared-types">
 <h3>Shared Types<a class="headerlink" href="#shared-types" title="Link to this heading">#</a></h3>
 <p><strong>DeviceDataTimestamp</strong> (<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/timestamp.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/timestamp.fbs</a>)</p>
@@ -822,6 +864,8 @@ construction; see <a class="reference internal" href="../getting_started/teleop_
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-schema-convention">Data Schema Convention</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#the-tracked-recording-sub-channel">The <code class="docutils literal notranslate"><span class="pre">_tracked</span></code> recording sub-channel</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reading-a-payload">Reading a payload</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#shared-types">Shared Types</a></li>
 </ul>
 </li>
