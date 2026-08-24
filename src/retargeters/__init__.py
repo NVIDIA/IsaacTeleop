@@ -16,6 +16,8 @@ Available Retargeters:
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
     - GripperRetargeter: Pinch-based gripper control
+    - KeyboardToSe3RelRetargeter: Keyboard press state -> relative EE delta control
+    - KeyboardGripperRetargeter: Keyboard K-key toggle -> gripper open/closed
     - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm
     - SO101GripperRetargeter: Proportional (analog) jaw closedness for the SO-101 gripper
     - JointStateRetargeter: Generic joint-space device (leader arm, exoskeleton) -> joint or EE action
@@ -101,6 +103,22 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     # .gripper_retargeter
     "GripperRetargeter": (".gripper_retargeter", "GripperRetargeter", None),
     "GripperRetargeterConfig": (".gripper_retargeter", "GripperRetargeterConfig", None),
+    # .keyboard_se3_retargeter  (requires retargeters-lite extra: scipy)
+    "KeyboardToSe3RelRetargeter": (
+        ".keyboard_se3_retargeter",
+        "KeyboardToSe3RelRetargeter",
+        "retargeters-lite",
+    ),
+    "KeyboardToSe3RelRetargeterConfig": (
+        ".keyboard_se3_retargeter",
+        "KeyboardToSe3RelRetargeterConfig",
+        "retargeters-lite",
+    ),
+    "KeyboardGripperRetargeter": (
+        ".keyboard_se3_retargeter",
+        "KeyboardGripperRetargeter",
+        None,
+    ),
     # .SO101 (SO-101 5-DOF arm: full-pose clutch EE pose, analog gripper)
     "SO101ClutchRetargeter": (
         ".SO101.clutch_retargeter",
@@ -214,6 +232,9 @@ __all__ = [
     # Manipulator retargeters
     "GripperRetargeter",
     "GripperRetargeterConfig",
+    "KeyboardToSe3RelRetargeter",
+    "KeyboardToSe3RelRetargeterConfig",
+    "KeyboardGripperRetargeter",
     # SO-101 5-DOF arm retargeters
     "SO101ClutchRetargeter",
     "SO101GripperRetargeter",

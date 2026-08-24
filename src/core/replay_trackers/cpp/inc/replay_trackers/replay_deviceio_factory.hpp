@@ -21,6 +21,8 @@ class FullBodyTracker;
 class IFullBodyTrackerImpl;
 class Generic3AxisPedalTracker;
 class IGeneric3AxisPedalTrackerImpl;
+class KeyboardTracker;
+class IKeyboardTrackerImpl;
 class OgloTactileTracker;
 class IOgloTactileTrackerImpl;
 class TensorPushTracker;
@@ -60,6 +62,7 @@ public:
     std::unique_ptr<IFullBodyTrackerImpl> create_full_body_tracker_impl(const FullBodyTracker* tracker);
     std::unique_ptr<IGeneric3AxisPedalTrackerImpl> create_generic_3axis_pedal_tracker_impl(
         const Generic3AxisPedalTracker* tracker);
+    std::unique_ptr<IKeyboardTrackerImpl> create_keyboard_tracker_impl(const KeyboardTracker* tracker);
     std::unique_ptr<IOgloTactileTrackerImpl> create_oglo_tactile_tracker_impl(const OgloTactileTracker* tracker);
     std::unique_ptr<ITensorPushTrackerImpl> create_tensor_push_tracker_impl(const TensorPushTracker* tracker);
     std::unique_ptr<IHapticCommandReaderTrackerImpl> create_haptic_command_reader_tracker_impl(
