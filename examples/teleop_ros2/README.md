@@ -44,22 +44,12 @@ parameter:
   `isaacteleop[wuji]`. `wuji_hand_model` selects `wuji_hand` or `wuji_hand_2`
   for both sides and defaults to `wuji_hand_2`. Each side publishes 20
   firmware-order joints named `left_thumb_j0` through
-  `left_pinky_j3` and `right_thumb_j0` through `right_pinky_j3`. Missing or
-  invalid tracking currently publishes zero joint values, matching the other
-  retargeters in this example.
+  `left_pinky_j3` and `right_thumb_j0` through `right_pinky_j3`.
 
-In `controller_teleop`, explicitly setting `hand_retargeter:=dexpilot` or
-`hand_retargeter:=pink_ik` keeps XR controllers responsible for EE poses, wrist
-TFs, locomotion, and `controller_data`, while Manus/OpenXR hand data drives
-`xr_teleop/hand` and Sharpa `xr_teleop/finger_joints`.
-
-With `controller_teleop` and `hand_retargeter:=wuji`, controllers still provide
-locomotion and `controller_data`, while the ROS node obtains
-`xr_teleop/hand`, `xr_teleop/finger_joints`, EE poses, and wrist TFs from the
-Wuji plugin-injected OpenXR hand stream. The injected wrist pose comes from
-optical hand tracking when available, or from the controller aim pose plus the
-configured aim-to-wrist transform as fallback. The ROS node therefore does not
-apply the MANUS mount transform to this already-calibrated wrist pose.
+In `controller_teleop`, explicitly setting `hand_retargeter:=dexpilot`,
+`hand_retargeter:=pink_ik` or `hand_retargeter:=wuji` keeps XR controllers
+responsible for EE poses, wrist TFs, locomotion, and `controller_data`, while
+OpenXR/Manus/Wuji hand data drives `xr_teleop/hand` and `xr_teleop/finger_joints`.
 
 The Docker build fetches the pinned official Sharpa Wave URDFs and installs them
 at `/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
@@ -71,35 +61,53 @@ python3 examples/teleop_ros2/scripts/fetch_sharpa_wave_urdfs.py
 
 Robot assets are never downloaded by `teleop_ros2_node.py` at runtime.
 
-### Wuji glove input plugin
+### OpenXR hand input sources
 
-The Wuji hand retargeter accepts any OpenXR hand-tracking source. To use a Wuji
-glove, build its external input plugin from the repository root:
+The DexPilot, Pink IK, and Wuji hand retargeters can use native OpenXR hand
+tracking, MANUS gloves, or Wuji gloves. Choose the retargeter for the robot hand
+independently from the OpenXR input source, and use only one input source at a
+time. Native OpenXR hand tracking needs no additional input plugin.
+
+The ROS image does not build or launch either glove plugin. Build and run the
+selected plugin separately. For either external glove plugin, the node and
+plugin must use the same CloudXR runtime path and network namespace. Use host
+networking and the same absolute CloudXR mount path when running the node in
+Docker, as shown in the Wuji launch example below. The glove must also be
+reachable from the plugin environment.
+
+#### MANUS glove input
+
+Follow the [MANUS device guide](../../docs/source/device/manus.rst) to install
+host USB permissions, the MANUS SDK, and the MANUS plugin.
+
+Start the ROS node first so its CloudXR runtime is available. Then, from the
+IsaacTeleop repository root in the environment where the MANUS plugin was built,
+attach the plugin to that runtime:
+
+```bash
+source "$HOME/.cloudxr/run/cloudxr.env"
+./install/plugins/manus/manus_hand_plugin --datasets=human
+```
+
+#### Wuji glove input
+
+Build the Wuji glove plugin from the repository root:
 
 ```bash
 ./src/plugins/wuji_glove/install.sh
 ```
 
-Start `teleop_ros2_node.py` first so its CloudXR runtime is available. Then, in
-the shell that launches the plugin, source that same runtime environment and
-start the plugin:
+After starting the ROS node, attach the plugin to the same CloudXR runtime:
 
 ```bash
-source ~/.cloudxr/run/cloudxr.env
+source "$HOME/.cloudxr/run/cloudxr.env"
 ./build/src/plugins/wuji_glove/wuji_glove_plugin
 ```
 
-The node and plugin must share the CloudXR runtime files and network namespace,
-and the gloves must be reachable from the plugin host. With the Docker command
-below, keep the `$HOME/.cloudxr` mount and host networking so an external plugin
-process can use the generated environment. The current ROS image installs the
-Wuji Python retargeting dependency, but it does not build or auto-launch the
-C++ glove plugin.
-
-The plugin defaults to automatic wrist-source selection: optical hand tracking
-is preferred, with the mounted controller as fallback. Set
-`WUJI_GLOVE_WRIST_SOURCE` to `hand_tracking` or `controller` to force one source.
-Override mount calibration when needed:
+The Wuji glove plugin defaults to automatic wrist-source selection: optical
+hand tracking is preferred, with the mounted controller as fallback. Set
+`WUJI_GLOVE_WRIST_SOURCE` to `hand_tracking` or `controller` to force one
+source. Override mount calibration when needed:
 
 ```bash
 export WUJI_GLOVE_AIM_TO_WRIST_LEFT="px,py,pz,qx,qy,qz,qw"
