@@ -200,5 +200,23 @@ if(BUILD_PLUGINS)
     endif()
 endif()
 
+# Bundle the keyboard plugin binary + metadata inside the wheel (isaacteleop.plugins.
+# keyboard) so `pip install isaacteleop` alone is sufficient to run it via
+# PluginManager -- no separate `cmake --install` step required. A standalone target
+# (rather than baked into python_package's own COMMAND list in
+# src/core/python/CMakeLists.txt) because src/core is added before src/plugins, so
+# `keyboard_plugin` isn't defined yet at that point in the configure.
+if(TARGET keyboard_plugin AND TARGET python_package)
+    add_custom_target(bundle_keyboard_plugin ALL
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/keyboard"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/core/python/isaacteleop_plugins_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/__init__.py"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/core/python/isaacteleop_plugins_keyboard_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/keyboard/__init__.py"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/plugins/keyboard/plugin.yaml" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/keyboard/plugin.yaml"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:keyboard_plugin>" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/keyboard/keyboard_plugin"
+        DEPENDS keyboard_plugin python_package
+        COMMENT "Bundling keyboard plugin into the Python package"
+    )
+endif()
+
 # Formatting enforcement (runs on Linux by default)
 include(cmake/ClangFormat.cmake)
