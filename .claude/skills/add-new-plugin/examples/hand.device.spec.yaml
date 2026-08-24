@@ -1,0 +1,230 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml — hand (native OpenXR hand tracking).
+# The headset/runtime already serves 26-joint hands via XR_EXT_hand_tracking, so
+# the whole path already exists: nothing new to build. This is the reference
+# native device. It is also the path that gloves (e.g. Haptikos) INJECT into
+# (they build a native 26-joint hand so the runtime serves it through here).
+#
+# VERIFICATION IS BUILT INTO EVERY STEP.
+# A node is not done when its code compiles — it is done when its CHECK passes.
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : tracker poll           -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> hand motion -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+# For a NATIVE device every node is reuse and already tested, so stages 1-2 are
+# "confirm the existing test covers it" and the real proof is stages 3-4.
+
+status: ready
+
+device:
+  name: hand
+  shown_as: "Hand"
+  what_it_is: "Native OpenXR hand tracking: 26 joints per hand, left and right. Reuses the whole hand path. Also the target that gloves (e.g. Haptikos) inject into."
+  direction: input
+
+# No shared_names: native delivery, no channel_id (the runtime serves the hand
+# through XR_EXT_hand_tracking, not through a pushed channel).
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). All reuse for a native device.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read both hands from the OpenXR runtime (already provided; no plugin)."
+    action: reuse
+    delivery: native            # native | push | inject
+    connection:
+      device: "the headset / OpenXR runtime; hands come from XR_EXT_hand_tracking"
+      port: "the runtime provides it (native) — no device port, no plugin"
+    read_raw:
+      - "LiveHandTrackerImpl::update() locates joints with xrLocateHandJointsEXT per XrHandTrackerEXT"
+    decode:
+      - "try_update_hand() fills HandPoseTrackedT with 26 XrHandJointLocationEXT (pose, is_valid, radius)"
+    files:
+      - "src/core/live_trackers/cpp/live_hand_tracker_impl.cpp   # the live reader: per-frame joint locate + fill"
+      - "src/core/live_trackers/cpp/live_hand_tracker_impl.hpp   # its interface + required OpenXR extensions"
+    symbols:
+      - "LiveHandTrackerImpl (uses XrHandTrackerEXT, xrLocateHandJointsEXT)   # MUST-MATCH: native hand impl"
+      - "required_extensions() -> XR_EXT_HAND_TRACKING, XR_MNDX_XDEV_SPACE    # extensions the session must request"
+    verify:
+      creates: []               # reuse — the live read needs a runtime; already exercised by examples/oxr/python/test_hand_inactive_on_plugin_stop.py
+      reference_file: "examples/oxr/python/test_hand_inactive_on_plugin_stop.py   # the poll-then-lose-tracking pattern"
+      register: "nothing — the existing test already runs"
+      run: "confirm LiveHandTrackerImpl exists and is unchanged; the live read itself is stage 3 (whole_pipeline)"
+      can_test_now: only end-to-end     # a native read has no isolated half — it needs the runtime
+      checks:
+        - "the symbol LiveHandTrackerImpl exists and required_extensions() still lists XR_EXT_HAND_TRACKING"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Hand data shape (26-joint FlatBuffer). Already defined; reuse."
+    action: reuse
+    files:
+      - "src/core/schema/fbs/hand.fbs   # the format definition; C++ header generated from it"
+    symbols:
+      - "table HandPose / HandPoseTracked / HandPoseRecord   # data, empty-capable wrapper, wrapper + timestamp"
+      - "struct HandJoints (poses [HandJointPose:26])        # fixed-size joint array, OpenXR order"
+      - "enum HandJoint (NUM_JOINTS = 26)                    # joint names/indices"
+    verify:
+      creates: []               # already tested by tests/cpp/core/schema/test_hand.cpp and tests/python/core/schema/test_hand.py
+      reference_file: "tests/cpp/core/schema/test_hand.cpp   # the existing round-trip + slot test"
+      register: "already in schema_tests/cpp/CMakeLists.txt (hand-added); test_hand.py is auto-globbed"
+      run: "ctest -R 'test_hand' --output-on-failure"
+      can_test_now: yes         # needs only the schema library — no device, no CloudXR
+      checks:
+        - "fill 26 joint poses, save, reload -> the same values (covered by test_hand.cpp)"
+        - "a HandPoseTracked built without data reads back as 'no data' (covered by test_hand.py)"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Read both hands in C++, register with the factory, record to MCAP. Already exists; reuse."
+    action: reuse
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/hand_tracker_base.hpp   # the interface the live reader implements"
+      - "src/core/deviceio_trackers/cpp/hand_tracker.cpp                      # the public front door (HandTracker)"
+      - "src/core/live_trackers/cpp/live_hand_tracker_impl.cpp                # the live reader (same as node0)"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp                 # MUST-MATCH: the dispatch row that wires tracker -> reader"
+    symbols:
+      - "class HandTracker (get_left_hand / get_right_hand)   # the front door programs talk to"
+      - "LiveHandTrackerImpl                                  # the worker that reads"
+      - "factory row: { try_add_extensions<HandTracker, LiveHandTrackerImpl>, try_create_hand_impl }   # MUST-MATCH: factory row; missing = 'unsupported tracker type' at runtime"
+    verify:
+      creates: []               # reuse — recording channels already tested by tests/cpp/core/mcap/test_mcap_tracker_channels.cpp
+      reference_file: "tests/cpp/core/mcap/test_mcap_tracker_channels.cpp   # the per-hand left/right channel pattern"
+      register: "already in mcap_tests/cpp/CMakeLists.txt (C++ tests are hand-added)"
+      run: "ctest -R mcap --output-on-failure ; confirm the factory row for HandTracker is present in live_deviceio_factory.cpp"
+      can_test_now: yes         # channel/recording half runs without CloudXR; the live read is stage 3
+      checks:
+        - "the factory row exists — grep try_create_hand_impl in live_deviceio_factory.cpp; missing = runtime error, zero compile error"
+        - "recording writes 'hands/left' and 'hands/right' topics (covered by test_mcap_tracker_channels.cpp)"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Python access to the hand format and HandTracker. Already bound; reuse."
+    action: reuse
+    files:
+      - "src/core/schema/python/hand_bindings.h                        # pybind code for the hand format types"
+      - "src/core/deviceio_trackers/python/tracker_bindings.cpp        # pybind for HandTracker"
+      - "src/python/isaacteleop/schema/__init__.py                         # exports the schema names to Python"
+      - "src/python/isaacteleop/deviceio/__init__.py                              # exports the tracker name to Python"
+    symbols:
+      - "HandPoseT / HandPoseTrackedT / HandJoint (Python)             # the Python-side format names"
+      - "deviceio.HandTracker (get_left_hand / get_right_hand)         # what test scripts poll at stage 3"
+    verify:
+      creates: []               # reuse — the import block of tests/python/core/schema/test_hand.py IS the check
+      reference_file: "tests/python/core/schema/test_hand.py   # its import block proves every registration point is wired"
+      register: "nothing new — test_hand.py is auto-globbed into ctest"
+      run: "ctest -R test_hand --output-on-failure   # ImportError = a registration point was un-wired"
+      can_test_now: yes         # ctest points PYTHONPATH at the freshly built STAGED package
+      checks:
+        - "'from isaacteleop.schema import HandPoseT, HandPoseTrackedT, HandJoint' passes"
+        - "'from isaacteleop.deviceio import HandTracker' passes"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Repackage HandPoseTrackedT into the standard HandInput shape (per-joint arrays). Already exists; reuse."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/hands_source.py            # the converter node"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/deviceio_tensor_types.py   # the wrapper describing the incoming data"
+    symbols:
+      - "class HandsSource (HandPoseTrackedT -> HandInput ; outputs 'hand_left' / 'hand_right' as OptionalType) ; no channel_id (native)   # the converter"
+      - "DeviceIOHandPoseTracked ; HandPoseTrackedType   # the incoming-data wrappers"
+    verify:
+      creates: []               # already tested by tests/python/core/retargeting_engine/test_sources.py (TestHandsSource + TestHandsSourceOptional)
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # the _make_inputs / compute() pattern"
+      register: "auto — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R test_sources --output-on-failure"
+      can_test_now: yes         # injects a hand-built TrackedT and calls compute() — no tracker, no CloudXR
+      checks:
+        - "HandsSource output spec has optional 'hand_left' / 'hand_right' (covered by test_sources.py)"
+        - "inactive hand in -> output is OptionalTensorGroup marked none, no crash (covered by test_sources.py)"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "The fixed HandInput shape node4 fills and the retargeters read. Already exists; reuse."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py   # the HandInput shape definition"
+      - "src/python/isaacteleop/retargeting_engine/tensor_types/indices.py          # the HandInputIndex field names"
+    symbols:
+      - "HandInput (26 joints: joint_positions, joint_orientations, joint_radii, joint_valid)   # the standard shape"
+      - "HandInputIndex ; NUM_HAND_JOINTS = 26   # the field names code uses"
+    verify:
+      creates: []               # reuse: the shape is already tested; node4's test proves it is FILLED correctly
+      reference_file: null
+      register: "nothing"
+      run: "covered by node4's test (test_sources.py builds and reads HandInput)"
+      can_test_now: yes
+      checks:
+        - "confirm HandInput and HandInputIndex resolve on import — nothing else; the shape is frozen"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Turn HandInput into a robot command. Several retargeters already consume it; reuse."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeters/se3_retargeter.py            # hand/controller pose -> end-effector command"
+      - "src/python/isaacteleop/retargeters/dex_hand_retargeter.py       # 26 joints -> dexterous hand joint targets"
+      - "src/python/isaacteleop/retargeters/sharpa_hand_retargeter.py    # 26 joints -> Sharpa hand joint targets"
+      - "src/python/isaacteleop/retargeters/gripper_retargeter.py        # pinch distance -> gripper open/close"
+    symbols:
+      - "Se3AbsRetargeter / Se3RelRetargeter          # absolute / relative end-effector math"
+      - "DexHandRetargeter / DexBiManualRetargeter    # dex-hand mapping (one hand / both)"
+      - "SharpaHandRetargeter ; GripperRetargeter     # all read OptionalType(HandInput())"
+    verify:
+      creates: []               # already tested by tests/python/core/retargeting_engine/test_sharpa_hand_retargeter.py (golden hand -> joint targets)
+      reference_file: "tests/python/core/retargeting_engine/test_sharpa_hand_retargeter.py   # golden input -> expected command pattern"
+      register: "auto — globbed"
+      run: "ctest -R sharpa_hand --output-on-failure"
+      can_test_now: yes         # pure Python: hand-built HandInput in, command out; no session
+      checks:
+        - "a known 26-joint pose -> expected joint targets within tolerance (covered by test_sharpa_hand_retargeter.py)"
+        - "input marked none -> retargeter holds/neutral output, no crash"
+
+# No feedback: block — direction is input only.
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# For a native device every node is reuse, so THIS is the only real new check.
+# Needs CloudXR; headless startup works with NV_DEVICE_PROFILE=Quest3.
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end. Needs CloudXR; cannot be checked step-alone. For a native device every node is reuse, so this is the only real check."
+  wiring:
+    - "HandsSource(name='hands') -> DexHandRetargeter / Se3AbsRetargeter / GripperRetargeter / SharpaHandRetargeter   # no channel_id (native)"
+  test_input: "the real headset hands, or examples/oxr/python/test_synthetic_hands.py for a synthetic hand feed"
+  expect: "moving a tracked hand -> a matching robot command (e.g. dex hand joint targets)"
+  also_check:
+    - "hand not tracked -> HandsSource output is_none, no crash (see test_hand_inactive_on_plugin_stop.py)"
+    - "an injected hand (e.g. Haptikos glove) shows up on this same path"
+  verify:
+    creates: []                 # already tested by examples/oxr/python/test_synthetic_hands.py + test_hand_inactive_on_plugin_stop.py
+    reference_file: "examples/oxr/python/test_synthetic_hands.py   # PluginManager launch -> HandTracker poll; test_hand_inactive_on_plugin_stop.py for the lifecycle case"
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && python examples/oxr/python/test_synthetic_hands.py ; python examples/oxr/python/test_hand_inactive_on_plugin_stop.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "HandTracker.get_left_hand()/get_right_hand() return data within ~5 s of a hand being tracked"
+      - "check_health() runs automatically every TeleopSession.step()"
+      - "NEGATIVE test (native: no channel_id): tracking loss -> HandsSource outputs marked none, no crash, recovers when tracking returns (test_hand_inactive_on_plugin_stop.py)"
+      # --- stage 4: e2e — are the values right? ---
+      - "known hand pose -> expected robot command within tolerance (e.g. closed fist -> dex hand close targets)"
+      - "an injected hand (e.g. Haptikos) arrives on this same path and drives the same retargeters"
+      - "record-then-replay: recorded hands/left + hands/right topics replay to the same commands"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
+
+# What you can check right now (cheapest first):
+#   stage 1-2 : ctest -R 'test_hand|test_sources|sharpa_hand|mcap' — all existing, all green today.
+#   stage 3-4 : whole_pipeline (needs CloudXR or the synthetic-hands test feed).
+#   stage 5   : full ctest + format. Finish, then deliver.

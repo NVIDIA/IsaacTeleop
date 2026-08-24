@@ -1,0 +1,233 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml for the SO-101 leader arm.
+# A leader arm is joint-state data: it REUSES the whole generic joint-space path
+# (joint_state.fbs, JointStateTracker, JointStateSource, JointStateRetargeter).
+# The only new code is the vendor plugin (node0) plus the Python config that wires
+# the SO-101's joint names through the reused nodes.
+#
+# VERIFICATION IS BUILT INTO EVERY STEP.
+# A node is not done when its code compiles — it is done when its CHECK passes.
+# Test files are deliverables just like code files: each node's `verify.creates`
+# lists the test file(s) you add for it, and `verify.run` is the one command
+# that proves the node. Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+
+status: ready
+
+device:
+  name: so101_leader
+  shown_as: "SO-101 Leader Arm"
+  what_it_is: "A 5-DOF + gripper FEETECH-servo leader arm, back-driven by hand. Pushes joint angles as JointStateOutput on the generic joint-space path."
+  direction: input
+
+# A few names must be spelled the same in several places. Set them once.
+shared_names:
+  channel_id: so101_leader                       # MUST-MATCH: SchemaPusherConfig.collection_id (plugin) == JointStateTracker collection_id == JointStateSource collection_id.
+                                                  # Same string in node0 (push), node2 (tracker), node4 (source). Wrong = no data, no error.
+  data_size_limit: 4096                           # MUST-MATCH: plugin kMaxFlatbufferSize == JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE.
+  recorded_format_name: core.JointStateOutputRecord   # MUST-MATCH (only if you record). Already defined by joint_state.fbs.
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Build and VERIFY each, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read the 6 FEETECH servos, convert ticks to radians, pack a JointStateOutput, and push it."
+    action: create
+    delivery: push
+    connection:
+      device: "SO-101 leader arm: 6 FEETECH STS3215 bus servos (SMS/STS wire protocol)"
+      port: "a serial port, e.g. /dev/ttyACM0; empty device_path selects the synthetic backend (CI / no hardware)"
+    read_raw:
+      - "FeetechBus::sync_read_positions(servo_ids_, read_ticks_, read_ok_): one SYNC READ for all 6 servos per frame"
+      - "leader arm: disable_torque per servo at startup so it can be back-driven; a servo that does not reply holds its last value"
+      - "synthetic backend: read_synthetic() writes a smooth phase-shifted sine trajectory instead"
+    decode:
+      - "per joint: ticks clamped to [range_min, range_max], then angle = sign * (ticks - home_ticks) * 2*pi/4096 (kTicksToRadians)"
+      - "calibration from a plain-text or LeRobot .json file; defaults = servo ids 1..6, sign +1, home 2048, full range"
+    files:
+      - "src/plugins/so101_leader/so101_leader_plugin.cpp / .hpp   # the read loop, calibration, decode, and the pusher"
+      - "src/plugins/so101_leader/feetech_bus.cpp / .hpp           # the SMS/STS serial wire protocol (SYNC READ, torque off)"
+      - "src/plugins/so101_leader/main.cpp, plugin.yaml, CMakeLists.txt   # entry point + manifest + build target for the plugin"
+      - "CMakeLists.txt (root)  # add the plugin under BUILD_PLUGINS — no glob; forgotten = silently skipped"
+    symbols:
+      - "class So101LeaderPlugin ; core::SchemaPusher (pusherio/schema_pusher.hpp)   # owns the bus and the push-delivery sender"
+      - "kJointNames = [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]  # MUST-MATCH: order == JointStateSource.joint_names == JointStateRetargeterConfig.device_joints (the A2 trap)"
+      - "push_current_state(): builds JointStateOutputT (out.joints[i].name = kJointNames[i], .position, .valid=true; has_velocity=false, has_effort=false, ee_pose_valid=false), Packs it, pusher_.push_buffer(...)   # the pack + push step"
+    verify:
+      creates:
+        - "src/plugins/so101_leader/test_so101_decode.cpp   # golden-vector test over the EXTRACTED tick-to-radian decode (home/sign/clamp cases)"
+      reference_file: null             # no plugin has a decode test today — write it from the checks below
+      register: "add a small CTest target in src/plugins/so101_leader/CMakeLists.txt (C++ tests are hand-added, never globbed)"
+      run: "cmake --build build --target so101_leader_plugin && ctest -R so101_decode --output-on-failure"
+      can_test_now: after a small code change    # first move the pure tick-to-radian math into its own header — today it is welded to the bus read loop (so101_leader_plugin.cpp, kTicksToRadians)
+      checks:
+        - "the build target exists — 'target not found' means the root-CMake BUILD_PLUGINS entry is missing"
+        - "ticks == home_ticks -> 0 rad"
+        - "ticks = home + 1024, sign +1 -> +pi/2 rad; sign -1 -> -pi/2 rad"
+        - "ticks below range_min clamps to range_min before converting"
+        - "reading the REAL servos (or synthetic backend) and pushing under so101_leader is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Reuse the generic joint-state FlatBuffer (list of named JointState + device_id)."
+    action: reuse
+    files:
+      - "src/core/schema/fbs/joint_state.fbs   # the reused format definition; do not edit"
+    symbols:
+      - "table JointStateOutput / JointStateOutputTracked / JointStateOutputRecord ; table JointState (name key, position, velocity, effort, valid)   # the reused wire + record shapes"
+    verify:
+      creates: []                      # reuse — already exercised by tests/python/core/retargeting_engine/test_joint_state_source.py, which builds real JointStateOutput buffers via the bindings
+      reference_file: "tests/python/core/retargeting_engine/test_joint_state_source.py   # constructs JointStateOutput / JointStateOutputTrackedT round-trip"
+      register: "nothing — rides the existing auto-globbed test"
+      run: "confirm the tables exist in joint_state.fbs; covered by test_joint_state_source.py (ctest -R joint_state_source)"
+      can_test_now: yes
+      checks:
+        - "JointStateOutput / JointStateOutputTracked / JointStateOutputRecord tables are present in joint_state.fbs — no edits needed"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Reuse JointStateTracker, keyed on the collection_id, already registered in the live factory."
+    action: reuse
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/joint_state_tracker_base.hpp   # the reused tracker interface"
+      - "src/core/deviceio_trackers/cpp/joint_state_tracker.cpp                      # the reused public front door"
+      - "src/core/live_trackers/cpp/live_joint_state_tracker_impl.cpp / .hpp         # the reused live reader"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp  # MUST-MATCH: dispatch row already present — do not add a second one"
+    symbols:
+      - "class JointStateTracker ; LiveJointStateTrackerImpl   # the reused tracker pair"
+      - "factory: create_joint_state_tracker_impl + try_create_joint_state_impl  # MUST-MATCH: row already registered in live_deviceio_factory.cpp"
+    verify:
+      creates: []                      # reuse — the tracker and its factory row ship with the joint-space path
+      reference_file: null
+      register: "nothing"
+      run: "confirm try_create_joint_state_impl exists in src/core/live_trackers/cpp/live_deviceio_factory.cpp (grep, ~line 92); the live read is stage 3"
+      can_test_now: yes
+      checks:
+        - "the factory row is present — a missing row is 'unsupported tracker type' AT RUNTIME, zero compile error"
+        - "the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Reuse the existing Python bindings for the joint-state schema and tracker."
+    action: reuse
+    files:
+      - "src/core/schema/python/... (JointStateOutput / JointStateOutputTrackedT)   # reused schema bindings, already wired"
+      - "src/core/deviceio_trackers/python/tracker_bindings.cpp (isaacteleop.deviceio.JointStateTracker)   # reused tracker binding"
+    symbols:
+      - "isaacteleop.schema.JointStateOutputTrackedT ; isaacteleop.deviceio.JointStateTracker   # the Python names stage-3 scripts poll"
+    verify:
+      creates: []                      # reuse — the import line in test_joint_state_source.py IS the check
+      reference_file: "tests/python/core/retargeting_engine/test_joint_state_source.py   # imports JointState, JointStateOutput, JointStateOutputTrackedT from isaacteleop.schema"
+      register: "nothing new — rides the auto-globbed test"
+      run: "confirm 'from isaacteleop.schema import JointStateOutputTrackedT' and 'from isaacteleop.deviceio import JointStateTracker' succeed (ctest -R joint_state_source)"
+      can_test_now: yes                # ctest points PYTHONPATH at the freshly built STAGED package — never a stale installed wheel
+      checks:
+        - "both import lines pass — ImportError would mean a registration point regressed"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Reuse JointStateSource; configure it with the SO-101 joint names and collection_id."
+    action: configure
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/joint_state_source.py (reused as-is)   # the converter node; only its constructor args are SO-101-specific"
+    symbols:
+      - "class JointStateSource ; reads deviceio_joint_state (DeviceIOJointStateOutputTracked) -> JOINTS group (one FloatType per joint)   # wire type in, standard shape out"
+      - "JointStateSource(name=..., collection_id='so101_leader', joint_names=[shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper])  # MUST-MATCH: joint_names order == kJointNames == device_joints"
+      - "only position is surfaced; velocity / effort / valid / ee_pose are dropped (reads joint.position by name into the joint_names slots)   # what the converter keeps"
+    verify:
+      creates: []                      # already tested by tests/python/core/retargeting_engine/test_joint_state_source.py (uses the SO101 joint list)
+      reference_file: "tests/python/core/retargeting_engine/test_joint_state_source.py   # the device-specific test — real bindings, no OpenXR"
+      register: "auto — the retargeting test dir globs test_*.py into ctest; already registered"
+      run: "ctest -R retargeting_test_joint_state_source --output-on-failure"
+      can_test_now: yes                # inject a hand-built TrackedT and call compute() — bypasses tracker and CloudXR entirely
+      checks:
+        - "joints [shoulder_pan=0.1, ..., gripper=0.5] in wire order X -> out reordered to joint_names order"
+        - "joints pushed out of order -> still mapped by name to the right slots"
+        - "tracked.data is None -> out.set_none()"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "The name-keyed joint-position group is the boundary shape; already defined, no new type."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/deviceio_tensor_types.py (DeviceIOJointStateOutputTracked)   # the reused wire-type wrapper"
+    symbols:
+      - "TensorGroupType(JOINTS, [FloatType(n) for n in joint_names])   # the boundary shape node4 fills"
+    verify:
+      creates: []                      # reuse — the shape is already tested; node4's test proves the SO-101 config fills it correctly
+      reference_file: null
+      register: "nothing"
+      run: "covered by node4's test (ctest -R retargeting_test_joint_state_source)"
+      can_test_now: yes
+      checks:
+        - "confirm DeviceIOJointStateOutputTracked exists in deviceio_tensor_types.py — no edits needed"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Reuse JointStateRetargeter (joint mode = leader->follower mirror; ee_pose mode = FK via URDF)."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeters/joint_space/joint_state_retargeter.py   # the reused retargeter; only its config is SO-101-specific"
+    symbols:
+      - "JointStateRetargeter(mode='joint'|'ee_pose', config=JointStateRetargeterConfig(device_joints=[shoulder_pan..gripper], ...))  # MUST-MATCH: device_joints order == joint_names == kJointNames"
+      - "reads JOINTS positionally in device_joints order -> JOINT_TARGETS_KEY (joint) or EE_POSE_KEY + GRIPPER_COMMAND_KEY (ee_pose)   # the command it emits"
+    verify:
+      creates: []                      # already tested by tests/python/core/retargeting_engine/test_joint_state_retargeter.py (both modes, hold-last, reset)
+      reference_file: "tests/python/core/retargeting_engine/test_joint_state_retargeter.py   # the device-specific retargeter test"
+      register: "auto — globbed; already registered"
+      run: "ctest -R retargeting_test_joint_state_retargeter --output-on-failure"
+      can_test_now: yes                # pure Python: hand-built shape in, command out; no session
+      checks:
+        - "joint mode, identity target_joints -> joint targets == device positions"
+        - "joint mode with sign/scale/offset for a joint -> offset + sign*scale*value"
+        - "empty input -> holds last targets"
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR; headless startup
+# works with NV_DEVICE_PROFILE=Quest3 (no headset/emulator required).
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end. Needs CloudXR; cannot be checked step-alone."
+  wiring:
+    - "JointStateSource(name='leader', collection_id='so101_leader', joint_names=SO101_JOINTS) -> JointStateRetargeter(mode='joint', config=JointStateRetargeterConfig(device_joints=SO101_JOINTS, target_joints=SO101_JOINTS))  # MUST-MATCH: same names, same order everywhere"
+    - "see examples/teleop/python/joint_space_device_example.py (SO101_JOINTS, _COLLECTION_ID='so101_leader')"
+  test_input: "the synthetic backend (no device_path) or the real arm on /dev/ttyACM0"
+  expect: "back-driving a joint -> the matching robot joint target moves (joint mode); moving the arm -> the follower EE pose tracks (ee_pose mode)"
+  verify:
+    creates:
+      - "examples/oxr/python/test_so101_leader.py   # launches the plugin (synthetic backend), polls JointStateTracker, asserts data + joint values"
+    reference_file: "examples/oxr/python/test_synthetic_hands.py   # the pattern, smallest form (133 ln): PluginManager launch -> DeviceIOSession.run -> poll loop. Same shape for push/inject/native — only the tracker changes. test_oak_camera.py if your device is a camera; test_controller_tracker.py if native. Resolve the plugin dir RELATIVE to the script, never hardcoded."
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && cd install/examples/oxr/python && uv run test_so101_leader.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "plugin stdout says it opened the bus (or the synthetic backend); check_health() runs automatically every TeleopSession.step()"
+      - "tracker poll returns data within ~5 s — stays None forever = collection_id mismatch (the #1 silent failure)"
+      - "NEGATIVE test: run once with a wrong channel_id (collection_id) -> must be 'inactive forever, no crash'"
+      # --- stage 4: e2e — are the values right? ---
+      - "back-drive (or synthetically drive) a joint -> the matching robot joint target moves within tolerance"
+      - "joint_names / device_joints order mismatch vs kJointNames -> wrong joint moves (the A2 trap); by-name mapping hides a full mismatch as zeros"
+      - "unplug and replug the serial device -> a failed read holds the last value, no fault; record-then-replay matches (if recording)"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
+
+# What you can check right now (cheapest first):
+#   ready now         : node1-node6 (reuse/configure — all covered by existing tests)
+#   after a small edit: node0 tick-to-radian decode math
+#   only end-to-end   : node0 real servo read / push, whole_pipeline
+# Finish: run the whole build and full ctest, then deliver.

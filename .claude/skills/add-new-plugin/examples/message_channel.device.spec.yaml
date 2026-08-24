@@ -1,0 +1,231 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# =============================================================================
+# device.spec.yaml — plan for adding ONE device to IsaacTeleop.
+#
+# VERIFICATION IS BUILT INTO EVERY STEP.
+# A node is not done when its code compiles — it is done when its CHECK passes.
+# Test files are deliverables just like code files: each node's `verify.creates`
+# lists the test file(s) you add for it, and `verify.run` is the one command
+# that proves the node. Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+#
+# This device is ALL-REUSE: the message_channel stack already exists and is
+# already unit-tested, so most node verifies are one-liners pointing at
+# tests/python/core/retargeting_engine/test_message_channel_nodes.py.
+# The identity here is a 16-byte channel_uuid, NOT a string channel_id — the
+# negative runtime test keys on the UUID.
+# =============================================================================
+
+status: ready
+
+device:
+  name: message_channel
+  shown_as: "Message Channel"
+  what_it_is: "A transport-only opaque data pipe over XR_NV_opaque_data_channel. Carries arbitrary bytes BOTH ways: apps put messages out (sink) and get messages in (source). NOT a sensor and NOT a retargeter: there is nothing to interpret, no robot command, no haptics. The sink is a plain data sink, not a haptic one."
+  direction: both
+
+# All work reuses the existing message_channel stack. The one load-bearing value
+# is the channel identity, which is a 16-byte UUID (NOT a string channel_id).
+shared_names:
+  channel_uuid: "the exact 16-byte UUID the app opened the channel with"   # MUST-MATCH: source and sink share ONE MessageChannelTracker built from this UUID; both ends must open the same UUID or no bytes flow (no error).
+  max_message_size: 65536                                                  # MUST-MATCH: bytes per message; tracker default 64 * 1024. Larger receives are dropped/truncated by the channel.
+  recorded_format_name: "core.MessageChannelMessagesRecord"                # MUST-MATCH: MessageChannelRecordingTraits::schema_name.
+
+# ===========================================================================
+# INPUT nodes (device -> teleop): the app pulls received bytes IN via the source.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — receive opaque bytes from the channel ----------
+  node0_acquire:
+    does: "Receive opaque byte messages that the remote side pushed on the channel; the live tracker drains them each update."
+    action: reuse
+    delivery: push
+    files:
+      - "src/core/live_trackers/cpp/live_message_channel_tracker_impl.cpp / .hpp   # the live reader: drains inbound bytes, sends outbound bytes"
+    symbols:
+      - "LiveMessageChannelTrackerImpl (drain_messages via xrReceiveOpaqueDataChannelNV; send_message via xrSendOpaqueDataChannelNV)   # the worker that talks to the OpenXR channel"
+    verify:
+      creates: []                    # reuse — the drain/send behavior is already exercised (via a dummy tracker) by test_message_channel_nodes.py
+      reference_file: "tests/python/core/retargeting_engine/test_message_channel_nodes.py   # already tested by this file (DummyTracker mirrors the impl's contract)"
+      register: "nothing new"
+      run: "confirm LiveMessageChannelTrackerImpl exists in live_message_channel_tracker_impl.hpp; behavior covered by test_message_channel_nodes.py"
+      can_test_now: yes
+      checks:
+        - "the symbol compiles and links (any full build proves it)"
+        - "the REAL xrReceive/xrSend calls are stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the message format ----------
+  node1_schema:
+    does: "Opaque payload wrapper: a message is just [ubyte] bytes, batched per drain."
+    action: reuse
+    files:
+      - "src/core/schema/fbs/message_channel.fbs   # the format definition; C++ header generated from it"
+    symbols:
+      - "table MessageChannelMessages (payload:[ubyte]) ; MessageChannelMessagesTracked (data:[MessageChannelMessages], null when nothing drained) ; MessageChannelMessagesRecord   # message, batch wrapper, recording wrapper"
+    verify:
+      creates: []                    # reuse — the payload is opaque bytes; no field-slot math to golden-test. Round-tripping is covered where the types are USED: test_message_channel_nodes.py builds and reads MessageChannelMessagesTrackedT.
+      reference_file: "tests/python/core/retargeting_engine/test_message_channel_nodes.py   # builds TrackedT batches and reads payloads back"
+      register: "nothing new"
+      run: "confirm the three tables exist in message_channel.fbs; covered by test_message_channel_nodes.py"
+      can_test_now: yes
+      checks:
+        - "a TrackedT with data=None reads back as 'no data'; a batch of N payloads reads back the same N byte strings"
+
+  # ---------- node2: tracker — read the bytes in C++ (+ recording) ----------
+  node2_tracker:
+    does: "One MessageChannelTracker holds the channel; drains received batches, sends outbound bytes, reports status, records to MCAP."
+    action: reuse
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/message_channel_tracker_base.hpp   # the interface the live/replay readers implement"
+      - "src/core/deviceio_trackers/cpp/message_channel_tracker.cpp   # the public front door; holds the channel UUID"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp   # the dispatch row that wires tracker -> live reader"
+    symbols:
+      - "MessageChannelTracker ; IMessageChannelTrackerImpl ; LiveMessageChannelTrackerImpl   # front door, interface, live worker"
+      - "factory row: try_create_message_channel_impl + create_message_channel_tracker_impl   # MUST-MATCH: already registered in live_deviceio_factory.cpp; missing = 'unsupported tracker type' at runtime"
+    verify:
+      creates: []                    # reuse — tracker + factory row already exist and ship in every build
+      reference_file: "tests/cpp/core/mcap/test_mcap_tracker_channels.cpp   # the recording-check pattern, should the recording path ever change"
+      register: "nothing new"
+      run: "confirm the factory row exists: grep try_create_message_channel_impl src/core/live_trackers/cpp/live_deviceio_factory.cpp"
+      can_test_now: yes
+      checks:
+        - "the factory row is present (grep hit) — that is the one wiring a successful link cannot prove"
+        - "recorded format name equals shared_names.recorded_format_name (MessageChannelRecordingTraits)"
+        - "the LIVE drain/send/status cycle is stage 3 (whole_pipeline)"
+
+  # ---------- node3: bindings — expose format and tracker to Python ----------
+  node3_bindings:
+    does: "Python builds the tracker from a 16-byte UUID and calls get_messages / send_message / get_status; schema types importable."
+    action: reuse
+    files:
+      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for MessageChannelTracker"
+      - "src/core/schema/python/message_channel_bindings.h (bind_message_channel)   # pybind for the format types"
+    symbols:
+      - "isaacteleop.deviceio.MessageChannelTracker ; isaacteleop.schema.MessageChannelMessages / MessageChannelMessagesTrackedT   # the Python names test scripts poll and build"
+    verify:
+      creates: []                    # reuse — the import lines in test_message_channel_nodes.py ARE the check; ImportError = a registration point broke
+      reference_file: "tests/python/core/retargeting_engine/test_message_channel_nodes.py   # its import block exercises the schema bindings"
+      register: "nothing new — rides the auto-globbed retargeting test"
+      run: "ctest -R message_channel --output-on-failure   # passes only if the schema types import"
+      can_test_now: yes
+      checks:
+        - "from isaacteleop.schema import MessageChannelMessagesTrackedT succeeds"
+        - "from isaacteleop.deviceio import MessageChannelTracker succeeds (quick interpreter check against the staged package)"
+
+  # ---------- node4: source — expose drained bytes to the graph ----------
+  node4_source:
+    does: "Drain received bytes out as messages_tracked, report connection status, and flush queued outbound bytes back to the channel."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/message_channel_source.py   # the source node: drain + status + outbound flush"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/message_channel_config.py   # builds (source, sink) sharing one tracker"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/deviceio_tensor_types.py   # the wrapper groups describing the data"
+    symbols:
+      - "MessageChannelSource (outputs messages_tracked + status) ; MessageChannelMessagesTrackedGroup ; MessageChannelStatusGroup ; MessageChannelConnectionStatus   # source node + its output types"
+      - "message_channel_config(name, channel_uuid, ...) -> (source, sink) sharing one tracker + bounded outbound deque   # MUST-MATCH: channel_uuid must be 16 bytes."
+    verify:
+      creates: []                    # reuse — already tested by tests/python/core/retargeting_engine/test_message_channel_nodes.py (active/inactive messages, all drained messages returned, queue kept while disconnected)
+      reference_file: "tests/python/core/retargeting_engine/test_message_channel_nodes.py   # the DummyTracker + compute() pattern"
+      register: "already auto-globbed — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R message_channel --output-on-failure"
+      can_test_now: yes              # DummyTracker injection — bypasses the live tracker and CloudXR entirely
+      checks:
+        - "drained payloads come out unchanged and in order in messages_tracked"
+        - "nothing drained -> messages_tracked marked inactive/none; no crash"
+        - "outbound queue is flushed only while status == CONNECTED; kept while disconnected"
+
+  # ---------- node5: boundary — none (transport only) ----------
+  node5_boundary:
+    does: "None. There is no standard robot-input shape: the payload stays opaque bytes end to end."
+    action: skip
+    files: []
+    symbols: []
+    verify:
+      creates: []                    # skip — nothing to verify
+      reference_file: null
+      register: "nothing"
+      run: "not applicable — out of the retargeting graph; the payload stays opaque bytes"
+      can_test_now: yes
+      checks: []
+
+  # ---------- node6: robot step — none (no retargeter) ----------
+  node6_robot_step:
+    does: "None. A pipe carries bytes; it produces no robot command. The app consumes messages_tracked directly."
+    action: skip
+    files: []
+    symbols: []
+    verify:
+      creates: []                    # skip — nothing to verify
+      reference_file: null
+      register: "nothing"
+      run: "not applicable — no retargeter, no robot command"
+      can_test_now: yes
+      checks: []
+
+# ===========================================================================
+# FEEDBACK path (teleop -> device): the app pushes bytes OUT via the sink.
+# This is a PLAIN data sink (enqueue bytes for transmit), NOT a haptic sink.
+# ===========================================================================
+feedback:
+  does: "Send arbitrary app bytes OUT over the same channel. The sink only enqueues; the source flushes the queue to the channel on its next poll."
+  signal_source: "the app itself: it fills messages_tracked with bytes to transmit. NOT a sim/robot signal, NOT the device's own input."
+  retargeter:
+    symbols: ["none — no mapping. Bytes pass through unchanged (no ControllerHapticPulse, no TactileVector).   # transport only"]
+  sink:
+    symbols: ["MessageChannelSink (a BaseRetargeter that appends messages_tracked to the shared outbound deque) — a plain data sink, not HapticSink.   # the enqueue side"]
+    files: ["src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/message_channel_sink.py   # the sink node"]
+    registered_in: "message_channel_config(...) returns (source, sink); wire the sink into the pipeline. The source drains the queue."
+  device_call: "MessageChannelSource.poll_tracker -> MessageChannelTracker.send_message -> xrSendOpaqueDataChannelNV (only while status == CONNECTED)."
+  shared_tracker: "MUST be the SAME MessageChannelTracker object as the source. message_channel_config builds one tracker and gives it to both nodes; do not build a second tracker for the same UUID."   # MUST-MATCH
+  verify:
+    creates: []                      # reuse — sink enqueue, ordering, bounded-queue drop-oldest, and connected-only flush are already tested by test_message_channel_nodes.py
+    reference_file: "tests/python/core/retargeting_engine/test_message_channel_nodes.py   # sink + DummyTracker pattern"
+    register: "already auto-globbed"
+    run: "ctest -R message_channel --output-on-failure"
+    can_test_now: yes                # DummyTracker records what send_message got
+    checks:
+      - "sink.append(bytes) -> source flush sends the same payload bytes, unchanged and in order"
+      - "not CONNECTED -> bytes stay queued; queue is bounded and drops oldest when full"
+      - "the REAL transmit over the channel is end-to-end only"
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR and a peer on the
+# same UUID; headless startup works with NV_DEVICE_PROFILE=Quest3.
+# ===========================================================================
+whole_pipeline:
+  does: "Open the channel both ways and confirm bytes round-trip. Needs CloudXR and a peer on the same UUID; cannot be checked step-alone."
+  wiring:
+    - "source, sink = message_channel_config(name='message_channel', channel_uuid=<16 bytes>)   # MUST-MATCH: same UUID on both peers"
+    - "TeleopSessionConfig(app_name=..., pipeline=source) ; app reads result['messages_tracked'] and status, and pushes via the sink"
+  test_input: "a peer app that sends and echoes bytes on the same channel UUID (see examples/teleop_session_manager/python/message_channel_example.py)"
+  expect: "bytes sent by the peer appear in messages_tracked ; bytes queued via the sink arrive at the peer unchanged"
+  verify:
+    creates:
+      - "examples/oxr/python/test_message_channel.py   # opens the channel, runs the echo peer, asserts round-trip + status"
+    reference_file: "examples/oxr/python/test_synthetic_hands.py   # the pattern, smallest form (133 ln): PluginManager launch -> DeviceIOSession.run -> poll loop. Same shape for push/inject/native — only the tracker changes. test_oak_camera.py if your device is a camera; test_controller_tracker.py if native. Resolve the plugin dir RELATIVE to the script, never hardcoded."
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && cd install/examples/oxr/python && uv run test_message_channel.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — do bytes flow? ---
+      - "status reaches CONNECTED within ~5 s; check_health() runs automatically every TeleopSession.step()"
+      - "peer sends bytes -> they appear in messages_tracked within ~5 s — stays empty forever = channel_uuid mismatch (the #1 silent failure)"
+      - "NEGATIVE test: run once with a wrong/mismatched channel_uuid (16 bytes, but not the peer's) -> no messages, status not CONNECTED, but no crash"
+      # --- stage 4: e2e — are the bytes right, both ways? ---
+      - "bytes queued via the sink arrive at the peer unchanged, in order (echo them back and compare)"
+      - "disconnect and reconnect -> channel reopens (try_reopen_channel) and bytes flow again"
+      - "record-then-replay: recorded batches read back as core.MessageChannelMessagesRecord with the same payloads (if recording)"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"

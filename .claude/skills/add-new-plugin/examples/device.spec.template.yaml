@@ -1,0 +1,315 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# =============================================================================
+# device.spec.yaml — plan for adding ONE device to IsaacTeleop.
+#
+# VERIFICATION IS BUILT INTO EVERY STEP.
+# A node is not done when its code compiles — it is done when its CHECK passes.
+# Test files are deliverables just like code files: each node's `verify.creates`
+# lists the test file(s) you add for it, and `verify.run` is the one command
+# that proves the node. Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : whole build + full ctest -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+#
+# DIRECTION
+#   input  : device -> teleop  (a sensor: pedal, glove, controller pose)
+#   output : teleop -> device  (feedback: vibration, force)
+#   both   : a device that does both (e.g. a controller)
+#
+# DELIVERY (how an INPUT device's data reaches the system) — the key choice:
+#   native : the runtime already provides it (head, hand, controller, body). No plugin.
+#   push   : a plugin packs a FlatBuffer and PUSHES it under a channel_id.
+#   inject : a plugin builds a NATIVE 26-joint hand and INJECTS it. HANDS ONLY.
+#   NOTE: reuse and inject are NOT the same. A pedal clone REUSES the pedal path
+#   but delivers by PUSH. Delivery must match how the reused tracker reads its data.
+#
+# HOW TO READ A NODE
+#   does     : one line — what this step produces.
+#   action   : create (write new) | reuse (exists; verify, don't edit) |
+#              configure (fill in values) | skip (not needed).
+#   files    : code files you touch. Every entry carries a `# purpose` comment.
+#   symbols  : the classes / functions / names involved (+ purpose comment).
+#   verify   : how this node is PROVEN. Fields:
+#     creates        : test file(s) this node ADDS (path + # purpose).
+#                      [] on reuse nodes — their code is already tested.
+#     reference_file : an existing test to copy+rename (OPTIONAL). If it is not
+#                      there, WRITE the test from `checks` below.
+#     register       : how the test enters ctest. Python test_*.py files are
+#                      AUTO-GLOBBED; C++ tests must be HAND-ADDED to a
+#                      CMakeLists list — miss this and the test silently never runs.
+#     run            : the one command that proves this node.
+#     can_test_now   : yes | after a small code change | needs a test file |
+#                      only end-to-end — what the check needs before it can run.
+#     checks         : what must be TRUE, with concrete example values.
+#
+# # MUST-MATCH = a value that must be exactly right, with no error if it is wrong
+#                (no data arrives, or the wrong file is recorded). Get these right.
+#
+# Example filled in below: a synthetic 3-axis pedal (delivery: push; new format,
+# reuses the pedal's shape and robot step). See examples/ for every real device.
+# =============================================================================
+
+status: ready              # draft = not finished. ready = ok to start building.
+
+device:
+  name: synthetic_3axis_pedal          # slug: folder names, build targets, test names derive from it
+  shown_as: "Synthetic 3-Axis Pedal"   # human-readable product name
+  what_it_is: "Test pedal: left, right, rudder. New data format; reuses the pedal's shape and robot step."
+  direction: input                     # input | output | both
+
+# Names that must be spelled the same in several places. Set them once here.
+# (Only for PUSH devices — native/inject devices have no channel_id.)
+shared_names:
+  channel_id: synthetic_3axis_pedal    # MUST-MATCH: the name the data travels under.
+                                       # Same string in node0 (send), node2 (tracker), node4 (source).
+                                       # Only this name finds the data. Wrong = no data, no error.
+  data_size_limit: 256                 # MUST-MATCH: max bytes per message; plugin and tracker must agree.
+  recorded_format_name: core.Synthetic3AxisPedalOutputRecord   # MUST-MATCH (only if recording):
+                                       # exactly "core." + the Record table name, or files are mislabeled.
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Build and VERIFY each, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read the raw device and send its data into the system."
+    action: create
+    delivery: push                     # native | push | inject (see header)
+    connection:
+      device: "USB 3-axis pedal; shows up as a Linux joystick"   # what the hardware is
+      port: "/dev/input/js0"           # the OS node / port / SDK entry the plugin opens
+    sources:                           # where this plugin's code comes from; the folder must build without any of them present
+      reference: "https://github.com/<vendor>/<repo> @ <commit>  # read-only: doc / SDK / example repo"
+      reused: []                       # in-repo targets linked because they already fit, e.g. "oak::camera_core"
+      vendored: []                     # copied verbatim into src/plugins/<name>/ — list src -> dst + licence
+    read_raw:
+      - "open the port non-blocking; read fixed-size js_event records"   # the raw read loop
+    decode:
+      - "raw value / 32767, clamped to [-1, 1]"                  # raw -> normalized field
+      - "axis 0 -> left_pedal, 1 -> right_pedal, 2 -> rudder"    # which axis feeds which field
+    files:
+      - "src/plugins/<name>/<name>_plugin.cpp / .hpp   # the read loop + the sender"
+      - "src/plugins/<name>/main.cpp                   # entry point: argv = port, channel_id"
+      - "src/plugins/<name>/plugin.yaml                # manifest so the plugin loader finds it"
+      - "src/plugins/<name>/CMakeLists.txt             # builds the plugin executable"
+      - "CMakeLists.txt (root)                         # MUST add the folder under BUILD_PLUGINS — there is no glob; forgotten = silently skipped"
+    symbols:
+      - "class <Name>Plugin      # owns the device fd and the sender"
+      - "core::SchemaPusher      # the sender for push delivery (HandInjector for inject)"
+      - "<Name>Output            # the format it packs (defined in node1)"
+    verify:
+      creates:
+        - "src/plugins/<name>/test_<name>_decode.cpp   # golden-vector test over the EXTRACTED decode function"
+      reference_file: null             # no plugin has a test today — write it from the checks below
+      register: "add a small CTest target in the plugin's CMakeLists (C++ tests are hand-added, never globbed)"
+      run: "cmake --build build312 --target <name>_plugin && ctest -R <name>_decode"
+      can_test_now: after a small code change    # first move the pure decode math into its own header — today it is welded to the fd + sender
+      checks:
+        - "the build target exists — 'target not found' means the root-CMake add_subdirectory is missing"
+        - "decode goldens: 0 -> 0.0 ; 32767 -> 1.0 ; -32768 -> -1.0 (the only input that reaches the -1 clamp)"
+        - "axis 0/1/2 -> left/right/rudder ; axis 3+ -> ignored"
+        - "reading the REAL device is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Define the data shape (a FlatBuffer). Reuse for native/inject/clones; create for genuinely new data."
+    action: create
+    files:
+      - "src/core/schema/fbs/<stem>.fbs   # the format definition; the C++ header is generated from it automatically"
+    symbols:
+      - "table <Name>Output          # the fields: name, type, fixed slot number"
+      - "table <Name>OutputTracked   # wrapper; its data is empty when nothing has arrived"
+      - "table <Name>OutputRecord    # wrapper + timestamp, used when recording to file"
+    verify:
+      creates:
+        - "tests/cpp/core/schema/test_<stem>.cpp     # C++: save/reload round-trip + field-slot static_assert"
+        - "tests/python/core/schema/test_<stem>.py   # Python: set/get + empty-is-None; its IMPORT LINE also proves node3 (see node3.verify)"
+      reference_file: "tests/cpp/core/schema/test_pedals.cpp   # copy + rename Generic -> <Name>"
+      register: "hand-add the .cpp to schema_tests/cpp/CMakeLists.txt (explicit list); the .py is auto-globbed into ctest"
+      run: "ctest -R schema_test_<stem> --output-on-failure"
+      can_test_now: yes              # needs only the schema library — no device, no CloudXR
+      checks:
+        - "fill (0.8, 0.2, 0.33), save, reload -> the same values"
+        - "field slots are fixed: left=4, right=6, rudder=8 — a slot shift fails to COMPILE (static_assert)"
+        - "a record built without data reads back as 'no data'; a fresh output is all zeros"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Receiving side: read the data in C++, register it so the system can find it, optionally record to file."
+    action: create
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/<name>_tracker_base.hpp   # the interface the live reader implements"
+      - "src/core/deviceio_trackers/cpp/<name>_tracker.cpp / .hpp               # the front door programs talk to (+ add to its CMakeLists)"
+      - "src/core/live_trackers/cpp/live_<name>_impl.cpp / .hpp                 # the live reader (+ add to its CMakeLists source list)"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp / .hpp            # MUST-MATCH: the dispatch row that wires tracker -> reader"
+    symbols:
+      - "class <Name>Tracker             # the public front door; holds the channel_id"
+      - "Live<Name>TrackerImpl           # the worker that reads; give its aliases UNIQUE names or the link clashes"
+      - "try_create_<name>_impl + create_<name>_tracker_impl   # the factory row — missing = 'unsupported tracker type' AT RUNTIME, zero compile error"
+      - "<Name>RecordingTraits           # MUST-MATCH: make a NEW one; its format name = shared_names.recorded_format_name"
+    verify:
+      creates:
+        - "tests/cpp/core/live_trackers (or similar)/test_<name>_factory.cpp   # build the tracker THROUGH the factory and assert the impl type — the one check a successful link cannot do"
+        - "tests/cpp/core/mcap/test_<name>_recording.cpp                   # write records to a temp .mcap, read back: values + format name match (only if recording)"
+      reference_file: "tests/cpp/core/mcap/test_mcap_tracker_channels.cpp   # the recording pattern; the factory test is written from checks"
+      register: "hand-add each .cpp to its test target's CMakeLists list"
+      run: "ctest -R '<name>_(factory|recording)' --output-on-failure"
+      can_test_now: needs a test file   # factory + recording halves run WITHOUT CloudXR; the live read is end-to-end only
+      checks:
+        - "factory: create through LiveDeviceIOFactory -> a Live<Name>TrackerImpl comes back; an unknown tracker -> a clear error"
+        - "recording: write 0.8/0.2/-0.5 -> read back the same; the saved format name equals recorded_format_name"
+        - "the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Let Python read/write the format and use the tracker."
+    action: create
+    files:
+      - "src/core/schema/python/<stem>_bindings.h                       # pybind code for the format types"
+      - "src/core/schema/python/schema_module.cpp                       # MUST add BOTH the include and the bind call"
+      - "src/python/isaacteleop/schema/__init__.py                          # MUST add the names to the import block AND __all__"
+      - "src/core/schema/python/CMakeLists.txt                          # add the bindings header to the module sources"
+      - "src/core/deviceio_trackers/python/tracker_bindings.cpp         # pybind for the tracker class"
+      - "src/python/isaacteleop/deviceio_trackers/__init__.py    # export the tracker name"
+    symbols:
+      - "bind_<stem>()               # the registration call — include without call = types silently absent"
+      - "<Name>Output / <Name>OutputRecord / <Name>OutputTrackedT   # the Python names; Tracked keeps a trailing T"
+      - "<Name>Tracker (Python) with get_<x>_data()                 # what test scripts poll at stage 3"
+    verify:
+      creates: []                    # no new test file — the IMPORT LINE in node1's test_<stem>.py IS the check:
+                                     # `from isaacteleop.schema import <Name>Output` succeeds only if every
+                                     # registration point above is wired; ImportError = one was missed.
+      reference_file: "tests/python/core/schema/test_pedals.py   # its import block is the pattern"
+      register: "nothing new — rides node1's auto-globbed .py test"
+      run: "cmake --build build312 --target schema_py deviceio_trackers_py python_package && ctest -R schema_test_<stem>"
+      can_test_now: yes              # ctest points PYTHONPATH at the freshly built STAGED package — never a stale installed wheel
+      checks:
+        - "the schema import line passes (proves schema_module.cpp + schema_init.py + CMake wiring)"
+        - "the tracker imports: from isaacteleop.deviceio import <Name>Tracker"
+        - "gotcha: a NEW .fbs needs a cmake RECONFIGURE, not just --build"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Take the tracker's data and repackage it into the standard shape the robot step reads."
+    action: create
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/<name>_source.py   # the converter node"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/deviceio_tensor_types.py   # add the wrapper describing the incoming data"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/__init__.py        # export the new source"
+    symbols:
+      - "class <Name>Source          # holds the tracker (get_tracker); constructed with channel_id  # MUST-MATCH"
+      - "reads <Name>OutputTrackedT -> produces <Shape>Input   # wire type in, standard shape out"
+    verify:
+      creates:
+        - "tests/python/core/retargeting_engine/test_<name>_source.py   # decode + empty-handling test"
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # the _make_inputs / compute() pattern"
+      register: "auto — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R retargeting_test_<name>_source --output-on-failure"
+      can_test_now: yes              # inject a hand-built TrackedT and call compute() — bypasses tracker and CloudXR entirely
+      checks:
+        - "(0.8, -0.2, 0.5) in -> left/right/rudder = 0.8/-0.2/0.5 out (small float rounding allowed)"
+        - "empty data in -> output marked 'none'; reading a field of it raises an error saying 'absent'"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "The fixed shape node4 fills and the robot step reads. Reuse if it exists; create only for a new kind of data."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py, indices.py, __init__.py   # touched only if you CREATE a new shape"
+    symbols:
+      - "<Shape>Input          # the shape: field list, dtypes, order"
+      - "<Shape>InputIndex     # the field names code uses (generated from the field prefix)"
+    verify:
+      creates: []              # reuse: the shape is already tested; node4's test proves you FILL it correctly
+      reference_file: null
+      register: "nothing"
+      run: "covered by node4's test"
+      can_test_now: yes
+      checks:
+        - "only if CREATED: field names/order/dtypes match the spec; the Index enum members exist and resolve"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  # NOTE: the next stage, on the robot side, not the device. Usually reuse; can be dropped.
+  node6_robot_step:
+    does: "Turn the standard shape into a robot command."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeters/<retargeter>.py   # reuse; add a new file here only for a new control scheme"
+    symbols:
+      - "<Retargeter> (+ its config)   # the math: deadzones, modes, limits"
+    verify:
+      creates:
+        - "tests/python/core/retargeting_engine/test_<retargeter>.py   # golden input -> expected command — write it EVEN ON REUSE if none exists (several retargeters ship untested)"
+      reference_file: "tests/python/core/retargeting_engine/test_retargeter_reset.py   # test-structure pattern"
+      register: "auto — globbed"
+      run: "ctest -R retargeting_test_<retargeter>"
+      can_test_now: yes                # pure Python: hand-built shape in, command out; no session
+      checks:
+        - "known input -> known command: horizontal mode [0.0, 0.5, 0.0] -> [0.5, 0.0, 0.0, 0.72] (tol 1e-4)"
+
+# ===========================================================================
+# FEEDBACK path (teleop -> device). Present when direction is output or both.
+# A SINK path: a value from the robot/sim is sent OUT to the device.
+# NOT YET TESTED: no output device has been built or benchmarked with this skill —
+# the sink path below is documented from the codebase, not verified end to end.
+# ===========================================================================
+feedback:
+  does: "Send a value from the robot/sim back to the device (e.g. vibration, force)."
+  signal_source: "where the value comes from (e.g. sim contact) — NOT the device's own input"
+  retargeter:
+    symbols: ["<Mapper> -> <output type>   # e.g. TactileVectorToControllerPulse -> ControllerHapticPulse"]
+  sink:
+    symbols: ["HapticSink + an IHapticDevice adapter   # apply() stores during the run; flush() sends after it"]
+    files: ["src/python/isaacteleop/haptic_devices/<device>.py   # the adapter that talks to the device"]
+    registered_in: "TeleopSessionConfig(sinks=[...])   # MUST be listed or flush is never called"
+  device_call: "the device API flush() calls   # e.g. apply_left_haptic_feedback -> xrApplyHapticFeedback"
+  shared_tracker: "MUST-MATCH: the SAME tracker object as the input source, or the second one fails (ACTIONSETS_ALREADY_ATTACHED)"
+  verify:
+    creates:
+      - "tests/python/core/retargeting_engine/test_<device>_feedback.py   # known signal -> expected clamped device value"
+    reference_file: "tests/python/core/retargeting_engine/test_haptic_sink.py   # sink + fake-device pattern"
+    register: "auto — globbed"
+    run: "ctest -R retargeting_test_<device>_feedback"
+    can_test_now: yes                # a fake device object records what apply()/flush() sent
+    checks:
+      - "contact vector in -> expected pulse [amplitude, freq, duration] out, clamped to limits"
+      - "the REAL actuation call is end-to-end only"
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR; headless startup
+# works with NV_DEVICE_PROFILE=Quest3 (no headset/emulator required).
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end and prove data flows and values are right."
+  wiring:
+    - "<Name>Source(name=..., channel_id=<shared_names.channel_id>) -> <Retargeter>   # MUST-MATCH: pass the channel_id explicitly, or the source reads its default and sees nothing"
+  test_input: "a fake device driven by your own simulator script, or the real hardware"
+  verify:
+    creates:
+      - "examples/oxr/python/test_<name>.py   # launches the plugin, polls the tracker, asserts data + values"
+    reference_file: "examples/oxr/python/test_synthetic_hands.py   # the pattern, smallest form (133 ln): PluginManager launch -> DeviceIOSession.run -> poll loop. Same shape for push/inject/native — only the tracker changes. test_oak_camera.py if your device is a camera; test_controller_tracker.py if native. Resolve the plugin dir RELATIVE to the script, never hardcoded."
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && cd install/examples/oxr/python && uv run test_<name>.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "plugin stdout says it opened the device; check_health() runs automatically every TeleopSession.step()"
+      - "tracker poll returns data within ~5 s — stays None forever = channel_id mismatch (the #1 silent failure)"
+      - "NEGATIVE test: run once with a wrong channel_id -> must be 'inactive forever, no crash'"
+      # --- stage 4: e2e — are the values right? ---
+      - "known device action -> expected robot command within tolerance (e.g. axis 0 to max -> forward command)"
+      - "unplug/replug -> recovers; inactive is handled; record-then-replay matches (if recording)"
+  finish:
+    run: "cmake --build build (WHOLE repo, no target) ; ctest --output-on-failure (FULL, no -R)"
+    gate: "the WHOLE repo builds + EVERY test in the repo passes (report the count, e.g. 150/150) -> the device is done"
+    note: "build target-less to catch breakage in plugins/examples you did not touch; run the FULL ctest, not -R <yours>. On Linux clang-format is often absent -> build with -DENABLE_CLANG_FORMAT_CHECK=OFF and mark the format gate NOT VERIFIED (do not claim it). End with the delivery report AND the run summary (see the skill)."

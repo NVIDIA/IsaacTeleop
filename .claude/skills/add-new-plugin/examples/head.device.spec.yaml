@@ -1,0 +1,212 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml — head (native input).
+#
+# VERIFICATION IS BUILT INTO EVERY STEP. A node is not done when its
+# code compiles — it is done when its CHECK passes. Each node carries a `verify`
+# block; test files are deliverables just like code files.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+#
+# Head is a NATIVE device: everything already exists in the repo and is already
+# tested, so every node's verify is "covered by an existing test". The only new
+# proof is the end-to-end run, because the head pose comes from the runtime
+# (OpenXR view space), not from any file.
+
+status: ready
+
+device:
+  name: head
+  shown_as: "Head"
+  what_it_is: "Headset head pose (position + orientation) from the runtime. Native OpenXR view-space pose; no plugin, all reuse."
+  direction: input         # input | output | both
+
+# No shared_names block: head is a native device, so there is no channel_id.
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). All reuse; verify each, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Get the head pose from the runtime (OpenXR view space). Native: nothing to build."
+    action: reuse
+    delivery: native         # native | push | inject
+    connection:
+      device: "the headset itself"
+      port: "the runtime provides it (OpenXR view reference space)"
+    read_raw:
+      - "LiveHeadTrackerImpl::update() calls xrLocateSpace(view_space, base_space) to get an XrSpaceLocation"
+    decode:
+      - "position/orientation valid from location.locationFlags bits -> is_valid; pose = Pose(location.pose.position, location.pose.orientation)"
+    files:
+      - "src/core/live_trackers/cpp/live_head_tracker_impl.cpp  # reuse; the read/decode already lives here"
+    symbols:
+      - "LiveHeadTrackerImpl::update ; xrLocateSpace ; HeadPoseT   # the live read loop + the raw OpenXR call + the unpacked pose"
+    verify:
+      creates: []            # reuse — the live read cannot be unit-tested; runtime is the proof
+      reference_file: "examples/oxr/python/test_modular.py   # already polls head_tracker.get_head(session) at runtime"
+      register: "nothing new — the runtime check rides whole_pipeline"
+      run: "confirm LiveHeadTrackerImpl::update exists in live_head_tracker_impl.cpp; the live read itself is stage 3 (whole_pipeline)"
+      can_test_now: only end-to-end   # the pose comes from the runtime, not from a file
+      checks:
+        - "the symbol LiveHeadTrackerImpl exists and builds (it already ships in the repo)"
+        - "actual data flow is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Head pose data shape (a FlatBuffer). Already defined."
+    action: reuse
+    files:
+      - "src/core/schema/fbs/head.fbs   # the format definition; C++ header generated from it"
+    symbols:
+      - "table HeadPose / HeadPoseTracked / HeadPoseRecord   # data + tracked wrapper + recorded wrapper. MUST-MATCH: HeadPoseRecord is the recorded format name"
+    verify:
+      creates: []            # already tested by tests/cpp/core/schema/test_head.cpp and tests/python/core/schema/test_head.py
+      reference_file: "tests/cpp/core/schema/test_head.cpp   # save/reload round-trip + record-with-timestamp tests already exist"
+      register: "already registered: test_head.cpp is in schema_tests/cpp/CMakeLists.txt; test_head.py is auto-globbed"
+      run: "ctest -R 'schema_test_head|HeadPose' --output-on-failure"
+      can_test_now: yes      # needs only the schema library — no device, no CloudXR
+      checks:
+        - "fill a pose, serialize, unpack -> the same position/orientation/is_valid values"
+        - "HeadPoseRecord round-trips with its DeviceDataTimestamp"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Read the head pose in C++, register it with the factory, record to MCAP. Already done."
+    action: reuse
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/head_tracker_base.hpp   # the interface the live reader implements"
+      - "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/head_tracker.hpp   # the front door programs talk to"
+      - "src/core/live_trackers/cpp/live_head_tracker_impl.cpp , .hpp   # the live reader"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp   # the dispatch row that wires tracker -> reader"
+    symbols:
+      - "class HeadTracker ; IHeadTrackerImpl ; LiveHeadTrackerImpl   # front door + interface + live worker"
+      - "factory: create_head_tracker_impl + try_create_head_impl  # MUST-MATCH: the { try_add_extensions<HeadTracker,LiveHeadTrackerImpl>, try_create_head_impl } row"
+    verify:
+      creates: []            # reuse — recording already covered by the mcap channel test; the factory row already ships and is exercised at runtime
+      reference_file: "tests/cpp/core/mcap/test_mcap_tracker_channels.cpp   # writes HeadPoseRecord to MCAP and reads it back (topic tracking/head, schema HeadRecordingTraits::schema_name)"
+      register: "already registered: the .cpp is in mcap_tests/cpp/CMakeLists.txt (Catch2 tests are hand-added, never globbed)"
+      run: "ctest -R McapTrackerChannels --output-on-failure"
+      can_test_now: yes      # the recording half runs without CloudXR; the live read is end-to-end only
+      checks:
+        - "recording: write a HeadPoseT -> read back the same pose; saved schema name equals HeadRecordingTraits::schema_name"
+        - "the factory row exists in live_deviceio_factory.cpp — confirm the symbol; the LIVE read is stage 3 (whole_pipeline)"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "HeadPoseT and HeadTracker exposed to Python. Already bound."
+    action: reuse
+    files:
+      - "src/core/schema/python/head_bindings.h , schema_module.cpp   # pybind code for the format types + the bind call"
+      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for the tracker class"
+    symbols:
+      - "HeadPoseT / HeadPoseTrackedT ; HeadTracker.get_head(session)   # the Python names test scripts poll"
+    verify:
+      creates: []            # the IMPORT LINE in the existing test_head.py IS the check — ImportError = a registration point is missing
+      reference_file: "tests/python/core/schema/test_head.py   # its import block proves schema_module.cpp + schema_init.py + CMake wiring"
+      register: "nothing new — rides the auto-globbed test_head.py"
+      run: "cmake --build build --target schema_py deviceio_trackers_py python_package && ctest -R schema_test_head"
+      can_test_now: yes      # ctest points PYTHONPATH at the freshly built STAGED package
+      checks:
+        - "from isaacteleop.schema import HeadPoseT succeeds (set/get + empty-is-None already tested there)"
+        - "the tracker imports: from isaacteleop.deviceio import HeadTracker"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Repackage HeadPoseTrackedT into the standard HeadPose tensor. Already done."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/head_source.py   # the converter node"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/deviceio_tensor_types.py   # the wrapper describing the incoming data"
+    symbols:
+      - "class HeadSource ; reads HeadPoseTrackedT (deviceio_head) -> produces HeadPose (output 'head', Optional)   # wire type in, standard shape out"
+      - "DeviceIOHeadPoseTracked ; HeadPoseIndex.POSITION / ORIENTATION / IS_VALID   # the incoming wrapper + the field names"
+    verify:
+      creates: []            # already tested by TestHeadSource in the existing sources test
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # TestHeadSource: creation, input/output spec, compute() active + empty"
+      register: "already registered: auto — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R retargeting_test_sources --output-on-failure"
+      can_test_now: yes      # injects a hand-built HeadPoseTrackedT and calls compute() — bypasses tracker and CloudXR entirely
+      checks:
+        - "pose (1,2,3)/(0,0,0,1) in -> HeadPose POSITION/ORIENTATION out; IS_VALID true"
+        - "empty tracked data in -> output marked 'none'"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "The fixed HeadPose tensor shape the source fills. Already exists."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py , indices.py   # the shape + its index enum; touched only if you CREATE a new shape"
+    symbols:
+      - "HeadPose -> HeadPoseIndex   # the shape and the field names code uses"
+    verify:
+      creates: []            # reuse: the shape is already tested; node4's test proves it is FILLED correctly
+      reference_file: null
+      register: "nothing"
+      run: "covered by node4's test (retargeting_test_sources)"
+      can_test_now: yes
+      checks:
+        - "HeadPoseIndex.POSITION / ORIENTATION / IS_VALID exist and resolve (exercised by TestHeadSource)"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Consume the HeadPose tensor (e.g. transform it into the robot frame). Reuse."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/utilities/head_transform.py   # the transform math"
+    symbols:
+      - "HeadTransform (via HeadSource.transformed)   # applies the frame transform to the HeadPose tensor"
+    verify:
+      creates: []            # already tested by TestHeadTransform (+ TestHeadTransformNoAliasing) in the existing transforms test
+      reference_file: "tests/python/core/retargeting_engine/test_transforms.py   # golden pose in -> transformed pose out; no input aliasing"
+      register: "already registered: auto — globbed"
+      run: "ctest -R retargeting_test_transforms --output-on-failure"
+      can_test_now: yes      # pure Python: hand-built shape in, transformed shape out; no session
+      checks:
+        - "known HeadPose in -> known transformed pose out (existing goldens)"
+        - "outputs do not alias inputs (TestHeadTransformNoAliasing)"
+
+# No feedback block: head is input only.
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR; headless startup
+# works with NV_DEVICE_PROFILE=Quest3 (no headset/emulator required).
+# This is the ONLY real check for a native device — every unit stage is reuse.
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end. Needs CloudXR; this is the only real check for a native device."
+  wiring:
+    - "HeadSource(name='head') -> HeadTransform / downstream   # native: no channel_id"
+  test_input: "the real headset (move the head)"
+  verify:
+    creates: []              # already tested by examples/oxr/python/test_modular.py — creates HeadTracker, steps a session, polls get_head()
+    reference_file: "examples/oxr/python/test_modular.py   # the create-trackers + step + poll pattern (Test 6 checks head data)"
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && python examples/oxr/python/test_modular.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "session starts; check_health() runs automatically every TeleopSession.step()"
+      - "HeadTracker.get_head(session) returns data within ~5 s of tracking starting"
+      - "NEGATIVE test (native — no channel_id to get wrong): head tracking lost -> output marked none (set_none), no crash; recover tracking -> HeadPose updates resume"
+      # --- stage 4: e2e — are the values right? ---
+      - "moving the head -> HeadPose position/orientation update; is_valid true while tracked"
+      - "downstream HeadTransform output moves consistently with the head motion"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
+
+# What you can check right now (cheapest first):
+#   ready now       : nothing new to build — all nodes reuse existing, already-tested code
+#   only end-to-end : the head pose comes from the runtime, so the CloudXR run is the real proof
+# Finish: run all tests (ctest), then deliver.

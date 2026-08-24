@@ -1,0 +1,217 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml for generic_3axis_pedal — a real, shipping IsaacTeleop device.
+# Reads a Linux joystick and pushes Generic3AxisPedalOutput under a channel_id.
+# node0 is CREATE (the vendor plugin). Everything downstream REUSES the pedal path.
+#
+# VERIFICATION IS BUILT INTO EVERY STEP. A node is not done when its
+# code compiles — it is done when its CHECK passes. Test files are deliverables
+# just like code files: each node's `verify.creates` lists the test file(s) you
+# add, and `verify.run` is the one command that proves the node.
+# Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+
+status: ready
+
+device:
+  name: generic_3axis_pedal
+  shown_as: "Generic 3-Axis Pedal"
+  what_it_is: "Foot pedal set read over a Linux joystick: left pedal, right pedal, rudder. Pushes Generic3AxisPedalOutput; reuses the whole pedal path."
+  direction: input
+
+# A few names must be spelled the same in several places. Set them once.
+shared_names:
+  channel_id: generic_3axis_pedal              # MUST-MATCH: the name the data travels under.
+                                               # Same string in node0 (pusher tensor_identifier / collection_id),
+                                               # node4 (source collection_id), node2 (tracker collection_id).
+                                               # Only this name finds the data. Wrong = no data, no error.
+  data_size_limit: 256                         # MUST-MATCH: bytes per message; plugin (kMaxFlatbufferSize) and tracker agree.
+  recorded_format_name: core.Generic3AxisPedalOutputRecord   # MUST-MATCH (only if you record).
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Build and VERIFY each, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read the Linux joystick, map the axes to left/right/rudder, and push Generic3AxisPedalOutput."
+    action: create
+    delivery: push
+    connection:
+      device: "A 3-axis foot pedal set exposed by the kernel as a joystick (validated: Logitech G Flight Rudder Pedals)."
+      port: "/dev/input/js0 (path passed in; plugin.yaml lists device path /pedal/generic_3axis)"
+    read_raw:
+      - "open the device path O_RDONLY | O_NONBLOCK; store the fd (open_device)."
+      - "select() with a zero timeout, then read() one js_event (sizeof(js_event)) at a time until the fd drains."
+      - "on read error / short read / device gone: close the fd and push the last known state; reopen on the next update()."
+    decode:
+      - "keep only axis events: (event.type & JS_EVENT_AXIS) != 0 and event.number < 3."
+      - "normalize_axis(value) = clamp(value / 32767.0, -1.0, 1.0)."
+      - "axis 0 -> axes_[0] (left_pedal), axis 1 -> axes_[1] (right_pedal), axis 2 -> axes_[2] (rudder)."
+      - "pack Generic3AxisPedalOutputT{left_pedal, right_pedal, rudder} and push the FlatBuffer with a monotonic timestamp."
+    files:
+      - "src/plugins/generic_3axis_pedal/generic_3axis_pedal_plugin.cpp / .hpp   # the read loop + the pusher"
+      - "src/plugins/generic_3axis_pedal/main.cpp, plugin.yaml, CMakeLists.txt   # entry point, manifest, build"
+      - "CMakeLists.txt (root)   # add_subdirectory(src/plugins/generic_3axis_pedal) under BUILD_PLUGINS — no glob; forgotten = silently skipped"
+    symbols:
+      - "class plugins::generic_3axis_pedal::Generic3AxisPedalPlugin   # owns the joystick fd and the pusher"
+      - "core::SchemaPusher (SchemaPusherConfig.tensor_identifier = \"generic_3axis_pedal\")  # MUST-MATCH channel_id"
+      - "core::Generic3AxisPedalOutputT ; core::Generic3AxisPedalOutput::Pack   # the format it packs (node1)"
+    verify:
+      creates:
+        - "src/plugins/generic_3axis_pedal/test_generic_3axis_pedal_decode.cpp   # golden-vector test over the EXTRACTED normalize_axis + axis-mapping math"
+      reference_file: null             # no plugin has a test today — write it from the checks below
+      register: "add a small CTest target in the plugin's CMakeLists (C++ tests are hand-added, never globbed)"
+      run: "cmake --build build --target generic_3axis_pedal_plugin && ctest -R generic_3axis_pedal_decode"
+      can_test_now: after a small code change    # first move normalize_axis + the axis mapping into their own header — today they are welded to the fd + pusher
+      checks:
+        - "the build target exists — 'target not found' means the root-CMake add_subdirectory is missing"
+        - "normalize_axis goldens: 0 -> 0.0 ; 32767 -> 1.0 ; -32767 -> -1.0 ; 65000 -> 1.0 (clamped)"
+        - "axis 0/1/2 -> left_pedal/right_pedal/rudder ; axis 3+ and non-axis events -> ignored"
+        - "reading the REAL pedal and pushing under the channel_id is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Data shape already exists — the pedal FlatBuffer with left_pedal, right_pedal, rudder."
+    action: reuse
+    files: ["src/core/schema/fbs/pedals.fbs   # the existing pedal format definition"]
+    symbols: ["table Generic3AxisPedalOutput / Generic3AxisPedalOutputTracked / Generic3AxisPedalOutputRecord   # data, tracked wrapper, record wrapper"]
+    verify:
+      creates: []                      # already tested by tests/cpp/core/schema/test_pedals.cpp and tests/python/core/schema/test_pedals.py
+      reference_file: "tests/cpp/core/schema/test_pedals.cpp   # the existing round-trip + field-slot tests"
+      register: "nothing — both tests are already in ctest"
+      run: "ctest -R pedals --output-on-failure   # confirm the existing pedal schema tests pass"
+      can_test_now: yes
+      checks:
+        - "the three tables exist and round-trip; covered by the existing pedal schema tests"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Tracker already exists — reads the pushed pedal channel in C++, is registered in the factory, and records to MCAP."
+    action: reuse
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp   # the interface the live reader implements"
+      - "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp   # the public front door"
+      - "src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp / .hpp   # the live reader"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp  # factory row already present — MUST-MATCH dispatch"
+    symbols:
+      - "class core::Generic3AxisPedalTracker (TRACKER_NAME = \"Generic3AxisPedalTracker\")   # the front door; holds the collection_id"
+      - "core::LiveGeneric3AxisPedalTrackerImpl ; LiveDeviceIOFactory::create_generic_3axis_pedal_tracker_impl + try_create_generic_pedal_impl  # MUST-MATCH factory row"
+    verify:
+      creates: []                      # reuse — no device-specific tracker test exists; the recording pattern lives in tests/cpp/core/mcap/test_mcap_tracker_channels.cpp
+      reference_file: null
+      register: "nothing"
+      run: "confirm try_create_generic_pedal_impl is still wired in live_deviceio_factory.cpp — missing = 'unsupported tracker type' AT RUNTIME, zero compile error"
+      can_test_now: yes
+      checks:
+        - "the factory row exists; the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Python bindings already exist for the pedal schema and the Generic3AxisPedalTracker."
+    action: reuse
+    files:
+      - "src/core/schema/python/... (pedals bindings)   # pybind code for the pedal format types"
+      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for the tracker class"
+    symbols: ["isaacteleop.schema.Generic3AxisPedalOutput / Generic3AxisPedalOutputTrackedT ; isaacteleop.deviceio.Generic3AxisPedalTracker   # the Python names test scripts poll"]
+    verify:
+      creates: []                      # already tested by tests/python/core/schema/test_pedals.py — its import block IS the check
+      reference_file: "tests/python/core/schema/test_pedals.py   # imports Generic3AxisPedalOutput etc. from isaacteleop.schema"
+      register: "nothing — the .py test is already auto-globbed into ctest"
+      run: "ctest -R schema_test_pedals   # the import line passing proves every registration point is wired"
+      can_test_now: yes
+      checks:
+        - "the schema import line passes; the tracker imports: from isaacteleop.deviceio import Generic3AxisPedalTracker"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Source already exists — reads Generic3AxisPedalOutputTracked and fills the standard Generic3AxisPedalInput shape."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/pedals_source.py   # the existing converter node"]
+    symbols:
+      - "class Generic3AxisPedalSource (constructed with collection_id = \"generic_3axis_pedal\")  # MUST-MATCH channel_id"
+      - "DeviceIOGeneric3AxisPedalOutputTracked -> Generic3AxisPedalInput ; owns Generic3AxisPedalTracker via get_tracker()   # wire type in, standard shape out"
+    verify:
+      creates: []                      # reuse — no source test ships today; if one is ever added, copy tests/python/core/retargeting_engine/test_sources.py
+      reference_file: null
+      register: "nothing"
+      run: "confirm Generic3AxisPedalSource imports from deviceio_source_nodes; exercised at stage 3 (whole_pipeline)"
+      can_test_now: yes
+      checks:
+        - "the symbol exists and takes collection_id; correct fill of the shape is proven end-to-end"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "Standard shape already exists — the pedal input tensor group."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py, indices.py   # where the pedal shape is defined"]
+    symbols: ["Generic3AxisPedalInput -> Generic3AxisPedalInputIndex (LEFT_PEDAL, RIGHT_PEDAL, RUDDER)   # the shape + its field names"]
+    verify:
+      creates: []                      # reuse — the shape is already exercised by every pedal pipeline
+      reference_file: null
+      register: "nothing"
+      run: "confirm Generic3AxisPedalInput and Generic3AxisPedalInputIndex import and the three Index members resolve"
+      can_test_now: yes
+      checks:
+        - "LEFT_PEDAL, RIGHT_PEDAL, RUDDER exist and resolve"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Robot step already exists — the foot-pedal retargeter turns the pedal shape into a root command."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeters/foot_pedal_retargeter.py   # the existing retargeter; not edited"]
+    symbols: ["class FootPedalRootCmdRetargeter (+ FootPedalRootCmdRetargeterConfig)   # the math: deadzones, modes, limits"]
+    verify:
+      creates:
+        - "tests/python/core/retargeting_engine/test_foot_pedal_retargeter.py   # golden input -> expected root command — write it EVEN ON REUSE: this retargeter ships untested"
+      reference_file: "tests/python/core/retargeting_engine/test_retargeter_reset.py   # test-structure pattern"
+      register: "auto — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R retargeting_test_foot_pedal_retargeter --output-on-failure"
+      can_test_now: yes                # pure Python: hand-built Generic3AxisPedalInput in, command out; no session
+      checks:
+        - "known pedal input -> known root command per FootPedalRootCmdRetargeterConfig (deadzone, mode, limits; tol 1e-4)"
+        - "zero input inside the deadzone -> zero command"
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR; headless startup
+# works with NV_DEVICE_PROFILE=Quest3 (no headset/emulator required).
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end and prove data flows and values are right."
+  wiring:
+    - "Generic3AxisPedalSource(name=..., collection_id=\"generic_3axis_pedal\") -> FootPedalRootCmdRetargeter   # MUST-MATCH: channel_id"
+  test_input: "the real pedal on /dev/input/js0, or a synthetic pusher on the same channel_id"
+  expect: "press left/right/rudder -> the robot root command moves as configured by FootPedalRootCmdRetargeterConfig"
+  verify:
+    creates: []                        # covered by the reference e2e in examples/oxr/python/ — the pedal IS the reference e2e device
+    reference_file: "examples/schemaio/pedal_printer.cpp   # the shipped pedal reader: tracker poll -> print each sample"
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && ./install/examples/schemaio/pedal_printer   # the shipped pedal reader — the pedal reference device; no new script is created for this device"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "plugin stdout says it opened /dev/input/js0; check_health() runs automatically every TeleopSession.step()"
+      - "tracker poll returns data within ~5 s — stays None forever = channel_id mismatch (the #1 silent failure)"
+      - "NEGATIVE test: run once with a wrong channel_id -> must be 'inactive forever, no crash'"
+      # --- stage 4: e2e — are the values right? ---
+      - "press left/right/rudder -> the expected root command within tolerance (per FootPedalRootCmdRetargeterConfig)"
+      - "unplug and replug the pedal -> plugin reopens the fd and recovers; wrong channel_id handled; record-then-replay matches (if recording)"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
+
+# What you can check right now (cheapest first):
+#   ready now         : node1/node3 existing pedal tests; node6 retargeter test (pure Python)
+#   after a small edit: node0 normalize_axis math
+#   only end-to-end   : node0 real read/push, whole_pipeline
+# Finish: run the whole build and full ctest, then deliver.

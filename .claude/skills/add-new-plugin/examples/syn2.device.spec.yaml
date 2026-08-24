@@ -1,0 +1,210 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# syn2 — a pedal CLONE. Delivery is PUSH, but every stage after
+# node0 is REUSED from the generic 3-axis pedal: same .fbs, same tracker, same
+# source node, same retargeter. Only the plugin (node0) is new. It pushes the
+# EXISTING Generic3AxisPedalOutput under channel_id "syn2".
+#
+# VERIFICATION IS BUILT INTO EVERY STEP. A node is not done when its
+# code compiles — it is done when its CHECK passes. Test files are deliverables
+# just like code files. Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+
+status: ready
+
+device:
+  name: syn2
+  shown_as: "Syn2 Test Pedal"
+  what_it_is: "Test pedal clone: left, right, rudder. Reuses the generic pedal's schema, tracker, source, and robot step; only the plugin is new."
+  direction: input
+
+# Set once; the same string must appear in node0 (push) and node4 (source).
+shared_names:
+  channel_id: syn2                                             # MUST-MATCH: the name the data travels under.
+                                                               # SchemaPusherConfig.collection_id in node0; collection_id arg in node4.
+                                                               # Only this name finds the data. Wrong = no data, no error.
+  data_size_limit: 256                                         # MUST-MATCH: bytes per message; kMaxFlatbufferSize in the plugin.
+  recorded_format_name: core.Generic3AxisPedalOutputRecord     # MUST-MATCH (only if you record) — reused pedal record.
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Build and VERIFY each, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read a Linux joystick and push the existing Generic3AxisPedalOutput under channel_id syn2."
+    action: create
+    delivery: push
+    connection:
+      device: "a Linux joystick (jsN interface), same as the generic pedal"
+      port: "/dev/input/js0  # main.cpp arg 1; collection_id (default 'syn2') is arg 2"
+    read_raw:
+      - "open the device O_RDONLY | O_NONBLOCK; on failure retry open on the next update()"
+      - "drain queued js_event records with non-blocking select() + read() (kJsEventSize = sizeof(js_event))"
+    decode:
+      - "for JS_EVENT_AXIS events with number < 3, normalize_axis: clamp(raw / 32767.0) to [-1, 1] into axes_[number]"
+      - "pack a Generic3AxisPedalOutputT {left_pedal=axes_[0], right_pedal=axes_[1], rudder=axes_[2]} and push_buffer at sample time"
+    files:
+      - "src/plugins/syn2/syn2_plugin.cpp        # the read loop + the sender"
+      - "src/plugins/syn2/syn2_plugin.hpp        # the plugin class declaration"
+      - "src/plugins/syn2/main.cpp               # entry point: argv = port, channel_id"
+      - "src/plugins/syn2/CMakeLists.txt         # builds the plugin executable"
+      - "src/plugins/syn2/plugin.yaml            # manifest so the plugin loader finds it"
+      - "CMakeLists.txt (root)                   # MUST add add_subdirectory(src/plugins/syn2) under BUILD_PLUGINS — no glob; forgotten = silently skipped"
+    symbols:
+      - "class plugins::syn2::Syn2Plugin         # owns the joystick fd and the sender"
+      - "core::SchemaPusher (SchemaPusherConfig.collection_id = 'syn2')  # MUST-MATCH channel_id"
+      - "core::Generic3AxisPedalOutputT / core::Generic3AxisPedalOutput::Pack (from <schema/pedals_generated.h>)  # reused schema, no new header"
+    verify:
+      creates:
+        - "src/plugins/syn2/test_syn2_decode.cpp   # golden-vector test over the EXTRACTED normalize_axis decode function"
+      reference_file: null             # no plugin has a test today — write it from the checks below
+      register: "add a small CTest target in src/plugins/syn2/CMakeLists.txt (C++ tests are hand-added, never globbed)"
+      run: "cmake --build build --target syn2_plugin && ctest -R syn2_decode"
+      can_test_now: after a small code change    # first move normalize_axis into its own header — today it is welded to the fd + SchemaPusher
+      checks:
+        - "the build target exists — 'target not found' means the root-CMake add_subdirectory(src/plugins/syn2) is missing"
+        - "decode goldens: raw 32767 -> 1.0 ; raw -32767 -> -1.0 ; raw 0 -> 0.0 ; raw 65535 -> clamped to 1.0"
+        - "axis 0/1/2 -> left_pedal/right_pedal/rudder ; axis 3+ -> ignored"
+        - "reading the REAL joystick and pushing under channel_id syn2 is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Reuse the generic pedal FlatBuffer; no new format."
+    action: reuse
+    files: ["src/core/schema/fbs/pedals.fbs   # reused format definition — verify, don't edit"]
+    symbols: ["table core.Generic3AxisPedalOutput / Generic3AxisPedalOutputTracked / Generic3AxisPedalOutputRecord   # the reused output, tracked wrapper, and record wrapper"]
+    verify:
+      creates: []                      # reuse — already tested by tests/cpp/core/schema/test_pedals.cpp and tests/python/core/schema/test_pedals.py
+      reference_file: "tests/cpp/core/schema/test_pedals.cpp   # the existing coverage, nothing to copy"
+      register: "nothing new — both existing tests are already in ctest"
+      run: "ctest -R schema_test_pedals --output-on-failure   # confirm the reused tables still pass"
+      can_test_now: yes
+      checks:
+        - "round-trip, fixed field slots, and empty-tracked behavior are already green in the existing pedal schema tests"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Reuse the generic pedal tracker, live impl, and factory row; construct with channel_id syn2."
+    action: reuse
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp   # reused tracker interface"
+      - "src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp                # reused live reader"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp                                # existing try_create_generic_pedal_impl dispatch row"
+    symbols:
+      - "core::Generic3AxisPedalTracker ; LiveGeneric3AxisPedalTrackerImpl   # reused front door + worker"
+      - "factory: create_generic_3axis_pedal_tracker_impl + try_create_generic_pedal_impl  # MUST-MATCH: existing row, no new entry"
+    verify:
+      creates: []                      # reuse — the tracker's live read under channel_id 'syn2' is covered by the reference e2e in examples/oxr/python/
+      reference_file: null
+      register: "nothing new"
+      run: "confirm the try_create_generic_pedal_impl row exists in live_deviceio_factory.cpp — do NOT add a second row"
+      can_test_now: yes
+      checks:
+        - "the factory dispatch row is present (grep try_create_generic_pedal_impl)"
+        - "the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Reuse the existing pedal schema and tracker Python bindings."
+    action: reuse
+    files:
+      - "src/core/schema/python/  (Generic3AxisPedalOutput bindings)              # reused schema bindings"
+      - "src/core/deviceio_trackers/python/tracker_bindings.cpp  (Generic3AxisPedalTracker binding)   # reused tracker binding"
+    symbols: ["isaacteleop.schema.Generic3AxisPedalOutput / Generic3AxisPedalOutputTrackedT ; isaacteleop.deviceio.Generic3AxisPedalTracker   # the reused Python names"]
+    verify:
+      creates: []                      # reuse — the import block of tests/python/core/schema/test_pedals.py already proves the schema bindings
+      reference_file: "tests/python/core/schema/test_pedals.py   # its import block is the existing check"
+      register: "nothing new — the .py test is already auto-globbed"
+      run: "ctest -R schema_test_pedals ; python -c 'from isaacteleop.deviceio import Generic3AxisPedalTracker'"
+      can_test_now: yes                # ctest points PYTHONPATH at the freshly built STAGED package
+      checks:
+        - "both import lines succeed — ImportError means a registration point regressed"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Reuse the generic pedal source; construct it with channel_id syn2."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/pedals_source.py   # reused converter node — verify, don't edit"]
+    symbols:
+      - "Generic3AxisPedalSource(name=..., collection_id='syn2')  # MUST-MATCH: pass channel_id syn2"
+      - "reads DeviceIOGeneric3AxisPedalOutputTracked -> produces Generic3AxisPedalInput   # wire type in, standard shape out"
+    verify:
+      creates: []                      # reuse — no unit test exists today; the source is exercised end-to-end by the device's own e2e script (collection_id 'syn2')
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # the _make_inputs / compute() pattern, if a unit test is ever added"
+      register: "nothing new"
+      run: "python -c 'from isaacteleop.retargeting_engine.deviceio_source_nodes import Generic3AxisPedalSource'   # confirm the symbol exists"
+      can_test_now: yes
+      checks:
+        - "the source constructs with collection_id='syn2' — MUST-MATCH shared_names.channel_id; values are proven at stage 4"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "Reuse the existing standard pedal shape."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py, indices.py   # reused shape definitions — verify, don't edit"]
+    symbols: ["Generic3AxisPedalInput -> Generic3AxisPedalInputIndex   # the reused shape + its field-name enum"]
+    verify:
+      creates: []                      # reuse — the shape is already tested; the e2e run proves it is filled
+      reference_file: null
+      register: "nothing"
+      run: "confirm Generic3AxisPedalInput and Generic3AxisPedalInputIndex resolve on import"
+      can_test_now: yes
+      checks:
+        - "nothing to create — reuse only; a shape change would be a different device spec"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Reuse the foot pedal retargeter."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeters/foot_pedal_retargeter.py   # reused retargeter — verify, don't edit"]
+    symbols: ["FootPedalRootCmdRetargeter (+ FootPedalRootCmdRetargeterConfig)   # the math: deadzones, modes, limits"]
+    verify:
+      creates:
+        - "tests/python/core/retargeting_engine/test_foot_pedal_retargeter.py   # golden input -> expected command — NONE exists today, write it EVEN ON REUSE"
+      reference_file: "tests/python/core/retargeting_engine/test_retargeter_reset.py   # test-structure pattern"
+      register: "auto — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R retargeting_test_foot_pedal_retargeter"
+      can_test_now: yes                # pure Python: hand-built shape in, command out; no session
+      checks:
+        - "known pedal input -> known root command within tolerance (pin the current behavior as the golden)"
+
+# No feedback: block — syn2 is input-only (push).
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR; headless startup
+# works with NV_DEVICE_PROFILE=Quest3 (no headset/emulator required).
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end and prove data flows and values are right."
+  wiring:
+    - "Generic3AxisPedalSource(name='syn2', collection_id='syn2') -> FootPedalRootCmdRetargeter   # MUST-MATCH: pass channel_id syn2 explicitly, or the source reads its default and sees nothing"
+  test_input: "the syn2 plugin driven by a real joystick, or a uinput-based pedal emulator"
+  expect: "pressing a pedal axis moves the robot exactly like the generic pedal"
+  verify:
+    creates: []                        # covered by the reference e2e in examples/oxr/python/ — it polls Generic3AxisPedalTracker under COLLECTION_ID 'syn2'
+    reference_file: "examples/schemaio/pedal_printer.cpp   # the shipped pedal reader: tracker poll -> print each sample"
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && ./install/examples/schemaio/pedal_printer   # the shipped pedal reader — collection_id 'syn2'; no new script is created for this device"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "plugin stdout says it opened /dev/input/js0; check_health() runs automatically every TeleopSession.step()"
+      - "tracker poll returns data within ~5 s — stays None forever = channel_id mismatch (the #1 silent failure)"
+      - "NEGATIVE test: run once with a wrong channel_id (e.g. 'syn2_wrong') -> must be 'inactive forever, no crash'"
+      # --- stage 4: e2e — are the values right? ---
+      - "known device action -> expected robot command within tolerance (pedal axis to max -> same command as the generic pedal)"
+      - "unplug and replug the joystick -> the plugin reopens the device and data resumes"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
