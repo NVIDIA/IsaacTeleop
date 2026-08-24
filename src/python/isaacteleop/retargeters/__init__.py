@@ -18,6 +18,7 @@ Available Retargeters:
     - GripperRetargeter: Pinch-based gripper control
     - KeyboardToSe3RelRetargeter: Keyboard press state -> relative EE delta control
     - KeyboardGripperRetargeter: Keyboard K-key toggle -> gripper open/closed
+    - KeyboardToSe2Retargeter: Keyboard press state -> base velocity command (v_x, v_y, omega_z)
     - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm --
       re-latches BOTH home position and orientation on every engage, base-frame left-composed, no
       fixed offset
@@ -121,6 +122,17 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "KeyboardGripperRetargeter": (
         ".keyboard_se3_retargeter",
         "KeyboardGripperRetargeter",
+        None,
+    ),
+    # .keyboard_se2_retargeter
+    "KeyboardToSe2Retargeter": (
+        ".keyboard_se2_retargeter",
+        "KeyboardToSe2Retargeter",
+        None,
+    ),
+    "KeyboardToSe2RetargeterConfig": (
+        ".keyboard_se2_retargeter",
+        "KeyboardToSe2RetargeterConfig",
         None,
     ),
     # .SO101 (SO-101 5-DOF arm: clutch EE-pose, analog gripper)
@@ -255,6 +267,8 @@ __all__ = [
     "KeyboardToSe3RelRetargeter",
     "KeyboardToSe3RelRetargeterConfig",
     "KeyboardGripperRetargeter",
+    "KeyboardToSe2Retargeter",
+    "KeyboardToSe2RetargeterConfig",
     # SO-101 5-DOF arm retargeters
     "SO101ClutchRetargeter",
     "SO101GripperRetargeter",

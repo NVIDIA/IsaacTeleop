@@ -11,7 +11,7 @@ from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
 from .pedals_source import Generic3AxisPedalSource
-from .keyboard_source import KeyboardSource
+from .keyboard_source import KeyboardAllKeysType, KeyboardSource
 from .joint_state_source import JointStateSource
 from .full_body_source import FullBodySource
 from .message_channel_source import MessageChannelSource
@@ -52,6 +52,7 @@ __all__ = [
     "HandsSource",
     "ControllersSource",
     "Generic3AxisPedalSource",
+    "KeyboardAllKeysType",
     "KeyboardSource",
     "JointStateSource",
     "FullBodySource",

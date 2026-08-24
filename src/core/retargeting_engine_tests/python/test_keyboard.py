@@ -19,6 +19,8 @@ from isaacteleop.retargeting_engine.interface.base_retargeter import _make_outpu
 from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.retargeters import (
     KeyboardGripperRetargeter,
+    KeyboardToSe2Retargeter,
+    KeyboardToSe2RetargeterConfig,
     KeyboardToSe3RelRetargeter,
     KeyboardToSe3RelRetargeterConfig,
 )
@@ -28,6 +30,8 @@ from isaacteleop.schema import KeyboardOutput, KeyboardOutputTrackedT
 KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E = 17, 30, 31, 32, 16, 18
 KEY_K = 37  # gripper toggle
 KEY_F1 = 59  # not part of the SE3-relevant subset -- exercises "every key" coverage
+KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 103, 108, 105, 106
+KEY_KP8, KEY_KP9 = 72, 73
 
 
 def _keyboard_source():
@@ -153,3 +157,52 @@ class TestKeyboardEndToEnd:
         assert np.allclose(
             np.asarray(out["ee_delta"][0]), 0.0
         )  # F1 is not a motion key
+
+    def test_se2_arrow_and_numpad_keys_combine(self):
+        """Arrow-Up (+v_x) and Numpad-9 (-omega_z) held together -> combined base_command."""
+        src = _keyboard_source()
+        src_outputs = _run_source(src, [KEY_UP, KEY_KP9])
+
+        retargeter = KeyboardToSe2Retargeter(
+            KeyboardToSe2RetargeterConfig(), name="se2"
+        )
+        out = {
+            "base_command": _make_output_group(retargeter.output_spec()["base_command"])
+        }
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
+
+        velocity = np.asarray(out["base_command"][0])
+        assert velocity[0] == pytest.approx(0.8)  # default v_x_sensitivity
+        assert velocity[1] == pytest.approx(0.0)
+        assert velocity[2] == pytest.approx(-1.0)  # default omega_z_sensitivity
+
+    def test_se2_aliased_keys_do_not_double_count(self):
+        """Numpad-8 and Arrow-Up both map to +v_x; holding both is not double the sensitivity."""
+        src = _keyboard_source()
+        src_outputs = _run_source(src, [KEY_UP, KEY_KP8])
+
+        retargeter = KeyboardToSe2Retargeter(
+            KeyboardToSe2RetargeterConfig(), name="se2"
+        )
+        out = {
+            "base_command": _make_output_group(retargeter.output_spec()["base_command"])
+        }
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
+
+        velocity = np.asarray(out["base_command"][0])
+        assert velocity[0] == pytest.approx(0.8)
+        assert np.allclose(velocity[1:], 0.0)
+
+    def test_se2_inactive_device_yields_zero_velocity(self):
+        src = _keyboard_source()
+        src_outputs = _run_source(src, None)
+
+        retargeter = KeyboardToSe2Retargeter(
+            KeyboardToSe2RetargeterConfig(), name="se2"
+        )
+        out = {
+            "base_command": _make_output_group(retargeter.output_spec()["base_command"])
+        }
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
+
+        assert np.allclose(np.asarray(out["base_command"][0]), 0.0)
