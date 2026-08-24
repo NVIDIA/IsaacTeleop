@@ -171,11 +171,21 @@ def _check(root: Path, path: Path) -> list[str]:
             if target in KNOWN_BROKEN:
                 continue
             resolved = root / target.rstrip("/")
-            if resolved.is_dir() if kind == "dir" else resolved.is_file():
+            want_dir = kind == "dir"
+            if resolved.is_dir() if want_dir else resolved.is_file():
                 continue
-            problems.append(
-                f"{rel}:{line}: :code-{kind}: target does not exist: {target}"
-            )
+            # A role held to the wrong kind still names something real, so saying
+            # it "does not exist" sends the reader to ls, which finds the path and
+            # makes the hook look broken. Name the mismatch and the role that fits.
+            # The target leads and the role trails, because a role ends in a colon
+            # and a trailing "use :code-file:: path" reads as a typo.
+            if not resolved.exists():
+                reason = "does not exist"
+            else:
+                found = "a directory" if resolved.is_dir() else "a file"
+                fits = "code-dir" if resolved.is_dir() else "code-file"
+                reason = f"is {found}; use :{fits}:"
+            problems.append(f"{rel}:{line}: :code-{kind}: `{target}` {reason}")
 
     for start, body in _python_blocks(path, source):
         for match in IMPORT_RE.finditer(body):
