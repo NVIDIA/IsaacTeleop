@@ -174,6 +174,18 @@ class TestSpaceMouseEndToEnd:
             1.0
         )  # unaffected
 
+    def test_multiple_buttons_mark_bitmap(self):
+        """Simultaneously-held buttons each show up in spacemouse_buttons."""
+        src = _spacemouse_source()
+        src_outputs = _run_source(
+            src, translation=[0.0, 0.0, 0.0], pressed_buttons=[BUTTON_LEFT, 1]
+        )
+
+        bitmap = np.asarray(src_outputs["spacemouse_buttons"][0])
+        assert bitmap[BUTTON_LEFT] == 1
+        assert bitmap[1] == 1
+        assert bitmap.sum() == 2
+
     def test_se2_translation_and_rotation_combine(self):
         """translation -> v_x/v_y, rotation[1] -> omega_z."""
         src = _spacemouse_source()
