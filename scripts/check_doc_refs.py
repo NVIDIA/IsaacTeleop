@@ -52,14 +52,7 @@ KNOWN_BROKEN: dict[str, str] = {}
 
 # Documented imports that are known wrong and not fixed yet, for the same reason
 # as KNOWN_BROKEN: the fix is not mechanical. Each value says why.
-KNOWN_BROKEN_IMPORTS = {
-    "isaacteleop.retargeting_engine.examples": (
-        "GripperRetargeter is exported from isaacteleop.retargeters. The import is "
-        "only one of four faults in that block — the call also omits the required "
-        "config arg and uses port names no longer in input_spec/output_spec — so "
-        "the example needs an author rewrite, not a one-line import swap."
-    ),
-}
+KNOWN_BROKEN_IMPORTS: dict[str, str] = {}
 
 
 def _repo_root() -> Path:
