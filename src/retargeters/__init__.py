@@ -118,7 +118,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "KeyboardGripperRetargeter": (
         ".keyboard_se3_retargeter",
         "KeyboardGripperRetargeter",
-        None,
+        "retargeters-lite",
     ),
     # .keyboard_se2_retargeter
     "KeyboardToSe2Retargeter": (
