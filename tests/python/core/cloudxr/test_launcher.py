@@ -360,6 +360,41 @@ class TestNothingRunning:
         assert "--host-client" in m_start.call_args.args[0]
         assert "https://10.0.0.5:48322/client/" in err
 
+    def test_client_url_uses_proxy_port_from_attached_env(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Announcement must follow attach so PROXY_PORT comes from cloudxr.env.
+
+        A caller shell can carry a different PROXY_PORT than the service
+        resolved from --cloudxr-env-config; printing before attach would show
+        the wrong port.
+        """
+        install = _env_file(
+            tmp_path, XR_RUNTIME_JSON="/x/openxr.json", PROXY_PORT=55555
+        )
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+        monkeypatch.setenv("PROXY_PORT", "48322")
+
+        with (
+            patch(
+                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaacteleop.cloudxr.background.start_and_wait",
+                return_value=(4242, tmp_path / "logs" / "service.log"),
+            ),
+            patch(
+                "isaacteleop.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        err = capsys.readouterr().err
+        assert "https://10.0.0.5:55555/client/" in err
+        assert "https://10.0.0.5:48322/client/" not in err
+
     def test_forwards_config_to_the_service_it_starts(self, tmp_path):
         """A dropped setting here would silently start the wrong runtime.
 
