@@ -16,7 +16,6 @@ from cloudxr_py_test_ns.oob_teleop_env import (
     TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
     USB_BACKEND_DEFAULT_PORT,
     USB_TURN_DEFAULT_PORT,
-    USB_UI_DEFAULT_PORT,
     WEB_CLIENT_BASE,
     WSS_PROXY_DEFAULT_PORT,
     build_headset_bookmark_url,
@@ -25,12 +24,12 @@ from cloudxr_py_test_ns.oob_teleop_env import (
     default_web_client_origin,
     guess_lan_ipv4,
     versioned_web_client_url,
+    print_hosted_client_line,
     print_oob_hub_startup_banner,
     require_web_client_static_dir,
     resolve_lan_host_for_oob,
     usb_backend_port,
     usb_turn_port,
-    usb_ui_port,
     web_client_base_override_from_env,
     wss_proxy_port,
 )
@@ -42,7 +41,6 @@ def clear_teleop_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove all teleop environment variables so tests start from a clean slate."""
     keys = (
         "PROXY_PORT",
-        "USB_UI_PORT",
         "USB_BACKEND_PORT",
         "USB_TURN_PORT",
         "TELEOP_STREAM_SERVER_IP",
@@ -70,28 +68,6 @@ def test_wss_proxy_port_from_env(
     """PROXY_PORT env var overrides the default WSS proxy port."""
     monkeypatch.setenv("PROXY_PORT", "50000")
     assert wss_proxy_port() == 50000
-
-
-def test_usb_ui_port_default(clear_teleop_env: None) -> None:
-    """USB UI port returns the compile-time default when USB_UI_PORT is unset."""
-    assert usb_ui_port() == USB_UI_DEFAULT_PORT
-
-
-def test_usb_ui_port_from_env(
-    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """USB_UI_PORT env var overrides the default USB UI port."""
-    monkeypatch.setenv("USB_UI_PORT", "8081")
-    assert usb_ui_port() == 8081
-
-
-def test_usb_ui_port_invalid_env_raises(
-    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Non-integer USB_UI_PORT raises ValueError mentioning the variable name."""
-    monkeypatch.setenv("USB_UI_PORT", "not-a-port")
-    with pytest.raises(ValueError, match="USB_UI_PORT"):
-        usb_ui_port()
 
 
 def test_usb_backend_port_default(clear_teleop_env: None) -> None:
@@ -593,3 +569,14 @@ def test_print_host_preflight_warnings_busy_port_usb_local_raises(capsys) -> Non
         pytest.raises(RuntimeError, match="USB-local: required port"),
     ):
         print_host_preflight_warnings(usb_local=True)
+
+
+def test_print_hosted_client_line_prints_url(clear_teleop_env: None) -> None:
+    """Hosted client helper prints the prefix and URL."""
+    from io import StringIO
+
+    buf = StringIO()
+    url = "https://10.0.0.5:48322/client/"
+    print_hosted_client_line(url, file=buf)
+    assert url in buf.getvalue()
+    assert "web client:" in buf.getvalue()
