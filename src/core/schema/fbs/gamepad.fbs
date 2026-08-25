@@ -25,10 +25,6 @@ table GamepadOutput {
 }
 
 // MCAP recording wrapper for GamepadOutput.
-//
-// Record types are the root types written to MCAP channels by the McapRecorder.
-// Trackers serialize into Record types via their serialize() method, but the
-// public query API returns the inner data type directly.
 table GamepadOutputRecord {
     data: GamepadOutput (id: 0);
     timestamp: DeviceDataTimestamp (id: 1);
