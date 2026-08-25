@@ -180,8 +180,7 @@ TEST_CASE("ReplaySession: head tracker round-trip with multiple frames", "[repla
     constexpr int num_frames = 5;
     {
         auto writer = open_writer(path);
-        HeadChannels ch(*writer, base_name, core::HeadRecordingTraits::schema_name,
-                        to_string_vec(core::HeadRecordingTraits::recording_channels));
+        HeadChannels ch(*writer, base_name, to_string_vec(core::HeadRecordingTraits::recording_channels));
         for (int i = 0; i < num_frames; ++i)
         {
             float v = static_cast<float>(i + 1);
@@ -219,8 +218,10 @@ TEST_CASE("ReplaySession: head tracker round-trip with multiple frames", "[repla
 
 TEST_CASE("ReplaySession: se3 tracker round-trip and null at EOF", "[replay][session][se3_tracker]")
 {
-    // Frozen wire strings — these must never change once an MCAP has been recorded.
-    CHECK(core::Se3TrackerRecordingTraits::schema_name == "core.Se3TrackerPoseRecord");
+    // Frozen wire strings — these must never change once an MCAP has been recorded. The
+    // schema name is among them even though flatc now derives it: renaming the record table
+    // in se3_tracker.fbs would change it, and every recording already on disk carries the old.
+    CHECK(std::string_view(core::Se3TrackerPoseRecord::GetFullyQualifiedName()) == "core.Se3TrackerPoseRecord");
     REQUIRE(core::Se3TrackerRecordingTraits::recording_channels.size() == 2);
     CHECK(std::string_view(core::Se3TrackerRecordingTraits::recording_channels[0]) == "se3_tracker");
     CHECK(std::string_view(core::Se3TrackerRecordingTraits::recording_channels[1]) == "se3_tracker_tracked");
@@ -234,8 +235,7 @@ TEST_CASE("ReplaySession: se3 tracker round-trip and null at EOF", "[replay][ses
     constexpr int num_frames = 3;
     {
         auto writer = open_writer(path);
-        Se3TrackerChannels ch(*writer, base_name, core::Se3TrackerRecordingTraits::schema_name,
-                              to_string_vec(core::Se3TrackerRecordingTraits::recording_channels));
+        Se3TrackerChannels ch(*writer, base_name, to_string_vec(core::Se3TrackerRecordingTraits::recording_channels));
         for (int i = 0; i < num_frames; ++i)
         {
             float v = static_cast<float>(i + 1);
@@ -283,8 +283,7 @@ TEST_CASE("ReplaySession: hand tracker round-trip with left and right", "[replay
 
     {
         auto writer = open_writer(path);
-        HandChannels ch(*writer, base_name, core::HandRecordingTraits::schema_name,
-                        to_string_vec(core::HandRecordingTraits::recording_channels));
+        HandChannels ch(*writer, base_name, to_string_vec(core::HandRecordingTraits::recording_channels));
 
         for (int i = 0; i < 3; ++i)
         {
@@ -331,10 +330,8 @@ TEST_CASE("ReplaySession: head and hand trackers in one session", "[replay][sess
 
     {
         auto writer = open_writer(path);
-        HeadChannels head_ch(*writer, "head", core::HeadRecordingTraits::schema_name,
-                             to_string_vec(core::HeadRecordingTraits::recording_channels));
-        HandChannels hand_ch(*writer, "hands", core::HandRecordingTraits::schema_name,
-                             to_string_vec(core::HandRecordingTraits::recording_channels));
+        HeadChannels head_ch(*writer, "head", to_string_vec(core::HeadRecordingTraits::recording_channels));
+        HandChannels hand_ch(*writer, "hands", to_string_vec(core::HandRecordingTraits::recording_channels));
 
         for (int i = 0; i < num_frames; ++i)
         {
@@ -411,8 +408,8 @@ TEST_CASE("ReplaySession: message channel drains records on their recorded frame
 
     {
         auto writer = open_writer(path);
-        MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
-                                       to_string_vec(core::MessageChannelRecordingTraits::channels));
+        MessageChannelChannels ctrl_ch(
+            *writer, control_base, to_string_vec(core::MessageChannelRecordingTraits::channels));
 
         write_message_record(ctrl_ch, 0, "start");
         write_message_record(ctrl_ch, 0, "stop");
@@ -456,8 +453,8 @@ TEST_CASE("ReplaySession: message channel fans recorded events across update tic
 
     {
         auto writer = open_writer(path);
-        MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
-                                       to_string_vec(core::MessageChannelRecordingTraits::channels));
+        MessageChannelChannels ctrl_ch(
+            *writer, control_base, to_string_vec(core::MessageChannelRecordingTraits::channels));
 
         write_message_record(ctrl_ch, 0, "start");
         write_message_record(ctrl_ch, 1 * dt_ns, "stop");
@@ -525,8 +522,8 @@ TEST_CASE("ReplaySession: message channel emits at recorded frame regardless of 
 
     {
         auto writer = open_writer(path);
-        MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
-                                       to_string_vec(core::MessageChannelRecordingTraits::channels));
+        MessageChannelChannels ctrl_ch(
+            *writer, control_base, to_string_vec(core::MessageChannelRecordingTraits::channels));
 
         for (int i = 0; i < kFrameCount; ++i)
         {
@@ -594,8 +591,8 @@ TEST_CASE("ReplaySession: message channel drains payloads alongside sentinels in
 
     {
         auto writer = open_writer(path);
-        MessageChannelChannels ctrl_ch(*writer, control_base, core::MessageChannelRecordingTraits::schema_name,
-                                       to_string_vec(core::MessageChannelRecordingTraits::channels));
+        MessageChannelChannels ctrl_ch(
+            *writer, control_base, to_string_vec(core::MessageChannelRecordingTraits::channels));
 
         write_message_sentinel(ctrl_ch, 0);
         write_message_record(ctrl_ch, 1 * dt_ns, "hello");

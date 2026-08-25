@@ -119,7 +119,6 @@ class ManifestResolverTest(unittest.TestCase):
                     "tensor_identifier": "%name%",
                     "localized_name": "%class%",
                     "channel": "%name%",
-                    "schema_name": "core.%table%Record",
                     "traits": "%channel_CamelCase%RecordingTraits",
                     "python_accessor": "get_data",
                     "max_flatbuffer_size": 512,

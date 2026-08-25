@@ -32,7 +32,6 @@ class TrackerGenContext:
     tensor_identifier: str
     localized_name: str
     channel: str
-    schema_name: str
     traits: str
     python_accessor: str
     max_flatbuffer_size: int
@@ -93,7 +92,6 @@ def enrich_context(entry: dict[str, Any]) -> TrackerGenContext:
         tensor_identifier=str(entry["tensor_identifier"]),
         localized_name=str(entry["localized_name"]),
         channel=str(entry["channel"]),
-        schema_name=str(entry["schema_name"]),
         traits=str(entry["traits"]),
         python_accessor=str(entry["python_accessor"]),
         max_flatbuffer_size=int(entry["max_flatbuffer_size"]),

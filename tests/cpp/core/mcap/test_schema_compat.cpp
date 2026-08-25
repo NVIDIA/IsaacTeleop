@@ -376,7 +376,8 @@ TEST_CASE("McapTrackerViewers rejects a schema that is not flatbuffer-encoded", 
 {
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
-    write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs(), "protobuf"));
+    write_head_records(
+        path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs(), "protobuf"));
 
     CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
 }
@@ -395,7 +396,7 @@ TEST_CASE("McapTrackerViewers rejects a channel whose messages are not flatbuffe
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_records(
-        path, { { "head", head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), "json" } });
+        path, { { "head", head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), "json" } });
 
     // The channel's encoding, not the schema's. Without this the payloads reach the
     // FlatBuffers verifier and come back as a corrupt buffer, which names the wrong problem.
@@ -407,8 +408,8 @@ TEST_CASE("McapTrackerViewers rejects an unreadable recording before its first r
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_records(path,
-                  { { "left", head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()) },
-                    { "right", head_schema(core::HeadRecordingTraits::schema_name, grown_stamp_head_bfbs()) } },
+                  { { "left", head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()) },
+                    { "right", head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), grown_stamp_head_bfbs()) } },
                   3);
 
     // "left" is readable on its own, and grading it warns. Every schema in the file is graded
@@ -425,7 +426,7 @@ TEST_CASE("McapTrackerViewers reads a recording whose writer never wrote a summa
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(
-        path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3, Summary::Missing);
+        path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 3, Summary::Missing);
 
     // No summary section, so the Schema records are only in the data section. Scanning for
     // them is what keeps a recording cut short by a crash replayable rather than refused.
@@ -441,8 +442,8 @@ TEST_CASE("McapTrackerViewers reads a summary that does not repeat schema record
 {
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
-    write_head_records(
-        path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3, Summary::WithoutSchemas);
+    write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 3,
+                       Summary::WithoutSchemas);
 
     // The summary names the channel but not the schema it carries, which would otherwise
     // look exactly like a channel that declares none.
@@ -458,7 +459,7 @@ TEST_CASE("McapTrackerViewers rejects a recording it cannot enumerate", "[unit][
 {
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
-    write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3);
+    write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 3);
 
     // Cut the file back into its data section: no summary to read, and a scan runs into the
     // truncation. Nothing can say what the rest of it was written under, so it is refused.
@@ -472,7 +473,7 @@ TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading
 {
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
-    write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 12);
+    write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 12);
 
     const CapturedCerr log;
     HeadViewers viewers(open_reader(path), "tracking", { "head" });

@@ -30,14 +30,6 @@ struct SchemaCompatResult
 };
 
 /*!
- * @brief Fully-qualified root table name a binary schema declares.
- *
- * @return The name, or "<none>" for a schema with no `root_type`.
- * @throws std::logic_error if `bfbs` is not a deserializable binary schema.
- */
-std::string schema_root_name(std::span<const uint8_t> bfbs);
-
-/*!
  * @brief Compare a recording's embedded bfbs against the compiled-in one.
  *
  * `recorded` is file data and is verified as a binary schema before anything walks it.

@@ -230,13 +230,11 @@ void write_fixture(const std::filesystem::path& output_path, int frame_count)
     const auto pedal_names = to_strings(core::PedalRecordingTraits::recording_channels);
     const auto full_body_names = to_strings(core::FullBodyRecordingTraits::recording_channels);
 
-    ControllerChannels controller_channels(
-        *writer, "controllers", core::ControllerRecordingTraits::schema_name, controller_names);
-    HandChannels hand_channels(*writer, "hands", core::HandRecordingTraits::schema_name, hand_names);
-    HeadChannels head_channels(*writer, "head", core::HeadRecordingTraits::schema_name, head_names);
-    PedalChannels pedal_channels(*writer, "pedals", core::PedalRecordingTraits::schema_name, pedal_names);
-    FullBodyChannels full_body_channels(
-        *writer, "full_body", core::FullBodyRecordingTraits::schema_name, full_body_names);
+    ControllerChannels controller_channels(*writer, "controllers", controller_names);
+    HandChannels hand_channels(*writer, "hands", hand_names);
+    HeadChannels head_channels(*writer, "head", head_names);
+    PedalChannels pedal_channels(*writer, "pedals", pedal_names);
+    FullBodyChannels full_body_channels(*writer, "full_body", full_body_names);
 
     for (int frame = 0; frame < frame_count; ++frame)
     {

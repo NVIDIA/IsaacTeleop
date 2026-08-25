@@ -182,7 +182,7 @@ std::unique_ptr<ControllerMcapChannels> LiveControllerTrackerImpl::create_mcap_c
                                                                                         std::string_view base_name)
 {
     return std::make_unique<ControllerMcapChannels>(
-        writer, base_name, ControllerRecordingTraits::schema_name,
+        writer, base_name,
         std::vector<std::string>(ControllerRecordingTraits::recording_channels.begin(),
                                  ControllerRecordingTraits::recording_channels.end()));
 }

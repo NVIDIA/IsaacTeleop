@@ -46,16 +46,15 @@ template <typename RecordT>
 class McapTrackerChannels
 {
 public:
-    McapTrackerChannels(mcap::McapWriter& writer,
-                        std::string_view base_name,
-                        std::string_view schema_name,
-                        const std::vector<std::string>& sub_channels)
+    McapTrackerChannels(mcap::McapWriter& writer, std::string_view base_name, const std::vector<std::string>& sub_channels)
         : writer_(&writer)
     {
         std::string_view schema_text(
             reinterpret_cast<const char*>(RecordT::BinarySchema::data()), RecordT::BinarySchema::size());
 
-        mcap::Schema schema(std::string(schema_name), "flatbuffer", std::string(schema_text));
+        // flatc derives this name from the .fbs, and McapTrackerViewers matches the recorded
+        // one against the same expression, so the two cannot be made to disagree by hand.
+        mcap::Schema schema(RecordT::GetFullyQualifiedName(), "flatbuffer", std::string(schema_text));
         writer_->addSchema(schema);
 
         channel_ids_.reserve(sub_channels.size());
@@ -387,19 +386,6 @@ private:
                             { return channel->schemaId != 0 && reader_->schema(channel->schemaId) == nullptr; });
     }
 
-    /*!
-     * @brief Fully-qualified name of the record this reader decodes.
-     *
-     * Fixed per RecordT, but recovering it verifies the whole embedded bfbs, so it is done
-     * once per process rather than once per tracker a session replays.
-     */
-    static const std::string& schema_name()
-    {
-        static const std::string name =
-            schema_root_name(std::span<const uint8_t>(RecordT::BinarySchema::data(), RecordT::BinarySchema::size()));
-        return name;
-    }
-
     SchemaCompatResult compare_schema(const mcap::Channel& channel, const mcap::Schema* recorded) const
     {
         // The channel's own encoding declares the message bytes; without this the payloads
@@ -419,10 +405,12 @@ private:
             return { SchemaCompat::Incompatible,
                      "schema encoding is '" + recorded->encoding + "', reader expects 'flatbuffer'" };
         }
-        if (recorded->name != schema_name())
+        // The same expression the writer names the schema with, so a recording made by any
+        // build of this record type matches and one made for another type does not.
+        if (recorded->name != RecordT::GetFullyQualifiedName())
         {
-            return { SchemaCompat::Incompatible,
-                     "schema is named '" + recorded->name + "', reader expects '" + schema_name() + "'" };
+            return { SchemaCompat::Incompatible, "schema is named '" + recorded->name + "', reader expects '" +
+                                                     RecordT::GetFullyQualifiedName() + "'" };
         }
 
         return check_schema_compat(

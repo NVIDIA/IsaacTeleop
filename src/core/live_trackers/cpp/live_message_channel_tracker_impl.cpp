@@ -22,7 +22,7 @@ std::unique_ptr<MessageChannelMcapChannels> LiveMessageChannelTrackerImpl::creat
                                                                                                 std::string_view base_name)
 {
     return std::make_unique<MessageChannelMcapChannels>(
-        writer, base_name, MessageChannelRecordingTraits::schema_name,
+        writer, base_name,
         std::vector<std::string>(
             MessageChannelRecordingTraits::channels.begin(), MessageChannelRecordingTraits::channels.end()));
 }

@@ -24,7 +24,7 @@ std::unique_ptr<@MCAP_CHANNELS_TYPE@> @LIVE_IMPL@::create_mcap_channels(mcap::Mc
                                                                         std::string_view base_name)
 {
     return std::make_unique<@MCAP_CHANNELS_TYPE@>(
-        writer, base_name, @TRAITS@::schema_name,
+        writer, base_name,
         std::vector<std::string>(@TRAITS@::recording_channels.begin(), @TRAITS@::recording_channels.end()));
 }
 @LIVE_IMPL@::@LIVE_IMPL@(const OpenXRSessionHandles& handles,

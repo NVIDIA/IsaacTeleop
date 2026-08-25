@@ -23,7 +23,7 @@ namespace core
 std::unique_ptr<HeadMcapChannels> LiveHeadTrackerImpl::create_mcap_channels(mcap::McapWriter& writer,
                                                                             std::string_view base_name)
 {
-    return std::make_unique<HeadMcapChannels>(writer, base_name, HeadRecordingTraits::schema_name,
+    return std::make_unique<HeadMcapChannels>(writer, base_name,
                                               std::vector<std::string>(HeadRecordingTraits::recording_channels.begin(),
                                                                        HeadRecordingTraits::recording_channels.end()));
 }

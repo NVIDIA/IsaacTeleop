@@ -61,7 +61,6 @@ def template_values(ctx: TrackerGenContext) -> dict[str, str]:
         "TENSOR_IDENTIFIER": ctx.tensor_identifier,
         "LOCALIZED_NAME": ctx.localized_name,
         "PYTHON_ACCESSOR": ctx.python_accessor,
-        "SCHEMA_NAME": ctx.schema_name,
         "TENSOR_IDENTIFIER_EXPR": _tensor_identifier_expr(ctx),
         "HAS_TENSOR_IDENTIFIER": "1" if ctx.facade_tensor_constant else "0",
     }

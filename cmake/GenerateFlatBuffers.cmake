@@ -62,6 +62,10 @@ function(generate_flatbuffer_headers OUT_VAR INPUT_DIR OUTPUT_DIR BFBS_OUT_VAR)
               # Mini-reflect type tables with field names. Supersedes --reflect-types, which
               # sets the same flatc option to a names-less value.
               --reflect-names
+              # RecordT::GetFullyQualifiedName(), which is the name a recording's MCAP Schema
+              # record carries. Deriving it from the .fbs is what keeps the writer that
+              # declares it and the reader that matches it from being able to disagree.
+              --gen-name-strings
               # Write the binary schema as a file too. flatc runs every enabled generator
               # over one parse, so this costs nothing beyond the write.
               -b

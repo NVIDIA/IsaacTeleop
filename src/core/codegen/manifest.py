@@ -27,7 +27,6 @@ RESOLVED_REQUIRED = frozenset(
         "tensor_identifier",
         "localized_name",
         "channel",
-        "schema_name",
         "traits",
         "python_accessor",
         "max_flatbuffer_size",

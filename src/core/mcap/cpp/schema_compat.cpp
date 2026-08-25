@@ -160,16 +160,6 @@ bool deserialize_is_safe(const reflection::Schema& schema)
 
 } // namespace
 
-std::string schema_root_name(std::span<const uint8_t> bfbs)
-{
-    const reflection::Schema* schema = verified_schema(bfbs);
-    if (schema == nullptr)
-    {
-        throw std::logic_error("schema_root_name: not a valid FlatBuffers binary schema");
-    }
-    return root_table_name(*schema);
-}
-
 SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded, std::span<const uint8_t> compiled)
 {
     // Matching builds stop here, at one memcmp per file.
