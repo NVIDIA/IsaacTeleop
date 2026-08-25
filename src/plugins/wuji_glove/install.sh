@@ -37,24 +37,8 @@ isaac_root=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --build-dir)
-            if [[ $# -lt 2 ]]; then
-                echo "--build-dir requires a path" >&2
-                exit 1
-            fi
-            build_dir="$2"
-            if [[ -z "$build_dir" ]]; then
-                echo "--build-dir requires a non-empty path" >&2
-                exit 1
-            fi
+            build_dir="${2:?--build-dir requires a non-empty path}"
             shift 2
-            ;;
-        --build-dir=*)
-            build_dir="${1#*=}"
-            if [[ -z "$build_dir" ]]; then
-                echo "--build-dir requires a non-empty path" >&2
-                exit 1
-            fi
-            shift
             ;;
         -h | --help)
             cat <<EOF

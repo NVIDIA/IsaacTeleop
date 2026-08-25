@@ -16,24 +16,8 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1; shift ;;
         --build-dir)
-            if [[ $# -lt 2 ]]; then
-                echo "--build-dir requires a path" >&2
-                exit 1
-            fi
-            BUILD_DIR="$2"
-            if [[ -z "$BUILD_DIR" ]]; then
-                echo "--build-dir requires a non-empty path" >&2
-                exit 1
-            fi
+            BUILD_DIR="${2:?--build-dir requires a non-empty path}"
             shift 2
-            ;;
-        --build-dir=*)
-            BUILD_DIR="${1#*=}"
-            if [[ -z "$BUILD_DIR" ]]; then
-                echo "--build-dir requires a non-empty path" >&2
-                exit 1
-            fi
-            shift
             ;;
         -h|--help)
             cat <<EOF
