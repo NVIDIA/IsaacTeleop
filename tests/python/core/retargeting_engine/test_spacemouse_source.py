@@ -17,6 +17,7 @@ from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.schema import SpaceMouseOutput
 
 BUTTON_LEFT = 0
+BUTTON_RIGHT = 1
 
 
 def _spacemouse_source():
@@ -77,6 +78,20 @@ class TestSpaceMouseSource:
         bitmap = np.asarray(outputs["spacemouse_buttons"][0])
         assert bitmap[BUTTON_LEFT] == 1
         assert bitmap.sum() == 1
+
+    def test_multiple_buttons_mark_bitmap(self):
+        src = _spacemouse_source()
+        outputs = _run_source(
+            src,
+            translation=[0.0, 0.0, 0.0],
+            pressed_buttons=[BUTTON_LEFT, BUTTON_RIGHT],
+        )
+
+        assert not outputs["spacemouse_buttons"].is_none
+        bitmap = np.asarray(outputs["spacemouse_buttons"][0])
+        assert bitmap[BUTTON_LEFT] == 1
+        assert bitmap[BUTTON_RIGHT] == 1
+        assert bitmap.sum() == 2
 
     def test_inactive_device_yields_none(self):
         src = _spacemouse_source()

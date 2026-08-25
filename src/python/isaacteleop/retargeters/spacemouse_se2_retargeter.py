@@ -87,6 +87,8 @@ class SpaceMouseToSe2Retargeter(BaseRetargeter):
         velocity = np.zeros(3)
         velocity[1] = self._config.v_y_sensitivity * translation[0]
         velocity[0] = self._config.v_x_sensitivity * translation[1]
+        # Unlike Se3's yaw, omega_z is not sign-inverted here -- a faithful port of the
+        # legacy Se2SpaceMouse's (likely unintentional) asymmetry with Se3's rotation mapping.
         velocity[2] = self._config.omega_z_sensitivity * rotation[1]
 
         base_command[0] = velocity.astype(np.float32)
