@@ -12,6 +12,10 @@ import pytest
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import GamepadSource
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    ComputeContext,
+)
 from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.retargeters import (
     GamepadGripperRetargeter,
@@ -144,6 +148,32 @@ class TestGamepadGripperRetargeter:
         assert float(gripper_out["gripper_command"][0]) == pytest.approx(
             1.0
         )  # default open
+
+    def test_reset_does_not_toggle_gripper_while_x_is_held(self):
+        """X held across a reset frame is not a rising edge and must not toggle the gripper."""
+        src = _gamepad_source()
+        retargeter = GamepadGripperRetargeter(name="gripper")
+
+        def step(pressed_buttons, reset=False):
+            src_outputs = _run_source(src, pressed_buttons)
+            out = {
+                "gripper_command": _make_output_group(
+                    retargeter.output_spec()["gripper_command"]
+                )
+            }
+            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
+            retargeter.compute(
+                {"gamepad_buttons": src_outputs["gamepad_buttons"]}, out, context
+            )
+            return float(out["gripper_command"][0])
+
+        assert step([BUTTON_X]) == pytest.approx(-1.0)  # rising edge -> close
+        # Reset resets the gripper to open, but X is still held -- not a new rising
+        # edge, so this must not immediately re-close it.
+        assert step([BUTTON_X], reset=True) == pytest.approx(1.0)
+        assert step([BUTTON_X]) == pytest.approx(1.0)  # still held -> stays open
+        assert step([]) == pytest.approx(1.0)  # release
+        assert step([BUTTON_X]) == pytest.approx(-1.0)  # genuine rising edge -> close
 
     def test_other_button_does_not_affect_gripper(self):
         """A button other than X shows up in gamepad_buttons but does not affect the gripper."""

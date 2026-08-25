@@ -134,18 +134,24 @@ class GamepadGripperRetargeter(BaseRetargeter):
         }
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
-        if context.execution_events.reset:
-            self._closed = False
-            self._prev_x_pressed = False
-
         gripper_out = outputs["gripper_command"]
         buttons_in = inputs["gamepad_buttons"]
+        x_pressed = (
+            False if buttons_in.is_none else bool(np.asarray(buttons_in[0])[BUTTON_X])
+        )
+
+        if context.execution_events.reset:
+            self._closed = False
+            # Sync to the current button state without toggling -- X may already be
+            # held on a reset frame, and that isn't a rising edge.
+            self._prev_x_pressed = x_pressed
+            gripper_out[0] = -1.0 if self._closed else 1.0
+            return
+
         if buttons_in.is_none:
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 
-        bitmap = np.asarray(buttons_in[0])
-        x_pressed = bool(bitmap[BUTTON_X])
         if x_pressed and not self._prev_x_pressed:
             self._closed = not self._closed
         self._prev_x_pressed = x_pressed
