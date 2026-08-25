@@ -15,9 +15,9 @@ process to start manually.
 
 import sys
 import time
-from pathlib import Path
 
 from isaacteleop.cloudxr import CloudXRLauncher
+from isaacteleop.plugins import plugin_search_path
 from isaacteleop.retargeting_engine.deviceio_source_nodes import SpaceMouseSource
 from isaacteleop.teleop_session_manager import (
     TeleopSession,
@@ -26,7 +26,7 @@ from isaacteleop.teleop_session_manager import (
 )
 
 
-PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
+PLUGIN_ROOT_DIR = plugin_search_path()
 PLUGIN_NAME = "spacemouse"
 PLUGIN_ROOT_ID = "spacemouse"
 
