@@ -123,17 +123,22 @@ class KeyboardGripperRetargeter(BaseRetargeter):
         }
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
-        if context.execution_events.reset:
-            self._closed = False
-            self._prev_k_pressed = False
-
         gripper_out = outputs["gripper_command"]
         keys = inputs["keyboard"]
+        k_pressed = False if keys.is_none else bool(keys[KeyboardInputIndex.KEY_K])
+
+        if context.execution_events.reset:
+            self._closed = False
+            # Sync to the current key state without toggling -- K may already be
+            # held on a reset frame, and that isn't a rising edge.
+            self._prev_k_pressed = k_pressed
+            gripper_out[0] = -1.0 if self._closed else 1.0
+            return
+
         if keys.is_none:
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 
-        k_pressed = bool(keys[KeyboardInputIndex.KEY_K])
         if k_pressed and not self._prev_k_pressed:
             self._closed = not self._closed
         self._prev_k_pressed = k_pressed
