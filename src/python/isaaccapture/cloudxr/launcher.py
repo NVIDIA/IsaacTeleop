@@ -62,9 +62,8 @@ started with its own configuration.\033[0m
 _HOST_CLIENT_IGNORED = """\
 \033[33m--{requested} is ignored: the CloudXR service already serving this \
 host was started {running}.\033[0m
-  Restart the service to apply it:
-    \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m
-    \033[1;32mpython -m isaacteleop.cloudxr.service start {start_flags}\033[0m"""
+  Stop that service, then rerun this application with the same arguments:
+    \033[1;32m{stop}\033[0m"""
 
 # No colour: this one is raised, not printed, so it lands in logs and captured
 # output as often as on a terminal.
@@ -354,10 +353,18 @@ class CloudXRLauncher:
             _HOST_CLIENT_IGNORED.format(
                 requested="host-client" if host_client else "no-host-client",
                 running="with --host-client" if running else "without --host-client",
-                start_flags="--host-client" if host_client else "",
+                stop=self._service_stop_invocation(),
             ).rstrip(),
             file=sys.stderr,
         )
+
+    def _service_stop_invocation(self) -> str:
+        """CLI that stops the service attached to this launcher's install dir."""
+        cmd = "python -m isaacteleop.cloudxr.service stop"
+        default_run = os.path.join(os.path.expanduser("~/.cloudxr"), "run")
+        if os.path.abspath(self._run_dir) == os.path.abspath(default_run):
+            return cmd
+        return f"{cmd} --cloudxr-install-dir {os.path.dirname(self._run_dir)}"
 
     @staticmethod
     def _warn_env_config_ignored(

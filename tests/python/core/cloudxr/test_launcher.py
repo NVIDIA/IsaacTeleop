@@ -238,8 +238,9 @@ class TestDivergenceWarnings:
         err = capsys.readouterr().err
         assert "--host-client is ignored" in err
         assert "without --host-client" in err
-        assert "service stop" in err
-        assert "service start --host-client" in err
+        assert "rerun this application with the same arguments" in err
+        assert f"service stop --cloudxr-install-dir {install}" in err
+        assert "service start" not in err
 
     def test_warns_when_running_service_has_host_client(self, tmp_path, capsys):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
@@ -256,7 +257,9 @@ class TestDivergenceWarnings:
         err = capsys.readouterr().err
         assert "--no-host-client is ignored" in err
         assert "with --host-client" in err
-        assert "service stop" in err
+        assert "rerun this application with the same arguments" in err
+        assert f"service stop --cloudxr-install-dir {install}" in err
+        assert "service start" not in err
 
     def test_quiet_when_running_host_client_matches(self, tmp_path, capsys):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
