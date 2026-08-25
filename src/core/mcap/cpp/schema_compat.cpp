@@ -7,8 +7,6 @@
 #include <flatbuffers/reflection_generated.h>
 #include <flatbuffers/verifier.h>
 
-#include <cctype>
-#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -234,43 +232,6 @@ SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded, std::s
     return { SchemaCompat::Compatible, "recorded and compiled-in schemas differ, but every recorded field still reads" };
 }
 
-SchemaCheckMode schema_check_mode()
-{
-    const char* raw = std::getenv("ISAACTELEOP_REPLAY_SCHEMA_CHECK");
-    if (raw == nullptr)
-    {
-        return SchemaCheckMode::Strict;
-    }
-
-    // `env VAR= cmd` is the shell's way of clearing a variable, and a mode typed into a
-    // YAML `environment:` block picks up case and surrounding space; none of those are a
-    // value the caller got wrong, so none of them earn the warning below.
-    std::string value(raw);
-    const auto first = value.find_first_not_of(" \t\r\n");
-    const auto last = value.find_last_not_of(" \t\r\n");
-    value = first == std::string::npos ? "" : value.substr(first, last - first + 1);
-    for (char& c : value)
-    {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-
-    if (value.empty() || value == "strict")
-    {
-        return SchemaCheckMode::Strict;
-    }
-    if (value == "off")
-    {
-        return SchemaCheckMode::Off;
-    }
-    if (value == "warn")
-    {
-        return SchemaCheckMode::Warn;
-    }
-
-    std::cerr << "ISAACTELEOP_REPLAY_SCHEMA_CHECK: unknown value '" << value << "', using strict" << std::endl;
-    return SchemaCheckMode::Strict;
-}
-
 void enforce_schema_compat(const SchemaCompatResult& result, std::string_view context)
 {
     if (result.status == SchemaCompat::Identical)
@@ -278,25 +239,15 @@ void enforce_schema_compat(const SchemaCompatResult& result, std::string_view co
         return;
     }
 
-    const SchemaCheckMode mode = schema_check_mode();
-    if (mode == SchemaCheckMode::Off)
-    {
-        return;
-    }
-
     const std::string message = "MCAP schema mismatch on '" + std::string(context) + "': " + result.detail;
-    if (result.status == SchemaCompat::Incompatible && mode == SchemaCheckMode::Strict)
+    if (result.status == SchemaCompat::Incompatible)
     {
-        throw std::runtime_error(message + " (set ISAACTELEOP_REPLAY_SCHEMA_CHECK=warn to read it anyway)");
+        throw std::runtime_error(message);
     }
 
-    // This is the only thing said about the recording, so a grade that is being read despite
-    // being unreadable has to say so about the whole session rather than about one record.
-    std::cerr << message
-              << (result.status == SchemaCompat::Incompatible ?
-                      " -- reading it anyway; every record decoded from this channel is unreliable" :
-                      "")
-              << std::endl;
+    // Compatible: every recorded field still reads, so this is worth saying once and is not
+    // worth refusing the recording over.
+    std::cerr << message << std::endl;
 }
 
 } // namespace core

@@ -53,29 +53,15 @@ std::string schema_root_name(std::span<const uint8_t> bfbs);
  */
 SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded, std::span<const uint8_t> compiled);
 
-//! What a non-Identical result does, from `ISAACTELEOP_REPLAY_SCHEMA_CHECK`.
-enum class SchemaCheckMode
-{
-    //! Incompatible throws, Compatible warns. The default.
-    Strict,
-    //! Both warn.
-    Warn,
-    //! Nothing is reported.
-    Off,
-};
-
-//! Reads `ISAACTELEOP_REPLAY_SCHEMA_CHECK` (strict|warn|off); unset means strict.
-SchemaCheckMode schema_check_mode();
-
 /*!
- * @brief Apply schema_check_mode() to a comparison result, deciding whether it may be read.
+ * @brief Act on a comparison result: reject what cannot be read, report what merely differs.
  *
  * A grade describes the recording, not any one message, so callers settle it once per schema
  * when the file is opened.
  *
  * @param result  Grade for a schema the recording carries.
  * @param context Channel topic, used to locate the mismatch in the message.
- * @throws std::runtime_error in Strict mode when `result` is Incompatible.
+ * @throws std::runtime_error when `result` is Incompatible.
  */
 void enforce_schema_compat(const SchemaCompatResult& result, std::string_view context);
 

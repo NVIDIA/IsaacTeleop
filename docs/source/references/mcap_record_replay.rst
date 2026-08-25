@@ -119,21 +119,12 @@ the end of the file; a recording whose writer never got to flush one, which is w
 run cut short leaves behind, is scanned for its schema records instead. A recording so
 damaged that neither route works is refused.
 
-``ISAACTELEOP_REPLAY_SCHEMA_CHECK`` selects what a mismatch does:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Value
-     - Behavior
-   * - ``strict`` (default)
-     - An unreadable recording raises; a readable difference warns once.
-   * - ``warn``
-     - Replay continues.  An unreadable recording warns instead of raising, once,
-       when the session opens — every record it then yields may hold wrong field
-       values.
-   * - ``off``
-     - Nothing is reported.
+A difference that leaves every recorded field readable — a table field appended
+since, or one marked ``(deprecated)`` — is reported on stderr and replayed instead.
+There is no way to override the raise: a recording the running build would misread
+is not replayable, and reading it anyway would hand back records whose field values
+are quietly wrong. ``src/core/schema/README.md`` has the evolution rules that keep a
+schema change from getting there.
 
 Runnable Example
 ----------------

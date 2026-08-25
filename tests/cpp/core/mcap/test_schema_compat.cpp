@@ -12,7 +12,6 @@
 #include <mcap/writer.hpp>
 
 #include <cstdint>
-#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -66,44 +65,6 @@ core::SchemaCompatResult compare(const std::string& recorded_source, const std::
     const std::vector<uint8_t> compiled = bfbs_from(compiled_source);
     return core::check_schema_compat(recorded, compiled);
 }
-
-// RAII around ISAACTELEOP_REPLAY_SCHEMA_CHECK so a failing assertion cannot leak a mode
-// into the tests that follow. Every case that reaches enforce_schema_compat() needs one:
-// the variable is process-global, so an unguarded case reads whatever the shell exported.
-class ScopedCheckMode
-{
-public:
-    //! A null `value` clears the variable, which is what "unset" has to mean here:
-    //! the ambient environment may already carry a mode.
-    explicit ScopedCheckMode(const char* value)
-    {
-        if (const char* previous = std::getenv(kName); previous != nullptr)
-        {
-            saved_ = previous;
-        }
-        apply(value);
-    }
-    ~ScopedCheckMode() noexcept
-    {
-        apply(saved_ ? saved_->c_str() : nullptr);
-    }
-    ScopedCheckMode(const ScopedCheckMode&) = delete;
-    ScopedCheckMode& operator=(const ScopedCheckMode&) = delete;
-
-private:
-    static constexpr const char* kName = "ISAACTELEOP_REPLAY_SCHEMA_CHECK";
-
-    static void apply(const char* value) noexcept
-    {
-#ifdef _WIN32
-        _putenv_s(kName, value != nullptr ? value : "");
-#else
-        value != nullptr ? ::setenv(kName, value, 1) : ::unsetenv(kName);
-#endif
-    }
-
-    std::optional<std::string> saved_;
-};
 
 // head.fbs and the schemas it includes, re-declared so a test can mutate one piece.
 // `stamp_fields` is the body of DeviceDataTimestamp.
@@ -371,83 +332,26 @@ TEST_CASE("check_schema_compat rejects a deleted field that was not deprecated",
 }
 
 // =============================================================================
-// schema_check_mode / enforce_schema_compat
+// enforce_schema_compat
 // =============================================================================
 
-TEST_CASE("schema_check_mode defaults to strict when unset", "[unit][schema_compat]")
-{
-    const ScopedCheckMode unset(nullptr);
-    CHECK(core::schema_check_mode() == core::SchemaCheckMode::Strict);
-}
-
-TEST_CASE("schema_check_mode reads warn and off", "[unit][schema_compat]")
-{
-    {
-        const ScopedCheckMode mode("warn");
-        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Warn);
-    }
-    {
-        const ScopedCheckMode mode("off");
-        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Off);
-    }
-}
-
-TEST_CASE("schema_check_mode reads a value the way it was likely typed", "[unit][schema_compat]")
-{
-    // A mode set in a YAML `environment:` block picks up case and surrounding space, and
-    // `env VAR= cmd` is how a shell clears one. None of those is a value the caller got
-    // wrong, so none of them may fall through to the unknown-value warning.
-    const CapturedCerr log;
-
-    for (const char* value : { "OFF", "Off", " off ", "\toff\n" })
-    {
-        const ScopedCheckMode mode(value);
-        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Off);
-    }
-    {
-        const ScopedCheckMode mode("WARN");
-        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Warn);
-    }
-    {
-        const ScopedCheckMode cleared("");
-        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Strict);
-    }
-
-    CHECK(log.count("unknown value") == 0);
-}
-
-TEST_CASE("schema_check_mode falls back to strict and says so on a value it cannot read", "[unit][schema_compat]")
-{
-    const ScopedCheckMode mode("lenient");
-    const CapturedCerr log;
-
-    CHECK(core::schema_check_mode() == core::SchemaCheckMode::Strict);
-    CHECK(log.count("unknown value") == 1);
-}
-
-TEST_CASE("enforce_schema_compat throws only on an incompatible schema in strict mode", "[unit][schema_compat]")
+TEST_CASE("enforce_schema_compat throws only on a schema that cannot be read", "[unit][schema_compat]")
 {
     const core::SchemaCompatResult identical{ core::SchemaCompat::Identical, {} };
     const core::SchemaCompatResult compatible{ core::SchemaCompat::Compatible, "field appended" };
     const core::SchemaCompatResult incompatible{ core::SchemaCompat::Incompatible, "Stamp grew" };
 
-    // The warns this case provokes are the point of it; keep them out of the suite's output.
+    // The warn this case provokes is the point of it; keep it out of the suite's output.
     const CapturedCerr log;
 
-    {
-        const ScopedCheckMode mode("strict");
-        CHECK_NOTHROW(core::enforce_schema_compat(identical, "head"));
-        CHECK_NOTHROW(core::enforce_schema_compat(compatible, "head"));
-        CHECK_THROWS_AS(core::enforce_schema_compat(incompatible, "head"), std::runtime_error);
-    }
-    {
-        const ScopedCheckMode mode("warn");
-        CHECK_NOTHROW(core::enforce_schema_compat(incompatible, "head"));
-    }
-    {
-        const ScopedCheckMode mode("off");
-        CHECK_NOTHROW(core::enforce_schema_compat(incompatible, "head"));
-    }
+    CHECK_NOTHROW(core::enforce_schema_compat(identical, "head"));
+    CHECK_NOTHROW(core::enforce_schema_compat(compatible, "head"));
+    CHECK_THROWS_AS(core::enforce_schema_compat(incompatible, "head"), std::runtime_error);
+
+    // A recording that still reads is reported and read; one that does not is refused, so it
+    // is the throw that carries the detail rather than a log line.
+    CHECK(log.count("field appended") == 1);
+    CHECK(log.count("Stamp grew") == 0);
 }
 
 // =============================================================================
@@ -461,7 +365,6 @@ TEST_CASE("enforce_schema_compat throws only on an incompatible schema in strict
 
 TEST_CASE("McapTrackerViewers rejects a channel that declares no schema", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, std::nullopt);
@@ -471,7 +374,6 @@ TEST_CASE("McapTrackerViewers rejects a channel that declares no schema", "[unit
 
 TEST_CASE("McapTrackerViewers rejects a schema that is not flatbuffer-encoded", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs(), "protobuf"));
@@ -481,7 +383,6 @@ TEST_CASE("McapTrackerViewers rejects a schema that is not flatbuffer-encoded", 
 
 TEST_CASE("McapTrackerViewers rejects a schema named for another record type", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema("core.HandPoseRecord", faithful_head_bfbs()));
@@ -491,7 +392,6 @@ TEST_CASE("McapTrackerViewers rejects a schema named for another record type", "
 
 TEST_CASE("McapTrackerViewers rejects a channel whose messages are not flatbuffers", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_records(
@@ -504,7 +404,6 @@ TEST_CASE("McapTrackerViewers rejects a channel whose messages are not flatbuffe
 
 TEST_CASE("McapTrackerViewers rejects an unreadable recording before its first read", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_records(path,
@@ -523,7 +422,6 @@ TEST_CASE("McapTrackerViewers rejects an unreadable recording before its first r
 
 TEST_CASE("McapTrackerViewers reads a recording whose writer never wrote a summary", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(
@@ -541,7 +439,6 @@ TEST_CASE("McapTrackerViewers reads a recording whose writer never wrote a summa
 
 TEST_CASE("McapTrackerViewers reads a summary that does not repeat schema records", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(
@@ -559,7 +456,6 @@ TEST_CASE("McapTrackerViewers reads a summary that does not repeat schema record
 
 TEST_CASE("McapTrackerViewers rejects a recording it cannot enumerate", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3);
@@ -574,7 +470,6 @@ TEST_CASE("McapTrackerViewers rejects a recording it cannot enumerate", "[unit][
 
 TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading", "[unit][schema_compat]")
 {
-    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 12);
@@ -586,25 +481,4 @@ TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading
         REQUIRE(viewers.read(0));
     }
     CHECK(log.count("MCAP schema mismatch") == 1);
-}
-
-TEST_CASE("McapTrackerViewers says once that an unreadable recording is being read anyway", "[unit][schema_compat]")
-{
-    const ScopedCheckMode mode("warn");
-    const auto path = temp_mcap_path();
-    const TempFileCleanup cleanup(path);
-    write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, grown_stamp_head_bfbs()), 12);
-
-    const CapturedCerr log;
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
-    for (int record = 0; record < 12; ++record)
-    {
-        REQUIRE(viewers.read(0));
-    }
-
-    // Said when the recording was opened, before a single record was handed back, and not
-    // again: the grade describes the file, and read() has nothing left to check. What keeps
-    // this apart from `off` is that the one line covers the whole session, not one record.
-    CHECK(log.count("MCAP schema mismatch") == 1);
-    CHECK(log.count("every record decoded from this channel is unreliable") == 1);
 }
