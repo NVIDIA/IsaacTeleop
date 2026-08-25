@@ -237,7 +237,7 @@ class TestDivergenceWarnings:
 
         err = capsys.readouterr().err
         assert "--host-client is ignored" in err
-        assert "without --host-client" in err
+        assert "without a hosted /client/" in err
         assert "rerun this application with the same arguments" in err
         assert f"service stop --cloudxr-install-dir {install}" in err
         assert "service start" not in err
@@ -274,6 +274,38 @@ class TestDivergenceWarnings:
             CloudXRLauncher(install_dir=install, host_client=True)
 
         assert "host-client" not in capsys.readouterr().err
+
+    def test_quiet_when_usb_local_and_requested_host_client(self, tmp_path, capsys):
+        """USB-local already hosts /client/ on WSS; requesting host-client is fine."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=["--setup-oob", "--usb-local"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        assert "host-client" not in capsys.readouterr().err
+
+    def test_warns_when_usb_local_and_requested_no_host_client(self, tmp_path, capsys):
+        """USB-local hosts /client/; --no-host-client is a mismatch."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaacteleop.cloudxr.background.read_run_flags",
+                return_value=["--setup-oob", "--usb-local"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        err = capsys.readouterr().err
+        assert "--no-host-client is ignored" in err
+        assert "with --usb-local" in err
 
     def test_quiet_when_foreground_service_flags_are_unknown(self, tmp_path, capsys):
         """Foreground services leave no pid file, so their flags cannot be read."""

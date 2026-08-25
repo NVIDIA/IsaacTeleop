@@ -38,7 +38,10 @@ class TestRunFlags:
 
     def test_only_non_default_values_are_emitted(self):
         args = _run_args(setup_oob=True, host_client=True)
-        assert cli._run_flags(args) == ["--setup-oob", "--host-client"]
+        assert cli._run_flags(args) == [
+            "--setup-oob",
+            "--host-client",
+        ]
 
     def test_install_dir_emitted_only_when_changed(self):
         assert cli._run_flags(_run_args(cloudxr_install_dir="/opt/x")) == [
