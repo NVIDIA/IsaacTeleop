@@ -12,18 +12,21 @@ the raw flatbuffer object (or None when the tracker is inactive).
 import warnings
 from enum import IntEnum
 from typing import Any
-from ..interface.tensor_type import TensorType
-from ..interface.tensor_group_type import TensorGroupType
+
 from isaacteleop.schema import (
-    HeadPoseTrackedT,
-    HandPoseTrackedT,
     ControllerSnapshotTrackedT,
-    Generic3AxisPedalOutputTrackedT,
-    JointStateOutputTrackedT,
     FullBodyPoseTrackedT,
+    GamepadOutputTrackedT,
+    Generic3AxisPedalOutputTrackedT,
+    HandPoseTrackedT,
+    HeadPoseTrackedT,
+    JointStateOutputTrackedT,
     KeyboardOutputTrackedT,
     MessageChannelMessagesTrackedT,
 )
+
+from ..interface.tensor_group_type import TensorGroupType
+from ..interface.tensor_type import TensorType
 
 
 class HeadPoseTrackedType(TensorType):
@@ -119,6 +122,26 @@ class KeyboardOutputTrackedType(TensorType):
         if not isinstance(value, KeyboardOutputTrackedT):
             raise TypeError(
                 f"Expected KeyboardOutputTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
+class GamepadOutputTrackedType(TensorType):
+    """GamepadOutputTrackedT wrapper type from DeviceIO GamepadTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, GamepadOutputTrackedType):
+            raise TypeError(
+                f"Expected GamepadOutputTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, GamepadOutputTrackedT):
+            raise TypeError(
+                f"Expected GamepadOutputTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
@@ -267,6 +290,18 @@ def DeviceIOKeyboardOutputTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_keyboard_output",
         [KeyboardOutputTrackedType("keyboard_tracked")],
+    )
+
+
+def DeviceIOGamepadOutputTracked() -> TensorGroupType:
+    """Tracked gamepad data from DeviceIO GamepadTracker.
+
+    Contains:
+        gamepad_tracked: GamepadOutputTrackedT wrapper (always set; .data is None when inactive)
+    """
+    return TensorGroupType(
+        "deviceio_gamepad_output",
+        [GamepadOutputTrackedType("gamepad_tracked")],
     )
 
 

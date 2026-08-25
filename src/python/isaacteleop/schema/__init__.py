@@ -50,6 +50,10 @@ from ._schema import (
     KeyboardOutput,
     KeyboardOutputTrackedT,
     KeyboardOutputRecord,
+    # Gamepad types (raw joystick-API button/axis state).
+    GamepadOutput,
+    GamepadOutputTrackedT,
+    GamepadOutputRecord,
     # SE3 tracker types (generic 6-DoF pose sources: tracker pucks, mocap rigid bodies, ...).
     # Record classes drop the T suffix in Python by family convention.
     Se3TrackerPoseT,
@@ -140,6 +144,10 @@ __all__ = [
     "KeyboardOutput",
     "KeyboardOutputTrackedT",
     "KeyboardOutputRecord",
+    # Gamepad types (raw joystick-API button/axis state).
+    "GamepadOutput",
+    "GamepadOutputTrackedT",
+    "GamepadOutputRecord",
     # SE3 tracker types (generic 6-DoF pose sources).
     "Se3TrackerPoseT",
     "Se3TrackerPoseTrackedT",

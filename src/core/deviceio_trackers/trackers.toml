@@ -35,6 +35,12 @@ max_flatbuffer_size = 2048
 python_accessor = "get_keyboard_data"
 
 [[tracker]]
+name = "gamepad"
+table = "GamepadOutput"
+max_flatbuffer_size = 512
+python_accessor = "get_gamepad_data"
+
+[[tracker]]
 name = "haptic_command"
 direction = "push"
 table = "HapticCommand"
