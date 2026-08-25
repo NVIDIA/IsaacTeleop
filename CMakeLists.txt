@@ -202,7 +202,7 @@ endif()
 
 # Bundle the spacemouse plugin binary + metadata inside the wheel (isaacteleop.plugins.
 # spacemouse), same rationale as the keyboard plugin bundling.
-if(TARGET spacemouse_plugin AND TARGET python_package)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND TARGET spacemouse_plugin AND TARGET python_package)
     add_custom_target(bundle_spacemouse_plugin ALL
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/spacemouse"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/core/python/isaacteleop_plugins_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/__init__.py"

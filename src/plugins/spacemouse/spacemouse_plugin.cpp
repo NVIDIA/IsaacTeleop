@@ -65,7 +65,8 @@ SpaceMousePlugin::SpaceMousePlugin(const std::string& device_path, const std::st
 
 SpaceMousePlugin::~SpaceMousePlugin()
 {
-    close_device();
+    if (device_fd_ >= 0)
+        close_device();
 }
 
 void SpaceMousePlugin::update()
@@ -173,8 +174,11 @@ void SpaceMousePlugin::close_device()
     close(device_fd_);
     device_fd_ = -1;
     // A closed device can no longer report releases -- forget everything it last
-    // reported as held so a stale button doesn't stick "pressed" forever.
+    // reported as held so a stale button doesn't stick "pressed" forever, and zero
+    // the motion state so a disconnected device can't keep commanding stale motion.
     pressed_buttons_.clear();
+    translation_.fill(0.0f);
+    rotation_.fill(0.0f);
 }
 
 void SpaceMousePlugin::push_current_state()
