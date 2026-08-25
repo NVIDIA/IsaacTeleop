@@ -60,7 +60,7 @@ class TestKeyboardToSe3RelRetargeter:
             KeyboardToSe3RelRetargeterConfig(), name="se3"
         )
         out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
-        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
 
         delta = np.asarray(out["ee_delta"][0])
         assert delta[0] == pytest.approx(0.4)  # default pos_sensitivity
@@ -75,7 +75,7 @@ class TestKeyboardToSe3RelRetargeter:
             KeyboardToSe3RelRetargeterConfig(), name="se3"
         )
         out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
-        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
 
         delta = np.asarray(out["ee_delta"][0])
         assert delta[0] == pytest.approx(0.4)  # W: +X
@@ -89,7 +89,7 @@ class TestKeyboardToSe3RelRetargeter:
 
         se3 = KeyboardToSe3RelRetargeter(KeyboardToSe3RelRetargeterConfig(), name="se3")
         se3_out = {"ee_delta": _make_output_group(se3.output_spec()["ee_delta"])}
-        se3.compute({"keyboard": src_outputs["keyboard"]}, se3_out)
+        se3.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, se3_out)
         assert np.allclose(np.asarray(se3_out["ee_delta"][0]), 0.0)
 
 
@@ -106,7 +106,9 @@ class TestKeyboardGripperRetargeter:
                     retargeter.output_spec()["gripper_command"]
                 )
             }
-            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+            retargeter.compute(
+                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out
+            )
             return float(out["gripper_command"][0])
 
         assert step([]) == pytest.approx(1.0)  # open (default)
@@ -127,7 +129,9 @@ class TestKeyboardGripperRetargeter:
                 gripper.output_spec()["gripper_command"]
             )
         }
-        gripper.compute({"keyboard": src_outputs["keyboard"]}, gripper_out)
+        gripper.compute(
+            {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, gripper_out
+        )
         assert float(gripper_out["gripper_command"][0]) == pytest.approx(
             1.0
         )  # default open
@@ -145,7 +149,9 @@ class TestKeyboardGripperRetargeter:
                 )
             }
             context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
-            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out, context)
+            retargeter.compute(
+                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out, context
+            )
             return float(out["gripper_command"][0])
 
         assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
@@ -169,7 +175,9 @@ class TestKeyboardGripperRetargeter:
                 )
             }
             context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
-            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out, context)
+            retargeter.compute(
+                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out, context
+            )
             return float(out["gripper_command"][0])
 
         assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close

@@ -10,6 +10,10 @@ Maps raw keyboard press state to end-effector delta commands and a gripper toggl
 import numpy as np
 from dataclasses import dataclass
 
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    EvdevKeyCode,
+    KeyboardAllKeysType,
+)
 from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
@@ -20,8 +24,6 @@ from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     OptionalType,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
-    KeyboardInput,
-    KeyboardInputIndex,
     NDArrayType,
     DLDataType,
     FloatType,
@@ -55,7 +57,7 @@ class KeyboardToSe3RelRetargeter(BaseRetargeter):
         super().__init__(name=name)
 
     def input_spec(self) -> RetargeterIOType:
-        return {"keyboard": OptionalType(KeyboardInput())}
+        return {"keyboard_all_keys": OptionalType(KeyboardAllKeysType())}
 
     def output_spec(self) -> RetargeterIOType:
         return {
@@ -71,29 +73,30 @@ class KeyboardToSe3RelRetargeter(BaseRetargeter):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         ee_delta = outputs["ee_delta"]
-        keys = inputs["keyboard"]
-        if keys.is_none:
+        all_keys = inputs["keyboard_all_keys"]
+        if all_keys.is_none:
             ee_delta[0] = np.zeros(6, dtype=np.float32)
             return
 
+        bitmap = np.asarray(all_keys[0])
         pos_sens = self._config.pos_sensitivity
         rot_sens = self._config.rot_sensitivity
 
         delta_pos = np.zeros(3)
-        delta_pos[0] += pos_sens if keys[KeyboardInputIndex.KEY_W] else 0.0
-        delta_pos[0] -= pos_sens if keys[KeyboardInputIndex.KEY_S] else 0.0
-        delta_pos[1] += pos_sens if keys[KeyboardInputIndex.KEY_A] else 0.0
-        delta_pos[1] -= pos_sens if keys[KeyboardInputIndex.KEY_D] else 0.0
-        delta_pos[2] += pos_sens if keys[KeyboardInputIndex.KEY_Q] else 0.0
-        delta_pos[2] -= pos_sens if keys[KeyboardInputIndex.KEY_E] else 0.0
+        delta_pos[0] += pos_sens if bitmap[EvdevKeyCode.KEY_W] else 0.0
+        delta_pos[0] -= pos_sens if bitmap[EvdevKeyCode.KEY_S] else 0.0
+        delta_pos[1] += pos_sens if bitmap[EvdevKeyCode.KEY_A] else 0.0
+        delta_pos[1] -= pos_sens if bitmap[EvdevKeyCode.KEY_D] else 0.0
+        delta_pos[2] += pos_sens if bitmap[EvdevKeyCode.KEY_Q] else 0.0
+        delta_pos[2] -= pos_sens if bitmap[EvdevKeyCode.KEY_E] else 0.0
 
         delta_euler = np.zeros(3)
-        delta_euler[0] += rot_sens if keys[KeyboardInputIndex.KEY_Z] else 0.0
-        delta_euler[0] -= rot_sens if keys[KeyboardInputIndex.KEY_X] else 0.0
-        delta_euler[1] += rot_sens if keys[KeyboardInputIndex.KEY_T] else 0.0
-        delta_euler[1] -= rot_sens if keys[KeyboardInputIndex.KEY_G] else 0.0
-        delta_euler[2] += rot_sens if keys[KeyboardInputIndex.KEY_C] else 0.0
-        delta_euler[2] -= rot_sens if keys[KeyboardInputIndex.KEY_V] else 0.0
+        delta_euler[0] += rot_sens if bitmap[EvdevKeyCode.KEY_Z] else 0.0
+        delta_euler[0] -= rot_sens if bitmap[EvdevKeyCode.KEY_X] else 0.0
+        delta_euler[1] += rot_sens if bitmap[EvdevKeyCode.KEY_T] else 0.0
+        delta_euler[1] -= rot_sens if bitmap[EvdevKeyCode.KEY_G] else 0.0
+        delta_euler[2] += rot_sens if bitmap[EvdevKeyCode.KEY_C] else 0.0
+        delta_euler[2] -= rot_sens if bitmap[EvdevKeyCode.KEY_V] else 0.0
 
         delta_rot = Rotation.from_euler("XYZ", delta_euler).as_rotvec()
 
@@ -113,7 +116,7 @@ class KeyboardGripperRetargeter(BaseRetargeter):
         self._prev_k_pressed = False
 
     def input_spec(self) -> RetargeterIOType:
-        return {"keyboard": OptionalType(KeyboardInput())}
+        return {"keyboard_all_keys": OptionalType(KeyboardAllKeysType())}
 
     def output_spec(self) -> RetargeterIOType:
         return {
@@ -124,8 +127,12 @@ class KeyboardGripperRetargeter(BaseRetargeter):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         gripper_out = outputs["gripper_command"]
-        keys = inputs["keyboard"]
-        k_pressed = False if keys.is_none else bool(keys[KeyboardInputIndex.KEY_K])
+        all_keys = inputs["keyboard_all_keys"]
+        k_pressed = (
+            False
+            if all_keys.is_none
+            else bool(np.asarray(all_keys[0])[EvdevKeyCode.KEY_K])
+        )
 
         if context.execution_events.reset:
             self._closed = False
@@ -134,12 +141,12 @@ class KeyboardGripperRetargeter(BaseRetargeter):
             # _prev_k_pressed alone when the device is inactive this frame;
             # overwriting it to False would misread a still-held key as a fresh
             # rising edge once data resumes.
-            if not keys.is_none:
+            if not all_keys.is_none:
                 self._prev_k_pressed = k_pressed
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 
-        if keys.is_none:
+        if all_keys.is_none:
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 
