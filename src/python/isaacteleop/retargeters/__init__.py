@@ -122,7 +122,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "SpaceMouseGripperRetargeter": (
         ".spacemouse_se3_retargeter",
         "SpaceMouseGripperRetargeter",
-        None,
+        "retargeters-lite",
     ),
     # .spacemouse_se2_retargeter
     "SpaceMouseToSe2Retargeter": (
