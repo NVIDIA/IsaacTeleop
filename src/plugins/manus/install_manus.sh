@@ -12,21 +12,24 @@ set -euo pipefail
 # --- Arg parsing ---------------------------------------------------------
 VERBOSE=0
 BUILD_DIR=""
+FORCE_CONTAINER=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1; shift ;;
+        --container) FORCE_CONTAINER=1; shift ;;
         --build-dir)
             BUILD_DIR="${2:?--build-dir requires a non-empty path}"
             shift 2
             ;;
         -h|--help)
             cat <<EOF
-Usage: $(basename "$0") [--verbose] [--build-dir <path>]
+Usage: $(basename "$0") [--verbose] [--container] [--build-dir <path>]
 
 Installs the MANUS SDK and builds the Manus Teleop plugin.
 
 Options:
   --build-dir <path>  CMake build directory (default: <isaacteleop-root>/build).
+  --container         Skip host udev setup when auto-detection is unavailable.
   -v, --verbose       Show full output from apt-get, curl, cmake, etc.
   -h, --help          Show this help.
 EOF
@@ -97,7 +100,7 @@ in_container() {
 # --- Banner --------------------------------------------------------------
 echo "=== MANUS SDK Installation ==="
 echo "Architecture: $(uname -m)"
-if in_container; then
+if [[ "$FORCE_CONTAINER" -eq 1 ]] || in_container; then
     CONTAINER=1
     echo "Environment:  container (udev step will be skipped)"
 else

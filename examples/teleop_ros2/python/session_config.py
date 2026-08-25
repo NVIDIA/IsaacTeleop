@@ -23,6 +23,7 @@ from constants import (
     TRACKED_HAND_RETARGETERS,
     WUJI_HAND_JOINT_COUNT,
     HandRetargeter,
+    HandTrackingPlugin,
     TeleopMode,
 )
 from isaacteleop.retargeters import (
@@ -43,10 +44,47 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     HeadSource,
 )
 from isaacteleop.retargeting_engine.interface import OutputCombiner
-from isaacteleop.teleop_session_manager import TeleopSessionConfig
+from isaacteleop.teleop_session_manager import (
+    PluginConfig,
+    SessionMode,
+    TeleopSessionConfig,
+)
 from node_parameters import NodeParameters
 from teleop_ros2_retargeters import JointNameAliasRetargeter
 from tensor_group_helpers import joint_names_from_group_type
+
+
+def _resolve_hand_tracking_plugin_configs(
+    params: NodeParameters,
+) -> list[PluginConfig]:
+    if (
+        params.hand_tracking_plugin == HandTrackingPlugin.NONE
+        or params.session_mode == SessionMode.REPLAY
+    ):
+        return []
+
+    if params.hand_tracking_plugin == HandTrackingPlugin.MANUS:
+        return [
+            PluginConfig(
+                plugin_name="manus_hand_plugin",
+                plugin_root_id="manus",
+                search_paths=list(params.plugin_search_paths),
+                plugin_args=["--datasets=human"],
+                required=True,
+            )
+        ]
+    if params.hand_tracking_plugin == HandTrackingPlugin.WUJI:
+        return [
+            PluginConfig(
+                plugin_name="wuji_glove_plugin",
+                plugin_root_id="wuji_glove",
+                search_paths=list(params.plugin_search_paths),
+                required=True,
+            )
+        ]
+    raise ValueError(
+        f"Unsupported hand-tracking plugin {params.hand_tracking_plugin!r}"
+    )
 
 
 def build_controller_raw_config(params: NodeParameters) -> TeleopSessionConfig:
@@ -161,6 +199,7 @@ def build_controller_teleop_config(params: NodeParameters) -> TeleopSessionConfi
         pipeline=pipeline,
         mode=params.session_mode,
         mcap_config=params.mcap_config,
+        plugins=_resolve_hand_tracking_plugin_configs(params),
     )
 
 
@@ -214,6 +253,7 @@ def build_hand_teleop_config(params: NodeParameters) -> TeleopSessionConfig:
         pipeline=pipeline,
         mode=params.session_mode,
         mcap_config=params.mcap_config,
+        plugins=_resolve_hand_tracking_plugin_configs(params),
     )
 
 

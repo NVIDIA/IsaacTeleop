@@ -20,6 +20,12 @@ class HandRetargeter(StrEnum):
     WUJI = "wuji"
 
 
+class HandTrackingPlugin(StrEnum):
+    NONE = "none"
+    MANUS = "manus"
+    WUJI = "wuji"
+
+
 class TeleopMode(StrEnum):
     CONTROLLER_TELEOP = "controller_teleop"
     HAND_TELEOP = "hand_teleop"
@@ -34,6 +40,7 @@ HAND_POSE_JOINT_INDICES = tuple(
 )
 HAND_POSE_NAMES = [joint.name for joint in HAND_POSE_JOINT_INDICES]
 HAND_RETARGETERS = tuple(retargeter.value for retargeter in HandRetargeter)
+HAND_TRACKING_PLUGINS = tuple(plugin.value for plugin in HandTrackingPlugin)
 SHARPA_HAND_RETARGETERS = (HandRetargeter.PINK_IK, HandRetargeter.DEXPILOT)
 TRACKED_HAND_RETARGETERS = (*SHARPA_HAND_RETARGETERS, HandRetargeter.WUJI)
 TELEOP_MODES = tuple(mode.value for mode in TeleopMode)
@@ -108,12 +115,3 @@ def resolve_hand_retargeter(
         )
 
     return hand_retargeter
-
-
-def applies_manus_controller_to_hand_transform(
-    mode: TeleopMode, hand_retargeter: HandRetargeter
-) -> bool:
-    return (
-        mode == TeleopMode.CONTROLLER_TELEOP
-        and hand_retargeter in SHARPA_HAND_RETARGETERS
-    )
