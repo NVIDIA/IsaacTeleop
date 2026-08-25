@@ -49,6 +49,7 @@ from ..schema import (
     StreamType,
     FrameMetadataOak,
     Generic3AxisPedalOutput,
+    SpaceMouseOutput,
     OgloGloveSample,
 )
 
@@ -60,6 +61,7 @@ __all__ = [
     "StreamType",
     "FrameMetadataOak",
     "Generic3AxisPedalOutput",
+    "SpaceMouseOutput",
     "OgloGloveSample",
     "ITracker",
     "HandTracker",

@@ -187,6 +187,7 @@ if(BUILD_PLUGINS)
     add_subdirectory(src/plugins/controller_se3_tracker)
     add_subdirectory(src/plugins/controller_synthetic_hands)
     add_subdirectory(src/plugins/generic_3axis_pedal)
+    add_subdirectory(src/plugins/spacemouse)
     add_subdirectory(src/plugins/so101_leader)
     add_subdirectory(src/plugins/rebot_devarm_leader)
     add_subdirectory(src/plugins/manus)
@@ -197,6 +198,20 @@ if(BUILD_PLUGINS)
     if(BUILD_PLUGIN_OGLO)
         add_subdirectory(src/plugins/oglo_tactile)
     endif()
+endif()
+
+# Bundle the spacemouse plugin binary + metadata inside the wheel (isaacteleop.plugins.
+# spacemouse), same rationale as the keyboard plugin bundling.
+if(TARGET spacemouse_plugin AND TARGET python_package)
+    add_custom_target(bundle_spacemouse_plugin ALL
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/spacemouse"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/core/python/isaacteleop_plugins_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/__init__.py"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/core/python/isaacteleop_plugins_spacemouse_init.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/spacemouse/__init__.py"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/plugins/spacemouse/plugin.yaml" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/spacemouse/plugin.yaml"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:spacemouse_plugin>" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/plugins/spacemouse/spacemouse_plugin"
+        DEPENDS spacemouse_plugin python_package
+        COMMENT "Bundling spacemouse plugin into the Python package"
+    )
 endif()
 
 # Formatting enforcement (runs on Linux by default)
