@@ -57,6 +57,8 @@ packages = [
     "isaacteleop.cloudxr",
     "isaacteleop.rig",
     "isaacteleop.haptic_devices",
+    "isaacteleop.plugins",
+    "isaacteleop.plugins.gamepad",
 @CLOUDXR_EXP_PACKAGES_BLOCK@
 @VIZ_PACKAGES_BLOCK@
 @ROBOTIC_GROUNDING_PACKAGES_BLOCK@
@@ -74,6 +76,7 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 "isaacteleop.schema" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.cloudxr" = ["native/*.so", "native/*.so.*", "native/openxr_cloudxr.json"]
 "isaacteleop.haptic_devices" = ["*.so", "*.pyd", "*.pyi"]
+"isaacteleop.plugins.gamepad" = ["gamepad_plugin", "plugin.yaml"]
 @CLOUDXR_EXP_PACKAGE_DATA_BLOCK@
 @VIZ_PACKAGE_DATA_BLOCK@
 @ROBOTIC_GROUNDING_PACKAGE_DATA_BLOCK@

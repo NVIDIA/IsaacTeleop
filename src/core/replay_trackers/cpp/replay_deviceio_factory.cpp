@@ -5,6 +5,7 @@
 
 #include "replay_controller_tracker_impl.hpp"
 #include "replay_full_body_tracker_impl.hpp"
+#include "replay_gamepad_tracker_impl.hpp"
 #include "replay_generic_3axis_pedal_tracker_impl.hpp"
 #include "replay_hand_tracker_impl.hpp"
 #include "replay_haptic_command_reader_tracker_impl.hpp"
@@ -17,6 +18,7 @@
 
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
+#include <deviceio_trackers/gamepad_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
@@ -81,6 +83,12 @@ std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(ReplayDeviceIOFactor
     return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_gamepad_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const GamepadTracker*>(&tracker);
+    return typed ? factory.create_gamepad_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_oglo_impl(ReplayDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const OgloTactileTracker*>(&tracker);
@@ -126,6 +134,7 @@ inline const TryCreateFn k_tracker_dispatch[] = {
     &try_create_controller_impl,
     &try_create_full_body_impl,
     &try_create_generic_pedal_impl,
+    &try_create_gamepad_impl,
     &try_create_oglo_impl,
     &try_create_tensor_push_impl,
     &try_create_haptic_command_reader_impl,
@@ -195,6 +204,11 @@ std::unique_ptr<IGeneric3AxisPedalTrackerImpl> ReplayDeviceIOFactory::create_gen
     const Generic3AxisPedalTracker* tracker)
 {
     return std::make_unique<ReplayGeneric3AxisPedalTrackerImpl>(open_reader(filename_), get_name(tracker));
+}
+
+std::unique_ptr<IGamepadTrackerImpl> ReplayDeviceIOFactory::create_gamepad_tracker_impl(const GamepadTracker* tracker)
+{
+    return std::make_unique<ReplayGamepadTrackerImpl>(open_reader(filename_), get_name(tracker));
 }
 
 std::unique_ptr<IOgloTactileTrackerImpl> ReplayDeviceIOFactory::create_oglo_tactile_tracker_impl(
