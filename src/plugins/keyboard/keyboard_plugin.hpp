@@ -40,8 +40,10 @@ private:
     void push_current_state();
     // Rebuilds pressed_keys_ from the kernel's authoritative EVIOCGKEY bitmap --
     // used on open and after a SYN_DROPPED (evdev client-side buffer overrun) so a
-    // dropped release event can't leave a key stuck "pressed" forever.
-    void resync_pressed_keys();
+    // dropped release event can't leave a key stuck "pressed" forever. Returns
+    // false on ioctl failure, in which case pressed_keys_ is left untouched --
+    // callers recovering from a drop must not treat that as resynchronized.
+    bool resync_pressed_keys();
 
     std::string device_path_;
     int device_fd_ = -1;

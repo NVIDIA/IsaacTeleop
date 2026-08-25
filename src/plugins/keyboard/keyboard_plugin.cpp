@@ -108,8 +108,12 @@ void KeyboardPlugin::update()
             }
             else if (event.code == SYN_REPORT && awaiting_syn_report_)
             {
-                resync_pressed_keys();
-                awaiting_syn_report_ = false;
+                // Only leave recovery mode on a successful resync -- if EVIOCGKEY
+                // failed, pressed_keys_ is still whatever it was before the drop and
+                // must not be trusted yet; keep discarding events until the next
+                // SYN_REPORT gives us another chance to resynchronize.
+                if (resync_pressed_keys())
+                    awaiting_syn_report_ = false;
             }
             continue;
         }
@@ -157,11 +161,11 @@ void KeyboardPlugin::close_device()
     pressed_keys_.clear();
 }
 
-void KeyboardPlugin::resync_pressed_keys()
+bool KeyboardPlugin::resync_pressed_keys()
 {
     unsigned char bitmap[(KEY_CNT + 7) / 8] = {};
     if (ioctl(device_fd_, EVIOCGKEY(sizeof(bitmap)), bitmap) < 0)
-        return;
+        return false;
 
     pressed_keys_.clear();
     for (uint16_t code = 0; code < KEY_CNT; ++code)
@@ -169,6 +173,7 @@ void KeyboardPlugin::resync_pressed_keys()
         if (bitmap[code / 8] & (1u << (code % 8)))
             pressed_keys_.insert(code);
     }
+    return true;
 }
 
 void KeyboardPlugin::push_current_state()
