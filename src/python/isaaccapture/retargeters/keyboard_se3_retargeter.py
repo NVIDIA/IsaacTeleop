@@ -130,8 +130,12 @@ class KeyboardGripperRetargeter(BaseRetargeter):
         if context.execution_events.reset:
             self._closed = False
             # Sync to the current key state without toggling -- K may already be
-            # held on a reset frame, and that isn't a rising edge.
-            self._prev_k_pressed = k_pressed
+            # held on a reset frame, and that isn't a rising edge. Leave
+            # _prev_k_pressed alone when the device is inactive this frame;
+            # overwriting it to False would misread a still-held key as a fresh
+            # rising edge once data resumes.
+            if not keys.is_none:
+                self._prev_k_pressed = k_pressed
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 
