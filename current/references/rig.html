@@ -35,8 +35,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -46,7 +45,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=04dcff72"></script>
+    <script src="../_static/documentation_options.js?v=7509b52b"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -60,12 +59,12 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Out-of-Band Teleop Control" href="oob_teleop_control.html" />
-    <link rel="prev" title="CloudXR Service" href="cloudxr.html" />
+    <link rel="prev" title="Dedicated CloudXR Runtime" href="cloudxr.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.5.x" />
+  <meta name="docsearch:version" content="1.4.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -166,19 +165,6 @@
         </div>
       
       
-        <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
-</div>
-      
-        <div class="navbar-item">
-
-<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
- <i class="fa-solid fa-magnifying-glass"></i>
- <span class="search-button__default-text">Search</span>
- <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
-</button></div>
-      
         <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -260,19 +246,6 @@
     
       <div class="sidebar-header-items__end">
         
-          <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
-</div>
-        
-          <div class="navbar-item">
-
-<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
- <i class="fa-solid fa-magnifying-glass"></i>
- <span class="search-button__default-text">Search</span>
- <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
-</button></div>
-        
           <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -293,6 +266,10 @@
   </div>
   
     <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
         <div class="sidebar-primary-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
         <li class="nav-item">
@@ -330,6 +307,22 @@
         </li>
 </ul></div>
         <div class="sidebar-primary-item">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+        <div class="sidebar-primary-item">
 
 
 
@@ -340,6 +333,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -361,18 +355,16 @@
 <li class="toctree-l1"><a class="reference internal" href="../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
-<li class="toctree-l1"><a class="reference internal" href="generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">CloudXR Service</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">Dedicated CloudXR Runtime</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -430,12 +422,12 @@
                   
   <section id="rig-launcher">
 <span id="id1"></span><h1>Rig Launcher<a class="headerlink" href="#rig-launcher" title="Link to this heading">#</a></h1>
-<p>A typical Isaac Teleop setup is one or more <strong>producer</strong> plugins that publish
-device data, and one or
+<p>A typical Isaac Teleop setup is three processes on one machine: the CloudXR
+runtime, one or more <strong>producer</strong> plugins that publish device data, and one or
 more <strong>consumer</strong> apps (a Python <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> script or a C++ example
 binary) that read the streams. Such a configured set is a <em>rig</em> — the same
 shape serves demos, production teleop, and data collection.
-<code class="docutils literal notranslate"><span class="pre">isaacteleop.rig</span></code> starts a rig in a single tmux window from a small YAML
+<code class="docutils literal notranslate"><span class="pre">isaacteleop.rig</span></code> starts a rig in a single tmux session from a small YAML
 file, instead of you juggling three terminals by hand:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># from the Teleop repository root</span>
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.rig<span class="w"> </span>rigs/se3_tracker.yaml
@@ -449,9 +441,8 @@ only make sense next to a built tree).</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#prerequisites" id="id2">Prerequisites</a></p></li>
 <li><p><a class="reference internal" href="#run-a-rig" id="id3">Run a rig</a></p></li>
-<li><p><a class="reference internal" href="#the-install-prefix" id="id4">The install prefix</a></p></li>
-<li><p><a class="reference internal" href="#the-rig-yaml" id="id5">The rig YAML</a></p></li>
-<li><p><a class="reference internal" href="#troubleshooting" id="id6">Troubleshooting</a></p></li>
+<li><p><a class="reference internal" href="#the-rig-yaml" id="id4">The rig YAML</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id5">Troubleshooting</a></p></li>
 </ul>
 </nav>
 <section id="prerequisites">
@@ -459,9 +450,8 @@ only make sense next to a built tree).</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">tmux</span></code> installed (<code class="docutils literal notranslate"><span class="pre">sudo</span> <span class="pre">apt</span> <span class="pre">install</span> <span class="pre">tmux</span></code>).</p></li>
 <li><p>A built and installed Teleop tree (see <a class="reference internal" href="../getting_started/quick_start.html#install-isaacteleop-pip-package"><span class="std std-ref">2. Install the isaacteleop pip package</span></a>
-and the build reference) — the rigs reach their binaries through
-<code class="docutils literal notranslate"><span class="pre">{install}/plugins/</span></code> and <code class="docutils literal notranslate"><span class="pre">{install}/examples/</span></code> (see
-<a class="reference internal" href="#the-install-prefix">The install prefix</a>).</p></li>
+and the build reference) — the rig references binaries under
+<code class="docutils literal notranslate"><span class="pre">install/plugins/</span></code> and <code class="docutils literal notranslate"><span class="pre">install/examples/</span></code>.</p></li>
 <li><p>The <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> wheel installed in the <strong>current</strong> Python environment.
 tmux panes do not inherit your venv; the launcher bakes the absolute path of
 its own interpreter (and your <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>, if set) into the pane commands,
@@ -472,98 +462,72 @@ so whatever environment you launch from is the one the rig runs in.</p></li>
 <h2>Run a rig<a class="headerlink" href="#run-a-rig" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># from the Teleop repository root</span>
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.rig<span class="w"> </span>rigs/se3_tracker.yaml
+
+<span class="c1"># a CloudXR runtime is already running elsewhere (skip the runtime pane):</span>
+python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.rig<span class="w"> </span>rigs/se3_tracker.yaml<span class="w"> </span>--no-runtime
 </pre></div>
 </div>
 <p>What happens:</p>
 <ol class="arabic simple">
 <li><p><strong>Preflight</strong> — the launcher verifies tmux is available, the referenced
-binaries exist under the resolved install prefix and are executable (naming
-the exact remedy if not — see <a class="reference internal" href="#the-install-prefix">The install prefix</a>),
+binaries exist and are executable (with the exact <code class="docutils literal notranslate"><span class="pre">cmake</span></code> remedy if not),
 and the interpreter can import <code class="docutils literal notranslate"><span class="pre">isaacteleop.cloudxr</span></code>. Nothing is created
 until preflight passes.</p></li>
-<li><p><strong>A CloudXR runtime is ensured.</strong> The runtime is a <strong>host singleton</strong>
-owned by the CloudXR service, not by a rig pane: the launcher attaches to
-the one already serving, or starts a detached service when none is (see
-<a class="reference internal" href="cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">CloudXR Service</span></a>). Either way it outlives the rig, so
-killing the rig leaves the headset connected.</p></li>
+<li><p><strong>Runtime pane starts immediately</strong> (a slim full-width strip on top —
+25% of the window; it only prints status lines — with the worker panes
+tiled below). It runs <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--accept-eula</span></code> by
+default and prints the web-client URL. The runtime is a <strong>host
+singleton</strong> — one per machine.</p></li>
 <li><p><strong>Worker panes load the CloudXR environment automatically.</strong> Each
-producer/consumer pane runs <code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">&lt;install-dir&gt;/run/cloudxr.env</span></code> so
-<code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> and friends point at the service’s runtime — you never
-source it by hand. There is nothing to wait for: a pane only starts once
-the runtime is serving, so the file already exists. The install dir
-follows <code class="docutils literal notranslate"><span class="pre">CXR_INSTALL_DIR</span></code> (default <code class="docutils literal notranslate"><span class="pre">~/.cloudxr</span></code>).</p></li>
+producer/consumer pane waits (up to two minutes) for the runtime’s
+<code class="docutils literal notranslate"><span class="pre">runtime_started</span></code> sentinel, then runs
+<code class="docutils literal notranslate"><span class="pre">source</span> <span class="pre">&lt;install-dir&gt;/run/cloudxr.env</span></code> so <code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> and
+friends point at the runtime — you never source it by hand. The install
+dir follows the runtime command’s <code class="docutils literal notranslate"><span class="pre">--cloudxr-install-dir</span></code> (default
+<code class="docutils literal notranslate"><span class="pre">~/.cloudxr</span></code>).</p></li>
 <li><p><strong>Producer/consumer panes then run their commands automatically.</strong> As
 soon as the CloudXR environment is loaded, each pane prints a banner
 (<code class="docutils literal notranslate"><span class="pre">[producer:</span> <span class="pre">...]</span> <span class="pre">running:</span> <span class="pre">&lt;command&gt;</span></code>) and runs its command — no
 <kbd class="kbd docutils literal notranslate">Enter</kbd> needed. When the command exits, the pane reports
 <code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">N</span> <span class="pre">—</span> <span class="pre">press</span> <span class="pre">Enter</span> <span class="pre">to</span> <span class="pre">rerun</span></code> and drops
 to an interactive shell with the same command pre-typed at the prompt.
-An app that reaches <code class="docutils literal notranslate"><span class="pre">xrGetSystem</span></code> before a headset connects waits there
-(<code class="docutils literal notranslate"><span class="pre">waiting</span> <span class="pre">for</span> <span class="pre">a</span> <span class="pre">system...</span></code>) and carries on by itself once you connect
-one to the printed URL — no rerun needed. If the CloudXR environment fails to
-load, the pane does <em>not</em> run the command; it prints a remedy and leaves
-the command pre-typed instead.</p></li>
-<li><p>The launcher then switches you to the rig window. Run from inside tmux,
-the rig is a <strong>new window in your current session</strong> — your other windows
-stay put and nothing nests. Run from a plain shell, it gets a session of
-its own (named after the rig) and the launcher attaches to it.</p></li>
+Anything that calls <code class="docutils literal notranslate"><span class="pre">xrGetSystem</span></code> before a headset connects exits with
+<code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">get</span> <span class="pre">OpenXR</span> <span class="pre">system</span></code> — so if a pane’s app started before you
+connected the headset to the printed URL, connect it and press
+<kbd class="kbd docutils literal notranslate">Enter</kbd> in that pane to rerun. If the runtime never comes up (or
+its environment fails to load), the pane does <em>not</em> run the command; it
+prints a remedy and leaves the command pre-typed instead.</p></li>
+<li><p>The launcher then attaches (from a plain shell) or switches your current
+client (from inside tmux — no nesting).</p></li>
 </ol>
-<p>Re-running the same rig just switches to the running one — in whichever
-session it lives; it does <strong>not</strong> pick up edits
-to the rig file. Start over with:</p>
+<p>Re-running the same rig just switches to the existing session; it does
+<strong>not</strong> re-apply <code class="docutils literal notranslate"><span class="pre">--no-runtime</span></code> or pick up edits to the rig file. Start
+over with:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.rig<span class="w"> </span>rigs/se3_tracker.yaml<span class="w"> </span>--kill
 </pre></div>
 </div>
-<p>which kills the rig’s tmux window and every process in it (equivalent to
-<code class="docutils literal notranslate"><span class="pre">tmux</span> <span class="pre">kill-window</span> <span class="pre">-t</span> <span class="pre">se3_tracker</span></code>, without needing to know which session
-holds it). Only the rig’s window: a session you launched the rig into keeps
-its other windows. Killing a rig that is not running is a no-op.</p>
-</section>
-<section id="the-install-prefix">
-<h2>The install prefix<a class="headerlink" href="#the-install-prefix" title="Link to this heading">#</a></h2>
-<p>Rig commands reference binaries as <code class="docutils literal notranslate"><span class="pre">{install}/plugins/...</span></code> and
-<code class="docutils literal notranslate"><span class="pre">{install}/examples/...</span></code>. <code class="docutils literal notranslate"><span class="pre">{install}</span></code> resolves at launch time to:</p>
-<ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">$ISAAC_TELEOP_INSTALL_DIR</span></code>, if set — the knob for a tree installed with a
-non-default <code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code>;</p></li>
-<li><p>otherwise <code class="docutils literal notranslate"><span class="pre">&lt;cwd&gt;/install</span></code>, the prefix this project’s CMakeLists forces by
-default (<code class="docutils literal notranslate"><span class="pre">cwd</span></code> is the rig’s, so for the shipped rigs that is
-<code class="docutils literal notranslate"><span class="pre">&lt;repo&gt;/install</span></code>).</p></li>
-</ol>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># a tree installed elsewhere, e.g. cmake --install build --prefix /opt/isaacteleop/install</span>
-<span class="nv">ISAAC_TELEOP_INSTALL_DIR</span><span class="o">=</span>/opt/isaacteleop/install<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.rig<span class="w"> </span>rigs/se3_tracker.yaml
-</pre></div>
-</div>
-<p>A binary that is missing under the resolved prefix names the fix for the case
-you are actually in: a build tree that was configured but never installed gets
-the one <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span> <span class="pre">...</span> <span class="pre">--prefix</span> <span class="pre">...</span></code> command (its own
-<code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code> may point anywhere, so the prefix is passed
-explicitly); a set <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_INSTALL_DIR</span></code> that resolves to the wrong tree
-says so rather than telling you to rebuild; and every message without the
-variable set mentions it, since an install tree you already have is as likely
-as an unbuilt one.</p>
-<p>The prefix is made absolute before it reaches a pane, and quoted, so a path
-containing spaces works. A rig that spells the path out literally
-(<code class="docutils literal notranslate"><span class="pre">install/plugins/...</span></code>) still works whenever the default prefix is the right
-one — but it cannot follow the variable, which is the point of the placeholder.</p>
+<p>which kills the rig’s tmux session and every process in it (equivalent to
+<code class="docutils literal notranslate"><span class="pre">tmux</span> <span class="pre">kill-session</span> <span class="pre">-t</span> <span class="pre">se3_tracker</span></code>, without needing to know the session
+name). Killing a rig that is not running is a no-op.</p>
 </section>
 <section id="the-rig-yaml">
 <h2>The rig YAML<a class="headerlink" href="#the-rig-yaml" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">rigs/se3_tracker.yaml</span></code> is the annotated exemplar — copy it to write your
 own:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3_tracker</span><span class="w">              </span><span class="c1"># rig id AND tmux window name (letters/digits/-/_)</span>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3_tracker</span><span class="w">              </span><span class="c1"># rig id AND tmux session name (letters/digits/-/_)</span>
 <span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CloudXR runtime + SE3 controller tracker plugin + pose printer</span>
 <span class="nt">cwd</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">..</span><span class="w">                        </span><span class="c1"># pane working dir, relative to this file</span>
 <span class="nt">params</span><span class="p">:</span><span class="w">                        </span><span class="c1"># shared values, substituted into the commands below</span>
 <span class="w">  </span><span class="nt">hand</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">right</span>
 <span class="w">  </span><span class="nt">collection_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3_tracker</span><span class="w">   </span><span class="c1"># defined ONCE, referenced by both sides below</span>
+<span class="c1"># runtime: optional full-command override for the runtime pane; default:</span>
+<span class="c1">#   {python} -m isaacteleop.cloudxr --accept-eula</span>
 <span class="nt">producers</span><span class="p">:</span><span class="w">                     </span><span class="c1"># publish device data into the runtime</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3 tracker plugin (requires headset + controller)</span>
-<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"{install}/plugins/controller_se3_tracker/controller_se3_tracker_plugin</span><span class="nv"> </span><span class="s">{hand}</span><span class="nv"> </span><span class="s">{collection_id}"</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"install/plugins/controller_se3_tracker/controller_se3_tracker_plugin</span><span class="nv"> </span><span class="s">{hand}</span><span class="nv"> </span><span class="s">{collection_id}"</span>
 <span class="nt">consumers</span><span class="p">:</span><span class="w">                     </span><span class="c1"># read the streams — a TeleopSession script or a C++ binary</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">se3 printer (requires headset)</span>
-<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"{install}/examples/schemaio/se3_printer</span><span class="nv"> </span><span class="s">{collection_id}"</span>
+<span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="s">"install/examples/schemaio/se3_printer</span><span class="nv"> </span><span class="s">{collection_id}"</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">rigs/full_body.yaml</span></code> shows the other supported shape — no <code class="docutils literal notranslate"><span class="pre">producers</span></code>
@@ -585,11 +549,11 @@ so there is no <code class="docutils literal notranslate"><span class="pre">coll
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
 <td><p>yes</p></td>
-<td><p>Rig id <strong>and</strong> tmux window name. Letters, digits, <code class="docutils literal notranslate"><span class="pre">-</span></code>, <code class="docutils literal notranslate"><span class="pre">_</span></code> only.</p></td>
+<td><p>Rig id <strong>and</strong> tmux session name. Letters, digits, <code class="docutils literal notranslate"><span class="pre">-</span></code>, <code class="docutils literal notranslate"><span class="pre">_</span></code> only.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">description</span></code></p></td>
 <td><p>no</p></td>
-<td><p>Free text, printed when the rig is created.</p></td>
+<td><p>Free text, printed when the session is created.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cwd</span></code></p></td>
 <td><p>no</p></td>
@@ -603,7 +567,13 @@ YAML’s directory).</p></td>
 below — the rig file is the single source of configuration; edit it
 (and relaunch with <code class="docutils literal notranslate"><span class="pre">--kill</span></code>) to change them.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">producers</span></code> / <code class="docutils literal notranslate"><span class="pre">consumers</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">runtime</span></code></p></td>
+<td><p>no</p></td>
+<td><p>Full-command override for the runtime pane (e.g. to add
+<code class="docutils literal notranslate"><span class="pre">--host-client</span></code> or a different device profile). Default:
+<code class="docutils literal notranslate"><span class="pre">{python}</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr</span> <span class="pre">--accept-eula</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">producers</span></code> / <code class="docutils literal notranslate"><span class="pre">consumers</span></code></p></td>
 <td><p>at least one entry total</p></td>
 <td><p>Lists of <code class="docutils literal notranslate"><span class="pre">{name,</span> <span class="pre">command}</span></code> entries. <code class="docutils literal notranslate"><span class="pre">name</span></code> is free text shown in
 the pane title (a good place for hardware prerequisites); <code class="docutils literal notranslate"><span class="pre">command</span></code>
@@ -612,11 +582,9 @@ is a shell string run verbatim in the pane.</p></td>
 </tbody>
 </table>
 </div>
-<p>Commands are plain shell strings. Two placeholders are reserved: <code class="docutils literal notranslate"><span class="pre">{python}</span></code>
-expands to the absolute path of the launching interpreter and <code class="docutils literal notranslate"><span class="pre">{install}</span></code> to
-the install prefix (see <a class="reference internal" href="#the-install-prefix">The install prefix</a>). Every other <code class="docutils literal notranslate"><span class="pre">{placeholder}</span></code>
-must be declared under <code class="docutils literal notranslate"><span class="pre">params</span></code> (literal braces are written <code class="docutils literal notranslate"><span class="pre">{{</span></code> / <code class="docutils literal notranslate"><span class="pre">}}</span></code>);
-<code class="docutils literal notranslate"><span class="pre">python</span></code> and <code class="docutils literal notranslate"><span class="pre">install</span></code> are rejected as param names.
+<p>Commands are plain shell strings. <code class="docutils literal notranslate"><span class="pre">{python}</span></code> always expands to the absolute
+path of the launching interpreter; every other <code class="docutils literal notranslate"><span class="pre">{placeholder}</span></code> must be
+declared under <code class="docutils literal notranslate"><span class="pre">params</span></code> (literal braces are written <code class="docutils literal notranslate"><span class="pre">{{</span></code> / <code class="docutils literal notranslate"><span class="pre">}}</span></code>).
 Unknown top-level keys, unknown entry keys, and unknown placeholders are hard
 errors — a typo fails loudly at load time instead of misbehaving in a pane.</p>
 <div class="admonition important">
@@ -626,13 +594,17 @@ shared <code class="docutils literal notranslate"><span class="pre">collection_i
 Define it once under <code class="docutils literal notranslate"><span class="pre">params</span></code> and reference it as <code class="docutils literal notranslate"><span class="pre">{collection_id}</span></code> in
 every command — then one edit in one place changes both sides together.</p>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>The CloudXR runtime is a service, not a rig pane. The rig makes sure one
-is serving before any pane starts, and every pane sources its environment,
-so Python consumers attach to that same runtime instead of starting their
-own.</p>
-<p>See <a class="reference internal" href="cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">CloudXR Service</span></a> for managing that service yourself.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Python <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code> example scripts launch their <strong>own</strong> CloudXR
+runtime by default (<code class="docutils literal notranslate"><span class="pre">--launch-cloudxr-runtime</span></code> defaults to true). The
+runtime is a host singleton, so auto-running such a consumer kills the
+runtime pane — the headset drops and every producer stalls. Always add
+<code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> to Python consumer commands in a rig; the
+launcher prints a warning (and repeats it in the pane banner) when a
+command looks like it is missing the flag.</p>
+<p>See <a class="reference internal" href="cloudxr.html#dedicated-cloudxr-runtime"><span class="std std-ref">Dedicated CloudXR Runtime</span></a> for more on standalone runtime
+workflows.</p>
 </div>
 </section>
 <section id="troubleshooting">
@@ -656,29 +628,29 @@ the printed <code class="docutils literal notranslate"><span class="pre">cmake</
 <td><p>You launched from an environment without the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> wheel;
 activate the right venv (or <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">install/wheels/isaacteleop-*.whl</span></code>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">CloudXR</span> <span class="pre">runtime</span> <span class="pre">for</span> <span class="pre">rig</span> <span class="pre">'...'</span></code></p></td>
-<td><p>Preflight could not attach to a runtime or start a service. Check
-what is serving with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr.service</span> <span class="pre">status</span></code>.</p></td>
+<tr class="row-even"><td><p>A worker pane sits idle without running its command</p></td>
+<td><p>The pane is still waiting for the runtime’s <code class="docutils literal notranslate"><span class="pre">runtime_started</span></code>
+sentinel; check the runtime pane. After the (two-minute) wait times
+out, the pane prints a remedy and leaves the command pre-typed.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">[cloudxr]</span> <span class="pre">loading</span> <span class="pre">...</span> <span class="pre">failed</span></code></p></td>
-<td><p>The runtime is serving but its <code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code> could not be sourced;
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">[cloudxr]</span> <span class="pre">runtime</span> <span class="pre">is</span> <span class="pre">up</span> <span class="pre">but</span> <span class="pre">loading</span> <span class="pre">...</span> <span class="pre">failed</span></code></p></td>
+<td><p>The runtime came up but its <code class="docutils literal notranslate"><span class="pre">cloudxr.env</span></code> could not be sourced;
 the pane does not run its command. Check the error printed above
 the message, <code class="docutils literal notranslate"><span class="pre">source</span></code> the file as the message says, then press
 <kbd class="kbd docutils literal notranslate">Enter</kbd> — the command is already pre-typed.</p></td>
 </tr>
-<tr class="row-even"><td><p>A pane sits at <code class="docutils literal notranslate"><span class="pre">waiting</span> <span class="pre">for</span> <span class="pre">a</span> <span class="pre">system...</span></code></p></td>
-<td><p>Normal until a headset connects to the runtime’s URL; the app goes on
-by itself once one does. Nothing times this out, so a pane that never
-moves is usually a device-profile mismatch — check it with
-<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.cloudxr.service</span> <span class="pre">status</span></code>.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">...</span></code> right after launch</p></td>
+<td><p>The app auto-ran before the headset connected (classic:
+<code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">get</span> <span class="pre">OpenXR</span> <span class="pre">system</span></code>); connect the headset to the
+runtime’s URL, then press <kbd class="kbd docutils literal notranslate">Enter</kbd> in the pane — the command is
+already pre-typed at the prompt.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">[rig]</span> <span class="pre">command</span> <span class="pre">exited</span> <span class="pre">with</span> <span class="pre">status</span> <span class="pre">...</span></code> right after launch</p></td>
-<td><p>The command failed on its own account; a late headset is no longer
-such an exit. Read the pane’s output, then press <kbd class="kbd docutils literal notranslate">Enter</kbd> to
-rerun — the command is already pre-typed at the prompt.</p></td>
+<tr class="row-odd"><td><p>Runtime pane dies when a consumer starts</p></td>
+<td><p>The consumer self-launched a second runtime; add
+<code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> to its command in the rig.</p></td>
 </tr>
 <tr class="row-even"><td><p>Edits to the rig file seem ignored</p></td>
-<td><p>The rig was already running; relaunch after
+<td><p>The session already existed; relaunch after
 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">&lt;rig.yaml&gt;</span> <span class="pre">--kill</span></code>.</p></td>
 </tr>
 </tbody>
@@ -703,7 +675,7 @@ rerun — the command is already pre-typed at the prompt.</p></td>
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">CloudXR Service</p>
+        <p class="prev-next-title">Dedicated CloudXR Runtime</p>
       </div>
     </a>
     <a class="right-next"
@@ -738,7 +710,6 @@ rerun — the command is already pre-typed at the prompt.</p></td>
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-a-rig">Run a rig</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-install-prefix">The install prefix</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-rig-yaml">The rig YAML</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
 </ul>
@@ -823,7 +794,7 @@ rerun — the command is already pre-typed at the prompt.</p></td>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 24, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 25, 2026.
       <br/>
     
   </p>

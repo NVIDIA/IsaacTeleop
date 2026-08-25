@@ -42,6 +42,7 @@ Table of Contents
 
    Isaac Teleop <self>
    overview/architecture
+   overview/ecosystem
 
 .. toctree::
    :maxdepth: 2
@@ -67,7 +68,6 @@ Table of Contents
    device/manus
    device/oak
    device/oglo
-   device/wuji_glove
    device/haptikos
 
 .. toctree::
@@ -76,7 +76,6 @@ Table of Contents
 
    references/requirements
    references/build
-   references/generated_trackers
    references/retargeting/index
    references/camera_streaming
    references/mcap_record_replay
