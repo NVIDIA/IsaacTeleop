@@ -8,7 +8,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TypedDict, cast
 
-from constants import SHARPA_HAND_RETARGETERS, HandRetargeter, StrEnum, TeleopMode
+from constants import (
+    SHARPA_HAND_RETARGETERS,
+    HandRetargeter,
+    HandTrackingPlugin,
+    StrEnum,
+    TeleopMode,
+)
 from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
 
 
@@ -53,6 +59,7 @@ class TeleopProfileSpec:
     mode: TeleopMode
     required_result_keys: frozenset[str]
     publish_types: frozenset[PublishType]
+    apply_manus_controller_to_hand_transform: bool = False
 
 
 TELEOP_PROFILE_SPECS = {
@@ -102,6 +109,7 @@ TELEOP_PROFILE_SPECS = {
                 PublishType.ROOT_COMMAND,
             }
         ),
+        apply_manus_controller_to_hand_transform=True,
     ),
     TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE: TeleopProfileSpec(
         mode=TeleopMode.CONTROLLER_TELEOP,
@@ -171,12 +179,17 @@ TELEOP_PROFILE_SPECS = {
 
 
 def resolve_teleop_profile_spec(
-    mode: TeleopMode, resolved_hand_retargeter: HandRetargeter
+    mode: TeleopMode,
+    resolved_hand_retargeter: HandRetargeter,
+    hand_tracking_plugin: HandTrackingPlugin = HandTrackingPlugin.NONE,
 ) -> TeleopProfileSpec:
     """Resolve user-facing settings to one complete immutable runtime profile."""
-    if (
-        mode == TeleopMode.CONTROLLER_TELEOP
-        and resolved_hand_retargeter == HandRetargeter.WUJI
+    if mode == TeleopMode.CONTROLLER_TELEOP and (
+        resolved_hand_retargeter == HandRetargeter.WUJI
+        or (
+            resolved_hand_retargeter in SHARPA_HAND_RETARGETERS
+            and hand_tracking_plugin == HandTrackingPlugin.WUJI
+        )
     ):
         profile = TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE
     elif (

@@ -14,8 +14,8 @@ from constants import (
     TELEOP_MODES,
     WUJI_HAND_JOINT_COUNT,
     HandRetargeter,
+    HandTrackingPlugin,
     TeleopMode,
-    applies_manus_controller_to_hand_transform,
     resolve_hand_retargeter,
 )
 from session_config import validate_joint_name_alias_count
@@ -150,16 +150,26 @@ def test_trihand_is_rejected_for_hand_teleop() -> None:
         resolve_hand_retargeter(TeleopMode.HAND_TELEOP, HandRetargeter.TRIHAND)
 
 
-def test_manus_transform_is_not_applied_to_wuji() -> None:
-    assert applies_manus_controller_to_hand_transform(
+def test_manus_transform_is_resolved_with_controller_ee_profile() -> None:
+    dexpilot_spec = resolve_teleop_profile_spec(
         TeleopMode.CONTROLLER_TELEOP, HandRetargeter.DEXPILOT
     )
-    assert applies_manus_controller_to_hand_transform(
+    pink_ik_spec = resolve_teleop_profile_spec(
         TeleopMode.CONTROLLER_TELEOP, HandRetargeter.PINK_IK
     )
-    assert not applies_manus_controller_to_hand_transform(
+    wuji_spec = resolve_teleop_profile_spec(
         TeleopMode.CONTROLLER_TELEOP, HandRetargeter.WUJI
     )
+    wuji_input_spec = resolve_teleop_profile_spec(
+        TeleopMode.CONTROLLER_TELEOP,
+        HandRetargeter.DEXPILOT,
+        HandTrackingPlugin.WUJI,
+    )
+
+    assert dexpilot_spec.apply_manus_controller_to_hand_transform
+    assert pink_ik_spec.apply_manus_controller_to_hand_transform
+    assert not wuji_spec.apply_manus_controller_to_hand_transform
+    assert not wuji_input_spec.apply_manus_controller_to_hand_transform
 
 
 def test_joint_alias_count_validation() -> None:

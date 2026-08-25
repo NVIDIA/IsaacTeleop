@@ -7,6 +7,7 @@
 # against the distro's own interpreter.
 ARG ROS_DISTRO=jazzy
 ARG PYTHON_VERSION=3.12
+ARG MANUS_ACCEPT_EULA=
 
 # -----------------------------------------------------------------------------
 # Base: common runtime deps + uv + Python (shared by builder and runtime)
@@ -77,6 +78,7 @@ ARG ROS_DISTRO
 ARG PYTHON_VERSION
 ARG BUNDLE_ROBOTIC_GROUNDING=false
 ARG TARGETARCH
+ARG MANUS_ACCEPT_EULA
 
 # Compiler cache. CCACHE_DIR points at a BuildKit cache mount kept on the
 # runner's local BuildKit storage (not the image, not GitHub Actions cache),
@@ -89,12 +91,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ccache \
     clang-format \
     cmake \
+    curl \
     git \
+    libvulkan-dev \
     patchelf \
     pkg-config \
     python3-colcon-common-extensions \
     ros-${ROS_DISTRO}-ament-cmake-auto \
     ros-${ROS_DISTRO}-rosidl-default-generators \
+    sudo \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/isaacteleop
@@ -136,6 +142,26 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
                 -DCMAKE_BUILD_TYPE=Release \
                 -DPython3_EXECUTABLE=/usr/bin/python3" \
     && ccache --show-stats
+
+RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
+    src/plugins/wuji_glove/install.sh --build-dir /opt/isaacteleop/build \
+    && if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
+        src/plugins/manus/install_manus.sh --container \
+            --build-dir /opt/isaacteleop/build; \
+    fi \
+    && ccache --show-stats
+
+RUN set -eu; \
+    wuji_plugin=/opt/isaacteleop/install/plugins/wuji_glove/wuji_glove_plugin; \
+    test -x "$wuji_plugin"; \
+    test -f /opt/isaacteleop/install/plugins/wuji_glove/plugin.yaml; \
+    ldd "$wuji_plugin" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
+    if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
+        manus_plugin=/opt/isaacteleop/install/plugins/manus/manus_hand_plugin; \
+        test -x "$manus_plugin"; \
+        test -f /opt/isaacteleop/install/plugins/manus/plugin.yaml; \
+        ldd "$manus_plugin" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
+    fi
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
