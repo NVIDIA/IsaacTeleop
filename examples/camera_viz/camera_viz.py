@@ -241,14 +241,30 @@ def main(argv: Optional[list[str]] = None) -> int:
         controls_cfg = controls_config_from_yaml(cfg.get("display", {}))
         # Window mode has no controllers, so don't ask for their extensions.
         want_controls = controls_cfg.enabled and effective_mode == "xr"
-        session = display.make_session(
-            cfg,
-            mode_override=args.mode,
-            system_wait_override=args.xr_wait,
-            required_extensions=(
-                ControllerControls.required_extensions() if want_controls else None
-            ),
-        )
+        interrupt_signum = None
+
+        def _interrupt(signum, frame):
+            nonlocal interrupt_signum
+            interrupt_signum = signum
+            raise KeyboardInterrupt
+
+        # Before create(): native HMD wait only sees Ctrl-C if a Python handler is pending.
+        signal.signal(signal.SIGINT, _interrupt)
+        signal.signal(signal.SIGTERM, _interrupt)
+
+        try:
+            session = display.make_session(
+                cfg,
+                mode_override=args.mode,
+                system_wait_override=args.xr_wait,
+                required_extensions=(
+                    ControllerControls.required_extensions() if want_controls else None
+                ),
+            )
+        except KeyboardInterrupt:
+            n = signal.SIGINT if interrupt_signum is None else interrupt_signum
+            print(f"camera_viz: stopping (signal {n})...", flush=True)
+            return 0
         is_xr = session.is_xr_mode()
 
         if source_mode == "local":
