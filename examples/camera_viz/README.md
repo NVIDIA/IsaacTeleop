@@ -130,7 +130,10 @@ cameras:
 display:                      # camera_viz only
   mode: xr | window           # default: xr
   window: { width, height }
-  xr:     { near_z, far_z, system_wait_seconds }   # wait: -1 forever (default), 0 fail fast
+  xr:
+    near_z: 0.05              # default
+    far_z: 100.0              # default
+    system_wait_seconds: -1   # default; wait forever (0 fails fast)
   clear_color: [r, g, b, a]
   placements:
     cam:

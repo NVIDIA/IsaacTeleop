@@ -451,9 +451,9 @@ its own plane (and, in split mode, its own RTP port). Abbreviated:
      mode: xr | window           # default: xr
      window: { width, height }
      xr:
-       near_z:
-       far_z:
-       system_wait_seconds: 180  # default
+       near_z: 0.05              # default
+       far_z: 100.0              # default
+       system_wait_seconds: -1   # default; wait forever (0 fails fast)
      clear_color: [r, g, b, a]
      placements:
        cam:
@@ -476,8 +476,9 @@ Troubleshooting
 - **The XR session fails to create** — check ``~/.cloudxr/logs/cxr_server.*.log`` and
   ``runtime_stderr.log`` for the startup failure. ``XR_ERROR_FORM_FACTOR_UNAVAILABLE``
   (-35) means the runtime is up but no headset has clicked CONNECT yet; XR mode waits
-  ``display.xr.system_wait_seconds`` (default 180; override with
-  ``--xr-wait``) for that. Pass ``--mode window`` to
+  according to ``display.xr.system_wait_seconds`` (default ``-1`` to wait
+  indefinitely; ``0`` fails fast; positive values wait that many seconds;
+  override with ``--xr-wait``). Pass ``--mode window`` to
   render to a desktop window instead (no runtime involved).
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
