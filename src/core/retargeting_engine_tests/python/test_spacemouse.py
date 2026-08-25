@@ -23,6 +23,10 @@ from isaacteleop.retargeters import (
 )
 from isaacteleop.retargeting_engine.deviceio_source_nodes import SpaceMouseSource
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    ComputeContext,
+)
 from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.schema import SpaceMouseOutput, SpaceMouseOutputTrackedT
 
@@ -149,6 +153,36 @@ class TestSpaceMouseEndToEnd:
         assert float(gripper_out["gripper_command"][0]) == pytest.approx(
             1.0
         )  # default open
+
+    def test_gripper_reset_does_not_toggle_while_left_is_held(self):
+        """The left button held across a reset frame is not a rising edge and must not toggle the gripper."""
+        src = _spacemouse_source()
+        retargeter = SpaceMouseGripperRetargeter(name="gripper")
+
+        def step(pressed_buttons, reset=False):
+            src_outputs = _run_source(
+                src, translation=[0.0, 0.0, 0.0], pressed_buttons=pressed_buttons
+            )
+            out = {
+                "gripper_command": _make_output_group(
+                    retargeter.output_spec()["gripper_command"]
+                )
+            }
+            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
+            retargeter.compute(
+                {"spacemouse_buttons": src_outputs["spacemouse_buttons"]}, out, context
+            )
+            return float(out["gripper_command"][0])
+
+        assert step([BUTTON_LEFT]) == pytest.approx(-1.0)  # rising edge -> close
+        # Reset resets the gripper to open, but the left button is still held --
+        # not a new rising edge, so this must not immediately re-close it.
+        assert step([BUTTON_LEFT], reset=True) == pytest.approx(1.0)
+        assert step([BUTTON_LEFT]) == pytest.approx(1.0)  # still held -> stays open
+        assert step([]) == pytest.approx(1.0)  # release
+        assert step([BUTTON_LEFT]) == pytest.approx(
+            -1.0
+        )  # genuine rising edge -> close
 
     def test_buttons_bitmap_covers_indices_outside_gripper_button(self):
         """A button other than the left one shows up in spacemouse_buttons but does not affect the gripper."""

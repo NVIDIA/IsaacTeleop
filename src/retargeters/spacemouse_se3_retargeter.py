@@ -134,18 +134,26 @@ class SpaceMouseGripperRetargeter(BaseRetargeter):
         }
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
-        if context.execution_events.reset:
-            self._closed = False
-            self._prev_left_pressed = False
-
         gripper_out = outputs["gripper_command"]
         buttons_in = inputs["spacemouse_buttons"]
+        left_pressed = (
+            False
+            if buttons_in.is_none
+            else bool(np.asarray(buttons_in[0])[BUTTON_LEFT])
+        )
+
+        if context.execution_events.reset:
+            self._closed = False
+            # Sync to the current button state without toggling -- the left button
+            # may already be held on a reset frame, and that isn't a rising edge.
+            self._prev_left_pressed = left_pressed
+            gripper_out[0] = -1.0 if self._closed else 1.0
+            return
+
         if buttons_in.is_none:
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 
-        bitmap = np.asarray(buttons_in[0])
-        left_pressed = bool(bitmap[BUTTON_LEFT])
         if left_pressed and not self._prev_left_pressed:
             self._closed = not self._closed
         self._prev_left_pressed = left_pressed
