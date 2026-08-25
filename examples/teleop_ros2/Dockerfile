@@ -155,12 +155,14 @@ RUN set -eu; \
     wuji_plugin=/opt/isaacteleop/install/plugins/wuji_glove/wuji_glove_plugin; \
     test -x "$wuji_plugin"; \
     test -f /opt/isaacteleop/install/plugins/wuji_glove/plugin.yaml; \
-    ldd "$wuji_plugin" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
+    ldd_output="$(ldd "$wuji_plugin")"; \
+    printf '%s\n' "$ldd_output" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
     if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
         manus_plugin=/opt/isaacteleop/install/plugins/manus/manus_hand_plugin; \
         test -x "$manus_plugin"; \
         test -f /opt/isaacteleop/install/plugins/manus/plugin.yaml; \
-        ldd "$manus_plugin" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
+        ldd_output="$(ldd "$manus_plugin")"; \
+        printf '%s\n' "$ldd_output" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
     fi
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
