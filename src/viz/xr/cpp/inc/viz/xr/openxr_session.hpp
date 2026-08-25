@@ -56,6 +56,11 @@ public:
                            const std::vector<std::string>& extra_extensions = {},
                            int system_wait_seconds = 0);
 
+    // Optional per-poll callback during wait_for_system. The Python binding
+    // uses it to raise KeyboardInterrupt; C++ callers leave it null.
+    // Returns the previous hook so nested installers can restore it.
+    static void (*set_wait_poll_hook(void (*fn)()))();
+
     ~OpenXrSession();
 
     OpenXrSession(const OpenXrSession&) = delete;
