@@ -56,7 +56,8 @@ GamepadPlugin::GamepadPlugin(const std::string& device_path, const std::string& 
 
 GamepadPlugin::~GamepadPlugin()
 {
-    close_device();
+    if (device_fd_ >= 0)
+        close_device();
 }
 
 void GamepadPlugin::update()
@@ -151,6 +152,9 @@ void GamepadPlugin::close_device()
     // A closed device can no longer report releases -- forget everything it
     // last reported as held so a stale button doesn't stick "pressed" forever.
     pressed_buttons_.clear();
+    // Likewise, a disconnected gamepad must not keep publishing the last-known
+    // stick/trigger deflection as valid motion.
+    axes_.assign(axes_.size(), 0.0F);
 }
 
 void GamepadPlugin::push_current_state()
