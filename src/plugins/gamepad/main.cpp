@@ -34,7 +34,11 @@ std::optional<std::string> discover_gamepad_device_path()
     for (const auto& entry : std::filesystem::directory_iterator(by_path_dir, ec))
     {
         const std::string name = entry.path().filename().string();
-        if (name.ends_with("-joystick"))
+        // "*-event-joystick" (evdev, /dev/input/eventN) also ends with "-joystick" and
+        // would otherwise be picked up alongside "*-joystick" (js API, /dev/input/jsN,
+        // what this plugin's js_event-based reader actually needs) -- exclude it
+        // explicitly rather than relying on suffix matching alone.
+        if (name.ends_with("-joystick") && !name.ends_with("-event-joystick"))
             candidates.push_back(entry.path().string());
     }
     if (candidates.empty())
