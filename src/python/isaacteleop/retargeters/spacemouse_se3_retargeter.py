@@ -146,7 +146,11 @@ class SpaceMouseGripperRetargeter(BaseRetargeter):
             self._closed = False
             # Sync to the current button state without toggling -- the left button
             # may already be held on a reset frame, and that isn't a rising edge.
-            self._prev_left_pressed = left_pressed
+            # Leave _prev_left_pressed alone when the device is inactive this
+            # frame; overwriting it to False would misread a still-held button as
+            # a fresh rising edge once data resumes.
+            if not buttons_in.is_none:
+                self._prev_left_pressed = left_pressed
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 

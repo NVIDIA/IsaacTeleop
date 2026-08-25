@@ -173,6 +173,37 @@ class TestSpaceMouseGripperRetargeter:
             -1.0
         )  # genuine rising edge -> close
 
+    def test_reset_with_inactive_device_preserves_prior_edge_state(self):
+        """A reset frame with no spacemouse data must not clobber _prev_left_pressed."""
+        src = _spacemouse_source()
+        retargeter = SpaceMouseGripperRetargeter(name="gripper")
+
+        def step(translation, pressed_buttons=None, reset=False):
+            src_outputs = _run_source(
+                src, translation=translation, pressed_buttons=pressed_buttons
+            )
+            out = {
+                "gripper_command": _make_output_group(
+                    retargeter.output_spec()["gripper_command"]
+                )
+            }
+            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
+            retargeter.compute(
+                {"spacemouse_buttons": src_outputs["spacemouse_buttons"]}, out, context
+            )
+            return float(out["gripper_command"][0])
+
+        assert step([0.0, 0.0, 0.0], [BUTTON_LEFT]) == pytest.approx(
+            -1.0
+        )  # rising edge -> close
+        # Reset while the device is inactive (spacemouse_buttons.is_none) -- must
+        # not force _prev_left_pressed to False, or the next frame (left button
+        # still held) would be misread as a fresh rising edge.
+        assert step(None, reset=True) == pytest.approx(1.0)  # gripper still resets
+        assert step([0.0, 0.0, 0.0], [BUTTON_LEFT]) == pytest.approx(
+            1.0
+        )  # still held -> no spurious toggle
+
 
 class TestSpaceMouseToSe2Retargeter:
     def test_translation_and_rotation_combine(self):
