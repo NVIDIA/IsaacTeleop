@@ -131,6 +131,19 @@ def _module_exists(root: Path, module: str) -> bool:
     )
 
 
+def _within(root: Path, candidate: Path) -> bool:
+    """Return whether candidate is inside root once symlinks are followed.
+
+    resolve() is what closes the symlink case: a link inside the tree pointing
+    out of it would otherwise read as contained.
+    """
+    try:
+        candidate.resolve().relative_to(root.resolve())
+    except (ValueError, OSError):
+        return False
+    return True
+
+
 def _references(path: Path) -> tuple[set[str], set[str]]:
     """Return (role targets, imported modules) named anywhere in path.
 
@@ -168,6 +181,18 @@ def _check(root: Path, path: Path) -> list[str]:
             if target in KNOWN_BROKEN:
                 continue
             resolved = root / target.rstrip("/")
+            # The role renders as {repo}/blob/{branch}/{target}, so a target that
+            # leaves the work tree cannot resolve on GitHub however real it is on
+            # this machine. Check containment before existence: `root / "/etc/x"`
+            # is "/etc/x" (an absolute right operand discards the left), and
+            # enough `..` walks out too, so both would otherwise pass on a file
+            # that ships a 404.
+            if not _within(root, resolved):
+                problems.append(
+                    f"{rel}:{line}: :code-{kind}: `{target}` resolves outside the "
+                    f"repository; the link it builds cannot resolve on GitHub"
+                )
+                continue
             want_dir = kind == "dir"
             if resolved.is_dir() if want_dir else resolved.is_file():
                 continue
