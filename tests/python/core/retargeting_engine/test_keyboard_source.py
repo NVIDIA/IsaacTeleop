@@ -4,8 +4,8 @@
 """Tests for the KeyboardSource DeviceIO converter.
 
 Exercises the stateless converter from a raw ``KeyboardOutput`` FlatBuffer (constructed via
-the real schema Python bindings) into the fixed 13-key SE3-relevant subset and the 256-entry
-all-keys bitmap, with no OpenXR device involved.
+the real schema Python bindings) into the 256-entry keyboard_all_keys bitmap, with no OpenXR
+device involved.
 """
 
 import numpy as np
@@ -16,9 +16,8 @@ from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.schema import KeyboardOutput
 
 # Evdev key codes (linux/input-event-codes.h), matching keyboard_plugin.cpp / KeyboardSource.
-KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E = 17, 30, 31, 32, 16, 18
-KEY_K = 37  # gripper toggle
-KEY_F1 = 59  # not part of the SE3-relevant subset -- exercises "every key" coverage
+KEY_W = 17
+KEY_F1 = 59  # exercises "every key" coverage, not just the SE2/SE3 bindings
 
 
 def _keyboard_source():
@@ -45,12 +44,11 @@ class TestKeyboardSource:
         assert tracker is not None
         assert tracker.get_name() == "KeyboardTracker"
 
-    def test_movement_key_marks_subset(self):
-        """W held shows up in the fixed 13-key subset and the all-keys bitmap."""
+    def test_movement_key_marks_bitmap(self):
+        """W held shows up in the all-keys bitmap."""
         src = _keyboard_source()
         outputs = _run_source(src, [KEY_W])
 
-        assert not outputs["keyboard"].is_none
         assert not outputs["keyboard_all_keys"].is_none
         bitmap = np.asarray(outputs["keyboard_all_keys"][0])
         assert bitmap[KEY_W] == 1
@@ -58,11 +56,10 @@ class TestKeyboardSource:
     def test_inactive_device_yields_none(self):
         src = _keyboard_source()
         outputs = _run_source(src, None)
-        assert outputs["keyboard"].is_none
         assert outputs["keyboard_all_keys"].is_none
 
     def test_all_keys_bitmap_covers_keys_outside_se3_subset(self):
-        """F1 (not part of the 13-key SE3 subset) shows up in keyboard_all_keys but not keyboard."""
+        """F1 (not bound by any SE2/SE3 retargeter) still shows up in keyboard_all_keys."""
         src = _keyboard_source()
         outputs = _run_source(src, [KEY_F1])
 
