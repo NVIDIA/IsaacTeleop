@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def plugin_search_path() -> Path:
-    """Directory containing every bundled plugin's subdirectory (e.g. ``keyboard/``).
+    """Directory containing every bundled plugin's subdirectory (e.g. ``gamepad/``).
 
     Pass this to :class:`~isaacteleop.teleop_session_manager.PluginConfig.search_paths`.
     """
