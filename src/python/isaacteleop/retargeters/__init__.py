@@ -122,7 +122,7 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "GamepadGripperRetargeter": (
         ".gamepad_se3_retargeter",
         "GamepadGripperRetargeter",
-        None,
+        "retargeters-lite",
     ),
     # .gamepad_se2_retargeter
     "GamepadToSe2Retargeter": (
