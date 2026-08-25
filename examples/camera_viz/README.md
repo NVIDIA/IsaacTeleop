@@ -58,7 +58,12 @@ Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--
 
 Set `source: local`. Swap config for `oakd.yaml`, `zed.yaml`, `realsense.yaml`, `synthetic.yaml`, `synthetic_stereo.yaml`, `synthetic_xr_3up.yaml`, `multi_camera.yaml`, `replay.yaml` (file replay — point `path:` at any recording).
 
-In XR mode, open CloudXR.js on the headset at `https://<host>:48322/client/` (accept the self-signed cert, then CONNECT). When `run` starts the CloudXR service it prints that URL. To inspect or stop an already-running service from the example venv:
+In XR mode, when the CloudXR service hosts the client (default if this `run`
+starts the service), open CloudXR.js on the headset at
+`https://<host>:48322/client/` (accept the self-signed cert, then CONNECT).
+That run prints the URL. If the service was started with `--no-host-client`,
+use the GitHub Pages client URL from `service status` instead. To inspect or
+stop an already-running service from the example venv:
 
 ```bash
 source .venv/bin/activate
