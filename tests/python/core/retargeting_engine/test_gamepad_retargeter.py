@@ -175,6 +175,33 @@ class TestGamepadGripperRetargeter:
         assert step([]) == pytest.approx(1.0)  # release
         assert step([BUTTON_X]) == pytest.approx(-1.0)  # genuine rising edge -> close
 
+    def test_reset_with_inactive_device_preserves_prior_edge_state(self):
+        """A reset frame with no gamepad data must not clobber _prev_x_pressed."""
+        src = _gamepad_source()
+        retargeter = GamepadGripperRetargeter(name="gripper")
+
+        def step(pressed_buttons, reset=False):
+            src_outputs = _run_source(src, pressed_buttons)
+            out = {
+                "gripper_command": _make_output_group(
+                    retargeter.output_spec()["gripper_command"]
+                )
+            }
+            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
+            retargeter.compute(
+                {"gamepad_buttons": src_outputs["gamepad_buttons"]}, out, context
+            )
+            return float(out["gripper_command"][0])
+
+        assert step([BUTTON_X]) == pytest.approx(-1.0)  # rising edge -> close
+        # Reset while the device is inactive (gamepad_buttons.is_none) -- must not
+        # force _prev_x_pressed to False, or the next frame (X still held) would be
+        # misread as a fresh rising edge.
+        assert step(None, reset=True) == pytest.approx(1.0)  # gripper still resets
+        assert step([BUTTON_X]) == pytest.approx(
+            1.0
+        )  # still held -> no spurious toggle
+
     def test_other_button_does_not_affect_gripper(self):
         """A button other than X shows up in gamepad_buttons but does not affect the gripper."""
         src = _gamepad_source()

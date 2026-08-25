@@ -143,8 +143,12 @@ class GamepadGripperRetargeter(BaseRetargeter):
         if context.execution_events.reset:
             self._closed = False
             # Sync to the current button state without toggling -- X may already be
-            # held on a reset frame, and that isn't a rising edge.
-            self._prev_x_pressed = x_pressed
+            # held on a reset frame, and that isn't a rising edge. Leave
+            # _prev_x_pressed alone when the device is inactive this frame;
+            # overwriting it to False would misread a still-held button as a fresh
+            # rising edge once data resumes.
+            if not buttons_in.is_none:
+                self._prev_x_pressed = x_pressed
             gripper_out[0] = -1.0 if self._closed else 1.0
             return
 
