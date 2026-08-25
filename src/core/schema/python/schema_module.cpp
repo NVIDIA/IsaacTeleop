@@ -18,6 +18,7 @@
 #include "pedals_bindings.h"
 #include "pose_bindings.h"
 #include "se3_tracker_bindings.h"
+#include "spacemouse_bindings.h"
 #include "timestamp_bindings.h"
 
 namespace py = pybind11;
@@ -52,6 +53,9 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind SE3 tracker types (Se3TrackerPose table) for generic 6-DoF pose sources.
     core::bind_se3_tracker(m);
+
+    // Bind SpaceMouse types (SpaceMouseOutput table) for raw 3Dconnexion axis/button state.
+    core::bind_spacemouse(m);
 
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);
