@@ -53,20 +53,24 @@ set_target_properties(wuji_glove_plugin PROPERTIES
 
 install(TARGETS wuji_glove_plugin
     RUNTIME DESTINATION plugins/wuji_glove
+    COMPONENT wuji_glove
 )
 
 install(FILES plugin.yaml README.md
     DESTINATION plugins/wuji_glove
+    COMPONENT wuji_glove
 )
 
 install(FILES "${WUJI_SDK_LIB}" "${WUJI_HAND_CPP_LIB}"
     DESTINATION plugins/wuji_glove
+    COMPONENT wuji_glove
 )
 
 # OPTIONAL: a user-provided WUJI_SDK_C_DIR may not ship the LICENSE file.
 get_filename_component(WUJI_SDK_ROOT_DIR "${WUJI_SDK_LIBRARY_DIR}" DIRECTORY)
 install(FILES "${WUJI_SDK_ROOT_DIR}/LICENSE"
     DESTINATION plugins/wuji_glove
+    COMPONENT wuji_glove
     RENAME LICENSE.wuji-sdk-c
     OPTIONAL
 )

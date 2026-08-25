@@ -11,18 +11,40 @@ set -euo pipefail
 
 # --- Arg parsing ---------------------------------------------------------
 VERBOSE=0
+BUILD_DIR=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -v|--verbose) VERBOSE=1; shift ;;
+        --build-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "--build-dir requires a path" >&2
+                exit 1
+            fi
+            BUILD_DIR="$2"
+            if [[ -z "$BUILD_DIR" ]]; then
+                echo "--build-dir requires a non-empty path" >&2
+                exit 1
+            fi
+            shift 2
+            ;;
+        --build-dir=*)
+            BUILD_DIR="${1#*=}"
+            if [[ -z "$BUILD_DIR" ]]; then
+                echo "--build-dir requires a non-empty path" >&2
+                exit 1
+            fi
+            shift
+            ;;
         -h|--help)
             cat <<EOF
-Usage: $(basename "$0") [--verbose]
+Usage: $(basename "$0") [--verbose] [--build-dir <path>]
 
 Installs the MANUS SDK and builds the Manus Teleop plugin.
 
 Options:
-  -v, --verbose   Show full output from apt-get, curl, cmake, etc.
-  -h, --help      Show this help.
+  --build-dir <path>  CMake build directory (default: <isaacteleop-root>/build).
+  -v, --verbose       Show full output from apt-get, curl, cmake, etc.
+  -h, --help          Show this help.
 EOF
             exit 0
             ;;
@@ -44,6 +66,10 @@ MANUS_SDK_SHA256_ACCEPTED=(
 )
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TELEOP_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+BUILD_DIR="${BUILD_DIR:-$TELEOP_ROOT/build}"
+if [[ "$BUILD_DIR" != /* ]]; then
+    BUILD_DIR="$PWD/$BUILD_DIR"
+fi
 
 # --- Output helpers ------------------------------------------------------
 LOG_FILE=$(mktemp -t manus_install.XXXXXX.log)
@@ -214,19 +240,22 @@ done_ok
 # --- 4. Build the plugin ------------------------------------------------
 step "[4/4] Building Manus plugin"
 cd "$TELEOP_ROOT"
-run cmake -S . -B build -DCMAKE_BUILD_TYPE=Release || die "cmake configure failed"
-run cmake --build build --target manus_hand_plugin manus_hand_tracker_printer -j"$(nproc)" \
+run cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DBUILD_PLUGINS=ON \
+    || die "cmake configure failed"
+run cmake --build "$BUILD_DIR" \
+    --target manus_hand_plugin manus_hand_tracker_printer -j"$(nproc)" \
     || die "build failed"
-run cmake --install build --component manus || die "install failed"
+run cmake --install "$BUILD_DIR" --component manus || die "install failed"
 done_ok
 
 # --- Done ---------------------------------------------------------------
+INSTALL_PREFIX="$(awk '/^CMAKE_INSTALL_PREFIX:PATH=/{sub(/^[^=]*=/, ""); print; exit}' "$BUILD_DIR/CMakeCache.txt")"
 cat <<EOF
 
 === Installation Complete ===
   SDK:                $SCRIPT_DIR/ManusSDK
-  Plugin executable:  $TELEOP_ROOT/install/plugins/manus/manus_hand_plugin
-  Printer diagnostic: $TELEOP_ROOT/build/bin/manus_hand_tracker_printer
+  Plugin executable:  $INSTALL_PREFIX/plugins/manus/manus_hand_plugin
+  Printer diagnostic: $BUILD_DIR/bin/manus_hand_tracker_printer
 EOF
 
 if [[ "$CONTAINER" -eq 1 ]]; then

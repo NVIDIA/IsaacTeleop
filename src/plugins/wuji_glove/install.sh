@@ -2,14 +2,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 Wuji Technology. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Build the Wuji glove plugin.
+# Install the Wuji glove plugin.
 #
 # Two steps: (1) fetch the released wuji_sdk C SDK the plugin links against,
-# (2) configure + build the plugin target. The explicit fetch keeps the vendor
-# SDK out of normal builds when this optional plugin is disabled.
+# (2) configure, build, and install the plugin target. The explicit fetch keeps
+# the vendor SDK out of normal builds when this optional plugin is disabled.
 #
 # Usage:
-#   ./install.sh [<isaacteleop-root>]
+#   ./install.sh [--build-dir <path>] [<isaacteleop-root>]
 #
 # Env:
 #   WUJI_SDK_C_DIR      skip the download and use an already-extracted C SDK dir
@@ -31,8 +31,64 @@ declare -A WUJI_SDK_C_SHA256=(
     ["x86_64-linux-gnu"]="5217e51a88c8c9c4055669f8a3f856e5ec2242bc72a0383a5b9d39479e32c0b1"
     ["aarch64-linux-gnu"]="66f1562a7f6f8c3d2cff932f9d86a6e03c24d3557fb57ab3f9f3308e4b49069c"
 )
+
+build_dir=""
+isaac_root=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --build-dir)
+            if [[ $# -lt 2 ]]; then
+                echo "--build-dir requires a path" >&2
+                exit 1
+            fi
+            build_dir="$2"
+            if [[ -z "$build_dir" ]]; then
+                echo "--build-dir requires a non-empty path" >&2
+                exit 1
+            fi
+            shift 2
+            ;;
+        --build-dir=*)
+            build_dir="${1#*=}"
+            if [[ -z "$build_dir" ]]; then
+                echo "--build-dir requires a non-empty path" >&2
+                exit 1
+            fi
+            shift
+            ;;
+        -h | --help)
+            cat <<EOF
+Usage: $(basename "$0") [--build-dir <path>] [<isaacteleop-root>]
+
+Downloads the Wuji C SDK, then builds and installs the glove plugin.
+
+Options:
+  --build-dir <path>  CMake build directory (default: <isaacteleop-root>/build).
+  -h, --help          Show this help.
+EOF
+            exit 0
+            ;;
+        -*)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+        *)
+            if [[ -n "$isaac_root" ]]; then
+                echo "Only one Isaac Teleop root may be specified" >&2
+                exit 1
+            fi
+            isaac_root="$1"
+            shift
+            ;;
+    esac
+done
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ISAAC_ROOT="${1:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+ISAAC_ROOT="${isaac_root:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+BUILD_DIR="${build_dir:-$ISAAC_ROOT/build}"
+if [[ "$BUILD_DIR" != /* ]]; then
+    BUILD_DIR="$PWD/$BUILD_DIR"
+fi
 work=""
 trap '[[ -z "$work" ]] || rm -rf "$work"' EXIT
 
@@ -81,18 +137,21 @@ wuji_hand_cpp_lib="$sdk_dir/lib/libwujihandcpp.so"
     exit 1
 }
 
-# 2. Configure + build the plugin target.
+# 2. Configure, build, and install the plugin target.
 echo "==> Building wuji_glove_plugin"
-cmake -B "$ISAAC_ROOT/build" -S "$ISAAC_ROOT" -DCMAKE_BUILD_TYPE=Release \
+cmake -B "$BUILD_DIR" -S "$ISAAC_ROOT" -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_PLUGINS=ON \
     -DBUILD_PLUGIN_WUJI_GLOVE=ON \
     -DWUJI_SDK_INCLUDE_DIR="$wuji_sdk_include_dir" \
     -DWUJI_SDK_LIB="$wuji_sdk_lib"
-cmake --build "$ISAAC_ROOT/build" --target wuji_glove_plugin --parallel
+cmake --build "$BUILD_DIR" --target wuji_glove_plugin --parallel
 
 # Co-locate the metadata and vendor libraries with the build-tree binary so the
 # $ORIGIN build RPATH resolves them regardless of where the SDK was extracted;
 # `cmake --install` lays them out the same way under plugins/wuji_glove/.
-cp "$SCRIPT_DIR/plugin.yaml" "$ISAAC_ROOT/build/src/plugins/wuji_glove/"
-cp "$wuji_sdk_lib" "$wuji_hand_cpp_lib" "$ISAAC_ROOT/build/src/plugins/wuji_glove/"
+cp "$SCRIPT_DIR/plugin.yaml" "$BUILD_DIR/src/plugins/wuji_glove/"
+cp "$wuji_sdk_lib" "$wuji_hand_cpp_lib" "$BUILD_DIR/src/plugins/wuji_glove/"
+cmake --install "$BUILD_DIR" --component wuji_glove
 
-echo "==> Done: $ISAAC_ROOT/build/src/plugins/wuji_glove/wuji_glove_plugin"
+install_prefix="$(awk '/^CMAKE_INSTALL_PREFIX:PATH=/{sub(/^[^=]*=/, ""); print; exit}' "$BUILD_DIR/CMakeCache.txt")"
+echo "==> Done: $install_prefix/plugins/wuji_glove/wuji_glove_plugin"

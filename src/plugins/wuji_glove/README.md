@@ -16,5 +16,5 @@ troubleshooting — lives in the docs tree:
 Quick start:
 
 ```bash
-./install.sh   # fetches the pinned wuji_sdk C SDK and builds the plugin
+./install.sh   # fetches the pinned wuji_sdk C SDK, then builds and installs the plugin
 ```
