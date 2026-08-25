@@ -125,8 +125,9 @@ control how the headset connects and how the web client is delivered.
      - OOB hub + CDP with client at ``/client/`` on the WSS proxy
        (air-gapped / proxy use).
    * - ``service start --setup-oob --usb-local``
-     - All traffic over USB: adb-reverse + coturn TURN relay + loopback
-       HTTPS. Requires ``coturn`` and a WiFi-associated headset.
+     - All traffic over USB: adb-reverse + coturn TURN relay; serves
+       ``/client/`` on the WSS port via loopback. Requires ``coturn``
+       and a WiFi-associated headset.
 
 ``--usb-local`` requires ``--setup-oob``. See
 :doc:`/references/oob_teleop_control` for full OOB documentation. The OOB hub

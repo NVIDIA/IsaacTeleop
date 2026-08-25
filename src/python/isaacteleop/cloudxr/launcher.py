@@ -45,10 +45,7 @@ _STARTED_SERVICE = """\
   It outlives this script.  Stop it with:
     \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m"""
 
-_STARTED_HOST_CLIENT = (
-    "  web client: \033[36m{url}\033[0m  "
-    "\033[90m(hosted locally — open on your headset or browser)\033[0m"
-)
+_STARTED_HOST_CLIENT_PREFIX = "  web client: "
 
 _ENV_CONFIG_IGNORED = """\
 \033[33m{path} is ignored: the CloudXR runtime already serving this host was \
@@ -290,12 +287,18 @@ class CloudXRLauncher:
             return False
         print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
         if host_client:
-            from .oob_teleop_env import guess_lan_ipv4, wss_proxy_port  # noqa: PLC0415
+            from .oob_teleop_env import (  # noqa: PLC0415
+                guess_lan_ipv4,
+                print_hosted_client_line,
+                wss_proxy_port,
+            )
 
             url = (
                 f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
             )
-            print(_STARTED_HOST_CLIENT.format(url=url), file=sys.stderr)
+            print_hosted_client_line(
+                url, prefix=_STARTED_HOST_CLIENT_PREFIX, file=sys.stderr
+            )
         return True
 
     def _attach(
@@ -340,19 +343,28 @@ class CloudXRLauncher:
     def _warn_host_client_mismatch(self, host_client: bool) -> None:
         """Report when the running service's hosted-client mode differs.
 
-        Recovered from the detached service command line.  Foreground services
-        leave no pid file, so their flags cannot be recovered here and the
-        comparison stays quiet rather than guessing.
+        Recovered from the detached service command line.  ``--host-client``
+        and ``--usb-local`` both serve ``/client/`` on the WSS port, so either
+        counts as hosted.  Foreground services leave no pid file, so their
+        flags cannot be recovered here and the comparison stays quiet rather
+        than guessing.
         """
         if background.read_pid(self._run_dir) is None:
             return
-        running = "--host-client" in background.read_run_flags(self._run_dir)
+        flags = background.read_run_flags(self._run_dir)
+        running = "--host-client" in flags or "--usb-local" in flags
         if running == host_client:
             return
+        if running:
+            running_desc = (
+                "with --usb-local" if "--usb-local" in flags else "with --host-client"
+            )
+        else:
+            running_desc = "without a hosted /client/"
         print(
             _HOST_CLIENT_IGNORED.format(
                 requested="host-client" if host_client else "no-host-client",
-                running="with --host-client" if running else "without --host-client",
+                running=running_desc,
                 stop=self._service_stop_invocation(),
             ).rstrip(),
             file=sys.stderr,
@@ -694,8 +706,8 @@ class CloudXRLauncher:
         Returns :class:`NoopContext` when ``args.launch_cloudxr_runtime`` is
         false so callers can always ``with CloudXRLauncher.launch_context(args):``.
 
-        ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``, and
-        ``host_client`` default to the values registered by
+        ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``,
+        and ``host_client`` default to the values registered by
         :meth:`add_launcher_arguments` (``args.cloudxr_install_dir`` etc.); pass an
         explicit keyword only to override what came in on the command line.
         ``run_embedded`` is forwarded to :class:`CloudXRLauncher`.
