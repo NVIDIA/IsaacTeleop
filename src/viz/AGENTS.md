@@ -200,6 +200,12 @@ the package step globs `viz_*_tests` and the runner loops over them.
   necessary (`VkCommandBuffer`, `VkRenderPass`, `VkImage` for custom
   layer authoring). This is intentional — Vulkan is the contract for
   the extension mechanism.
+- **HMD wait from Python is interruptible.** `VizSession.create` releases
+  the GIL and `OpenXrSession::wait_for_system` calls an optional poll
+  hook; the binding uses it for `PyErr_CheckSignals` and restores the
+  previous hook on exit (nested `create()`). Install Python SIGINT/SIGTERM
+  handlers *before* `create()`, and do not put Python.h into `viz_xr`.
+  C++ callers leave the hook null.
 
 ## Coordinate system
 

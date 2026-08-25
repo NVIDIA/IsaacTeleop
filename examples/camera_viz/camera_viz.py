@@ -465,11 +465,28 @@ def main(argv: Optional[list[str]] = None) -> int:
     launcher = launch_ctx.__enter__()
     stop_launcher = True
     try:
-        session = _make_session(
-            cfg,
-            mode_override=args.mode,
-            system_wait_override=args.xr_wait,
-        )
+
+        interrupt_signum = None
+
+        def _interrupt(signum, frame):
+            nonlocal interrupt_signum
+            interrupt_signum = signum
+            raise KeyboardInterrupt
+
+        # Before create(): native HMD wait only sees Ctrl-C if a Python handler is pending.
+        signal.signal(signal.SIGINT, _interrupt)
+        signal.signal(signal.SIGTERM, _interrupt)
+
+        try:
+            session = _make_session(
+                cfg,
+                mode_override=args.mode,
+                system_wait_override=args.xr_wait,
+            )
+        except KeyboardInterrupt:
+            n = signal.SIGINT if interrupt_signum is None else interrupt_signum
+            print(f"camera_viz: stopping (signal {n})...", flush=True)
+            return 0
         is_xr = session.is_xr_mode()
 
         if source_mode == "local":
