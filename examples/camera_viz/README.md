@@ -131,8 +131,8 @@ display:                      # camera_viz only
   mode: xr | window           # default: xr
   window: { width, height }
   xr:
-    near_z:
-    far_z:
+    near_z: 0.05              # default
+    far_z: 100.0              # default
     system_wait_seconds: 180  # default
   clear_color: [r, g, b, a]
   placements:
