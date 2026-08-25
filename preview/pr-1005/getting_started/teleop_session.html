@@ -457,14 +457,28 @@ manage them directly:</p>
     <span class="n">TeleopSessionConfig</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.deviceio_source_nodes</span><span class="w"> </span><span class="kn">import</span> <span class="n">ControllersSource</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.examples</span><span class="w"> </span><span class="kn">import</span> <span class="n">GripperRetargeter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.interface</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputCombiner</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeters</span><span class="w"> </span><span class="kn">import</span> <span class="n">GripperRetargeter</span><span class="p">,</span> <span class="n">GripperRetargeterConfig</span>
 
-<span class="c1"># Create source and build pipeline</span>
+<span class="c1"># Create source and build pipeline (one GripperRetargeter per side)</span>
 <span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"controllers"</span><span class="p">)</span>
-<span class="n">gripper</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"gripper"</span><span class="p">)</span>
-<span class="n">pipeline</span> <span class="o">=</span> <span class="n">gripper</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
-    <span class="s2">"controller_left"</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"controller_left"</span><span class="p">),</span>
-    <span class="s2">"controller_right"</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"controller_right"</span><span class="p">)</span>
+<span class="n">gripper_left</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span>
+    <span class="n">GripperRetargeterConfig</span><span class="p">(</span><span class="n">hand_side</span><span class="o">=</span><span class="s2">"left"</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"gripper_left"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">connected_left</span> <span class="o">=</span> <span class="n">gripper_left</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
+    <span class="n">ControllersSource</span><span class="o">.</span><span class="n">LEFT</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">LEFT</span><span class="p">),</span>
+<span class="p">})</span>
+<span class="n">gripper_right</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span>
+    <span class="n">GripperRetargeterConfig</span><span class="p">(</span><span class="n">hand_side</span><span class="o">=</span><span class="s2">"right"</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"gripper_right"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">connected_right</span> <span class="o">=</span> <span class="n">gripper_right</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
+    <span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">),</span>
+<span class="p">})</span>
+<span class="n">pipeline</span> <span class="o">=</span> <span class="n">OutputCombiner</span><span class="p">({</span>
+    <span class="s2">"gripper_left"</span><span class="p">:</span> <span class="n">connected_left</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"gripper_command"</span><span class="p">),</span>
+    <span class="s2">"gripper_right"</span><span class="p">:</span> <span class="n">connected_right</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"gripper_command"</span><span class="p">),</span>
 <span class="p">})</span>
 
 <span class="c1"># Configure session</span>
@@ -520,7 +534,7 @@ supplied handles instead of creating its own OpenXR session. The caller is
 responsible for the external session’s lifetime. Construct handles with
 <code class="docutils literal notranslate"><span class="pre">OpenXRSessionHandles(instance,</span> <span class="pre">session,</span> <span class="pre">space,</span> <span class="pre">proc_addr)</span></code> where each
 argument is a <code class="docutils literal notranslate"><span class="pre">uint64</span></code> handle value.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">teleopcore.oxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRSessionHandles</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.oxr</span><span class="w"> </span><span class="kn">import</span> <span class="n">OpenXRSessionHandles</span>
 
 <span class="n">handles</span> <span class="o">=</span> <span class="n">OpenXRSessionHandles</span><span class="p">(</span>
     <span class="n">instance_handle</span><span class="p">,</span> <span class="n">session_handle</span><span class="p">,</span> <span class="n">space_handle</span><span class="p">,</span> <span class="n">proc_addr</span>
@@ -869,8 +883,24 @@ of input sources.</p></li>
 
 <span class="c1"># Setup pipeline</span>
 <span class="n">controllers</span> <span class="o">=</span> <span class="n">ControllersSource</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"controllers"</span><span class="p">)</span>
-<span class="n">gripper</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"gripper"</span><span class="p">)</span>
-<span class="n">pipeline</span> <span class="o">=</span> <span class="n">gripper</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span><span class="o">...</span><span class="p">})</span>
+<span class="n">gripper_left</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span>
+    <span class="n">GripperRetargeterConfig</span><span class="p">(</span><span class="n">hand_side</span><span class="o">=</span><span class="s2">"left"</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"gripper_left"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">connected_left</span> <span class="o">=</span> <span class="n">gripper_left</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
+    <span class="n">ControllersSource</span><span class="o">.</span><span class="n">LEFT</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">LEFT</span><span class="p">),</span>
+<span class="p">})</span>
+<span class="n">gripper_right</span> <span class="o">=</span> <span class="n">GripperRetargeter</span><span class="p">(</span>
+    <span class="n">GripperRetargeterConfig</span><span class="p">(</span><span class="n">hand_side</span><span class="o">=</span><span class="s2">"right"</span><span class="p">),</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"gripper_right"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">connected_right</span> <span class="o">=</span> <span class="n">gripper_right</span><span class="o">.</span><span class="n">connect</span><span class="p">({</span>
+    <span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">:</span> <span class="n">controllers</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="n">ControllersSource</span><span class="o">.</span><span class="n">RIGHT</span><span class="p">),</span>
+<span class="p">})</span>
+<span class="n">pipeline</span> <span class="o">=</span> <span class="n">OutputCombiner</span><span class="p">({</span>
+    <span class="s2">"gripper_left"</span><span class="p">:</span> <span class="n">connected_left</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"gripper_command"</span><span class="p">),</span>
+    <span class="s2">"gripper_right"</span><span class="p">:</span> <span class="n">connected_right</span><span class="o">.</span><span class="n">output</span><span class="p">(</span><span class="s2">"gripper_command"</span><span class="p">),</span>
+<span class="p">})</span>
 
 <span class="c1"># Main loop</span>
 <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
@@ -1100,7 +1130,7 @@ of input sources.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 24, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 25, 2026.
       <br/>
     
   </p>
