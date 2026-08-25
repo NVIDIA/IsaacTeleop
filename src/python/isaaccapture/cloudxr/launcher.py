@@ -222,6 +222,10 @@ class CloudXRLauncher:
             None if started else env_config,
             None if started else host_client,
         )
+        # After attach so wss_proxy_port() sees PROXY_PORT from cloudxr.env,
+        # not a stale caller environment.
+        if started and host_client:
+            self._announce_hosted_client()
 
     def _refuse_beside_live_runtime(self) -> None:
         """Reject ``run_embedded`` where a runtime is already serving.
@@ -286,20 +290,24 @@ class CloudXRLauncher:
             # what this path wanted.  Its configuration is not ours, though.
             return False
         print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
-        if host_client:
-            from .oob_teleop_env import (  # noqa: PLC0415
-                guess_lan_ipv4,
-                print_hosted_client_line,
-                wss_proxy_port,
-            )
-
-            url = (
-                f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
-            )
-            print_hosted_client_line(
-                url, prefix=_STARTED_HOST_CLIENT_PREFIX, file=sys.stderr
-            )
         return True
+
+    def _announce_hosted_client(self) -> None:
+        """Print the hosted ``/client/`` URL using the attached service env.
+
+        Call only after :meth:`_attach` so :func:`wss_proxy_port` reads
+        ``PROXY_PORT`` from the service's ``cloudxr.env``.
+        """
+        from .oob_teleop_env import (  # noqa: PLC0415
+            guess_lan_ipv4,
+            print_hosted_client_line,
+            wss_proxy_port,
+        )
+
+        url = f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
+        print_hosted_client_line(
+            url, prefix=_STARTED_HOST_CLIENT_PREFIX, file=sys.stderr
+        )
 
     def _attach(
         self,
