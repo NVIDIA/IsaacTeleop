@@ -387,6 +387,12 @@ def _load_hand_tracking_plugin(
     if plugin == HandTrackingPlugin.NONE:
         return plugin, search_paths
 
+    if session_mode == SessionMode.REPLAY:
+        node.get_logger().info(
+            f"Ignoring hand_tracking_plugin:={plugin} during MCAP replay."
+        )
+        return plugin, search_paths
+
     consumes_tracked_hands = mode == TeleopMode.HAND_TELEOP or (
         mode == TeleopMode.CONTROLLER_TELEOP
         and resolved_hand_retargeter in TRACKED_HAND_RETARGETERS
@@ -397,12 +403,6 @@ def _load_hand_tracking_plugin(
             f"mode:={mode} with hand_retargeter:={resolved_hand_retargeter} "
             "does not consume OpenXR hand tracking"
         )
-
-    if session_mode == SessionMode.REPLAY:
-        node.get_logger().info(
-            f"Ignoring hand_tracking_plugin:={plugin} during MCAP replay."
-        )
-        return plugin, search_paths
 
     if not any(path.is_dir() for path in search_paths):
         raise FileNotFoundError(
