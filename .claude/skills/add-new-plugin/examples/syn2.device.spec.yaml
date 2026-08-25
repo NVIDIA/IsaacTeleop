@@ -18,6 +18,11 @@
 #   5 finish  : full ctest + format    -> nothing else broke
 # Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
 
+# NOTE: node2 is CURRENT — it carries this device's real [[tracker]] entry from
+# src/core/deviceio_trackers/trackers.toml, so the tracker stack is generated, not hand-written.
+# Still stale: node1 mentions a *Tracked wrapper table. Those were removed upstream (PR #865) —
+# a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -94,32 +99,30 @@ pipeline:
 
   # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
   node2_tracker:
-    does: "Reuse the generic pedal tracker, live impl, and factory row; construct with channel_id syn2."
-    action: reuse
+    does: "Read syn2's data through the pedal tracker — same wire format, different collection."
+    action: reuse                      # NO manifest change: syn2 rides the existing pedal entry
+    manifest:                          # unchanged; shown for reference only
+      name: "generic_3axis_pedal"      # syn2 does NOT get its own [[tracker]] entry
+      table: "Generic3AxisPedalOutput"
     files:
-      - "src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp   # reused tracker interface"
-      - "src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp                # reused live reader"
-      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp                                # existing try_create_generic_pedal_impl dispatch row"
+      - "src/core/deviceio_trackers/trackers.toml   # untouched — syn2 differs only by collection_id"
     symbols:
-      - "core::Generic3AxisPedalTracker ; LiveGeneric3AxisPedalTrackerImpl   # reused front door + worker"
-      - "factory: create_generic_3axis_pedal_tracker_impl + try_create_generic_pedal_impl  # MUST-MATCH: existing row, no new entry"
+      - "Generic3AxisPedalTracker(collection_id='syn2')   # the generated facade, constructed per device"
     verify:
-      creates: []                      # reuse — the tracker's live read under channel_id 'syn2' is covered by the reference e2e in examples/oxr/python/
-      reference_file: null
-      register: "nothing new"
-      run: "confirm the try_create_generic_pedal_impl row exists in live_deviceio_factory.cpp — do NOT add a second row"
+      creates: []
+      reference_file: "src/core/deviceio_trackers/trackers.toml   # the generic_3axis_pedal entry syn2 reuses"
+      register: "nothing — no new tracker type exists"
+      run: "cmake -B build   # nothing to regenerate; the entry did not change"
       can_test_now: yes
       checks:
-        - "the factory dispatch row is present (grep try_create_generic_pedal_impl)"
-        - "the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+        - "no new [[tracker]] entry was added — a clone reuses the tracker and varies collection_id only"
+        - "the source node is constructed with collection_id 'syn2', matching the plugin"
 
-  # ---------- node3: bindings — expose the format and tracker to Python ----------
   node3_bindings:
     does: "Reuse the existing pedal schema and tracker Python bindings."
     action: reuse
     files:
       - "src/core/schema/python/  (Generic3AxisPedalOutput bindings)              # reused schema bindings"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp  (Generic3AxisPedalTracker binding)   # reused tracker binding"
     symbols: ["isaacteleop.schema.Generic3AxisPedalOutput / Generic3AxisPedalOutputTrackedT ; isaacteleop.deviceio.Generic3AxisPedalTracker   # the reused Python names"]
     verify:
       creates: []                      # reuse — the import block of tests/python/core/schema/test_pedals.py already proves the schema bindings

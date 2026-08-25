@@ -19,6 +19,11 @@
 # REUSE pointer and its verify is "covered by an existing test". The real work
 # is the FEEDBACK block: sim contact -> rumble — and even that ships tested.
 
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
 status: ready
 
 device:

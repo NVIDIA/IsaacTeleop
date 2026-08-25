@@ -39,6 +39,11 @@ Each node in the spec carries `does / action / files / symbols / verify`.
 
 - `action: reuse` — confirm it exists and is covered by tests; never edit it.
 - `action: create` — write the code, write the test, run the check.
+- `action: configure` — fill in a value somewhere that already exists (node 2's manifest entry).
+
+**The nodes are not equal.** Node 0 (the plugin) is most of the work; nodes 4–6 are the rest.
+Node 2 is *four lines of TOML* and node 3 is four small files — if you find yourself writing a
+tracker `.cpp`, stop and re-read *Tracker manifest* in Part B.
 
 See `../examples/device.spec.template.yaml` — each node carries its own `files` and `symbols`.
 
@@ -46,8 +51,8 @@ See `../examples/device.spec.template.yaml` — each node carries its own `files
 |---|---|
 | **0** acquire | The plugin folder is the deliverable: vendor code is copied or reimplemented into it, never referenced from an external checkout. Prefer no second process, but if the spec records a vendor app as required, build against it and fail with a clear message when it is absent. For inject: see **Inject implementation** in Part B. |
 | **1** schema | A new schema needs `.fbs` + pybind binding header + registration in `schema_module.cpp`. After adding a `.fbs`, cmake must **reconfigure**, not just rebuild, to regenerate the C++ headers. |
-| **2** tracker | Add a row to **both** `live_deviceio_factory.cpp` and `replay_deviceio_factory.cpp`. A missing row links silently and fails at runtime: `unsupported tracker type`. Prove it by building the tracker **through the factory** in a test, not just as a standalone link. |
-| **3** bindings | The import line is the test: `from isaacteleop.schema import <Name>Output` must pass. |
+| **2** tracker | **Schema-based device: you write no C++.** Add a `[[tracker]]` entry to `src/core/deviceio_trackers/trackers.toml` — see *Tracker manifest* in Part B. Everything else (facade, live/replay impls, factory rows, pybind, Python exports) is generated. Only non-schema devices — OpenXR `xrLocate*`, opaque message channels, multi-endpoint haptic readers — are still hand-written. |
+| **3** bindings | Schema pybind is hand-written: `<stem>_bindings.h` + an `#include` and a `bind_<stem>(m)` call in `schema_module.cpp`. The **tracker** binding and the `isaacteleop.deviceio_trackers` export are generated — a manifest entry needs no Python edit. The import line is the test: `from isaacteleop.schema import <Name>Output` must pass. |
 | **4** source | Must be reachable from an `OutputCombiner` output, or it is silently ignored. |
 | **5** boundary | Usually **reuse** — an existing tensor shape in `standard_types.py`. Create one only when nothing matches. |
 | **6** robot step | Usually **reuse** — existing retargeters already consume the standard shapes. |
@@ -58,28 +63,57 @@ See `../examples/device.spec.template.yaml` — each node carries its own `files
 mandatory** — see *Why e2e must actually run* in Part B.
 
 ```bash
-# already up? readiness is BOTH markers — not cloudxr.env, which appears too early
-[ -f ~/.cloudxr/run/runtime_started ] && [ -S ~/.cloudxr/run/ipc_cloudxr ] || {
-  NV_DEVICE_PROFILE=Quest3 nohup python -u -m isaacteleop.cloudxr --accept-eula >/tmp/cxr.log 2>&1 &
-  for _ in $(seq 1 120); do
-    [ -f ~/.cloudxr/run/runtime_started ] && [ -S ~/.cloudxr/run/ipc_cloudxr ] && break
-    sleep 0.5
-  done
-}
-set -a; . ~/.cloudxr/run/cloudxr.env; set +a     # your script needs this env
+# status exits non-zero when nothing is serving, so it gates directly
+python -m isaacteleop.cloudxr.service status \
+  || NV_DEVICE_PROFILE=Quest3 python -m isaacteleop.cloudxr.service start --accept-eula
+source ~/.cloudxr/run/cloudxr.env               # your script needs this env
 ```
 
-Headless: `NV_DEVICE_PROFILE=Quest3` substitutes a device profile for a real headset, so no
-headset is needed. It comes up in a couple of seconds.
+`start` is detached and refuses to clobber a live session; `stop` tears it down.
+`NV_DEVICE_PROFILE=Quest3` makes it headless — no headset needed, up in about two seconds.
 
-On Isaac Teleop 1.5+ there is a service CLI that does this in one line
-(`python -m isaacteleop.cloudxr.service status || ... start --accept-eula`). Try it; if it fails
-with `No module named ...service` you are on an older build and the block above is correct.
+On an older build (`No module named ...service`), poll the two markers instead — see
+`../troubleshoot.md`, which also covers why an empty `~/.cloudxr` does **not** mean CloudXR is
+absent.
 
-**An empty `~/.cloudxr` does not mean CloudXR is missing** — the runtime ships in the wheel and is
-copied there on first launch. See `../troubleshoot.md`.
+### Two scripts, in this order
 
-Then run `python <the script named in whole_pipeline.verify.creates>` and fix until it passes.
+**1. `examples/oxr/python/live_<device>.py` — stream and print.** Launch the plugin, poll the
+tracker, print one line per frame. No assertions. Run it and *read the numbers*: is the value in
+the range the spec's golden claims? Does it move when the device moves? Does it settle?
+
+**2. `examples/oxr/python/test_<device>.py` — assert.** Now write the checks, against the signal
+you just watched.
+
+Writing assertions before you have seen the signal is guessing, and guessing is what produces a
+test that fails against a working pipeline. The `live_` script costs a few minutes and is also
+what a user runs later to confirm their hardware works — put its command in the plugin README.
+
+Reference: `test_synthetic_hands.py` for the launch-and-print shape (133 ln, print-only);
+`test_controller_tracker.py` for the assert shape — of the 13 files in `examples/oxr/python`, it
+is one of only three that check anything.
+
+**Run them from the build tree while iterating** — `cmake --install` on every edit is a slow loop:
+
+```bash
+source ~/.cloudxr/run/cloudxr.env
+PYTHONPATH=build/python_package/Release python examples/oxr/python/live_<device>.py
+PYTHONPATH=build/python_package/Release python examples/oxr/python/test_<device>.py
+```
+
+Once it passes, confirm the shipped form works too — that is the command a user gets, and the one
+the spec's `run:` field records:
+
+```bash
+cmake --install build
+cd install/examples/oxr/python && uv run test_<device>.py
+```
+
+`uv run` only works from the **install** tree: `install_python_example()` appends a `[tool.uv]`
+block to the installed copy pinning the wheel this build produced. In-tree, `uv` would go looking
+for `isaacteleop` on PyPI and fail.
+
+Fix until `test_` passes.
 
 ### Writing the assertions
 
@@ -132,6 +166,7 @@ controllers and full body live — use it to confirm data is flowing before runn
 ## Step 3 — Finish
 
 ```bash
+cmake -B build               # configure first — regenerates trackers from the manifest
 cmake --build build          # whole repo, no target — not just your plugin
 ctest --output-on-failure    # full suite, no -R; report the N/N count
 ```
@@ -143,24 +178,34 @@ Git hooks and DCO sign-off are a contributor step, not part of this build — do
 
 ## Step 4 — Installation README
 
-Write `src/plugins/<device>/README.md` covering two things only.
+Write `src/plugins/<device>/README.md`. **Aim for under 40 lines.**
+`src/plugins/generic_3axis_pedal/README.md` does the whole job in 23 — read it before writing yours.
 
-**Installation** — unboxed device to running plugin:
-- Physical setup (cable, USB ID, pairing if wireless)
-- Any driver, udev rule, or vendor application required — including whether it must already be
-  running before the plugin starts
-- Build flag to enable the plugin (e.g. `-DBUILD_PLUGINS=ON`)
-- One command to confirm the OS sees the device (`lsusb`, `ls /dev/input/`, or equivalent)
+Three sections, one code block each:
 
-**Testing** — one code block per script or test that exists:
-- ctest entries for this device (`ctest -R <device_name>`)
-- The plugin binary invocation with its arguments
-- The e2e script, if one exists
-- What a passing result looks like — one line of expected output
+**What it is** — one sentence: what it reads, what it pushes, which tracker consumes it.
 
-Rules: document only commands that actually exist, no placeholders. One read should take a new
-developer from unboxed device to first data. Keep it short; link to
-`IsaacTeleop/docs/source/device/add_device.rst` for background.
+**Install** — one block covering physical setup (cable, USB ID, pairing), any udev rule, driver or
+vendor application required (say whether it must already be running), the build flag, and one
+command to confirm the OS sees the device (`lsusb`, `ls /dev/input/`).
+
+**Run** — one block with the plugin invocation and its arguments, then
+`live_<device>.py`, then `ctest -R <device>`. Give **one** line of real expected output, for
+`live_` — that is the "is it working?" check. Not one per script.
+
+Rules:
+
+- Only commands that actually exist. No placeholders, and no output you did not see.
+- **If a line would only matter to someone modifying the plugin rather than using it, it belongs
+  in the spec or the report, not here.** That rules out pipeline wiring, node tables, and schema
+  internals.
+- A calibration step gets a pointer to the subcommand, not a walkthrough — unless the device
+  produces no usable data until it is calibrated.
+- Link to `IsaacTeleop/docs/source/device/add_device.rst` for background rather than restating it.
+
+A device with a real vendor-daemon dependency or a calibration ritual will need more than 40 lines
+— `oak` and `controller_synthetic_hands` are both over 200 upstream. The target is a default, not
+a limit.
 
 ## Step 5 — Report
 
@@ -176,7 +221,7 @@ Five stages, each catching what the previous one cannot see:
 
 | # | Stage | Proves |
 |---|---|---|
-| 1 | build | compiles, links, is registered |
+| 1 | configure → build | the manifest resolves and the tree compiles, links, is registered |
 | 2 | unit | the logic is right (schema, source, math) — no hardware |
 | 3 | runtime | data actually flows |
 | 4 | e2e | the values are right, end to end |
@@ -204,7 +249,8 @@ flaky e2e test — one that passes for its author and fails on replay.
 |---|---|---|
 | Plugin folder not registered | build target not found | stage 1 |
 | `.cpp` missing from CMakeLists | undefined reference | stage 1 |
-| Missing factory row | `unsupported tracker type` at runtime | stage 2 factory test |
+| Stale codegen (edited `trackers.toml`, only rebuilt) | old tracker behaviour, no error | re-run cmake configure |
+| Missing factory row *(hand-written trackers only)* | `unsupported tracker type` at runtime | stage 2 factory test |
 | Broken Python binding | ImportError | stage 2 import line |
 | Wrong `channel_id` | zero data, no error | stage 3 negative test |
 | Wrong decode / math | wrong values | stage 2 goldens / stage 4 |
@@ -225,6 +271,59 @@ do not exist:
 
 Both die on the first execution and are invisible to `ctest`. Running the script once is the
 cheapest check in this skill.
+
+## Tracker manifest
+
+A **schema-based** device — the plugin serializes a FlatBuffer table and the host reads it through
+`SchemaTracker`/`SchemaPusher`, with no `xrLocate*` calls and no custom connection state — does not
+get a hand-written tracker. Add an entry to `src/core/deviceio_trackers/trackers.toml`:
+
+```toml
+[[tracker]]
+name = "<device>"                  # everything below defaults from this
+table = "<Name>Output"             # the .fbs table from node 1
+max_flatbuffer_size = 512          # only if the default 512 is too small
+```
+
+`defaults.toml` expands the rest: `class = %name_CamelCase%Tracker`, `channel = %name%`,
+`schema_name = core.%table%Record`, `python_accessor = get_data`, `direction = pull`. Override only
+a genuine exception — `se3_tracker` sets `class`, `pedals` sets `schema` and `channel`,
+`oglo_tactile` sets `channel = "oglo"` and `python_accessor = "get_glove_data"`. Use
+`direction = "push"` when Teleop pushes a table *to* the plugin.
+
+Reconfigure — **not just rebuild**. `cmake/GenerateTrackers.cmake` runs
+`src/core/codegen/generate_trackers.py`, which emits into `${CMAKE_BINARY_DIR}/generated/trackers/`:
+
+```
+deviceio_base/<header>_base.hpp             the I<Class>Impl interface
+deviceio_trackers/<header>.{hpp,cpp}        the ITracker facade
+live_trackers/live_<header>_impl.{hpp,cpp}  wraps SchemaTracker / SchemaPusher
+replay_trackers/replay_<header>_impl.{hpp,cpp}
+```
+
+plus `.inc` fragments that the live and replay factories, `recording_traits.hpp`, and
+`tracker_bindings.cpp` already `#include`, and a `_generated_tracker_exports.py` that
+`isaacteleop.deviceio_trackers.__init__` star-imports. **So a manifest entry needs no factory edit
+and no Python edit.**
+
+**The failure mode is staleness, not a missing row.** Generation happens at *configure* time
+because CMake needs the source list up front, so editing `trackers.toml` and running only
+`cmake --build` silently uses the previous output. Re-run configure. To see what the defaults
+expanded to before building:
+
+```bash
+python src/core/codegen/generate_trackers.py \
+  --manifest src/core/deviceio_trackers/trackers.toml \
+  --defaults src/core/deviceio_trackers/defaults.toml \
+  --out-dir /tmp/t --emit-cmake /tmp/t.cmake --print-resolved
+```
+
+**Still hand-written**, per `docs/source/references/generated_trackers.rst`: `HeadTracker`,
+`HandTracker`, `ControllerTracker` (real `xrLocate*`), `FullBodyTracker` (native
+`XR_BD_body_tracking`), `MessageChannelTracker` (opaque channel with its own state machine),
+`HapticCommandReaderTracker` (buckets multiple endpoints on one collection), `TensorPushTracker`
+(the untyped escape hatch). Tell the groups apart by whether the live impl mentions
+`SchemaTracker`/`SchemaPusher`.
 
 ## Inject implementation
 

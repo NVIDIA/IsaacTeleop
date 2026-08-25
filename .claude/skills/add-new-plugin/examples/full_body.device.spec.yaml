@@ -20,6 +20,11 @@
 # channel_id. All nodes REUSE — their verify blocks are short: confirm the
 # symbol exists or point at the existing test that already covers it.
 
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -105,8 +110,6 @@ pipeline:
     action: reuse
     files:
       - "src/core/schema/python/full_body_bindings.h   # pybind code for the format types"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for the tracker class"
-      - "src/python/isaacteleop/deviceio_trackers/__init__.py   # exports the tracker name"
     symbols:
       - "core::bind_full_body ; FullBodyPosePicoT / FullBodyPosePicoTrackedT ; deviceio.FullBodyTrackerPico   # the Python-visible names"
     verify:

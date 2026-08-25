@@ -52,7 +52,7 @@ for _ in $(seq 1 120); do
   [ -f ~/.cloudxr/run/runtime_started ] && [ -S ~/.cloudxr/run/ipc_cloudxr ] && break
   sleep 0.5
 done
-set -a; . ~/.cloudxr/run/cloudxr.env; set +a
+source ~/.cloudxr/run/cloudxr.env
 ```
 
 From Python: `wait_for_runtime_ready_sync()` polls the same sentinel, and
@@ -93,7 +93,7 @@ anything.
 
 **`Environment variable NV_CXR_RUNTIME_DIR is not set`**
 A plugin was started without the CloudXR env.
-→ `set -a; . ~/.cloudxr/run/cloudxr.env; set +a` first. For a non-pushing subcommand (e.g.
+→ `source ~/.cloudxr/run/cloudxr.env` first. For a non-pushing subcommand (e.g.
 `calibrate`), `ISAAC_TELEOP_DISABLE_CXR_ENV_CHECKS` skips the check.
 
 **`Failed to get OpenXR system: -35 (XR_ERROR_FORM_FACTOR_UNAVAILABLE)`**

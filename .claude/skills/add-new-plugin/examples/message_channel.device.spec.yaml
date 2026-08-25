@@ -25,6 +25,11 @@
 # negative runtime test keys on the UUID.
 # =============================================================================
 
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -108,7 +113,6 @@ pipeline:
     does: "Python builds the tracker from a 16-byte UUID and calls get_messages / send_message / get_status; schema types importable."
     action: reuse
     files:
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for MessageChannelTracker"
       - "src/core/schema/python/message_channel_bindings.h (bind_message_channel)   # pybind for the format types"
     symbols:
       - "isaacteleop.deviceio.MessageChannelTracker ; isaacteleop.schema.MessageChannelMessages / MessageChannelMessagesTrackedT   # the Python names test scripts poll and build"

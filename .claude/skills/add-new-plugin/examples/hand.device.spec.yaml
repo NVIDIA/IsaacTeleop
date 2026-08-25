@@ -19,6 +19,11 @@
 # For a NATIVE device every node is reuse and already tested, so stages 1-2 are
 # "confirm the existing test covers it" and the real proof is stages 3-4.
 
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -111,7 +116,6 @@ pipeline:
     action: reuse
     files:
       - "src/core/schema/python/hand_bindings.h                        # pybind code for the hand format types"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp        # pybind for HandTracker"
       - "src/python/isaacteleop/schema/__init__.py                         # exports the schema names to Python"
       - "src/python/isaacteleop/deviceio/__init__.py                              # exports the tracker name to Python"
     symbols:

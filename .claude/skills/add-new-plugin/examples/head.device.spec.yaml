@@ -20,6 +20,11 @@
 # proof is the end-to-end run, because the head pose comes from the runtime
 # (OpenXR view space), not from any file.
 
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -107,7 +112,6 @@ pipeline:
     action: reuse
     files:
       - "src/core/schema/python/head_bindings.h , schema_module.cpp   # pybind code for the format types + the bind call"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for the tracker class"
     symbols:
       - "HeadPoseT / HeadPoseTrackedT ; HeadTracker.get_head(session)   # the Python names test scripts poll"
     verify:

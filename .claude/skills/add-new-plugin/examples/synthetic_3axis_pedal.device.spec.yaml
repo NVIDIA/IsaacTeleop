@@ -24,6 +24,11 @@
 # # MUST-MATCH = a value that must be exactly right, with no error if it is wrong
 #                (no data arrives, or the wrong file is recorded). Get these right.
 
+# NOTE: benchmark fixture, not an upstream device — there is no synthetic_3axis_pedal entry in
+# trackers.toml and no synthetic .fbs. Read it for the SHAPE of a filled spec only. Two details are
+# stale against upstream: schema-based trackers are now a [[tracker]] manifest entry (PR #853), and
+# *Tracked wrapper tables were removed (PR #865).
+
 status: ready
 
 device:
@@ -131,7 +136,6 @@ pipeline:
     action: create
     files:
       - "src/core/schema/python/pedals_synthetic_bindings.h + schema_module.cpp + schema_init.py   # pybind code for the format; MUST add BOTH the include and the bind call, and the names to the import block AND __all__ (+ header to CMakeLists sources)"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp + deviceio_trackers_init.py ; src/python/isaacteleop/deviceio/__init__.py   # pybind for the tracker class + export the tracker name"
     symbols:
       - "bind_pedals_synthetic -> Synthetic3AxisPedalOutput, Synthetic3AxisPedalOutputRecord, Synthetic3AxisPedalOutputTrackedT (Tracked keeps trailing T)   # the registration call — include without call = types silently absent"
       - "isaacteleop.deviceio.Synthetic3AxisPedalTracker ; get_pedal_data   # what test scripts poll at stage 3"

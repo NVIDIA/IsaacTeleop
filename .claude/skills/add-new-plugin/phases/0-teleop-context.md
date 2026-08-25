@@ -35,8 +35,10 @@ injects data into CloudXR. No dependency on the main teleop stack. Reference:
 **Schema** — FlatBuffers IDL in `src/core/schema/fbs/`. Check existing schemas before
 creating a new one: `hand.fbs`, `joint_state.fbs`, `pedals.fbs`, `controller.fbs`, etc.
 
-**Tracker** — C++ API handle. Live impl reads from OpenXR/plugin; replay impl reads MCAP.
-Both factories (`live_deviceio_factory.cpp`, `replay_deviceio_factory.cpp`) need a dispatch row.
+**Tracker** — C++ API handle. Live impl reads from OpenXR/plugin; replay impl reads MCAP. For a
+schema-based device the whole stack is **generated** from a `[[tracker]]` entry in
+`src/core/deviceio_trackers/trackers.toml`; only OpenXR and special-transport trackers are still
+hand-written. See `src/core/codegen/AGENTS.md`.
 
 **Source** — stateless Python converter (`IDeviceIOSource`). Must be reachable from an
 `OutputCombiner` output or it is silently ignored.
@@ -44,16 +46,20 @@ Both factories (`live_deviceio_factory.cpp`, `replay_deviceio_factory.cpp`) need
 
 ## Files to read before adding a device
 
-1. `IsaacTeleop/AGENTS.md` — preflight: CMake rules, DCO sign-off, pre-commit
-2. `IsaacTeleop/src/core/AGENTS.md` — source-node discovery footgun; async notes
-3. `IsaacTeleop/cmake/cmake-structure.md` — include layout, target naming
-4. `IsaacTeleop/docs/source/device/add_device.rst` — official 4-step walkthrough
-5. `src/core/schema/fbs/<closest>.fbs` — schema template
-6. `src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp` — tracker template
-7. `src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.{hpp,cpp}` — live impl pattern
-8. `src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/hands_source.py` — source node pattern
-9. `src/core/live_trackers/cpp/live_deviceio_factory.cpp` — dispatch table to extend
-10. `src/python/isaacteleop/retargeters/SO101/gripper_retargeter.py` — simple retargeter example
+1. `AGENTS.md` — preflight: CMake rules, DCO sign-off, pre-commit. Read every `AGENTS.md` on
+   your paths, not just the root one (there are 12).
+2. `src/core/AGENTS.md` — source-node discovery footgun; async notes
+3. `cmake/cmake-structure.md` — include layout, target naming
+4. `docs/source/device/add_device.rst` — the official walkthrough, four steps
+5. `docs/source/references/generated_trackers.rst` — what the tracker generator covers and what
+   stays hand-written
+6. `src/core/deviceio_trackers/trackers.toml` + `defaults.toml` — the tracker manifest and how
+   its defaults expand
+7. `src/core/schema/fbs/<closest>.fbs` — schema template; `oglo_tactile.fbs` is the newest device
+8. `src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/hands_source.py` — source node
+   pattern
+9. `src/python/isaacteleop/retargeters/SO101/gripper_retargeter.py` — simple retargeter example
+10. `src/plugins/oglo_tactile/` — a complete recent plugin, end to end
 
 ## Live visualization (useful for stage 3 verification)
 

@@ -23,6 +23,11 @@
 # source node, no boundary shape, and no retargeter: the metadata never reaches
 # a robot step. direction is input, but the point is capture, not driving a robot.
 
+# NOTE: node2 is CURRENT — it carries this device's real [[tracker]] entry from
+# src/core/deviceio_trackers/trackers.toml, so the tracker stack is generated, not hand-written.
+# Still stale: node1 mentions a *Tracked wrapper table. Those were removed upstream (PR #865) —
+# a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -99,34 +104,38 @@ pipeline:
 
   # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
   node2_tracker:
-    does: "Multi-stream tracker: one SchemaTracker per stream, reads pushed metadata back in C++ and records it. Exists — reuse."
-    action: reuse
+    does: "Read the OAK per-frame metadata in C++ and register it so the system can find it."
+    action: reuse                      # the frame_metadata_oak manifest entry already exists
+    manifest:                          # src/core/deviceio_trackers/trackers.toml, verbatim —
+                                       # the most-overridden entry in the repo; read it before copying
+      name: "frame_metadata_oak"
+      table: "FrameMetadataOak"
+      class: "FrameMetadataTrackerOak"     # override: name_CamelCase would give FrameMetadataOakTracker
+      schema: "oak"                        # override: the .fbs is oak.fbs
+      tensor_identifier: "frame_metadata"  # override: the collection the plugin pushes under
+      channel: "oak"                       # override: MCAP channel name
+      header: "frame_metadata_tracker_oak" # override: keeps the public #include stem
+      max_flatbuffer_size: 128             # metadata only — the video never enters the graph
     files:
-      - "src/core/deviceio_base/cpp/inc/deviceio_base/frame_metadata_tracker_oak_base.hpp   # the interface the live reader implements"
-      - "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp   # the front door programs talk to (declaration)"
-      - "src/core/deviceio_trackers/cpp/frame_metadata_tracker_oak.cpp                       # the front door (implementation)"
-      - "src/core/live_trackers/cpp/live_frame_metadata_tracker_oak_impl.cpp/.hpp            # the live reader: one SchemaTracker per stream"
-      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp   # registered here — the dispatch row that wires tracker -> reader"
+      - "src/core/deviceio_trackers/trackers.toml   # the entry is already here; nothing to add"
     symbols:
-      - "core::FrameMetadataTrackerOak ; core::LiveFrameMetadataTrackerOakImpl   # public front door + live worker"
-      - "factory: create_frame_metadata_tracker_oak_impl + try_create_oak_impl ; k_tracker_dispatch row (FrameMetadataTrackerOak)  # MUST-MATCH: missing row = 'unsupported tracker type' at runtime"
+      - "FrameMetadataTrackerOak   # generated facade — note class/header are overridden"
+      - "generated: base iface, facade, live + replay impls, factory rows, pybind, Python export"
     verify:
-      creates: []                      # reuse — the live read + recording are covered by examples/oxr/python/test_oak_camera.py (stage 3/4)
-      reference_file: "examples/oxr/python/test_oak_camera.py   # already exercises FrameMetadataTrackerOak (schema-pusher mode) + MCAP recording"
-      register: "nothing new"
-      run: "confirm the symbols exist: grep try_create_oak_impl src/core/live_trackers/cpp/live_deviceio_factory.cpp"
-      can_test_now: yes                # the grep/link check; the live read itself is stage 3 (whole_pipeline)
+      creates: []
+      reference_file: "src/core/deviceio_trackers/trackers.toml   # read the existing entry"
+      register: "nothing — the .inc fragments are already included by the factories"
+      run: "cmake -B build && python -c 'from isaacteleop.deviceio_trackers import FrameMetadataTrackerOak'"
+      can_test_now: yes
       checks:
-        - "the k_tracker_dispatch row for FrameMetadataTrackerOak is present — missing = 'unsupported tracker type' at runtime, zero compile error"
-        - "OakRecordingTraits schema name equals shared_names.recorded_format_name (core.FrameMetadataOakRecord)"
+        - "the entry exists; five overrides are deliberate — do not 'simplify' them"
+        - "generate_trackers.py --print-resolved shows the expanded names if one comes out wrong"
 
-  # ---------- node3: bindings — expose the format and tracker to Python ----------
   node3_bindings:
     does: "Python access to the OAK schema and tracker. Exists — reuse."
     action: reuse
     files:
       - "src/core/schema/python/oak_bindings.h                    # pybind code for StreamType + FrameMetadataOak types"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for FrameMetadataTrackerOak"
     symbols:
       - "Python StreamType, FrameMetadataOak ; core::FrameMetadataTrackerOak (stream_count, get_stream_data)   # what Python scripts poll at stage 3"
     verify:

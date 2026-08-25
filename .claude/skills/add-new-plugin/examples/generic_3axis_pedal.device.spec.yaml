@@ -19,6 +19,11 @@
 #   5 finish  : full ctest + format    -> nothing else broke
 # Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
 
+# NOTE: node2 is CURRENT — it carries this device's real [[tracker]] entry from
+# src/core/deviceio_trackers/trackers.toml, so the tracker stack is generated, not hand-written.
+# Still stale: node1 mentions a *Tracked wrapper table. Those were removed upstream (PR #865) —
+# a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -96,32 +101,36 @@ pipeline:
 
   # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
   node2_tracker:
-    does: "Tracker already exists — reads the pushed pedal channel in C++, is registered in the factory, and records to MCAP."
-    action: reuse
+    does: "Read the pedal data in C++ and register it so the system can find it."
+    action: reuse                      # the manifest entry already exists — do not add a second one
+    manifest:                          # src/core/deviceio_trackers/trackers.toml, verbatim
+      name: "generic_3axis_pedal"
+      table: "Generic3AxisPedalOutput"
+      schema: "pedals"                 # override: the .fbs is pedals.fbs, not generic_3axis_pedal.fbs
+      channel: "pedals"                # override: follows the schema name
+      traits: "PedalRecordingTraits"   # override: historical traits name
+      max_flatbuffer_size: 256
+      python_accessor: "get_pedal_data"
     files:
-      - "src/core/deviceio_base/cpp/inc/deviceio_base/generic_3axis_pedal_tracker_base.hpp   # the interface the live reader implements"
-      - "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp   # the public front door"
-      - "src/core/live_trackers/cpp/live_generic_3axis_pedal_tracker_impl.cpp / .hpp   # the live reader"
-      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp  # factory row already present — MUST-MATCH dispatch"
+      - "src/core/deviceio_trackers/trackers.toml   # the entry is already here; nothing to add"
     symbols:
-      - "class core::Generic3AxisPedalTracker (TRACKER_NAME = \"Generic3AxisPedalTracker\")   # the front door; holds the collection_id"
-      - "core::LiveGeneric3AxisPedalTrackerImpl ; LiveDeviceIOFactory::create_generic_3axis_pedal_tracker_impl + try_create_generic_pedal_impl  # MUST-MATCH factory row"
+      - "Generic3AxisPedalTracker   # generated facade — from class = %name_CamelCase%Tracker"
+      - "generated: base iface, facade, live + replay impls, factory rows, pybind, Python export"
     verify:
-      creates: []                      # reuse — no device-specific tracker test exists; the recording pattern lives in tests/cpp/core/mcap/test_mcap_tracker_channels.cpp
-      reference_file: null
-      register: "nothing"
-      run: "confirm try_create_generic_pedal_impl is still wired in live_deviceio_factory.cpp — missing = 'unsupported tracker type' AT RUNTIME, zero compile error"
+      creates: []                      # reuse — the generated stack is covered by the generator's tests
+      reference_file: "src/core/deviceio_trackers/trackers.toml   # read the existing entry"
+      register: "nothing — the .inc fragments are already included by the factories"
+      run: "cmake -B build && python -c 'from isaacteleop.deviceio_trackers import Generic3AxisPedalTracker'"
       can_test_now: yes
       checks:
-        - "the factory row exists; the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+        - "the entry exists in trackers.toml; adding a duplicate breaks the build"
+        - "generated/trackers/generic_3axis_pedal_tracker.* appears after configure"
 
-  # ---------- node3: bindings — expose the format and tracker to Python ----------
   node3_bindings:
     does: "Python bindings already exist for the pedal schema and the Generic3AxisPedalTracker."
     action: reuse
     files:
       - "src/core/schema/python/... (pedals bindings)   # pybind code for the pedal format types"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp   # pybind for the tracker class"
     symbols: ["isaacteleop.schema.Generic3AxisPedalOutput / Generic3AxisPedalOutputTrackedT ; isaacteleop.deviceio.Generic3AxisPedalTracker   # the Python names test scripts poll"]
     verify:
       creates: []                      # already tested by tests/python/core/schema/test_pedals.py — its import block IS the check

@@ -21,6 +21,11 @@
 #   5 finish  : full ctest + format    -> nothing else broke
 # Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
 
+# NOTE: node2 is CURRENT — it carries this device's real [[tracker]] entry from
+# src/core/deviceio_trackers/trackers.toml, so the tracker stack is generated, not hand-written.
+# Still stale: node1 mentions a *Tracked wrapper table. Those were removed upstream (PR #865) —
+# a schema is Output + Record + root_type only.
+
 status: ready
 
 device:
@@ -98,33 +103,32 @@ pipeline:
 
   # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
   node2_tracker:
-    does: "Reuse JointStateTracker, keyed on the collection_id, already registered in the live factory."
-    action: reuse
+    does: "Read the leader arm's joint state in C++ and register it so the system can find it."
+    action: reuse                      # the joint_state manifest entry already exists
+    manifest:                          # src/core/deviceio_trackers/trackers.toml, verbatim
+      name: "joint_state"
+      table: "JointStateOutput"
+      max_flatbuffer_size: 4096        # override: six named DOFs with optional velocity/effort
     files:
-      - "src/core/deviceio_base/cpp/inc/deviceio_base/joint_state_tracker_base.hpp   # the reused tracker interface"
-      - "src/core/deviceio_trackers/cpp/joint_state_tracker.cpp                      # the reused public front door"
-      - "src/core/live_trackers/cpp/live_joint_state_tracker_impl.cpp / .hpp         # the reused live reader"
-      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp  # MUST-MATCH: dispatch row already present — do not add a second one"
+      - "src/core/deviceio_trackers/trackers.toml   # the entry is already here; nothing to add"
     symbols:
-      - "class JointStateTracker ; LiveJointStateTrackerImpl   # the reused tracker pair"
-      - "factory: create_joint_state_tracker_impl + try_create_joint_state_impl  # MUST-MATCH: row already registered in live_deviceio_factory.cpp"
+      - "JointStateTracker   # generated facade; constructed with this device's collection_id"
+      - "generated: base iface, facade, live + replay impls, factory rows, pybind, Python export"
     verify:
-      creates: []                      # reuse — the tracker and its factory row ship with the joint-space path
-      reference_file: null
-      register: "nothing"
-      run: "confirm try_create_joint_state_impl exists in src/core/live_trackers/cpp/live_deviceio_factory.cpp (grep, ~line 92); the live read is stage 3"
+      creates: []
+      reference_file: "src/core/deviceio_trackers/trackers.toml   # read the existing entry"
+      register: "nothing — the .inc fragments are already included by the factories"
+      run: "cmake -B build && python -c 'from isaacteleop.deviceio_trackers import JointStateTracker'"
       can_test_now: yes
       checks:
-        - "the factory row is present — a missing row is 'unsupported tracker type' AT RUNTIME, zero compile error"
-        - "the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+        - "the entry exists; a joint-space device reuses it rather than adding a new one"
+        - "max_flatbuffer_size 4096 covers this device's joint count — raise it only if a payload overflows"
 
-  # ---------- node3: bindings — expose the format and tracker to Python ----------
   node3_bindings:
     does: "Reuse the existing Python bindings for the joint-state schema and tracker."
     action: reuse
     files:
       - "src/core/schema/python/... (JointStateOutput / JointStateOutputTrackedT)   # reused schema bindings, already wired"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp (isaacteleop.deviceio.JointStateTracker)   # reused tracker binding"
     symbols:
       - "isaacteleop.schema.JointStateOutputTrackedT ; isaacteleop.deviceio.JointStateTracker   # the Python names stage-3 scripts poll"
     verify:

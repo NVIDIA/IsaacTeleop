@@ -127,7 +127,6 @@ pipeline:
       - "src/core/schema/fbs/<stem>.fbs   # the format definition; the C++ header is generated from it automatically"
     symbols:
       - "table <Name>Output          # the fields: name, type, fixed slot number"
-      - "table <Name>OutputTracked   # wrapper; its data is empty when nothing has arrived"
       - "table <Name>OutputRecord    # wrapper + timestamp, used when recording to file"
     verify:
       creates:
@@ -145,31 +144,36 @@ pipeline:
   # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
   node2_tracker:
     does: "Receiving side: read the data in C++, register it so the system can find it, optionally record to file."
-    action: create
+    action: configure                  # schema-based devices: a manifest entry, not hand-written C++
+    manifest:                          # goes verbatim into src/core/deviceio_trackers/trackers.toml
+      name: "<name>"                   # REQUIRED
+      table: "<Name>Output"            # REQUIRED — the .fbs table from node1
+      direction: pull                  # pull = device -> teleop ; push = teleop -> device
+      # Overrides ONLY where the convention genuinely does not hold. Every default expands from
+      # name/table in defaults.toml (class, schema, channel, schema_name, traits, header,
+      # tensor_identifier, python_accessor, max_flatbuffer_size=512). Real examples:
+      #   se3_tracker         class = "Se3Tracker"
+      #   generic_3axis_pedal schema = "pedals"   (its .fbs is pedals.fbs, not <name>.fbs)
+      #   frame_metadata_oak  header = "frame_metadata_tracker_oak"   (keeps the public include stem)
+      #   oglo_tactile        channel = "oglo", python_accessor = "get_glove_data"
+      # A CLONE of an existing device adds NO entry — it reuses the tracker with its own channel_id.
     files:
-      - "src/core/deviceio_base/cpp/inc/deviceio_base/<name>_tracker_base.hpp   # the interface the live reader implements"
-      - "src/core/deviceio_trackers/cpp/<name>_tracker.cpp / .hpp               # the front door programs talk to (+ add to its CMakeLists)"
-      - "src/core/live_trackers/cpp/live_<name>_impl.cpp / .hpp                 # the live reader (+ add to its CMakeLists source list)"
-      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp / .hpp            # MUST-MATCH: the dispatch row that wires tracker -> reader"
+      - "src/core/deviceio_trackers/trackers.toml   # ONE [[tracker]] entry — the whole node for a schema-based device"
     symbols:
-      - "class <Name>Tracker             # the public front door; holds the channel_id"
-      - "Live<Name>TrackerImpl           # the worker that reads; give its aliases UNIQUE names or the link clashes"
-      - "try_create_<name>_impl + create_<name>_tracker_impl   # the factory row — missing = 'unsupported tracker type' AT RUNTIME, zero compile error"
-      - "<Name>RecordingTraits           # MUST-MATCH: make a NEW one; its format name = shared_names.recorded_format_name"
+      - "[[tracker]] name=<name> table=<Name>Output  # defaults.toml expands class/channel/schema_name/python_accessor"
+      - "generated: <Name>Tracker facade, Live/Replay impls, factory rows, pybind, Python exports"
     verify:
-      creates:
-        - "tests/cpp/core/live_trackers (or similar)/test_<name>_factory.cpp   # build the tracker THROUGH the factory and assert the impl type — the one check a successful link cannot do"
-        - "tests/cpp/core/mcap/test_<name>_recording.cpp                   # write records to a temp .mcap, read back: values + format name match (only if recording)"
-      reference_file: "tests/cpp/core/mcap/test_mcap_tracker_channels.cpp   # the recording pattern; the factory test is written from checks"
-      register: "hand-add each .cpp to its test target's CMakeLists list"
-      run: "ctest -R '<name>_(factory|recording)' --output-on-failure"
-      can_test_now: needs a test file   # factory + recording halves run WITHOUT CloudXR; the live read is end-to-end only
+      creates: []                      # generated code is covered by the generator's own tests
+      reference_file: "src/core/deviceio_trackers/trackers.toml   # copy the closest entry; oglo_tactile shows channel + python_accessor overrides"
+      register: "nothing to register — the generated .inc fragments are already included by the factories"
+      run: "cmake -B build   # RECONFIGURE, not just build: codegen runs at configure time"
+      can_test_now: yes
       checks:
-        - "factory: create through LiveDeviceIOFactory -> a Live<Name>TrackerImpl comes back; an unknown tracker -> a clear error"
-        - "recording: write 0.8/0.2/-0.5 -> read back the same; the saved format name equals recorded_format_name"
-        - "the LIVE read (none -> values -> keeps last) is stage 3 (whole_pipeline)"
+        - "cmake configure emits generated/trackers/<name>_tracker.* — if not, the manifest entry is malformed"
+        - "python -c 'from isaacteleop.deviceio_trackers import <Name>Tracker' imports — the export is generated"
+        - "--print-resolved shows the expanded defaults if a name or channel comes out wrong"
+      note: "NOT for OpenXR xrLocate* devices, opaque message channels, or multi-endpoint haptic readers — those stay hand-written (facade + live/replay impl + factory row). See docs/source/references/generated_trackers.rst."
 
-  # ---------- node3: bindings — expose the format and tracker to Python ----------
   node3_bindings:
     does: "Let Python read/write the format and use the tracker."
     action: create
@@ -178,11 +182,9 @@ pipeline:
       - "src/core/schema/python/schema_module.cpp                       # MUST add BOTH the include and the bind call"
       - "src/python/isaacteleop/schema/__init__.py                          # MUST add the names to the import block AND __all__"
       - "src/core/schema/python/CMakeLists.txt                          # add the bindings header to the module sources"
-      - "src/core/deviceio_trackers/python/tracker_bindings.cpp         # pybind for the tracker class"
-      - "src/python/isaacteleop/deviceio_trackers/__init__.py    # export the tracker name"
     symbols:
       - "bind_<stem>()               # the registration call — include without call = types silently absent"
-      - "<Name>Output / <Name>OutputRecord / <Name>OutputTrackedT   # the Python names; Tracked keeps a trailing T"
+      - "<Name>Output / <Name>OutputRecord   # the Python names; T-suffixed types were removed upstream"
       - "<Name>Tracker (Python) with get_<x>_data()                 # what test scripts poll at stage 3"
     verify:
       creates: []                    # no new test file — the IMPORT LINE in node1's test_<stem>.py IS the check:
@@ -207,14 +209,14 @@ pipeline:
       - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/__init__.py        # export the new source"
     symbols:
       - "class <Name>Source          # holds the tracker (get_tracker); constructed with channel_id  # MUST-MATCH"
-      - "reads <Name>OutputTrackedT -> produces <Shape>Input   # wire type in, standard shape out"
+      - "reads the Serialized<<Name>Output> handle the tracker returns -> produces <Shape>Input"
     verify:
       creates:
         - "tests/python/core/retargeting_engine/test_<name>_source.py   # decode + empty-handling test"
       reference_file: "tests/python/core/retargeting_engine/test_sources.py   # the _make_inputs / compute() pattern"
       register: "auto — the retargeting test dir globs test_*.py into ctest"
       run: "ctest -R retargeting_test_<name>_source --output-on-failure"
-      can_test_now: yes              # inject a hand-built TrackedT and call compute() — bypasses tracker and CloudXR entirely
+      can_test_now: yes              # build a payload by hand and call compute() — bypasses tracker and CloudXR entirely
       checks:
         - "(0.8, -0.2, 0.5) in -> left/right/rudder = 0.8/-0.2/0.5 out (small float rounding allowed)"
         - "empty data in -> output marked 'none'; reading a field of it raises an error saying 'absent'"
@@ -296,10 +298,11 @@ whole_pipeline:
   test_input: "a fake device driven by your own simulator script, or the real hardware"
   verify:
     creates:
+      - "examples/oxr/python/live_<name>.py   # stream + print one line per frame; NO asserts — run this first and read the numbers"
       - "examples/oxr/python/test_<name>.py   # launches the plugin, polls the tracker, asserts data + values"
-    reference_file: "examples/oxr/python/test_synthetic_hands.py   # the pattern, smallest form (133 ln): PluginManager launch -> DeviceIOSession.run -> poll loop. Same shape for push/inject/native — only the tracker changes. test_oak_camera.py if your device is a camera; test_controller_tracker.py if native. Resolve the plugin dir RELATIVE to the script, never hardcoded."
+    reference_file: "examples/oxr/python/test_synthetic_hands.py for the live_ script (PluginManager launch -> DeviceIOSession.run -> poll loop -> print; 133 ln, print-only) and examples/oxr/python/test_controller_tracker.py for the test_ script (the one example that actually asserts). test_oak_camera.py if your device is a camera. Resolve the plugin dir RELATIVE to the script, never hardcoded."
     register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
-    run: "source ~/.cloudxr/run/cloudxr.env && cd install/examples/oxr/python && uv run test_<name>.py"
+    run: "iterate: source ~/.cloudxr/run/cloudxr.env ; PYTHONPATH=build/python_package/Release python examples/oxr/python/live_<name>.py ; then test_<name>.py | shipped: cmake --install build ; cd install/examples/oxr/python ; uv run test_<name>.py"
     can_test_now: only end-to-end
     checks:
       # --- stage 3: runtime — does data flow? ---

@@ -48,8 +48,8 @@ Otherwise sum `usage` over assistant records and price with the model's public r
 |---|---|---|---|
 | 1 | build | `cmake --build build` | ✅ / ⚠️ |
 | 2 | unit  | `ctest -R <device>` | ✅ N/N |
-| 3 | runtime | plugin + tracker poll | ⚠️ not run — <why> |
-| 4 | e2e | device → source → robot | ⚠️ not run — <why> |
+| 3 | runtime | `python examples/oxr/python/live_<device>.py` | ⚠️ not run — <why> |
+| 4 | e2e | `python examples/oxr/python/test_<device>.py` | ⚠️ not run — <why> |
 | 5 | finish | `cmake --build build` · `ctest --output-on-failure` | ✅ N/N |
 
 ## Files — with symbols

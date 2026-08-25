@@ -211,12 +211,14 @@ See **Plugin boundary** in Part B. Two questions to ask:
 4. Derive each node's `files` and `symbols` from the **template's** entries, substituting this
    device's name. Never carry another device's paths through — the copied example's values are
    placeholders.
-5. Fill `verify.checks` with the user's golden values. Record each as **value + tolerance + how
+5. **Fill node2's `manifest:` block** — see *Tracker manifest* in Part B. Phase 2 pastes it into
+   `trackers.toml` verbatim, so leaving placeholders there means Phase 2 has to guess.
+6. Fill `verify.checks` with the user's golden values. Record each as **value + tolerance + how
    long it stays observable** — e.g. *"brake reaches 1.0 at the top of each 2 s sweep, held ~10 ms,
    tolerance 1e-3"*, never a bare `brake == 1.0`. A golden written as an instant becomes a
    single-frame equality check in Phase 2, which fails against a working pipeline. Exact equality
    is only for discrete state: status bits, integer counts, `is None`.
-6. Leave `delivery_report`, `whole_pipeline.finish`, and every `verify` pass/fail STATUS empty —
+7. Leave `delivery_report`, `whole_pipeline.finish`, and every `verify` pass/fail STATUS empty —
    those belong to Phase 2.
 
 ## Step 6 — Review and hand off
@@ -285,17 +287,25 @@ x/y/z/w won't interoperate with anything downstream.
 
 ### The wrapper convention
 
-Every device schema is four declarations, not one:
+Every device schema is three declarations, not one:
 
 ```
 table <Name>Output          # the data itself
-table <Name>OutputTracked   # { data }             — tracker API; data is null when inactive
 table <Name>OutputRecord    # { data, timestamp }  — what MCAP stores
 root_type <Name>OutputRecord
 ```
 
-A new `.fbs` defining only `<Name>Output` compiles, then fails at the tracker and recording
-layers. Copy all four from the file you cloned.
+A new `.fbs` defining only `<Name>Output` compiles, then fails at the recording layer. Copy all
+three from the file you cloned — `oglo_tactile.fbs` is the newest example.
+
+**There is no `<Name>OutputTracked`.** Those wrappers were removed upstream; the tracker API now
+returns a `Serialized<T>` handle that is empty when the device is inactive, so the wrapper table
+is redundant. One schema still declares one — `message_channel`, a hand-written tracker codegen
+does not cover. Do not copy it.
+
+A third table is fine when it is a **sub-schema**, not a wrapper: `joint_state.fbs` declares
+`JointState` (one named DOF) and uses it as `joints: [JointState]` inside `JointStateOutput`.
+That is composition, the same as `Pose` in `pose.fbs`.
 
 ### Out-of-graph data
 
@@ -330,6 +340,52 @@ a scalar per joint means angles. If it doesn't:
 **Fork 2 (only if Fork 1 landed on `hand.fbs`).** Inject — reusing the entire hand stack — is
 the default. A custom SchemaIO pipeline is justified only when the data must travel as its own
 named format.
+
+## Tracker manifest
+
+Node 2 is a manifest entry, not C++. Decide it here; Phase 2 pastes it into
+`src/core/deviceio_trackers/trackers.toml`.
+
+**Do you need an entry at all?** An entry defines a tracker **type**, keyed by its `.fbs` table.
+`collection_id` distinguishes **instances** — the generated facade takes it as a constructor
+argument, so one entry serves every device sharing that table.
+
+- Device reuses an existing table → **no entry.** `action: reuse`, name the one it rides.
+  `syn2` rides `generic_3axis_pedal`. A second entry for the same table is a duplicate
+  definition and fails the build.
+- Device needs a new table → **one entry**, `name` + `table`.
+
+The spec's `shared_names.channel_id` *is* that `collection_id`. The identical string must appear
+in the plugin's pusher, the tracker construction, and the source node — wrong string means the
+tracker stays inactive forever, with no error. It is the #1 silent failure in this pipeline.
+
+**Manifest or hand-written?** Does the live impl need `xrLocate*`, a custom connection state
+machine, or multi-endpoint bucketing? **No → manifest**, which is nearly every device. Yes → the
+hand-written path: `head`, `hand`, `controller`, `full_body`, `message_channel`,
+`HapticCommandReaderTracker`, `TensorPushTracker`, and nothing else.
+
+**Direction.** `pull` = device → teleop (default). `push` = teleop → device, generating a typed
+`<Table>PushTracker` instead of a reader facade.
+
+**Overrides** — only where the convention genuinely does not hold. `name` and `table` are the only
+required keys; the rest expand from them.
+
+| Override | When | Real example |
+|---|---|---|
+| `schema` | the `.fbs` is not named after the device | `generic_3axis_pedal` → `pedals` |
+| `class` | `%name_CamelCase%Tracker` reads wrong | `se3_tracker` → `Se3Tracker` |
+| `header` | the public `#include` stem must not change | `frame_metadata_oak` |
+| `channel`, `python_accessor` | MCAP channel or Python method needs another name | `oglo_tactile` → `oglo`, `get_glove_data` |
+| `max_flatbuffer_size` | one sample exceeds 512 bytes | `joint_state` → 4096 |
+
+```yaml
+node2_tracker:
+  action: configure          # or reuse, when riding an existing entry
+  manifest:
+    name: "<device>"
+    table: "<Name>Output"
+    direction: pull
+```
 
 ## Plugin boundary
 
