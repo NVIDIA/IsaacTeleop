@@ -10,7 +10,10 @@ Maps raw keyboard press state to a base velocity command (v_x, v_y, omega_z).
 import numpy as np
 from dataclasses import dataclass
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardAllKeysType
+from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+    EvdevKeyCode,
+    KeyboardAllKeysType,
+)
 from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
@@ -21,11 +24,6 @@ from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     OptionalType,
 )
 from isaacteleop.retargeting_engine.tensor_types import NDArrayType, DLDataType
-
-# Evdev key codes (linux/input-event-codes.h) matching Isaac Lab's Se2Keyboard bindings.
-KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 103, 108, 105, 106
-KEY_Z, KEY_X = 44, 45
-KEY_KP7, KEY_KP8, KEY_KP9, KEY_KP4, KEY_KP6, KEY_KP2 = 71, 72, 73, 75, 77, 80
 
 
 @dataclass
@@ -86,11 +84,35 @@ class KeyboardToSe2Retargeter(BaseRetargeter):
         omega_z_sens = self._config.omega_z_sensitivity
 
         velocity = np.zeros(3)
-        velocity[0] += v_x_sens if (bitmap[KEY_KP8] or bitmap[KEY_UP]) else 0.0
-        velocity[0] -= v_x_sens if (bitmap[KEY_KP2] or bitmap[KEY_DOWN]) else 0.0
-        velocity[1] += v_y_sens if (bitmap[KEY_KP4] or bitmap[KEY_LEFT]) else 0.0
-        velocity[1] -= v_y_sens if (bitmap[KEY_KP6] or bitmap[KEY_RIGHT]) else 0.0
-        velocity[2] += omega_z_sens if (bitmap[KEY_KP7] or bitmap[KEY_Z]) else 0.0
-        velocity[2] -= omega_z_sens if (bitmap[KEY_KP9] or bitmap[KEY_X]) else 0.0
+        velocity[0] += (
+            v_x_sens
+            if (bitmap[EvdevKeyCode.KEY_KP8] or bitmap[EvdevKeyCode.KEY_UP])
+            else 0.0
+        )
+        velocity[0] -= (
+            v_x_sens
+            if (bitmap[EvdevKeyCode.KEY_KP2] or bitmap[EvdevKeyCode.KEY_DOWN])
+            else 0.0
+        )
+        velocity[1] += (
+            v_y_sens
+            if (bitmap[EvdevKeyCode.KEY_KP4] or bitmap[EvdevKeyCode.KEY_LEFT])
+            else 0.0
+        )
+        velocity[1] -= (
+            v_y_sens
+            if (bitmap[EvdevKeyCode.KEY_KP6] or bitmap[EvdevKeyCode.KEY_RIGHT])
+            else 0.0
+        )
+        velocity[2] += (
+            omega_z_sens
+            if (bitmap[EvdevKeyCode.KEY_KP7] or bitmap[EvdevKeyCode.KEY_Z])
+            else 0.0
+        )
+        velocity[2] -= (
+            omega_z_sens
+            if (bitmap[EvdevKeyCode.KEY_KP9] or bitmap[EvdevKeyCode.KEY_X])
+            else 0.0
+        )
 
         base_command[0] = velocity.astype(np.float32)

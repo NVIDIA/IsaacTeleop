@@ -33,7 +33,7 @@ from isaacteleop.schema import KeyboardOutput, KeyboardOutputTrackedT
 # Evdev key codes (linux/input-event-codes.h), matching keyboard_plugin.cpp / KeyboardSource.
 KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E = 17, 30, 31, 32, 16, 18
 KEY_K = 37  # gripper toggle
-KEY_F1 = 59  # not part of the SE3-relevant subset -- exercises "every key" coverage
+KEY_F1 = 59  # not bound by any SE2/SE3 retargeter -- exercises "every key" coverage
 KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 103, 108, 105, 106
 KEY_KP8, KEY_KP9 = 72, 73
 
@@ -69,13 +69,13 @@ class TestKeyboardEndToEnd:
         """W held -> KeyboardSource -> KeyboardToSe3RelRetargeter -> +X delta."""
         src = _keyboard_source()
         src_outputs = _run_source(src, [KEY_W])
-        assert not src_outputs["keyboard"].is_none
+        assert not src_outputs["keyboard_all_keys"].is_none
 
         retargeter = KeyboardToSe3RelRetargeter(
             KeyboardToSe3RelRetargeterConfig(), name="se3"
         )
         out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
-        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
 
         delta = np.asarray(out["ee_delta"][0])
         assert delta[0] == pytest.approx(0.4)  # default pos_sensitivity
@@ -90,7 +90,7 @@ class TestKeyboardEndToEnd:
             KeyboardToSe3RelRetargeterConfig(), name="se3"
         )
         out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
-        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
 
         delta = np.asarray(out["ee_delta"][0])
         assert delta[0] == pytest.approx(0.4)  # W: +X
@@ -110,7 +110,9 @@ class TestKeyboardEndToEnd:
                     retargeter.output_spec()["gripper_command"]
                 )
             }
-            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+            retargeter.compute(
+                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out
+            )
             return float(out["gripper_command"][0])
 
         assert step([]) == pytest.approx(1.0)  # open (default)
@@ -134,7 +136,9 @@ class TestKeyboardEndToEnd:
                 )
             }
             context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
-            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out, context)
+            retargeter.compute(
+                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out, context
+            )
             return float(out["gripper_command"][0])
 
         assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
@@ -158,7 +162,9 @@ class TestKeyboardEndToEnd:
                 )
             }
             context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
-            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out, context)
+            retargeter.compute(
+                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out, context
+            )
             return float(out["gripper_command"][0])
 
         assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
@@ -172,12 +178,11 @@ class TestKeyboardEndToEnd:
         """No sample yet (tracker/plugin not streaming) -> zero delta, no gripper state change."""
         src = _keyboard_source()
         src_outputs = _run_source(src, None)
-        assert src_outputs["keyboard"].is_none
         assert src_outputs["keyboard_all_keys"].is_none
 
         se3 = KeyboardToSe3RelRetargeter(KeyboardToSe3RelRetargeterConfig(), name="se3")
         se3_out = {"ee_delta": _make_output_group(se3.output_spec()["ee_delta"])}
-        se3.compute({"keyboard": src_outputs["keyboard"]}, se3_out)
+        se3.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, se3_out)
         assert np.allclose(np.asarray(se3_out["ee_delta"][0]), 0.0)
 
         gripper = KeyboardGripperRetargeter(name="gripper")
@@ -186,13 +191,15 @@ class TestKeyboardEndToEnd:
                 gripper.output_spec()["gripper_command"]
             )
         }
-        gripper.compute({"keyboard": src_outputs["keyboard"]}, gripper_out)
+        gripper.compute(
+            {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, gripper_out
+        )
         assert float(gripper_out["gripper_command"][0]) == pytest.approx(
             1.0
         )  # default open
 
     def test_all_keys_bitmap_covers_keys_outside_se3_subset(self):
-        """F1 (not part of the 13-key SE3 subset) shows up in keyboard_all_keys but not ee_delta."""
+        """F1 (not bound by KeyboardToSe3RelRetargeter) shows up in keyboard_all_keys but not ee_delta."""
         src = _keyboard_source()
         src_outputs = _run_source(src, [KEY_F1])
 
@@ -204,7 +211,7 @@ class TestKeyboardEndToEnd:
             KeyboardToSe3RelRetargeterConfig(), name="se3"
         )
         out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
-        retargeter.compute({"keyboard": src_outputs["keyboard"]}, out)
+        retargeter.compute({"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out)
         assert np.allclose(
             np.asarray(out["ee_delta"][0]), 0.0
         )  # F1 is not a motion key
