@@ -334,6 +334,47 @@ def test_run_adb_headset_bookmark_offline_returns_clean_diag(
 # Reverse-setup wraps subprocess errors as OobAdbError --------------------------
 
 
+def test_build_teleop_url_usb_local_uses_proxy_client_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """USB-local bookmark origin is /client on PROXY_PORT, not a separate UI port."""
+    from cloudxr_py_test_ns.oob_teleop_adb import build_teleop_url
+    from cloudxr_py_test_ns.oob_teleop_env import WSS_PROXY_DEFAULT_PORT
+
+    monkeypatch.delenv("TELEOP_WEB_CLIENT_BASE", raising=False)
+    monkeypatch.delenv("PROXY_PORT", raising=False)
+    url = build_teleop_url(resolved_port=WSS_PROXY_DEFAULT_PORT, usb_local=True)
+    assert f"https://localhost:{WSS_PROXY_DEFAULT_PORT}/client" in url
+    assert "8080" not in url
+    assert "serverIP=127.0.0.1" in url
+    assert f"port={WSS_PROXY_DEFAULT_PORT}" in url
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+def test_setup_adb_reverse_ports_omits_ui_port(
+    mock_run: MagicMock, _mock_state: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """adb reverse covers WSS + backend only (no separate USB UI port)."""
+    from cloudxr_py_test_ns.oob_teleop_adb import setup_adb_reverse_ports
+    from cloudxr_py_test_ns.oob_teleop_env import (
+        USB_BACKEND_DEFAULT_PORT,
+        WSS_PROXY_DEFAULT_PORT,
+    )
+
+    monkeypatch.delenv("PROXY_PORT", raising=False)
+    monkeypatch.delenv("USB_BACKEND_PORT", raising=False)
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    setup_adb_reverse_ports()
+    ports = [
+        call.args[0][2].removeprefix("tcp:")
+        for call in mock_run.call_args_list
+        if call.args and call.args[0][:2] == ["adb", "reverse"]
+    ]
+    assert ports == [str(WSS_PROXY_DEFAULT_PORT), str(USB_BACKEND_DEFAULT_PORT)]
+    assert "8080" not in ports
+
+
 @patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
 @patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_setup_adb_reverse_ports_wraps_called_process_error(
