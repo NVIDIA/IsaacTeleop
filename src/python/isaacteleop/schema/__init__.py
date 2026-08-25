@@ -38,6 +38,9 @@ from ._schema import (
     # Pedals-related types.
     Generic3AxisPedalOutput,
     Generic3AxisPedalOutputRecord,
+    # Keyboard types (raw keyboard press state).
+    KeyboardOutput,
+    KeyboardOutputRecord,
     # OGLO tactile glove types.
     OgloGloveSample,
     OgloGloveSampleRecord,
@@ -123,6 +126,9 @@ __all__ = [
     # Pedals types.
     "Generic3AxisPedalOutput",
     "Generic3AxisPedalOutputRecord",
+    # Keyboard types (raw keyboard press state).
+    "KeyboardOutput",
+    "KeyboardOutputRecord",
     # OGLO tactile glove types.
     "OgloGloveSample",
     "OgloGloveSampleRecord",
