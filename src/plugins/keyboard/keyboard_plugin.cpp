@@ -8,6 +8,7 @@
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/keyboard_generated.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 
 #include <cerrno>
@@ -45,7 +46,8 @@ KeyboardPlugin::KeyboardPlugin(const std::string& device_path, const std::string
 
 KeyboardPlugin::~KeyboardPlugin()
 {
-    close_device();
+    if (device_fd_ >= 0)
+        close_device();
 }
 
 void KeyboardPlugin::update()
@@ -96,6 +98,25 @@ void KeyboardPlugin::update()
             return;
         }
 
+        if (event.type == EV_SYN)
+        {
+            if (event.code == SYN_DROPPED)
+            {
+                // The kernel-side event queue overran; everything until the next
+                // SYN_REPORT is incomplete and must be discarded rather than applied.
+                awaiting_syn_report_ = true;
+            }
+            else if (event.code == SYN_REPORT && awaiting_syn_report_)
+            {
+                resync_pressed_keys();
+                awaiting_syn_report_ = false;
+            }
+            continue;
+        }
+
+        if (awaiting_syn_report_)
+            continue;
+
         // value: 0 = release, 1 = press, 2 = autorepeat (ignored -- key is already tracked as held).
         if (event.type == EV_KEY && event.value != 2)
         {
@@ -118,6 +139,8 @@ bool KeyboardPlugin::open_device()
         return false;
 
     device_fd_ = fd;
+    awaiting_syn_report_ = false;
+    resync_pressed_keys();
     std::cout << "KeyboardPlugin: Opened " << device_path_ << std::endl;
     return true;
 }
@@ -128,9 +151,24 @@ void KeyboardPlugin::close_device()
 
     close(device_fd_);
     device_fd_ = -1;
+    awaiting_syn_report_ = false;
     // A closed device can no longer report releases -- forget everything it
     // last reported as held so a stale key doesn't stick "pressed" forever.
     pressed_keys_.clear();
+}
+
+void KeyboardPlugin::resync_pressed_keys()
+{
+    unsigned char bitmap[(KEY_CNT + 7) / 8] = {};
+    if (ioctl(device_fd_, EVIOCGKEY(sizeof(bitmap)), bitmap) < 0)
+        return;
+
+    pressed_keys_.clear();
+    for (uint16_t code = 0; code < KEY_CNT; ++code)
+    {
+        if (bitmap[code / 8] & (1u << (code % 8)))
+            pressed_keys_.insert(code);
+    }
 }
 
 void KeyboardPlugin::push_current_state()
