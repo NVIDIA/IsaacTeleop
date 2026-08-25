@@ -16,6 +16,10 @@ import pytest
 
 from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource
 from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents
+from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+    ComputeContext,
+)
 from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
 from isaacteleop.retargeters import (
     KeyboardGripperRetargeter,
@@ -116,6 +120,30 @@ class TestKeyboardEndToEnd:
         )  # held -> stays closed, no re-toggle
         assert step([]) == pytest.approx(-1.0)  # release -> stays closed
         assert step([KEY_K]) == pytest.approx(1.0)  # rising edge again -> open
+
+    def test_reset_does_not_toggle_gripper_while_k_is_held(self):
+        """K held across a reset frame is not a rising edge and must not toggle the gripper."""
+        src = _keyboard_source()
+        retargeter = KeyboardGripperRetargeter(name="gripper")
+
+        def step(pressed_keys, reset=False):
+            src_outputs = _run_source(src, pressed_keys)
+            out = {
+                "gripper_command": _make_output_group(
+                    retargeter.output_spec()["gripper_command"]
+                )
+            }
+            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
+            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out, context)
+            return float(out["gripper_command"][0])
+
+        assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
+        # Reset resets the gripper to open, but K is still held -- not a new rising
+        # edge, so this must not immediately re-close it.
+        assert step([KEY_K], reset=True) == pytest.approx(1.0)
+        assert step([KEY_K]) == pytest.approx(1.0)  # still held -> stays open
+        assert step([]) == pytest.approx(1.0)  # release
+        assert step([KEY_K]) == pytest.approx(-1.0)  # genuine rising edge -> close
 
     def test_inactive_device_yields_safe_defaults(self):
         """No sample yet (tracker/plugin not streaming) -> zero delta, no gripper state change."""
