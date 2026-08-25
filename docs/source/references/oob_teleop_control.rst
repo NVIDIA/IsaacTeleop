@@ -445,6 +445,9 @@ Environment variables
        origin for both ``--host-client`` and ``--usb-local``: the page
        and signaling share this socket. In ``--usb-local`` mode
        ``adb reverse`` maps it to the headset.
+   * - ``TELEOP_CLIENT_QR``
+     - Print an ASCII QR of the hosted ``/client/`` URL under the
+       ``web client:`` line on a TTY (default off; also ``--client-qr``).
    * - ``CONTROL_TOKEN``
      - Optional auth token for hub access
    * - ``TELEOP_STREAM_SERVER_IP``

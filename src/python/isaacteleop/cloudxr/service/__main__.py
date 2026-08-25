@@ -79,6 +79,16 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client."
         ),
     )
+    parser.add_argument(
+        "--client-qr",
+        action="store_true",
+        default=False,
+        help=(
+            "Print an ASCII QR of the hosted web-client URL under the "
+            "web client line on a TTY (sets TELEOP_CLIENT_QR=1). Opt-in: "
+            "some headsets cannot open a URL from a camera QR scan."
+        ),
+    )
 
 
 def _run_flags(args: argparse.Namespace) -> list[str]:
@@ -93,7 +103,7 @@ def _run_flags(args: argparse.Namespace) -> list[str]:
         flags += ["--cloudxr-install-dir", args.cloudxr_install_dir]
     if args.cloudxr_env_config:
         flags += ["--cloudxr-env-config", args.cloudxr_env_config]
-    for name in ("setup_oob", "usb_local", "host_client"):
+    for name in ("setup_oob", "usb_local", "host_client", "client_qr"):
         if getattr(args, name):
             flags.append("--" + name.replace("_", "-"))
     return flags
@@ -316,8 +326,17 @@ def _print_service_summary(
     )
 
 
+def _apply_client_qr_env(args: argparse.Namespace) -> None:
+    """Honor ``--client-qr`` by setting :envvar:`TELEOP_CLIENT_QR` for this process."""
+    if getattr(args, "client_qr", False):
+        from ..oob_teleop_env import TELEOP_CLIENT_QR_ENV  # noqa: PLC0415
+
+        os.environ[TELEOP_CLIENT_QR_ENV] = "1"
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     """Run the service in the foreground until interrupted."""
+    _apply_client_qr_env(args)
     if args.usb_local and not args.setup_oob:
         _fail("--usb-local requires --setup-oob.")
     if args.usb_local and os.getenv("TELEOP_OOB_HUB_ONLY"):
@@ -415,6 +434,7 @@ def _cmd_start(args: argparse.Namespace) -> int:
     from .. import background  # noqa: PLC0415
     from ..runtime import is_runtime_live  # noqa: PLC0415
 
+    _apply_client_qr_env(args)
     run_dir, logs_dir = _resolve_dirs(args)
 
     if is_runtime_live(run_dir):
@@ -482,6 +502,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
     except SystemExit:
         running = _build_parser().parse_args(["run"])
     running.cloudxr_install_dir = args.cloudxr_install_dir
+    _apply_client_qr_env(running)
     _print_summary_for(running, run_dir, logs_dir)
 
     if pid is not None:

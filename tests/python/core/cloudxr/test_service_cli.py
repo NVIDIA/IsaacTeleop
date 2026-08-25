@@ -37,10 +37,11 @@ class TestRunFlags:
         assert cli._run_flags(_run_args()) == []
 
     def test_only_non_default_values_are_emitted(self):
-        args = _run_args(setup_oob=True, host_client=True)
+        args = _run_args(setup_oob=True, host_client=True, client_qr=True)
         assert cli._run_flags(args) == [
             "--setup-oob",
             "--host-client",
+            "--client-qr",
         ]
 
     def test_install_dir_emitted_only_when_changed(self):

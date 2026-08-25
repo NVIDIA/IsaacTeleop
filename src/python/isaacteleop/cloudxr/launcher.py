@@ -157,6 +157,7 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = True,
+        client_qr: bool = False,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> None:
@@ -175,7 +176,8 @@ class CloudXRLauncher:
         applies when this process owns it.  When attaching they describe a
         runtime that already exists, so a mismatch is reported rather than
         applied.  ``host_client`` is recovered from the detached service's
-        command line when that is available.
+        command line when that is available.  ``client_qr`` only affects this
+        process's hosted-client URL print when starting a detached service.
 
         Raises:
             RuntimeError: If the runtime fails to start or come up, or if
@@ -213,6 +215,7 @@ class CloudXRLauncher:
             setup_oob,
             usb_local,
             host_client,
+            client_qr,
         )
         # Skip mismatch reports for settings this call just applied.  A
         # runtime that beat us to it did not get them, so that one is reported
@@ -247,6 +250,7 @@ class CloudXRLauncher:
         setup_oob: bool,
         usb_local: bool,
         host_client: bool,
+        client_qr: bool = False,
     ) -> bool:
         """Start a detached service, then leave it running for the next caller.
 
@@ -269,6 +273,7 @@ class CloudXRLauncher:
             *(["--setup-oob"] if setup_oob else []),
             *(["--usb-local"] if usb_local else []),
             *(["--host-client"] if host_client else []),
+            *(["--client-qr"] if client_qr else []),
         ]
         # EnvConfig reads NV_DEVICE_PROFILE from the process environment, and
         # an env file still overrides it — so the profile needs no CLI flag.
@@ -288,11 +293,14 @@ class CloudXRLauncher:
         print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
         if host_client:
             from .oob_teleop_env import (  # noqa: PLC0415
+                TELEOP_CLIENT_QR_ENV,
                 guess_lan_ipv4,
                 print_hosted_client_line,
                 wss_proxy_port,
             )
 
+            if client_qr:
+                os.environ[TELEOP_CLIENT_QR_ENV] = "1"
             url = (
                 f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
             )
@@ -606,6 +614,20 @@ class CloudXRLauncher:
         )
 
     @staticmethod
+    def add_client_qr_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--client-qr`` on ``parser``."""
+        parser.add_argument(
+            "--client-qr",
+            action="store_true",
+            default=False,
+            help=(
+                "Print an ASCII QR of the hosted web-client URL under the "
+                "web client line when this starts a CloudXR service "
+                "(sets TELEOP_CLIENT_QR=1). Opt-in."
+            ),
+        )
+
+    @staticmethod
     def add_launch_wss_proxy_argument(parser: argparse.ArgumentParser) -> None:
         """Register the deprecated no-op ``--launch-wss-proxy`` on ``parser``.
 
@@ -630,6 +652,7 @@ class CloudXRLauncher:
         CloudXRLauncher.add_cloudxr_env_config_argument(parser)
         CloudXRLauncher.add_accept_eula_argument(parser)
         CloudXRLauncher.add_host_client_argument(parser)
+        CloudXRLauncher.add_client_qr_argument(parser)
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
         CloudXRLauncher.add_launch_wss_proxy_argument(parser)
 
@@ -688,6 +711,16 @@ class CloudXRLauncher:
         return bool(getattr(args, "host_client", True))
 
     @staticmethod
+    def _resolve_client_qr(
+        args: argparse.Namespace,
+        client_qr: bool | None = None,
+    ) -> bool:
+        """Return ``client_qr`` or ``args.client_qr`` when registered."""
+        if client_qr is not None:
+            return client_qr
+        return bool(getattr(args, "client_qr", False))
+
+    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -698,6 +731,7 @@ class CloudXRLauncher:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool | None = None,
+        client_qr: bool | None = None,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> CloudXRLauncher | NoopContext:
@@ -707,7 +741,7 @@ class CloudXRLauncher:
         false so callers can always ``with CloudXRLauncher.launch_context(args):``.
 
         ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``,
-        and ``host_client`` default to the values registered by
+        ``host_client``, and ``client_qr`` default to the values registered by
         :meth:`add_launcher_arguments` (``args.cloudxr_install_dir`` etc.); pass an
         explicit keyword only to override what came in on the command line.
         ``run_embedded`` is forwarded to :class:`CloudXRLauncher`.
@@ -728,6 +762,8 @@ class CloudXRLauncher:
                 ignored.append("usb_local")
             if host_client:
                 ignored.append("host_client")
+            if client_qr:
+                ignored.append("client_qr")
             if ignored:
                 logger.warning(
                     "--no-launch-cloudxr-runtime: ignoring CloudXR launcher "
@@ -745,6 +781,7 @@ class CloudXRLauncher:
             setup_oob=setup_oob,
             usb_local=usb_local,
             host_client=CloudXRLauncher._resolve_host_client(args, host_client),
+            client_qr=CloudXRLauncher._resolve_client_qr(args, client_qr),
             run_embedded=run_embedded,
         )
 

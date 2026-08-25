@@ -117,7 +117,8 @@ control how the headset connects and how the web client is delivered.
    * - ``service start --host-client``
      - Serves the web client at ``https://<ip>:48322/client/`` via the WSS
        proxy. No separate port, no USB or TURN relay required. Useful when
-       GitHub Pages is unreachable.
+       GitHub Pages is unreachable. Pass ``--client-qr`` (or set
+       ``TELEOP_CLIENT_QR=1``) to print an ASCII QR of that URL on a TTY.
    * - ``service start --setup-oob``
      - OOB hub + CDP automation: opens the browser on the headset and
        auto-clicks CONNECT over USB adb. Client URL is GitHub Pages.

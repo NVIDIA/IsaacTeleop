@@ -14,7 +14,7 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from urllib.error import URLError
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from .oob_teleop_hub import OOB_WS_PATH
@@ -84,6 +84,10 @@ DEFAULT_TELEOP_CLIENT_ROUTE = ""
 # ``bundle.emulator.js``). Optional for ``--usb-local``: defaults to
 # ``~/.cloudxr/static-client``; missing files are fetched from published URLs.
 TELEOP_WEB_CLIENT_STATIC_DIR_ENV = "TELEOP_WEB_CLIENT_STATIC_DIR"
+
+# Opt-in ASCII QR under the hosted ``web client:`` URL (TTY only). Off by
+# default: some headsets (e.g. Pico) cannot open a URL from a camera QR scan.
+TELEOP_CLIENT_QR_ENV = "TELEOP_CLIENT_QR"
 
 CHROME_INSPECT_DEVICES_URL = "chrome://inspect/#devices"
 
@@ -249,17 +253,77 @@ def parse_env_port(env_var: str, raw: str) -> int:
     return port
 
 
+def is_loopback_client_url(url: str) -> bool:
+    """True when *url*'s host is loopback (not a scannable LAN address)."""
+    host = (urlparse(url).hostname or "").lower()
+    return host in ("127.0.0.1", "localhost", "::1")
+
+
+def client_qr_enabled() -> bool:
+    """True when :envvar:`TELEOP_CLIENT_QR` is a truthy value (``1``/``true``/``yes``/``on``)."""
+    raw = os.environ.get(TELEOP_CLIENT_QR_ENV, "").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def render_qr_ascii(data: str) -> str:
+    """Return a terminal ASCII QR encoding *data*.
+
+    Requires the ``qrcode`` package (``isaacteleop[cloudxr]``).  Uses half-block
+    characters and inverted modules so the code stays readable on dark terminals.
+
+    Raises:
+        ImportError: If ``qrcode`` is not installed.
+    """
+    import io
+
+    import qrcode
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=1,
+        border=1,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    buf = io.StringIO()
+    # invert=True: filled modules as dark blocks on typical dark terminals.
+    qr.print_ascii(out=buf, invert=True)
+    return buf.getvalue().rstrip("\n")
+
+
 def print_hosted_client_line(
     url: str,
     *,
     prefix: str = "web client:        ",
     file=None,
-) -> None:
-    """Print ``prefix`` + *url* (cyan when *file* is a TTY)."""
+) -> bool:
+    """Print ``prefix`` + *url*, with an opt-in ASCII QR underneath on a TTY.
+
+    Opt-in via :envvar:`TELEOP_CLIENT_QR` (or service ``--client-qr``).  Skips
+    the QR for loopback URLs and non-TTY streams.  Soft-fails (URL only) if
+    ``qrcode`` is missing.
+
+    Returns:
+        ``True`` if a QR was printed under the URL.
+    """
     out = sys.stdout if file is None else file
     use_color = bool(getattr(out, "isatty", lambda: False)())
     left = f"{prefix}\033[36m{url}\033[0m" if use_color else f"{prefix}{url}"
     print(left, file=out)
+
+    want_qr = client_qr_enabled() and use_color and not is_loopback_client_url(url)
+    if not want_qr:
+        return False
+
+    try:
+        art = render_qr_ascii(url)
+    except ImportError:
+        log.debug("qrcode not installed; skipping QR for %s", url)
+        return False
+
+    print(f"\n{art}", file=out)
+    return True
 
 
 def wss_proxy_port() -> int:

@@ -478,6 +478,7 @@ class TestLaunchArgumentHelpers:
                 "/etc/cloudxr.env",
                 "--accept-eula",
                 "--no-host-client",
+                "--client-qr",
                 "--no-launch-cloudxr-runtime",
                 "--no-launch-wss-proxy",
             ]
@@ -487,6 +488,7 @@ class TestLaunchArgumentHelpers:
         assert args.cloudxr_env_config == "/etc/cloudxr.env"
         assert args.accept_eula is True
         assert args.host_client is False
+        assert args.client_qr is True
         assert args.launch_cloudxr_runtime is False
         assert args.launch_wss_proxy is False
 
@@ -497,6 +499,7 @@ class TestLaunchArgumentHelpers:
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
         assert args.host_client is True
+        assert args.client_qr is False
         assert args.launch_cloudxr_runtime is True
         assert args.launch_wss_proxy is None
 
