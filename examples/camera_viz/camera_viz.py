@@ -465,7 +465,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     launcher = launch_ctx.__enter__()
     stop_launcher = True
     try:
-
         interrupt_signum = None
 
         def _interrupt(signum, frame):
