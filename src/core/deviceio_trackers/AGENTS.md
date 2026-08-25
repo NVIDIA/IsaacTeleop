@@ -17,7 +17,9 @@ in **[`trackers.toml`](trackers.toml)** and generated at configure time by
 under `${CMAKE_BINARY_DIR}/generated/trackers/`, **not** in `cpp/`.
 
 - **Adding one is a manifest edit**, not a new source file: `name` and `table` are required, every
-  other key has a `%placeholder%` default in [`defaults.toml`](defaults.toml). Override a key only
+  other key has a default in [`defaults.toml`](defaults.toml) — most derive from `name` through
+  `%placeholder%` substitution, a few (`direction`, `record`, `max_flatbuffer_size`, …) are plain
+  constants. Override a key only
   where the convention genuinely does not hold (`se3_tracker` sets `class`; `generic_3axis_pedal`
   sets `schema` because its `.fbs` is `pedals.fbs`; `frame_metadata_oak` sets `header` so the
   public `#include` stem stays `frame_metadata_tracker_oak`).
