@@ -156,6 +156,29 @@ class TestKeyboardGripperRetargeter:
         assert step([]) == pytest.approx(1.0)  # release
         assert step([KEY_K]) == pytest.approx(-1.0)  # genuine rising edge -> close
 
+    def test_reset_with_inactive_device_preserves_prior_edge_state(self):
+        """A reset frame with no keyboard data must not clobber _prev_k_pressed."""
+        src = _keyboard_source()
+        retargeter = KeyboardGripperRetargeter(name="gripper")
+
+        def step(pressed_keys, reset=False):
+            src_outputs = _run_source(src, pressed_keys)
+            out = {
+                "gripper_command": _make_output_group(
+                    retargeter.output_spec()["gripper_command"]
+                )
+            }
+            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
+            retargeter.compute({"keyboard": src_outputs["keyboard"]}, out, context)
+            return float(out["gripper_command"][0])
+
+        assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
+        # Reset while the device is inactive (keyboard.is_none) -- must not force
+        # _prev_k_pressed to False, or the next frame (K still held) would be
+        # misread as a fresh rising edge.
+        assert step(None, reset=True) == pytest.approx(1.0)  # gripper still resets
+        assert step([KEY_K]) == pytest.approx(1.0)  # still held -> no spurious toggle
+
 
 class TestKeyboardToSe2Retargeter:
     def test_arrow_and_numpad_keys_combine(self):
