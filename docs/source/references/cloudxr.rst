@@ -15,7 +15,8 @@ The teleop examples start a service themselves if none is running (see
 :ref:`run-cloudxr-server` in the quick start), and print a notice when they do,
 because that service keeps running after the example exits. Examples that use
 ``CloudXRLauncher`` host CloudXR.js at ``https://<host>:48322/client/`` by
-default when they start that service. Start it yourself when you want to:
+default when they start that service; pass ``--no-host-client`` to use the
+GitHub Pages client instead. Start the service yourself when you want to:
 
 - keep the headset connected while you restart a teleop application repeatedly
   during development,
