@@ -34,10 +34,6 @@ table SpaceMouseOutput {
 }
 
 // MCAP recording wrapper for SpaceMouseOutput.
-//
-// Record types are the root types written to MCAP channels by the McapRecorder.
-// Trackers serialize into Record types via their serialize() method, but the
-// public query API returns the inner data type directly.
 table SpaceMouseOutputRecord {
     data: SpaceMouseOutput (id: 0);
     timestamp: DeviceDataTimestamp (id: 1);
