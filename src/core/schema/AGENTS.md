@@ -19,9 +19,13 @@ ordinary source.
 [`README.md`](README.md) has the evolution rules and what to do when the conform test
 fails. The short version:
 
-- **Append, with a fresh `id`.** Never renumber or reuse one.
+- **Append, with a fresh `id`, and leave it optional.** Never renumber or reuse an id;
+  `(required)` breaks every message recorded before the field existed.
 - **Deprecate, never delete.** `(deprecated)` keeps the ids after it in their slots.
-- **Never change a `struct`** — not a field added, removed, reordered, or retyped. This is
-  the one break `flatc --conform` does not report; `check_schema_compat()` catches it.
+- **A `root_type` rename is a break**, even though no byte moves — the recording carries
+  the old name and the reader matches it exactly.
+- **Never change a `struct`** — not a field added, removed, reordered, or retyped. An
+  *appended* struct field is the one break `flatc --conform` does not report, because every
+  existing offset survives; `check_schema_compat()` catches it on the struct's size.
 - **Never refresh `golden/` to clear a failing test.** The failure is the signal. Refresh
   only once breaking existing recordings is a decision you have made and stated.

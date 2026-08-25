@@ -205,9 +205,13 @@ Serialized<typename record_payload_t<RecordT>::TableType> publish_and_record(Mca
  * by the caller, that handle is buffered in the corresponding ChannelBuffer and
  * returned on a subsequent read() for that channel index.
  *
- * The first message on each schema is checked against the binary schema RecordT was
- * generated from, so a recording written by a build with a different `.fbs` is
- * reported rather than silently misread. See schema_compat.hpp.
+ * Every schema the recording registers for these topics is checked against the binary
+ * schema RecordT was generated from, so a recording written by a build with a different
+ * `.fbs` is reported rather than silently misread (see schema_compat.hpp). The check runs
+ * to completion in the constructor: a recording this build cannot decode is refused there,
+ * which is what keeps a schema failure from surfacing part-way through a replay and leaves
+ * read() with none of it to do. It needs the whole schema list up front, so a recording
+ * that cannot produce one is refused as well.
  */
 template <typename RecordT>
 class McapTrackerViewers
@@ -221,27 +225,49 @@ public:
     McapTrackerViewers(std::unique_ptr<mcap::McapReader> reader,
                        std::string_view base_name,
                        const std::vector<std::string>& sub_channels)
-        : reader_(std::move(reader)),
-          schema_name_(
-              schema_root_name(std::span<const uint8_t>(RecordT::BinarySchema::data(), RecordT::BinarySchema::size())))
+        : reader_(std::move(reader))
     {
         for (const auto& sub : sub_channels)
         {
             channels_.push_back({ mcap_topic(base_name, sub), {} });
         }
 
+        // The summary section normally names every Schema and Channel record. A writer killed
+        // before it could flush one leaves them in the data section, and a summary that names
+        // channels but does not repeat their schemas is the same gap from the other side;
+        // both take the same answer. Asking for it here rather than through AllowFallbackScan
+        // is what keeps the data section to at most one walk.
+        const auto ignore_problem = [](const mcap::Status&) {};
+        mcap::Status status = reader_->readSummary(mcap::ReadSummaryMethod::NoFallbackScan, ignore_problem);
+        if (!status.ok() || !tracker_schemas_resolved())
+        {
+            status = reader_->readSummary(mcap::ReadSummaryMethod::ForceScan, ignore_problem);
+        }
+        if (!status.ok())
+        {
+            throw std::runtime_error("McapTrackerViewers: cannot tell what schemas this recording was written under: " +
+                                     status.message + " (it is damaged, or was cut short before its writer closed it)");
+        }
+
+        // One grade per schema rather than per channel: a grade describes the schema, and
+        // every channel a tracker reads shares the one its writer registered.
+        std::vector<mcap::SchemaId> graded;
+        for (const mcap::ChannelPtr& channel : tracker_channels())
+        {
+            if (std::find(graded.begin(), graded.end(), channel->schemaId) != graded.end())
+            {
+                continue;
+            }
+            graded.push_back(channel->schemaId);
+
+            const mcap::SchemaPtr recorded = reader_->schema(channel->schemaId);
+            enforce_schema_compat(compare_schema(*channel, recorded.get()), channel->topic);
+        }
+
         auto on_problem = [](const mcap::Status& s) { throw std::runtime_error("McapTrackerViewers:" + s.message); };
 
         mcap::ReadMessageOptions options;
-        options.topicFilter = [this](std::string_view t)
-        {
-            for (const auto& ch : channels_)
-            {
-                if (ch.topic == t)
-                    return true;
-            }
-            return false;
-        };
+        options.topicFilter = [this](std::string_view t) { return channel_index_of(t).has_value(); };
 
         tracker_view_ = std::make_unique<TrackerView>(reader_->readMessages(on_problem, options));
     }
@@ -282,7 +308,6 @@ public:
         {
             const auto& msg_view = *(tracker_view_->it);
             size_t idx = find_channel_idx(msg_view.channel->topic);
-            ensure_schema_checked(msg_view);
             Serialized<RecordT> record = adopt_message(msg_view.message, idx);
 
             ++(tracker_view_->it);
@@ -316,7 +341,8 @@ private:
         }
     };
 
-    size_t find_channel_idx(const std::string& topic) const
+    //! Where `topic` sits in the sub_channels list, or nullopt when this tracker does not read it.
+    std::optional<size_t> channel_index_of(std::string_view topic) const
     {
         for (size_t i = 0; i < channels_.size(); ++i)
         {
@@ -325,42 +351,65 @@ private:
                 return i;
             }
         }
-        throw std::runtime_error("McapTrackerViewers: unexpected topic '" + topic + "'");
+        return std::nullopt;
+    }
+
+    size_t find_channel_idx(const std::string& topic) const
+    {
+        const std::optional<size_t> found = channel_index_of(topic);
+        if (!found.has_value())
+        {
+            throw std::runtime_error("McapTrackerViewers: unexpected topic '" + topic + "'");
+        }
+        return *found;
+    }
+
+    //! The recording's channels carrying this tracker's topics, in the reader's own order.
+    std::vector<mcap::ChannelPtr> tracker_channels() const
+    {
+        std::vector<mcap::ChannelPtr> found;
+        for (const auto& channel_entry : reader_->channels())
+        {
+            if (channel_entry.second != nullptr && channel_index_of(channel_entry.second->topic).has_value())
+            {
+                found.push_back(channel_entry.second);
+            }
+        }
+        return found;
+    }
+
+    //! Whether every channel this tracker reads names a Schema record the reader now holds.
+    bool tracker_schemas_resolved() const
+    {
+        const std::vector<mcap::ChannelPtr> found = tracker_channels();
+        return std::none_of(found.begin(), found.end(),
+                            [this](const mcap::ChannelPtr& channel)
+                            { return channel->schemaId != 0 && reader_->schema(channel->schemaId) == nullptr; });
     }
 
     /*!
-     * @brief Compare the schema a message was recorded under against RecordT's.
+     * @brief Fully-qualified name of the record this reader decodes.
      *
-     * An entry is marked accepted only once enforce_schema_compat() has returned without
-     * throwing, so the two outcomes fall out of that flag alone: a warning is emitted once
-     * and then skipped, while a schema that cannot be read stays unaccepted and is thrown
-     * on again by every later read(). The comparison itself is cached either way -- it
-     * deserializes both schemas, which is far too much to repeat per frame.
-     *
-     * Every channel a tracker reads shares the one schema its writer registered, so this
-     * is a lookup in a one-element vector.
+     * Fixed per RecordT, but recovering it verifies the whole embedded bfbs, so it is done
+     * once per process rather than once per tracker a session replays.
      */
-    void ensure_schema_checked(const mcap::MessageView& view)
+    static const std::string& schema_name()
     {
-        const mcap::SchemaId schema_id = view.channel->schemaId;
-        auto entry = std::find_if(
-            checked_.begin(), checked_.end(), [schema_id](const CheckedSchema& c) { return c.id == schema_id; });
-        if (entry == checked_.end())
-        {
-            checked_.push_back({ schema_id, compare_schema(view.schema.get()), false });
-            entry = std::prev(checked_.end());
-        }
-        else if (entry->accepted)
-        {
-            return;
-        }
-
-        enforce_schema_compat(entry->result, view.channel->topic);
-        entry->accepted = true;
+        static const std::string name =
+            schema_root_name(std::span<const uint8_t>(RecordT::BinarySchema::data(), RecordT::BinarySchema::size()));
+        return name;
     }
 
-    SchemaCompatResult compare_schema(const mcap::Schema* recorded) const
+    SchemaCompatResult compare_schema(const mcap::Channel& channel, const mcap::Schema* recorded) const
     {
+        // The channel's own encoding declares the message bytes; without this the payloads
+        // reach adopt_message() and are reported as a corrupt FlatBuffer instead.
+        if (channel.messageEncoding != "flatbuffer")
+        {
+            return { SchemaCompat::Incompatible,
+                     "channel message encoding is '" + channel.messageEncoding + "', reader expects 'flatbuffer'" };
+        }
+
         if (recorded == nullptr)
         {
             return { SchemaCompat::Incompatible, "channel carries no embedded schema" };
@@ -370,15 +419,15 @@ private:
             return { SchemaCompat::Incompatible,
                      "schema encoding is '" + recorded->encoding + "', reader expects 'flatbuffer'" };
         }
-        if (recorded->name != schema_name_)
+        if (recorded->name != schema_name())
         {
             return { SchemaCompat::Incompatible,
-                     "schema is named '" + recorded->name + "', reader expects '" + schema_name_ + "'" };
+                     "schema is named '" + recorded->name + "', reader expects '" + schema_name() + "'" };
         }
 
         return check_schema_compat(
             std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(recorded->data.data()), recorded->data.size()),
-            std::span<const uint8_t>(RecordT::BinarySchema::data(), RecordT::BinarySchema::size()), schema_name_);
+            std::span<const uint8_t>(RecordT::BinarySchema::data(), RecordT::BinarySchema::size()));
     }
 
     // Verifies the recorded bytes and takes ownership of a copy of them. The copy is
@@ -397,20 +446,9 @@ private:
         return Serialized<RecordT>::adopt(std::vector<uint8_t>(bytes, bytes + msg.dataSize));
     }
 
-    //! One recorded schema graded against RecordT::BinarySchema.
-    struct CheckedSchema
-    {
-        mcap::SchemaId id;
-        SchemaCompatResult result;
-        //! enforce_schema_compat() has already returned normally for `result`.
-        bool accepted;
-    };
-
     std::unique_ptr<mcap::McapReader> reader_;
-    std::string schema_name_;
     std::vector<ChannelBuffer> channels_;
     std::unique_ptr<TrackerView> tracker_view_;
-    std::vector<CheckedSchema> checked_;
 };
 
 } // namespace core

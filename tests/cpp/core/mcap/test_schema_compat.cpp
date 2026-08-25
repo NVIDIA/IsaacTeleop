@@ -3,19 +3,16 @@
 
 // Unit tests for check_schema_compat() / enforce_schema_compat().
 
+#include "mcap_test_support.hpp"
+
 #include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/idl.h>
-#include <mcap/reader.hpp>
 #include <mcap/recording_traits.hpp>
 #include <mcap/schema_compat.hpp>
-#include <mcap/tracker_channels.hpp>
 #include <mcap/writer.hpp>
-#include <schema/head_generated.h>
 
-#include <atomic>
 #include <cstdint>
 #include <cstdlib>
-#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -25,46 +22,54 @@
 #include <string_view>
 #include <vector>
 
-#ifdef _WIN32
-#    include <process.h>
-#    define GET_PID() _getpid()
-#else
-#    include <unistd.h>
-#    define GET_PID() ::getpid()
-#endif
-
 namespace
 {
 
-// Mirrors the shape head.fbs has: a struct-valued field inside the payload table,
-// and a record wrapper carrying the payload plus an inline timestamp struct.
-constexpr const char* kBaseSchema = R"(
-namespace core;
-struct Stamp { a: long; b: long; }
-struct Vec3 { x: float; y: float; z: float; }
-table Payload { v: Vec3 (id: 0); ok: bool (id: 1); }
-table Rec { data: Payload (id: 0); stamp: Stamp (id: 1); }
-root_type Rec;
-)";
+using namespace mcap_test;
 
-std::vector<uint8_t> bfbs_from(const char* fbs_source)
+/*!
+ * @brief The four declarations a comparison case varies, each defaulted to a base schema.
+ *
+ * The base mirrors the shape head.fbs has: a struct-valued field inside the payload table,
+ * and a record wrapper carrying the payload plus an inline timestamp struct. Defaulting
+ * every member lets a case name only the declaration it changes, which is also the only
+ * thing that case is about.
+ */
+struct SchemaShape
+{
+    std::string stamp = "a: long; b: long;";
+    std::string vec3 = "x: float; y: float; z: float;";
+    std::string payload = "v: Vec3 (id: 0); ok: bool (id: 1);";
+    std::string rec = "data: Payload (id: 0); stamp: Stamp (id: 1);";
+};
+
+std::string schema_source(const SchemaShape& shape = {})
+{
+    return "namespace core;\n"
+           "struct Stamp { " +
+           shape.stamp + " }\nstruct Vec3 { " + shape.vec3 + " }\ntable Payload { " + shape.payload +
+           " }\ntable Rec { " + shape.rec + " }\nroot_type Rec;\n";
+}
+
+std::vector<uint8_t> bfbs_from(const std::string& fbs_source)
 {
     flatbuffers::Parser parser;
-    REQUIRE(parser.Parse(fbs_source));
+    REQUIRE(parser.Parse(fbs_source.c_str()));
     parser.Serialize();
     const uint8_t* data = parser.builder_.GetBufferPointer();
     return std::vector<uint8_t>(data, data + parser.builder_.GetSize());
 }
 
-core::SchemaCompatResult compare(const char* recorded_source, const char* compiled_source)
+core::SchemaCompatResult compare(const std::string& recorded_source, const std::string& compiled_source)
 {
     const std::vector<uint8_t> recorded = bfbs_from(recorded_source);
     const std::vector<uint8_t> compiled = bfbs_from(compiled_source);
-    return core::check_schema_compat(recorded, compiled, "core.Rec");
+    return core::check_schema_compat(recorded, compiled);
 }
 
-// RAII around ISAACTELEOP_REPLAY_SCHEMA_CHECK so a failing assertion cannot leak
-// a mode into the tests that follow.
+// RAII around ISAACTELEOP_REPLAY_SCHEMA_CHECK so a failing assertion cannot leak a mode
+// into the tests that follow. Every case that reaches enforce_schema_compat() needs one:
+// the variable is process-global, so an unguarded case reads whatever the shell exported.
 class ScopedCheckMode
 {
 public:
@@ -72,36 +77,33 @@ public:
     //! the ambient environment may already carry a mode.
     explicit ScopedCheckMode(const char* value)
     {
-        if (value == nullptr)
+        if (const char* previous = std::getenv(kName); previous != nullptr)
         {
-            clear();
-            return;
+            saved_ = previous;
         }
-#ifdef _WIN32
-        _putenv_s("ISAACTELEOP_REPLAY_SCHEMA_CHECK", value);
-#else
-        ::setenv("ISAACTELEOP_REPLAY_SCHEMA_CHECK", value, 1);
-#endif
+        apply(value);
     }
     ~ScopedCheckMode() noexcept
     {
-        clear();
+        apply(saved_ ? saved_->c_str() : nullptr);
     }
     ScopedCheckMode(const ScopedCheckMode&) = delete;
     ScopedCheckMode& operator=(const ScopedCheckMode&) = delete;
 
 private:
-    static void clear() noexcept
+    static constexpr const char* kName = "ISAACTELEOP_REPLAY_SCHEMA_CHECK";
+
+    static void apply(const char* value) noexcept
     {
 #ifdef _WIN32
-        _putenv_s("ISAACTELEOP_REPLAY_SCHEMA_CHECK", "");
+        _putenv_s(kName, value != nullptr ? value : "");
 #else
-        ::unsetenv("ISAACTELEOP_REPLAY_SCHEMA_CHECK");
+        value != nullptr ? ::setenv(kName, value, 1) : ::unsetenv(kName);
 #endif
     }
-};
 
-namespace fs = std::filesystem;
+    std::optional<std::string> saved_;
+};
 
 // head.fbs and the schemas it includes, re-declared so a test can mutate one piece.
 // `stamp_fields` is the body of DeviceDataTimestamp.
@@ -127,38 +129,21 @@ constexpr const char* kRealStampFields =
 
 std::string temp_mcap_path()
 {
-    static std::atomic<int> counter{ 0 };
-    const auto name = "test_schema_compat_" + std::to_string(GET_PID()) + "_" + std::to_string(counter++) + ".mcap";
-    return (fs::temp_directory_path() / name).string();
+    return mcap_test::temp_mcap_path("test_schema_compat");
 }
-
-struct TempFileCleanup
-{
-    std::string path;
-    explicit TempFileCleanup(std::string p) : path(std::move(p))
-    {
-    }
-    ~TempFileCleanup() noexcept
-    {
-        std::error_code ec;
-        fs::remove(path, ec);
-    }
-    TempFileCleanup(const TempFileCleanup&) = delete;
-    TempFileCleanup& operator=(const TempFileCleanup&) = delete;
-};
 
 //! The schema head.fbs compiles to, re-declared by hand: equivalent to what the reader
 //! carries, but not byte-identical, so it exercises the structural comparison.
 std::vector<uint8_t> faithful_head_bfbs()
 {
-    return bfbs_from(head_schema_source(kRealStampFields).c_str());
+    return bfbs_from(head_schema_source(kRealStampFields));
 }
 
 //! DeviceDataTimestamp with a fourth clock field: resizing an inline struct, which a
 //! reader cannot detect from the message bytes.
 std::vector<uint8_t> grown_stamp_head_bfbs()
 {
-    return bfbs_from(head_schema_source(std::string(kRealStampFields) + "sample_time_extra_clock: long;").c_str());
+    return bfbs_from(head_schema_source(std::string(kRealStampFields) + "sample_time_extra_clock: long;"));
 }
 
 mcap::Schema head_schema(std::string_view name, const std::vector<uint8_t>& bfbs, std::string_view encoding = "flatbuffer")
@@ -167,30 +152,61 @@ mcap::Schema head_schema(std::string_view name, const std::vector<uint8_t>& bfbs
                         std::string_view(reinterpret_cast<const char*>(bfbs.data()), bfbs.size()));
 }
 
+//! One channel of a recording: its sub-channel name under "tracking", and the schema it
+//! declares. A nullopt schema leaves the channel declaring none.
+struct RecordedChannel
+{
+    std::string sub_channel;
+    std::optional<mcap::Schema> schema;
+    //! What the channel says its message bytes are, which is separate from the schema's own
+    //! encoding: a channel can name a FlatBuffers schema and still carry something else.
+    std::string message_encoding = "flatbuffer";
+};
+
+//! What the writer leaves at the end of the file. A recording cut short by a crash has no
+//! summary at all; a writer configured for size writes one that does not repeat schemas.
+enum class Summary
+{
+    Written,
+    WithoutSchemas,
+    Missing,
+};
+
 /*!
- * @brief Write `count` genuine HeadPoseRecord messages on "tracking/head".
+ * @brief Write `count` genuine HeadPoseRecord messages on each of `recorded`, round-robin.
  *
- * The payloads are what the real writer emits; only the channel's declared schema is the
- * caller's to choose, which is what a recording from a differently-built binary looks
- * like. A nullopt `schema` leaves the channel declaring none.
+ * The payloads are what the real writer emits; only the channels' declared schemas are the
+ * caller's to choose, which is what a recording from a differently-built binary looks like.
+ * Round-robin is what lets a test see the viewer stash a record for one channel before the
+ * next channel's schema is graded.
  */
-void write_head_records(const std::string& path, const std::optional<mcap::Schema>& schema, uint32_t count = 1)
+void write_records(const std::string& path,
+                   const std::vector<RecordedChannel>& recorded,
+                   uint32_t count = 1,
+                   Summary summary = Summary::Written)
 {
     mcap::McapWriter writer;
     mcap::McapWriterOptions options("teleop-test");
     options.compression = mcap::Compression::None;
+    options.noSummary = summary == Summary::Missing;
+    options.noRepeatedSchemas = summary == Summary::WithoutSchemas;
     REQUIRE(writer.open(path, options).ok());
 
-    mcap::SchemaId schema_id = 0;
-    if (schema.has_value())
+    std::vector<mcap::Channel> channels;
+    for (const auto& entry : recorded)
     {
-        mcap::Schema declared = *schema;
-        writer.addSchema(declared);
-        schema_id = declared.id;
-    }
+        mcap::SchemaId schema_id = 0;
+        if (entry.schema.has_value())
+        {
+            mcap::Schema declared = *entry.schema;
+            writer.addSchema(declared);
+            schema_id = declared.id;
+        }
 
-    mcap::Channel channel("tracking/head", "flatbuffer", schema_id);
-    writer.addChannel(channel);
+        mcap::Channel channel(core::mcap_topic("tracking", entry.sub_channel), entry.message_encoding, schema_id);
+        writer.addChannel(channel);
+        channels.push_back(channel);
+    }
 
     core::HeadPoseT head;
     head.is_valid = true;
@@ -200,16 +216,28 @@ void write_head_records(const std::string& path, const std::optional<mcap::Schem
 
     for (uint32_t sequence = 0; sequence < count; ++sequence)
     {
-        mcap::Message message;
-        message.channelId = channel.id;
-        message.logTime = 5 + sequence;
-        message.publishTime = message.logTime;
-        message.sequence = sequence;
-        message.data = reinterpret_cast<const std::byte*>(bytes.data());
-        message.dataSize = bytes.size();
-        REQUIRE(writer.write(message).ok());
+        for (const auto& channel : channels)
+        {
+            mcap::Message message;
+            message.channelId = channel.id;
+            message.logTime = 5 + sequence;
+            message.publishTime = message.logTime;
+            message.sequence = sequence;
+            message.data = reinterpret_cast<const std::byte*>(bytes.data());
+            message.dataSize = bytes.size();
+            REQUIRE(writer.write(message).ok());
+        }
     }
     writer.close();
+}
+
+//! write_records() for the single "tracking/head" channel most cases want.
+void write_head_records(const std::string& path,
+                        const std::optional<mcap::Schema>& schema,
+                        uint32_t count = 1,
+                        Summary summary = Summary::Written)
+{
+    write_records(path, { { "head", schema } }, count, summary);
 }
 
 //! Redirects std::cerr for its lifetime so a test can count what was logged.
@@ -242,15 +270,6 @@ private:
     std::streambuf* saved_;
 };
 
-std::unique_ptr<mcap::McapReader> open_reader(const std::string& path)
-{
-    auto reader = std::make_unique<mcap::McapReader>();
-    REQUIRE(reader->open(path).ok());
-    return reader;
-}
-
-using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord>;
-
 } // namespace
 
 // =============================================================================
@@ -259,7 +278,7 @@ using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord>;
 
 TEST_CASE("check_schema_compat accepts a byte-identical schema", "[unit][schema_compat]")
 {
-    const auto result = compare(kBaseSchema, kBaseSchema);
+    const auto result = compare(schema_source(), schema_source());
     CHECK(result.status == core::SchemaCompat::Identical);
     CHECK(result.detail.empty());
 }
@@ -271,9 +290,9 @@ TEST_CASE("check_schema_compat accepts a byte-identical schema", "[unit][schema_
 TEST_CASE("check_schema_compat rejects bytes that are not a binary schema", "[unit][schema_compat]")
 {
     const std::vector<uint8_t> garbage(64, 0x7F);
-    const std::vector<uint8_t> compiled = bfbs_from(kBaseSchema);
+    const std::vector<uint8_t> compiled = bfbs_from(schema_source());
 
-    const auto result = core::check_schema_compat(garbage, compiled, "core.Rec");
+    const auto result = core::check_schema_compat(garbage, compiled);
     CHECK(result.status == core::SchemaCompat::Incompatible);
     CHECK(result.detail.find("not a valid") != std::string::npos);
 }
@@ -286,9 +305,9 @@ table Unrelated { n: int (id: 0); }
 root_type Unrelated;
 )";
     const std::vector<uint8_t> recorded = bfbs_from(other_root);
-    const std::vector<uint8_t> compiled = bfbs_from(kBaseSchema);
+    const std::vector<uint8_t> compiled = bfbs_from(schema_source());
 
-    const auto result = core::check_schema_compat(recorded, compiled, "core.Rec");
+    const auto result = core::check_schema_compat(recorded, compiled);
     CHECK(result.status == core::SchemaCompat::Incompatible);
     CHECK(result.detail.find("core.Unrelated") != std::string::npos);
 }
@@ -299,29 +318,25 @@ root_type Unrelated;
 
 TEST_CASE("check_schema_compat accepts a table field appended after the recording", "[unit][schema_compat]")
 {
-    constexpr const char* appended = R"(
-namespace core;
-struct Stamp { a: long; b: long; }
-struct Vec3 { x: float; y: float; z: float; }
-table Payload { v: Vec3 (id: 0); ok: bool (id: 1); extra: int (id: 2); }
-table Rec { data: Payload (id: 0); stamp: Stamp (id: 1); }
-root_type Rec;
-)";
-    const auto result = compare(kBaseSchema, appended);
+    const auto result =
+        compare(schema_source(), schema_source({ .payload = "v: Vec3 (id: 0); ok: bool (id: 1); extra: int (id: 2);" }));
     CHECK(result.status == core::SchemaCompat::Compatible);
+}
+
+// ConformTo passes this one: it never compares required-ness. The recorded messages have
+// no such field, so it is Verifier::VerifyBuffer that would reject them at replay.
+TEST_CASE("check_schema_compat rejects a table field appended as required", "[unit][schema_compat]")
+{
+    const auto result =
+        compare(schema_source(),
+                schema_source({ .payload = "v: Vec3 (id: 0); ok: bool (id: 1); extra: string (id: 2, required);" }));
+    CHECK(result.status == core::SchemaCompat::Incompatible);
+    CHECK(result.detail.find("core.Payload.extra") != std::string::npos);
 }
 
 TEST_CASE("check_schema_compat rejects a struct that gained a field", "[unit][schema_compat]")
 {
-    constexpr const char* grown_struct = R"(
-namespace core;
-struct Stamp { a: long; b: long; c: long; }
-struct Vec3 { x: float; y: float; z: float; }
-table Payload { v: Vec3 (id: 0); ok: bool (id: 1); }
-table Rec { data: Payload (id: 0); stamp: Stamp (id: 1); }
-root_type Rec;
-)";
-    const auto result = compare(kBaseSchema, grown_struct);
+    const auto result = compare(schema_source(), schema_source({ .stamp = "a: long; b: long; c: long;" }));
     CHECK(result.status == core::SchemaCompat::Incompatible);
     CHECK_FALSE(result.detail.empty());
 }
@@ -330,60 +345,28 @@ root_type Rec;
 // which catches it on the field offsets.
 TEST_CASE("check_schema_compat rejects reordered struct fields", "[unit][schema_compat]")
 {
-    constexpr const char* reordered = R"(
-namespace core;
-struct Stamp { b: long; a: long; }
-struct Vec3 { x: float; y: float; z: float; }
-table Payload { v: Vec3 (id: 0); ok: bool (id: 1); }
-table Rec { data: Payload (id: 0); stamp: Stamp (id: 1); }
-root_type Rec;
-)";
-    const auto result = compare(kBaseSchema, reordered);
+    const auto result = compare(schema_source(), schema_source({ .stamp = "b: long; a: long;" }));
     CHECK(result.status == core::SchemaCompat::Incompatible);
     CHECK(result.detail.find("offsets differ") != std::string::npos);
 }
 
 TEST_CASE("check_schema_compat rejects a widened scalar field", "[unit][schema_compat]")
 {
-    constexpr const char* widened = R"(
-namespace core;
-struct Stamp { a: long; b: long; }
-struct Vec3 { x: double; y: double; z: double; }
-table Payload { v: Vec3 (id: 0); ok: bool (id: 1); }
-table Rec { data: Payload (id: 0); stamp: Stamp (id: 1); }
-root_type Rec;
-)";
-    const auto result = compare(kBaseSchema, widened);
+    const auto result = compare(schema_source(), schema_source({ .vec3 = "x: double; y: double; z: double;" }));
     CHECK(result.status == core::SchemaCompat::Incompatible);
     CHECK_FALSE(result.detail.empty());
 }
 
 TEST_CASE("check_schema_compat rejects a reused field id", "[unit][schema_compat]")
 {
-    constexpr const char* reused = R"(
-namespace core;
-struct Stamp { a: long; b: long; }
-struct Vec3 { x: float; y: float; z: float; }
-table Payload { ok: bool (id: 0); v: Vec3 (id: 1); }
-table Rec { data: Payload (id: 0); stamp: Stamp (id: 1); }
-root_type Rec;
-)";
-    const auto result = compare(kBaseSchema, reused);
+    const auto result = compare(schema_source(), schema_source({ .payload = "ok: bool (id: 0); v: Vec3 (id: 1);" }));
     CHECK(result.status == core::SchemaCompat::Incompatible);
     CHECK_FALSE(result.detail.empty());
 }
 
 TEST_CASE("check_schema_compat rejects a deleted field that was not deprecated", "[unit][schema_compat]")
 {
-    constexpr const char* deleted = R"(
-namespace core;
-struct Stamp { a: long; b: long; }
-struct Vec3 { x: float; y: float; z: float; }
-table Payload { v: Vec3 (id: 0); }
-table Rec { data: Payload (id: 0); stamp: Stamp (id: 1); }
-root_type Rec;
-)";
-    const auto result = compare(kBaseSchema, deleted);
+    const auto result = compare(schema_source(), schema_source({ .payload = "v: Vec3 (id: 0);" }));
     CHECK(result.status == core::SchemaCompat::Incompatible);
 }
 
@@ -409,11 +392,47 @@ TEST_CASE("schema_check_mode reads warn and off", "[unit][schema_compat]")
     }
 }
 
+TEST_CASE("schema_check_mode reads a value the way it was likely typed", "[unit][schema_compat]")
+{
+    // A mode set in a YAML `environment:` block picks up case and surrounding space, and
+    // `env VAR= cmd` is how a shell clears one. None of those is a value the caller got
+    // wrong, so none of them may fall through to the unknown-value warning.
+    const CapturedCerr log;
+
+    for (const char* value : { "OFF", "Off", " off ", "\toff\n" })
+    {
+        const ScopedCheckMode mode(value);
+        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Off);
+    }
+    {
+        const ScopedCheckMode mode("WARN");
+        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Warn);
+    }
+    {
+        const ScopedCheckMode cleared("");
+        CHECK(core::schema_check_mode() == core::SchemaCheckMode::Strict);
+    }
+
+    CHECK(log.count("unknown value") == 0);
+}
+
+TEST_CASE("schema_check_mode falls back to strict and says so on a value it cannot read", "[unit][schema_compat]")
+{
+    const ScopedCheckMode mode("lenient");
+    const CapturedCerr log;
+
+    CHECK(core::schema_check_mode() == core::SchemaCheckMode::Strict);
+    CHECK(log.count("unknown value") == 1);
+}
+
 TEST_CASE("enforce_schema_compat throws only on an incompatible schema in strict mode", "[unit][schema_compat]")
 {
     const core::SchemaCompatResult identical{ core::SchemaCompat::Identical, {} };
     const core::SchemaCompatResult compatible{ core::SchemaCompat::Compatible, "field appended" };
     const core::SchemaCompatResult incompatible{ core::SchemaCompat::Incompatible, "Stamp grew" };
+
+    // The warns this case provokes are the point of it; keep them out of the suite's output.
+    const CapturedCerr log;
 
     {
         const ScopedCheckMode mode("strict");
@@ -435,66 +454,157 @@ TEST_CASE("enforce_schema_compat throws only on an incompatible schema in strict
 // McapTrackerViewers - what the viewer adds on top of check_schema_compat()
 //
 // The grading of one schema against another is check_schema_compat()'s job and is
-// covered above. What is left here is the viewer's own: the three mcap-level
-// rejections it makes before comparing anything, and when it repeats itself.
+// covered above. What is left here is the viewer's own: the mcap-level rejections it
+// makes before comparing anything, that it makes all of them before the first read(),
+// and when it repeats itself afterwards.
 // =============================================================================
 
 TEST_CASE("McapTrackerViewers rejects a channel that declares no schema", "[unit][schema_compat]")
 {
+    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, std::nullopt);
 
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
-    CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers rejects a schema that is not flatbuffer-encoded", "[unit][schema_compat]")
 {
+    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs(), "protobuf"));
 
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
-    CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers rejects a schema named for another record type", "[unit][schema_compat]")
 {
+    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema("core.HandPoseRecord", faithful_head_bfbs()));
 
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
-    CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
 }
 
-// A schema id joins validated_ only after enforce returns, so the two repeat behaviours
-// are two sides of the same ordering.
-
-TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading", "[unit][schema_compat]")
+TEST_CASE("McapTrackerViewers rejects a channel whose messages are not flatbuffers", "[unit][schema_compat]")
 {
+    const ScopedCheckMode mode("strict");
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_records(
+        path, { { "head", head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), "json" } });
+
+    // The channel's encoding, not the schema's. Without this the payloads reach the
+    // FlatBuffers verifier and come back as a corrupt buffer, which names the wrong problem.
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
+}
+
+TEST_CASE("McapTrackerViewers rejects an unreadable recording before its first read", "[unit][schema_compat]")
+{
+    const ScopedCheckMode mode("strict");
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_records(path,
+                  { { "left", head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()) },
+                    { "right", head_schema(core::HeadRecordingTraits::schema_name, grown_stamp_head_bfbs()) } },
+                  3);
+
+    // "left" is readable on its own, and grading it warns. Every schema in the file is graded
+    // while the reader is still being built, so one unreadable channel turns down the whole
+    // recording -- rather than the viewer handing out left records right up to the point it
+    // reaches a right one, with no iterator left stranded there and no half-usable viewer for
+    // a caller to keep calling read() on.
+    const CapturedCerr log;
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "left", "right" }), std::runtime_error);
+}
+
+TEST_CASE("McapTrackerViewers reads a recording whose writer never wrote a summary", "[unit][schema_compat]")
+{
+    const ScopedCheckMode mode("strict");
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_head_records(
+        path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3, Summary::Missing);
+
+    // No summary section, so the Schema records are only in the data section. Scanning for
+    // them is what keeps a recording cut short by a crash replayable rather than refused.
+    const CapturedCerr log;
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    for (int record = 0; record < 3; ++record)
+    {
+        REQUIRE(viewers.read(0));
+    }
+}
+
+TEST_CASE("McapTrackerViewers reads a summary that does not repeat schema records", "[unit][schema_compat]")
+{
+    const ScopedCheckMode mode("strict");
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_head_records(
+        path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3, Summary::WithoutSchemas);
+
+    // The summary names the channel but not the schema it carries, which would otherwise
+    // look exactly like a channel that declares none.
+    const CapturedCerr log;
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    for (int record = 0; record < 3; ++record)
+    {
+        REQUIRE(viewers.read(0));
+    }
+}
+
+TEST_CASE("McapTrackerViewers rejects a recording it cannot enumerate", "[unit][schema_compat]")
+{
+    const ScopedCheckMode mode("strict");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 3);
 
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    // Cut the file back into its data section: no summary to read, and a scan runs into the
+    // truncation. Nothing can say what the rest of it was written under, so it is refused.
+    const auto full_size = fs::file_size(path);
+    fs::resize_file(path, full_size / 2);
+
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
+}
+
+TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading", "[unit][schema_compat]")
+{
+    const ScopedCheckMode mode("strict");
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, faithful_head_bfbs()), 12);
+
     const CapturedCerr log;
-    for (int record = 0; record < 3; ++record)
+    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    for (int record = 0; record < 12; ++record)
     {
         REQUIRE(viewers.read(0));
     }
     CHECK(log.count("MCAP schema mismatch") == 1);
 }
 
-TEST_CASE("McapTrackerViewers keeps throwing after a swallowed mismatch", "[unit][schema_compat]")
+TEST_CASE("McapTrackerViewers says once that an unreadable recording is being read anyway", "[unit][schema_compat]")
 {
+    const ScopedCheckMode mode("warn");
     const auto path = temp_mcap_path();
     const TempFileCleanup cleanup(path);
-    write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, grown_stamp_head_bfbs()), 3);
+    write_head_records(path, head_schema(core::HeadRecordingTraits::schema_name, grown_stamp_head_bfbs()), 12);
 
+    const CapturedCerr log;
     HeadViewers viewers(open_reader(path), "tracking", { "head" });
-    CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
-    CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
-    CHECK_THROWS_AS(viewers.read(0), std::runtime_error);
+    for (int record = 0; record < 12; ++record)
+    {
+        REQUIRE(viewers.read(0));
+    }
+
+    // Said when the recording was opened, before a single record was handed back, and not
+    // again: the grade describes the file, and read() has nothing left to check. What keeps
+    // this apart from `off` is that the one line covers the whole session, not one record.
+    CHECK(log.count("MCAP schema mismatch") == 1);
+    CHECK(log.count("every record decoded from this channel is unreliable") == 1);
 }

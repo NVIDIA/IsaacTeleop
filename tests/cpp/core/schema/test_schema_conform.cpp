@@ -64,7 +64,7 @@ TEST_CASE("current schemas stay readable for recordings made against the goldens
         const std::vector<uint8_t> golden = read_bytes(fs::path(SCHEMA_GOLDEN_DIR) / name);
         const std::vector<uint8_t> current = read_bytes(fs::path(SCHEMA_BFBS_DIR) / name);
 
-        const auto result = core::check_schema_compat(golden, current, core::schema_root_name(golden));
+        const auto result = core::check_schema_compat(golden, current);
 
         INFO(result.detail);
         CHECK(result.status != core::SchemaCompat::Incompatible);

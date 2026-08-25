@@ -104,6 +104,37 @@ to add extra trackers that aren't part of the pipeline:
    ``mcap_config`` is **required** when ``mode`` is ``SessionMode.REPLAY``.
    Omitting it raises ``ValueError``.
 
+Schema compatibility
+^^^^^^^^^^^^^^^^^^^^
+
+Every recording embeds the FlatBuffer schema it was written under. Opening a replay
+session compares every schema the recording carries against the schema the running
+build was compiled from, and raises ``RuntimeError`` when the recorded bytes would be
+misread — a recording made before a breaking schema change, for instance. The whole
+recording is graded before the first frame is read, so replay never stops part-way
+through for a schema reason.
+
+That needs the list of schemas up front. It normally comes from the summary section at
+the end of the file; a recording whose writer never got to flush one, which is what a
+run cut short leaves behind, is scanned for its schema records instead. A recording so
+damaged that neither route works is refused.
+
+``ISAACTELEOP_REPLAY_SCHEMA_CHECK`` selects what a mismatch does:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Value
+     - Behavior
+   * - ``strict`` (default)
+     - An unreadable recording raises; a readable difference warns once.
+   * - ``warn``
+     - Replay continues.  An unreadable recording warns instead of raising, once,
+       when the session opens — every record it then yields may hold wrong field
+       values.
+   * - ``off``
+     - Nothing is reported.
+
 Runnable Example
 ----------------
 

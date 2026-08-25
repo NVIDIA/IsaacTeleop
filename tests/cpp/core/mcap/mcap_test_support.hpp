@@ -1,0 +1,81 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#pragma once
+
+// Scaffolding shared by the translation units of the mcap_tests binary. Every case here
+// writes a recording to a temp file and reads it back; only what goes into the file differs.
+
+#include <catch2/catch_test_macros.hpp>
+#include <mcap/reader.hpp>
+#include <mcap/tracker_channels.hpp>
+#include <schema/head_generated.h>
+
+#include <atomic>
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <system_error>
+
+#ifdef _WIN32
+#    include <process.h>
+#else
+#    include <unistd.h>
+#endif
+
+namespace mcap_test
+{
+
+namespace fs = std::filesystem;
+
+//! Process id, so two test binaries running at once cannot land on the same temp file.
+inline int current_pid()
+{
+#ifdef _WIN32
+    return _getpid();
+#else
+    return ::getpid();
+#endif
+}
+
+//! A temp .mcap path unique to this process and call. `prefix` names the suite asking.
+inline std::string temp_mcap_path(std::string_view prefix)
+{
+    static std::atomic<int> counter{ 0 };
+    const auto name =
+        std::string(prefix) + "_" + std::to_string(current_pid()) + "_" + std::to_string(counter++) + ".mcap";
+    return (fs::temp_directory_path() / name).string();
+}
+
+//! Removes the file when it goes out of scope, whether or not the case that wrote it passed.
+class TempFileCleanup
+{
+public:
+    explicit TempFileCleanup(std::string path) : path_(std::move(path))
+    {
+    }
+    ~TempFileCleanup() noexcept
+    {
+        std::error_code ec;
+        fs::remove(path_, ec);
+    }
+    TempFileCleanup(const TempFileCleanup&) = delete;
+    TempFileCleanup& operator=(const TempFileCleanup&) = delete;
+
+private:
+    std::string path_;
+};
+
+inline std::unique_ptr<mcap::McapReader> open_reader(const std::string& path)
+{
+    auto reader = std::make_unique<mcap::McapReader>();
+    REQUIRE(reader->open(path).ok());
+    return reader;
+}
+
+//! The record type these tests write and read back.
+using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord>;
+using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord>;
+
+} // namespace mcap_test

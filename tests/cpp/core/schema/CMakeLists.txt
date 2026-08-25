@@ -17,8 +17,8 @@ add_executable(schema_tests
 )
 target_link_libraries(schema_tests PRIVATE
   isaacteleop_schema
-  # check_schema_compat(), shared with the replay read path so both grade a schema
-  # change the same way.
+  # check_schema_compat(), shared with what replay does when it opens a recording, so
+  # both grade a schema change the same way.
   mcap::mcap_core
   Catch2::Catch2WithMain
   OpenXR::headers

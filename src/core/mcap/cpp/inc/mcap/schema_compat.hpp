@@ -44,15 +44,14 @@ std::string schema_root_name(std::span<const uint8_t> bfbs);
  * A struct that gained a field, a reused field id, and a widened scalar all land in
  * Incompatible; a table that only gained fields at the end lands in Compatible.
  *
- * @param recorded      bfbs bytes read from the MCAP Schema record.
- * @param compiled      bfbs bytes from the generated `RecordT::BinarySchema`.
- * @param expected_root Fully-qualified root table name the reader expects, e.g.
- *                      "core.HeadPoseRecord".
+ * The root type the reader expects is read out of `compiled` rather than passed in, so a
+ * caller cannot name one schema and hand over another.
+ *
+ * @param recorded bfbs bytes read from the MCAP Schema record.
+ * @param compiled bfbs bytes from the generated `RecordT::BinarySchema`.
  * @throws std::logic_error if `compiled` is not a deserializable binary schema.
  */
-SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded,
-                                       std::span<const uint8_t> compiled,
-                                       std::string_view expected_root);
+SchemaCompatResult check_schema_compat(std::span<const uint8_t> recorded, std::span<const uint8_t> compiled);
 
 //! What a non-Identical result does, from `ISAACTELEOP_REPLAY_SCHEMA_CHECK`.
 enum class SchemaCheckMode
@@ -69,8 +68,12 @@ enum class SchemaCheckMode
 SchemaCheckMode schema_check_mode();
 
 /*!
- * @brief Apply schema_check_mode() to a comparison result.
+ * @brief Apply schema_check_mode() to a comparison result, deciding whether it may be read.
  *
+ * A grade describes the recording, not any one message, so callers settle it once per schema
+ * when the file is opened.
+ *
+ * @param result  Grade for a schema the recording carries.
  * @param context Channel topic, used to locate the mismatch in the message.
  * @throws std::runtime_error in Strict mode when `result` is Incompatible.
  */

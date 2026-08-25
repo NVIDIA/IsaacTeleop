@@ -5,54 +5,27 @@
 
 #define MCAP_IMPLEMENTATION
 
-#include <catch2/catch_test_macros.hpp>
-#include <mcap/reader.hpp>
-#include <mcap/recording_traits.hpp>
-#include <mcap/tracker_channels.hpp>
-#include <schema/head_generated.h>
+#include "mcap_test_support.hpp"
 
-#include <atomic>
+#include <catch2/catch_test_macros.hpp>
+#include <mcap/recording_traits.hpp>
+#include <mcap/writer.hpp>
+
 #include <cstdint>
-#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
-#ifdef _WIN32
-#    include <process.h>
-#    define GET_PID() _getpid()
-#else
-#    include <unistd.h>
-#    define GET_PID() ::getpid()
-#endif
-
-namespace fs = std::filesystem;
-
 namespace
 {
 
+using namespace mcap_test;
+
 std::string get_temp_mcap_path()
 {
-    static std::atomic<int> cnt{ 0 };
-    auto fn = "test_mcap_" + std::to_string(GET_PID()) + "_" + std::to_string(cnt++) + ".mcap";
-    return (fs::temp_directory_path() / fn).string();
+    return mcap_test::temp_mcap_path("test_mcap");
 }
-
-struct TempFileCleanup
-{
-    std::string path;
-    explicit TempFileCleanup(const std::string& p) : path(p)
-    {
-    }
-    ~TempFileCleanup() noexcept
-    {
-        std::error_code ec;
-        fs::remove(path, ec);
-    }
-    TempFileCleanup(const TempFileCleanup&) = delete;
-    TempFileCleanup& operator=(const TempFileCleanup&) = delete;
-};
 
 std::unique_ptr<mcap::McapWriter> open_writer(const std::string& path)
 {
@@ -63,16 +36,6 @@ std::unique_ptr<mcap::McapWriter> open_writer(const std::string& path)
     REQUIRE(status.ok());
     return writer;
 }
-
-std::unique_ptr<mcap::McapReader> open_reader(const std::string& path)
-{
-    auto reader = std::make_unique<mcap::McapReader>();
-    REQUIRE(reader->open(path).ok());
-    return reader;
-}
-
-using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord>;
-using HeadViewers = core::McapTrackerViewers<core::HeadPoseRecord>;
 
 } // namespace
 

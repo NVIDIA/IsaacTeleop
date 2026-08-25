@@ -4,6 +4,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 add_executable(mcap_tests
+    mcap_test_support.hpp
     test_mcap_tracker_channels.cpp
     test_schema_compat.cpp
 )
