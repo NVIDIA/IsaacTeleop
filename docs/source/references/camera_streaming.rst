@@ -279,8 +279,9 @@ serving. Useful flags:
   ``https://<host>:48322/client/``. Only applies when this run starts the
   service; stop and restart the service to change hosting.
 
-When the viewer starts a CloudXR service it prints the client URL. To inspect
-or stop an already-running service, activate the example venv (or any
+When the viewer starts a CloudXR service with hosting enabled (the default;
+``--no-host-client`` disables it), it prints the local ``/client/`` URL. To
+inspect or stop an already-running service, activate the example venv (or any
 environment with ``isaacteleop``) and run::
 
    python -m isaacteleop.cloudxr.service status
