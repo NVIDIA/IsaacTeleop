@@ -109,6 +109,20 @@ class TestGamepadEndToEnd:
         assert delta[1] == pytest.approx(0.0)
         assert np.allclose(delta[3:], 0.0)  # no rotation axes deflected
 
+    def test_se3_dead_zone_suppresses_small_deflection(self):
+        """A deflection smaller than the configured dead zone is treated as zero."""
+        src = _gamepad_source()
+        axes = _axes({AXIS_LEFT_Y: -0.005})
+        src_outputs = _run_source(src, [], axes=axes)
+
+        retargeter = GamepadToSe3RelRetargeter(
+            GamepadToSe3RelRetargeterConfig(), name="se3"
+        )
+        out = {"ee_delta": _make_output_group(retargeter.output_spec()["ee_delta"])}
+        retargeter.compute({"gamepad_axes": src_outputs["gamepad_axes"]}, out)
+
+        assert np.allclose(np.asarray(out["ee_delta"][0]), 0.0)
+
     def test_gripper_toggles_on_button_rising_edge_only(self):
         """X press/release/press across three frames toggles exactly on each rising edge."""
         src = _gamepad_source()

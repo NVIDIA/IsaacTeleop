@@ -49,6 +49,7 @@ class GamepadToSe3RelRetargeterConfig:
 
     pos_sensitivity: float = 0.4
     rot_sensitivity: float = 0.8
+    dead_zone: float = 0.01
 
 
 class GamepadToSe3RelRetargeter(BaseRetargeter):
@@ -95,16 +96,20 @@ class GamepadToSe3RelRetargeter(BaseRetargeter):
         axes = np.asarray(axes_in[0])
         pos_sens = self._config.pos_sensitivity
         rot_sens = self._config.rot_sensitivity
+        dead_zone = self._config.dead_zone
+
+        def deadzoned(value: float) -> float:
+            return 0.0 if abs(value) < dead_zone else value
 
         delta_pos = np.zeros(3)
-        delta_pos[0] = -axes[AXIS_LEFT_Y] * pos_sens
-        delta_pos[1] = -axes[AXIS_LEFT_X] * pos_sens
-        delta_pos[2] = -axes[AXIS_RIGHT_Y] * pos_sens
+        delta_pos[0] = -deadzoned(axes[AXIS_LEFT_Y]) * pos_sens
+        delta_pos[1] = -deadzoned(axes[AXIS_LEFT_X]) * pos_sens
+        delta_pos[2] = -deadzoned(axes[AXIS_RIGHT_Y]) * pos_sens
 
         delta_euler = np.zeros(3)
-        delta_euler[0] = -axes[AXIS_DPAD_X] * rot_sens * 0.8
-        delta_euler[1] = axes[AXIS_DPAD_Y] * rot_sens * 0.8
-        delta_euler[2] = -axes[AXIS_RIGHT_X] * rot_sens
+        delta_euler[0] = -deadzoned(axes[AXIS_DPAD_X]) * rot_sens * 0.8
+        delta_euler[1] = deadzoned(axes[AXIS_DPAD_Y]) * rot_sens * 0.8
+        delta_euler[2] = -deadzoned(axes[AXIS_RIGHT_X]) * rot_sens
 
         delta_rot = Rotation.from_euler("XYZ", delta_euler).as_rotvec()
 
