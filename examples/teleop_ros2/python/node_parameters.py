@@ -391,7 +391,7 @@ def _load_hand_tracking_plugin(
         node.get_logger().info(
             f"Ignoring hand_tracking_plugin:={plugin} during MCAP replay."
         )
-        return plugin, search_paths
+        return HandTrackingPlugin.NONE, search_paths
 
     consumes_tracked_hands = mode == TeleopMode.HAND_TELEOP or (
         mode == TeleopMode.CONTROLLER_TELEOP
