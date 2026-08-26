@@ -611,7 +611,7 @@ SHF3L ports. Re-derive after any overlay change:</p>
 <p><code class="docutils literal notranslate"><span class="pre">output=&lt;path&gt;</span></code> on a stream encodes that sensor on the Jetson V4L2 M2M engine
 and writes raw Annex-B H.264 — no container, no timestamps. <code class="docutils literal notranslate"><span class="pre">--add-stream</span></code> is
 repeatable, one per sensor:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build/src/plugins/sensing/camera_plugin_sensing<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./build/src/plugins/sensing/app/camera_plugin_sensing<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--add-stream<span class="o">=</span><span class="nv">sensor</span><span class="o">=</span><span class="m">2</span>,output<span class="o">=</span>./left.h264<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--add-stream<span class="o">=</span><span class="nv">sensor</span><span class="o">=</span><span class="m">3</span>,output<span class="o">=</span>./right.h264<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--mcap-filename<span class="o">=</span>./meta.mcap
@@ -661,11 +661,6 @@ both may be given. Repeatable.</p></td>
 <td><p>none</p></td>
 <td><p>Record per-frame metadata to an MCAP file</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--collection-prefix=PREFIX</span></code></p></td>
-<td><p>none</p></td>
-<td><p>Push the same metadata over OpenXR instead. Mutually exclusive with
-<code class="docutils literal notranslate"><span class="pre">--mcap-filename</span></code>.</p></td>
-</tr>
 </tbody>
 </table>
 </div>
@@ -675,9 +670,6 @@ both may be given. Repeatable.</p></td>
 timestamps). <code class="docutils literal notranslate"><span class="pre">--mcap-filename</span></code> writes it to channel
 <code class="docutils literal notranslate"><span class="pre">sensing_metadata/sensor&lt;N&gt;</span></code>; the binary schema is embedded, so <code class="docutils literal notranslate"><span class="pre">mcap</span> <span class="pre">cat</span>
 <span class="pre">--json</span> <span class="pre">meta.mcap</span></code> decodes it without any Isaac headers.</p>
-<p><code class="docutils literal notranslate"><span class="pre">--collection-prefix</span></code> pushes it via OpenXR <code class="docutils literal notranslate"><span class="pre">SchemaPusher</span></code> instead, for
-recording into the same MCAP as the rest of a teleop session. The wiring is the
-same as the OAK plugin’s — see <a class="reference internal" href="oak.html"><span class="doc">OAK Camera Plugin</span></a> and <a class="reference internal" href="trackers.html"><span class="doc">Device Trackers</span></a>.</p>
 </section>
 <section id="playback">
 <h3><a class="toc-backref" href="#id10" role="doc-backlink">Playback</a><a class="headerlink" href="#playback" title="Link to this heading">#</a></h3>
@@ -703,7 +695,7 @@ memory</strong> — RGBA8, no encode, no host round-trip — and
 never starts an encoder. Measured on an AGX Orin at 1920×1080: <strong>~1 ms</strong> from
 producer timestamp to consumer receipt, sustained at 60 fps.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># terminal 1 — producer</span>
-./build/src/plugins/sensing/camera_plugin_sensing<span class="w"> </span><span class="se">\</span>
+./build/src/plugins/sensing/app/camera_plugin_sensing<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--add-stream<span class="o">=</span><span class="nv">sensor</span><span class="o">=</span><span class="m">2</span>,ipc<span class="o">=</span>/tmp/sensing2.sock<span class="w"> </span>--width<span class="o">=</span><span class="m">1920</span><span class="w"> </span>--height<span class="o">=</span><span class="m">1080</span>
 
 <span class="c1"># terminal 2 — viewer</span>
@@ -734,7 +726,7 @@ so a second viewer silently takes the feed from the first.</p>
 needs CUDA only — no Argus, no encoder — so the viewer can be developed with
 nothing attached:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>sensing_ipc_testsrc
-./build/src/plugins/sensing/sensing_ipc_testsrc<span class="w"> </span>--socket<span class="o">=</span>/tmp/sensing2.sock<span class="w"> </span><span class="se">\</span>
+./build/src/plugins/sensing/tools/sensing_ipc_testsrc<span class="w"> </span>--socket<span class="o">=</span>/tmp/sensing2.sock<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--width<span class="o">=</span><span class="m">1920</span><span class="w"> </span>--height<span class="o">=</span><span class="m">1080</span><span class="w"> </span>--fps<span class="o">=</span><span class="m">60</span>
 </pre></div>
 </div>
@@ -963,7 +955,7 @@ load.</p></td>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 22, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 26, 2026.
       <br/>
     
   </p>

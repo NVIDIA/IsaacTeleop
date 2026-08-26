@@ -176,7 +176,7 @@ repeatable, one per sensor:
 
 .. code-block:: bash
 
-   ./build/src/plugins/sensing/camera_plugin_sensing \
+   ./build/src/plugins/sensing/app/camera_plugin_sensing \
        --add-stream=sensor=2,output=./left.h264 \
        --add-stream=sensor=3,output=./right.h264 \
        --mcap-filename=./meta.mcap
@@ -213,10 +213,6 @@ matter most:
    * - ``--mcap-filename=PATH``
      - none
      - Record per-frame metadata to an MCAP file
-   * - ``--collection-prefix=PREFIX``
-     - none
-     - Push the same metadata over OpenXR instead. Mutually exclusive with
-       ``--mcap-filename``.
 
 Metadata
 ~~~~~~~~
@@ -225,10 +221,6 @@ Each frame emits a ``core.FrameMetadataSensingRecord`` (sequence number,
 timestamps). ``--mcap-filename`` writes it to channel
 ``sensing_metadata/sensor<N>``; the binary schema is embedded, so ``mcap cat
 --json meta.mcap`` decodes it without any Isaac headers.
-
-``--collection-prefix`` pushes it via OpenXR ``SchemaPusher`` instead, for
-recording into the same MCAP as the rest of a teleop session. The wiring is the
-same as the OAK plugin's — see :doc:`oak` and :doc:`trackers`.
 
 Playback
 ~~~~~~~~
@@ -260,7 +252,7 @@ producer timestamp to consumer receipt, sustained at 60 fps.
 .. code-block:: bash
 
    # terminal 1 — producer
-   ./build/src/plugins/sensing/camera_plugin_sensing \
+   ./build/src/plugins/sensing/app/camera_plugin_sensing \
        --add-stream=sensor=2,ipc=/tmp/sensing2.sock --width=1920 --height=1080
 
    # terminal 2 — viewer
@@ -297,7 +289,7 @@ nothing attached:
 .. code-block:: bash
 
    cmake --build build --target sensing_ipc_testsrc
-   ./build/src/plugins/sensing/sensing_ipc_testsrc --socket=/tmp/sensing2.sock \
+   ./build/src/plugins/sensing/tools/sensing_ipc_testsrc --socket=/tmp/sensing2.sock \
        --width=1920 --height=1080 --fps=60
 
 Each frame carries its 16-bit frame number as a binary bar across the top, so a
