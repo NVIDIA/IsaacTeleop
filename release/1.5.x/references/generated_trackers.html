@@ -35,7 +35,8 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -165,6 +166,39 @@
         </div>
       
       
+        <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+
+<!-- The theme mirrors every navbar item into the mobile drawer, so this renders
+     twice per page: label implicitly, or the two copies collide on one id. -->
+<label class="version-switcher">
+  <span class="version-switcher__label">Version</span>
+  <select class="version-switcher__select" onchange="location = this.value;">
+    <option value="../../../main/references/generated_trackers.html" >main</option>
+    <option value="../../1.0.x/index.html" >release/1.0.x</option>
+    <option value="../../1.1.x/index.html" >release/1.1.x</option>
+    <option value="../../1.2.x/index.html" >release/1.2.x</option>
+    <option value="../../1.3.x/index.html" >release/1.3.x</option>
+    <option value="../../1.4.x/index.html" >release/1.4.x</option>
+    <option value="generated_trackers.html" selected>release/1.5.x</option>
+    <option value="../../../v1.3.131/index.html" >v1.3.131</option>
+    <option value="../../../v1.1.8/index.html" >v1.1.8</option>
+    <option value="../../../v1.1.5/index.html" >v1.1.5</option>
+    <option value="../../../v1.0.193/index.html" >v1.0.193</option>
+    <option value="../../../v1.0.191/index.html" >v1.0.191</option>
+  </select>
+</label>
+</div>
+      
+        <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+      
         <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -246,6 +280,39 @@
     
       <div class="sidebar-header-items__end">
         
+          <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+
+<!-- The theme mirrors every navbar item into the mobile drawer, so this renders
+     twice per page: label implicitly, or the two copies collide on one id. -->
+<label class="version-switcher">
+  <span class="version-switcher__label">Version</span>
+  <select class="version-switcher__select" onchange="location = this.value;">
+    <option value="../../../main/references/generated_trackers.html" >main</option>
+    <option value="../../1.0.x/index.html" >release/1.0.x</option>
+    <option value="../../1.1.x/index.html" >release/1.1.x</option>
+    <option value="../../1.2.x/index.html" >release/1.2.x</option>
+    <option value="../../1.3.x/index.html" >release/1.3.x</option>
+    <option value="../../1.4.x/index.html" >release/1.4.x</option>
+    <option value="generated_trackers.html" selected>release/1.5.x</option>
+    <option value="../../../v1.3.131/index.html" >v1.3.131</option>
+    <option value="../../../v1.1.8/index.html" >v1.1.8</option>
+    <option value="../../../v1.1.5/index.html" >v1.1.5</option>
+    <option value="../../../v1.0.193/index.html" >v1.0.193</option>
+    <option value="../../../v1.0.191/index.html" >v1.0.191</option>
+  </select>
+</label>
+</div>
+        
+          <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        
           <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -266,28 +333,6 @@
   </div>
   
     <div class="sidebar-primary-items__start sidebar-primary__section">
-        <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
-
-<div class="version-switcher">
-  <label for="version-select" class="version-switcher__label">Version</label>
-  <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="../../1.4.x/index.html" >release/1.4.x</option>
-    <option value="../../../main/references/generated_trackers.html" >main</option>
-    <option value="../../1.0.x/index.html" >release/1.0.x</option>
-    <option value="../../1.1.x/index.html" >release/1.1.x</option>
-    <option value="../../1.2.x/index.html" >release/1.2.x</option>
-    <option value="../../1.3.x/index.html" >release/1.3.x</option>
-    <option value="generated_trackers.html" selected>release/1.5.x</option>
-    <option value="../../../v1.3.131/index.html" >v1.3.131</option>
-    <option value="../../../v1.1.8/index.html" >v1.1.8</option>
-    <option value="../../../v1.1.5/index.html" >v1.1.5</option>
-    <option value="../../../v1.0.193/index.html" >v1.0.193</option>
-    <option value="../../../v1.0.191/index.html" >v1.0.191</option>
-  </select>
-</div>
-</div>
         <div class="sidebar-primary-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
         <li class="nav-item">
@@ -324,22 +369,6 @@
           <a href="https://isaac-sim.github.io/IsaacLab" title="Isaac Lab" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacLab-3.0-silver.svg" class="icon-link-image" alt="Isaac Lab"/></a>
         </li>
 </ul></div>
-        <div class="sidebar-primary-item">
-<form class="bd-search d-flex align-items-center"
-      action="../search.html"
-      method="get">
-  <i class="fa-solid fa-magnifying-glass"></i>
-  <input type="search"
-         class="form-control"
-         name="q"
-         placeholder="Search..."
-         aria-label="Search..."
-         autocomplete="off"
-         autocorrect="off"
-         autocapitalize="off"
-         spellcheck="false"/>
-  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
-</form></div>
         <div class="sidebar-primary-item">
 
 
@@ -452,16 +481,16 @@ would have to change to generate the rest.</p>
 <h2>How it works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h2>
 <p>Three inputs drive the generator:</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/trackers.toml" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/trackers.toml</a> — one <code class="docutils literal notranslate"><span class="pre">[[tracker]]</span></code> entry per tracker,
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/release/1.5.x/src/core/deviceio_trackers/trackers.toml" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/trackers.toml</a> — one <code class="docutils literal notranslate"><span class="pre">[[tracker]]</span></code> entry per tracker,
 carrying only the values that differ from the defaults.</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/defaults.toml" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/defaults.toml</a> — the defaults, expressed with
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/release/1.5.x/src/core/deviceio_trackers/defaults.toml" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/defaults.toml</a> — the defaults, expressed with
 <code class="docutils literal notranslate"><span class="pre">%placeholder%</span></code> substitutions (<code class="docutils literal notranslate"><span class="pre">%name%</span></code>, <code class="docutils literal notranslate"><span class="pre">%name_CamelCase%</span></code>, and so on).</p></li>
-<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/core/codegen" rel="noopener noreferrer" target="_blank">src/core/codegen</a> — <code class="docutils literal notranslate"><span class="pre">manifest.py</span></code> resolves the placeholders, <code class="docutils literal notranslate"><span class="pre">templates.py</span></code>
+<li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/release/1.5.x/src/core/codegen" rel="noopener noreferrer" target="_blank">src/core/codegen</a> — <code class="docutils literal notranslate"><span class="pre">manifest.py</span></code> resolves the placeholders, <code class="docutils literal notranslate"><span class="pre">templates.py</span></code>
 derives type and file names, <code class="docutils literal notranslate"><span class="pre">templates/</span></code> holds the C++ bodies as <code class="docutils literal notranslate"><span class="pre">*.hpp.template</span></code> /
 <code class="docutils literal notranslate"><span class="pre">*.cpp.template</span></code> under <code class="docutils literal notranslate"><span class="pre">pull/</span></code> and <code class="docutils literal notranslate"><span class="pre">push/</span></code> (<code class="docutils literal notranslate"><span class="pre">&#64;KEY&#64;</span></code> substitution via <code class="docutils literal notranslate"><span class="pre">template_renderer.py</span></code>),
 and <code class="docutils literal notranslate"><span class="pre">generate_trackers.py</span></code> renders the output.</p></li>
 </ul>
-<p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/cmake/GenerateTrackers.cmake" rel="noopener noreferrer" target="_blank">cmake/GenerateTrackers.cmake</a> runs the generator through <code class="docutils literal notranslate"><span class="pre">execute_process</span></code> at
+<p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/release/1.5.x/cmake/GenerateTrackers.cmake" rel="noopener noreferrer" target="_blank">cmake/GenerateTrackers.cmake</a> runs the generator through <code class="docutils literal notranslate"><span class="pre">execute_process</span></code> at
 <strong>configure</strong> time, not build time, because CMake needs the resulting source list before it can
 define targets. Output lands in <code class="docutils literal notranslate"><span class="pre">${CMAKE_BINARY_DIR}/generated/trackers/</span></code> and is <strong>not</strong> checked
 into git, exactly like the <code class="docutils literal notranslate"><span class="pre">flatc</span></code> output. Sources are wired through an explicit
@@ -493,12 +522,12 @@ replay_trackers/replay_&lt;header&gt;_impl.{hpp,cpp}
 so hand-written trackers keep their own rows. The fragments under <code class="docutils literal notranslate"><span class="pre">generated/trackers/inc/</span></code> cover
 the live and replay factories (includes, forward declarations, try-create thunks, dispatch rows,
 factory declarations and definitions), the MCAP recording traits in
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/mcap/cpp/inc/mcap/recording_traits.hpp" rel="noopener noreferrer" target="_blank">src/core/mcap/cpp/inc/mcap/recording_traits.hpp</a>, the pybind blocks in
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/deviceio_trackers/python/tracker_bindings.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/python/tracker_bindings.cpp</a>, and a
-<code class="docutils literal notranslate"><span class="pre">_generated_tracker_exports.py</span></code> that <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/python/isaacteleop/deviceio_trackers/__init__.py" rel="noopener noreferrer" target="_blank">src/python/isaacteleop/deviceio_trackers/__init__.py</a>
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/release/1.5.x/src/core/mcap/cpp/inc/mcap/recording_traits.hpp" rel="noopener noreferrer" target="_blank">src/core/mcap/cpp/inc/mcap/recording_traits.hpp</a>, the pybind blocks in
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/release/1.5.x/src/core/deviceio_trackers/python/tracker_bindings.cpp" rel="noopener noreferrer" target="_blank">src/core/deviceio_trackers/python/tracker_bindings.cpp</a>, and a
+<code class="docutils literal notranslate"><span class="pre">_generated_tracker_exports.py</span></code> that <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/release/1.5.x/src/python/isaacteleop/deviceio_trackers/__init__.py" rel="noopener noreferrer" target="_blank">src/python/isaacteleop/deviceio_trackers/__init__.py</a>
 star-imports. Because that last one is spliced into <code class="docutils literal notranslate"><span class="pre">__all__</span></code>, a new manifest entry needs no
 Python edit at all.</p>
-<p><code class="docutils literal notranslate"><span class="pre">.pyi</span></code> stubs need no work either: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/python/generate_stubs.py" rel="noopener noreferrer" target="_blank">src/core/python/generate_stubs.py</a> derives them from
+<p><code class="docutils literal notranslate"><span class="pre">.pyi</span></code> stubs need no work either: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/release/1.5.x/src/core/python/generate_stubs.py" rel="noopener noreferrer" target="_blank">src/core/python/generate_stubs.py</a> derives them from
 the built module.</p>
 </section>
 <section id="generated-today">
@@ -749,7 +778,7 @@ correct outcome — the generator exists to remove mechanical duplication, not t
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 25, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 26, 2026.
       <br/>
     
   </p>

@@ -48,21 +48,25 @@ Installation
 
 ``install.sh`` downloads the pinned C SDK release, verifies it against a
 per-architecture SHA-256, extracts it next to the script (re-runs reuse the
-extracted copy), and configures + builds the plugin target:
+extracted copy), and configures, builds, and installs the plugin:
 
 .. code-block:: bash
 
    ./src/plugins/wuji_glove/install.sh
+
+Pass ``--build-dir <path>`` to reuse a non-default top-level CMake build
+directory.
 
 To build offline, point ``WUJI_SDK_C_DIR`` at an already-extracted SDK copy —
 or drive CMake directly:
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_PLUGIN_WUJI_GLOVE=ON \
+   cmake -B build -DBUILD_PLUGINS=ON -DBUILD_PLUGIN_WUJI_GLOVE=ON \
        -DWUJI_SDK_INCLUDE_DIR=/path/to/wuji-sdk-c/include \
        -DWUJI_SDK_LIB=/path/to/wuji-sdk-c/lib/libwuji_sdk_c.so
    cmake --build build --target wuji_glove_plugin
+   cmake --install build --component wuji_glove
 
 Running the Plugin
 ------------------
@@ -75,7 +79,7 @@ the plugin:
 
    python -m isaacteleop.cloudxr.service start   # runs in the background
    source ~/.cloudxr/run/cloudxr.env
-   ./build/src/plugins/wuji_glove/wuji_glove_plugin
+   ./install/plugins/wuji_glove/wuji_glove_plugin
 
 See :ref:`dedicated-cloudxr-runtime` and
 :ref:`load-cloudxr-environment-variables` for the full service setup. The plugin resolves each glove's side from device

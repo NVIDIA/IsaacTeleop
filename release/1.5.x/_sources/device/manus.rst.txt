@@ -68,6 +68,9 @@ Run this **inside the build environment** (devcontainer or Isaac ROS container):
    cd src/plugins/manus
    ./install_manus.sh
 
+Pass ``--build-dir <path>`` to reuse a non-default top-level CMake build
+directory.
+
 The script will:
 
 1. Install the required system packages for MANUS Core Integrated.
