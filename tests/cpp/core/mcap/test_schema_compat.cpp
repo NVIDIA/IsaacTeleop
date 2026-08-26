@@ -39,6 +39,8 @@ struct SchemaShape
 {
     std::string stamp = "a: long; b: long;";
     std::string vec3 = "x: float; y: float; z: float;";
+    //! Whole declarations, for a case about a type rather than a field. None by default.
+    std::string extra_types;
     std::string payload = "v: Vec3 (id: 0); ok: bool (id: 1);";
     std::string rec = "data: Payload (id: 0); stamp: Stamp (id: 1);";
 };
@@ -47,8 +49,9 @@ std::string schema_source(const SchemaShape& shape = {})
 {
     return "namespace core;\n"
            "struct Stamp { " +
-           shape.stamp + " }\nstruct Vec3 { " + shape.vec3 + " }\ntable Payload { " + shape.payload +
-           " }\ntable Rec { " + shape.rec + " }\nroot_type Rec;\n";
+           shape.stamp + " }\nstruct Vec3 { " + shape.vec3 + " }\ntable Payload { " + shape.payload + " }\n" +
+           (shape.extra_types.empty() ? "" : shape.extra_types + "\n") + "table Rec { " + shape.rec +
+           " }\nroot_type Rec;\n";
 }
 
 std::vector<uint8_t> bfbs_from(const std::string& fbs_source)
@@ -373,6 +376,29 @@ TEST_CASE("check_schema_compat rejects a deleted field that was not deprecated",
 {
     const auto result = compare(schema_source(), schema_source({ .payload = "v: Vec3 (id: 0);" }));
     CHECK(result.status == core::SchemaCompat::Incompatible);
+}
+
+TEST_CASE("check_schema_compat accepts a deleted table nothing referenced", "[unit][schema_compat]")
+{
+    // flatc puts every type a .fbs declares into the binary schema, reachable from the root or
+    // not, so a recording carries the unreferenced ones too. Deleting one changes the schema
+    // without changing anything on the wire, which is why it still reads.
+    const auto result = compare(schema_source({ .extra_types = "table Unused { n: int (id: 0); }" }), schema_source());
+    CHECK(result.status == core::SchemaCompat::Compatible);
+}
+
+TEST_CASE("check_schema_compat rejects a deleted table something referenced", "[unit][schema_compat]")
+{
+    // Caught as the field rather than as the type: a table cannot stop being referenced without
+    // the field that referenced it going too, and that deletion is what ConformTo reports. The
+    // type going is itself invisible -- both structural tiers walk only the compiled side, so a
+    // type present in the recording and absent here is never examined.
+    const auto result =
+        compare(schema_source({ .extra_types = "table Extra { n: int (id: 0); }",
+                                .rec = "data: Payload (id: 0); stamp: Stamp (id: 1); extra: Extra (id: 2);" }),
+                schema_source());
+    CHECK(result.status == core::SchemaCompat::Incompatible);
+    CHECK(result.detail.find("core.Rec.extra") != std::string::npos);
 }
 
 // =============================================================================
