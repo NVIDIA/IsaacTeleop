@@ -514,6 +514,8 @@ applied the container will see the dongle with the right permissions.</p>
 ./install_manus.sh
 </pre></div>
 </div>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">--build-dir</span> <span class="pre">&lt;path&gt;</span></code> to reuse a non-default top-level CMake build
+directory.</p>
 <p>The script will:</p>
 <ol class="arabic simple">
 <li><p>Install the required system packages for MANUS Core Integrated.</p></li>
@@ -522,7 +524,9 @@ applied the container will see the dongle with the right permissions.</p>
 <li><p>Build the plugin and the diagnostic tool.</p></li>
 </ol>
 <p>When run inside a container, <code class="docutils literal notranslate"><span class="pre">install_manus.sh</span></code> skips the udev step and
-reminds you to run <code class="docutils literal notranslate"><span class="pre">install_udev_rules.sh</span></code> on the host.</p>
+reminds you to run <code class="docutils literal notranslate"><span class="pre">install_udev_rules.sh</span></code> on the host. Pass <code class="docutils literal notranslate"><span class="pre">--container</span></code>
+when the build environment does not expose standard container markers, such as
+during a Docker BuildKit build.</p>
 </section>
 <section id="manual-installation">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Manual installation</a><a class="headerlink" href="#manual-installation" title="Link to this heading">#</a></h3>
