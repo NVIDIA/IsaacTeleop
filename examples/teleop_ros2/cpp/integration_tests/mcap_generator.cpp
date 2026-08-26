@@ -33,6 +33,7 @@ using FullBodyChannels = core::McapTrackerChannels<core::FullBodyPoseRecord>;
 
 constexpr int kDefaultFrameCount = 1800;
 constexpr int64_t kFramePeriodNs = 16'666'667;
+constexpr int kFingerCurlPeriodFrames = 120;
 
 // Per-frame position drift (meters) applied to every sample source so replayed
 // poses vary over time instead of staying static; the fixture only needs
@@ -120,6 +121,56 @@ core::Quaternion identity_quaternion()
     return core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
+float finger_curl_amount(int frame)
+{
+    const int phase = frame % kFingerCurlPeriodFrames;
+    const int half_period = kFingerCurlPeriodFrames / 2;
+    if (phase <= half_period)
+    {
+        return static_cast<float>(phase) / static_cast<float>(half_period);
+    }
+    return static_cast<float>(kFingerCurlPeriodFrames - phase) / static_cast<float>(half_period);
+}
+
+PositionOffset curled_hand_joint_offset(int joint, PositionOffset offset, float curl)
+{
+    switch (joint)
+    {
+    case core::HandJoint_THUMB_DISTAL:
+        offset.y -= 0.010f * curl;
+        offset.z += 0.010f * curl;
+        break;
+    case core::HandJoint_THUMB_TIP:
+        offset.y -= 0.025f * curl;
+        offset.z += 0.025f * curl;
+        break;
+    case core::HandJoint_INDEX_INTERMEDIATE:
+    case core::HandJoint_MIDDLE_INTERMEDIATE:
+    case core::HandJoint_RING_INTERMEDIATE:
+    case core::HandJoint_LITTLE_INTERMEDIATE:
+        offset.y -= 0.015f * curl;
+        offset.z += 0.015f * curl;
+        break;
+    case core::HandJoint_INDEX_DISTAL:
+    case core::HandJoint_MIDDLE_DISTAL:
+    case core::HandJoint_RING_DISTAL:
+    case core::HandJoint_LITTLE_DISTAL:
+        offset.y -= 0.035f * curl;
+        offset.z += 0.035f * curl;
+        break;
+    case core::HandJoint_INDEX_TIP:
+    case core::HandJoint_MIDDLE_TIP:
+    case core::HandJoint_RING_TIP:
+    case core::HandJoint_LITTLE_TIP:
+        offset.y -= 0.055f * curl;
+        offset.z += 0.065f * curl;
+        break;
+    default:
+        break;
+    }
+    return offset;
+}
+
 std::vector<std::string> to_strings(auto channels)
 {
     std::vector<std::string> result;
@@ -150,11 +201,12 @@ std::shared_ptr<core::HandPoseT> make_hand_sample(bool left, int frame)
     const float anchor_x = left ? -0.25f : 0.25f;
     const float mirror_x = left ? 1.0f : -1.0f;
     const float delta = kDriftRatePerFrameM * static_cast<float>(frame);
+    const float curl = finger_curl_amount(frame);
     auto sample = std::make_shared<core::HandPoseT>();
     sample->joints = std::make_shared<core::HandJoints>();
     for (int joint = 0; joint < core::HandJoint_NUM_JOINTS; ++joint)
     {
-        const auto& offset = kHandJointOffsets[static_cast<std::size_t>(joint)];
+        const auto offset = curled_hand_joint_offset(joint, kHandJointOffsets[static_cast<std::size_t>(joint)], curl);
         const float x = anchor_x + mirror_x * offset.x;
         const float y = kHandHeightM + offset.y;
         const float z = offset.z - delta;

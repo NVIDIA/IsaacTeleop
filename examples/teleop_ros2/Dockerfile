@@ -7,6 +7,7 @@
 # against the distro's own interpreter.
 ARG ROS_DISTRO=jazzy
 ARG PYTHON_VERSION=3.12
+ARG MANUS_ACCEPT_EULA=
 
 # -----------------------------------------------------------------------------
 # Base: common runtime deps + uv + Python (shared by builder and runtime)
@@ -75,8 +76,8 @@ RUN python3 scripts/fetch_sharpa_wave_urdfs.py --output-dir /opt/sharpa-wave-urd
 FROM base AS builder
 ARG ROS_DISTRO
 ARG PYTHON_VERSION
-ARG BUNDLE_ROBOTIC_GROUNDING=false
 ARG TARGETARCH
+ARG MANUS_ACCEPT_EULA
 
 # Compiler cache. CCACHE_DIR points at a BuildKit cache mount kept on the
 # runner's local BuildKit storage (not the image, not GitHub Actions cache),
@@ -89,12 +90,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ccache \
     clang-format \
     cmake \
+    curl \
     git \
+    libvulkan-dev \
     patchelf \
     pkg-config \
     python3-colcon-common-extensions \
     ros-${ROS_DISTRO}-ament-cmake-auto \
     ros-${ROS_DISTRO}-rosidl-default-generators \
+    sudo \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/isaacteleop
@@ -122,7 +127,6 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
         -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
-        -DBUNDLE_ROBOTIC_GROUNDING=${BUNDLE_ROBOTIC_GROUNDING} \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release \
@@ -136,6 +140,28 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
                 -DCMAKE_BUILD_TYPE=Release \
                 -DPython3_EXECUTABLE=/usr/bin/python3" \
     && ccache --show-stats
+
+RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
+    src/plugins/wuji_glove/install.sh --build-dir /opt/isaacteleop/build \
+    && if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
+        src/plugins/manus/install_manus.sh --container \
+            --build-dir /opt/isaacteleop/build; \
+    fi \
+    && ccache --show-stats
+
+RUN set -eu; \
+    wuji_plugin=/opt/isaacteleop/install/plugins/wuji_glove/wuji_glove_plugin; \
+    test -x "$wuji_plugin"; \
+    test -f /opt/isaacteleop/install/plugins/wuji_glove/plugin.yaml; \
+    ldd_output="$(ldd "$wuji_plugin")"; \
+    printf '%s\n' "$ldd_output" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
+    if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
+        manus_plugin=/opt/isaacteleop/install/plugins/manus/manus_hand_plugin; \
+        test -x "$manus_plugin"; \
+        test -f /opt/isaacteleop/install/plugins/manus/plugin.yaml; \
+        ldd_output="$(ldd "$manus_plugin")"; \
+        printf '%s\n' "$ldd_output" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
+    fi
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash

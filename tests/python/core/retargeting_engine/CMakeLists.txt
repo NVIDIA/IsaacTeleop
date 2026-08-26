@@ -14,17 +14,9 @@ file(GLOB TEST_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.py"
 )
 
-# Sharpa test needs the robotic_grounding runtime deps (pin, pin-pink, ...) that
-# live in the [grounding] extra. The robotic_grounding package itself is staged
-# into ${CMAKE_BINARY_DIR}/python_package/<cfg>/ alongside isaacteleop by
-# src/core/python/CMakeLists.txt when -DBUNDLE_ROBOTIC_GROUNDING=TRUE. Gating
-# --extra grounding on the same flag keeps the test invocation in lockstep
-# with the wheel build. Without bundling, the test still runs but skips via
-# the _HAS_PINOCCHIO guard.
-set(GROUNDING_EXTRA_ARGS "")
-if(BUNDLE_ROBOTIC_GROUNDING)
-    set(GROUNDING_EXTRA_ARGS --extra grounding)
-endif()
+# The public robotic_grounding package is always staged with Python bindings.
+# This option controls whether its heavier runtime dependencies and test run.
+option(TEST_SHARPA_RETARGETER "Install grounding dependencies and run the Sharpa retargeter test" ON)
 
 # wuji_sdk is a public PyPI package, so it installs by default and the test
 # runs. OFF makes the test skip via its _HAS_WUJI_SDK guard.
@@ -42,7 +34,10 @@ foreach(test_file ${TEST_FILES})
     # Sharpa test alone needs the [grounding] runtime deps; other tests don't.
     set(extra_uv_args "")
     if(test_name STREQUAL "test_sharpa_hand_retargeter")
-        set(extra_uv_args ${GROUNDING_EXTRA_ARGS})
+        if(NOT TEST_SHARPA_RETARGETER)
+            continue()
+        endif()
+        set(extra_uv_args --extra grounding)
     elseif(test_name STREQUAL "test_wuji_hand_retargeter")
         set(extra_uv_args ${WUJI_EXTRA_ARGS})
     endif()

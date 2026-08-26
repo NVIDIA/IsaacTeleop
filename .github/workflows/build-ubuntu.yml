@@ -77,22 +77,6 @@ jobs:
       id: cloudxr-sdk
       uses: ./.github/actions/setup-cloudxr-sdk
 
-    # robotic_grounding source bundle for the [grounding] extra (Sharpa retargeter).
-    # Disabled on release branches (and PRs targeting them) to keep release
-    # artifacts free of V2D source: V2D is private/pre-release and shouldn't
-    # ship with anything stamped as a release. Also no-ops on forks that
-    # lack V2D_RETARGETER_TOKEN. In every disabled case the wheel build skips
-    # bundling robotic_grounding/, and Sharpa tests skip via the
-    # _HAS_PINOCCHIO guard. Must run BEFORE `Configure CMake` so the wheel
-    # staging step in src/core/python/CMakeLists.txt picks up
-    # deps/v2d/src/robotic_grounding/.
-    - name: Setup robotic_grounding source bundle
-      id: setup-v2d-src
-      if: ${{ !startsWith(github.ref_name, 'release/') && !startsWith(github.base_ref, 'release/') }}
-      uses: ./.github/actions/setup-v2d-src
-      with:
-        github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
-
     # vcpkg - required when BUILD_PLUGIN_OAK_CAMERA=ON for DepthAI v3.x deps
     - name: Cache vcpkg
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -147,7 +131,6 @@ jobs:
           -DBUILD_PLUGIN_OAK_CAMERA=ON \
           -DBUILD_VIZ=ON \
           -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
-          -DBUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
           "${coverage_args[@]}"
 
@@ -642,13 +625,6 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
 
-    - name: Setup robotic_grounding source bundle
-      id: setup-v2d-src
-      if: ${{ !startsWith(github.ref_name, 'release/') && !startsWith(github.base_ref, 'release/') }}
-      uses: ./.github/actions/setup-v2d-src
-      with:
-        github-token: ${{ secrets.V2D_RETARGETER_TOKEN }}
-
     # Each ROS distro is tied to its own system Python, so the distro follows
     # from the matrix entry: Jazzy is 3.12. Humble would be 3.10, which is below
     # the supported floor.
@@ -670,7 +646,6 @@ jobs:
         docker build -f examples/teleop_ros2/Dockerfile \
           --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
           --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
-          --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -t teleop_ros2_ref:${{ env.ROS_DISTRO }} .
 
     - name: Run teleop_ros2 Python unit tests
@@ -683,7 +658,6 @@ jobs:
           --target test \
           --build-arg ROS_DISTRO=${{ env.ROS_DISTRO }} \
           --build-arg PYTHON_VERSION=${{ matrix.python_version }} \
-          --build-arg BUNDLE_ROBOTIC_GROUNDING=${{ steps.setup-v2d-src.outputs.bundled || 'false' }} \
           -t "$TEST_IMAGE" .
 
         docker run --rm \
@@ -722,6 +696,7 @@ jobs:
           "hand_teleop mode_default"
           "controller_raw mode_default"
           "full_body mode_default"
+          "controller_teleop pink_ik"
           "controller_teleop wuji"
           "hand_teleop wuji"
         )
@@ -805,12 +780,10 @@ jobs:
           fi
         done
 
-    # Live CloudXR bring-up on the same GPU runner, reusing the teleop_ros2_ref
-    # image built above. Runs the teleop_ros2 node against a real in-process
-    # CloudXR runtime (CloudXRLauncher launches the runtime + WSS proxy) and
-    # asserts clean bring-up. No XR client connects, so the session never starts
-    # and topics are not verified here; this exercises the CloudXR launch path
-    # the replay phase above cannot.
+    # Live CloudXR and managed-plugin bring-up on the same GPU runner, reusing
+    # the teleop_ros2_ref image built above. Runs the teleop_ros2 node against a
+    # real in-process CloudXR runtime and requires the bundled Wuji plugin to
+    # start through TeleopSession. No XR client or glove is required.
     - name: Verify live CloudXR bring-up
       run: |
         set -euo pipefail
@@ -819,17 +792,16 @@ jobs:
         RUN_NAME="teleop-ros2-cloudxr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}-${{ env.ROS_DISTRO }}"
         LOG_FILE="/tmp/ros2_cloudxr_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
         MODE="controller_teleop"
+        HAND_RETARGETER="dexpilot"
+        HAND_TRACKING_PLUGIN="wuji"
 
         # The node logs this after CloudXRLauncher returns: runtime ready + WSS
         # proxy up. This is the primary bring-up marker.
         BRINGUP_MARKER="CloudXR runtime and WSS proxy started"
-        # After bring-up the node enters the live session loop. With no XR client
-        # connected it logs the retry warning; if a device/system is present it
-        # logs session start. Either proves the loop is live.
-        LOOP_MARKER_A="TeleopSession started successfully"
-        LOOP_MARKER_B="No XR client connected"
-        # Hard failures from the launcher/runtime.
-        FAIL_RE="CloudXR runtime failed to start|SDK missing libcloudxr.so|CloudXR EULA was not accepted|CloudXR launcher is not running|runtime process exited unexpectedly|WSS proxy thread stopped unexpectedly"
+        SESSION_MARKER="TeleopSession started successfully"
+        PLUGIN_MARKER="WujiGlovePlugin initialized and running"
+        # Hard failures from the launcher, runtime, or plugin lifecycle.
+        FAIL_RE="CloudXR runtime failed to start|SDK missing libcloudxr.so|CloudXR EULA was not accepted|CloudXR launcher is not running|runtime process exited unexpectedly|WSS proxy thread stopped unexpectedly|Plugin process exited immediately|Required plugin .* was not discovered"
 
         BRINGUP_TIMEOUT_SEC=180
         LOOP_TIMEOUT_SEC=30
@@ -853,7 +825,7 @@ jobs:
           -e PYTHONUNBUFFERED=1 \
           -e ACCEPT_CLOUDXR_EULA=Y \
           --entrypoint bash "$IMAGE" -c \
-          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p cloudxr_accept_eula:=true" >/dev/null
+          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p hand_retargeter:=$HAND_RETARGETER -p hand_tracking_plugin:=$HAND_TRACKING_PLUGIN -p cloudxr_accept_eula:=true" >/dev/null
 
         fail() {
           echo "Error: $1"
@@ -870,7 +842,7 @@ jobs:
           docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
 
           if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
-            fail "CloudXR runtime/launcher reported a fatal error during bring-up"
+            fail "live bring-up reported a fatal error"
           fi
           if grep -qF "$BRINGUP_MARKER" "$LOG_FILE"; then
             bringup=true
@@ -891,30 +863,33 @@ jobs:
         fi
         echo "CloudXR runtime + WSS proxy came up."
 
-        # Phase 2: confirm the node entered the live session loop.
-        loop=false
+        # Phase 2: require both the live session and managed Wuji plugin.
+        ready=false
         deadline=$((SECONDS + LOOP_TIMEOUT_SEC))
         while [ "$SECONDS" -lt "$deadline" ]; do
           docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
           if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
-            fail "CloudXR runtime/launcher reported a fatal error after bring-up"
+            fail "live bring-up reported a fatal error after CloudXR startup"
           fi
-          if grep -qF "$LOOP_MARKER_A" "$LOG_FILE" || grep -qF "$LOOP_MARKER_B" "$LOG_FILE"; then
-            loop=true
+          if grep -qF "$SESSION_MARKER" "$LOG_FILE" && grep -qF "$PLUGIN_MARKER" "$LOG_FILE"; then
+            ready=true
             break
           fi
           running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
           if [ "$running" != "true" ]; then
             rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
-            fail "node exited before entering the live session loop (exit code $rc)"
+            fail "node exited before the live session and Wuji plugin started (exit code $rc)"
           fi
           sleep "$POLL_INTERVAL_SEC"
         done
 
-        if [ "$loop" != true ]; then
-          fail "node did not enter the live session loop within ${LOOP_TIMEOUT_SEC}s"
+        if [ "$ready" != true ]; then
+          fail "live session and Wuji plugin did not start within ${LOOP_TIMEOUT_SEC}s"
         fi
-        echo "Node entered the live session loop."
+        if ! docker exec "$RUN_NAME" pgrep -f '(^|/)wuji_glove_plugin( |$)' >/dev/null; then
+          fail "Wuji plugin process is not running after startup"
+        fi
+        echo "Live session and managed Wuji plugin started."
 
         # Phase 3: soak. The node calls launcher.health_check() every loop, so a
         # dead runtime/WSS proxy would crash it. Surviving the soak with no fatal
@@ -922,18 +897,21 @@ jobs:
         sleep "$SOAK_SEC"
         docker logs "$RUN_NAME" > "$LOG_FILE" 2>&1 || true
         if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
-          fail "CloudXR runtime/launcher reported a fatal error during soak"
+          fail "live bring-up reported a fatal error during soak"
         fi
         running=$(docker inspect -f '{{.State.Running}}' "$RUN_NAME" 2>/dev/null || echo false)
         if [ "$running" != "true" ]; then
           rc=$(docker inspect -f '{{.State.ExitCode}}' "$RUN_NAME" 2>/dev/null || echo 1)
           fail "node exited during the ${SOAK_SEC}s soak (exit code $rc)"
         fi
+        if ! docker exec "$RUN_NAME" pgrep -f '(^|/)wuji_glove_plugin( |$)' >/dev/null; then
+          fail "Wuji plugin process exited during the ${SOAK_SEC}s soak"
+        fi
 
         docker stop --time 5 "$RUN_NAME" >/dev/null || true
         echo "===== teleop_ros2 (live) container log ====="
         cat "$LOG_FILE" 2>/dev/null || echo "No log captured"
-        echo "Live CloudXR bring-up verified for mode $MODE (${{ env.ROS_DISTRO }}, ${{ matrix.arch }})."
+        echo "Live CloudXR and Wuji plugin bring-up verified for mode $MODE (${{ env.ROS_DISTRO }}, ${{ matrix.arch }})."
 
   # These are the actual dependency jobs for publish-wheel. publish-wheel
   # depends only on wheel-gate so the dependency list lives in one place, while

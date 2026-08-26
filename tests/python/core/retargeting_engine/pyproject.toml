@@ -26,8 +26,10 @@ test = [
 # its runtime deps come from this extra.
 grounding = [
     "numpy",
-    "scipy",
+    "scipy>=1.15.0",
     "torch>=2.7.0",
+    "trimesh",
+    "viser",
     "pin>=2.7",
     "pin-pink>=4.0",
     "loop-rate-limiters",

@@ -79,7 +79,9 @@ The script will:
 4. Build the plugin and the diagnostic tool.
 
 When run inside a container, ``install_manus.sh`` skips the udev step and
-reminds you to run ``install_udev_rules.sh`` on the host.
+reminds you to run ``install_udev_rules.sh`` on the host. Pass ``--container``
+when the build environment does not expose standard container markers, such as
+during a Docker BuildKit build.
 
 Manual installation
 ~~~~~~~~~~~~~~~~~~~

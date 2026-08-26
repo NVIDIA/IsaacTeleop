@@ -68,12 +68,15 @@ tracking, MANUS gloves, or Wuji gloves. Choose the retargeter for the robot hand
 independently from the OpenXR input source, and use only one input source at a
 time. Native OpenXR hand tracking needs no additional input plugin.
 
-The ROS image does not build or launch either glove plugin. Build and run the
-selected plugin separately. For either external glove plugin, the node and
-plugin must use the same CloudXR runtime path and network namespace. Use host
-networking and the same absolute CloudXR mount path when running the node in
-Docker, as shown in the Wuji launch example below. The glove must also be
-reachable from the plugin environment.
+Set `hand_tracking_plugin` to `wuji` or `manus` to have the ROS node manage that
+plugin with its live teleoperation session. The default `none` keeps native
+OpenXR hand tracking or the manual plugin workflow below. Managed plugins require
+`hand_teleop`, or `controller_teleop` with `dexpilot`, `pink_ik`, or `wuji`, and
+are not launched during MCAP replay.
+
+When launching a plugin manually, the plugin and node must use the same CloudXR
+runtime path and network namespace, and the glove must be reachable from the
+plugin environment.
 
 #### MANUS glove input
 
@@ -101,7 +104,7 @@ After starting the ROS node, attach the plugin to the same CloudXR runtime:
 
 ```bash
 source "$HOME/.cloudxr/run/cloudxr.env"
-./build/src/plugins/wuji_glove/wuji_glove_plugin
+./install/plugins/wuji_glove/wuji_glove_plugin
 ```
 
 The Wuji glove plugin defaults to automatic wrist-source selection: optical
@@ -153,6 +156,19 @@ docker build -f examples/teleop_ros2/Dockerfile --build-arg ROS_DISTRO=<distro> 
 
 You can tag by distro (e.g. `teleop_ros2_ref:jazzy`) to build and run several side by side.
 
+The default image includes the Wuji glove plugin on amd64 and arm64. To include
+the MANUS plugin in an amd64 image, review the
+[MANUS Software License Agreement](https://www.manus-meta.com/software-license-agreement),
+confirm that your license permits this use, and explicitly accept it:
+
+```bash
+export MANUS_ACCEPT_EULA=YES
+docker build --build-arg MANUS_ACCEPT_EULA \
+  -f examples/teleop_ros2/Dockerfile -t teleop_ros2_ref:manus .
+```
+
+MANUS is skipped on non-amd64 builds.
+
 Incremental rebuilds use Docker BuildKit cache. Ensure BuildKit is enabled (default in Docker 23+), or run with `DOCKER_BUILDKIT=1 docker build ...`.
 
 ### Run the container
@@ -166,6 +182,19 @@ docker run --rm --gpus all --net=host --ipc=host \
   --name teleop_ros2_ref \
   teleop_ros2_ref --ros-args -p cloudxr_accept_eula:=true
 ```
+
+Select the managed input plugin independently from the robot-hand retargeter:
+
+- Wuji gloves driving Sharpa hands:
+  `-p hand_tracking_plugin:=wuji -p hand_retargeter:=dexpilot`
+- MANUS gloves driving Wuji Hand 2:
+  `-p hand_tracking_plugin:=manus -p hand_retargeter:=wuji -p wuji_hand_model:=wuji_hand_2`
+
+Wuji gloves must be reachable through the container's host network. Pass Wuji
+configuration overrides into the container with `docker run -e <name>=<value>`.
+MANUS also requires the
+[host udev setup](../../docs/source/device/manus.rst) and USB access; add
+`-v /dev/bus/usb:/dev/bus/usb` to the MANUS `docker run` command.
 
 ### Overriding parameters and remapping topics
 
@@ -183,7 +212,7 @@ docker run --rm --gpus all --net=host --ipc=host \
   -r xr_teleop/ee_poses:=my_robot/ee_poses
 ```
 
-Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `wuji_hand_model`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_client_route`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
+Available parameters: `rate_hz`, `mode`, `hand_retargeter`, `hand_tracking_plugin`, `wuji_hand_model`, `config_asset_root`, `cloudxr_install_dir`, `cloudxr_env_config`, `cloudxr_client_route`, `cloudxr_accept_eula`, `cloudxr_setup_oob`, `cloudxr_usb_local`, `pedal_collection_id`, `world_frame`, `right_wrist_frame`, `left_wrist_frame`, `head_frame`, `left_finger_joint_names`, `right_finger_joint_names`. Use `ros2 param list /teleop_ros2_node` and `ros2 param describe /teleop_ros2_node <param>` (with the node running) for the full set.
 
 By default, `left_finger_joint_names` and `right_finger_joint_names` use the selected mode's retargeter joint names. They can be overridden to publish robot-specific names on `xr_teleop/finger_joints`, but each override must provide the same number of names as the joints emitted by that mode's retargeter.
 

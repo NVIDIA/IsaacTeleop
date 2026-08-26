@@ -21,11 +21,13 @@ from pathlib import Path
 import numpy as np
 from constants import (
     HAND_RETARGETERS,
+    HAND_TRACKING_PLUGINS,
     TELEOP_MODES,
+    TRACKED_HAND_RETARGETERS,
     WUJI_HAND_MODELS,
     HandRetargeter,
+    HandTrackingPlugin,
     TeleopMode,
-    applies_manus_controller_to_hand_transform,
     resolve_hand_retargeter,
 )
 from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
@@ -64,7 +66,8 @@ class NodeParameters:
     sleep_period_s: float
     hand_retargeter: HandRetargeter
     resolved_hand_retargeter: HandRetargeter
-    apply_manus_controller_to_hand_transform: bool
+    hand_tracking_plugin: HandTrackingPlugin
+    plugin_search_paths: tuple[Path, ...]
     wuji_hand_model: str
     config_asset_root: Path
     session_mode: SessionMode
@@ -312,7 +315,7 @@ def _load_frames(node: Node) -> tuple[str, str, str, str]:
 
 def _load_hand_retargeter(
     node: Node, mode: TeleopMode
-) -> tuple[HandRetargeter, HandRetargeter, bool]:
+) -> tuple[HandRetargeter, HandRetargeter]:
     node.declare_parameter(
         "hand_retargeter",
         HandRetargeter.MODE_DEFAULT.value,
@@ -336,16 +339,78 @@ def _load_hand_retargeter(
             f"got {raw_hand_retargeter!r}"
         ) from exc
     resolved_hand_retargeter = resolve_hand_retargeter(mode, hand_retargeter)
-    apply_manus_transform = applies_manus_controller_to_hand_transform(
-        mode, resolved_hand_retargeter
-    )
     if mode in (TeleopMode.HAND_TELEOP, TeleopMode.CONTROLLER_TELEOP):
         node.get_logger().info(f"Hand retargeter: {resolved_hand_retargeter}")
-    if apply_manus_transform:
-        node.get_logger().info(
-            "Applying MANUS controller-to-hand transform after pose transform."
+    return hand_retargeter, resolved_hand_retargeter
+
+
+def _load_hand_tracking_plugin(
+    node: Node,
+    mode: TeleopMode,
+    resolved_hand_retargeter: HandRetargeter,
+    session_mode: SessionMode,
+) -> tuple[HandTrackingPlugin, tuple[Path, ...]]:
+    node.declare_parameter(
+        "hand_tracking_plugin",
+        HandTrackingPlugin.NONE.value,
+        ParameterDescriptor(
+            description=(
+                "Optional hand-tracking input plugin managed by this node. "
+                "Use 'none' for native OpenXR or a manually launched plugin. "
+                "Valid managed plugins: 'manus' or 'wuji'."
+            ),
+            additional_constraints=f"Must be one of {HAND_TRACKING_PLUGINS}.",
+        ),
+    )
+    raw_plugin = (
+        node.get_parameter("hand_tracking_plugin")
+        .get_parameter_value()
+        .string_value.strip()
+    )
+    try:
+        plugin = HandTrackingPlugin(raw_plugin)
+    except ValueError as exc:
+        raise ValueError(
+            f"Parameter 'hand_tracking_plugin' must be one of "
+            f"{HAND_TRACKING_PLUGINS}, got {raw_plugin!r}"
+        ) from exc
+
+    search_paths = tuple(
+        dict.fromkeys(
+            Path(value).expanduser().resolve()
+            for value in os.environ.get("ISAAC_TELEOP_PLUGIN_PATH", "").split(
+                os.pathsep
+            )
+            if value.strip()
         )
-    return hand_retargeter, resolved_hand_retargeter, apply_manus_transform
+    )
+    if plugin == HandTrackingPlugin.NONE:
+        return plugin, search_paths
+
+    if session_mode == SessionMode.REPLAY:
+        node.get_logger().info(
+            f"Ignoring hand_tracking_plugin:={plugin} during MCAP replay."
+        )
+        return HandTrackingPlugin.NONE, search_paths
+
+    consumes_tracked_hands = mode == TeleopMode.HAND_TELEOP or (
+        mode == TeleopMode.CONTROLLER_TELEOP
+        and resolved_hand_retargeter in TRACKED_HAND_RETARGETERS
+    )
+    if not consumes_tracked_hands:
+        raise ValueError(
+            f"hand_tracking_plugin:={plugin} requires a tracked-hand mode; "
+            f"mode:={mode} with hand_retargeter:={resolved_hand_retargeter} "
+            "does not consume OpenXR hand tracking"
+        )
+
+    if not any(path.is_dir() for path in search_paths):
+        raise FileNotFoundError(
+            "No existing plugin search directory was found in ISAAC_TELEOP_PLUGIN_PATH"
+        )
+
+    node.get_logger().info(f"Managed hand-tracking plugin: {plugin}")
+    return plugin, search_paths
 
 
 def _load_mcap_replay(
@@ -514,14 +579,16 @@ def create_node_parameters(node: Node) -> NodeParameters:
     """Declare every ROS parameter on ``node``, validate, and return the snapshot."""
     rate_hz = _load_rate_hz(node)
     mode = _load_mode(node)
-    (
-        hand_retargeter,
-        resolved_hand_retargeter,
-        apply_manus_controller_to_hand_transform,
-    ) = _load_hand_retargeter(node, mode)
+    hand_retargeter, resolved_hand_retargeter = _load_hand_retargeter(node, mode)
     wuji_hand_model = _load_wuji_hand_model(node)
     config_asset_root = _load_config_asset_root(node)
     session_mode, mcap_config = _load_mcap_replay(node)
+    hand_tracking_plugin, plugin_search_paths = _load_hand_tracking_plugin(
+        node,
+        mode,
+        resolved_hand_retargeter,
+        session_mode,
+    )
     cloudxr_params = _load_cloudxr(node)
     pedal_collection_id = _load_pedal_collection_id(node)
     world_frame, right_wrist_frame, left_wrist_frame, head_frame = _load_frames(node)
@@ -535,9 +602,8 @@ def create_node_parameters(node: Node) -> NodeParameters:
         sleep_period_s=1.0 / rate_hz,
         hand_retargeter=hand_retargeter,
         resolved_hand_retargeter=resolved_hand_retargeter,
-        apply_manus_controller_to_hand_transform=(
-            apply_manus_controller_to_hand_transform
-        ),
+        hand_tracking_plugin=hand_tracking_plugin,
+        plugin_search_paths=plugin_search_paths,
         wuji_hand_model=wuji_hand_model,
         config_asset_root=config_asset_root,
         session_mode=session_mode,

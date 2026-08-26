@@ -85,8 +85,14 @@ class TeleopRos2Node(Node):
         super().__init__("teleop_ros2_node")
         self._params: NodeParameters = create_node_parameters(self)
         self._profile_spec = resolve_teleop_profile_spec(
-            self._params.mode, self._params.resolved_hand_retargeter
+            self._params.mode,
+            self._params.resolved_hand_retargeter,
+            self._params.hand_tracking_plugin,
         )
+        if self._profile_spec.apply_manus_controller_to_hand_transform:
+            self.get_logger().info(
+                "Applying MANUS controller-to-hand transform after pose transform."
+            )
         self._tf_broadcaster = TransformBroadcaster(self)
         self._create_publishers()
         self._config = build_session_config(self._params)
@@ -123,7 +129,7 @@ class TeleopRos2Node(Node):
             self._params.right_wrist_frame,
             self._params.transform_rotation,
             self._params.transform_translation,
-            self._params.apply_manus_controller_to_hand_transform,
+            self._profile_spec.apply_manus_controller_to_hand_transform,
         )
         self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:

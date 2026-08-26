@@ -4,14 +4,21 @@
 """
 Tests for SharpaHandRetargeter.
 
-Resolves a stripped-down MJCF (no mesh references) from the
-``robotic_grounding`` wheel via ``importlib.resources``. Requires
-the ``grounding`` optional extra; tests skip cleanly otherwise.
+Resolves the generated mesh-free MJCF from the public V2D package staged
+inside the Isaac Teleop wheel. The CMake test installs the ``grounding`` extra.
 """
 
+import xml.etree.ElementTree as ET
+from importlib.resources import files
+
 import numpy as np
+import pink
 import pytest
 
+from isaacteleop.retargeters import (
+    SharpaHandRetargeter,
+    SharpaHandRetargeterConfig,
+)
 from isaacteleop.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
@@ -30,43 +37,17 @@ from isaacteleop.retargeting_engine.tensor_types import (
     NUM_HAND_JOINTS,
 )
 
-_HAS_PINOCCHIO = True
-try:
-    from isaacteleop.retargeters import (
-        SharpaHandRetargeter,
-        SharpaHandRetargeterConfig,
-    )
-except ModuleNotFoundError:
-    _HAS_PINOCCHIO = False
-
-_requires_pinocchio = pytest.mark.skipif(
-    not _HAS_PINOCCHIO,
-    reason=(
-        "requires robotic_grounding (pip install 'isaacteleop[grounding]' + "
-        "scripts/setup_v2d_src.sh, see references/retargeting/sharpa.rst)"
-    ),
-)
-
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-# Sharpa MJCFs ship inside the robotic_grounding wheel as package_data.
-# The _nomesh variant strips <mesh>/<asset> blocks so Pinocchio can load the
-# model without the 24 MB of LFS-tracked STL meshes -- exactly what we need
-# for hermetic unit tests.
-if _HAS_PINOCCHIO:
-    from importlib.resources import files as _files
-
-    SHARPA_MJCF = str(
-        _files("robotic_grounding")
-        / "assets"
-        / "xmls"
-        / "sharpawave"
-        / "right_sharpawave_nomesh.xml"
-    )
-else:
-    SHARPA_MJCF = ""  # tests are skipped via _HAS_PINOCCHIO anyway
+SHARPA_MJCF = str(
+    files("robotic_grounding")
+    / "assets"
+    / "xmls"
+    / "sharpawave"
+    / "right_sharpawave_nomesh.xml"
+)
 
 # ---------------------------------------------------------------------------
 # Helpers (mirror test_dual_input_retargeters.py patterns)
@@ -98,6 +79,17 @@ def _build_io(retargeter):
         else:
             outputs[k] = TensorGroup(v)
     return inputs, outputs
+
+
+def _compute_joint_values(
+    retargeter: SharpaHandRetargeter, hand: TensorGroup
+) -> np.ndarray:
+    inputs, outputs = _build_io(retargeter)
+    inputs["hand_right"] = hand
+    retargeter.compute(inputs, outputs, _make_context())
+    return np.asarray(
+        [float(outputs["hand_joints"][i]) for i in range(len(EXPECTED_FINGER_JOINTS))]
+    )
 
 
 def _make_hand_input_open() -> TensorGroup:
@@ -228,7 +220,6 @@ EXPECTED_FINGER_JOINTS = [
 # ===========================================================================
 
 
-@_requires_pinocchio
 class TestSharpaHandRetargeter:
     @pytest.fixture()
     def retargeter(self):
@@ -260,29 +251,83 @@ class TestSharpaHandRetargeter:
 
     def test_open_hand_produces_output(self, retargeter):
         """An open hand pose should produce finite joint angles."""
-        inputs, outputs = _build_io(retargeter)
-        inputs["hand_right"] = _make_hand_input_open()
-
-        retargeter.compute(inputs, outputs, _make_context())
-
-        values = [
-            float(outputs["hand_joints"][i]) for i in range(len(EXPECTED_FINGER_JOINTS))
-        ]
+        values = _compute_joint_values(retargeter, _make_hand_input_open())
         assert all(np.isfinite(values)), f"Non-finite values: {values}"
 
-    def test_curled_hand_produces_nonzero_joints(self, retargeter):
-        """A curled hand should produce noticeably non-zero joint angles."""
-        inputs, outputs = _build_io(retargeter)
-        inputs["hand_right"] = _make_hand_input_curled()
+    def test_open_and_curled_poses_are_meaningful(self, retargeter):
+        open_values = _compute_joint_values(retargeter, _make_hand_input_open())
+        retargeter._qpos_prev = None
+        curled_values = _compute_joint_values(retargeter, _make_hand_input_curled())
 
-        retargeter.compute(inputs, outputs, _make_context())
+        assert np.all(np.isfinite(open_values))
+        assert np.all(np.isfinite(curled_values))
+        assert np.any(np.abs(curled_values) > 0.01)
 
-        values = [
-            float(outputs["hand_joints"][i]) for i in range(len(EXPECTED_FINGER_JOINTS))
-        ]
-        assert any(abs(v) > 0.01 for v in values), (
-            f"Expected at least some non-zero joints for curled hand, got: {values}"
+        finger_groups = {
+            "thumb": slice(0, 5),
+            "index": slice(5, 9),
+            "middle": slice(9, 13),
+            "ring": slice(13, 17),
+            "pinky": slice(17, 22),
+        }
+        for finger, indices in finger_groups.items():
+            delta = np.linalg.norm(curled_values[indices] - open_values[indices])
+            assert delta > 1e-3, (
+                f"{finger} joints did not respond to the curled target: {delta}"
+            )
+
+        ranges = {
+            joint.attrib["name"]: np.fromstring(joint.attrib["range"], sep=" ")
+            for joint in ET.parse(SHARPA_MJCF).getroot().iter("joint")
+            if "name" in joint.attrib and "range" in joint.attrib
+        }
+        for values in (open_values, curled_values):
+            for name, value in zip(EXPECTED_FINGER_JOINTS, values, strict=True):
+                lower, upper = ranges[name]
+                assert lower - 1e-6 <= value <= upper + 1e-6, (
+                    f"{name}={value} is outside [{lower}, {upper}]"
+                )
+
+        kinematics = retargeter._kinematics
+        solved_errors = np.asarray(
+            [
+                np.linalg.norm(
+                    np.asarray(task.compute_error(kinematics.configuration))[:3]
+                )
+                for task in kinematics.frame_tasks.values()
+            ]
         )
+        neutral = pink.Configuration(
+            kinematics.robot.model,
+            kinematics.robot.data,
+            kinematics.robot.q0,
+        )
+        neutral_errors = np.asarray(
+            [
+                np.linalg.norm(np.asarray(task.compute_error(neutral))[:3])
+                for task in kinematics.frame_tasks.values()
+            ]
+        )
+        assert solved_errors.mean() < neutral_errors.mean() * 0.8, (
+            "solved fingertip frames are not materially closer to the curled targets"
+        )
+
+    def test_open_curl_open_sweep_is_smooth_and_repeatable(self, retargeter):
+        samples = [
+            _make_hand_input_open(),
+            _make_hand_input_curled(),
+            _make_hand_input_curled(),
+            _make_hand_input_open(),
+        ]
+        outputs = [_compute_joint_values(retargeter, sample) for sample in samples]
+
+        frame_deltas = [
+            np.linalg.norm(current - previous)
+            for previous, current in zip(outputs, outputs[1:])
+        ]
+        assert all(delta < 4.0 for delta in frame_deltas)
+        assert np.linalg.norm(outputs[2] - outputs[1]) < 0.1
+        assert np.linalg.norm(outputs[-1] - outputs[0]) < 0.25
 
     def test_warm_starting_persistence(self, retargeter):
         """Second frame should reuse warm-start from the first frame."""
