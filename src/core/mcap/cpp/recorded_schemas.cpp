@@ -3,6 +3,7 @@
 
 #include "inc/mcap/recorded_schemas.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace core
@@ -58,6 +59,10 @@ RecordedSchemas::RecordedSchemas(mcap::McapReader& reader)
         }
         channels_.push_back({ channel->topic, channel->messageEncoding, reader.schema(channel->schemaId) });
     }
+
+    // The reader holds channels in a hash map, so without this which one a mismatch is reported
+    // against varies between runs of the same file.
+    std::sort(channels_.begin(), channels_.end(), [](const Channel& a, const Channel& b) { return a.topic < b.topic; });
 }
 
 } // namespace core

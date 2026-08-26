@@ -239,14 +239,21 @@ public:
             channels_.push_back({ mcap_topic(base_name, sub), {} });
         }
 
-        // One grade per schema rather than per channel: a grade describes the schema, and
-        // every channel a tracker reads shares the one its writer registered.
         std::vector<mcap::SchemaId> graded;
         for (const RecordedSchemas::Channel& channel : recorded.channels())
         {
+            if (!channel_index_of(channel.topic).has_value())
+            {
+                continue;
+            }
+
+            // What a channel says its message bytes are is the channel's own, so every one of
+            // them is asked. The grade below belongs to the schema, and every channel a tracker
+            // reads shares the one its writer registered, so it is asked once.
+            enforce_schema_compat(check_message_encoding(channel), channel.topic);
+
             const mcap::SchemaId schema_id = channel.schema != nullptr ? channel.schema->id : 0;
-            if (!channel_index_of(channel.topic).has_value() ||
-                std::find(graded.begin(), graded.end(), schema_id) != graded.end())
+            if (std::find(graded.begin(), graded.end(), schema_id) != graded.end())
             {
                 continue;
             }
@@ -355,21 +362,32 @@ private:
         return *found;
     }
 
-    SchemaCompatResult compare_schema(const RecordedSchemas::Channel& channel) const
+    /*!
+     * @brief Whether this channel's messages are FlatBuffers at all.
+     *
+     * The channel declares this, not its schema, so two channels naming one schema can still
+     * disagree. Without the check the payloads reach adopt_message() and come back as a corrupt
+     * FlatBuffer, which says nothing about what is actually wrong.
+     */
+    SchemaCompatResult check_message_encoding(const RecordedSchemas::Channel& channel) const
     {
-        // The channel's own encoding declares the message bytes; without this the payloads
-        // reach adopt_message() and are reported as a corrupt FlatBuffer instead.
         if (channel.message_encoding != "flatbuffer")
         {
             return { SchemaCompat::Incompatible,
                      "channel message encoding is '" + channel.message_encoding + "', reader expects 'flatbuffer'" };
         }
+        return { SchemaCompat::Identical, {} };
+    }
 
+    SchemaCompatResult compare_schema(const RecordedSchemas::Channel& channel) const
+    {
         const mcap::Schema* schema = channel.schema.get();
         if (schema == nullptr)
         {
             return { SchemaCompat::Incompatible, "channel carries no embedded schema" };
         }
+        // How the bytes below are written, which is a separate field from the channel's own
+        // encoding: a channel may carry json messages against a schema stated as a bfbs.
         if (schema->encoding != "flatbuffer")
         {
             return { SchemaCompat::Incompatible,

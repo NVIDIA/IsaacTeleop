@@ -193,6 +193,49 @@ void write_records(const std::string& path,
     writer.close();
 }
 
+/*!
+ * @brief Channels naming a single Schema record, each with its own sub-channel and encoding.
+ *
+ * The shape a multi-channel tracker records in: its channels share the one schema their writer
+ * registered. write_records() gives each channel a schema of its own, which is what makes this
+ * separate -- sharing the id is the whole point. Two entries may name the same sub-channel,
+ * which is a topic carrying more than one channel.
+ */
+void write_shared_schema_channels(const std::string& path,
+                                  const mcap::Schema& schema,
+                                  const std::vector<std::pair<std::string, std::string>>& sub_and_encoding)
+{
+    mcap::McapWriter writer;
+    mcap::McapWriterOptions options("teleop-test");
+    options.compression = mcap::Compression::None;
+    REQUIRE(writer.open(path, options).ok());
+
+    mcap::Schema declared = schema;
+    writer.addSchema(declared);
+
+    core::HeadPoseT head;
+    head.is_valid = true;
+    head.pose = std::make_shared<core::Pose>(core::Point(1.0f, 2.0f, 3.0f), core::Quaternion(0.0f, 0.0f, 0.0f, 1.0f));
+    const auto record = core::pack_record<core::HeadPoseRecord>(&head, core::DeviceDataTimestamp(5, 5, 5));
+    const auto bytes = record.buffer();
+
+    for (const auto& [sub, encoding] : sub_and_encoding)
+    {
+        mcap::Channel channel(core::mcap_topic("tracking", sub), encoding, declared.id);
+        writer.addChannel(channel);
+
+        // A channel with no message of its own leaves no Channel record to find.
+        mcap::Message message;
+        message.channelId = channel.id;
+        message.logTime = message.publishTime = 5;
+        message.sequence = 0;
+        message.data = reinterpret_cast<const std::byte*>(bytes.data());
+        message.dataSize = bytes.size();
+        REQUIRE(writer.write(message).ok());
+    }
+    writer.close();
+}
+
 //! write_records() for the single "tracking/head" channel most cases want.
 void write_head_records(const std::string& path,
                         const std::optional<mcap::Schema>& schema,
@@ -520,4 +563,34 @@ TEST_CASE("RecordedSchemas refuses a recording it cannot enumerate", "[unit][sch
     fs::resize_file(path, fs::file_size(path) / 2);
 
     CHECK_THROWS_AS(recorded_schemas(path), std::runtime_error);
+}
+
+TEST_CASE("McapTrackerViewers asks every channel what its messages are", "[unit][schema_compat]")
+{
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_shared_schema_channels(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()),
+                                 { { "left", "flatbuffer" }, { "right", "json" } });
+
+    // Both channels name the one schema their writer registered, which is what a two-channel
+    // tracker records. Grading that schema once must not mean asking only one of them what its
+    // messages hold -- the encoding belongs to the channel, and "right" here is not flatbuffers.
+    const CapturedCerr log;
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "left", "right" }, recorded), std::runtime_error);
+}
+
+TEST_CASE("McapTrackerViewers asks every channel on a topic, not just one of them", "[unit][schema_compat]")
+{
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_shared_schema_channels(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()),
+                                 { { "head", "flatbuffer" }, { "head", "json" } });
+
+    // One topic, two Channel records -- what MCAP calls one channel per publisher. The topic
+    // filter admits both, so both reach the same read(), and checking whichever of them a lookup
+    // by topic happened to return would let the other hand back records nothing had checked.
+    const CapturedCerr log;
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }, recorded), std::runtime_error);
 }
