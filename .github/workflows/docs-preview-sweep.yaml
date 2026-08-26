@@ -1,0 +1,98 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Nightly reconciliation for docs previews on the gh-pages branch.
+#
+# docs-cleanup-preview.yaml removes a preview when its PR closes. This sweep
+# exists so the branch does not depend on every event firing correctly: it
+# compares what is on the branch against what is actually open and removes the
+# difference. It covers a cleanup job that failed its pushes and previews
+# written before this workflow reached the default branch.
+#
+# Pushing gh-pages triggers Pages (branch source); no separate deploy action.
+name: Docs preview sweep
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    name: Remove previews for closed PRs
+    if: github.repository == 'NVIDIA/IsaacTeleop'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    concurrency:
+      # Shares the publisher's group: both push the gh-pages branch.
+      group: docs-gh-pages
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            .github/scripts
+
+      - name: Remove previews whose PR is no longer open
+        id: sweep
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          err="$(mktemp)"
+
+          # Only a 404 means there is nothing there; any other failure is
+          # operational and must not be read as "no previews".
+          if previews="$(gh api "repos/${GITHUB_REPOSITORY}/contents/preview?ref=gh-pages" \
+              --jq '.[] | select(.type == "dir") | .name' 2>"$err")"; then
+            :
+          elif grep -q 'HTTP 404' "$err"; then
+            previews=""
+          else
+            echo "::error::Could not list previews: $(cat "$err")"
+            exit 1
+          fi
+
+          if [[ -z "$previews" ]]; then
+            echo "No previews on gh-pages."
+            exit 0
+          fi
+
+          stale=()
+          for name in $previews; do
+            [[ "$name" =~ ^pr-([0-9]+)$ ]] || { echo "Ignoring '$name'."; continue; }
+            pr="${BASH_REMATCH[1]}"
+            # Only a confirmed state removes a preview. A 404 means the number
+            # never resolved to a PR and is safe to drop; rate limiting, a 5xx,
+            # or an auth failure must fail the sweep instead of deleting a live
+            # preview. The next run reconciles whatever this one skipped.
+            if state="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr}" --jq .state 2>"$err")"; then
+              :
+            elif grep -q 'HTTP 404' "$err"; then
+              state="missing"
+            else
+              echo "::error::Could not read PR #${pr}: $(cat "$err")"
+              exit 1
+            fi
+            if [[ "$state" == open ]]; then
+              echo "PR #${pr} is open; keeping its preview."
+            else
+              echo "PR #${pr} is ${state}; queuing its preview for removal."
+              stale+=("$pr")
+            fi
+          done
+
+          if [[ ${#stale[@]} -eq 0 ]]; then
+            echo "Every preview belongs to an open PR."
+            exit 0
+          fi
+
+          .github/scripts/remove_docs_preview.sh "${stale[@]}"
+          printf 'Swept %d stale preview(s): %s\n' "${#stale[@]}" "${stale[*]}" \
+            >> "$GITHUB_STEP_SUMMARY"

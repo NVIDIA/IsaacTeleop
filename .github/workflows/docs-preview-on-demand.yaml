@@ -62,8 +62,9 @@ jobs:
       && (github.event.comment.body == '/preview-docs' || startsWith(github.event.comment.body, '/preview-docs '))
     runs-on: ubuntu-latest
     concurrency:
-      group: preview-pr-${{ github.event.issue.number }}
-      cancel-in-progress: true
+      group: docs-gh-pages
+      cancel-in-progress: false
+      queue: max
     permissions:
       actions: read         # download artifacts from the matching docs.yaml run
       contents: write       # push to gh-pages

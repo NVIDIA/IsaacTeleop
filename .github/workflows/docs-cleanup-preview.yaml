@@ -1,21 +1,59 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Manual workflow to remove accumulated PR preview deployments from GitHub Pages.
-# Run from the Actions tab when you want to clean up preview/pr-* directories.
-
+# Remove docs PR preview deployments from GitHub Pages.
+# - pull_request_target closed: delete preview/pr-<N>/.
+# - workflow_dispatch: wipe all of preview/.
+#
+# Close cleanup uses pull_request_target so fork-PR closes still get a write
+# token. Never checkout or run PR-head code; the only untrusted input is the
+# PR number. docs-preview-sweep.yaml reconciles anything still left.
 name: Clean docs PR previews
 
 on:
   workflow_dispatch:
+  pull_request_target:
+    types: [closed]
 
 permissions:
   contents: write
 
 jobs:
-  clean-previews:
-    name: Remove PR preview dirs from gh-pages
+  clean-one-preview:
+    name: Remove one PR preview from gh-pages
+    if: >-
+      github.repository == 'NVIDIA/IsaacTeleop'
+      && github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
+    concurrency:
+      group: docs-gh-pages
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            .github/scripts
+
+      - name: Remove preview/pr-${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          .github/scripts/remove_docs_preview.sh "$PR_NUMBER"
+
+  clean-previews:
+    name: Remove all PR preview dirs from gh-pages
+    if: >-
+      github.repository == 'NVIDIA/IsaacTeleop'
+      && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docs-gh-pages
+      cancel-in-progress: false
+      queue: max
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -29,13 +67,14 @@ jobs:
 
       - name: Clean PR preview deployments
         run: |
+          set -euo pipefail
           git fetch origin gh-pages 2>/dev/null || true
           if ! git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
             echo "No gh-pages branch found. Nothing to clean."
             exit 0
           fi
           git checkout gh-pages
-          if [ ! -d preview ]; then
+          if [[ ! -d preview ]]; then
             echo "No preview/ directory. Nothing to clean."
             exit 0
           fi

@@ -8,8 +8,12 @@
 # - Fork PR: build only; a maintainer can deploy via `/preview-docs` (see
 #   docs-preview-on-demand.yaml).
 #
+# - PR close: docs-cleanup-preview.yaml removes preview/pr-<N>/.
+# - Nightly/manual: docs-preview-sweep.yaml drops previews whose PRs are closed.
+#
 # Builds are gated on changed paths by the `changes` job; gh-pages
 # `keep_files: true` preserves whichever artifact was skipped.
+# Deploy writers share concurrency group `docs-gh-pages` with cleanup/sweep.
 #
 # The web client downloads its CloudXR SDK anonymously from public NGC resources.
 
@@ -172,6 +176,10 @@ jobs:
       && needs.build-docs.result != 'failure'
       && needs.build-app.result != 'failure'
       && (needs.build-docs.result == 'success' || needs.build-app.result == 'success')
+    concurrency:
+      group: docs-gh-pages
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write  # push to gh-pages
     steps:

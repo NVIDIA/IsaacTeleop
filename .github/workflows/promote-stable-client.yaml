@@ -27,6 +27,10 @@ jobs:
         || (github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v'))
       )
     runs-on: ubuntu-latest
+    concurrency:
+      group: docs-gh-pages
+      cancel-in-progress: false
+      queue: max
     steps:
       - uses: actions/checkout@v6
         with:
