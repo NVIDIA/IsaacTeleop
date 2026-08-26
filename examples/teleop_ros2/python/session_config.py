@@ -49,6 +49,40 @@ from teleop_ros2_retargeters import JointNameAliasRetargeter
 from tensor_group_helpers import joint_names_from_group_type
 
 
+def _maybe_alias_hand_joints(
+    connected_hand_retargeter,
+    input_joint_names: Sequence[str],
+    output_joint_names: Sequence[str] | None,
+    name: str,
+):
+    if output_joint_names is None:
+        return connected_hand_retargeter.output("hand_joints")
+
+    alias_retargeter = JointNameAliasRetargeter(
+        input_joint_names=input_joint_names,
+        output_joint_names=output_joint_names,
+        name=name,
+    )
+    alias_connected = alias_retargeter.connect(
+        {"hand_joints": connected_hand_retargeter.output("hand_joints")}
+    )
+    return alias_connected.output("hand_joints")
+
+
+def _validate_joint_name_alias_count(
+    parameter_name: str,
+    aliases: Sequence[str] | None,
+    expected_count: int,
+) -> None:
+    if aliases is None:
+        return
+    if len(aliases) != expected_count:
+        raise ValueError(
+            f"Parameter '{parameter_name}' must contain exactly {expected_count} "
+            f"joint name aliases, got {len(aliases)}"
+        )
+
+
 def build_controller_raw_config(params: NodeParameters) -> TeleopSessionConfig:
     controllers = ControllersSource(name="controllers")
     pipeline = OutputCombiner(
@@ -87,12 +121,12 @@ def build_controller_teleop_config(params: NodeParameters) -> TeleopSessionConfi
     }
 
     if params.resolved_hand_retargeter == HandRetargeter.TRIHAND:
-        validate_joint_name_alias_count(
+        _validate_joint_name_alias_count(
             "left_finger_joint_names",
             params.left_finger_joint_name_aliases,
             len(LEFT_FINGER_JOINT_NAMES),
         )
-        validate_joint_name_alias_count(
+        _validate_joint_name_alias_count(
             "right_finger_joint_names",
             params.right_finger_joint_name_aliases,
             len(RIGHT_FINGER_JOINT_NAMES),
@@ -244,12 +278,12 @@ def build_tracked_hand_finger_joint_outputs(
         if params.resolved_hand_retargeter == HandRetargeter.WUJI
         else SHARPA_FINGER_JOINT_COUNT
     )
-    validate_joint_name_alias_count(
+    _validate_joint_name_alias_count(
         "left_finger_joint_names",
         params.left_finger_joint_name_aliases,
         expected_joint_count,
     )
-    validate_joint_name_alias_count(
+    _validate_joint_name_alias_count(
         "right_finger_joint_names",
         params.right_finger_joint_name_aliases,
         expected_joint_count,
@@ -374,50 +408,16 @@ def build_tracked_hand_finger_joint_outputs(
     right_hand_connected = right_hand_retargeter.connect(
         {HandsSource.RIGHT: hands.output(HandsSource.RIGHT)}
     )
-    left_finger_joints = maybe_alias_hand_joints(
+    left_finger_joints = _maybe_alias_hand_joints(
         left_hand_connected,
         joint_names_from_group_type(left_hand_retargeter.output_spec()["hand_joints"]),
         left_output_joint_names,
         left_alias_name,
     )
-    right_finger_joints = maybe_alias_hand_joints(
+    right_finger_joints = _maybe_alias_hand_joints(
         right_hand_connected,
         joint_names_from_group_type(right_hand_retargeter.output_spec()["hand_joints"]),
         right_output_joint_names,
         right_alias_name,
     )
     return left_finger_joints, right_finger_joints
-
-
-def maybe_alias_hand_joints(
-    connected_hand_retargeter,
-    input_joint_names: Sequence[str],
-    output_joint_names: Sequence[str] | None,
-    name: str,
-):
-    if output_joint_names is None:
-        return connected_hand_retargeter.output("hand_joints")
-
-    alias_retargeter = JointNameAliasRetargeter(
-        input_joint_names=input_joint_names,
-        output_joint_names=output_joint_names,
-        name=name,
-    )
-    alias_connected = alias_retargeter.connect(
-        {"hand_joints": connected_hand_retargeter.output("hand_joints")}
-    )
-    return alias_connected.output("hand_joints")
-
-
-def validate_joint_name_alias_count(
-    parameter_name: str,
-    aliases: Sequence[str] | None,
-    expected_count: int,
-) -> None:
-    if aliases is None:
-        return
-    if len(aliases) != expected_count:
-        raise ValueError(
-            f"Parameter '{parameter_name}' must contain exactly {expected_count} "
-            f"joint name aliases, got {len(aliases)}"
-        )
