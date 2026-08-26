@@ -18,7 +18,9 @@ import msgpack
 import rclpy
 from constants import (
     HAND_RETARGETERS,
+    LEFT_SHARPA_WAVE_JOINT_NAMES,
     LEFT_WUJI_HAND_JOINT_NAMES,
+    RIGHT_SHARPA_WAVE_JOINT_NAMES,
     RIGHT_WUJI_HAND_JOINT_NAMES,
     TELEOP_MODES,
 )
@@ -279,6 +281,27 @@ def _assert_full_body_payload(msg: ByteMultiArray) -> None:
 
 
 def _finger_joint_validator(hand_retargeter: str) -> Callable:
+    if hand_retargeter == "pink_ik":
+        expected_names = LEFT_SHARPA_WAVE_JOINT_NAMES + RIGHT_SHARPA_WAVE_JOINT_NAMES
+        samples: list[list[float]] = []
+
+        def _validate_pink_ik(msg: JointState) -> None:
+            _assert_joint_state(
+                msg,
+                expected_names=expected_names,
+                require_nonzero=True,
+            )
+            samples.append([float(value) for value in msg.position])
+            if len(samples) < 3:
+                raise ValueError("waiting for three pink_ik joint samples")
+            if not any(
+                abs(value - initial) > 1e-4
+                for sample in samples[1:]
+                for value, initial in zip(sample, samples[0], strict=True)
+            ):
+                raise ValueError("pink_ik finger angles did not change over time")
+
+        return _validate_pink_ik
     if hand_retargeter == "wuji":
         return partial(
             _assert_joint_state,

@@ -3,9 +3,6 @@
 
 cmake_minimum_required(VERSION 3.20)
 
-# Options
-option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
-
 # Generated headers from FlatBuffer schemas with additional utilities.
 add_subdirectory(schema)
 

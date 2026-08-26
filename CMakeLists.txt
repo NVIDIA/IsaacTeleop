@@ -58,6 +58,7 @@ endif()
 
 # Options
 option(BUILD_PLUGINS "Build plugins" ON)
+option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 option(BUILD_PLUGIN_OAK_CAMERA "Build OAK camera plugin (requires vcpkg for DepthAI v3.x)" OFF)
 option(BUILD_PLUGIN_NOITOM_MOCAP "Build Noitom mocap plugin (downloads MocapApi SDK)" OFF)
 option(BUILD_PLUGIN_OGLO "Build OGLO tactile glove plugin (BLE, Linux only; fetches SimpleBLE + nlohmann/json)" OFF)

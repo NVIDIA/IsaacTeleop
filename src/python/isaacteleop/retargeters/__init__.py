@@ -151,8 +151,8 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
         "Se3RetargeterConfig",
         "retargeters-lite",
     ),
-    # .sharpa_hand_retargeter  (requires grounding extra: robotic_grounding,
-    # which transitively pulls pinocchio, pink, etc.)
+    # .sharpa_hand_retargeter (bundled public V2D source; grounding installs
+    # Pinocchio, Pink, and the other runtime dependencies)
     "SharpaHandRetargeter": (
         ".sharpa_hand_retargeter",
         "SharpaHandRetargeter",

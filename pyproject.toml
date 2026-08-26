@@ -51,6 +51,10 @@ retargeters-lite = [
     "scipy>=1.15.0",
 ]
 grounding = [
+    "scipy>=1.15.0",
+    "torch>=2.7.0",
+    "trimesh",
+    "viser",
     "pin>=2.7.0",
     "pin-pink>=4.0.0",
     "loop-rate-limiters>=1.0.0",

@@ -40,7 +40,7 @@ include-package-data = false
 # Packages are discovered from the staged tree: this file is generated into
 # python_package/<config>/, whose isaacteleop/ subtree CMake has already
 # assembled, so a package ships exactly when it was staged -- which is how
-# BUILD_VIZ and BUNDLE_ROBOTIC_GROUNDING select theirs.
+# BUILD_VIZ selects its optional package.
 #
 # namespaces = false is load-bearing: pyproject.toml has no separate
 # find-namespace table and the default finder is the namespace one, so any staged
@@ -49,8 +49,7 @@ include-package-data = false
 #
 # include names the top-level packages explicitly, so files that sit in the
 # staging root (setuptools' own build/, *.egg-info) are never mistaken for one.
-# robotic_grounding comes from the optional V2D drop (BUNDLE_ROBOTIC_GROUNDING);
-# when that drop is absent the entry matches nothing.
+# robotic_grounding is the curated retargeting package staged from public V2D.
 [tool.setuptools.packages.find]
 where = ["."]
 namespaces = false
@@ -73,7 +72,13 @@ isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
 # Keys for packages staged in only some configurations are inert in the rest:
 # package-data for a package `find` did not discover matches nothing.
 "isaacteleop.viz" = ["*.so", "*.pyd", "*.pyi"]
-robotic_grounding = ["assets/xmls/sharpawave/*.xml"]
+robotic_grounding = [
+    "V2D_LICENSE",
+    "assets/xmls/sharpawave/*.xml",
+    "assets/xmls/sharpawave/LICENSE",
+    "assets/xmls/sharpawave/NOTICE",
+    "assets/xmls/sharpawave/README.md",
+]
 
 [tool.uv]
 # Only use managed Python installations (not system Python)

@@ -24,7 +24,5 @@ pin>=2.7.0
 cmeel-urdfdom<5
 cmeel-tinyxml2<11
 
-# NOTE: The Sharpa retargeter's Pinocchio/Pink/daqp/loop-rate-limiters deps live
-# in `requirements-grounding.txt`, transitively via the `robotic_grounding`
-# wheel. They were briefly listed here while sharpa_hand_retargeter.py imported
-# pinocchio/pink directly; that is no longer the case.
+# The Sharpa retargeter's runtime dependencies live in
+# requirements-grounding.txt; its public V2D source ships in every Teleop wheel.

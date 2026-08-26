@@ -1,19 +1,15 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Runtime deps for retargeters that consume `robotic_grounding`
-# (e.g. SharpaHandRetargeter -- IK-based via Pinocchio + Pink).
-#
-# `robotic_grounding` itself is NOT listed here. The Teleop wheel build
-# bundles the package source from deps/v2d/src/robotic_grounding/ when V2D
-# access is available (see scripts/setup_v2d_src.sh and
-# .github/actions/setup-v2d-src/), so `pip install isaacteleop[grounding]`
-# pulls only the open-source deps below; `import robotic_grounding...` is
-# satisfied by the bundled source. Wheels built without V2D access don't
-# include robotic_grounding/, and Sharpa retargeter imports skip cleanly
-# via the lazy-import wrapper in src/python/isaacteleop/retargeters/__init__.py.
+# Runtime dependencies for the public V2D robotic_grounding retargeter.
+# Every Teleop wheel carries the curated source; this extra installs the
+# libraries imported when SharpaHandRetargeter is used.
 
 # Sharpa hand retargeter (Pinocchio + Pink IK)
+scipy>=1.15.0
+torch>=2.7.0
+trimesh
+viser
 pin>=2.7.0
 pin-pink>=4.0.0
 loop-rate-limiters>=1.0.0

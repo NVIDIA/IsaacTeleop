@@ -14,9 +14,9 @@ The IK loop, MANO joint ordering, Sharpa frame mappings, rotation
 corrections, and Pinocchio/Pink configuration all live in
 `robotic_grounding`; this module deliberately contains no IK math.
 
-Requires `isaacteleop[grounding]` and a separately-installed
-`robotic_grounding` wheel. For the install steps see the Sharpa retargeter
-guide in the docs: references/retargeting/sharpa.rst.
+The Teleop wheel includes the public V2D retargeting source and generated
+mesh-free Sharpa MJCFs. Install `isaacteleop[grounding]` for its runtime
+dependencies.
 """
 
 import logging

@@ -75,7 +75,6 @@ RUN python3 scripts/fetch_sharpa_wave_urdfs.py --output-dir /opt/sharpa-wave-urd
 FROM base AS builder
 ARG ROS_DISTRO
 ARG PYTHON_VERSION
-ARG BUNDLE_ROBOTIC_GROUNDING=false
 ARG TARGETARCH
 
 # Compiler cache. CCACHE_DIR points at a BuildKit cache mount kept on the
@@ -122,7 +121,6 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
         -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
-        -DBUNDLE_ROBOTIC_GROUNDING=${BUNDLE_ROBOTIC_GROUNDING} \
         -DISAAC_TELEOP_PYTHON_VERSION=${PYTHON_VERSION} \
     && cmake --build build --config Release -j$(nproc) \
     && cmake --install build --config Release \
