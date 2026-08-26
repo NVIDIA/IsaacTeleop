@@ -223,6 +223,10 @@ include(cmake/ClangFormat.cmake)
 # executables and are handled elsewhere / not installed here; a plugin that skips a
 # missing SDK becomes a UTILITY target and is naturally excluded. Tagged with the
 # isaacteleop_binaries component, selected via install.components in pyproject.toml.
+#
+# A target that sets ISAACTELEOP_NEEDS_SOURCE_TREE is skipped: it reads repository
+# files at run time, which the wheel does not carry, so installing it would ship a
+# binary holding paths into the machine that built it.
 if(SKBUILD)
     function(isaac_teleop_install_executables _dir)
         # Skip third-party dependency trees (deps/ and FetchContent's _deps/).
@@ -237,7 +241,8 @@ if(SKBUILD)
         foreach(_target IN LISTS _targets)
             get_target_property(_type "${_target}" TYPE)
             get_target_property(_imported "${_target}" IMPORTED)
-            if(_type STREQUAL "EXECUTABLE" AND NOT _imported)
+            get_target_property(_needs_source_tree "${_target}" ISAACTELEOP_NEEDS_SOURCE_TREE)
+            if(_type STREQUAL "EXECUTABLE" AND NOT _imported AND NOT _needs_source_tree)
                 install(TARGETS "${_target}"
                     RUNTIME DESTINATION "${SKBUILD_SCRIPTS_DIR}"
                     COMPONENT isaacteleop_binaries)
