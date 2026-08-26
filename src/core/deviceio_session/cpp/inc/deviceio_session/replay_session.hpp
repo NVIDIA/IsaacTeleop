@@ -28,6 +28,8 @@ namespace core
  */
 struct McapReplayConfig
 {
+    //! Recording to replay. Empty for a session whose trackers are all push-fed, which reads
+    //! no recording; a name that cannot be opened is an error either way.
     std::string filename;
     std::vector<std::pair<const ITracker*, std::string>> tracker_names;
 };

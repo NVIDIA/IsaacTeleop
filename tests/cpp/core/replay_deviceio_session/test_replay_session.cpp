@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <deviceio_session/replay_session.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
+#include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -633,6 +635,30 @@ TEST_CASE("ReplaySession: message channel drains payloads alongside sentinels in
 // =============================================================================
 // Error cases
 // =============================================================================
+
+TEST_CASE("ReplaySession: a session with nothing to replay names no file", "[replay][session]")
+{
+    // Every tracker here is push-fed, so there is no recording to read and none is named. The
+    // schemas such a session replays under declare nothing, which no reader can misread.
+    core::HapticCommandReaderTracker haptic_tracker("haptic");
+    core::McapReplayConfig config;
+    config.filename = "";
+    config.tracker_names = { { &haptic_tracker, "haptic_command" } };
+
+    CHECK_NOTHROW(core::ReplaySession::run(config));
+}
+
+TEST_CASE("ReplaySession: a file that was named and cannot be read throws", "[replay][session][error]")
+{
+    // The other half of the case above: naming nothing is a session with no recording, naming
+    // something unreadable is an error.
+    core::HapticCommandReaderTracker haptic_tracker("haptic");
+    core::McapReplayConfig config;
+    config.filename = "/nonexistent/path/to/file.mcap";
+    config.tracker_names = { { &haptic_tracker, "haptic_command" } };
+
+    CHECK_THROWS_AS(core::ReplaySession::run(config), std::runtime_error);
+}
 
 TEST_CASE("ReplaySession: bad file path throws", "[replay][session][error]")
 {

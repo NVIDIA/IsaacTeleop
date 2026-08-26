@@ -7,6 +7,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <flatbuffers/idl.h>
+#include <mcap/recorded_schemas.hpp>
 #include <mcap/recording_traits.hpp>
 #include <mcap/schema_compat.hpp>
 #include <mcap/writer.hpp>
@@ -369,7 +370,8 @@ TEST_CASE("McapTrackerViewers rejects a channel that declares no schema", "[unit
     const TempFileCleanup cleanup(path);
     write_head_records(path, std::nullopt);
 
-    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }, recorded), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers rejects a schema that is not flatbuffer-encoded", "[unit][schema_compat]")
@@ -379,7 +381,8 @@ TEST_CASE("McapTrackerViewers rejects a schema that is not flatbuffer-encoded", 
     write_head_records(
         path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs(), "protobuf"));
 
-    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }, recorded), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers rejects a schema named for another record type", "[unit][schema_compat]")
@@ -388,7 +391,8 @@ TEST_CASE("McapTrackerViewers rejects a schema named for another record type", "
     const TempFileCleanup cleanup(path);
     write_head_records(path, head_schema("core.HandPoseRecord", faithful_head_bfbs()));
 
-    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }, recorded), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers rejects a channel whose messages are not flatbuffers", "[unit][schema_compat]")
@@ -400,7 +404,8 @@ TEST_CASE("McapTrackerViewers rejects a channel whose messages are not flatbuffe
 
     // The channel's encoding, not the schema's. Without this the payloads reach the
     // FlatBuffers verifier and come back as a corrupt buffer, which names the wrong problem.
-    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }, recorded), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers rejects an unreadable recording before its first read", "[unit][schema_compat]")
@@ -418,7 +423,8 @@ TEST_CASE("McapTrackerViewers rejects an unreadable recording before its first r
     // reaches a right one, with no iterator left stranded there and no half-usable viewer for
     // a caller to keep calling read() on.
     const CapturedCerr log;
-    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "left", "right" }), std::runtime_error);
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "left", "right" }, recorded), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers reads a recording whose writer never wrote a summary", "[unit][schema_compat]")
@@ -431,7 +437,8 @@ TEST_CASE("McapTrackerViewers reads a recording whose writer never wrote a summa
     // No summary section, so the Schema records are only in the data section. Scanning for
     // them is what keeps a recording cut short by a crash replayable rather than refused.
     const CapturedCerr log;
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    const auto recorded = recorded_schemas(path);
+    HeadViewers viewers(open_reader(path), "tracking", { "head" }, recorded);
     for (int record = 0; record < 3; ++record)
     {
         REQUIRE(viewers.read(0));
@@ -448,25 +455,12 @@ TEST_CASE("McapTrackerViewers reads a summary that does not repeat schema record
     // The summary names the channel but not the schema it carries, which would otherwise
     // look exactly like a channel that declares none.
     const CapturedCerr log;
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    const auto recorded = recorded_schemas(path);
+    HeadViewers viewers(open_reader(path), "tracking", { "head" }, recorded);
     for (int record = 0; record < 3; ++record)
     {
         REQUIRE(viewers.read(0));
     }
-}
-
-TEST_CASE("McapTrackerViewers rejects a recording it cannot enumerate", "[unit][schema_compat]")
-{
-    const auto path = temp_mcap_path();
-    const TempFileCleanup cleanup(path);
-    write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 3);
-
-    // Cut the file back into its data section: no summary to read, and a scan runs into the
-    // truncation. Nothing can say what the rest of it was written under, so it is refused.
-    const auto full_size = fs::file_size(path);
-    fs::resize_file(path, full_size / 2);
-
-    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }), std::runtime_error);
 }
 
 TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading", "[unit][schema_compat]")
@@ -476,10 +470,54 @@ TEST_CASE("McapTrackerViewers reports a readable mismatch once and keeps reading
     write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 12);
 
     const CapturedCerr log;
-    HeadViewers viewers(open_reader(path), "tracking", { "head" });
+    const auto recorded = recorded_schemas(path);
+    HeadViewers viewers(open_reader(path), "tracking", { "head" }, recorded);
     for (int record = 0; record < 12; ++record)
     {
         REQUIRE(viewers.read(0));
     }
     CHECK(log.count("MCAP schema mismatch") == 1);
+}
+
+TEST_CASE("McapTrackerViewers grades from a read the caller already did", "[unit][schema_compat]")
+{
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 3);
+
+    // What the file declares is read once and handed to both viewers, which is what a session
+    // replaying one recording through several trackers does. Each still gets its own reader.
+    const CapturedCerr log;
+    const auto recorded = recorded_schemas(path);
+
+    HeadViewers first(open_reader(path), "tracking", { "head" }, recorded);
+    HeadViewers second(open_reader(path), "tracking", { "head" }, recorded);
+    REQUIRE(first.read(0));
+    REQUIRE(second.read(0));
+
+    // Graded once per viewer, from the one read -- not once per viewer's own read of the file.
+    CHECK(log.count("MCAP schema mismatch") == 2);
+}
+
+TEST_CASE("McapTrackerViewers refuses what a caller's read already condemned", "[unit][schema_compat]")
+{
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), grown_stamp_head_bfbs()), 3);
+
+    const auto recorded = recorded_schemas(path);
+    CHECK_THROWS_AS(HeadViewers(open_reader(path), "tracking", { "head" }, recorded), std::runtime_error);
+}
+
+TEST_CASE("RecordedSchemas refuses a recording it cannot enumerate", "[unit][schema_compat]")
+{
+    const auto path = temp_mcap_path();
+    const TempFileCleanup cleanup(path);
+    write_head_records(path, head_schema(core::HeadPoseRecord::GetFullyQualifiedName(), faithful_head_bfbs()), 3);
+
+    // The scan reports success either way -- running into a truncated chunk looks exactly like
+    // running out of data -- so what it found is the test, and it found nothing.
+    fs::resize_file(path, fs::file_size(path) / 2);
+
+    CHECK_THROWS_AS(recorded_schemas(path), std::runtime_error);
 }

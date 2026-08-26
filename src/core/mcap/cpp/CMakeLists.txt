@@ -12,7 +12,9 @@ cmake_minimum_required(VERSION 3.20)
 # The actual MCAP implementation (MCAP_IMPLEMENTATION) is compiled once inside
 # deviceio_core (deviceio_session.cpp).
 add_library(mcap_core STATIC
+    recorded_schemas.cpp
     schema_compat.cpp
+    inc/mcap/recorded_schemas.hpp
     inc/mcap/recording_traits.hpp
     inc/mcap/schema_compat.hpp
     inc/mcap/tracker_channels.hpp

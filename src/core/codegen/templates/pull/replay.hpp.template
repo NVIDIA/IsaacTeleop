@@ -16,7 +16,9 @@ using @MCAP_VIEWERS_TYPE@ = McapTrackerViewers<@RECORD_TYPE@>;
 class @REPLAY_IMPL@ : public @IFACE@
 {
 public:
-    @REPLAY_IMPL@(std::unique_ptr<mcap::McapReader> reader, std::string_view base_name);
+    @REPLAY_IMPL@(std::unique_ptr<mcap::McapReader> reader,
+                  std::string_view base_name,
+                  const RecordedSchemas& recorded);
     void update(int64_t monotonic_time_ns) override;
     const Serialized<@FB_TABLE@>& get_data() const override;
 

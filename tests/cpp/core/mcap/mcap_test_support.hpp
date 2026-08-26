@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <mcap/reader.hpp>
+#include <mcap/recorded_schemas.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/head_generated.h>
 
@@ -72,6 +73,14 @@ inline std::unique_ptr<mcap::McapReader> open_reader(const std::string& path)
     auto reader = std::make_unique<mcap::McapReader>();
     REQUIRE(reader->open(path).ok());
     return reader;
+}
+
+//! What `path` declares, read the way the replay factory reads it: from a reader of its own,
+//! so the reader a viewer goes on to use is handed over in the state production hands it over in.
+inline core::RecordedSchemas recorded_schemas(const std::string& path)
+{
+    const std::unique_ptr<mcap::McapReader> reader = open_reader(path);
+    return core::RecordedSchemas(*reader);
 }
 
 //! The record type these tests write and read back.

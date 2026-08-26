@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <mcap/recorded_schemas.hpp>
+
 #include <memory>
 #include <string>
 #include <string_view>
@@ -39,6 +41,15 @@ class IMessageChannelTrackerImpl;
  * Opens a fresh McapReader per tracker impl so each tracker has its own
  * FileReader buffer; crossing an MCAP chunk boundary in one tracker cannot
  * overwrite another tracker's pre-fetched message data pointer.
+ *
+ * What the recording was written under is read once, when the factory is built, because it
+ * belongs to the file and not to any one reader. A recording with no summary section has to
+ * be scanned end to end to produce it, and a session builds a tracker impl per entry in its
+ * config. Reading it here also means a recording this build cannot decode is turned down
+ * before a single tracker impl exists.
+ *
+ * An empty filename is a session with no recording -- every tracker in it is push-fed -- and
+ * yields schemas that declare nothing rather than an error.
  */
 class ReplayDeviceIOFactory
 {
@@ -64,6 +75,7 @@ private:
     std::string_view get_name(const ITracker* tracker) const;
 
     std::string filename_;
+    RecordedSchemas recorded_schemas_;
     std::unordered_map<const ITracker*, std::string> name_map_;
 };
 

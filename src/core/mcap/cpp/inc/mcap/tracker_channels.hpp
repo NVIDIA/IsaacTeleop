@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "recorded_schemas.hpp"
 #include "schema_compat.hpp"
 
 #include <flatbuffers/flatbuffers.h>
@@ -209,8 +210,8 @@ Serialized<typename record_payload_t<RecordT>::TableType> publish_and_record(Mca
  * `.fbs` is reported rather than silently misread (see schema_compat.hpp). The check runs
  * to completion in the constructor: a recording this build cannot decode is refused there,
  * which is what keeps a schema failure from surfacing part-way through a replay and leaves
- * read() with none of it to do. It needs the whole schema list up front, so a recording
- * that cannot produce one is refused as well.
+ * read() with none of it to do. It needs the whole schema list up front (RecordedSchemas),
+ * so a recording that cannot produce one is refused as well.
  */
 template <typename RecordT>
 class McapTrackerViewers
@@ -221,9 +222,16 @@ public:
     McapTrackerViewers(McapTrackerViewers&&) = delete;
     McapTrackerViewers& operator=(McapTrackerViewers&&) = delete;
 
+    /*!
+     * @param recorded What the file declares. Required rather than read here, so that a caller
+     *                 replaying one recording through several trackers reads it once: for a
+     *                 file with no summary section that is the difference between one pass over
+     *                 the data section and one per tracker. Read during construction only.
+     */
     McapTrackerViewers(std::unique_ptr<mcap::McapReader> reader,
                        std::string_view base_name,
-                       const std::vector<std::string>& sub_channels)
+                       const std::vector<std::string>& sub_channels,
+                       const RecordedSchemas& recorded)
         : reader_(std::move(reader))
     {
         for (const auto& sub : sub_channels)
@@ -231,36 +239,20 @@ public:
             channels_.push_back({ mcap_topic(base_name, sub), {} });
         }
 
-        // The summary section normally names every Schema and Channel record. A writer killed
-        // before it could flush one leaves them in the data section, and a summary that names
-        // channels but does not repeat their schemas is the same gap from the other side;
-        // both take the same answer. Asking for it here rather than through AllowFallbackScan
-        // is what keeps the data section to at most one walk.
-        const auto ignore_problem = [](const mcap::Status&) {};
-        mcap::Status status = reader_->readSummary(mcap::ReadSummaryMethod::NoFallbackScan, ignore_problem);
-        if (!status.ok() || !tracker_schemas_resolved())
-        {
-            status = reader_->readSummary(mcap::ReadSummaryMethod::ForceScan, ignore_problem);
-        }
-        if (!status.ok())
-        {
-            throw std::runtime_error("McapTrackerViewers: cannot tell what schemas this recording was written under: " +
-                                     status.message + " (it is damaged, or was cut short before its writer closed it)");
-        }
-
         // One grade per schema rather than per channel: a grade describes the schema, and
         // every channel a tracker reads shares the one its writer registered.
         std::vector<mcap::SchemaId> graded;
-        for (const mcap::ChannelPtr& channel : tracker_channels())
+        for (const RecordedSchemas::Channel& channel : recorded.channels())
         {
-            if (std::find(graded.begin(), graded.end(), channel->schemaId) != graded.end())
+            const mcap::SchemaId schema_id = channel.schema != nullptr ? channel.schema->id : 0;
+            if (!channel_index_of(channel.topic).has_value() ||
+                std::find(graded.begin(), graded.end(), schema_id) != graded.end())
             {
                 continue;
             }
-            graded.push_back(channel->schemaId);
+            graded.push_back(schema_id);
 
-            const mcap::SchemaPtr recorded = reader_->schema(channel->schemaId);
-            enforce_schema_compat(compare_schema(*channel, recorded.get()), channel->topic);
+            enforce_schema_compat(compare_schema(channel), channel.topic);
         }
 
         auto on_problem = [](const mcap::Status& s) { throw std::runtime_error("McapTrackerViewers:" + s.message); };
@@ -363,58 +355,36 @@ private:
         return *found;
     }
 
-    //! The recording's channels carrying this tracker's topics, in the reader's own order.
-    std::vector<mcap::ChannelPtr> tracker_channels() const
-    {
-        std::vector<mcap::ChannelPtr> found;
-        for (const auto& channel_entry : reader_->channels())
-        {
-            if (channel_entry.second != nullptr && channel_index_of(channel_entry.second->topic).has_value())
-            {
-                found.push_back(channel_entry.second);
-            }
-        }
-        return found;
-    }
-
-    //! Whether every channel this tracker reads names a Schema record the reader now holds.
-    bool tracker_schemas_resolved() const
-    {
-        const std::vector<mcap::ChannelPtr> found = tracker_channels();
-        return std::none_of(found.begin(), found.end(),
-                            [this](const mcap::ChannelPtr& channel)
-                            { return channel->schemaId != 0 && reader_->schema(channel->schemaId) == nullptr; });
-    }
-
-    SchemaCompatResult compare_schema(const mcap::Channel& channel, const mcap::Schema* recorded) const
+    SchemaCompatResult compare_schema(const RecordedSchemas::Channel& channel) const
     {
         // The channel's own encoding declares the message bytes; without this the payloads
         // reach adopt_message() and are reported as a corrupt FlatBuffer instead.
-        if (channel.messageEncoding != "flatbuffer")
+        if (channel.message_encoding != "flatbuffer")
         {
             return { SchemaCompat::Incompatible,
-                     "channel message encoding is '" + channel.messageEncoding + "', reader expects 'flatbuffer'" };
+                     "channel message encoding is '" + channel.message_encoding + "', reader expects 'flatbuffer'" };
         }
 
-        if (recorded == nullptr)
+        const mcap::Schema* schema = channel.schema.get();
+        if (schema == nullptr)
         {
             return { SchemaCompat::Incompatible, "channel carries no embedded schema" };
         }
-        if (recorded->encoding != "flatbuffer")
+        if (schema->encoding != "flatbuffer")
         {
             return { SchemaCompat::Incompatible,
-                     "schema encoding is '" + recorded->encoding + "', reader expects 'flatbuffer'" };
+                     "schema encoding is '" + schema->encoding + "', reader expects 'flatbuffer'" };
         }
         // The same expression the writer names the schema with, so a recording made by any
         // build of this record type matches and one made for another type does not.
-        if (recorded->name != RecordT::GetFullyQualifiedName())
+        if (schema->name != RecordT::GetFullyQualifiedName())
         {
-            return { SchemaCompat::Incompatible, "schema is named '" + recorded->name + "', reader expects '" +
+            return { SchemaCompat::Incompatible, "schema is named '" + schema->name + "', reader expects '" +
                                                      RecordT::GetFullyQualifiedName() + "'" };
         }
 
         return check_schema_compat(
-            std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(recorded->data.data()), recorded->data.size()),
+            std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(schema->data.data()), schema->data.size()),
             std::span<const uint8_t>(RecordT::BinarySchema::data(), RecordT::BinarySchema::size()));
     }
 
