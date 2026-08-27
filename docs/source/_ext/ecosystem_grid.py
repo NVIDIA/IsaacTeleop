@@ -344,9 +344,15 @@ def _read(confdir: str, relpath: str, build):
     return parsed
 
 
-def _load_devices(
-    confdir: str, relpath: str = DEVICE_DATA
-) -> tuple[list[dict], list[dict]]:
+def _load_devices(env, relpath: str = DEVICE_DATA) -> tuple[list[dict], list[dict]]:
+    """Read the device data, and tell Sphinx the page depends on it.
+
+    The directive reads the file, so nothing else ties the page to it: without the
+    dependency, an incremental build reuses the cached doctree and renders the previous
+    table after the data changes.
+    """
+    confdir = env.app.confdir
+    env.note_dependency(os.path.join(confdir, relpath))
     return _read(
         confdir, relpath, lambda data: _validate_devices(data, relpath, confdir)
     )
@@ -571,9 +577,7 @@ class DeviceMatrix(Directive):
     def run(self) -> list[nodes.Node]:
         env = self.state.document.settings.env
         section = self.options.get("section", "input")
-        devices, planned = _load_devices(
-            env.app.confdir, self.options.get("data", DEVICE_DATA)
-        )
+        devices, planned = _load_devices(env, self.options.get("data", DEVICE_DATA))
         return [_matrix(devices, planned, env.docname, section)]
 
 
@@ -607,7 +611,7 @@ class DeviceCount(SphinxRole):
             raise ExtensionError(
                 f"device-count: unknown target {target!r}; expected one of {targets}"
             )
-        devices, _ = _load_devices(self.env.app.confdir, DEVICE_DATA)
+        devices, _ = _load_devices(self.env)
         if target in DEVICE_SECTIONS:
             groups = DEVICE_SECTIONS[target]["groups"]
         elif target == "all":
