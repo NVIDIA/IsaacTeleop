@@ -228,6 +228,7 @@ done_ok
 step "[4/4] Building Manus plugin"
 cd "$TELEOP_ROOT"
 run cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DBUILD_PLUGINS=ON \
+    -DBUILD_VIZ=OFF -DENABLE_CLANG_FORMAT_CHECK=OFF \
     || die "cmake configure failed"
 run cmake --build "$BUILD_DIR" \
     --target manus_hand_plugin manus_hand_tracker_printer -j"$(nproc)" \
