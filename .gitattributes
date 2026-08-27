@@ -24,5 +24,3 @@
 #
 # Exceptions for small source SVGs (webpack-inlined; not binary assets).
 deps/cloudxr/webxr_client/src/icons/*.svg -filter -diff -merge text
-# Partner logos are hand-trimmed vector text; keep them diffable and out of LFS.
-docs/source/_static/partner-logos/*.svg -filter -diff -merge text

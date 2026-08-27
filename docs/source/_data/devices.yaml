@@ -1,28 +1,36 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Source of truth for the Supported Input Devices table on the Ecosystem page;
-# rendered by the ``device-matrix`` directive (docs/source/_ext/partner_grid.py).
+# Source of truth for every table on the Ecosystem page; rendered by the
+# ``device-matrix`` directive (docs/source/_ext/ecosystem_grid.py).
 #
-# Devices are looked up, not browsed, so this section is a table and not a card grid.
-# A supported device is not the same thing as a partner card in partners.yaml: a company
-# may have both (Haptikos, MANUS, PICO), one without the other, and neither file derives
-# from the other.
-#
-# A row is: name, input modes, and a Details button opening a panel. Required fields are
+# A row is: name, what it provides, and a Details button opening a panel. Required fields are
 # id, name, url, group, and modes; unknown fields fail the build.
-#   url      the manufacturer's product page. The device name is that link, so no row
-#            carries a separate "Overview" link.
-#   group    xr | peripheral -- the two group header rows, rendered in that order.
-#   modes    the input modes, which decide the available retargeters and control
-#            schemes. One short phrase, not a sentence.
+#   url      the manufacturer's product page. The name is that link, so no row carries
+#            a separate "Overview" link -- and no row needs an `acquire` entry that only
+#            repeats it.
+#   group    xr | peripheral | data_factory | cloud. ``ecosystem_grid.DEVICE_SECTIONS``
+#            maps groups onto tables: xr and peripheral share the input-device table and
+#            keep their group header rows, while data_factory and cloud get a table each
+#            and render no header row. A group no section claims fails the build.
+#   modes    the second column. Its heading is per section: "Input modes" for input
+#            devices, where the modes decide the available retargeters and control
+#            schemes, and "Provides" for the rest. One short phrase, not a sentence.
+#   company  optional; the mark of the company behind the device. A mark and nothing
+#            else -- no category and no copy, so the table stays the reference it is.
+#            `name` and `logo` are both required, `name` being the alt text; add
+#            `logo_dark` when a single-color mark would vanish against the other theme,
+#            and the two swap with the page. Files live in docs/source/_static/logos/.
+#            The mark sits above the Details panel's columns and nowhere else: marks in
+#            the row itself were tried before the name, after it, and beside the button,
+#            and all three crowded a table whose job is to be scanned.
 #   details  optional; the three panel columns, always rendered in the order
 #            set up / requirements / acquire. A column with nothing to say renders an em
 #            dash so the three stay aligned across devices. Omit `details` entirely and
 #            the row gets no button.
 #
 # A details entry is a bare string, a link, or a way to reach someone:
-#   - Pico OS 15.4.4U or newer
+#   - PICO OS 15.4.4U or newer
 #   - label: How To Connect             # plus exactly one of doc, ref, or url
 #     ref: connect-quest-pico
 #     note: runs in the headset browser # optional gloss, rendered after an em dash
@@ -76,26 +84,29 @@ devices:
           url: https://www.meta.com/quest/
 
   - id: pico-4-ultra
-    name: Pico 4 Ultra
+    name: PICO 4 Ultra
     url: https://www.picoxr.com/products/pico4-ultra
     group: xr
     modes: Motion controllers, hand tracking
+    company:
+      name: PICO
+      logo: pico.svg
+      logo_dark: pico-dark.svg
     details:
       setup:
         - label: How To Connect
           ref: connect-quest-pico
         - Isaac Teleop Web Client — runs in the headset browser
       requirements:
-        - Pico OS 15.4.4U or newer
-      # The same contact as the PICO partner card. Both are published with her consent;
-      # if it changes, it changes in partners.yaml too.
+        - PICO OS 15.4.4U or newer
+      # Published with her consent, and repeated on the Motion Tracker row below.
       acquire:
         - Veronica Li
         - email: Veronica.li@bytedance.com
         - phone: +1 (909) 569-2774
 
   - id: pico-motion-tracker
-    name: Pico Motion Tracker
+    name: PICO Motion Tracker
     url: https://www.picoxr.com/global/products/pico-motion-tracker
     group: xr
     modes: Full body tracking
@@ -106,9 +117,9 @@ devices:
         - Isaac Teleop Web Client
       requirements:
         - >-
-          Pico 4 Ultra Enterprise, or a consumer unit with enterprise features activated
+          PICO 4 Ultra Enterprise, or a consumer unit with enterprise features activated
           (contact PICO)
-        - Pico OS 15.4.4U+ · Pico Browser 4.0.40+
+        - PICO OS 15.4.4U+ · PICO Browser 4.0.40+
       acquire:
         - Veronica Li
         - email: Veronica.li@bytedance.com
@@ -116,10 +127,14 @@ devices:
 
   # -------------------------------------------------------------- peripheral --
   - id: manus-gloves
-    name: MANUS Gloves
-    url: https://www.manus-meta.com/robotics#nvidia
+    name: MANUS Metagloves Pro
+    url: https://www.manus-meta.com/products/metagloves-pro
     group: peripheral
     modes: High-fidelity finger tracking
+    company:
+      name: MANUS
+      logo: manus.svg
+      logo_dark: manus-dark.svg
     details:
       setup:
         - label: MANUS Gloves Plugin
@@ -139,6 +154,10 @@ devices:
     url: https://haptikos.tech/product/haptikos/
     group: peripheral
     modes: Finger tracking, haptic feedback
+    company:
+      name: Haptikos
+      logo: haptikos.png
+      logo_dark: haptikos-dark.png
     details:
       setup:
         - label: Haptikos Plugin
@@ -150,6 +169,26 @@ devices:
       acquire:
         - label: haptikos.tech
           url: https://haptikos.tech/
+
+  - id: oglo-tactile-glove
+    name: OGLO Tactile Glove
+    url: https://www.opengraphlabs.com/
+    group: peripheral
+    modes: Tactile contact sensing (80 taxels), 6-axis IMU
+    company:
+      name: OpenGraph Labs
+      logo: opengraph-labs.svg
+      logo_dark: opengraph-labs-dark.svg
+    details:
+      setup:
+        - label: OGLO Tactile Glove Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oglo_tactile
+        - label: OGLO Tactile Glove docs
+          doc: /device/oglo
+      requirements:
+        - Linux with BlueZ
+        - One BLE device per glove
+        - Plugin off by default — enable at build time
 
   # The plugin is named generically because any 3-axis HID pedal goes through it.
   - id: logitech-rudder-pedals
@@ -183,6 +222,46 @@ devices:
       acquire:
         - label: shop.luxonis.com
           url: https://shop.luxonis.com/
+
+  # ------------------------------------------------------------ data_factory --
+  - id: lerobot
+    name: LeRobot
+    url: https://huggingface.co/docs/lerobot
+    group: data_factory
+    modes: Robot learning framework, dataset collection
+    company:
+      name: Hugging Face
+      logo: hugging-face.svg
+      logo_dark: hugging-face-dark.svg
+    details:
+      setup:
+        - label: LeRobot integration
+          doc: /getting_started/lerobot/index
+        - label: LeRobot on GitHub
+          url: https://github.com/huggingface/lerobot
+
+  - id: lightwheel
+    name: Lightwheel
+    url: https://lightwheel.ai/
+    group: data_factory
+    modes: Ego data capture, simulation assets
+
+  - id: noitom
+    name: Noitom Motion Capture
+    url: https://www.noitom.com/
+    group: data_factory
+    modes: Full-body motion capture
+    details:
+      setup:
+        - label: Noitom Mocap Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap
+
+  # ------------------------------------------------------------------- cloud --
+  - id: volcano-engine
+    name: Volcano Engine
+    url: https://www.volcengine.com/
+    group: cloud
+    modes: Enterprise AI cloud platform
 
 planned:
   - id: 3d-space-mouse

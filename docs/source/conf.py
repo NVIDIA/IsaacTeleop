@@ -65,19 +65,10 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_multiversion",
     "sphinx_design",
-    "partner_grid",
+    "ecosystem_grid",
 ]
 
-# overview/ecosystem.rst is unpublished on purpose; drop it from this list to restore.
-exclude_patterns = [
-    "build",
-    "_templates",
-    "_data",
-    "_ext",
-    "overview/ecosystem.rst",
-    "Thumbs.db",
-    ".DS_Store",
-]
+exclude_patterns = ["build", "_templates", "_data", "_ext", "Thumbs.db", ".DS_Store"]
 
 # sphinx-copybutton only targets highlighted blocks (``div.highlight pre``) by default,
 # which skips ``parsed-literal`` (rendered as a bare ``pre.literal-block``).  Commands
