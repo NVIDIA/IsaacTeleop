@@ -4,125 +4,97 @@
 Ecosystem
 =========
 
-The Isaac Teleop ecosystem brings together the NVIDIA platforms it is built into and the input
-devices, robot embodiments, and data services that work seamlessly with the unified teleoperation
-stack. Browse every entry and follow the link straight to its landing page, integration guide, or
-acquisition channel.
+The Isaac Teleop ecosystem brings together the input devices, data services, and cloud
+platforms that work seamlessly with the unified teleoperation stack. Browse every entry and
+follow the link straight to its landing page, integration guide, or acquisition channel.
 
-.. eco-block:: eco-scope
+- **Devices** — Headsets, controllers, gloves, pedals, and master manipulators.
+- **Data workflows** — Tools and services for recording, processing, and managing
+  teleoperation data.
+- **Teams building on Isaac Teleop** — Robot makers shipping teleoperation in their own
+  product, and labs collecting data.
 
-   .. eco-block:: eco-scope-item
+.. Explicit targets on the counted sections below: the count pill is part of the heading text,
+   so without them the slug carries the count and #supported-devices becomes
+   #supported-devices-9, changing every time a row is added or removed.
 
-      **Input devices**
-
-      Headsets, controllers, gloves, pedals, and master manipulators.
-
-   .. eco-block:: eco-scope-item
-
-      **Robot and simulation integrations**
-
-      Embodiments and assets for control and retargeting.
-
-   .. eco-block:: eco-scope-item
-
-      **Data workflows**
-
-      Tools and services for recording, processing, and managing teleoperation data.
-
-.. rst-class:: eco-eyebrow
-
-Built and used inside NVIDIA
-
-.. Explicit targets on every section below: the count pill is part of the heading text,
-   so without them the slug carries the count and #partners becomes #partners-15,
-   changing every time a card is added or removed.
-
-.. _nvidia-platforms:
+.. _supported-devices:
 
 .. rst-class:: eco-section
 
-NVIDIA Platforms :partner-count:`platform`
-------------------------------------------
-
-Stacks Isaac Teleop is developed against, and NVIDIA teams collecting data with it.
-
-.. partner-grid::
-   :section: platform
-
-.. rst-class:: eco-eyebrow
-
-Active in the ecosystem
-
-.. _partners:
-
-.. rst-class:: eco-section
-
-Partners :partner-count:`active`
---------------------------------
-
-Production-ready integrations that partners actively maintain and support across releases.
-
-.. partner-grid::
-   :section: active
-
-.. rst-class:: eco-eyebrow
-
-Joint plan in place
-
-.. _upcoming-partners:
-
-.. rst-class:: eco-section
-
-Upcoming Partners :partner-count:`upcoming`
--------------------------------------------
-
-A joint development plan is in place with NVIDIA and integration work is scoped or underway.
-
-.. partner-grid::
-   :section: upcoming
-
-Become a Partner
-----------------
-
-.. eco-block:: eco-cta
-
-   .. eco-block:: eco-cta-title
-
-      Bring your device or service to Isaac Teleop
-
-   If you build input devices, robot embodiments, or data services, let's plan a joint
-   integration together. Devices connect through a plugin process, so your SDK stays in your
-   own repository under your own license.
-
-   .. eco-block:: eco-cta-actions
-
-      `Become a Partner <https://forms.gle/Fo5nRUHZivGN1itg9>`_
-
-      .. Hidden until the dedicated integration page exists. Uncomment and retarget
-         the doc reference then.
-         :doc:`Read the integration guide </device/add_device>`
-
-   .. rst-class:: eco-cta-steps
-
-   #. **Joint plan** — agree on scope, devices, and timeline.
-   #. **Implementation** — build the plugin and open a pull request.
-   #. **Listing** — `build your Ecosystem card <../_static/tools/partner-card-preview.html>`_
-      and send it to us.
-   #. **Maintenance** — keep the integration green across releases.
-
-.. rst-class:: eco-eyebrow
-
-One interface, any device
-
-.. _supported-input-devices:
-
-.. rst-class:: eco-section
-
-Supported Input Devices :device-count:`all`
--------------------------------------------
+Supported Devices :device-count:`input`
+---------------------------------------
 
 A standardized device interface removes custom integrations and their maintenance. Input
 modes determine which retargeters and control schemes are available.
 :doc:`Add a new device → </device/add_device>`
 
 .. device-matrix::
+   :section: input
+
+.. _data-factory:
+
+.. rst-class:: eco-section
+
+Data Factory :device-count:`data_factory`
+-----------------------------------------
+
+Frameworks and services for collecting teleoperation data and turning it into training
+datasets.
+
+.. device-matrix::
+   :section: data_factory
+
+.. _cloud-infrastructure:
+
+.. rst-class:: eco-section
+
+Cloud Infrastructure :device-count:`cloud`
+------------------------------------------
+
+Cloud platforms available for running Isaac Teleop workloads.
+
+.. device-matrix::
+   :section: cloud
+
+.. rst-class:: eco-section
+
+Become Part of Isaac Teleop
+---------------------------
+
+Two ways in, both on `GitHub <https://github.com/NVIDIA/IsaacTeleop>`_: bring a device to the
+stack, or build on the stack itself.
+
+.. eco-block:: eco-paths
+
+   .. eco-block:: eco-path
+
+      **Add your device**
+
+      Devices connect through a plugin process, so your SDK stays in your own repository under
+      your own license. Build the plugin, open a pull request, and the device joins the tables
+      above.
+
+      .. eco-block:: eco-path-action
+
+         :doc:`Add a New Device </device/add_device>`
+
+   .. eco-block:: eco-path
+
+      **Build on Isaac Teleop**
+
+      Collect teleoperation data with it, or run it as the teleoperation stack inside the robot
+      you are building. One interface covers every device listed above.
+
+      .. eco-block:: eco-path-action
+
+         :doc:`Quick Start </getting_started/quick_start>`
+
+.. eco-block:: eco-cta
+
+   Looking to go further together? Tell us what you are building. We review submissions on a
+   rolling basis and will be in touch if we see an opportunity to work more closely together.
+
+   .. eco-block:: eco-cta-actions
+
+      `Get in Touch <https://forms.gle/Fo5nRUHZivGN1itg9>`_
