@@ -9,8 +9,8 @@
 #include <flatbuffers/idl.h>
 #include <mcap/recorded_schemas.hpp>
 #include <mcap/recording_traits.hpp>
-#include <mcap/schema_compat.hpp>
 #include <mcap/writer.hpp>
+#include <schema_compat/schema_compat.hpp>
 
 #include <cstdint>
 #include <iostream>

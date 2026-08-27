@@ -6,7 +6,7 @@
 // than at replay time. See src/core/schema/README.md.
 
 #include <catch2/catch_test_macros.hpp>
-#include <mcap/schema_compat.hpp>
+#include <schema_compat/schema_compat.hpp>
 
 #include <cstdint>
 #include <filesystem>

@@ -4,13 +4,13 @@
 #pragma once
 
 #include "recorded_schemas.hpp"
-#include "schema_compat.hpp"
 
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/reader.hpp>
 #include <mcap/writer.hpp>
 #include <schema/serialized.hpp>
 #include <schema/timestamp_generated.h>
+#include <schema_compat/schema_compat.hpp>
 
 #include <algorithm>
 #include <cassert>

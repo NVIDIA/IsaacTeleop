@@ -6,17 +6,12 @@ cmake_minimum_required(VERSION 3.20)
 # mcap_core provides McapTrackerChannels / McapTrackerViewers
 # (mcap/tracker_channels.hpp), thin helpers that reduce boilerplate in the
 # Live*TrackerImpl and Replay*TrackerImpl constructors and update() methods.
-# schema_compat.cpp is the one compiled source: <flatbuffers/idl.h> is heavy and
-# is needed only to compare binary schemas, so it stays out of the headers every
-# tracker includes.
 # The actual MCAP implementation (MCAP_IMPLEMENTATION) is compiled once inside
 # deviceio_core (deviceio_session.cpp).
 add_library(mcap_core STATIC
     recorded_schemas.cpp
-    schema_compat.cpp
     inc/mcap/recorded_schemas.hpp
     inc/mcap/recording_traits.hpp
-    inc/mcap/schema_compat.hpp
     inc/mcap/tracker_channels.hpp
 )
 
@@ -31,6 +26,7 @@ target_link_libraries(mcap_core
     PUBLIC
         mcap::mcap
         isaacteleop_schema
+        schema::schema_compat
 )
 
 add_library(mcap::mcap_core ALIAS mcap_core)

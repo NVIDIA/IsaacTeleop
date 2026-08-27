@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "inc/mcap/schema_compat.hpp"
+#include "inc/schema_compat/schema_compat.hpp"
 
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection_generated.h>
