@@ -92,7 +92,7 @@ export const TELEOP_PROJECTS: TeleopProjectRegistry = {
     label: 'Real Robot',
     settings: { panelHiddenAtStart: true, headless: false },
     children: {
-      ros2: { label: 'ROS2' },
+      ros2: { label: 'ROS2', settings: { headless: true } },
       isaacros: { label: 'IsaacROS' },
       gear: {
         label: 'GEAR',
