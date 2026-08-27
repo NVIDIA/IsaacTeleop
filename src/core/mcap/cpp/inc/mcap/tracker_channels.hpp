@@ -13,6 +13,7 @@
 #include <schema/timestamp_generated.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -305,18 +306,19 @@ public:
         while (tracker_view_->it != tracker_view_->view.end())
         {
             const auto& msg_view = *(tracker_view_->it);
-            size_t idx = find_channel_idx(msg_view.channel->topic);
-            Serialized<RecordT> record = adopt_message(msg_view.message, idx);
+            auto idx = channel_index_of(msg_view.channel->topic);
+            assert(idx.has_value() && "topic filter admitted a topic this tracker does not read");
+            Serialized<RecordT> record = adopt_message(msg_view.message, *idx);
 
             ++(tracker_view_->it);
 
             // The requested channel; return the record.
-            if (idx == channel_index)
+            if (*idx == channel_index)
             {
                 return record;
             }
             // Not the requested channel; stash for a future read(idx) call.
-            channels_[idx].buffer.push_back(std::move(record));
+            channels_[*idx].buffer.push_back(std::move(record));
         }
 
         return Serialized<RecordT>();
@@ -350,16 +352,6 @@ private:
             }
         }
         return std::nullopt;
-    }
-
-    size_t find_channel_idx(const std::string& topic) const
-    {
-        const std::optional<size_t> found = channel_index_of(topic);
-        if (!found.has_value())
-        {
-            throw std::runtime_error("McapTrackerViewers: unexpected topic '" + topic + "'");
-        }
-        return *found;
     }
 
     /*!
