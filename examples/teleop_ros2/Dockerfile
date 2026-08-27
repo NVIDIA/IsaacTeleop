@@ -123,6 +123,7 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_EXAMPLE_TELEOP_ROS2=ON \
         -DBUILD_TESTING=OFF \
+        -DBUILD_VIZ=OFF \
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
