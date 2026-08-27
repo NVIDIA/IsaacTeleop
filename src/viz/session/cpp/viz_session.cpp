@@ -229,6 +229,18 @@ FrameInfo VizSession::begin_frame()
     current_frame_info_.resolution = compositor_ ? compositor_->resolution() : Resolution{};
     current_backend_frame_.reset();
 
+    // Drained here, not in poll_events: consume-once, and this is the one place
+    // per frame every caller sees. A latched pose is wrong from this frame on.
+    current_frame_info_.reference_space_changed = false;
+    if (config_.mode == DisplayMode::kXr && backend_)
+    {
+        auto* xr = static_cast<XrBackend*>(backend_.get());
+        if (auto* sess = xr->xr_session(); sess != nullptr)
+        {
+            current_frame_info_.reference_space_changed = sess->take_reference_space_changed();
+        }
+    }
+
     // Acquire the backend frame BEFORE returning so renderers calling
     // submit() against the returned FrameInfo's views are working with
     // the same per-eye poses xrEndFrame will submit later. Skip the
