@@ -2,15 +2,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Visualize live OpenXR full-body pose tracking in real time with viser.
+Visualize live OpenXR hand-tracking in real time with viser.
 
 ``CloudXRLauncher`` starts the CloudXR runtime and WSS proxy automatically.
 Open the URL viser prints (default http://localhost:8080) in a browser to see
-the full PICO body skeleton — joints colored green when valid, red when lost —
-updating live as you move.
+both hands rendered as joint clouds + bone segments, updating live as you move.
 
 Usage:
-    python live_full_body.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
+    python live_hand.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
 
 Press Ctrl+C to stop.
 
@@ -25,30 +24,28 @@ import numpy as np
 import viser
 
 from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import BODY_JOINT_NAMES, FullBodyViz, build_full_body_pipeline
+from .common import HandViz, LEFT_COLOR, RIGHT_COLOR, build_hand_pipeline, setup_scene
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--host",
-        default="0.0.0.0",
-        help="Viser HTTP bind address (default: 0.0.0.0, all interfaces; pass 127.0.0.1 to keep it local)",
+        default="127.0.0.1",
+        help="Viser HTTP bind address (default: 127.0.0.1; pass 0.0.0.0 to expose externally)",
     )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
     server = viser.ViserServer(host=args.host, port=args.port)
-    server.scene.set_up_direction("+y")
-    server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
+    setup_scene(server)
 
     config = TeleopSessionConfig(
-        app_name="LiveFullBodyExample",
-        pipeline=build_full_body_pipeline(),
+        app_name="LiveHandExample",
+        pipeline=build_hand_pipeline(),
     )
 
     with CloudXRLauncher.launch_context(args) as launcher:
@@ -57,35 +54,36 @@ def main(argv: list[str]) -> int:
         print("[live] waiting for headset connection… (Ctrl+C to stop)")
 
         with TeleopSession(config) as session:
-            viz = FullBodyViz(server)
-            print(
-                f"[live] viser listening on {args.host}:{args.port} "
-                f"(http://localhost:{args.port})"
-            )
+            viz_left = HandViz(server, "hand_left", LEFT_COLOR)
+            viz_right = HandViz(server, "hand_right", RIGHT_COLOR)
+            print(f"[live] viser running at http://localhost:{args.port}")
+            _last_step_t = time.time()
+            _missed = 0
             try:
                 while True:
-                    result = session.step()
-                    full_body = result["full_body"]
+                    now = time.time()
+                    _missed += max(0, round((now - _last_step_t) * 60) - 1)
+                    _last_step_t = now
 
-                    if full_body.is_none:
-                        viz.update(None, None)
-                        n_valid = 0
-                    else:
-                        positions = np.asarray(
-                            full_body[FullBodyInputIndex.JOINT_POSITIONS],
-                            dtype=np.float32,
-                        )
-                        valid = np.asarray(
-                            full_body[FullBodyInputIndex.JOINT_VALID], dtype=np.uint8
-                        )
-                        viz.update(positions, valid)
-                        n_valid = int(np.count_nonzero(valid))
+                    result = session.step()
+                    viz_left.update(
+                        np.asarray(result["left_positions"][0]),
+                        bool(result["left_valid"][0]),
+                    )
+                    viz_right.update(
+                        np.asarray(result["right_positions"][0]),
+                        bool(result["right_valid"][0]),
+                    )
 
                     if session.frame_count % 60 == 0:
+                        left = bool(result["left_valid"][0])
+                        right = bool(result["right_valid"][0])
                         print(
                             f"[live] frame={session.frame_count}  "
-                            f"joints={n_valid:02d}/{len(BODY_JOINT_NAMES)}"
+                            f"L={'Y' if left else '-'}  R={'Y' if right else '-'}  "
+                            f"missed={_missed}"
                         )
+                        _missed = 0
                     time.sleep(1 / 60)
             except KeyboardInterrupt:
                 pass
