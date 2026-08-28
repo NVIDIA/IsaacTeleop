@@ -15,7 +15,7 @@ Prerequisites (separate terminals):
      (VIVEHub tracker_server running, or VIVE_SE3_SYNTHETIC=1 for a smoke test)
 
 With no arguments it records 10 s of every collection the pusher currently
-advertises (see --collections), to a timestamped file under ../recordings/.
+advertises (see --collections), to a timestamped file under ./recordings/.
 
 Usage:
     source ~/.cloudxr/run/cloudxr.env
@@ -85,7 +85,7 @@ def main(argv: list[str]) -> int:
         mcap_path = Path(args.output)
         mcap_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        out_dir = Path(__file__).resolve().parent.parent / "recordings"
+        out_dir = Path.cwd() / "recordings"
         out_dir.mkdir(exist_ok=True)
         mcap_path = out_dir / f"se3_vive_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 
