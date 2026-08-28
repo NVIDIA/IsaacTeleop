@@ -526,11 +526,14 @@ example, so the headset stays connected from one run to the next.
 The first launch downloads the CloudXR Web Client SDK and asks you to review and
 accept the EULA on the terminal; answer the prompt once and the acceptance is
 remembered for subsequent runs.</p>
-<p>The CloudXR runtime uses the <code class="docutils literal notranslate"><span class="pre">Quest3</span></code> device profile by default; Apple Vision
-Pro needs <code class="docutils literal notranslate"><span class="pre">auto-native</span></code>. The profile is set on the <em>runtime</em>, so applications
-inherit whatever the runtime they connect to was started with. To override it,
-or any other setting, write a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code> env file and start the service with
-it:</p>
+<p>The CloudXR runtime uses the <code class="docutils literal notranslate"><span class="pre">Quest3</span></code> device profile by default. The name is
+narrower than the profile: <code class="docutils literal notranslate"><span class="pre">Quest3</span></code> serves every WebXR client — Quest, PICO,
+and the desktop-browser IWER emulator — so PICO users should keep it. Apple
+Vision Pro connects natively and needs <code class="docutils literal notranslate"><span class="pre">auto-native</span></code> instead; the default is
+not derived from the connected headset, so set it yourself. The profile is set
+on the <em>runtime</em>, so applications inherit whatever the runtime they connect to
+was started with. To override it, or any other setting, write a <code class="docutils literal notranslate"><span class="pre">KEY=value</span></code>
+env file and start the service with it:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="s1">'NV_DEVICE_PROFILE=auto-native'</span><span class="w"> </span>&gt;<span class="w"> </span>custom.env
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>start<span class="w"> </span>--cloudxr-env-config<span class="w"> </span>./custom.env
 </pre></div>
