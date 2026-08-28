@@ -1,0 +1,14 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- Smallest scene with a mesh-free geom, a joint and a light: enough to exercise the
+     parser and the visualizer without shipping assets. -->
+<mujoco>
+  <worldbody>
+    <light pos="0 0 2"/>
+    <geom type="plane" size="1 1 .1"/>
+    <body pos="0 0 .3">
+      <joint type="hinge" axis="0 1 0"/>
+      <geom type="capsule" size=".04" fromto="0 0 0 .2 0 0"/>
+    </body>
+  </worldbody>
+</mujoco>

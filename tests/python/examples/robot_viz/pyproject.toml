@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pyproject for the robot_viz tests. It exists so that `uv run` resolves HERE rather
+# than walking up to the repository root project, whose deps are entirely different.
+# Precedent: the camera_viz leaf beside it.
+
+[project]
+name = "isaacteleop-examples-robot-viz-tests"
+version = "0.0.0"
+# Pinned because these tests import the ABI-specific _robot_twin*.so the preset's
+# interpreter built.
+requires-python = "==3.12.*"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "numpy",
+    # test_ghost.py inspects the shipped scene's geometry -- masses, contact flags, mesh
+    # scaling -- which the twin's name-only API does not expose and should not.
+    # UNPINNED, deliberately: the twin's own MuJoCo ships under a private name and is
+    # reached through dlsym, so no version here can collide with it. That this test
+    # passes against any version IS the packaging claim.
+    "mujoco",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

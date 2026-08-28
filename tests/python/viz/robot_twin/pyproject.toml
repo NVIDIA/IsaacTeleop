@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Exists so `uv run` resolves here rather than walking up to the repository root project.
+# Precedent: the viz leaf above.
+
+[project]
+name = "isaacteleop-viz-robot-twin-tests"
+version = "0.0.0"
+requires-python = ">=3.11,<3.14"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "numpy",
+    # Deliberately NOT the version deps/third_party builds: the test's job is to
+    # show a foreign mujoco can share the process, and it tells the copies apart by
+    # version. Bump it only to another version that is not that one.
+    "mujoco==3.10.0",
+]
