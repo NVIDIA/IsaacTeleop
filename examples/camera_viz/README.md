@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 | `zed`       | ZED 2 / Mini / X One; mono or `stereo: true` (per-eye SDK retrieve, zero-copy GPU) |
 | `video`     | Video-file replay (anything OpenCV/FFmpeg reads) — preview / testing without a camera. Loops by default; `stereo: true` splits side-by-side files into eyes (viewer only) |
 
-In XR mode the viewer **attaches to the CloudXR runtime + WSS proxy**, starting a background service if none is serving — nothing to start separately (`--accept-eula` for the first run; `camera_viz.py --help` for the rest). Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy` / `gimbal`.
+In XR mode the viewer **attaches to the CloudXR runtime + WSS proxy**, starting a background service if none is serving — nothing to start separately (`--accept-eula` for the first run; `camera_viz.sh run CONFIG --help` for the rest). Output: XR headset (default) or desktop window (`run CONFIG --mode window`); one surface per camera — a flat plane (default), a cylinder arc, or an equirect sphere (`placements.<name>.shape`, XR only for the curved shapes). Stereo cameras render true SBS in XR; window mode shows the left eye. XR placements: `world` / `head` / `lazy` / `gimbal`.
 
 ---
 
@@ -176,15 +176,16 @@ Lazy knobs under `placements.<name>`: `look_away_angle_deg`, `reposition_distanc
 ```
 camera_viz/
 ├── camera_viz.sh        — CLI: setup / loopback / run / deploy / service-*
-├── camera_viz.py        — receiver / viewer
-├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
-├── pipeline/            — source ABC + threaded runner
-├── placements/          — XR lock-mode strategies
-├── sources/             — V4L2 / OAK-D / ZED / synthetic / video replay / rtp_h264
-├── transports/          — RTP sender + receiver, native + GStreamer
-├── codec/               — native NVENC/NVDEC pybind module
 ├── configs/             — one YAML per camera kind
 ├── test_data/           — sample replay clip (Git LFS)
+├── python/isaacteleop_examples/camera_viz/
+│   ├── camera_viz.py    — receiver / viewer
+│   ├── camera_streamer.py — robot-side RTP sender (per-camera supervisor)
+│   ├── pipeline/        — source ABC + threaded runner
+│   ├── placements/      — XR lock-mode strategies
+│   ├── sources/         — V4L2 / OAK-D / ZED / synthetic / video replay / rtp_h264
+│   ├── transports/      — RTP sender + receiver, native + GStreamer
+│   └── codec/           — native NVENC/NVDEC pybind module
 └── scripts/
     ├── _install_deps.sh             — installer (setup + deploy)
     └── camera-streamer.service.in   — systemd unit template
