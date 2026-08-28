@@ -69,16 +69,18 @@ real Wuji hand:
 
 .. code-block:: console
 
+   $ uv pip install -e ./examples/retargeting
+
    # Device-free smoke test
-   $ python examples/retargeting/python/wuji_hand_retargeter_demo.py \
+   $ python -m isaacteleop_examples.retargeting.wuji_hand_retargeter_demo \
        --mode synthetic --model wuji_hand_2 --hand right
 
    # Replay MediaPipe-format keypoints
-   $ python examples/retargeting/python/wuji_hand_retargeter_demo.py \
+   $ python -m isaacteleop_examples.retargeting.wuji_hand_retargeter_demo \
        --mode replay --replay my_take.pkl --model wuji_hand_2 --hand right
 
    # Drive real hardware and let TeleopSession launch the Wuji glove plugin
-   $ python examples/retargeting/python/wuji_hand_retargeter_demo.py \
+   $ python -m isaacteleop_examples.retargeting.wuji_hand_retargeter_demo \
        --mode drive --hand right --plugin-path build/src/plugins
 
 Drive mode needs a running CloudXR runtime, an OpenXR hand-tracking source, and
