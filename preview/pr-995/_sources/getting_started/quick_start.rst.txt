@@ -115,11 +115,14 @@ remembered for subsequent runs.
    does not impose. Either rename the profile or add a generic alias (e.g.
    ``webxr``) in the runtime, then update the default and the values listed below.
 
-The CloudXR runtime uses the ``Quest3`` device profile by default; Apple Vision
-Pro needs ``auto-native``. The profile is set on the *runtime*, so applications
-inherit whatever the runtime they connect to was started with. To override it,
-or any other setting, write a ``KEY=value`` env file and start the service with
-it:
+The CloudXR runtime uses the ``Quest3`` device profile by default. The name is
+narrower than the profile: ``Quest3`` serves every WebXR client — Quest, PICO,
+and the desktop-browser IWER emulator — so PICO users should keep it. Apple
+Vision Pro connects natively and needs ``auto-native`` instead; the default is
+not derived from the connected headset, so set it yourself. The profile is set
+on the *runtime*, so applications inherit whatever the runtime they connect to
+was started with. To override it, or any other setting, write a ``KEY=value``
+env file and start the service with it:
 
 .. code-block:: bash
 
