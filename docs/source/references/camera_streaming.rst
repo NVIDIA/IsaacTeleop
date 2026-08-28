@@ -32,9 +32,11 @@ Requirements
 
 - A workstation meeting the :doc:`system requirements </references/requirements>` (Ubuntu, NVIDIA
   GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.
-- For Jetson platforms, use
-  `JetPack 6.2.1 <https://developer.nvidia.com/embedded/jetpack-sdk-621>`_ on Orin or
-  `JetPack 7.1 <https://developer.nvidia.com/embedded/jetpack/downloads/archive-7.1>`_ on Thor.
+- For Jetson platforms:
+
+  - **Orin:** `JetPack 6.2.x <https://developer.nvidia.com/embedded/jetpack-sdk-62>`__ or
+    `7.2.x <https://developer.nvidia.com/embedded/jetpack/downloads/archive-7.2>`__
+  - **Thor:** `JetPack 7.x <https://developer.nvidia.com/embedded/jetpack>`__
 - For the default XR mode, a headset to connect as the CloudXR client — follow the
   :doc:`quick start </getting_started/quick_start>` step :ref:`connect-xr-headset`. The viewer
   launches the CloudXR runtime itself; nothing to start separately. No headset handy?
