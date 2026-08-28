@@ -21,7 +21,8 @@ namespace viz
 namespace
 {
 
-void (*g_wait_poll_hook)() = nullptr;
+// Per creating thread; set by VizSession.create while wait_for_system runs.
+thread_local void (*g_wait_poll_hook)() = nullptr;
 
 void check_xr(XrResult r, const char* what)
 {
