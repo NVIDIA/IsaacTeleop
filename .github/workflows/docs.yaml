@@ -137,6 +137,12 @@ jobs:
           # smudges LFS files from the local object cache. `lfs: true` above only
           # fetched HEAD's objects, so pull the rest for every built ref here.
           git lfs fetch --all
+          # Every version is built with the `conf.py` of *this* checkout, which
+          # sphinx-multiversion passes as `-c`, so a release or tag push would render
+          # main's pages with an older config: roles and directives from extensions it
+          # does not load come out as raw text, and its CSS is dropped. This step
+          # deploys the whole site, so take the docs config from main either way.
+          git -C "$GITHUB_WORKSPACE" checkout origin/main -- docs
           make multi-docs
 
       - name: Upload docs artifact
