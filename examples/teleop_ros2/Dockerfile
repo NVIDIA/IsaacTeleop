@@ -183,7 +183,7 @@ EOF
 FROM base AS runtime_base
 ARG PYTHON_VERSION
 
-WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
+WORKDIR /opt/isaacteleop/install/examples/teleop_ros2
 
 # The node launches the CloudXR runtime in-process via CloudXRLauncher, so this
 # image needs GPU access and the NVIDIA Vulkan/EGL ICDs. Run with --gpus all.
@@ -254,4 +254,5 @@ COPY tests/python/examples/teleop_ros2/ tests/
 FROM runtime_base AS runtime
 
 # Use --no-sync because the venv is already provisioned above.
-ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "--no-sync", "teleop_ros2_node.py"]
+ENTRYPOINT ["/usr/local/bin/teleop-entrypoint", "uv", "run", "--no-sync", \
+            "python", "-m", "isaacteleop_examples.teleop_ros2"]

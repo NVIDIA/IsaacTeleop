@@ -11,7 +11,9 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroup,
     TensorGroupType,
 )
-from teleop_ros2_retargeters import HandTrackingGateRetargeter
+from isaacteleop_examples.teleop_ros2.teleop_ros2_retargeters import (
+    HandTrackingGateRetargeter,
+)
 
 JOINTS = ["thumb_j0", "thumb_j1"]
 
