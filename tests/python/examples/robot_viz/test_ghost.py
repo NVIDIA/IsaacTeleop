@@ -14,35 +14,35 @@ import numpy as np
 import pytest
 
 app = pytest.importorskip(
-    "isaacteleop_examples.mujoco_xr.app",
+    "isaacteleop_examples.robot_viz.app",
     reason="isaacteleop is not on PYTHONPATH",
 )
-_mujoco_xr = pytest.importorskip("isaacteleop_examples.mujoco_xr._mujoco_xr")
+assets = pytest.importorskip("isaacteleop.viz.robot.assets")
+frames = pytest.importorskip("isaacteleop.viz.robot.frames")
+so101_ghost = pytest.importorskip("isaacteleop.viz.robot.so101_ghost")
 mujoco = pytest.importorskip("mujoco")
 
 from isaacteleop.retargeting_engine.tensor_types import (  # noqa: E402
     ControllerInputIndex,
 )
+from isaacteleop.viz.robot.so101_ghost import GHOST_GEOMS  # noqa: E402
 
-GHOST_GEOMS = (
-    "leader_ghost_wrist_roll",
-    "leader_ghost_motor",
-    "leader_ghost_trigger",
-    "leader_ghost_handle",
-)
+
+def _scene_path():
+    """The assembled scene, skipping where the assets cannot be fetched.
+
+    `ensure_so101_scene` downloads on a cold cache, so a host with no route to GitHub
+    skips rather than fails. Point `ISAACTELEOP_SO101_ASSETS` at a populated directory
+    to run it there. Everything it fetches lands flat beside the returned file.
+    """
+    try:
+        return assets.ensure_so101_scene()
+    except OSError as error:
+        pytest.skip(f"SO-101 assets unavailable: {error}")
 
 
 def _default_scene():
-    """The shipped scene, skipping on an unfetched checkout.
-
-    Saying which meshes are missing beats MuJoCo's "Error opening file".
-    """
-    missing = app._missing_assets()
-    if missing:
-        pytest.skip(
-            f"SO-101 assets not fetched ({', '.join(missing)}); run {app.FETCH_SCRIPT}"
-        )
-    return mujoco.MjModel.from_xml_path(str(app.DEFAULT_SCENE))
+    return mujoco.MjModel.from_xml_path(str(_scene_path()))
 
 
 def _scene(model, data):
@@ -77,8 +77,30 @@ def _nearest_gap(a, b, stride=7, block=200):
     return best
 
 
+def _loaded():
+    """The shipped scene in a plain MjData, or a skip naming the missing meshes.
+
+    Deliberately NOT through ``SceneTwin``: what this file checks is the ASSET's
+    geometry -- masses, contact flags, mesh scaling, part clearances -- which the twin's
+    name-only API does not expose and should not. That a user's own `mujoco` loads the
+    same file happily is the packaging claim, demonstrated.
+    """
+    model = _default_scene()
+    return model, mujoco.MjData(model)
+
+
+def _body(model, name):
+    return mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+
+
+def _mocap(model, data, body_name):
+    """One mocap body's ``(pos, quat)``."""
+    row = int(model.body_mocapid[_body(model, body_name)])
+    return np.array(data.mocap_pos[row]), np.array(data.mocap_quat[row])
+
+
 # ---------------------------------------------------------------------------
-# A stubbed controller. ``_place`` turns it into the pose ``app._update_ghost``
+# A stubbed controller. ``_place`` turns it into the pose ``so101_ghost.ghost_bodies``
 # takes, and stubbing it is what keeps this file headless.
 # ---------------------------------------------------------------------------
 
@@ -106,22 +128,26 @@ class _NoController:
         raise AssertionError("an is_none controller must never be read")
 
 
-def _place(data, ghost, controller, closedness=0.0):
-    """One frame of the loop: place the ghost only when the harness has a pose."""
-    if controller.is_none or not controller[ControllerInputIndex.GRIP_IS_VALID]:
-        return
-    app._update_ghost(
-        data,
-        ghost,
-        np.array(
+def _place(model, data, controller, closedness=0.0):
+    """One frame of the loop: pose the ghost only when the harness has a pose.
+
+    The forward pass runs either way, so "frozen" is measured against a scene that did
+    get one rather than one that was simply never touched. ``so101_ghost.ghost_bodies`` is pure,
+    so this is the shipped placement even without a twin.
+    """
+    if not (controller.is_none or not controller[ControllerInputIndex.GRIP_IS_VALID]):
+        pose = np.array(
             [
                 *controller[ControllerInputIndex.GRIP_POSITION],
                 *controller[ControllerInputIndex.GRIP_ORIENTATION],
             ],
             dtype=float,
-        ),
-        closedness,
-    )
+        )
+        for name, (pos, quat) in so101_ghost.ghost_bodies(pose, closedness).items():
+            row = int(model.body_mocapid[_body(model, name)])
+            data.mocap_pos[row] = pos
+            data.mocap_quat[row] = quat
+    mujoco.mj_forward(model, data)
 
 
 def test_the_ghost_is_opaque_and_collides_with_nothing():
@@ -147,7 +173,7 @@ def test_the_ghost_is_opaque_and_collides_with_nothing():
     # mjModel aggregates geom mass, so `mass="0"` is checked where it lands. A
     # mocap body is kinematic either way, but a non-zero mass here would change
     # the model's total and any inertia-derived diagnostic built on it.
-    for body_name in (app.GHOST_BODY, app.GHOST_JAW_BODY):
+    for body_name in (so101_ghost.GHOST_BODY, so101_ghost.GHOST_JAW_BODY):
         body = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, body_name)
         assert model.body_mass[body] == 0.0
 
@@ -161,7 +187,7 @@ def test_both_ghost_bodies_are_mocap_and_kinematic():
     model = _default_scene()
     bodies = [
         mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, n)
-        for n in (app.GHOST_BODY, app.GHOST_JAW_BODY)
+        for n in (so101_ghost.GHOST_BODY, so101_ghost.GHOST_JAW_BODY)
     ]
     assert all(b >= 0 for b in bodies)
     for body in bodies:
@@ -242,9 +268,7 @@ def test_the_ghost_is_rigidly_attached_to_the_grip_frame():
     it survive a spot check. Asserted as invariance rather than a posture, so
     re-tuning on a headset cannot turn it red.
     """
-    model = _default_scene()
-    data = mujoco.MjData(model)
-    ghost = app._resolve_ghost(model)
+    model, data = _loaded()
 
     seen = []
     for grip_pos, grip_quat_xyzw in (
@@ -252,17 +276,17 @@ def test_the_ghost_is_rigidly_attached_to_the_grip_frame():
         ((0.31, 1.24, -0.42), (0.0, 0.3826834, 0.0, 0.9238795)),
         ((-0.2, 0.9, -0.8), (0.5, 0.5, 0.5, 0.5)),
     ):
-        _place(data, ghost, _Controller(True, grip_pos, grip_quat_xyzw))
-        q_world_from_grip = np.array(_mujoco_xr.mj_from_xr_quat(list(grip_quat_xyzw)))
+        _place(model, data, _Controller(True, grip_pos, grip_quat_xyzw))
+        body_pos, body_quat = _mocap(model, data, so101_ghost.GHOST_BODY)
+        q_world_from_grip = np.array(frames.mj_from_xr_quat(list(grip_quat_xyzw)))
         inverse, relative = np.empty(4), np.empty(4)
         mujoco.mju_negQuat(inverse, q_world_from_grip)
-        mujoco.mju_mulQuat(relative, inverse, np.array(data.mocap_quat[ghost.body]))
+        mujoco.mju_mulQuat(relative, inverse, body_quat)
 
         rot = np.empty(9)
         mujoco.mju_quat2Mat(rot, q_world_from_grip)
         offset = (
-            np.array(data.mocap_pos[ghost.body])
-            - np.array(_mujoco_xr.mj_from_xr_pos(list(grip_pos)))
+            body_pos - np.array(frames.mj_from_xr_pos(list(grip_pos)))
         ) @ rot.reshape(3, 3)
         seen.append((relative, offset))
 
@@ -276,8 +300,8 @@ def test_the_ghost_is_rigidly_attached_to_the_grip_frame():
             "orientation -- the translation is not being rotated with the grip"
         )
     # And it is the configured correction, not some other rigid attachment.
-    assert np.allclose(seen[0][0], app._QUAT_HAND_FROM_GHOST, atol=1e-6)
-    assert np.allclose(seen[0][1], app._POS_HAND_FROM_GHOST, atol=1e-6)
+    assert np.allclose(seen[0][0], so101_ghost._QUAT_HAND_FROM_GHOST, atol=1e-6)
+    assert np.allclose(seen[0][1], so101_ghost.POS_HAND_FROM_GHOST, atol=1e-6)
 
 
 def test_squeezing_drives_the_jaw_from_released_to_squeezed():
@@ -286,35 +310,33 @@ def test_squeezing_drives_the_jaw_from_released_to_squeezed():
     On the recovered ANGLE, not on where a point ends up: over a large sweep a
     point on the lever traces an arc, rising along any fixed axis before falling.
     """
-    model = _default_scene()
-    data = mujoco.MjData(model)
-    ghost = app._resolve_ghost(model)
+    model, data = _loaded()
     controller = _Controller(True, (0.0, 1.2, -0.5))
 
     def hinge_angle_at(closedness):
-        _place(data, ghost, controller, closedness)
-        mujoco.mj_forward(model, data)
+        _place(model, data, controller, closedness)
         inverse, hinge = np.empty(4), np.empty(4)
-        mujoco.mju_negQuat(inverse, np.array(data.mocap_quat[ghost.body]))
-        mujoco.mju_mulQuat(hinge, inverse, np.array(data.mocap_quat[ghost.jaw]))
+        mujoco.mju_negQuat(inverse, _mocap(model, data, so101_ghost.GHOST_BODY)[1])
+        mujoco.mju_mulQuat(
+            hinge, inverse, _mocap(model, data, so101_ghost.GHOST_JAW_BODY)[1]
+        )
         # Signed against the hinge axis, so a wrong-way rotation reads negative
         # rather than folding onto the same magnitude.
         turn = 2.0 * math.atan2(float(np.linalg.norm(hinge[1:])), float(hinge[0]))
-        if float(np.dot(hinge[1:], app._TRIGGER_HINGE_AXIS)) < 0:
+        if float(np.dot(hinge[1:], so101_ghost._TRIGGER_HINGE_AXIS)) < 0:
             turn = -turn
         return turn
 
     angles = [hinge_angle_at(c) for c in (0.0, 0.25, 0.5, 0.75, 1.0)]
-    assert angles[0] == pytest.approx(app._TRIGGER_RELEASED_RAD, abs=1e-6)
-    assert angles[-1] == pytest.approx(app._TRIGGER_SQUEEZED_RAD, abs=1e-6)
+    assert angles[0] == pytest.approx(so101_ghost.TRIGGER_RELEASED_RAD, abs=1e-6)
+    assert angles[-1] == pytest.approx(so101_ghost.TRIGGER_SQUEEZED_RAD, abs=1e-6)
     assert all(b < a for a, b in zip(angles, angles[1:])), (
         f"squeezing did not close the jaw monotonically: {np.round(angles, 4)}"
     )
 
     # And it is big enough to see: the far end of the lever sweeps ~90 mm.
     def trigger_at(closedness):
-        _place(data, ghost, controller, closedness)
-        mujoco.mj_forward(model, data)
+        _place(model, data, controller, closedness)
         return _geom_verts_world(model, data, "leader_ghost_trigger")
 
     travel = float(np.linalg.norm(trigger_at(1.0) - trigger_at(0.0), axis=1).max())
@@ -326,19 +348,18 @@ def test_squeezing_drives_the_jaw_from_released_to_squeezed():
 def test_the_released_end_is_the_urdf_joints_upper_limit():
     """The travel is the URDF's, not a tuned number.
 
-    Read out of the fetched so101_new_calib.urdf, so the constant is checked
-    against its source instead of against itself.
+    Read out of the fetched so101_new_calib.urdf, which `ensure_so101_scene` puts
+    beside the scene for exactly this, so the constant is checked against its source
+    instead of against itself.
     """
-    urdf = app._LEADER_ASSETS / "so101_new_calib.urdf"
-    if not urdf.is_file():
-        pytest.skip(f"{urdf.name} not fetched; run {app.FETCH_SCRIPT}")
+    urdf = _scene_path().parent / "so101_new_calib.urdf"
     tree = ElementTree.parse(urdf)
     joint = next(j for j in tree.iter("joint") if j.get("name") == "gripper")
     upper = float(joint.find("limit").get("upper"))
-    assert app._TRIGGER_RELEASED_RAD == pytest.approx(upper, abs=1e-4)
+    assert so101_ghost.TRIGGER_RELEASED_RAD == pytest.approx(upper, abs=1e-4)
     # The other end is the joint's authored zero, NOT its lower limit, which
     # swings the lever into the servo.
-    assert app._TRIGGER_SQUEEZED_RAD == 0.0
+    assert so101_ghost.TRIGGER_SQUEEZED_RAD == 0.0
     assert float(joint.find("limit").get("lower")) == pytest.approx(
         math.radians(-10.0), abs=1e-4
     )
@@ -353,9 +374,7 @@ def test_the_trigger_clears_the_whole_gripper_across_its_driven_range():
     driven to the joint's -10 degree limit closes to 0.4 mm, and nearest-vertex
     distance cannot go negative so interpenetration reads as a small positive.
     """
-    model = _default_scene()
-    data = mujoco.MjData(model)
-    ghost = app._resolve_ghost(model)
+    model, data = _loaded()
     others = (
         "leader_ghost_wrist_roll",
         "leader_ghost_motor",
@@ -365,8 +384,7 @@ def test_the_trigger_clears_the_whole_gripper_across_its_driven_range():
     worst = (0.0, "", 1e9)
     for step in range(9):
         closedness = step / 8
-        _place(data, ghost, _Controller(True, (0.0, 1.2, -0.5)), closedness)
-        mujoco.mj_forward(model, data)
+        _place(model, data, _Controller(True, (0.0, 1.2, -0.5)), closedness)
         trigger = _geom_verts_world(model, data, "leader_ghost_trigger")
         for part in others:
             gap = _nearest_gap(trigger, _geom_verts_world(model, data, part))
@@ -385,7 +403,9 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
     and the deadzone are the shipped retargeter's, not this file's idea of them.
     """
     from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
+    from isaacteleop.retargeting_engine.interface import ValueInput
     from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
+    from isaacteleop.retargeters.SO101.gripper_retargeter import GRIPPER_COMMAND_KEY
     from isaacteleop.schema import (
         ControllerInputState,
         ControllerPose,
@@ -394,6 +414,7 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
         Pose,
         Quaternion,
     )
+    from isaacteleop.viz.robot.clutch_preview import ENGAGE_PERMITTED_LEAF, permission
 
     def snapshot(trigger):
         pose = ControllerPose(
@@ -411,8 +432,6 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
         )
         return ControllerSnapshot(pose, pose, state)
 
-    from isaacteleop.retargeting_engine.interface import ValueInput
-
     pipeline, _ = app._build_pipeline(np.eye(4, dtype=np.float32))
     spec = ControllersSource(name="controllers").input_spec()
 
@@ -425,11 +444,13 @@ def test_the_shipped_retargeter_drives_the_jaw_channel():
         out = pipeline.execute_pipeline(
             {
                 "controllers": inputs,
-                app.ENGAGE_PERMISSION_LEAF: {ValueInput.VALUE: app._permission(True)},
+                # One leaf, not three: the engage gate left the graph, so the app feeds
+                # the clutch a single permission rather than the operands to derive it.
+                ENGAGE_PERMITTED_LEAF: {ValueInput.VALUE: permission(False)},
             }
         )
-        assert app.GRIPPER_COMMAND_KEY in out
-        return float(out[app.GRIPPER_COMMAND_KEY][0])
+        assert GRIPPER_COMMAND_KEY in out
+        return float(out[GRIPPER_COMMAND_KEY][0])
 
     assert closedness(0.0) == pytest.approx(0.0)
     assert closedness(1.0) == pytest.approx(1.0)
@@ -443,15 +464,13 @@ def test_an_untracked_controller_freezes_the_whole_gripper():
     Freezing is the honest rendering of "tracking lost", and the jaw freezes
     with the body rather than articulating on a stale pose.
     """
-    model = _default_scene()
-    data = mujoco.MjData(model)
-    ghost = app._resolve_ghost(model)
-    _place(data, ghost, _Controller(True, (0.2, 1.3, -0.5)), closedness=0.0)
-    seen_body = data.mocap_pos[ghost.body].copy()
-    seen_jaw = data.mocap_quat[ghost.jaw].copy()
+    model, data = _loaded()
+    _place(model, data, _Controller(True, (0.2, 1.3, -0.5)), closedness=0.0)
+    seen_body = _mocap(model, data, so101_ghost.GHOST_BODY)[0]
+    seen_jaw = _mocap(model, data, so101_ghost.GHOST_JAW_BODY)[1]
 
     for controller in (_Controller(False, (9.0, 9.0, 9.0)), _NoController()):
         for _ in range(3):
-            _place(data, ghost, controller, closedness=1.0)
-    assert np.array_equal(data.mocap_pos[ghost.body], seen_body)
-    assert np.array_equal(data.mocap_quat[ghost.jaw], seen_jaw)
+            _place(model, data, controller, closedness=1.0)
+    assert np.array_equal(_mocap(model, data, so101_ghost.GHOST_BODY)[0], seen_body)
+    assert np.array_equal(_mocap(model, data, so101_ghost.GHOST_JAW_BODY)[1], seen_jaw)

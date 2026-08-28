@@ -1,20 +1,13 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# mujoco_xr tests. Each test_*.py registers as its own ctest entry under the
-# `mujoco_xr` label -- same shape as examples/camera_viz/tests/CMakeLists.txt.
+# robot_viz tests. Each test_*.py registers as its own ctest entry under the
+# `robot_viz` label -- same shape as the camera_viz leaf beside it.
 #
-# Keep tests here unit-level -- no GPU, no headset, no CloudXR runtime, no
-# window system -- because a test gated on hardware one developer has reports
-# green by skipping, and examples have no CI to run it in
-# (NVIDIA/IsaacTeleop#880). test_readback.py is the one exception and adding a
-# second needs the same justification: what it covers is otherwise invisible
-# until someone is wearing a headset, and it needs no headset itself.
-
-if(NOT TARGET mujoco_xr_py)
-    message(STATUS "mujoco_xr pytest skipped (mujoco_xr_py not built)")
-    return()
-endif()
+# Keep tests here unit-level -- no headset, no CloudXR runtime, no window system --
+# because a test gated on hardware one developer has reports green by skipping, and
+# examples have no CI to run it in (NVIDIA/IsaacTeleop#880). The renderer's own GPU test
+# lives with the renderer, in tests/python/viz/robot_twin/.
 
 file(GLOB TEST_FILES
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -24,7 +17,7 @@ file(GLOB TEST_FILES
 foreach(test_file ${TEST_FILES})
     get_filename_component(test_name "${test_file}" NAME_WE)
     add_test(
-        NAME "mujoco_xr_${test_name}"
+        NAME "robot_viz_${test_name}"
         COMMAND uv run --python ${ISAAC_TELEOP_PYTHON_VERSION} --extra dev
             pytest -v --tb=short "${test_file}"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -36,8 +29,8 @@ foreach(test_file ${TEST_FILES})
     # semicolon-separated list, so two "PYTHONPATH=..." elements silently
     # produce two entries and only the last survives. Join additional roots with
     # ':' inside one quoted string.
-    set_tests_properties("mujoco_xr_${test_name}" PROPERTIES
+    set_tests_properties("robot_viz_${test_name}" PROPERTIES
         ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
-        LABELS "mujoco_xr"
+        LABELS "robot_viz"
     )
 endforeach()

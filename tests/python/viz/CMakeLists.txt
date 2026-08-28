@@ -26,3 +26,6 @@ foreach(test_file ${TEST_FILES})
         LABELS "viz_python"
     )
 endforeach()
+
+# Its own leaf: a pyproject pinning a deliberately-different mujoco, and a model fixture.
+add_subdirectory(robot_twin)

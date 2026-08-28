@@ -216,11 +216,17 @@ endif()
 # src/viz/robot_twin is the only consumer and it is a pybind11 extension, so a build
 # without the bindings has nothing to link this to.
 if(BUILD_VIZ AND BUILD_PYTHON_BINDINGS)
-    message(STATUS "Fetching MuJoCo from GitHub...")
+    # Cached because tests/python/viz/robot_twin reads it to tell our copy from the
+    # wheel's. The version the twin is built against, unrelated to whatever `mujoco`
+    # wheel the user has, which is the whole point.
+    set(ISAACTELEOP_MUJOCO_VERSION 3.11.0
+        CACHE INTERNAL "MuJoCo version the robot twin is built against")
+
+    message(STATUS "Fetching MuJoCo ${ISAACTELEOP_MUJOCO_VERSION} from GitHub...")
     FetchContent_Declare(
         mujoco
         GIT_REPOSITORY https://github.com/google-deepmind/mujoco.git
-        GIT_TAG        3.11.0
+        GIT_TAG        ${ISAACTELEOP_MUJOCO_VERSION}
         GIT_SHALLOW    TRUE
     )
 
@@ -235,7 +241,7 @@ if(BUILD_VIZ AND BUILD_PYTHON_BINDINGS)
     set(MUJOCO_TEST_PYTHON_UTIL OFF)
 
     FetchContent_MakeAvailable(mujoco)
-    message(STATUS "MuJoCo 3.11.0 fetched")
+    message(STATUS "MuJoCo ${ISAACTELEOP_MUJOCO_VERSION} fetched")
 
     include("${CMAKE_CURRENT_LIST_DIR}/Mujoco.cmake")
 endif()

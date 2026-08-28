@@ -3,10 +3,13 @@
 
 """The OpenGL -> CUDA readback, on a real GPU and with no headset.
 
-The only test here that touches hardware, and it skips loudly without it. What
-it buys is the two conversions that are otherwise invisible until someone is
-wearing a headset: the y flip and the depth inversion. It stops at
-ProjectionLayer.submit and covers nothing downstream.
+The only test here that touches hardware, and it skips loudly without it. What it buys
+is the two conversions that are otherwise invisible until someone is wearing a headset:
+the y flip and the depth inversion. It stops at ProjectionLayer.submit and covers
+nothing downstream.
+
+The scene is one box on a mocap body, built inline: what is measured is where drawn
+pixels land, and a single geom the test can park anywhere is the whole requirement.
 """
 
 import ctypes
@@ -15,54 +18,57 @@ import math
 import numpy as np
 import pytest
 
-mujoco = pytest.importorskip("mujoco")
-_mujoco_xr = pytest.importorskip("isaacteleop_examples.mujoco_xr._mujoco_xr")
+scene_module = pytest.importorskip(
+    "isaacteleop.viz.robot.scene", reason="the robot twin backend is not built"
+)
+frames = pytest.importorskip("isaacteleop.viz.robot.frames")
 
-from isaacteleop_examples.mujoco_xr.app import DEFAULT_SCENE, FAR_Z, NEAR_Z  # noqa: E402
-from isaacteleop_examples.mujoco_xr import follower  # noqa: E402
+SceneTwin = scene_module.SceneTwin
+
+NEAR_Z = 0.05
+FAR_Z = 50.0
+BOX = "box"
+#: Half-extent of the cube below, in metres.
+BOX_HALF_SIZE = 0.02
+# A 4 cm cube on a mocap body, so the fixture can park it anywhere by publishing.
+SCENE = """
+<mujoco>
+  <worldbody>
+    <body name="box" mocap="true">
+      <geom name="box_geom" type="box" size="0.02 0.02 0.02" rgba="1 1 1 1" group="2"/>
+    </body>
+  </worldbody>
+</mujoco>
+"""
 
 W = H = 256
 HALF_FOV = math.radians(45.0)
-GHOST_DISTANCE = 0.6  # metres straight ahead of the eye
-GHOST_OFFSET = 0.15  # metres off-axis, comfortably outside the gripper's own size
+BOX_DISTANCE = 0.6  # metres straight ahead of the eye
+BOX_OFFSET = 0.15  # metres off-axis, comfortably outside the box's own size
 
 
 @pytest.fixture(scope="module")
-def rendered():
-    """A live Renderer plus a device-to-host copier, or a skip saying why."""
-    model = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE))
-    data = mujoco.MjData(model)
-    # These tests measure where the drawn pixels are, so the ghost must be the only
-    # thing drawn; the scene also carries the follower arm, 30 of its 34 geoms.
-    # Follower.__init__ ends by hiding it, the same switch the app uses.
-    follower.Follower(model, data)
+def rendered(tmp_path_factory):
+    """A live SceneTwin plus a device-to-host copier, or a skip saying why.
+
+    Drives the shipped twin rather than a Renderer of its own, so what is measured is
+    the path the app actually takes: publish, apply, forward, update_scene, render.
+    """
+    path = tmp_path_factory.mktemp("scene") / "readback.xml"
+    path.write_text(SCENE)
+    twin = SceneTwin(path)
 
     try:
-        gl = mujoco.GLContext(W, H)
-        gl.make_current()
-    except Exception as exc:  # noqa: BLE001 -- any GL backend failure means "no GPU here"
-        pytest.skip(f"no usable OpenGL context: {exc}")
-
-    model.vis.quality.offsamples = 0
-    try:
-        renderer = _mujoco_xr.Renderer(
-            width=W,
-            height=H,
-            view_count=2,
-            near_z=NEAR_Z,
-            far_z=FAR_Z,
-            model_address=model._address,
-        )
-    except RuntimeError as exc:
-        gl.free()
+        twin.create(W, H, 2, near_z=NEAR_Z, far_z=FAR_Z)
+    except Exception as exc:  # noqa: BLE001 -- no GPU, no GL, or the wrong device
+        twin.destroy()
         # Includes the multi-GPU case, where the EGL device and the process's
-        # CUDA device differ and the fix is MUJOCO_EGL_DEVICE_ID.
+        # CUDA device differ and the fix is GlContext(device_index=...).
         pytest.skip(f"renderer unavailable: {exc}")
-
     cuda = ctypes.CDLL("libcuda.so.1")
 
     def read(view, is_depth):
-        img = renderer.depth(view) if is_depth else renderer.color(view)
+        img = twin.depth(view) if is_depth else twin.color(view)
         shape = (H, W) if is_depth else (H, W, 4)
         out = np.empty(shape, dtype=np.float32 if is_depth else np.uint8)
         rc = cuda.cuMemcpyDtoH_v2(
@@ -74,19 +80,18 @@ def rendered():
         return out
 
     def render(xr_offset, eye_separation=0.0):
-        """Park the ghost at `xr_offset` from the eye and draw both views."""
-        data.mocap_pos[:] = _mujoco_xr.mj_from_xr_pos(xr_offset)
-        mujoco.mj_forward(model, data)
-        renderer.update_scene(model._address, data._address)
+        """Park the box at `xr_offset` from the eye and draw both views."""
+        twin.publish(
+            bodies={BOX: (frames.mj_from_xr_pos(xr_offset), (1.0, 0.0, 0.0, 0.0))}
+        )
         poses, fovs = [], []
         for sign in (-1.0, 1.0):
             poses += [sign * eye_separation, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
             fovs += [-HALF_FOV, HALF_FOV, HALF_FOV, -HALF_FOV]
-        renderer.render(poses, fovs)
+        twin.render(poses, fovs)
 
     yield render, read
-    renderer.close()
-    gl.free()
+    twin.destroy()
 
 
 def _drawn_centre(color):
@@ -100,7 +105,7 @@ def _drawn_centre(color):
 
 def test_something_is_drawn_at_all(rendered):
     render, read = rendered
-    render([0.0, 0.0, -GHOST_DISTANCE])
+    render([0.0, 0.0, -BOX_DISTANCE])
     color = read(0, is_depth=False)
     assert (color[..., 3] > 0).any(), (
         "the whole frame is transparent -- mjr_render drew into another framebuffer, "
@@ -116,9 +121,9 @@ def test_row_zero_is_the_top_of_the_operators_view(rendered):
     """The y flip: OpenGL renders bottom-up, XR swapchains are top-down, and
     nothing short of a headset would show the whole scene upside down."""
     render, read = rendered
-    render([0.0, GHOST_OFFSET, -GHOST_DISTANCE])
+    render([0.0, BOX_OFFSET, -BOX_DISTANCE])
     above, _ = _drawn_centre(read(0, is_depth=False))
-    render([0.0, -GHOST_OFFSET, -GHOST_DISTANCE])
+    render([0.0, -BOX_OFFSET, -BOX_DISTANCE])
     below, _ = _drawn_centre(read(0, is_depth=False))
 
     assert above < H / 2 < below, (
@@ -130,9 +135,9 @@ def test_the_image_is_not_mirrored(rendered):
     """Horizontal, checked alongside the flip: mirroring one axis and not the
     other is what a mistaken second flip looks like."""
     render, read = rendered
-    render([GHOST_OFFSET, 0.0, -GHOST_DISTANCE])
+    render([BOX_OFFSET, 0.0, -BOX_DISTANCE])
     _, right = _drawn_centre(read(0, is_depth=False))
-    render([-GHOST_OFFSET, 0.0, -GHOST_DISTANCE])
+    render([-BOX_OFFSET, 0.0, -BOX_DISTANCE])
     _, left = _drawn_centre(read(0, is_depth=False))
 
     assert left < W / 2 < right, (
@@ -147,7 +152,7 @@ def test_depth_is_the_standard_z_projection_layer_is_promised(rendered):
     values are checked against the geometry, not merely for being in range.
     """
     render, read = rendered
-    render([0.0, 0.0, -GHOST_DISTANCE])
+    render([0.0, 0.0, -BOX_DISTANCE])
     depth = read(0, is_depth=True)
     color = read(0, is_depth=False)
     drawn = color[..., 3] > 0
@@ -158,12 +163,13 @@ def test_depth_is_the_standard_z_projection_layer_is_promised(rendered):
         "reverse-Z buffer to 0, so anything else means the inversion is missing."
     )
 
-    # The gripper is a few centimetres deep, so its depths must bracket the
-    # value for its centre.
-    expected = _mujoco_xr.submitted_depth(GHOST_DISTANCE, NEAR_Z, FAR_Z)
-    assert depth[drawn].min() < expected < depth[drawn].max(), (
-        f"drawn depth spans [{depth[drawn].min():.4f}, {depth[drawn].max():.4f}], which does "
-        f"not bracket {expected:.4f} for a gripper at {GHOST_DISTANCE} m"
+    # The box's front face is flat and square to the eye, so every drawn pixel carries
+    # one depth -- the FACE's, half a box nearer than the body's origin. Pinning that
+    # exact value is what an in-range check would not do.
+    expected = frames.submitted_depth(BOX_DISTANCE - BOX_HALF_SIZE, NEAR_Z, FAR_Z)
+    assert depth[drawn] == pytest.approx(expected, abs=1e-4), (
+        f"drawn depth spans [{depth[drawn].min():.4f}, {depth[drawn].max():.4f}], "
+        f"expected {expected:.4f} for a face at {BOX_DISTANCE - BOX_HALF_SIZE} m"
     )
 
 
@@ -171,7 +177,7 @@ def test_the_eyes_see_the_object_at_different_offsets(rendered):
     """Stereo parallax and its sign: an object ahead sits further left in the
     RIGHT eye, and swapping the views reads as eye strain rather than as a bug."""
     render, read = rendered
-    render([0.0, 0.0, -GHOST_DISTANCE], eye_separation=0.032)
+    render([0.0, 0.0, -BOX_DISTANCE], eye_separation=0.032)
     _, left_eye = _drawn_centre(read(0, is_depth=False))
     _, right_eye = _drawn_centre(read(1, is_depth=False))
 

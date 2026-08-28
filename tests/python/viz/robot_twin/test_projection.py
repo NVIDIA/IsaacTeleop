@@ -3,7 +3,7 @@
 
 """What the app hands mjvGLCamera, and what comes back in the depth buffer.
 
-mjr_render builds its own projection from the frustum fields, so the app's share
+mjr_render builds its own projection from the frustum fields, so the twin's share
 of the clip convention is those six numbers plus the depth inversion on readback.
 Neither needs a GPU, a headset or a VizSession.
 """
@@ -12,7 +12,7 @@ import math
 
 import pytest
 
-from isaacteleop_examples.mujoco_xr import _mujoco_xr
+from isaacteleop.viz.robot import frames
 
 NEAR = 0.05
 FAR = 50.0
@@ -26,7 +26,7 @@ CENTER, HALF_WIDTH, BOTTOM, TOP, F_NEAR, F_FAR = range(6)
 def test_the_frustum_is_the_fov_projected_onto_the_near_plane():
     """Also pins that there is no y flip here: angle_up lands on TOP, and the
     flip happens once, on readback."""
-    f = _mujoco_xr.frustum_from_fov(FOV, NEAR, FAR)
+    f = frames.frustum_from_fov(FOV, NEAR, FAR)
     assert f[CENTER] - f[HALF_WIDTH] == pytest.approx(NEAR * math.tan(FOV[0]))
     assert f[CENTER] + f[HALF_WIDTH] == pytest.approx(NEAR * math.tan(FOV[1]))
     assert f[TOP] == pytest.approx(NEAR * math.tan(FOV[2]))
@@ -41,7 +41,7 @@ def test_half_width_is_set_and_not_left_to_the_aspect_fallback():
     viewport aspect instead, and the drift shows on a headset as world-locked
     geometry sliding sideways under head motion.
     """
-    f = _mujoco_xr.frustum_from_fov(FOV, NEAR, FAR)
+    f = frames.frustum_from_fov(FOV, NEAR, FAR)
     assert f[HALF_WIDTH] > 0.0
 
     aspect_derived = 0.5 * (f[TOP] - f[BOTTOM])
@@ -58,14 +58,14 @@ def test_a_default_constructed_fov_is_rejected_loudly():
     ``FrameInfo.views``, so the app can only refuse, not prevent.
     """
     with pytest.raises(ValueError):
-        _mujoco_xr.frustum_from_fov([0.0, 0.0, 0.0, 0.0], NEAR, FAR)
+        frames.frustum_from_fov([0.0, 0.0, 0.0, 0.0], NEAR, FAR)
 
 
 def test_near_far_are_validated():
     with pytest.raises(ValueError):
-        _mujoco_xr.frustum_from_fov(FOV, 0.0, FAR)
+        frames.frustum_from_fov(FOV, 0.0, FAR)
     with pytest.raises(ValueError):
-        _mujoco_xr.frustum_from_fov(FOV, FAR, NEAR)
+        frames.frustum_from_fov(FOV, FAR, NEAR)
 
 
 def test_submitted_depth_is_standard_z_not_the_reverse_z_mujoco_writes():
@@ -74,8 +74,8 @@ def test_submitted_depth_is_standard_z_not_the_reverse_z_mujoco_writes():
     mjr_render writes the opposite and gl_readback.cpp's shader subtracts it
     from 1; this is the specification that subtraction implements.
     """
-    assert _mujoco_xr.submitted_depth(NEAR, NEAR, FAR) == pytest.approx(0.0, abs=1e-6)
-    assert _mujoco_xr.submitted_depth(FAR, NEAR, FAR) == pytest.approx(1.0, abs=1e-6)
+    assert frames.submitted_depth(NEAR, NEAR, FAR) == pytest.approx(0.0, abs=1e-6)
+    assert frames.submitted_depth(FAR, NEAR, FAR) == pytest.approx(1.0, abs=1e-6)
 
-    depths = [_mujoco_xr.submitted_depth(d, NEAR, FAR) for d in (NEAR, 0.5, 5.0, FAR)]
+    depths = [frames.submitted_depth(d, NEAR, FAR) for d in (NEAR, 0.5, 5.0, FAR)]
     assert depths == sorted(depths)
