@@ -523,7 +523,7 @@ Omitting it raises <code class="docutils literal notranslate"><span class="pre">
 <section id="runnable-example">
 <h2>Runnable Example<a class="headerlink" href="#runnable-example" title="Link to this heading">#</a></h2>
 <p>A complete record / replay example lives at
-<code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/python/</span></code>:</p>
+<code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/python/isaacteleop_examples/mcap_record_replay/</span></code>:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">common.py</span></code> — pipeline builders (<code class="docutils literal notranslate"><span class="pre">build_hand_pipeline()</span></code>,
 <code class="docutils literal notranslate"><span class="pre">build_controller_pipeline()</span></code>, <code class="docutils literal notranslate"><span class="pre">build_full_body_pipeline()</span></code>) plus the
@@ -563,10 +563,9 @@ runs it together with the full-body printer (see <a class="reference internal" h
 <section id="live-preview">
 <h3>Live preview<a class="headerlink" href="#live-preview" title="Link to this heading">#</a></h3>
 <p>From the example directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>examples/mcap_record_replay/python
-uv<span class="w"> </span>sync
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>live_full_body.py<span class="w"> </span>--accept-eula
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>live_full_body.py<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w"> </span>--accept-eula<span class="w">  </span><span class="c1"># change viser port</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/mcap_record_replay
+python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.mcap_record_replay.live_full_body<span class="w"> </span>--accept-eula
+python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.mcap_record_replay.live_full_body<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w"> </span>--accept-eula
 </pre></div>
 </div>
 <p>Open the printed URL (default <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>) in a browser.</p>
@@ -574,20 +573,21 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
 <p>From the example directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>examples/mcap_record_replay/python
-uv<span class="w"> </span>sync
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w">            </span><span class="c1"># 5 s → ../recordings/hands_&lt;timestamp&gt;.mcap</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w"> </span><span class="m">10</span><span class="w">         </span><span class="c1"># record for 10 seconds</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w"> </span><span class="m">10</span><span class="w"> </span>out.mcap<span class="w">  </span><span class="c1"># custom output path</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/mcap_record_replay
+<span class="nv">R</span><span class="o">=</span><span class="s2">"python -m isaacteleop_examples.mcap_record_replay.record_hand"</span>
+<span class="nv">$R</span><span class="w">              </span><span class="c1"># 5 s → ./recordings/hands_&lt;timestamp&gt;.mcap</span>
+<span class="nv">$R</span><span class="w"> </span><span class="m">10</span><span class="w">           </span><span class="c1"># record for 10 seconds</span>
+<span class="nv">$R</span><span class="w"> </span><span class="m">10</span><span class="w"> </span>out.mcap<span class="w">  </span><span class="c1"># custom output path</span>
 </pre></div>
 </div>
+<p>Recordings are written to <code class="docutils literal notranslate"><span class="pre">./recordings/</span></code> relative to where you run the
+command, and the replay scripts look there when given no path.</p>
 <p>The example never downloads a published wheel — it runs against the
-<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> next to it.  Above, <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">sync</span></code> builds it from this checkout; the
-first sync compiles the extension modules and takes a few minutes, later ones
-reuse the cached build, and the install is editable, so edits under
-<code class="docutils literal notranslate"><span class="pre">src/python/</span></code> need no rebuild.  From
-<code class="docutils literal notranslate"><span class="pre">install/examples/mcap_record_replay/python</span></code> (after <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span></code>) it
-picks up the wheel you just built instead — see
+<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> next to it, built from this checkout.  The first install
+compiles the extension modules and takes a few minutes; later ones reuse the
+cached build, and the install is editable, so edits under <code class="docutils literal notranslate"><span class="pre">src/python/</span></code> need
+no rebuild.  From <code class="docutils literal notranslate"><span class="pre">install/examples/mcap_record_replay</span></code> (after <code class="docutils literal notranslate"><span class="pre">cmake</span>
+<span class="pre">--install</span></code>) it picks up the wheel you just built instead — see
 <a class="reference internal" href="../getting_started/build_from_source/index.html"><span class="doc">Build from Source</span></a>.</p>
 <p>An active OpenXR runtime / headset must be connected, just like any other
 live <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code>.  Recording also needs the CloudXR runtime natives, which
