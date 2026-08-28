@@ -138,8 +138,8 @@ controllers, and full body), see ``examples/deviceio_live_view/`` and its
 
 .. code-block:: bash
 
-   cd examples/deviceio_live_view/python
-   uv run python -m isaacteleop_examples.deviceio_live_view --accept-eula
+   uv pip install -e ./examples/deviceio_live_view
+   python -m isaacteleop_examples.deviceio_live_view --accept-eula
 
 A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
 
