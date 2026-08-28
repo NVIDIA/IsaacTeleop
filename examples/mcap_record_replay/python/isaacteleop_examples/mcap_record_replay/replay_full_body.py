@@ -2,17 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Replay a recorded controller-tracking MCAP file and visualize it with viser.
+Replay a recorded full-body MCAP file and visualize it with viser.
 
 ``mode=SessionMode.REPLAY`` skips all OpenXR initialization, so this runs
 headless on any machine. Open the URL viser prints (default
-http://localhost:8080) in a browser to see aim/grip points + a per-controller
-HUD (thumbstick, trigger, squeeze, buttons).
+http://localhost:8080) in a browser to see the body skeleton.
 
 Usage:
-    python replay_controller.py [path/to/file.mcap] [--port 8080] [--loop]
+    python replay_full_body.py [path/to/file.mcap] [--port 8080] [--loop]
 
-If no path is given, the newest file under ``../recordings/`` is used.
+If no path is given, the newest file under ``./recordings/`` is used.
 ``--loop`` keeps replaying the file end-to-end until the process is killed.
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
@@ -23,23 +22,19 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
 import viser
 from mcap.reader import make_reader
 
 from isaacteleop.deviceio import McapReplayConfig
+from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
 from isaacteleop.teleop_session_manager import (
     SessionMode,
     TeleopSession,
     TeleopSessionConfig,
 )
 
-from common import (
-    ControllerViz,
-    LEFT_COLOR,
-    RIGHT_COLOR,
-    build_controller_pipeline,
-    controller_state,
-)
+from .common import BODY_JOINT_NAMES, FullBodyViz, build_full_body_pipeline, setup_scene
 
 
 def mcap_duration_s(path: Path) -> float:
@@ -67,12 +62,12 @@ def resolve_mcap(path_arg: str | None) -> Path:
             sys.exit(f"[replay] error: {path} does not exist")
         return path
 
-    recordings = Path(__file__).resolve().parent.parent / "recordings"
+    recordings = Path.cwd() / "recordings"
     candidates = list(recordings.glob("*.mcap"))
     if not candidates:
         sys.exit(
             f"[replay] error: no .mcap files in {recordings}. "
-            "Run record_controller.py first or pass a path."
+            "Run record_full_body.py first or pass a path."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
@@ -80,13 +75,12 @@ def resolve_mcap(path_arg: str | None) -> Path:
 def run_once(
     mcap_path: Path,
     duration_s: float,
-    viz_left: ControllerViz,
-    viz_right: ControllerViz,
+    viz: FullBodyViz,
 ) -> int:
     """Play the file once for ``duration_s`` wall-clock seconds. Returns frame count."""
     config = TeleopSessionConfig(
-        app_name="McapControllerReplayExample",
-        pipeline=build_controller_pipeline(),
+        app_name="McapFullBodyReplayExample",
+        pipeline=build_full_body_pipeline(),
         mode=SessionMode.REPLAY,
         mcap_config=McapReplayConfig(str(mcap_path)),
     )
@@ -96,20 +90,27 @@ def run_once(
         start = time.time()
         while time.time() - start < duration_s:
             result = session.step()
+            full_body = result["full_body"]
 
-            l_state = controller_state(result["controller_left"])
-            r_state = controller_state(result["controller_right"])
-
-            viz_left.update(l_state)
-            viz_right.update(r_state)
+            if full_body.is_none:
+                viz.update(None, None)
+                n_valid = 0
+            else:
+                positions = np.asarray(
+                    full_body[FullBodyInputIndex.JOINT_POSITIONS], dtype=np.float32
+                )
+                valid = np.asarray(
+                    full_body[FullBodyInputIndex.JOINT_VALID], dtype=np.uint8
+                )
+                viz.update(positions, valid)
+                n_valid = int(np.count_nonzero(valid))
 
             frames = session.frame_count
             if frames % 60 == 0:
                 print(
                     f"[replay] t={time.time() - start:5.2f}s  "
                     f"frame={frames}  "
-                    f"L={'Y' if l_state['aim_valid'] else '-'} "
-                    f"R={'Y' if r_state['aim_valid'] else '-'}"
+                    f"joints={n_valid:02d}/{len(BODY_JOINT_NAMES)}"
                 )
             time.sleep(1 / 60)
     print(f"[replay] reached end of recording after {frames} frames")
@@ -121,8 +122,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("mcap", nargs="?", help="Path to .mcap file")
     parser.add_argument(
         "--host",
-        default="0.0.0.0",
-        help="Viser HTTP bind address (default: 0.0.0.0, all interfaces; pass 127.0.0.1 to keep it local)",
+        default="127.0.0.1",
+        help="Viser HTTP bind address (default: 127.0.0.1; pass 0.0.0.0 to expose externally)",
     )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
     parser.add_argument(
@@ -136,20 +137,14 @@ def main(argv: list[str]) -> int:
     duration_s = mcap_duration_s(mcap_path)
 
     server = viser.ViserServer(host=args.host, port=args.port)
-    server.scene.set_up_direction("+y")
-    server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
+    ground = setup_scene(server)
+    viz = FullBodyViz(server, ground)
 
-    viz_left = ControllerViz(server, "controller_left", LEFT_COLOR)
-    viz_right = ControllerViz(server, "controller_right", RIGHT_COLOR)
-
-    print(
-        f"[replay] viser listening on {args.host}:{args.port} "
-        f"(http://localhost:{args.port})"
-    )
+    print(f"[replay] viser running at http://localhost:{args.port}")
     print(f"[replay] reading {mcap_path} (duration {duration_s:.2f}s)")
 
     while True:
-        run_once(mcap_path, duration_s, viz_left, viz_right)
+        run_once(mcap_path, duration_s, viz)
         if not args.loop:
             break
         print("[replay] looping…")

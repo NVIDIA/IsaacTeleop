@@ -260,9 +260,9 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
 
   - :code-file:`examples/schemaio/full_body_printer.cpp`
   - :code-file:`examples/mcap_record_replay/cpp/record_full_body.cpp`
-  - :code-file:`examples/mcap_record_replay/python/live_full_body.py`
-  - :code-file:`examples/mcap_record_replay/python/record_full_body.py`
-  - :code-file:`examples/mcap_record_replay/python/replay_full_body.py`
+  - :code-file:`examples/mcap_record_replay/python/isaacteleop_examples/mcap_record_replay/live_full_body.py`
+  - :code-file:`examples/mcap_record_replay/python/isaacteleop_examples/mcap_record_replay/record_full_body.py`
+  - :code-file:`examples/mcap_record_replay/python/isaacteleop_examples/mcap_record_replay/replay_full_body.py`
 
 .. note::
 
