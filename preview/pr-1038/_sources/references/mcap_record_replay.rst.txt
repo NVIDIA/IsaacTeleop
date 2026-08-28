@@ -160,7 +160,9 @@ From the example directory:
    python -m isaacteleop_examples.mcap_record_replay.live_full_body --accept-eula
    python -m isaacteleop_examples.mcap_record_replay.live_full_body --port 8090 --accept-eula
 
-Open the printed URL (default ``http://localhost:8080``) in a browser.
+Open the printed URL (default ``http://localhost:8080``) in a browser. The
+viewer binds every interface, so another machine on the network can reach it at
+``http://<this-host>:8080``; pass ``--host 127.0.0.1`` to keep it local.
 
 Recording
 ^^^^^^^^^
