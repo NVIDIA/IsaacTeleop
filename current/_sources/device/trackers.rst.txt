@@ -20,10 +20,10 @@ APIs (``xrLocateSpace``, ``xrSyncActions``, etc.):
 reading it from OpenXR tensor collections via the
 :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>` utility.
 
-- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/trackers.toml>` -- frame metadata for one OAK camera stream (generated)
-- :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/trackers.toml>` -- foot pedal axis values (generated)
-- :code-file:`JointStateTracker <src/core/deviceio_trackers/trackers.toml>` -- named joint-space device state (leader arms, exoskeletons, gloves, ...) (generated)
-- :code-file:`Se3Tracker <src/core/deviceio_trackers/trackers.toml>` -- generic SE3 (6-DoF) pose sources (tracker pucks, mocap rigid bodies, logical trackers) (generated)
+- :code-file:`FrameMetadataTrackerOak <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/frame_metadata_tracker_oak.hpp>` -- per-stream frame metadata from OAK cameras
+- :code-file:`Generic3AxisPedalTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/generic_3axis_pedal_tracker.hpp>` -- foot pedal axis values
+- :code-file:`JointStateTracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/joint_state_tracker.hpp>` -- named joint-space device state (leader arms, exoskeletons, gloves, ...)
+- :code-file:`Se3Tracker <src/core/deviceio_trackers/cpp/inc/deviceio_trackers/se3_tracker.hpp>` -- generic SE3 (6-DoF) pose sources (tracker pucks, mocap rigid bodies, logical trackers)
 
 All trackers follow the same lifecycle:
 
@@ -44,94 +44,43 @@ Data Schema Convention
 ----------------------
 
 Every tracker's data is defined by a FlatBuffers schema under
-:code-dir:`src/core/schema/fbs`. Each schema follows a two-tier convention:
+:code-dir:`src/core/schema/fbs`. Each schema follows a three-tier convention:
 
 .. code-block:: idl
 
-   // 1. Payload table -- the actual data, and what trackers hand to consumers.
+   // 1. Inner data table -- the actual payload
    table Xxx {
        field_a: SomeType (id: 0);
        field_b: AnotherType (id: 1);
    }
 
-   // 2. Record wrapper -- used as the MCAP recording root type.
+   // 2. Tracked wrapper -- used by the in-memory tracker API.
+   //    data is null when the tracked entity is inactive.
+   table XxxTracked {
+       data: Xxx (id: 0);
+   }
+
+   // 3. Record wrapper -- used as the MCAP recording root type.
    //    Adds a DeviceDataTimestamp alongside the payload.
    table XxxRecord {
        data: Xxx (id: 0);
        timestamp: DeviceDataTimestamp (id: 1);
    }
 
-.. _tracked-sub-channel:
-
-The ``_tracked`` recording sub-channel
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-A tracker that reads from a tensor collection can see **several samples per
-frame**, and it records both views of that: every sample goes to ``<channel>``,
-while only the final sample of each ``update()`` -- the one the live consumer
-actually observed -- goes to ``<channel>_tracked``. Both carry the same
-``XxxRecord`` root type; they differ only in which samples reach them.
-
-Replay reads ``<channel>_tracked`` **exclusively**, so that a replayed session
-yields exactly the values the live session did rather than the intermediate
-samples. The per-sample channel is there for offline analysis.
-
-Both names come from :code-file:`src/core/deviceio_trackers/defaults.toml` and
-apply to every generated pull tracker:
-
-.. code-block:: toml
-
-   mcap_channels = ["%channel%", "%channel%_tracked"]
-   replay_channels = ["%channel%_tracked"]
-
-A manifest entry that overrides ``mcap_channels`` must keep the ``_tracked``
-entry and list it in ``replay_channels``. Recording still succeeds without it,
-but the resulting file cannot be replayed.
-
    root_type XxxRecord;
 
-- **Payload table** (e.g. ``HeadPose``, ``HandPose``, ``ControllerSnapshot``) --
-  contains the device-specific fields. All fields are present whenever the table
-  itself is present.
+- **Inner data table** (e.g. ``HeadPose``, ``HandPose``, ``ControllerSnapshot``) --
+  contains the device-specific fields. All fields are present when the parent
+  wrapper's ``data`` pointer is non-null.
 
-- **Record wrapper** (e.g. ``HeadPoseRecord``) -- wraps the payload plus a
+- **Tracked wrapper** (e.g. ``HeadPoseTracked``) -- wraps the inner data in an
+  optional ``data`` field. The in-memory ``get_*()`` accessors return a reference
+  to this wrapper. When ``data`` is ``nullptr`` (C++) or ``None`` (Python), the
+  device is inactive or no sample has arrived yet.
+
+- **Record wrapper** (e.g. ``HeadPoseRecord``) -- wraps the inner data plus a
   ``DeviceDataTimestamp``. This is the ``root_type`` written to MCAP channels by
-  the recorder.
-
-Reading a payload
-~~~~~~~~~~~~~~~~~
-
-The ``get_*()`` accessors hand out the payload table itself as an owning handle
-over the encoded bytes -- ``Serialized<HeadPose>`` in C++
-(:code-file:`src/core/schema/cpp/inc/schema/serialized.hpp`), a read-only view
-class (``HeadPose``) in Python. Reads go straight into the buffer, so there is no
-unpack step and joint arrays come back as zero-copy NumPy views.
-
-An **empty handle is the absent payload**: the device is inactive, no sample has
-arrived yet, or replay hit a gap. Test it with ``if (handle)`` in C++; in Python
-the accessor returns ``None``.
-
-Each ``session.update()`` publishes a *new* buffer rather than refilling the
-previous one, so a handle read this frame keeps its values after the next update.
-
-To build a payload from Python, pass every field to its constructor -- the view
-classes expose no setters.
-
-.. warning::
-
-   Immutability is a **contract, not an enforcement**. The joint-array properties
-   hand out *writable* NumPy views, because NumPy cannot export a read-only array
-   over DLPack before 2.1. Writing through one changes what every holder of that
-   buffer sees, including handles read on earlier frames. Copy first if you mean
-   to modify.
-
-.. note::
-
-   ``MessageChannelMessagesTracked`` wraps its payload in a table, because that
-   payload is a **list** and something has to hold the vector. Once a tracker has
-   run one ``update()`` the handle is non-empty for the rest of the session, and
-   an empty ``data`` vector -- not an empty handle -- means no messages arrived
-   this frame. Before that first update the handle is empty like any other.
+  the recorder via ``serialize_all()``.
 
 Shared Types
 ~~~~~~~~~~~~
@@ -184,8 +133,8 @@ Tracks the HMD head pose via the OpenXR view space.
 - Record channels: ``head`` | MCAP schema: ``core.HeadPoseRecord``
 - Tests:
 
-  - :code-file:`tests/cpp/core/schema/test_head.cpp`
-  - :code-file:`tests/python/core/schema/test_head.py`
+  - :code-file:`src/core/schema_tests/cpp/test_head.cpp`
+  - :code-file:`src/core/schema_tests/python/test_head.py`
 
 - Examples:
 
@@ -204,8 +153,8 @@ Tracks articulated hand joints (26 joints per hand, following the OpenXR
 - Record channels: ``left_hand``, ``right_hand`` | MCAP schema: ``core.HandPoseRecord``
 - Tests:
 
-  - :code-file:`tests/cpp/core/schema/test_hand.cpp`
-  - :code-file:`tests/python/core/schema/test_hand.py`
+  - :code-file:`src/core/schema_tests/cpp/test_hand.cpp`
+  - :code-file:`src/core/schema_tests/python/test_hand.py`
   - :code-file:`examples/oxr/python/test_synthetic_hands.py`
 
 - Examples:
@@ -226,8 +175,8 @@ axis inputs. Uses standard OpenXR action bindings.
 - Record channels: ``left_controller``, ``right_controller`` | MCAP schema: ``core.ControllerSnapshotRecord``
 - Tests:
 
-  - :code-file:`tests/cpp/core/schema/test_controller.cpp`
-  - :code-file:`tests/python/core/schema/test_controller.py`
+  - :code-file:`src/core/schema_tests/cpp/test_controller.cpp`
+  - :code-file:`src/core/schema_tests/python/test_controller.py`
   - :code-file:`examples/oxr/python/test_controller_tracker.py`
 
 - Examples:
@@ -252,8 +201,8 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
 - Record channels: ``full_body`` | MCAP schema: ``core.FullBodyPoseRecord``
 - Tests:
 
-  - :code-file:`tests/cpp/core/schema/test_full_body.cpp`
-  - :code-file:`tests/python/core/schema/test_full_body.py`
+  - :code-file:`src/core/schema_tests/cpp/test_full_body.cpp`
+  - :code-file:`src/core/schema_tests/python/test_full_body.py`
   - :code-file:`examples/oxr/python/test_full_body_tracker.py`
 
 - Examples:
@@ -272,21 +221,18 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
 FrameMetadataTrackerOak
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-Per-frame metadata for a **single** OAK camera stream. Create one tracker per
-stream, passing the tensor collection the plugin publishes that stream under --
-``{collection_prefix}/{StreamName}``, e.g. ``"oak_camera/Color"``. Uses the
-:code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>`
+Multi-channel tracker for per-frame metadata from OAK camera streams.
+Uses the :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/live_trackers/schema_tracker.hpp>`
 utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/oak.fbs`
-- Manifest: :code-file:`src/core/deviceio_trackers/trackers.toml` (``frame_metadata_oak``)
-- C++ header: ``#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>``
+- C++ header: ``#include <deviceio/frame_metadata_tracker_oak.hpp>``
 - Python import: ``from isaacteleop.deviceio import FrameMetadataTrackerOak``
-- Record channels: ``oak``, ``oak_tracked`` | MCAP schema: ``core.FrameMetadataOakRecord``
+- Record channels: one per configured stream (e.g. ``Color``, ``MonoLeft``) | MCAP schema: ``core.FrameMetadataOakRecord``
 - Tests:
 
-  - :code-file:`tests/cpp/core/schema/test_oak.cpp`
-  - :code-file:`tests/python/core/schema/test_camera.py`
+  - :code-file:`src/core/schema_tests/cpp/test_oak.cpp`
+  - :code-file:`src/core/schema_tests/python/test_camera.py`
   - :code-file:`examples/oxr/python/test_oak_camera.py`
 
 - Examples:
@@ -306,8 +252,8 @@ utility internally.
 - Record channels: ``pedals`` | MCAP schema: ``core.Generic3AxisPedalOutputRecord``
 - Tests:
 
-  - :code-file:`tests/cpp/core/schema/test_pedals.cpp`
-  - :code-file:`tests/python/core/schema/test_pedals.py`
+  - :code-file:`src/core/schema_tests/cpp/test_pedals.cpp`
+  - :code-file:`src/core/schema_tests/python/test_pedals.py`
 
 - Examples:
 
