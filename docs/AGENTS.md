@@ -16,9 +16,15 @@ is what CI runs, so a new warning fails the build. Check a docs change with that
 rather than a bare `sphinx-build`.
 
 `make multi-docs` is the other half, and it constrains how extensions are written:
-sphinx-multiversion builds every whitelisted ref with `-c` pointing at that ref's own
-checkout. Resolve data and asset paths from `app.confdir`, never from the working
-directory or the repo root, or building an old tag reads today's files.
+sphinx-multiversion builds every whitelisted ref with `-c` pointing at the checkout that
+invoked it, so `app.confdir` is that checkout while `app.srcdir` is the ref being built.
+Resolve paths from one of those two, never from the working directory or the repo root.
+
+The config is therefore a site-wide input, not a per-version one: the deploy job takes
+`docs/` from `main` before building, or a release or tag push renders main's pages with an
+older `conf.py` and anything its extensions provide disappears. A push runs the workflow
+file from its own ref, so that step has to stay alive on every release branch that still
+receives pushes.
 
 Images follow `.gitattributes` like everything else, Git LFS included. A checkout without
 LFS holds pointer text and Sphinx copies it into the site verbatim, so a page that looks
