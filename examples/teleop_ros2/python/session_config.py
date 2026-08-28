@@ -50,7 +50,10 @@ from isaacteleop.teleop_session_manager import (
     TeleopSessionConfig,
 )
 from node_parameters import NodeParameters
-from teleop_ros2_retargeters import JointNameAliasRetargeter
+from teleop_ros2_retargeters import (
+    HandTrackingGateRetargeter,
+    JointNameAliasRetargeter,
+)
 from tensor_group_helpers import joint_names_from_group_type
 
 
@@ -72,6 +75,37 @@ def _maybe_alias_hand_joints(
         {"hand_joints": connected_hand_retargeter.output("hand_joints")}
     )
     return alias_connected.output("hand_joints")
+
+
+def _maybe_gate_hand_joints_on_tracking(
+    hand_retargeter,
+    connected_hand_retargeter,
+    finger_joints,
+    output_joint_names,
+    name: str,
+):
+    """Gate a side's hand joints on tracking validity, where it is reported.
+
+    Retargeters that report validity separately get a HandTrackingGateRetargeter
+    inserted, and the gated ``hand_joints`` output is returned. Retargeters
+    without a ``hand_valid`` output get ``finger_joints`` back unchanged, so they
+    stay connected directly and this remains invisible to the publisher and to
+    profile validation.
+    """
+    if "hand_valid" not in hand_retargeter.output_spec():
+        return finger_joints
+
+    joint_names = output_joint_names or joint_names_from_group_type(
+        hand_retargeter.output_spec()["hand_joints"]
+    )
+    gate = HandTrackingGateRetargeter(joint_names=joint_names, name=name)
+    gate_connected = gate.connect(
+        {
+            "hand_joints": finger_joints,
+            "hand_valid": connected_hand_retargeter.output("hand_valid"),
+        }
+    )
+    return gate_connected.output("hand_joints")
 
 
 def _resolve_hand_tracking_plugin_configs(
@@ -459,5 +493,19 @@ def build_tracked_hand_finger_joint_outputs(
         joint_names_from_group_type(right_hand_retargeter.output_spec()["hand_joints"]),
         right_output_joint_names,
         right_alias_name,
+    )
+    left_finger_joints = _maybe_gate_hand_joints_on_tracking(
+        left_hand_retargeter,
+        left_hand_connected,
+        left_finger_joints,
+        left_output_joint_names,
+        f"{left_alias_name}_tracking_gate",
+    )
+    right_finger_joints = _maybe_gate_hand_joints_on_tracking(
+        right_hand_retargeter,
+        right_hand_connected,
+        right_finger_joints,
+        right_output_joint_names,
+        f"{right_alias_name}_tracking_gate",
     )
     return left_finger_joints, right_finger_joints
