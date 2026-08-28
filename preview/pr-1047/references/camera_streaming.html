@@ -478,9 +478,13 @@ For the exact command surface and flags, see the
 <ul class="simple">
 <li><p>A workstation meeting the <a class="reference internal" href="requirements.html"><span class="doc">system requirements</span></a> (Ubuntu, NVIDIA
 GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.</p></li>
-<li><p>For Jetson platforms, use
-<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack-sdk-621" rel="noopener noreferrer" target="_blank">JetPack 6.2.1</a> on Orin or
-<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack/downloads/archive-7.1" rel="noopener noreferrer" target="_blank">JetPack 7.1</a> on Thor.</p></li>
+<li><p>For Jetson platforms:</p>
+<ul>
+<li><p><strong>Orin:</strong> <a class="reference external" href="https://developer.nvidia.com/embedded/jetpack-sdk-62" rel="noopener noreferrer" target="_blank">JetPack 6.2.x</a> or
+<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack/downloads/archive-7.2" rel="noopener noreferrer" target="_blank">7.2.x</a></p></li>
+<li><p><strong>Thor:</strong> <a class="reference external" href="https://developer.nvidia.com/embedded/jetpack" rel="noopener noreferrer" target="_blank">JetPack 7.x</a></p></li>
+</ul>
+</li>
 <li><p>For the default XR mode, a headset to connect as the CloudXR client — follow the
 <a class="reference internal" href="../getting_started/quick_start.html"><span class="doc">quick start</span></a> step <a class="reference internal" href="../getting_started/quick_start.html#connect-xr-headset"><span class="std std-ref">5. Connect an XR headset</span></a>. The viewer
 launches the CloudXR runtime itself; nothing to start separately. No headset handy?
