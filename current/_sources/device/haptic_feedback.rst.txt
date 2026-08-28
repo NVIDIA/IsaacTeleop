@@ -65,9 +65,10 @@ a single controller tracker and there is no OpenXR action-set contention.
 Running
 -------
 
-The example connects through the CloudXR / OpenXR runtime, so start the runtime
-first (see :ref:`run-cloudxr-server`) and run the example from the
-``examples/haptic_feedback/python`` directory:
+The example connects through the CloudXR / OpenXR runtime, which it starts
+itself if nothing is serving (see :ref:`dedicated-cloudxr-runtime` to manage
+that service yourself). Run it from the ``examples/haptic_feedback/python``
+directory:
 
 .. code-block:: bash
 
@@ -94,5 +95,5 @@ See also
 --------
 
 - Example + tests: ``examples/haptic_feedback/python/`` and
-  ``src/core/retargeting_engine_tests/python/test_haptic_devices.py`` /
+  ``tests/python/core/retargeting_engine/test_haptic_devices.py`` /
   ``test_haptic_sink.py``.

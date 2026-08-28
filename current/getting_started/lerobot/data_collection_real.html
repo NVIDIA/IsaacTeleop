@@ -35,7 +35,8 @@
     <link rel="stylesheet" type="text/css" href="../../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=215b52d1" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=35d49528" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -45,7 +46,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=7509b52b"></script>
+    <script src="../../_static/documentation_options.js?v=04dcff72"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -64,7 +65,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.x" />
+  <meta name="docsearch:version" content="1.5.x" />
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -165,6 +166,19 @@
         </div>
       
       
+        <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+      
+        <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+      
         <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -246,6 +260,19 @@
     
       <div class="sidebar-header-items__end">
         
+          <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+        
+          <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        
           <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -266,10 +293,6 @@
   </div>
   
     <div class="sidebar-primary-items__start sidebar-primary__section">
-        <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
-</div>
         <div class="sidebar-primary-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
         <li class="nav-item">
@@ -307,22 +330,6 @@
         </li>
 </ul></div>
         <div class="sidebar-primary-item">
-<form class="bd-search d-flex align-items-center"
-      action="../../search.html"
-      method="get">
-  <i class="fa-solid fa-magnifying-glass"></i>
-  <input type="search"
-         class="form-control"
-         name="q"
-         placeholder="Search..."
-         aria-label="Search..."
-         autocomplete="off"
-         autocorrect="off"
-         autocapitalize="off"
-         spellcheck="false"/>
-  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
-</form></div>
-        <div class="sidebar-primary-item">
 
 
 
@@ -347,6 +354,7 @@
 <li class="toctree-l2 current active"><a class="current reference internal" href="#">Data Collection in Real</a></li>
 <li class="toctree-l2"><a class="reference internal" href="data_collection_sim.html">Data Collection in Sim</a></li>
 <li class="toctree-l2"><a class="reference internal" href="training_groot.html">Model Training with GR00T</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rebot.html">reBot B601-RS on Jetson AGX Orin</a></li>
 </ul>
 </details></li>
 <li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
@@ -361,16 +369,18 @@
 <li class="toctree-l1"><a class="reference internal" href="../../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../references/requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -464,7 +474,7 @@ other install options:</p>
 <pre class="literal-block">uv venv --python 3.12 .venv
 source .venv/bin/activate
 uv pip install -e &quot;.[feetech,kinematics,dataset]&quot; &quot;huggingface_hub&gt;=1.5&quot;
-uv pip install &quot;isaacteleop[cloudxr,retargeters-lite]~=1.4.0&quot; &quot;scipy&gt;=1.14&quot; \
+uv pip install &quot;isaacteleop[cloudxr,retargeters-lite]~=1.5.0&quot; &quot;scipy&gt;=1.14&quot; \
       --extra-index-url <a class="reference external" href="https://pypi.nvidia.com" rel="noopener noreferrer" target="_blank">https://pypi.nvidia.com</a> --prerelease=allow</pre>
 </li>
 <li><p>Log in to the Hugging Face Hub — recorded datasets are pushed to the Hub by default (pass
@@ -473,9 +483,9 @@ uv pip install &quot;isaacteleop[cloudxr,retargeters-lite]~=1.4.0&quot; &quot;sc
 </pre></div>
 </div>
 </li>
-<li><p>Accept the CloudXR EULA once. The runtime auto-launches on connect and prompts for the EULA on
-stdin, which would hang a headless run, so accept it ahead of time:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr<span class="w"> </span>--accept-eula
+<li><p>Accept the CloudXR EULA once and start the runtime. The EULA prompts on stdin, which would hang
+a headless run, so do both ahead of time; the service outlives each script you run below:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop.cloudxr.service<span class="w"> </span>start<span class="w"> </span>--accept-eula
 </pre></div>
 </div>
 </li>

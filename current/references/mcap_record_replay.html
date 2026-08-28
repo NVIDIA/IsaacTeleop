@@ -35,7 +35,8 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=35d49528" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -45,7 +46,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=7509b52b"></script>
+    <script src="../_static/documentation_options.js?v=04dcff72"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -58,13 +59,13 @@
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Dedicated CloudXR Runtime" href="cloudxr.html" />
+    <link rel="next" title="CloudXR Service" href="cloudxr.html" />
     <link rel="prev" title="Camera Streaming" href="camera_streaming.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.4.x" />
+  <meta name="docsearch:version" content="1.5.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -165,6 +166,19 @@
         </div>
       
       
+        <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+      
+        <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+      
         <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -246,6 +260,19 @@
     
       <div class="sidebar-header-items__end">
         
+          <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+</div>
+        
+          <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        
           <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -266,10 +293,6 @@
   </div>
   
     <div class="sidebar-primary-items__start sidebar-primary__section">
-        <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
-</div>
         <div class="sidebar-primary-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
         <li class="nav-item">
@@ -307,22 +330,6 @@
         </li>
 </ul></div>
         <div class="sidebar-primary-item">
-<form class="bd-search d-flex align-items-center"
-      action="../search.html"
-      method="get">
-  <i class="fa-solid fa-magnifying-glass"></i>
-  <input type="search"
-         class="form-control"
-         name="q"
-         placeholder="Search..."
-         aria-label="Search..."
-         autocomplete="off"
-         autocorrect="off"
-         autocapitalize="off"
-         spellcheck="false"/>
-  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
-</form></div>
-        <div class="sidebar-primary-item">
 
 
 
@@ -355,16 +362,18 @@
 <li class="toctree-l1"><a class="reference internal" href="../device/manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/oglo.html">OGLO Tactile Glove Plugin</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../device/wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../device/haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">References</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="requirements.html">System Requirements</a></li>
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">MCAP Recording &amp; Replay</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">Dedicated CloudXR Runtime</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
@@ -537,15 +546,16 @@ contains exactly the matching channels.  To capture more data, add
 additional source nodes (<code class="docutils literal notranslate"><span class="pre">HeadSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>, …) in
 <code class="docutils literal notranslate"><span class="pre">common.py</span></code>.</p>
 <p>For a live browser view of <strong>all</strong> human DeviceIO trackers at once (hands, head,
-controllers, and full body), see <code class="docutils literal notranslate"><span class="pre">examples/deviceio_live_view/python/</span></code>.</p>
+controllers, and full body), see <code class="docutils literal notranslate"><span class="pre">examples/deviceio_live_view/python/</span></code>.  It is
+set up the same way as this example — the <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">sync</span></code> notes under <a class="reference internal" href="#recording">Recording</a>
+apply to it too.</p>
 <p>A C++ recorder lives at <code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/cpp/</span></code>:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.cpp</span></code> — records the <code class="docutils literal notranslate"><span class="pre">full_body</span></code> channel by passing a
 <code class="docutils literal notranslate"><span class="pre">core::McapRecordingConfig</span></code> to <code class="docutils literal notranslate"><span class="pre">DeviceIOSession::run()</span></code>. It uses the
 same channel base name as <code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code>, so the resulting file replays
 with <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code>. <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">rigs/full_body.yaml</span></code>
-runs it together with the CloudXR runtime and the full-body printer (see
-<a class="reference internal" href="rig.html#rig-launcher"><span class="std std-ref">Rig Launcher</span></a>).</p></li>
+runs it together with the full-body printer (see <a class="reference internal" href="rig.html#rig-launcher"><span class="std std-ref">Rig Launcher</span></a>).</p></li>
 </ul>
 <section id="live-preview">
 <h3>Live preview<a class="headerlink" href="#live-preview" title="Link to this heading">#</a></h3>
@@ -560,7 +570,7 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 </section>
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
-<p>From the installed example directory:</p>
+<p>From the example directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>examples/mcap_record_replay/python
 uv<span class="w"> </span>sync
 uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w">            </span><span class="c1"># 5 s → ../recordings/hands_&lt;timestamp&gt;.mcap</span>
@@ -568,8 +578,19 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>record_hand.py<span class="w"> </span><span class="m">10</span><span class="w"> </span>out.mcap<span class="w">  </span><span class="c1"># custom output path</span>
 </pre></div>
 </div>
+<p>The example never downloads a published wheel — it runs against the
+<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> next to it.  Above, <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">sync</span></code> builds it from this checkout; the
+first sync compiles the extension modules and takes a few minutes, later ones
+reuse the cached build, and the install is editable, so edits under
+<code class="docutils literal notranslate"><span class="pre">src/python/</span></code> need no rebuild.  From
+<code class="docutils literal notranslate"><span class="pre">install/examples/mcap_record_replay/python</span></code> (after <code class="docutils literal notranslate"><span class="pre">cmake</span> <span class="pre">--install</span></code>) it
+picks up the wheel you just built instead — see
+<a class="reference internal" href="../getting_started/build_from_source/index.html"><span class="doc">Build from Source</span></a>.</p>
 <p>An active OpenXR runtime / headset must be connected, just like any other
-live <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code>.</p>
+live <code class="docutils literal notranslate"><span class="pre">TeleopSession</span></code>.  Recording also needs the CloudXR runtime natives, which
+a from-source build bundles only when the CloudXR SDK tarball is available —
+CMake fetches it automatically, and warns rather than fails if it cannot.  Replay
+has no such requirement.</p>
 </section>
 <section id="replaying">
 <h3>Replaying<a class="headerlink" href="#replaying" title="Link to this heading">#</a></h3>
@@ -650,7 +671,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Dedicated CloudXR Runtime</p>
+        <p class="prev-next-title">CloudXR Service</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

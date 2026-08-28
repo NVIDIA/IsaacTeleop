@@ -35,7 +35,8 @@
     <link rel="stylesheet" type="text/css" href="../_static/styles/nvidia-sphinx-theme.css?v=933278ad" />
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=e662b523" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=35d49528" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -165,6 +166,39 @@
         </div>
       
       
+        <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+
+<!-- The theme mirrors every navbar item into the mobile drawer, so this renders
+     twice per page: label implicitly, or the two copies collide on one id. -->
+<label class="version-switcher">
+  <span class="version-switcher__label">Version</span>
+  <select class="version-switcher__select" onchange="location = this.value;">
+    <option value="../../../main/overview/ecosystem.html" >main</option>
+    <option value="../../1.0.x/overview/ecosystem.html" >release/1.0.x</option>
+    <option value="../../1.1.x/overview/ecosystem.html" >release/1.1.x</option>
+    <option value="../../1.2.x/overview/ecosystem.html" >release/1.2.x</option>
+    <option value="../../1.3.x/overview/ecosystem.html" >release/1.3.x</option>
+    <option value="../../1.4.x/overview/ecosystem.html" >release/1.4.x</option>
+    <option value="ecosystem.html" selected>release/1.5.x</option>
+    <option value="../../../v1.3.131/overview/ecosystem.html" >v1.3.131</option>
+    <option value="../../../v1.1.8/overview/ecosystem.html" >v1.1.8</option>
+    <option value="../../../v1.1.5/overview/ecosystem.html" >v1.1.5</option>
+    <option value="../../../v1.0.193/overview/ecosystem.html" >v1.0.193</option>
+    <option value="../../../v1.0.191/overview/ecosystem.html" >v1.0.191</option>
+  </select>
+</label>
+</div>
+      
+        <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+      
         <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -246,6 +280,39 @@
     
       <div class="sidebar-header-items__end">
         
+          <div class="navbar-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+
+<!-- The theme mirrors every navbar item into the mobile drawer, so this renders
+     twice per page: label implicitly, or the two copies collide on one id. -->
+<label class="version-switcher">
+  <span class="version-switcher__label">Version</span>
+  <select class="version-switcher__select" onchange="location = this.value;">
+    <option value="../../../main/overview/ecosystem.html" >main</option>
+    <option value="../../1.0.x/overview/ecosystem.html" >release/1.0.x</option>
+    <option value="../../1.1.x/overview/ecosystem.html" >release/1.1.x</option>
+    <option value="../../1.2.x/overview/ecosystem.html" >release/1.2.x</option>
+    <option value="../../1.3.x/overview/ecosystem.html" >release/1.3.x</option>
+    <option value="../../1.4.x/overview/ecosystem.html" >release/1.4.x</option>
+    <option value="ecosystem.html" selected>release/1.5.x</option>
+    <option value="../../../v1.3.131/overview/ecosystem.html" >v1.3.131</option>
+    <option value="../../../v1.1.8/overview/ecosystem.html" >v1.1.8</option>
+    <option value="../../../v1.1.5/overview/ecosystem.html" >v1.1.5</option>
+    <option value="../../../v1.0.193/overview/ecosystem.html" >v1.0.193</option>
+    <option value="../../../v1.0.191/overview/ecosystem.html" >v1.0.191</option>
+  </select>
+</label>
+</div>
+        
+          <div class="navbar-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        
           <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
@@ -266,28 +333,6 @@
   </div>
   
     <div class="sidebar-primary-items__start sidebar-primary__section">
-        <div class="sidebar-primary-item"><!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
-<!-- SPDX-License-Identifier: Apache-2.0 -->
-
-
-<div class="version-switcher">
-  <label for="version-select" class="version-switcher__label">Version</label>
-  <select id="version-select" class="version-switcher__select" onchange="location = this.value;">
-    <option value="../../1.4.x/overview/ecosystem.html" >release/1.4.x</option>
-    <option value="../../../main/overview/ecosystem.html" >main</option>
-    <option value="../../1.0.x/overview/ecosystem.html" >release/1.0.x</option>
-    <option value="../../1.1.x/overview/ecosystem.html" >release/1.1.x</option>
-    <option value="../../1.2.x/overview/ecosystem.html" >release/1.2.x</option>
-    <option value="../../1.3.x/overview/ecosystem.html" >release/1.3.x</option>
-    <option value="ecosystem.html" selected>release/1.5.x</option>
-    <option value="../../../v1.3.131/overview/ecosystem.html" >v1.3.131</option>
-    <option value="../../../v1.1.8/overview/ecosystem.html" >v1.1.8</option>
-    <option value="../../../v1.1.5/overview/ecosystem.html" >v1.1.5</option>
-    <option value="../../../v1.0.193/overview/ecosystem.html" >v1.0.193</option>
-    <option value="../../../v1.0.191/overview/ecosystem.html" >v1.0.191</option>
-  </select>
-</div>
-</div>
         <div class="sidebar-primary-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
         <li class="nav-item">
@@ -324,22 +369,6 @@
           <a href="https://isaac-sim.github.io/IsaacLab" title="Isaac Lab" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><img src="https://img.shields.io/badge/IsaacLab-3.0-silver.svg" class="icon-link-image" alt="Isaac Lab"/></a>
         </li>
 </ul></div>
-        <div class="sidebar-primary-item">
-<form class="bd-search d-flex align-items-center"
-      action="../search.html"
-      method="get">
-  <i class="fa-solid fa-magnifying-glass"></i>
-  <input type="search"
-         class="form-control"
-         name="q"
-         placeholder="Search..."
-         aria-label="Search..."
-         autocomplete="off"
-         autocorrect="off"
-         autocapitalize="off"
-         spellcheck="false"/>
-  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
-</form></div>
         <div class="sidebar-primary-item">
 
 
@@ -452,25 +481,256 @@ teleoperation data.</p></li>
 <li><p><strong>Teams building on Isaac Teleop</strong> — Robot makers shipping teleoperation in their own
 product, and labs collecting data.</p></li>
 </ul>
-<section class="eco-section" id="supported-devices-device-count-input">
-<span id="supported-devices"></span><h2>Supported Devices <a href="#id1"><span class="problematic" id="id2">:device-count:`input`</span></a><a class="headerlink" href="#supported-devices-device-count-input" title="Link to this heading">#</a></h2>
+<section class="eco-section" id="supported-devices-9">
+<span id="supported-devices"></span><h2>Supported Devices <span class="eco-count">9</span><a class="headerlink" href="#supported-devices-9" title="Link to this heading">#</a></h2>
 <p>A standardized device interface removes custom integrations and their maintenance. Input
 modes determine which retargeters and control schemes are available.
 <a class="reference internal" href="../device/add_device.html"><span class="doc">Add a new device →</span></a></p>
+<div class="device-matrix"><div class="device-grid"><p class="device-col">Device</p>
+<p class="device-col">Input modes</p>
+<p class="device-col device-col-action"></p>
+<p class="device-group">XR Headsets and Tracking Peripherals</p>
+<p class="device-name"><a class="reference external" href="https://www.apple.com/apple-vision-pro/" rel="noopener noreferrer" target="_blank">Apple Vision Pro<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">Hand tracking (26 joints), spatial controllers</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-apple-vision-pro-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-apple-vision-pro-details"><div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple" rel="noopener noreferrer" target="_blank">Sample Client<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-panel-line"><a class="reference internal" href="../getting_started/quick_start.html#connect-apple-vision-pro"><span class="std std-ref">Connect Apple Vision Pro</span></a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">Built from source with Xcode</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line"><a class="reference external" href="https://www.apple.com/apple-vision-pro/" rel="noopener noreferrer" target="_blank">apple.com<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://www.meta.com/quest/" rel="noopener noreferrer" target="_blank">Meta Quest 2 / 3 / 3S<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">Motion controllers, hand tracking</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-meta-quest-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-meta-quest-details"><div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference internal" href="../getting_started/quick_start.html#connect-quest-pico"><span class="std std-ref">How To Connect</span></a></p>
+<p class="device-panel-line">Isaac Teleop Web Client — runs in the headset browser</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">No additional software</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line"><a class="reference external" href="https://www.meta.com/quest/" rel="noopener noreferrer" target="_blank">meta.com<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://www.picoxr.com/products/pico4-ultra" rel="noopener noreferrer" target="_blank">PICO 4 Ultra<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">Motion controllers, hand tracking</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-pico-4-ultra-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-pico-4-ultra-details"><p class="device-panel-head"><img alt="PICO" class="only-light" src="../_images/pico.svg" /><img alt="PICO" class="only-dark pst-js-only" src="../_images/pico-dark.svg" /></p>
+<div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference internal" href="../getting_started/quick_start.html#connect-quest-pico"><span class="std std-ref">How To Connect</span></a></p>
+<p class="device-panel-line">Isaac Teleop Web Client — runs in the headset browser</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">PICO OS 15.4.4U or newer</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line">Veronica Li</p>
+<p class="device-panel-line"><a class="reference external" href="mailto:Veronica&#46;li&#37;&#52;&#48;bytedance&#46;com">Veronica<span>&#46;</span>li<span>&#64;</span>bytedance<span>&#46;</span>com</a></p>
+<p class="device-panel-line"><a class="reference external" href="tel:+19095692774">+1 (909) 569-2774</a></p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://www.picoxr.com/global/products/pico-motion-tracker" rel="noopener noreferrer" target="_blank">PICO Motion Tracker<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">Full body tracking</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-pico-motion-tracker-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-pico-motion-tracker-details"><div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference internal" href="../device/body_tracking.html"><span class="doc">Body Tracking guide</span></a></p>
+<p class="device-panel-line">Isaac Teleop Web Client</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">PICO 4 Ultra Enterprise, or a consumer unit with enterprise features activated (contact PICO)</p>
+<p class="device-panel-line">PICO OS 15.4.4U+ · PICO Browser 4.0.40+</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line">Veronica Li</p>
+<p class="device-panel-line"><a class="reference external" href="mailto:Veronica&#46;li&#37;&#52;&#48;bytedance&#46;com">Veronica<span>&#46;</span>li<span>&#64;</span>bytedance<span>&#46;</span>com</a></p>
+<p class="device-panel-line"><a class="reference external" href="tel:+19095692774">+1 (909) 569-2774</a></p>
+</div>
+</div>
+<p class="device-group">Standalone Input Devices</p>
+<p class="device-name"><a class="reference external" href="https://www.manus-meta.com/products/metagloves-pro" rel="noopener noreferrer" target="_blank">MANUS Metagloves Pro<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">High-fidelity finger tracking</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-manus-gloves-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-manus-gloves-details"><p class="device-panel-head"><img alt="MANUS" class="only-light" src="../_images/manus.svg" /><img alt="MANUS" class="only-dark pst-js-only" src="../_images/manus-dark.svg" /></p>
+<div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/manus" rel="noopener noreferrer" target="_blank">MANUS Gloves Plugin</a></p>
+<p class="device-panel-line"><a class="reference internal" href="../device/manus.html"><span class="doc">MANUS Gloves docs</span></a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">MANUS SDK</p>
+<p class="device-panel-line">USB receiver on the workstation</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line"><a class="reference external" href="https://www.manus-meta.com/" rel="noopener noreferrer" target="_blank">manus-meta.com<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-panel-line"><a class="reference external" href="mailto:sales&#37;&#52;&#48;manus-meta&#46;com">sales<span>&#64;</span>manus-meta<span>&#46;</span>com</a></p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://haptikos.tech/product/haptikos/" rel="noopener noreferrer" target="_blank">Haptikos Exoskeletons<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">Finger tracking, haptic feedback</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-haptikos-exoskeletons-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-haptikos-exoskeletons-details"><p class="device-panel-head"><img alt="Haptikos" class="only-light" src="../_images/haptikos.png" /><img alt="Haptikos" class="only-dark pst-js-only" src="../_images/haptikos-dark.png" /></p>
+<div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/haptikos" rel="noopener noreferrer" target="_blank">Haptikos Plugin</a></p>
+<p class="device-panel-line"><a class="reference internal" href="../device/haptikos.html"><span class="doc">Haptikos docs</span></a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">Haptikos Robotics API</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line"><a class="reference external" href="https://haptikos.tech/" rel="noopener noreferrer" target="_blank">haptikos.tech<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://www.opengraphlabs.com/" rel="noopener noreferrer" target="_blank">OGLO Tactile Glove<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">Tactile contact sensing (80 taxels), 6-axis IMU</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-oglo-tactile-glove-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-oglo-tactile-glove-details"><p class="device-panel-head"><img alt="OpenGraph Labs" class="only-light" src="../_images/opengraph-labs.svg" /><img alt="OpenGraph Labs" class="only-dark pst-js-only" src="../_images/opengraph-labs-dark.svg" /></p>
+<div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oglo_tactile" rel="noopener noreferrer" target="_blank">OGLO Tactile Glove Plugin</a></p>
+<p class="device-panel-line"><a class="reference internal" href="../device/oglo.html"><span class="doc">OGLO Tactile Glove docs</span></a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">Linux with BlueZ</p>
+<p class="device-panel-line">One BLE device per glove</p>
+<p class="device-panel-line">Plugin off by default — enable at build time</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line">—</p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html" rel="noopener noreferrer" target="_blank">Logitech Rudder Pedals<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">3-axis foot pedal</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-logitech-rudder-pedals-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-logitech-rudder-pedals-details"><div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/generic_3axis_pedal" rel="noopener noreferrer" target="_blank">Generic 3-axis Pedal Plugin</a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">USB connection to the workstation</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line"><a class="reference external" href="https://www.logitechg.com/en-us/shop/p/flight-simulator-rudder-pedals" rel="noopener noreferrer" target="_blank">logitechg.com<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://shop.luxonis.com/products/oak-d" rel="noopener noreferrer" target="_blank">OAK-D Camera<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Input modes">Offline data recording</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-oak-d-camera-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-oak-d-camera-details"><div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/oak" rel="noopener noreferrer" target="_blank">OAK-D Camera Plugin</a></p>
+<p class="device-panel-line"><a class="reference internal" href="../device/oak.html"><span class="doc">OAK Camera docs</span></a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">USB 3 connection to the workstation</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line"><a class="reference external" href="https://shop.luxonis.com/" rel="noopener noreferrer" target="_blank">shop.luxonis.com<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+</div>
+</div>
+</div>
+<p class="device-planned"><span class="device-planned-label">Planned</span><span class="device-planned-entry"><a class="reference external" href="https://3dconnexion.com/us/spacemouse/" rel="noopener noreferrer" target="_blank">3Dconnexion 3D Space Mouse</a> — HID input over USB, CLI tool.</span><a class="device-planned-track reference external" href="https://github.com/NVIDIA/IsaacTeleop/issues/276" rel="noopener noreferrer" target="_blank">Tracking #276</a></p>
+</div>
 </section>
-<section class="eco-section" id="data-factory-device-count-data-factory">
-<span id="data-factory"></span><h2>Data Factory <a href="#id3"><span class="problematic" id="id4">:device-count:`data_factory`</span></a><a class="headerlink" href="#data-factory-device-count-data-factory" title="Link to this heading">#</a></h2>
+<section class="eco-section" id="data-factory-3">
+<span id="data-factory"></span><h2>Data Factory <span class="eco-count">3</span><a class="headerlink" href="#data-factory-3" title="Link to this heading">#</a></h2>
 <p>Frameworks and services for collecting teleoperation data and turning it into training
 datasets.</p>
+<div class="device-matrix"><div class="device-grid"><p class="device-col">Name</p>
+<p class="device-col">Provides</p>
+<p class="device-col device-col-action"></p>
+<p class="device-name"><a class="reference external" href="https://huggingface.co/docs/lerobot" rel="noopener noreferrer" target="_blank">LeRobot<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Provides">Robot learning framework, dataset collection</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-lerobot-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-lerobot-details"><p class="device-panel-head"><img alt="Hugging Face" class="only-light" src="../_images/hugging-face.svg" /><img alt="Hugging Face" class="only-dark pst-js-only" src="../_images/hugging-face-dark.svg" /></p>
+<div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference internal" href="../getting_started/lerobot/index.html"><span class="doc">LeRobot integration</span></a></p>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/huggingface/lerobot" rel="noopener noreferrer" target="_blank">LeRobot on GitHub<svg class="eco-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M7 17 17 7M9 7h8v8"></path></svg><span class="eco-link-external-label"> (external)</span></a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">—</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line">—</p>
+</div>
+</div>
+<p class="device-name"><a class="reference external" href="https://lightwheel.ai/" rel="noopener noreferrer" target="_blank">Lightwheel<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Provides">Ego data capture, simulation assets</p>
+<div class="device-action"></div>
+<p class="device-name"><a class="reference external" href="https://www.noitom.com/" rel="noopener noreferrer" target="_blank">Noitom Motion Capture<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Provides">Full-body motion capture</p>
+<div class="device-action"><details class="device-disclosure" name="isaac-teleop-device"><summary aria-controls="device-noitom-details" class="device-toggle"><span class="device-toggle-label">Details</span><span class="device-toggle-label is-open">Close</span></summary>
+</details>
+</div>
+<div class="device-panel" id="device-noitom-details"><div class="device-panel-col"><h4 class="device-panel-heading">Set up</h4>
+<p class="device-panel-line"><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap" rel="noopener noreferrer" target="_blank">Noitom Mocap Plugin</a></p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Requirements</h4>
+<p class="device-panel-line">—</p>
+</div>
+<div class="device-panel-col"><h4 class="device-panel-heading">Acquire</h4>
+<p class="device-panel-line">—</p>
+</div>
+</div>
+</div>
+</div>
 </section>
-<section class="eco-section" id="cloud-infrastructure-device-count-cloud">
-<span id="cloud-infrastructure"></span><h2>Cloud Infrastructure <a href="#id5"><span class="problematic" id="id6">:device-count:`cloud`</span></a><a class="headerlink" href="#cloud-infrastructure-device-count-cloud" title="Link to this heading">#</a></h2>
+<section class="eco-section" id="cloud-infrastructure-1">
+<span id="cloud-infrastructure"></span><h2>Cloud Infrastructure <span class="eco-count">1</span><a class="headerlink" href="#cloud-infrastructure-1" title="Link to this heading">#</a></h2>
 <p>Cloud platforms available for running Isaac Teleop workloads.</p>
+<div class="device-matrix"><div class="device-grid"><p class="device-col">Name</p>
+<p class="device-col">Provides</p>
+<p class="device-col device-col-action"></p>
+<p class="device-name"><a class="reference external" href="https://www.volcengine.com/" rel="noopener noreferrer" target="_blank">Volcano Engine<span class="eco-link-external-label"> (external)</span></a></p>
+<p class="device-modes" data-label="Provides">Enterprise AI cloud platform</p>
+<div class="device-action"></div>
+</div>
+</div>
 </section>
 <section class="eco-section" id="become-part-of-isaac-teleop">
 <h2>Become Part of Isaac Teleop<a class="headerlink" href="#become-part-of-isaac-teleop" title="Link to this heading">#</a></h2>
 <p>Two ways in, both on <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop" rel="noopener noreferrer" target="_blank">GitHub</a>: bring a device to the
 stack, or build on the stack itself.</p>
+<div class="eco-paths"><div class="eco-path"><p><strong>Add your device</strong></p>
+<p>Devices connect through a plugin process, so your SDK stays in your own repository under
+your own license. Build the plugin, open a pull request, and the device joins the tables
+above.</p>
+<div class="eco-path-action"><p><a class="reference internal" href="../device/add_device.html"><span class="doc">Add a New Device</span></a></p>
+</div>
+</div>
+<div class="eco-path"><p><strong>Build on Isaac Teleop</strong></p>
+<p>Collect teleoperation data with it, or run it as the teleoperation stack inside the robot
+you are building. One interface covers every device listed above.</p>
+<div class="eco-path-action"><p><a class="reference internal" href="../getting_started/quick_start.html"><span class="doc">Quick Start</span></a></p>
+</div>
+</div>
+</div>
+<div class="eco-cta"><p>Looking to go further together? Tell us what you are building. We review submissions on a
+rolling basis and will be in touch if we see an opportunity to work more closely together.</p>
+<div class="eco-cta-actions"><p><a class="reference external" href="https://forms.gle/Fo5nRUHZivGN1itg9" rel="noopener noreferrer" target="_blank">Get in Touch</a></p>
+</div>
+</div>
 </section>
 </section>
 
@@ -523,9 +783,9 @@ stack, or build on the stack itself.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-devices-device-count-input">Supported Devices :device-count:`input`</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-factory-device-count-data-factory">Data Factory :device-count:`data_factory`</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloud-infrastructure-device-count-cloud">Cloud Infrastructure :device-count:`cloud`</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-devices-9">Supported Devices <span class="eco-count">9</span></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#data-factory-3">Data Factory <span class="eco-count">3</span></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cloud-infrastructure-1">Cloud Infrastructure <span class="eco-count">1</span></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#become-part-of-isaac-teleop">Become Part of Isaac Teleop</a></li>
 </ul>
   </nav></div>
