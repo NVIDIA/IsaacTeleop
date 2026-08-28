@@ -38,7 +38,7 @@ from isaacteleop.teleop_session_manager import (
     DefaultTeleopStateManager,
 )
 
-from teleop_controls_simple_helper import (
+from .teleop_controls_simple_helper import (
     build_observation_pipeline,
     print_frame,
     print_header,
