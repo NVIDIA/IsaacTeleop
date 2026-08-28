@@ -16,7 +16,7 @@ from functools import partial
 
 import msgpack
 import rclpy
-from constants import (
+from ..constants import (
     HAND_RETARGETERS,
     LEFT_SHARPA_WAVE_JOINT_NAMES,
     LEFT_WUJI_HAND_JOINT_NAMES,
