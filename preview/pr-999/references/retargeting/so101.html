@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=6a40af5b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=35d49528" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -340,6 +340,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -582,13 +583,6 @@ re-arm anything; it holds the pending latch until a permitted frame arrives, and
 fires against <em>that</em> frame’s controller pose, not the one it was first squeezed at. The same
 <code class="docutils literal notranslate"><span class="pre">ValueInput</span></code>-leaf rule as <code class="docutils literal notranslate"><span class="pre">MEASURED_BASE_T_EE_INPUT</span></code> applies: a producer that wires it must
 send the key on every step.</p>
-<p><code class="xref py py-class docutils literal notranslate"><span class="pre">EngageAlignmentGate</span></code> is the shipped producer: a graph node that
-compares the controller’s orientation against a reference pose the owner supplies, with hysteresis
-and a dwell, and emits straight into this input. Because the graph is a pull-based DAG it cannot
-read the clutch it feeds, so the owner hands back one bool – <code class="docutils literal notranslate"><span class="pre">is_engaged</span></code>, as of the previous
-frame – on <code class="xref py py-data docutils literal notranslate"><span class="pre">ENGAGED_INPUT</span></code>. That disjunction is
-load-bearing: during a tracking dropout the clutch disarms and owes a latch on recovery, and a gate
-answering “not aligned” there would stop the arm mid-engagement.</p>
 <p>The motivating consumer is <code class="docutils literal notranslate"><span class="pre">examples/robot_viz</span></code>, whose owner shows the operator an SO-101
 follower before engaging and withholds permission until the operator’s wrist is turned the way
 that arm is – see that example’s README.</p>
@@ -858,7 +852,7 @@ binary <code class="docutils literal notranslate"><span class="pre">+1</span> <s
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 23, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 28, 2026.
       <br/>
     
   </p>
