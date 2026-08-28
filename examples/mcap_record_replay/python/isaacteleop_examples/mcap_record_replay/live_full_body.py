@@ -2,15 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Visualize live OpenXR controller poses in real time with viser.
+Visualize live OpenXR full-body pose tracking in real time with viser.
 
 ``CloudXRLauncher`` starts the CloudXR runtime and WSS proxy automatically.
-Open the URL viser prints (default http://localhost:8080) in a browser to see
-aim / grip points for both controllers, a ray between them, and a live HUD
-showing thumbstick, trigger, squeeze, and button state.
+Open the URL viser prints in a browser (binds all interfaces, so another
+machine can reach it at http://<this-host>:8080) to see
+the full PICO body skeleton — joints colored green when valid, red when lost —
+updating live as you move.
 
 Usage:
-    python live_controller.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
+    python live_full_body.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
 
 Press Ctrl+C to stop.
 
@@ -21,18 +22,14 @@ import argparse
 import sys
 import time
 
+import numpy as np
 import viser
 
 from isaacteleop.cloudxr import CloudXRLauncher
+from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import (
-    ControllerViz,
-    LEFT_COLOR,
-    RIGHT_COLOR,
-    build_controller_pipeline,
-    controller_state,
-)
+from .common import BODY_JOINT_NAMES, FullBodyViz, build_full_body_pipeline, setup_scene
 
 
 def main(argv: list[str]) -> int:
@@ -47,12 +44,11 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv[1:])
 
     server = viser.ViserServer(host=args.host, port=args.port)
-    server.scene.set_up_direction("+y")
-    server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
+    ground = setup_scene(server)
 
     config = TeleopSessionConfig(
-        app_name="LiveControllerExample",
-        pipeline=build_controller_pipeline(),
+        app_name="LiveFullBodyExample",
+        pipeline=build_full_body_pipeline(),
     )
 
     with CloudXRLauncher.launch_context(args) as launcher:
@@ -61,36 +57,35 @@ def main(argv: list[str]) -> int:
         print("[live] waiting for headset connection… (Ctrl+C to stop)")
 
         with TeleopSession(config) as session:
-            viz_left = ControllerViz(server, "controller_left", LEFT_COLOR)
-            viz_right = ControllerViz(server, "controller_right", RIGHT_COLOR)
+            viz = FullBodyViz(server, ground)
             print(
                 f"[live] viser listening on {args.host}:{args.port} "
                 f"(http://localhost:{args.port})"
             )
-            _last_step_t = time.time()
-            _missed = 0
             try:
                 while True:
-                    now = time.time()
-                    _missed += max(0, round((now - _last_step_t) * 60) - 1)
-                    _last_step_t = now
-
                     result = session.step()
+                    full_body = result["full_body"]
 
-                    l_state = controller_state(result["controller_left"])
-                    r_state = controller_state(result["controller_right"])
-
-                    viz_left.update(l_state)
-                    viz_right.update(r_state)
+                    if full_body.is_none:
+                        viz.update(None, None)
+                        n_valid = 0
+                    else:
+                        positions = np.asarray(
+                            full_body[FullBodyInputIndex.JOINT_POSITIONS],
+                            dtype=np.float32,
+                        )
+                        valid = np.asarray(
+                            full_body[FullBodyInputIndex.JOINT_VALID], dtype=np.uint8
+                        )
+                        viz.update(positions, valid)
+                        n_valid = int(np.count_nonzero(valid))
 
                     if session.frame_count % 60 == 0:
                         print(
                             f"[live] frame={session.frame_count}  "
-                            f"L={'Y' if l_state['aim_valid'] else '-'}  "
-                            f"R={'Y' if r_state['aim_valid'] else '-'}  "
-                            f"missed={_missed}"
+                            f"joints={n_valid:02d}/{len(BODY_JOINT_NAMES)}"
                         )
-                        _missed = 0
                     time.sleep(1 / 60)
             except KeyboardInterrupt:
                 pass
