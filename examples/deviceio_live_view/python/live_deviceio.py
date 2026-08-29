@@ -9,7 +9,8 @@ body) and draws whichever trackers are currently active. Inactive or absent
 trackers are hidden rather than shown in an error color.
 
 ``CloudXRLauncher`` starts the CloudXR runtime and WSS proxy automatically.
-Open the URL viser prints (default http://localhost:8080) in a browser.
+Open the URL viser prints in a browser. Binds all interfaces by default, so
+another machine on the network can reach it at http://<this-host>:8080.
 
 Usage:
     python live_deviceio.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
@@ -37,8 +38,8 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Viser HTTP bind address (default: 127.0.0.1; pass 0.0.0.0 to expose externally)",
+        default="0.0.0.0",
+        help="Viser HTTP bind address (default: 0.0.0.0, all interfaces; pass 127.0.0.1 to keep it local)",
     )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
     CloudXRLauncher.add_launcher_arguments(parser)
@@ -60,7 +61,10 @@ def main(argv: list[str]) -> int:
 
         with TeleopSession(config) as session:
             viz = HumanDeviceIOViz(server)
-            print(f"[live] viser running at http://localhost:{args.port}")
+            print(
+                f"[live] viser listening on {args.host}:{args.port} "
+                f"(http://localhost:{args.port})"
+            )
             try:
                 while True:
                     result = session.step()

@@ -33,8 +33,8 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Viser HTTP bind address (default: 127.0.0.1; pass 0.0.0.0 to expose externally)",
+        default="0.0.0.0",
+        help="Viser HTTP bind address (default: 0.0.0.0, all interfaces; pass 127.0.0.1 to keep it local)",
     )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
     CloudXRLauncher.add_launcher_arguments(parser)
@@ -57,7 +57,10 @@ def main(argv: list[str]) -> int:
         with TeleopSession(config) as session:
             viz_left = HandViz(server, "hand_left", LEFT_COLOR)
             viz_right = HandViz(server, "hand_right", RIGHT_COLOR)
-            print(f"[live] viser running at http://localhost:{args.port}")
+            print(
+                f"[live] viser listening on {args.host}:{args.port} "
+                f"(http://localhost:{args.port})"
+            )
             _last_step_t = time.time()
             _missed = 0
             try:

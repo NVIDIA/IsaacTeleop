@@ -157,7 +157,9 @@ From the example directory:
    uv run python live_full_body.py --accept-eula
    uv run python live_full_body.py --port 8090 --accept-eula  # change viser port
 
-Open the printed URL (default ``http://localhost:8080``) in a browser.
+Open the printed URL (default ``http://localhost:8080``) in a browser.  The
+viewers bind every interface, since they run where the headset is and get
+opened from another machine; pass ``--host 127.0.0.1`` to keep one local.
 
 Recording
 ^^^^^^^^^

@@ -197,7 +197,11 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--no-viz", action="store_true", help="Text output only, no viser"
     )
-    parser.add_argument("--host", default="127.0.0.1", help="Viser HTTP bind address")
+    parser.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Viser HTTP bind address (default: 0.0.0.0, all interfaces; pass 127.0.0.1 to keep it local)",
+    )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
     args = parser.parse_args(argv[1:])
 
@@ -228,7 +232,10 @@ def main(argv: list[str]) -> int:
 
         server = viser.ViserServer(host=args.host, port=args.port)
         viz = Se3Viz(server, collections)
-        print(f"[replay-se3] viser running at http://localhost:{args.port}")
+        print(
+            f"[replay-se3] viser listening on {args.host}:{args.port} "
+            f"(http://localhost:{args.port})"
+        )
 
     print(f"[replay-se3] replaying {mcap_path}")
 
