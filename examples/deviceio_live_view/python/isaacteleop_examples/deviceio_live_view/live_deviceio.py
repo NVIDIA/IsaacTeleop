@@ -13,13 +13,12 @@ Open the URL viser prints in a browser. Binds all interfaces by default, so
 another machine on the network can reach it at http://<this-host>:8080.
 
 Usage:
-    python live_deviceio.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
+    python -m isaacteleop_examples.deviceio_live_view [--port 8080] [--host 127.0.0.1] [--accept-eula]
 
 Press Ctrl+C to stop.
 """
 
 import argparse
-import sys
 import time
 
 import viser
@@ -27,10 +26,11 @@ import viser
 from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from deviceio_viser import (
+from .deviceio_viser import (
     BODY_JOINT_NAMES,
     HumanDeviceIOViz,
     build_all_human_pipeline,
+    setup_scene,
 )
 
 
@@ -46,8 +46,7 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv[1:])
 
     server = viser.ViserServer(host=args.host, port=args.port)
-    server.scene.set_up_direction("+y")
-    server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
+    ground = setup_scene(server)
 
     config = TeleopSessionConfig(
         app_name="LiveDeviceIOExample",
@@ -60,7 +59,7 @@ def main(argv: list[str]) -> int:
         print("[live] waiting for headset connection… (Ctrl+C to stop)")
 
         with TeleopSession(config) as session:
-            viz = HumanDeviceIOViz(server)
+            viz = HumanDeviceIOViz(server, ground)
             print(
                 f"[live] viser listening on {args.host}:{args.port} "
                 f"(http://localhost:{args.port})"
@@ -87,7 +86,3 @@ def main(argv: list[str]) -> int:
 
     print("[live] stopped")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv))

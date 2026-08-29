@@ -1,8 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "deviceio-live-view-example"
+# The dist name mirrors the import path, so an installed example claims no bare
+# top-level name in site-packages.
+name = "isaacteleop-examples-deviceio-live-view"
 version = "0.0.0"  # Internal example - not versioned
 description = "Isaac Teleop live DeviceIO viewer with viser visualization"
 requires-python = ">=3.11,<3.14"
@@ -14,8 +20,14 @@ dependencies = [
     "viser>=0.2.0",
 ]
 
+# `only-include` + `sources`, not `packages`, and no __init__.py above
+# deviceio_live_view -- see the packaging rules in examples/README.md.
+[tool.hatch.build.targets.wheel]
+only-include = ["python/isaacteleop_examples/deviceio_live_view"]
+sources = ["python"]
+
 [tool.uv.sources]
 # Editable, so edits under src/python/ need no rebuild. Dropped from the
 # installed copy, which has no repo above it.
 # TODO(#880): nothing runs this example in CI; neither path is covered.
-isaacteleop = { path = "../../..", editable = true }
+isaacteleop = { path = "../..", editable = true }

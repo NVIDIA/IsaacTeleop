@@ -133,9 +133,13 @@ additional source nodes (``HeadSource``, ``ControllersSource``, …) in
 ``common.py``.
 
 For a live browser view of **all** human DeviceIO trackers at once (hands, head,
-controllers, and full body), see ``examples/deviceio_live_view/python/``.  It is
-set up the same way as this example — the ``uv sync`` notes under `Recording`_
-apply to it too.
+controllers, and full body), see ``examples/deviceio_live_view/`` and its
+``README.md``:
+
+.. code-block:: bash
+
+   uv pip install -e ./examples/deviceio_live_view
+   python -m isaacteleop_examples.deviceio_live_view --accept-eula
 
 A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
 
