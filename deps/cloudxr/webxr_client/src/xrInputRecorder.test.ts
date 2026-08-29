@@ -45,7 +45,7 @@ function pose(x: number, y = 0, z = 0, orientation: DOMPointInit = { w: 1 }): XR
     emulatedPosition: false,
     linearVelocity: null,
     angularVelocity: null,
-  } as XRPose;
+  } as unknown as XRPose;
 }
 
 function jointPose(x: number, radius = 0.01): XRJointPose {
@@ -56,7 +56,11 @@ function gamepad(axis: number): Gamepad {
   return {
     axes: [axis],
     buttons: [{ value: axis, pressed: axis > 0, touched: true }],
-  } as Gamepad;
+  } as unknown as Gamepad;
+}
+
+function makeSession(inputSources: XRInputSource[] = []): XRSession {
+  return { inputSources } as unknown as XRSession;
 }
 
 type PoseResolver = (space: XRSpace, baseSpace: XRSpace) => XRPose | null;
@@ -66,15 +70,17 @@ function makeFrame(
   inputSources: XRInputSource[] = [],
   getPose: PoseResolver = () => null,
   getJointPose: JointResolver = () => null,
-  predictedDisplayTime = 0
+  predictedDisplayTime = 0,
+  viewerPose: XRPose | null = pose(0),
+  session: XRSession = makeSession(inputSources)
 ): XRFrame {
-  const session = { inputSources } as XRSession;
   return {
     session,
     predictedDisplayTime,
     getPose,
     getJointPose,
-  } as XRFrame;
+    getViewerPose: () => viewerPose,
+  } as unknown as XRFrame;
 }
 
 function frameData(x = 0): RecordedFrame {
@@ -101,6 +107,17 @@ function frameData(x = 0): RecordedFrame {
 
 function recording(...frames: RecordedFrame[]): Recording {
   return { version: 1, frames };
+}
+
+function calibratedRecording(viewerX: number, ...frames: RecordedFrame[]): Recording {
+  return {
+    version: 1,
+    calibration: {
+      mode: 'viewer-start-yaw',
+      pose: { px: viewerX, py: 0, pz: 0, ox: 0, oy: 0, oz: 0, ow: 1 },
+    },
+    frames,
+  };
 }
 
 function timedFrame(timeMs: number, x: number): RecordedFrame {
@@ -289,6 +306,33 @@ describe('canonical scene-space capture', () => {
     expect(captured.handJoints.left.wrist?.px).toBe(3);
     expect(captured.handJoints.left['index-finger-tip']?.px).toBe(4);
   });
+
+  test('captures a gravity-aligned viewer pose for cross-session calibration', () => {
+    const quarterTurn = Math.sqrt(0.5);
+    const recorder = new XRInputRecorder();
+    recorder.startRecording();
+    recorder.beginFrame(
+      makeFrame([], undefined, undefined, 0, pose(1, 2, 3, { y: quarterTurn, w: quarterTurn })),
+      sceneSpace
+    );
+    recorder.stopRecording();
+
+    const calibration = recorder.getRecording().calibration;
+    expect(calibration?.mode).toBe('viewer-start-yaw');
+    expect(calibration?.pose).toMatchObject({ px: 1, py: 2, pz: 3, ox: 0, oz: 0 });
+    expect(calibration?.pose.oy).toBeCloseTo(quarterTurn);
+    expect(calibration?.pose.ow).toBeCloseTo(quarterTurn);
+  });
+
+  test('waits for a viewer pose before recording the first frame', () => {
+    const recorder = new XRInputRecorder();
+    recorder.startRecording();
+    recorder.beginFrame(makeFrame([], undefined, undefined, 0, null), sceneSpace);
+    expect(recorder.recordedFrameCount).toBe(0);
+
+    recorder.beginFrame(makeFrame([], undefined, undefined, 1, pose(0)), sceneSpace);
+    expect(recorder.recordedFrameCount).toBe(1);
+  });
 });
 
 describe('scoped CloudXR replay frame', () => {
@@ -360,8 +404,8 @@ describe('scoped CloudXR replay frame', () => {
     expect(adapted.session.inputSources).toBe(replaySources);
     expect(replaySources[0].gamepad).toBe(replaySources[0].gamepad);
     expect(replaySources[0].gamepad?.axes).toEqual([3]);
-    expect(adapted.getJointPose(wrist, cloudSpace)?.transform.position.x).toBe(15);
-    expect(adapted.getJointPose(wrist, cloudSpace)?.radius).toBe(0.02);
+    expect(adapted.getJointPose?.(wrist, cloudSpace)?.transform.position.x).toBe(15);
+    expect(adapted.getJointPose?.(wrist, cloudSpace)?.radius).toBe(0.02);
   });
 
   test('delegates unknown spaces and joints to the real frame', () => {
@@ -378,7 +422,123 @@ describe('scoped CloudXR replay frame', () => {
     const adapted = recorder.adaptTrackingFrame(frame);
 
     expect(adapted.getPose(unknownSpace, sceneSpace)?.transform.position.x).toBe(7);
-    expect(adapted.getJointPose(unknownJoint, sceneSpace)?.transform.position.x).toBe(8);
+    expect(adapted.getJointPose?.(unknownJoint, sceneSpace)?.transform.position.x).toBe(8);
+  });
+
+  test('aligns loaded poses from the recorded viewer origin to the current XR session', () => {
+    const grip = {} as XRSpace;
+    const source = {
+      handedness: 'left',
+      gripSpace: grip,
+      targetRaySpace: {} as XRSpace,
+    } as XRInputSource;
+    const session = makeSession([source]);
+    const loaded = XRInputRecorder.importJSON(JSON.stringify(calibratedRecording(1, frameData(2))));
+    const frame = makeFrame([source], undefined, undefined, 0, pose(11, 5), session);
+    const recorder = new XRInputRecorder();
+    recorder.startReplay(loaded, true, 'frame');
+    recorder.beginFrame(frame, sceneSpace);
+
+    const replayed = recorder.adaptTrackingFrame(frame).getPose(grip, sceneSpace);
+    expect(replayed?.transform.position.x).toBeCloseTo(12);
+    expect(replayed?.transform.position.y).toBeCloseTo(5);
+  });
+
+  test('applies the calibrated heading to replayed poses', () => {
+    const grip = {} as XRSpace;
+    const source = {
+      handedness: 'left',
+      gripSpace: grip,
+      targetRaySpace: {} as XRSpace,
+    } as XRInputSource;
+    const session = makeSession([source]);
+    const sample = frameData();
+    sample.poses.leftGrip = { px: 0, py: 0, pz: -1, ox: 0, oy: 0, oz: 0, ow: 1 };
+    const loaded = XRInputRecorder.importJSON(JSON.stringify(calibratedRecording(0, sample)));
+    const quarterTurn = Math.sqrt(0.5);
+    const frame = makeFrame(
+      [source],
+      undefined,
+      undefined,
+      0,
+      pose(0, 0, 0, { y: quarterTurn, w: quarterTurn }),
+      session
+    );
+    const recorder = new XRInputRecorder();
+    recorder.startReplay(loaded, true, 'frame');
+    recorder.beginFrame(frame, sceneSpace);
+
+    const replayed = recorder.adaptTrackingFrame(frame).getPose(grip, sceneSpace);
+    expect(replayed?.transform.position.x).toBeCloseTo(-1);
+    expect(replayed?.transform.position.z).toBeCloseTo(0);
+    expect(replayed?.transform.orientation.y).toBeCloseTo(quarterTurn);
+    expect(replayed?.transform.orientation.w).toBeCloseTo(quarterTurn);
+  });
+
+  test('freezes calibration within a session and recalibrates for a new session', () => {
+    const grip = {} as XRSpace;
+    const source = {
+      handedness: 'left',
+      gripSpace: grip,
+      targetRaySpace: {} as XRSpace,
+    } as XRInputSource;
+    const firstSession = makeSession([source]);
+    const secondSession = makeSession([source]);
+    const loaded = XRInputRecorder.importJSON(JSON.stringify(calibratedRecording(1, frameData(2))));
+    const recorder = new XRInputRecorder();
+
+    const firstFrame = makeFrame([source], undefined, undefined, 0, pose(11), firstSession);
+    recorder.startReplay(loaded, true, 'frame');
+    recorder.beginFrame(firstFrame, sceneSpace);
+    expect(
+      recorder.adaptTrackingFrame(firstFrame).getPose(grip, sceneSpace)?.transform.position.x
+    ).toBeCloseTo(12);
+    recorder.stopReplay();
+
+    const movedViewerFrame = makeFrame([source], undefined, undefined, 1, pose(21), firstSession);
+    recorder.startReplay(loaded, true, 'frame');
+    recorder.beginFrame(movedViewerFrame, sceneSpace);
+    expect(
+      recorder.adaptTrackingFrame(movedViewerFrame).getPose(grip, sceneSpace)?.transform.position.x
+    ).toBeCloseTo(12);
+    recorder.stopReplay();
+
+    const newSessionFrame = makeFrame([source], undefined, undefined, 2, pose(21), secondSession);
+    recorder.startReplay(loaded, true, 'frame');
+    recorder.beginFrame(newSessionFrame, sceneSpace);
+    expect(
+      recorder.adaptTrackingFrame(newSessionFrame).getPose(grip, sceneSpace)?.transform.position.x
+    ).toBeCloseTo(22);
+  });
+
+  test('keeps in-memory recording and replay in the same reference space unchanged', () => {
+    const grip = {} as XRSpace;
+    const source = {
+      handedness: 'left',
+      gripSpace: grip,
+      targetRaySpace: {} as XRSpace,
+    } as XRInputSource;
+    const session = makeSession([source]);
+    const recordingFrame = makeFrame(
+      [source],
+      space => (space === grip ? pose(2) : null),
+      undefined,
+      0,
+      pose(1),
+      session
+    );
+    const recorder = new XRInputRecorder();
+    recorder.startRecording();
+    recorder.beginFrame(recordingFrame, sceneSpace);
+    recorder.stopRecording();
+    const saved = recorder.getRecording();
+
+    const replayFrame = makeFrame([source], undefined, undefined, 1, pose(11), session);
+    recorder.startReplay(saved, true, 'frame');
+    recorder.beginFrame(replayFrame, sceneSpace);
+
+    const replayed = recorder.adaptTrackingFrame(replayFrame).getPose(grip, sceneSpace);
+    expect(replayed?.transform.position.x).toBeCloseTo(2);
   });
 });
 
@@ -388,7 +548,9 @@ describe('serialization', () => {
     recorder.startRecording();
     recorder.beginFrame(makeFrame(), sceneSpace);
     recorder.stopRecording();
-    expect(XRInputRecorder.importJSON(recorder.exportJSON()).frames).toHaveLength(1);
+    const imported = XRInputRecorder.importJSON(recorder.exportJSON());
+    expect(imported.frames).toHaveLength(1);
+    expect(imported.calibration?.mode).toBe('viewer-start-yaw');
     expect(typeof recorder.getRecording().recordedAt).toBe('number');
   });
 
@@ -423,6 +585,8 @@ describe('serialization', () => {
     { version: 1, frames: null },
     { version: 1, frames: [{ ...frameData(), timeMs: undefined }] },
     { version: 1, frames: [frameData(2), frameData(1)] },
+    { version: 1, calibration: { mode: 'viewer-start-yaw', pose: {} }, frames: [] },
+    { version: 1, calibration: { mode: 'unknown', pose: {} }, frames: [] },
     null,
     42,
     [],
