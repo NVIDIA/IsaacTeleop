@@ -110,6 +110,21 @@ jobs:
         ccache --version
         ccache --show-config
 
+    # depthai-core downloads the device/bootloader *.fwp blobs into its build
+    # tree at configure time, once per matrix entry; artifacts.luxonis.com fails
+    # often enough to redden unrelated PRs. Its DownloadAndChecksum skips any
+    # file already on disk, so a restored resources/ makes the fetch a no-op.
+    # Keyed on the DEPTHAI_COMMIT pin, which selects the firmware version.
+    # Split restore/save on purpose: the combined action also saves on a failed
+    # job, and CMake's file(DOWNLOAD) leaves a truncated file behind on error —
+    # that would be cached and then pass the "already downloaded" check forever.
+    - name: Restore DepthAI device resources
+      id: depthai-resources
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: ${{ env.BUILD_DIR }}/_deps/depthai-build/resources
+        key: depthai-resources-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
+
     - name: Configure CMake
       run: |
         coverage_args=()
@@ -133,6 +148,14 @@ jobs:
           -DENABLE_CLOUDXR_BUNDLE_CHECK=ON \
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
           "${coverage_args[@]}"
+
+    # Configure succeeded, so every *.fwp downloaded and checksummed cleanly.
+    - name: Save DepthAI device resources
+      if: steps.depthai-resources.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: ${{ env.BUILD_DIR }}/_deps/depthai-build/resources
+        key: ${{ steps.depthai-resources.outputs.cache-primary-key }}
 
     - name: Build
       run: cmake --build "${BUILD_DIR}" --parallel 4

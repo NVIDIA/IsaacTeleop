@@ -30,6 +30,20 @@ runs:
         echo "CloudXR Runtime SDK version: ${CXR_RUNTIME_SDK_VERSION}"
         echo "CloudXR Web SDK version: ${CXR_WEB_SDK_VERSION}"
 
+    # Both download scripts prefer a tarball already sitting in deps/cloudxr/ over
+    # fetching from NGC, so a cache hit makes the download a no-op. NGC 404s
+    # transiently and reddens otherwise-good runs; this keeps the pipeline off the
+    # network on the common path. Restore only — the save is gated on the downloads
+    # succeeding, so a partial fetch is never cached.
+    - name: Restore CloudXR SDK tarballs
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: |
+          deps/cloudxr/*.tar.gz
+          deps/cloudxr/*.tgz
+        key: cloudxr-sdk-${{ runner.os }}-${{ runner.arch }}-rt${{ steps.parse.outputs.runtime_version }}-web${{ steps.parse.outputs.web_version }}
+
     - name: Download CloudXR Runtime SDK
       shell: bash
       env:
@@ -44,3 +58,12 @@ runs:
         CXR_WEB_SDK_VERSION: ${{ steps.parse.outputs.web_version }}
       run: |
         ./scripts/download_cloudxr_sdk.sh
+
+    - name: Save CloudXR SDK tarballs
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+      with:
+        path: |
+          deps/cloudxr/*.tar.gz
+          deps/cloudxr/*.tgz
+        key: ${{ steps.cache.outputs.cache-primary-key }}

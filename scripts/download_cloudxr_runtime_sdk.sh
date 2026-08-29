@@ -180,34 +180,60 @@ install_from_public_ngc() {
 # Main
 # -----------------------------------------------------------------------------
 
+# One listed -> unlisted sweep over the public NGC resources.
+install_from_ngc() {
+    local resource visibility
+
+    if [[ "$CXR_RUNTIME_SDK_VERSION" == *-rc* ]]; then
+        resource="cloudxr-runtime-for-isaac-teleop"
+        visibility="unlisted"
+    else
+        resource="cloudxr-runtime"
+        visibility="listed"
+    fi
+
+    echo "Trying ${visibility} public NGC..."
+    if install_from_public_ngc "$resource" "$visibility"; then
+        return 0
+    fi
+
+    if [[ "$visibility" == "listed" ]]; then
+        resource="cloudxr-runtime-for-isaac-teleop"
+        visibility="unlisted"
+        echo "Cannot install from listed public NGC, trying unlisted public NGC..."
+        # Do not combine a partial listed download with the unlisted SDK bundle.
+        rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE" "$CXR_DEPLOYMENT_DIR/$EXP_SDK_FILE"
+        if install_from_public_ngc "$resource" "$visibility"; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
 # Prefer local tarball if present; otherwise use NGC
 if install_from_local_tarball; then
     exit 0
 fi
 
-if [[ "$CXR_RUNTIME_SDK_VERSION" == *-rc* ]]; then
-    NGC_RESOURCE="cloudxr-runtime-for-isaac-teleop"
-    NGC_VISIBILITY="unlisted"
-else
-    NGC_RESOURCE="cloudxr-runtime"
-    NGC_VISIBILITY="listed"
-fi
+echo "Cannot install from local tarball, trying public NGC..."
 
-echo "Cannot install from local tarball, trying ${NGC_VISIBILITY} public NGC..."
-if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
-    exit 0
-fi
-
-if [[ "$NGC_VISIBILITY" == "listed" ]]; then
-    NGC_RESOURCE="cloudxr-runtime-for-isaac-teleop"
-    NGC_VISIBILITY="unlisted"
-    echo "Cannot install from listed public NGC, trying unlisted public NGC..."
-    # Do not combine a partial listed download with the unlisted SDK bundle.
-    rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE" "$CXR_DEPLOYMENT_DIR/$EXP_SDK_FILE"
-    if install_from_public_ngc "$NGC_RESOURCE" "$NGC_VISIBILITY"; then
+# NGC 404s transiently, and curl's --retry never covers 4xx. Retry the whole
+# sweep rather than each request: a 404 on an individual remote name is how
+# download_ngc_first_match discovers the published name, so per-request retry
+# would cost a delay on every successful run.
+NGC_ATTEMPTS=3
+NGC_RETRY_DELAY_S=5
+for (( attempt = 1; attempt <= NGC_ATTEMPTS; attempt++ )); do
+    if install_from_ngc; then
         exit 0
     fi
-fi
+    if (( attempt < NGC_ATTEMPTS )); then
+        echo -e "${YELLOW}NGC download failed (attempt ${attempt}/${NGC_ATTEMPTS}); retrying in ${NGC_RETRY_DELAY_S}s...${NC}"
+        rm -f "$CXR_DEPLOYMENT_DIR/$SDK_FILE" "$CXR_DEPLOYMENT_DIR/$EXP_SDK_FILE"
+        sleep "$NGC_RETRY_DELAY_S"
+    fi
+done
 
-echo "Cannot install from ${NGC_VISIBILITY} public NGC, exiting..."
+echo "Cannot install from public NGC after ${NGC_ATTEMPTS} attempts, exiting..."
 exit 1
