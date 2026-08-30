@@ -161,9 +161,8 @@ From the example directory:
    python -m isaacteleop_examples.mcap_record_replay.live_full_body --port 8090 --accept-eula
 
 Open the printed URL (default ``http://localhost:8080``) in a browser.  The
-viewers bind every interface, so another machine on the network can reach
-them at ``http://<this-host>:8080``; pass ``--host 127.0.0.1`` to keep one
-local.
+viewers bind every interface, since they run where the headset is and get
+opened from another machine; pass ``--host 127.0.0.1`` to keep one local.
 
 Recording
 ^^^^^^^^^
