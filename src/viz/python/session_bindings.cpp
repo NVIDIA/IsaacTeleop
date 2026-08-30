@@ -69,6 +69,7 @@ void bind_session(py::module_& m)
         .def_readwrite("xr_system_wait_seconds", &viz::VizSession::Config::xr_system_wait_seconds)
         .def_readwrite("xr_near_z", &viz::VizSession::Config::xr_near_z)
         .def_readwrite("xr_far_z", &viz::VizSession::Config::xr_far_z)
+        .def_readwrite("xr_reference_space", &viz::VizSession::Config::xr_reference_space)
         .def_readwrite("required_extensions", &viz::VizSession::Config::required_extensions)
         .def_readwrite("gpu_timing", &viz::VizSession::Config::gpu_timing)
         .def_property(
