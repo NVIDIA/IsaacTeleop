@@ -1,0 +1,39 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+// Raw state of a 3Dconnexion SpaceMouse-family HID device: the current translation/rotation
+// axis values (normalized to [-1, 1]) and the set of currently-held button indices. Carries
+// no semantic mapping -- which axis/button means what (position vs. rotation delta, gripper
+// toggle) is entirely up to the consuming retargeter.
+//
+// All fields are always present when the parent Tracked/Record wrapper's data is non-null.
+table SpaceMouseOutput {
+    // Translation axis values [x, y, z], normalized to [-1, 1].
+    translation: [float] (id: 0);
+
+    // Rotation axis values [x, y, z], normalized to [-1, 1].
+    rotation: [float] (id: 1);
+
+    // Button indices currently held down, in no particular order.
+    pressed_buttons: [ushort] (id: 2);
+
+    // Whether the tracker has emitted at least one sample.
+    is_valid: bool (id: 3);
+}
+
+// Tracked wrapper for the in-memory tracker API (data is null when no sample is available).
+table SpaceMouseOutputTracked {
+    data: SpaceMouseOutput (id: 0);
+}
+
+// MCAP recording wrapper for SpaceMouseOutput.
+table SpaceMouseOutputRecord {
+    data: SpaceMouseOutput (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type SpaceMouseOutputRecord;
