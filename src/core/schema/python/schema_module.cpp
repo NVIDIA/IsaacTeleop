@@ -8,6 +8,7 @@
 // Include binding definitions.
 #include "controller_bindings.h"
 #include "full_body_bindings.h"
+#include "gamepad_bindings.h"
 #include "hand_bindings.h"
 #include "haptic_command_bindings.h"
 #include "head_bindings.h"
@@ -52,6 +53,9 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind SE3 tracker types (Se3TrackerPoseT table) for generic 6-DoF pose sources.
     core::bind_se3_tracker(m);
+
+    // Bind gamepad types (GamepadOutputT table) for raw joystick-API button/axis state.
+    core::bind_gamepad(m);
 
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);

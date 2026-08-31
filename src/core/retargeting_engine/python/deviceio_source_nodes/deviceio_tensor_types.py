@@ -21,6 +21,7 @@ from isaacteleop.schema import (
     Generic3AxisPedalOutputTrackedT,
     JointStateOutputTrackedT,
     FullBodyPoseTrackedT,
+    GamepadOutputTrackedT,
     MessageChannelMessagesTrackedT,
 )
 
@@ -98,6 +99,26 @@ class Generic3AxisPedalOutputTrackedType(TensorType):
         if not isinstance(value, Generic3AxisPedalOutputTrackedT):
             raise TypeError(
                 f"Expected Generic3AxisPedalOutputTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
+class GamepadOutputTrackedType(TensorType):
+    """GamepadOutputTrackedT wrapper type from DeviceIO GamepadTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, GamepadOutputTrackedType):
+            raise TypeError(
+                f"Expected GamepadOutputTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, GamepadOutputTrackedT):
+            raise TypeError(
+                f"Expected GamepadOutputTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
@@ -234,6 +255,18 @@ def DeviceIOGeneric3AxisPedalOutputTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_generic_3axis_pedal_output",
         [Generic3AxisPedalOutputTrackedType("pedal_tracked")],
+    )
+
+
+def DeviceIOGamepadOutputTracked() -> TensorGroupType:
+    """Tracked gamepad data from DeviceIO GamepadTracker.
+
+    Contains:
+        gamepad_tracked: GamepadOutputTrackedT wrapper (always set; .data is None when inactive)
+    """
+    return TensorGroupType(
+        "deviceio_gamepad_output",
+        [GamepadOutputTrackedType("gamepad_tracked")],
     )
 
 
