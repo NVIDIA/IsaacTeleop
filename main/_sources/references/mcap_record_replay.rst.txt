@@ -104,6 +104,28 @@ to add extra trackers that aren't part of the pipeline:
    ``mcap_config`` is **required** when ``mode`` is ``SessionMode.REPLAY``.
    Omitting it raises ``ValueError``.
 
+Schema compatibility
+^^^^^^^^^^^^^^^^^^^^
+
+Every recording embeds the FlatBuffer schema it was written under. Opening a replay
+session compares every schema the recording carries against the schema the running
+build was compiled from, and raises ``RuntimeError`` when the recorded bytes would be
+misread — a recording made before a breaking schema change, for instance. The whole
+recording is graded before the first frame is read, so replay never stops part-way
+through for a schema reason.
+
+That needs the list of schemas up front. It normally comes from the summary section at
+the end of the file; a recording whose writer never got to flush one, which is what a
+run cut short leaves behind, is scanned for its schema records instead. A recording so
+damaged that neither route works is refused.
+
+A difference that leaves every recorded field readable — a table field appended
+since, or one marked ``(deprecated)`` — is reported on stderr and replayed instead.
+There is no way to override the raise: a recording the running build would misread
+is not replayable, and reading it anyway would hand back records whose field values
+are quietly wrong. ``src/core/schema/README.md`` has the evolution rules that keep a
+schema change from getting there.
+
 Runnable Example
 ----------------
 
