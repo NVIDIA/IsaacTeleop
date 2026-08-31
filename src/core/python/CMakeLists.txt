@@ -60,6 +60,11 @@ configure_file(
     @ONLY
 )
 
+# Plugin binaries are bundled into the built wheel via a POST_BUILD step attached
+# to the python_package target from the root CMakeLists.txt, after the plugin
+# targets are defined (src/plugins/* is added after src/core, so `keyboard_plugin`
+# doesn't exist yet at this point in the configure).
+
 # After building modules, create the Python package structure.
 add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop"

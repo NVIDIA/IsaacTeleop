@@ -8,6 +8,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/joint_state_tracker.hpp>
+#include <deviceio_trackers/keyboard_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/oglo_tactile_tracker.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
@@ -153,6 +154,16 @@ PYBIND11_MODULE(_deviceio_trackers, m)
                const core::ITrackerSession& session) -> core::Generic3AxisPedalOutputTrackedT
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
+
+    py::class_<core::KeyboardTracker, core::ITracker, std::shared_ptr<core::KeyboardTracker>>(m, "KeyboardTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::KeyboardTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a KeyboardTracker for the given tensor collection ID")
+        .def(
+            "get_keyboard_data",
+            [](const core::KeyboardTracker& self, const core::ITrackerSession& session) -> core::KeyboardOutputTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current keyboard tracked state (data is None when no data available)");
 
     py::class_<core::OgloTactileTracker, core::ITracker, std::shared_ptr<core::OgloTactileTracker>>(
         m, "OgloTactileTracker")
