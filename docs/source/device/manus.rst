@@ -30,7 +30,7 @@ Components
 Prerequisites
 -------------
 
-- **Linux** — x86_64 (tested on Ubuntu 22.04 / 24.04).
+- **Linux** — x86_64 or aarch64 (tested on Ubuntu 22.04 / 24.04).
 - **Manus SDK** for Linux — downloaded automatically by the install script.
 - **System dependencies** — the install script installs required packages automatically.
 
@@ -74,8 +74,8 @@ directory.
 The script will:
 
 1. Install the required system packages for MANUS Core Integrated.
-2. Download MANUS SDK v3.1.1.
-3. Extract and place the SDK in the correct location.
+2. Download MANUS SDK v3.2.0.
+3. Extract and place the SDK for the host architecture in the correct location.
 4. Build the plugin and the diagnostic tool.
 
 When run inside a container, ``install_manus.sh`` skips the udev step and
@@ -83,17 +83,23 @@ reminds you to run ``install_udev_rules.sh`` on the host. Pass ``--container``
 when the build environment does not expose standard container markers, such as
 during a Docker BuildKit build.
 
-Manual installation
-~~~~~~~~~~~~~~~~~~~
+Manual installation (fallback only)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you prefer to install manually:
+Steps 1 and 2 above are the supported path — most users should never need
+this section. Only follow it if ``install_manus.sh`` fails (for example, the
+SDK download is unreachable from your network) and you need to place the SDK
+by hand.
 
 1. Download the MANUS Core SDK from
-   `MANUS Downloads <https://docs.manus-meta.com/3.1.1/Resources/>`_.
-2. Extract and place the ``ManusSDK`` folder inside ``src/plugins/manus/``, or
-   point CMake at a different path by setting ``MANUS_SDK_ROOT``.
+   `MANUS Downloads <https://docs.manus-meta.com/3.2.0/Resources/>`_.
+2. From ``C++/SDKClient/ManusSDK`` in the archive, place ``include/`` and the
+   library for your architecture (``lib/amd64/libManusSDK-amd64.so`` or
+   ``lib/aarch64/libManusSDK-aarch64.so``, renamed to ``lib/libManusSDK.so``)
+   into a ``ManusSDK`` folder inside ``src/plugins/manus/``, or point CMake at a
+   different path by setting ``MANUS_SDK_ROOT``.
 3. Follow the
-   `MANUS Getting Started guide for Linux <https://docs.manus-meta.com/3.1.1/Plugins/SDK/Linux/>`_
+   `MANUS Getting Started guide for Linux <https://docs.manus-meta.com/3.2.0/Plugins/SDK/Linux/>`_
    to install the dependencies and configure device permissions.
 
 Expected directory layout after placing the SDK:
@@ -113,6 +119,7 @@ Expected directory layout after placing the SDK:
      ManusSDK/        <-- placed here
        include/
        lib/
+         libManusSDK.so
 
 Then build from the root:
 
