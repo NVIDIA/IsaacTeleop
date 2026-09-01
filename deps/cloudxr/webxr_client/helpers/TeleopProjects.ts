@@ -99,6 +99,7 @@ export const TELEOP_PROJECTS: TeleopProjectRegistry = {
         children: {
           headless: { label: 'Headless', settings: { headless: true } },
           video: { label: 'Video streaming' },
+          sonic: { label: 'SONIC' },
         },
       },
     },
