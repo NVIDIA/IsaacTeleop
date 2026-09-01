@@ -272,6 +272,16 @@ Troubleshooting
      - Resolution
    * - SDK download fails
      - Check your internet connection and re-run the install script.
+   * - ``uv not found. Please install uv: ...``
+     - Install uv and re-run: ``curl -LsSf https://astral.sh/uv/install.sh | sh``.
+       It installs to ``~/.local/bin``, so also add that to ``PATH`` for the
+       current shell (and ``~/.bashrc``, to make it stick):
+       ``export PATH="$HOME/.local/bin:$PATH"``.
+   * - ``Missing build tools: ... patchelf ...``
+     - CMake's dependency preflight lists every missing tool and the exact
+       install command in the same message, e.g.
+       ``sudo apt-get install -y patchelf``. Run the printed command and
+       re-run the install script.
    * - Manus SDK not found at build time
      - With manual installation, ensure ``ManusSDK`` is inside
        ``src/plugins/manus/`` or set ``MANUS_SDK_ROOT`` to your installation path.

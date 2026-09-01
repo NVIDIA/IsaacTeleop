@@ -245,7 +245,6 @@ cp -r "$SDK_SRC/include" "$SCRIPT_DIR/ManusSDK/"
 cp "$SDK_LIB_SRC" "$SCRIPT_DIR/ManusSDK/lib/libManusSDK.so"
 rm -rf "$TMP_EXTRACT_DIR"
 TMP_EXTRACT_DIR=""
-# Keep the archive for re-runs; SHA-256 verification above guards against corruption.
 done_ok
 
 # --- 4. Build the plugin ------------------------------------------------
@@ -259,6 +258,10 @@ run cmake --build "$BUILD_DIR" \
     || die "build failed"
 run cmake --install "$BUILD_DIR" --component manus || die "install failed"
 done_ok
+
+# Build and install succeeded; the extracted ManusSDK/ dir is all that's
+# needed for future builds, so the downloaded tarball can go.
+rm -f "$SCRIPT_DIR/$MANUS_SDK_ARCHIVE"
 
 # --- Done ---------------------------------------------------------------
 INSTALL_PREFIX="$(awk '/^CMAKE_INSTALL_PREFIX:PATH=/{sub(/^[^=]*=/, ""); print; exit}' "$BUILD_DIR/CMakeCache.txt")"
