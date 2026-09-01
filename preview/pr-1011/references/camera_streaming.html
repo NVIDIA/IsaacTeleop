@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=35d49528" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -340,6 +340,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -477,9 +478,13 @@ For the exact command surface and flags, see the
 <ul class="simple">
 <li><p>A workstation meeting the <a class="reference internal" href="requirements.html"><span class="doc">system requirements</span></a> (Ubuntu, NVIDIA
 GPU, CUDA driver) — every source hands frames to the renderer GPU-resident via CuPy.</p></li>
-<li><p>For Jetson platforms, use
-<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack-sdk-621" rel="noopener noreferrer" target="_blank">JetPack 6.2.1</a> on Orin or
-<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack/downloads/archive-7.1" rel="noopener noreferrer" target="_blank">JetPack 7.1</a> on Thor.</p></li>
+<li><p>For Jetson platforms:</p>
+<ul>
+<li><p><strong>Orin:</strong> <a class="reference external" href="https://developer.nvidia.com/embedded/jetpack-sdk-62" rel="noopener noreferrer" target="_blank">JetPack 6.2.x</a> or
+<a class="reference external" href="https://developer.nvidia.com/embedded/jetpack/downloads/archive-7.2" rel="noopener noreferrer" target="_blank">7.2.x</a></p></li>
+<li><p><strong>Thor:</strong> <a class="reference external" href="https://developer.nvidia.com/embedded/jetpack" rel="noopener noreferrer" target="_blank">JetPack 7.x</a></p></li>
+</ul>
+</li>
 <li><p>For the default XR mode, a headset to connect as the CloudXR client — follow the
 <a class="reference internal" href="../getting_started/quick_start.html"><span class="doc">quick start</span></a> step <a class="reference internal" href="../getting_started/quick_start.html#connect-xr-headset"><span class="std std-ref">5. Connect an XR headset</span></a>. The viewer
 launches the CloudXR runtime itself; nothing to start separately. No headset handy?
@@ -1070,7 +1075,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 25, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 01, 2026.
       <br/>
     
   </p>

@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=6a40af5b" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=35d49528" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -340,6 +340,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -514,6 +515,8 @@ applied the container will see the dongle with the right permissions.</p>
 ./install_manus.sh
 </pre></div>
 </div>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">--build-dir</span> <span class="pre">&lt;path&gt;</span></code> to reuse a non-default top-level CMake build
+directory.</p>
 <p>The script will:</p>
 <ol class="arabic simple">
 <li><p>Install the required system packages for MANUS Core Integrated.</p></li>
@@ -522,7 +525,9 @@ applied the container will see the dongle with the right permissions.</p>
 <li><p>Build the plugin and the diagnostic tool.</p></li>
 </ol>
 <p>When run inside a container, <code class="docutils literal notranslate"><span class="pre">install_manus.sh</span></code> skips the udev step and
-reminds you to run <code class="docutils literal notranslate"><span class="pre">install_udev_rules.sh</span></code> on the host.</p>
+reminds you to run <code class="docutils literal notranslate"><span class="pre">install_udev_rules.sh</span></code> on the host. Pass <code class="docutils literal notranslate"><span class="pre">--container</span></code>
+when the build environment does not expose standard container markers, such as
+during a Docker BuildKit build.</p>
 </section>
 <section id="manual-installation">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Manual installation</a><a class="headerlink" href="#manual-installation" title="Link to this heading">#</a></h3>
@@ -889,7 +894,7 @@ by this project.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 25, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 01, 2026.
       <br/>
     
   </p>
