@@ -1,0 +1,210 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml — full_body (native, PICO-only).
+#
+# VERIFICATION IS BUILT INTO EVERY STEP. A node is not done when its
+# code compiles — it is done when its CHECK passes. Each node carries a `verify`
+# block; test files are deliverables just like code files.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : tracker poll           -> data actually flows (needs PICO runtime)
+#   4 e2e     : whole chain once       -> body movement -> FullBodyInput
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+#
+# This device: every node already exists in the repo. It is delivered natively
+# by the PICO runtime through XR_BD_body_tracking, so there is no plugin and no
+# channel_id. All nodes REUSE — their verify blocks are short: confirm the
+# symbol exists or point at the existing test that already covers it.
+
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
+status: ready
+
+device:
+  name: full_body
+  shown_as: "Full Body (PICO)"
+  what_it_is: "24-joint PICO body pose from XR_BD_body_tracking. Native, PICO-only; needs a PICO runtime. No plugin; the whole path already exists."
+  direction: input         # input | output | both
+
+# No shared_names: this is a NATIVE device. It carries no channel_id (the PICO
+# runtime serves the body joints directly through OpenXR, not a pushed channel).
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Everything here already exists — reuse.
+# Build nothing; VERIFY each node, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read the 24 PICO body joints from the runtime via XR_BD_body_tracking. Native — no plugin."
+    action: reuse
+    delivery: native         # native | push | inject
+    connection:
+      device: "PICO headset body tracking; needs a PICO runtime (CloudXR)."
+      port: "the headset provides it (OpenXR XR_BD_body_tracking extension)"
+    files:
+      - "src/core/live_trackers/cpp/live_full_body_tracker_pico_impl.cpp   # the live reader that locates the 24 joints each update"
+    symbols:
+      - "LiveFullBodyTrackerPicoImpl::update -> xrLocateBodyJointsBD -> FullBodyPosePicoTrackedT (limp mode if unsupported)   # the whole native read path"
+    verify:
+      creates: []            # reuse — the live read is runtime-only; already tested by examples/oxr/python/test_full_body_tracker.py
+      reference_file: "examples/oxr/python/test_full_body_tracker.py   # the existing runtime poll test for this exact device"
+      register: "nothing — the test already exists (run by hand; needs a PICO runtime, so it is not in ctest)"
+      run: "confirm the symbol exists (grep LiveFullBodyTrackerPicoImpl); the live read itself is stage 3 (whole_pipeline)"
+      can_test_now: only end-to-end
+      checks:
+        - "LiveFullBodyTrackerPicoImpl::update calls xrLocateBodyJointsBD and fills FullBodyPosePicoTrackedT"
+        - "runtime without body tracking -> limp mode (data stays none), no crash — checked at stage 3"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "The 24-joint PICO body FlatBuffer. Already defined; reuse."
+    action: reuse
+    files:
+      - "src/core/schema/fbs/full_body.fbs   # the format definition; C++ header generated from it"
+    symbols:
+      - "table FullBodyPosePico / FullBodyPosePicoTracked / FullBodyPosePicoRecord ; struct BodyJointsPico ; enum BodyJointPico (NUM_JOINTS=24)   # the data shape + wrappers"
+    verify:
+      creates: []            # already tested by tests/cpp/core/schema/test_full_body.cpp and tests/python/core/schema/test_full_body.py
+      reference_file: "tests/cpp/core/schema/test_full_body.cpp   # the device-specific schema test already exists — point at it, don't rewrite it"
+      register: "already registered — the .cpp is hand-listed in schema_tests/cpp/CMakeLists.txt; the .py is auto-globbed into ctest"
+      run: "ctest -R full_body --output-on-failure"
+      can_test_now: yes      # needs only the schema library — no device, no CloudXR
+      checks:
+        - "save/reload round-trip keeps all 24 joint positions/orientations"
+        - "BodyJointPico.NUM_JOINTS == 24; a tracked wrapper built without data reads back as 'no data'"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Read the body pose in C++, register it so the system finds it, and record it. Already wired; reuse."
+    action: reuse
+    files:
+      - "src/core/deviceio_trackers/cpp/full_body_tracker_pico.cpp   # the public front door programs talk to"
+      - "src/core/live_trackers/cpp/live_full_body_tracker_pico_impl.cpp   # the live reader behind it"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp   # the dispatch row that wires tracker -> reader"
+    symbols:
+      - "class FullBodyTrackerPico (get_body_pose) ; LiveFullBodyTrackerPicoImpl   # front door + worker"
+      - "factory: try_create_full_body_pico_impl + create_full_body_tracker_pico_impl  # MUST-MATCH: row already present in k_tracker_dispatch"
+      - 'recorded format name: "core.FullBodyPosePicoRecord"  # MUST-MATCH: FullBodyPicoRecordingTraits::schema_name'
+    verify:
+      creates: []            # reuse — factory row and recording traits already wired; no new test
+      reference_file: "tests/cpp/core/mcap/test_mcap_tracker_channels.cpp   # the recording pattern, only if recording ever needs its own test"
+      register: "nothing"
+      run: "confirm the factory row exists (grep try_create_full_body_pico_impl live_deviceio_factory.cpp); the live read is stage 3"
+      can_test_now: yes      # the symbol/row check is a grep; the live read needs a runtime
+      checks:
+        - "dispatch row present -> no 'unsupported tracker type' at runtime"
+        - 'recorded format name is exactly "core.FullBodyPosePicoRecord" or replayed files are mislabeled'
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Python can read the format and use the tracker. Already bound; reuse."
+    action: reuse
+    files:
+      - "src/core/schema/python/full_body_bindings.h   # pybind code for the format types"
+    symbols:
+      - "core::bind_full_body ; FullBodyPosePicoT / FullBodyPosePicoTrackedT ; deviceio.FullBodyTrackerPico   # the Python-visible names"
+    verify:
+      creates: []            # no new test — the import block in tests/python/core/schema/test_full_body.py IS the check
+      reference_file: "tests/python/core/schema/test_full_body.py   # its `from isaacteleop.schema import FullBodyPosePicoT` proves every registration point"
+      register: "nothing new — rides the auto-globbed schema python test"
+      run: "ctest -R schema_test_full_body --output-on-failure"
+      can_test_now: yes      # ctest points PYTHONPATH at the freshly built STAGED package
+      checks:
+        - "from isaacteleop.schema import FullBodyPosePicoT, FullBodyPosePicoRecord succeeds"
+        - "from isaacteleop.deviceio import FullBodyTrackerPico succeeds"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Repackage FullBodyPosePicoTrackedT into the standard FullBodyInput shape. Already written; reuse."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/full_body_source.py   # the converter node"
+    symbols:
+      - "class FullBodySource (reads deviceio_full_body FullBodyPosePicoTrackedT -> FullBodyInput; sets none when data is null) ; no channel_id (native)   # wire type in, standard shape out"
+    verify:
+      creates: []            # reuse — FullBodySource ships with the repo (no dedicated unit test today; the fill is proven at stage 3)
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # the _make_inputs / compute() pattern, if a unit test is ever added"
+      register: "nothing"
+      run: "confirm the symbol imports: from isaacteleop.retargeting_engine.deviceio_source_nodes import FullBodySource"
+      can_test_now: yes
+      checks:
+        - "null tracked data -> FullBodyInput marked none, no exception"
+        - "joint values pass through unchanged — value check is stage 4 (whole_pipeline)"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "The fixed FullBodyInput shape node4 fills. Already defined; reuse."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py   # defines the FullBodyInput shape"
+      - "src/python/isaacteleop/retargeting_engine/tensor_types/indices.py   # the field-name enum code reads"
+    symbols:
+      - "FullBodyInput -> FullBodyInputIndex (JOINT_POSITIONS, JOINT_ORIENTATIONS, JOINT_VALID; NUM_BODY_JOINTS_PICO=24)   # the shape + its index enum"
+    verify:
+      creates: []            # reuse — the shape is already tested; nothing to add
+      reference_file: null
+      register: "nothing"
+      run: "confirm FullBodyInput / FullBodyInputIndex import; covered by existing tensor-type tests"
+      can_test_now: yes
+      checks:
+        - "index members JOINT_POSITIONS / JOINT_ORIENTATIONS / JOINT_VALID resolve; NUM_BODY_JOINTS_PICO == 24"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Consume FullBodyInput downstream (viz/retarget). No new control scheme; reuse."
+    action: reuse
+    files:
+      - "examples/mcap_record_replay/python/common.py   # builds the existing full-body pipeline"
+    symbols:
+      - "build_full_body_pipeline -> FullBodySource(name=\"full_body\") -> OutputCombiner   # the downstream consumer wiring"
+    verify:
+      creates: []            # reuse — no new control scheme, nothing to test in isolation
+      reference_file: null
+      register: "nothing"
+      run: "confirm build_full_body_pipeline exists and constructs without error"
+      can_test_now: yes
+      checks:
+        - "pipeline builds: FullBodySource -> OutputCombiner with no exception"
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs a PICO runtime + CloudXR;
+# cannot be checked step-alone.
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end. Needs a PICO runtime + CloudXR; cannot be checked step-alone."
+  wiring:
+    - 'FullBodySource(name="full_body") -> OutputCombiner  # native: no channel_id to pass'
+  test_input: "a real PICO headset with body tracking (or an MCAP replay of core.FullBodyPosePicoRecord)"
+  verify:
+    creates: []              # already tested by examples/oxr/python/test_full_body_tracker.py — the runtime poll test for this device
+    reference_file: "examples/oxr/python/test_full_body_tracker.py   # the launch + poll + assert pattern"
+    register: "not in ctest (needs CloudXR + a PICO runtime) — run by hand or in a hardware CI stage"
+    run: "source ~/.cloudxr/run/cloudxr.env && python examples/oxr/python/test_full_body_tracker.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "tracker poll returns body data within ~5 s with body tracking active; check_health() runs every TeleopSession.step()"
+      - "NEGATIVE test (native — no channel_id to get wrong): tracking loss / unsupported runtime -> limp mode: full_body.is_none is True, no crash"
+      # --- stage 4: e2e — are the values right? ---
+      - "body movement -> FullBodyInput with 24 joint positions/orientations and per-joint valid flags"
+      - "recover after tracking is regained -> joints valid again"
+      - "record-then-replay of core.FullBodyPosePicoRecord matches the live values (if recording)"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
+
+# What you can check right now (cheapest first):
+#   stages 1-2 : nothing to build — every node reuses code already covered by
+#                test_full_body.cpp / test_full_body.py; the rest are symbol checks.
+#   stages 3-4 : node0 real read, node2 live read, whole_pipeline (needs a PICO runtime).
+# Finish: full ctest + format, then deliver.

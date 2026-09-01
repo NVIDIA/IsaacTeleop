@@ -1,0 +1,248 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml — synthetic_3axis_pedal.
+# PUSH input, NEW format. A test pedal (left, right, rudder) that reads a Linux
+# joystick and pushes its own Synthetic3AxisPedalOutput format. It creates its own
+# schema/tracker/source (nodes 0-4) but REUSES the generic pedal's boundary shape
+# (Generic3AxisPedalInput) and robot step (FootPedalRootCmdRetargeter).
+#
+# VERIFICATION IS BUILT INTO EVERY STEP.
+# A node is not done when its code compiles — it is done when its CHECK passes.
+# Test files are deliverables just like code files: each node's `verify.creates`
+# lists the test file(s) you add for it, and `verify.run` is the one command
+# that proves the node. Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+#
+# # MUST-MATCH = a value that must be exactly right, with no error if it is wrong
+#                (no data arrives, or the wrong file is recorded). Get these right.
+
+# NOTE: benchmark fixture, not an upstream device — there is no synthetic_3axis_pedal entry in
+# trackers.toml and no synthetic .fbs. Read it for the SHAPE of a filled spec only. Two details are
+# stale against upstream: schema-based trackers are now a [[tracker]] manifest entry (PR #853), and
+# *Tracked wrapper tables were removed (PR #865).
+
+status: ready
+
+device:
+  name: synthetic_3axis_pedal
+  shown_as: "Synthetic 3-Axis Pedal"
+  what_it_is: "Test pedal: left, right, rudder. New data format; reuses the generic pedal's boundary shape and robot step."
+  direction: input
+
+shared_names:
+  channel_id: synthetic_3axis_pedal                            # MUST-MATCH: the name the data travels under. Same string in node0 (plugin push), node2 (tracker), node4 (source).
+  data_size_limit: 256                                         # MUST-MATCH: bytes per message; plugin (kMaxFlatbufferSize) and tracker (DEFAULT_MAX_FLATBUFFER_SIZE) agree.
+  recorded_format_name: "core.Synthetic3AxisPedalOutputRecord" # MUST-MATCH: intended recorded schema name (see node2 BUG — the live impl currently records the wrong one).
+
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read a Linux joystick, normalize 3 axes, pack Synthetic3AxisPedalOutput, push it under the channel_id."
+    action: create
+    delivery: push
+    connection:
+      device: "Linux joystick (e.g. a USB flight-sim rudder pedal set)"
+      port: "/dev/input/js0 (device_path is main.cpp arg 1; collection_id is arg 2, default synthetic_3axis_pedal)"
+    read_raw:
+      - "open device_path O_RDONLY|O_NONBLOCK; drain queued js_event structs with non-blocking select() each update()"
+      - "keep JS_EVENT_AXIS events with number < 3; store into axes_[number]"
+    decode:
+      - "normalize_axis(raw): clamp raw/32767.0 to [-1, 1]"
+      - "axes_[0] -> left_pedal, axes_[1] -> right_pedal, axes_[2] -> rudder (Synthetic3AxisPedalOutputT floats)"
+    files:
+      - "src/plugins/synthetic_3axis_pedal/synthetic_3axis_pedal_plugin.cpp / .hpp   # the joystick read loop + the SchemaPusher sender"
+      - "src/plugins/synthetic_3axis_pedal/main.cpp, CMakeLists.txt, plugin.yaml     # entry point (argv = device_path, collection_id), plugin build, loader manifest"
+      - "CMakeLists.txt (root)   # MUST add the plugin under BUILD_PLUGINS — there is no glob; forgotten = silently skipped"
+    symbols:
+      - "plugins::synthetic_3axis_pedal::Synthetic3AxisPedalPlugin   # owns the joystick fd and the sender"
+      - "core::SchemaPusher (SchemaPusherConfig.collection_id = channel_id, max_flatbuffer_size = 256); push_current_state -> pusher_.push_buffer   # the sender for push delivery"
+    verify:
+      creates:
+        - "src/plugins/synthetic_3axis_pedal/test_synthetic_3axis_pedal_decode.cpp   # golden-vector test over the EXTRACTED normalize/axis-map function"
+      reference_file: null             # no plugin has a test today — write it from the checks below
+      register: "add a small CTest target in the plugin's CMakeLists (C++ tests are hand-added, never globbed)"
+      run: "cmake --build build --target synthetic_3axis_pedal_plugin && ctest -R synthetic_3axis_pedal_decode"
+      can_test_now: after a small code change    # first move normalize_axis + the axis->field map into their own header — today they are welded to the fd + pusher
+      checks:
+        - "the build target exists — 'target not found' means the root-CMake BUILD_PLUGINS entry is missing"
+        - "normalize goldens: raw 32767 -> 1.0 ; raw -32767 -> -1.0 ; raw 0 -> 0.0 (clamped to [-1, 1])"
+        - "axis 0/1/2 -> left_pedal/right_pedal/rudder ; axis number >= 3 -> ignored"
+        - "reading the REAL joystick and pushing under the channel_id is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Define the new Synthetic3AxisPedalOutput FlatBuffer (left/right/rudder floats) plus its Tracked/Record wrappers."
+    action: create
+    files:
+      - "src/core/schema/fbs/pedals_synthetic.fbs   # the format definition; C++ header pedals_synthetic_generated.h generated automatically"
+    symbols:
+      - "table Synthetic3AxisPedalOutput { left_pedal:float(id:0); right_pedal:float(id:1); rudder:float(id:2); }   # the fields: name, type, fixed slot number"
+      - "table Synthetic3AxisPedalOutputTracked { data (id:0) }   # wrapper; its data is empty when nothing has arrived"
+      - "table Synthetic3AxisPedalOutputRecord { data (id:0); timestamp:DeviceDataTimestamp (id:1) }   # root_type; wrapper + timestamp for recording to file"
+    verify:
+      creates:
+        - "tests/cpp/core/schema/test_pedals_synthetic.cpp     # C++: save/reload round-trip + field-slot static_assert"
+        - "tests/python/core/schema/test_pedals_synthetic.py   # Python: set/get + empty-is-None; its IMPORT LINE also proves node3 (see node3.verify)"
+      reference_file: "tests/cpp/core/schema/test_pedals.cpp   # copy + rename Generic3AxisPedal -> Synthetic3AxisPedal"
+      register: "hand-add the .cpp to the schema_tests list in tests/cpp/core/schema/CMakeLists.txt (explicit list); the .py is auto-globbed into ctest as schema_test_pedals_synthetic"
+      run: "ctest -R pedals_synthetic --output-on-failure"
+      can_test_now: yes              # needs only the schema library — no device, no CloudXR
+      checks:
+        - "fill left/right/rudder (0.8, 0.2, 0.33), save, reload -> the same values"
+        - "field ids stay 0/1/2 — a slot shift fails to COMPILE (static_assert)"
+        - "a Tracked/Record built without data reads back as 'no data'; a fresh output is all zeros"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "On the receiving side, read Synthetic3AxisPedalOutput in C++, register the tracker so the system finds it, and record it."
+    action: create
+    files:
+      - "src/core/deviceio_base/cpp/inc/deviceio_base/synthetic_3axis_pedal_tracker_base.hpp   # the interface the live reader implements"
+      - "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/synthetic_3axis_pedal_tracker.hpp + synthetic_3axis_pedal_tracker.cpp   # the front door programs talk to (+ add to its CMakeLists)"
+      - "src/core/live_trackers/cpp/live_synthetic_3axis_pedal_tracker_impl.cpp / .hpp   # the live reader (+ add to its CMakeLists source list)"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp / inc/live_trackers/live_deviceio_factory.hpp   # MUST-MATCH: the dispatch row that wires tracker -> reader"
+    symbols:
+      - "core::Synthetic3AxisPedalTracker (get_data -> Synthetic3AxisPedalOutputTrackedT; TRACKER_NAME Synthetic3AxisPedalTracker; DEFAULT_MAX_FLATBUFFER_SIZE 256)   # the public front door; holds the channel_id"
+      - "core::ISynthetic3AxisPedalTrackerImpl ; core::LiveSynthetic3AxisPedalTrackerImpl   # the worker that reads; give its aliases UNIQUE names or the link clashes"
+      - "factory: create_synthetic_3axis_pedal_tracker_impl + try_create_synthetic_pedal_impl + k_tracker_dispatch row   # MUST-MATCH: add the row or 'unsupported tracker type' at runtime, zero compile error"
+    verify:
+      creates:
+        - "tests/cpp/core/mcap/test_synthetic_3axis_pedal_factory.cpp     # build the tracker THROUGH LiveDeviceIOFactory and assert the impl type — the one check a successful link cannot do"
+        - "tests/cpp/core/mcap/test_synthetic_3axis_pedal_recording.cpp   # write records to a temp .mcap, read back: values + format name match — this test also surfaces the schema_name BUG below"
+      reference_file: "tests/cpp/core/mcap/test_mcap_tracker_channels.cpp   # the recording pattern; the factory test is written from checks"
+      register: "hand-add each .cpp to the mcap_tests source list in tests/cpp/core/mcap/CMakeLists.txt (C++ tests are never globbed)"
+      run: "ctest -R 'synthetic_3axis_pedal_(factory|recording)' --output-on-failure"
+      can_test_now: needs a test file   # factory + recording halves run WITHOUT CloudXR; the live read is end-to-end only
+      checks:
+        - "factory: factory.create_tracker_impl(Synthetic3AxisPedalTracker) -> a LiveSynthetic3AxisPedalTrackerImpl comes back; an unknown tracker -> invalid_argument 'unsupported tracker type'"
+        - "recording: written values == read back; recorded schema_name == core.Synthetic3AxisPedalOutputRecord — RED today, BUG 2 below writes the generic name"
+        - "the LIVE read (none before data; values after; keeps last if no new data) is stage 3 (whole_pipeline)"
+    known_bugs:
+      - "BUG (wrong include): live_synthetic_3axis_pedal_tracker_impl.hpp:10 includes <schema/pedals_generated.h> (the GENERIC pedal header) instead of <schema/pedals_synthetic_generated.h>. It compiles today only because the generic header happens to be reachable; the synthetic types resolve via the .cpp's own include. Fix: include pedals_synthetic_generated.h in the .hpp."
+      - "BUG (wrong recorded format name): create_mcap_channels passes PedalRecordingTraits::schema_name = 'core.Generic3AxisPedalOutputRecord' (recording_traits.hpp:50), so synthetic recordings are written with the GENERIC schema name — MUST-MATCH violation of recorded_format_name (core.Synthetic3AxisPedalOutputRecord). Fix: add a SyntheticPedalRecordingTraits with schema_name core.Synthetic3AxisPedalOutputRecord and use it here."
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Let Python read/write Synthetic3AxisPedalOutput and use Synthetic3AxisPedalTracker."
+    action: create
+    files:
+      - "src/core/schema/python/pedals_synthetic_bindings.h + schema_module.cpp + schema_init.py   # pybind code for the format; MUST add BOTH the include and the bind call, and the names to the import block AND __all__ (+ header to CMakeLists sources)"
+    symbols:
+      - "bind_pedals_synthetic -> Synthetic3AxisPedalOutput, Synthetic3AxisPedalOutputRecord, Synthetic3AxisPedalOutputTrackedT (Tracked keeps trailing T)   # the registration call — include without call = types silently absent"
+      - "isaacteleop.deviceio.Synthetic3AxisPedalTracker ; get_pedal_data   # what test scripts poll at stage 3"
+    verify:
+      creates: []                    # no new test file — the IMPORT LINE in node1's test_pedals_synthetic.py IS the check:
+                                     # `from isaacteleop.schema import Synthetic3AxisPedalOutput` succeeds only if every
+                                     # registration point above is wired; ImportError = one was missed.
+      reference_file: "tests/python/core/schema/test_pedals.py   # its import block is the pattern"
+      register: "nothing new — rides node1's auto-globbed .py test"
+      run: "cmake --build build --target schema_py deviceio_trackers_py python_package && ctest -R schema_test_pedals_synthetic"
+      can_test_now: yes              # ctest points PYTHONPATH at the freshly built STAGED package — never a stale installed wheel
+      checks:
+        - "the schema import line passes (proves schema_module.cpp + schema_init.py + CMake wiring)"
+        - "Synthetic3AxisPedalOutput(left_pedal, right_pedal, rudder) -> read back the same; Synthetic3AxisPedalOutputTrackedT().data is None"
+        - "the tracker imports: from isaacteleop.deviceio import Synthetic3AxisPedalTracker"
+        - "gotcha: the NEW pedals_synthetic.fbs needs a cmake RECONFIGURE, not just --build"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Poll Synthetic3AxisPedalTracker and repackage its Tracked data into the standard Generic3AxisPedalInput shape."
+    action: create
+    files:
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/synthetic_pedals_source.py   # the converter node"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/deviceio_tensor_types.py, __init__.py   # add the wrapper describing the incoming data + export the new source"
+    symbols:
+      - "Synthetic3AxisPedalSource(name, collection_id=synthetic_3axis_pedal)   # MUST-MATCH: collection_id == channel_id"
+      - "reads DeviceIOSynthetic3AxisPedalOutputTracked (Synthetic3AxisPedalOutputTrackedType) -> produces OptionalType(Generic3AxisPedalInput)   # wire type in, standard shape out"
+      - "get_tracker -> Synthetic3AxisPedalTracker ; poll_tracker -> get_pedal_data   # how the source pulls data each step"
+    verify:
+      creates:
+        - "tests/python/core/retargeting_engine/test_synthetic_pedals_source.py   # decode + empty-handling test"
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # the _make_inputs / compute() pattern"
+      register: "auto — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R retargeting_test_synthetic_pedals_source --output-on-failure"
+      can_test_now: yes              # inject a hand-built Synthetic3AxisPedalOutputTrackedT and call compute() — bypasses tracker and CloudXR entirely
+      checks:
+        - "(0.8, -0.2, 0.5) in -> Generic3AxisPedalInput LEFT_PEDAL/RIGHT_PEDAL/RUDDER = 0.8/-0.2/0.5 (small float rounding allowed)"
+        - "tracked.data is None in -> output marked 'none' (out.set_none()); reading a field of it raises an error saying 'absent'"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "The fixed shape node4 fills and the robot step reads. Reused from the generic pedal — NOT new."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py, indices.py   # NOT touched — the shape already exists; listed so you know where it lives"
+    symbols:
+      - "Generic3AxisPedalInput -> Generic3AxisPedalInputIndex (LEFT_PEDAL, RIGHT_PEDAL, RUDDER)   # the shape: field list, dtypes, order + the field names code uses"
+    verify:
+      creates: []              # reuse: the shape is already tested; node4's test proves you FILL it correctly
+      reference_file: null
+      register: "nothing"
+      run: "confirm Generic3AxisPedalInput / Generic3AxisPedalInputIndex import — otherwise covered by node4's test"
+      can_test_now: yes
+      checks:
+        - "reused unchanged — Generic3AxisPedalInputIndex members LEFT_PEDAL/RIGHT_PEDAL/RUDDER exist and resolve"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Turn Generic3AxisPedalInput into a robot command. Reused from the generic pedal."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeters/foot_pedal_retargeter.py   # reuse; NOT edited — the math: deadzones, modes, limits"
+    symbols:
+      - "FootPedalRootCmdRetargeter (+ FootPedalRootCmdRetargeterConfig)   # the reused robot step and its tuning knobs"
+    verify:
+      creates:
+        - "tests/python/core/retargeting_engine/test_foot_pedal_retargeter.py   # golden input -> expected root command — FootPedalRootCmdRetargeter ships UNTESTED today, so write this EVEN ON REUSE"
+      reference_file: "tests/python/core/retargeting_engine/test_retargeter_reset.py   # test-structure pattern"
+      register: "auto — globbed"
+      run: "ctest -R retargeting_test_foot_pedal_retargeter"
+      can_test_now: yes                # pure Python: hand-built Generic3AxisPedalInput in, root command out; no session
+      checks:
+        - "a golden pedal input -> its expected root command (tol 1e-4)"
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR; headless startup
+# works with NV_DEVICE_PROFILE=Quest3 (no headset/emulator required).
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end and prove data flows and values are right."
+  wiring:
+    - "Synthetic3AxisPedalSource(name=..., collection_id=synthetic_3axis_pedal) -> FootPedalRootCmdRetargeter   # MUST-MATCH: pass the collection_id explicitly (== the plugin's channel_id), or the source reads its default and sees nothing"
+  test_input: "the synthetic_3axis_pedal plugin reading a real or uinput-emulated joystick"
+  verify:
+    creates:
+      - "examples/oxr/python/test_synthetic_3axis_pedal.py   # launches the plugin, polls the tracker, asserts data + values"
+    reference_file: "examples/oxr/python/test_synthetic_hands.py   # the pattern, smallest form (133 ln): PluginManager launch -> DeviceIOSession.run -> poll loop. Same shape for push/inject/native — only the tracker changes. test_oak_camera.py if your device is a camera; test_controller_tracker.py if native. Resolve the plugin dir RELATIVE to the script, never hardcoded."
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && cd install/examples/oxr/python && uv run test_synthetic_3axis_pedal.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "plugin stdout says it opened /dev/input/js0; check_health() runs automatically every TeleopSession.step()"
+      - "tracker poll returns data within ~5 s — stays None forever = channel_id mismatch (the #1 silent failure)"
+      - "NEGATIVE test: run once with a wrong channel_id -> must be 'inactive forever, no crash'"
+      # --- stage 4: e2e — are the values right? ---
+      - "pressing a pedal axis -> the expected FootPedalRootCmdRetargeter root command within tolerance"
+      - "unplug and replug the joystick -> recovers (plugin reopens the device); inactive is handled"
+      - "record-then-replay matches, and the recorded schema name is core.Synthetic3AxisPedalOutputRecord — RED until node2 BUG 2 is fixed"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green + both node2 BUGs fixed -> the device is done"
+
+# What you can check right now (cheapest first):
+#   ready now         : schema (node1), bindings (node3), source (node4), retargeter (node6)
+#   needs a temp file : node2 factory + recording (the latter surfaces the wrong-schema_name BUG)
+#   after a small edit: node0 normalize/axis math
+#   only end-to-end   : node0 real joystick read, node2 live read, whole_pipeline stages 3-4
+# Finish: fix the two node2 BUGs, run the whole build and full ctest, then deliver.

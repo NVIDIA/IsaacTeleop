@@ -1,0 +1,225 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml — OAK (DepthAI) camera.
+#
+# VERIFICATION IS BUILT INTO EVERY STEP. A node is not done when its
+# code compiles — it is done when its CHECK passes. Test files are deliverables
+# just like code files: each node's `verify.creates` lists the test file(s) you
+# add for it, and `verify.run` is the one command that proves the node.
+# Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/decode)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> capture -> files + metadata recorded
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+#
+# A camera that lives OUT OF THE RETARGETING GRAPH. The plugin captures video
+# and writes the raw H.264 to files; only per-frame METADATA (stream + sequence
+# number) is pushed into the system and (optionally) recorded. There is no
+# source node, no boundary shape, and no retargeter: the metadata never reaches
+# a robot step. direction is input, but the point is capture, not driving a robot.
+
+# NOTE: node2 is CURRENT — it carries this device's real [[tracker]] entry from
+# src/core/deviceio_trackers/trackers.toml, so the tracker stack is generated, not hand-written.
+# Still stale: node1 mentions a *Tracked wrapper table. Those were removed upstream (PR #865) —
+# a schema is Output + Record + root_type only.
+
+status: ready
+
+device:
+  name: oak
+  shown_as: "OAK Camera"
+  what_it_is: "DepthAI/OAK camera. Raw video goes to files; per-frame metadata (stream, sequence number) is pushed and recorded. Not in the retargeting graph."
+  direction: input          # input | output | both  — but note: metadata never reaches a robot step.
+
+# PUSH input: one channel per camera stream. The channel is a collection_id
+# built as "{collection_prefix}/{StreamName}" (e.g. "oak_camera/Color").
+shared_names:
+  channel_id: "oak_camera/{StreamName}"        # MUST-MATCH: collection_prefix + "/" + StreamType name
+                                               # (Color | MonoLeft | MonoRight). Built the same way on both sides:
+                                               # plugin SchemaMetadataPusher (send) and LiveFrameMetadataTrackerOakImpl (read).
+                                               # Wrong prefix/name = no metadata, no error.
+  data_size_limit: 128                         # MUST-MATCH: FrameMetadataTrackerOak::DEFAULT_MAX_FLATBUFFER_SIZE (bytes/message).
+  recorded_format_name: core.FrameMetadataOakRecord   # MUST-MATCH: OakRecordingTraits::schema_name.
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Build and VERIFY each, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read OAK frames; write raw H.264 to files and push per-frame metadata under one channel per stream."
+    action: create
+    delivery: push
+    connection:
+      device: "Luxonis OAK / DepthAI camera (Color, MonoLeft, MonoRight streams)"
+      port: "USB via the DepthAI SDK; select with --device-id (default: first available)"
+    read_raw:
+      - "OakCamera pulls encoded H.264 frames + frame metadata from the DepthAI pipeline (OakCamera::update)."
+      - "Raw H.264 per stream is written to file by RawDataWriter (this is the video; it does NOT enter the system)."
+    decode:
+      - "For each frame build a core::FrameMetadataOakT with stream (StreamType) and sequence_number (uint64)."
+      - "SchemaMetadataPusher serializes it and calls SchemaPusher::push_buffer for that stream's collection_id."
+    files:
+      - "src/plugins/oak/main.cpp                              # entry point: parses --device-id/--add-stream/--collection-prefix/--mcap-filename"
+      - "src/plugins/oak/core/frame_sink.cpp, frame_sink.hpp   # FrameSink + SchemaMetadataPusher (push) / McapMetadataPusher (record)"
+      - "src/plugins/oak/core/oak_camera.cpp/.hpp, rawdata_writer.cpp/.hpp, preview_stream.cpp/.hpp   # DepthAI capture loop, H.264 file writer, optional live preview"
+      - "src/plugins/oak/plugin.yaml, CMakeLists.txt           # manifest so the plugin loader finds it + builds the plugin executable"
+    symbols:
+      - "plugins::oak::OakCamera ; plugins::oak::FrameSink ; plugins::oak::SchemaMetadataPusher   # capture loop, per-frame fan-out, metadata sender"
+      - "core::SchemaPusher (the push sender) ; core::FrameMetadataOakT   # push delivery + the metadata it packs (node1's format)"
+    verify:
+      creates:
+        - "src/plugins/oak/test_oak_metadata_decode.cpp   # golden test over the EXTRACTED metadata-build step: frame -> FrameMetadataOakT"
+      reference_file: null             # no plugin has an isolated test today — write it from the checks below
+      register: "add a small CTest target in src/plugins/oak/CMakeLists.txt (C++ tests are hand-added, never globbed)"
+      run: "cmake --build build --target oak_plugin && ctest -R oak_metadata_decode --output-on-failure"
+      can_test_now: after a small code change    # first pull the metadata-building step out of FrameSink — today it is welded to the DepthAI callback + pusher
+      checks:
+        - "metadata decode is correct: frame(stream=Color, seq=7) -> FrameMetadataOak{stream: Color, sequence_number: 7}"
+        - "reading the REAL camera, writing H.264 files, and pushing metadata is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Per-frame OAK metadata FlatBuffer (stream + sequence number). Already exists — reuse."
+    action: reuse
+    files:
+      - "src/core/schema/fbs/oak.fbs   # the format definition; the C++ header is generated from it automatically"
+    symbols:
+      - "enum StreamType { Color, MonoLeft, MonoRight }                                # which camera stream a frame came from"
+      - "table FrameMetadataOak ; FrameMetadataOakTracked ; FrameMetadataOakRecord (root_type)   # the fields / empty-when-absent wrapper / record wrapper with timestamp"
+    verify:
+      creates: []                      # reuse — already tested by tests/cpp/core/schema/test_oak.cpp and tests/python/core/schema/test_camera.py
+      reference_file: "tests/cpp/core/schema/test_oak.cpp   # the existing coverage (already in schema_tests/cpp/CMakeLists.txt)"
+      register: "nothing new — test_oak.cpp is already hand-added; test_camera.py is auto-globbed"
+      run: "ctest -R 'schema_test_camera' --output-on-failure   # confirm the existing oak schema tests still pass"
+      can_test_now: yes                # needs only the schema library — no device, no CloudXR
+      checks:
+        - "StreamType values 0/1/2 = Color/MonoLeft/MonoRight; FrameMetadataOak round-trips stream + sequence_number; Record carries DeviceDataTimestamp"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Read the OAK per-frame metadata in C++ and register it so the system can find it."
+    action: reuse                      # the frame_metadata_oak manifest entry already exists
+    manifest:                          # src/core/deviceio_trackers/trackers.toml, verbatim —
+                                       # the most-overridden entry in the repo; read it before copying
+      name: "frame_metadata_oak"
+      table: "FrameMetadataOak"
+      class: "FrameMetadataTrackerOak"     # override: name_CamelCase would give FrameMetadataOakTracker
+      schema: "oak"                        # override: the .fbs is oak.fbs
+      tensor_identifier: "frame_metadata"  # override: the collection the plugin pushes under
+      channel: "oak"                       # override: MCAP channel name
+      header: "frame_metadata_tracker_oak" # override: keeps the public #include stem
+      max_flatbuffer_size: 128             # metadata only — the video never enters the graph
+    files:
+      - "src/core/deviceio_trackers/trackers.toml   # the entry is already here; nothing to add"
+    symbols:
+      - "FrameMetadataTrackerOak   # generated facade — note class/header are overridden"
+      - "generated: base iface, facade, live + replay impls, factory rows, pybind, Python export"
+    verify:
+      creates: []
+      reference_file: "src/core/deviceio_trackers/trackers.toml   # read the existing entry"
+      register: "nothing — the .inc fragments are already included by the factories"
+      run: "cmake -B build && python -c 'from isaacteleop.deviceio_trackers import FrameMetadataTrackerOak'"
+      can_test_now: yes
+      checks:
+        - "the entry exists; five overrides are deliberate — do not 'simplify' them"
+        - "generate_trackers.py --print-resolved shows the expanded names if one comes out wrong"
+
+  node3_bindings:
+    does: "Python access to the OAK schema and tracker. Exists — reuse."
+    action: reuse
+    files:
+      - "src/core/schema/python/oak_bindings.h                    # pybind code for StreamType + FrameMetadataOak types"
+    symbols:
+      - "Python StreamType, FrameMetadataOak ; core::FrameMetadataTrackerOak (stream_count, get_stream_data)   # what Python scripts poll at stage 3"
+    verify:
+      creates: []                      # reuse — the import block in test_camera.py IS the check: it passes only if every registration point is wired
+      reference_file: "tests/python/core/schema/test_camera.py   # imports StreamType/FrameMetadataOak/FrameMetadataOakRecord"
+      register: "nothing new — rides the auto-globbed test_camera.py"
+      run: "ctest -R schema_test_camera && python -c 'from isaacteleop.deviceio import FrameMetadataTrackerOak'"
+      can_test_now: yes                # ctest points PYTHONPATH at the freshly built STAGED package — never a stale installed wheel
+      checks:
+        - "the schema imports pass; the tracker exposes stream_count + get_stream_data"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "No source: OAK is a capture-only sensor and does not feed the retargeting graph."
+    action: skip
+    reason: "Metadata is pushed and recorded only. There is no standard shape to fill and nothing downstream reads it."
+    files: []
+    symbols: []
+    verify:
+      creates: []
+      reference_file: null
+      register: "nothing"
+      run: "not applicable — out of the retargeting graph"
+      can_test_now: yes
+      checks: []
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "No boundary shape: nothing repackages OAK metadata for a robot step."
+    action: skip
+    reason: "No source node exists, so there is no shape to define or fill."
+    files: []
+    symbols: []
+    verify:
+      creates: []
+      reference_file: null
+      register: "nothing"
+      run: "not applicable — out of the retargeting graph"
+      can_test_now: yes
+      checks: []
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "No robot step: OAK metadata never becomes a robot command."
+    action: skip
+    reason: "Capture-only device. The metadata stays as recorded/pushed data and does not drive the robot."
+    files: []
+    symbols: []
+    verify:
+      creates: []
+      reference_file: null
+      register: "nothing"
+      run: "not applicable — out of the retargeting graph"
+      can_test_now: yes
+      checks: []
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Metadata push needs the CloudXR/
+# OpenXR runtime (headless: NV_DEVICE_PROFILE=Quest3); MCAP recording does not.
+# ===========================================================================
+whole_pipeline:
+  does: "Run the plugin against a real OAK camera. Prove H.264 lands in files and metadata flows / records. Cannot be checked step-alone."
+  wiring:
+    - "OakCamera + FrameSink(SchemaMetadataPusher, collection_prefix) -> pushes 'oak_camera/{StreamName}'  # MUST-MATCH: same prefix the tracker reads"
+    - "OR FrameSink(McapMetadataPusher, mcap_filename) -> records core.FrameMetadataOakRecord"
+  test_input: "a real OAK camera with one or more --add-stream camera=<name>,output=<path>"
+  expect: "raw H.264 files written per stream; metadata (stream, sequence_number) pushed on each channel or recorded to MCAP"
+  verify:
+    creates: []                        # already tested by examples/oxr/python/test_oak_camera.py — the launch + poll + record script exists
+    reference_file: "examples/oxr/python/test_oak_camera.py   # launches the plugin, polls FrameMetadataTrackerOak, records MCAP (modes: no-metadata | schema-pusher | plugin-mcap)"
+    register: "not in ctest (needs CloudXR + a real camera) — run by hand or in a hardware CI stage"
+    run: "source ~/.cloudxr/run/cloudxr.env && python examples/oxr/python/test_oak_camera.py --mode schema-pusher"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "plugin stdout says it opened the camera; check_health() runs automatically every TeleopSession.step()"
+      - "tracker poll returns metadata for each stream within ~5 s — stays None forever = collection_prefix mismatch (the #1 silent failure)"
+      - "NEGATIVE test: run once with a wrong --collection-prefix -> reader sees no metadata forever, no crash"
+      # --- stage 4: e2e — are the values right? ---
+      - "sequence_number increases monotonically per stream; stream tags match the streams requested"
+      - "raw H.264 files exist and grow per stream; the MCAP (plugin-mcap mode) contains core.FrameMetadataOakRecord messages"
+      - "--collection-prefix and --mcap-filename are mutually exclusive (plugin errors if both given)"
+      - "unplug and replug the camera -> recovers"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"

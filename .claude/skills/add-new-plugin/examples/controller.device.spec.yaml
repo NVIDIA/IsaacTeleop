@@ -1,0 +1,220 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml — motion controller (input pose/buttons + output haptics).
+# direction: both ; delivery: native.
+#
+# VERIFICATION IS BUILT INTO EVERY STEP. A node is not done when its
+# code compiles — it is done when its CHECK passes. Each node carries a `verify`
+# block (creates / reference_file / register / run / can_test_now / checks).
+# THE VERIFICATION LADDER:
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (schema/source/math)
+#   3 runtime : session + tracker poll -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> device action -> robot command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+#
+# The headset/runtime already serves the controller, so every INPUT node is a
+# REUSE pointer and its verify is "covered by an existing test". The real work
+# is the FEEDBACK block: sim contact -> rumble — and even that ships tested.
+
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
+status: ready
+
+device:
+  name: controller
+  shown_as: "Motion Controller"
+  what_it_is: "A tracked motion controller (Quest, Vive, Index, Pico). Native pose + buttons in; haptic vibration out. Reuses the whole controller path both ways."
+  direction: both         # input | output | both
+
+# No shared_names block: native delivery has no channel_id (the runtime serves
+# the controller through OpenXR actions, not a pushed channel).
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Native controller — all reuse.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "The runtime already serves the controller pose and buttons over OpenXR; nothing to build."
+    action: reuse
+    delivery: native        # native | push | inject
+    files: ["src/core/live_trackers/cpp/live_controller_tracker_impl.cpp   # the existing native read loop"]
+    symbols: ["LiveControllerTrackerImpl   # reads grip/aim pose + inputs via XR_NVX1_action_context"]
+    verify:
+      creates: []           # reuse — already tested by examples/oxr/python/test_controller_tracker.py
+      reference_file: "examples/oxr/python/test_controller_tracker.py   # the existing runtime poll test"
+      register: "nothing new — the existing test already runs"
+      run: "confirm LiveControllerTrackerImpl exists in live_controller_tracker_impl.cpp; the live read itself is stage 3 (whole_pipeline)"
+      can_test_now: only end-to-end   # a native read needs CloudXR to serve the controller
+      checks:
+        - "the symbol exists and still builds — the real read is proven at stage 3"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Controller snapshot format already exists."
+    action: reuse
+    files: ["src/core/schema/fbs/controller.fbs   # the existing snapshot format definition"]
+    symbols: ["table ControllerSnapshot / ControllerSnapshotTracked / ControllerSnapshotRecord   # data, tracked wrapper, recording wrapper"]
+    verify:
+      creates: []           # reuse — already tested by tests/cpp/core/schema/test_controller.cpp and python/test_controller.py
+      reference_file: "tests/cpp/core/schema/test_controller.cpp   # already tested by this file (+ tests/python/core/schema/test_controller.py)"
+      register: "nothing new — the .cpp is in schema_tests/cpp/CMakeLists.txt; the .py is auto-globbed"
+      run: "ctest -R schema_test_controller --output-on-failure"
+      can_test_now: yes     # needs only the schema library — no device, no CloudXR
+      checks:
+        - "save/reload round-trip and empty-is-None already covered by the existing tests"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "ControllerTracker reads both controllers and is already registered in the factory."
+    action: reuse
+    files:
+      - "src/core/deviceio_trackers/cpp/controller_tracker.cpp   # the public front door"
+      - "src/core/live_trackers/cpp/live_deviceio_factory.cpp    # the dispatch row that wires tracker -> reader"
+    symbols:
+      - "class ControllerTracker ; LiveControllerTrackerImpl   # front door + live reader pair"
+      - "factory row: '{ &try_add_extensions<ControllerTracker, LiveControllerTrackerImpl>, &try_create_controller_impl }'   # MUST-MATCH: already present"
+    verify:
+      creates: []           # reuse — live poll already tested by examples/oxr/python/test_controller_tracker.py
+      reference_file: "examples/oxr/python/test_controller_tracker.py   # already tested by this file"
+      register: "nothing new — existing test"
+      run: "confirm the factory row above is still present in live_deviceio_factory.cpp; the live read is stage 3 (whole_pipeline)"
+      can_test_now: yes     # the symbol/row check is a grep; the live read needs CloudXR
+      checks:
+        - "the factory row exists — missing = 'unsupported tracker type' AT RUNTIME, zero compile error"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "ControllerTracker and the schema are already bound to Python."
+    action: reuse
+    files: ["src/core/deviceio_trackers/python/tracker_bindings.cpp   # the existing pybind registration for the tracker"]
+    symbols: ["deviceio.ControllerTracker (get_left_controller / get_right_controller / apply_left_haptic_feedback / apply_right_haptic_feedback)   # the Python surface"]
+    verify:
+      creates: []           # reuse — the import block of tests/python/core/schema/test_controller.py IS the check
+      reference_file: "tests/python/core/schema/test_controller.py   # its import block proves the schema bindings"
+      register: "nothing new — rides the auto-globbed .py test"
+      run: "ctest -R schema_test_controller ; python -c 'from isaacteleop.deviceio import ControllerTracker'"
+      can_test_now: yes     # ctest points PYTHONPATH at the freshly built STAGED package
+      checks:
+        - "both imports pass — ImportError = a registration point was un-wired by a refactor"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "ControllersSource repackages the two ControllerSnapshot wrappers into ControllerInput tensors."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/controllers_source.py   # the existing converter node"]
+    symbols: ["class ControllersSource   # owns the ControllerTracker; outputs 'controller_left' / 'controller_right' as OptionalType(ControllerInput())"]
+    verify:
+      creates: []           # reuse — already tested by tests/python/core/retargeting_engine/test_sources.py
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # already tests ControllersSource (hand-built TrackedT -> compute())"
+      register: "nothing new — auto-globbed"
+      run: "ctest -R retargeting_test_sources --output-on-failure"
+      can_test_now: yes     # injects a hand-built snapshot — no tracker, no CloudXR
+      checks:
+        - "known snapshot in -> filled ControllerInput out; empty snapshot -> output marked 'none' (both already covered)"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "ControllerInput is the fixed shape the source fills and the robot step reads."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py   # where the existing shape is defined"]
+    symbols: ["ControllerInput() -> ControllerInputIndex   # the shape and its field-name enum"]
+    verify:
+      creates: []           # reuse — the shape is already tested; node4's test proves it is FILLED correctly
+      reference_file: null
+      register: "nothing"
+      run: "covered by node4's test (test_sources.py fills and reads ControllerInput)"
+      can_test_now: yes
+      checks:
+        - "only if the shape were CHANGED: field names/order/dtypes still match every consumer"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Locomotion and gripper retargeters turn ControllerInput into robot commands."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeters/locomotion_retargeter.py   # thumbstick -> root velocity command"
+      - "src/python/isaacteleop/retargeters/gripper_retargeter.py      # trigger/grip -> gripper command"
+    symbols: ["LocomotionRootCmdRetargeter (+Config) ; GripperRetargeter (+Config)   # the command math: deadzones, modes, limits"]
+    verify:
+      creates: []           # reuse — already tested by tests/python/core/retargeting_engine/test_retargeter_reset.py
+      reference_file: "tests/python/core/retargeting_engine/test_retargeter_reset.py   # already tests GripperRetargeter + LocomotionRootCmdRetargeter"
+      register: "nothing new — auto-globbed"
+      run: "ctest -R retargeting_test_retargeter_reset --output-on-failure"
+      can_test_now: yes     # pure Python: hand-built shape in, command out; no session
+      checks:
+        - "stateful reset behavior already covered (e.g. LocomotionRootCmdRetargeter restores initial_hip_height=0.72)"
+
+# ===========================================================================
+# FEEDBACK path (teleop -> device). direction is 'both', so this is built.
+# Sim contact -> controller rumble. This is the create work for this device.
+# ===========================================================================
+feedback:
+  does: "Turn sim-side fingertip contact force into a controller vibration pulse each frame."
+  signal_source: "sim contact force per fingertip as a TactileVector (from the sim/robot side, NOT the controller's own buttons)"
+  retargeter:
+    symbols: ["TactileVectorToControllerPulse -> ControllerHapticPulse ([amplitude, frequency_hz, duration_s])   # the contact -> pulse mapper"]
+    files: ["src/python/isaacteleop/retargeters/tactile_retargeters.py   # where the mapper lives"]
+  sink:
+    symbols: ["HapticSink + ControllerHapticDevice (IHapticDevice adapter, endpoints 'left'/'right')   # apply() stores during the run; flush() sends after it"]
+    files:
+      - "src/python/isaacteleop/haptic_devices/controller.py   # the adapter that talks to the controller"
+      - "src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/haptic_sink.py   # the generic sink node"
+    registered_in: "TeleopSessionConfig(sinks=[HapticSink('controller_haptics', ControllerHapticDevice(controllers.get_tracker()))])"
+  device_call: "ControllerHapticDevice.flush() -> ControllerTracker.apply_left_haptic_feedback / apply_right_haptic_feedback -> LiveControllerTrackerImpl.apply_haptic_feedback -> xrApplyHapticFeedback (/user/hand/{left,right}/output/haptic)"
+  shared_tracker: "ControllerHapticDevice(controllers.get_tracker()) — the SAME ControllerTracker instance the ControllersSource owns."   # MUST-MATCH: two distinct instances each claim the controller bindings and the second raises XR_ERROR_ACTIONSETS_ALREADY_ATTACHED
+  verify:
+    creates: []             # reuse — already tested by test_tactile_retargeters.py (mapper), test_haptic_devices.py (adapter), test_haptic_sink.py (sink)
+    reference_file: "tests/python/core/retargeting_engine/test_haptic_sink.py   # the sink + fake-device pattern (test_haptic_devices.py and test_tactile_retargeters.py cover the rest)"
+    register: "nothing new — all three are auto-globbed"
+    run: "ctest -R 'retargeting_test_(haptic_sink|haptic_devices|tactile_retargeters)' --output-on-failure"
+    can_test_now: yes       # a fake device object records what apply()/flush() sent
+    checks:
+      - "TactileVector([0.0, 0.0]) with deadband 0 -> pulse [0.0, freq, dur] (amplitude 0 = stop)"
+      - "TactileVector with max taxel 2.0, gain 1.0, saturation 1.0, reduction 'max' -> amplitude clipped to 1.0"
+      - "ControllerHapticDevice.apply('down', vec) -> ValueError (only 'left'/'right' endpoints)"
+      - "ControllerHapticDevice.apply('left', 4-element vector) -> ValueError (expects 3 elements)"
+      - "the REAL rumble call is end-to-end only (stage 4)"
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR; headless startup
+# works with NV_DEVICE_PROFILE=Quest3 (no headset/emulator required).
+# ===========================================================================
+whole_pipeline:
+  does: "Run input and feedback together end to end. Needs CloudXR; cannot be checked step-alone."
+  wiring:
+    - "ControllersSource('controllers') -> LocomotionRootCmdRetargeter / GripperRetargeter   # input side"
+    - "sim TactileVector -> TactileVectorToControllerPulse('rumble') -> HapticSink('controller_haptics', ControllerHapticDevice(controllers.get_tracker()))   # MUST-MATCH: pass the source's tracker"
+  test_input: "a real controller (squeeze/press to drive the robot; touch a sim object to feel rumble)"
+  expect: "controller motion -> robot moves/grips ; sim contact -> controller vibrates on the matching side"
+  verify:
+    creates: []             # stage-3 input side already tested by examples/oxr/python/test_controller_tracker.py; the rumble feel is a manual session
+    reference_file: "examples/oxr/python/test_controller_tracker.py   # the launch + poll + assert pattern for native devices"
+    register: "installed by install_python_example(); not in ctest (needs a runtime) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && python -m pytest examples/oxr/python/test_controller_tracker.py ; then one manual session for stage 4"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "session starts; tracker poll returns controller snapshots within ~5 s; check_health() runs automatically every TeleopSession.step()"
+      - "NEGATIVE test (native — no channel_id to mistype): occlude/power off the controller -> output marked none, no crash; recovers when tracking returns"
+      - "two separate ControllerTracker instances -> the second attach fails (XR_ERROR_ACTIONSETS_ALREADY_ATTACHED) — proves the shared_tracker MUST-MATCH"
+      # --- stage 4: e2e — are the values right? ---
+      - "known device action -> expected robot command: thumbstick forward -> forward locomotion command; squeeze trigger -> gripper closes"
+      - "touch a sim object -> rumble on the matching side; amplitude 0 -> the pulse STOPS rather than emitting a zero pulse"
+      - "unplug and replug the controller -> input reads none, then recovers"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
+
+# What you can check right now (cheapest first):
+#   ready now         : node1/3/4/5/6 ctest reruns; feedback mapper + sink adapter (all already tested)
+#   only end-to-end   : node0 native read, node2 live read, device_call rumble, whole_pipeline stages 3-4
+# Finish: the whole_pipeline `finish` block above — whole build + full ctest.

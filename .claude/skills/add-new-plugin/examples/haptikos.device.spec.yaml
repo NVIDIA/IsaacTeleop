@@ -1,0 +1,218 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# device.spec.yaml — Haptikos hand exoskeleton (delivery: inject).
+# A plugin reads the exo's hand tracking over the vendor SDK, builds a native
+# 26-joint OpenXR hand, and INJECTS it. The runtime then serves it through the
+# existing native hand path, so nodes 1-6 are all REUSE. Almost all the work is
+# in node0.
+#
+# VERIFICATION IS BUILT INTO EVERY STEP.
+# A node is not done when its code compiles — it is done when its CHECK passes.
+# Test files are deliverables just like code files: each node's `verify.creates`
+# lists the test file(s) you add for it, and `verify.run` is the one command
+# that proves the node. Work node by node: build -> verify -> fix -> next.
+#
+# THE VERIFICATION LADDER (each stage catches what the previous one cannot see):
+#   1 build   : cmake --build          -> compiles, links, and is registered
+#   2 unit    : ctest (no hardware)    -> the logic is right (here: the hand math)
+#   3 runtime : plugin + tracker poll  -> data actually flows (needs CloudXR)
+#   4 e2e     : whole chain once       -> exo motion -> robot hand command
+#   5 finish  : full ctest + format    -> nothing else broke
+# Stages 1-2 live inside each node's `verify`. Stages 3-5 live in `whole_pipeline`.
+
+# NOTE: this device's tracker is HAND-WRITTEN and its node2 is still accurate — it is one of the
+# trackers codegen deliberately does not cover (OpenXR xrLocate*, opaque channel, or multi-endpoint
+# bucketing; see docs/source/references/generated_trackers.rst). One thing is stale: *Tracked wrapper
+# tables were removed upstream (PR #865), so a schema is Output + Record + root_type only.
+
+status: ready
+
+device:
+  name: haptikos
+  shown_as: "Haptikos Hand Exoskeleton"
+  what_it_is: "Hand exoskeleton. A plugin reads its joint tracking over the vendor SDK, takes the wrist from a controller pose, builds a native 26-joint hand, and injects it. Input-only in the shipped plugin."
+  direction: input
+
+# No shared_names: inject devices look like a native hand and do not use a channel_id.
+
+# ===========================================================================
+# INPUT nodes (device -> teleop). Build and VERIFY each, top to bottom.
+# ===========================================================================
+pipeline:
+
+  # ---------- node0: acquire — get the device's data into the system ----------
+  node0_acquire:
+    does: "Read the exo's hand data + a controller wrist pose, build a native 26-joint hand, and inject it per hand."
+    action: create
+    delivery: inject
+    connection:
+      device: "Haptikos hand exoskeleton + a tracked controller mounted on each exo (wrist source)"
+      port: "Haptikos Core App over the vendor SDK (HaptikosCpp_API / Haptikos::Client); controllers via native OpenXR"
+    read_raw:
+      - "Haptikos::Client m_client — call m_client.GetData(is_right, Haptikos::GlobalToWrist, true, true, false) -> Haptikos::HandData."
+      - "Wrist pose from the native controller: m_controller_tracker->get_left_controller / get_right_controller, then oxr_utils::get_aim_pose(*tracked.data, valid_wrist)."
+    decode:
+      - "Gate on right_tracked.data / left_tracked.data present, HandData.IsValid() == 1, and valid_wrist."
+      - "calculate_hand_pose: HandData.GetHandRotation / GetPositions / GetRotations; offset the wrist by Vector3(0,-0.05,-0.06) rotated into place; add to the controller position to get wrist_pos."
+      - "get_pose converts each joint from Haptikos to OpenXR axes and fills XrHandJointLocationEXT[XR_HAND_JOINT_COUNT_EXT] (26) with VALID+TRACKED position/orientation flags."
+    files:
+      - "src/plugins/haptikos/haptikos_hands_plugin.cpp   # the SDK read loop + hand-composition math + injector calls"
+      - "src/plugins/haptikos/haptikos_hands_plugin.hpp   # plugin class declaration"
+      - "src/plugins/haptikos/main.cpp                    # entry point: session setup, worker thread start"
+      - "src/plugins/haptikos/CMakeLists.txt              # builds the plugin executable against the vendor SDK"
+      - "src/plugins/haptikos/plugin.yaml                 # manifest so the plugin loader finds it"
+      - "CMakeLists.txt (root)                            # MUST add the plugin under BUILD_PLUGINS — no glob; forgotten = silently skipped"
+    symbols:
+      - "plugins::haptikos::HaptikosHandsPlugin ; worker_thread ; calculate_hand_pose ; get_pose   # the plugin + its hand-composition math"
+      - "plugin_utils::HandInjector (one per hand: XR_HAND_LEFT_EXT / XR_HAND_RIGHT_EXT), push(joints, time)  # the sender for inject delivery (XR_NVX1_device_interface)"
+      - "XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME  # MUST-MATCH: extension the injector requires"
+      - "static_assert(XR_HAND_JOINT_COUNT_EXT == HAPTIKOS_NUM_OF_JOINTS)  # MUST-MATCH: 26 joints"
+      - "Vendor SDK Haptikos::Client / HandData / Vector3 / Quaternion (from Client.hpp)   # the vendor types the plugin reads"
+    verify:
+      creates:
+        - "src/plugins/haptikos/test_haptikos_hand_pose.cpp   # golden-vector test over the EXTRACTED calculate_hand_pose / get_pose math"
+      reference_file: null             # no plugin has a test today — write it from the checks below
+      register: "add a small CTest target in src/plugins/haptikos/CMakeLists.txt (C++ tests are hand-added, never globbed)"
+      run: "cmake --build build --target haptikos_hands_plugin && ctest -R haptikos_hand_pose --output-on-failure"
+      can_test_now: after a small code change    # first move calculate_hand_pose / get_pose into their own header — today they are welded to the SDK client + injector
+      checks:
+        - "the build target exists — 'target not found' means the root-CMake BUILD_PLUGINS entry (or the vendor SDK drop-in) is missing"
+        - "get_pose(pos, rot): OpenXR position = (pos.x, pos.z, -pos.y); orientation = (rot.x, rot.z, -rot.y, rot.w)"
+        - "controller at origin, identity hand rotation -> wrist_pos = (0, -0.05, -0.06) offset applied"
+        - "all 26 joints -> locationFlags carry POSITION/ORIENTATION VALID + TRACKED bits"
+        - "reading the REAL exo + controller and injecting is stage 3 (whole_pipeline) — not checkable here"
+
+  # ---------- node1: schema — the data format ----------
+  node1_schema:
+    does: "Reuse the native hand format; injected hands travel as native OpenXR hands, not a custom FlatBuffer."
+    action: reuse
+    files: ["src/core/schema/fbs/hand.fbs   # the native hand format the injected data travels as"]
+    symbols: ["HandPose / HandPoseTracked (native hand tables)   # the reused wire types"]
+    verify:
+      creates: []                    # reuse — already tested by tests/cpp/core/schema/test_hand.cpp
+      reference_file: "tests/cpp/core/schema/test_hand.cpp   # the existing native hand round-trip test"
+      register: "nothing — the test is already in ctest"
+      run: "ctest -R schema_test_hand --output-on-failure   # confirm the existing hand schema tests pass"
+      can_test_now: yes
+      checks:
+        - "hand.fbs is unchanged; the existing hand schema round-trip tests stay green"
+
+  # ---------- node2: tracker — read the data back in C++ (+ recording) ----------
+  node2_tracker:
+    does: "Reuse the native HandTracker; the runtime serves the injected hand through the existing hand path."
+    action: reuse
+    files:
+      - "src/core/deviceio_trackers/cpp/hand_tracker.cpp                          # the existing native hand tracker"
+      - "src/core/deviceio_trackers/cpp/inc/deviceio_trackers/hand_tracker.hpp    # its public interface"
+    symbols: ["core::HandTracker  # MUST-MATCH: injected data is read by the native hand tracker, no new factory row"]
+    verify:
+      creates: []                    # reuse — no code change, no new test
+      reference_file: "examples/oxr/python/test_hand_inactive_on_plugin_stop.py   # already exercises HandTracker with an injected hand going active/inactive"
+      register: "nothing"
+      run: "confirm core::HandTracker exists unchanged; live behavior covered by test_hand_inactive_on_plugin_stop.py + stage 3"
+      can_test_now: yes
+      checks:
+        - "no new factory row, no new RecordingTraits — the native hand path is untouched"
+
+  # ---------- node3: bindings — expose the format and tracker to Python ----------
+  node3_bindings:
+    does: "Reuse the existing native hand Python bindings."
+    action: reuse
+    files: ["src/core/deviceio_trackers/python/tracker_bindings.cpp   # already binds HandTracker to Python"]
+    symbols: ["Python HandTracker / HandPoseTrackedT   # the names stage-3 test scripts poll"]
+    verify:
+      creates: []                    # reuse — already tested by tests/python/core/schema/test_hand.py
+      reference_file: "tests/python/core/schema/test_hand.py   # its import block proves the hand bindings are wired"
+      register: "nothing — auto-globbed already"
+      run: "ctest -R schema_test_hand --output-on-failure   # the import line passing = the bindings exist"
+      can_test_now: yes
+      checks:
+        - "from isaacteleop.schema import HandPose succeeds; from isaacteleop.deviceio import HandTracker succeeds"
+
+  # ---------- node4: source — turn the data into the standard shape ----------
+  node4_source:
+    does: "Reuse the native hands source node."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/deviceio_source_nodes/hands_source.py   # existing converter: HandTracker data -> standard hand shape"]
+    symbols: ["HandsSource   # holds the HandTracker; no channel_id for native/inject"]
+    verify:
+      creates: []                    # reuse — already tested by tests/python/core/retargeting_engine/test_sources.py (TestHandsSource)
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # TestHandsSource covers creation, input spec, outputs, empty handling"
+      register: "nothing — auto-globbed already"
+      run: "ctest -R retargeting_test_sources --output-on-failure"
+      can_test_now: yes
+      checks:
+        - "TestHandsSource passes: joints in -> standard hand shape out; empty data -> output marked 'none'"
+
+  # ---------- node5: boundary — the standard shape (the mold) ----------
+  node5_boundary:
+    does: "Reuse the existing hand boundary shape."
+    action: reuse
+    files: ["src/python/isaacteleop/retargeting_engine/tensor_types/standard_types.py   # the fixed hand joint shape (not edited)"]
+    symbols: ["hand joint input shape   # the mold node4 fills and node6 reads"]
+    verify:
+      creates: []                    # reuse — the shape is already tested; node4's test proves it gets filled correctly
+      reference_file: "tests/python/core/retargeting_engine/test_sources.py   # HandsSource output asserts against this shape"
+      register: "nothing"
+      run: "covered by node4's test"
+      can_test_now: yes
+      checks:
+        - "shape unchanged — nothing to prove beyond node4's test staying green"
+
+  # ---------- node6: robot step — turn the shape into a robot command ----------
+  node6_robot_step:
+    does: "Reuse an existing hand retargeter."
+    action: reuse
+    files:
+      - "src/python/isaacteleop/retargeters/dex_hand_retargeter.py      # reused hand retargeter option A (ships UNTESTED today)"
+      - "src/python/isaacteleop/retargeters/sharpa_hand_retargeter.py   # reused hand retargeter option B (already tested)"
+    symbols: ["DexHandRetargeter / SharpaHandRetargeter (+ config)   # the hand-joint -> robot-hand math"]
+    verify:
+      creates:
+        - "tests/python/core/retargeting_engine/test_dex_hand_retargeter.py   # golden hand pose -> expected command — write it EVEN ON REUSE: DexHandRetargeter ships untested (Sharpa already has one)"
+      reference_file: "tests/python/core/retargeting_engine/test_sharpa_hand_retargeter.py   # the hand-retargeter test pattern to copy"
+      register: "auto — the retargeting test dir globs test_*.py into ctest"
+      run: "ctest -R 'retargeting_test_(dex|sharpa)_hand_retargeter' --output-on-failure"
+      can_test_now: yes              # pure Python: hand-built joint shape in, command out; no session
+      checks:
+        - "known hand pose in -> known finger command out within tolerance (goldens taken from one hand-checked run)"
+        - "Sharpa path already green via test_sharpa_hand_retargeter.py"
+
+# No feedback: block. The shipped plugin is INPUT-ONLY — the exo can render force,
+# but that path lives in the Haptikos vendor app, not in this plugin.
+
+# ===========================================================================
+# WHOLE PIPELINE — verification stages 3 (runtime), 4 (e2e), 5 (finish).
+# Run after every node's own check is green. Needs CloudXR and the Haptikos
+# Core App + exo + a mounted, tracked controller per hand.
+# ===========================================================================
+whole_pipeline:
+  does: "Run the full chain end to end and prove the injected hand flows and the joint values are right."
+  wiring:
+    - "HandsSource -> DexHandRetargeter / SharpaHandRetargeter  # injected hand flows through the native hand path; no channel_id"
+  test_input: "the real Haptikos exo with a mounted, tracked controller per hand"
+  expect: "moving the exo -> the robot hand follows via the native hand retargeter"
+  verify:
+    creates:
+      - "examples/oxr/python/test_haptikos.py   # launches a session, polls HandTracker, prints/asserts injected joints"
+    reference_file: "examples/oxr/python/test_synthetic_hands.py   # the pattern, smallest form (133 ln): PluginManager launch -> DeviceIOSession.run -> poll loop. Same shape for push/inject/native — only the tracker changes. test_oak_camera.py if your device is a camera; test_controller_tracker.py if native. Resolve the plugin dir RELATIVE to the script, never hardcoded."
+    register: "installed by install_python_example(); not in ctest (needs a runtime + the exo) — run by hand"
+    run: "source ~/.cloudxr/run/cloudxr.env && cd install/examples/oxr/python && uv run test_haptikos.py"
+    can_test_now: only end-to-end
+    checks:
+      # --- stage 3: runtime — does data flow? ---
+      - "plugin stdout says it connected to the Core App and both injectors are up; check_health() runs automatically every TeleopSession.step()"
+      - "HandTracker poll returns an active 26-joint hand within ~5 s — stays inactive forever = injector extension or Core App connection failed"
+      - "NEGATIVE test (no channel_id on inject): remove the controller / stop the exo -> injector reset, hand goes isActive false, output marked none, NO crash (pattern: examples/oxr/python/test_hand_inactive_on_plugin_stop.py)"
+      # --- stage 4: e2e — are the values right? ---
+      - "known exo pose (e.g. full fist) -> expected robot finger command within tolerance"
+      - "wrist follows the mounted controller: moving the controller moves wrist_pos with the (0,-0.05,-0.06) offset applied"
+      - "Core App restarted -> recovers; controller removed then re-tracked -> hand comes back"
+  finish:
+    run: "ctest --output-on-failure"
+    gate: "every stage green -> the device is done"
+
+# NOTE: the vendor SDK (HaptikosCpp_API / HaptikosCpp_API_Shared) must be
+#   downloaded separately (licensing) and dropped into src/plugins/haptikos/;
+#   without it CMake skips the plugin build. See src/plugins/haptikos/README.md.
