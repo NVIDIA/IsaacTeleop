@@ -595,7 +595,7 @@ struct<span class="w"> </span>Pose<span class="w"> </span>{
 <p>Tracks the HMD head pose via the OpenXR view space.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/head.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/head.fbs</a></p></li>
-<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio/head_tracker.hpp&gt;</span></code></p></li>
+<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio_trackers/head_tracker.hpp&gt;</span></code></p></li>
 <li><p>Python import: <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaacteleop.deviceio</span> <span class="pre">import</span> <span class="pre">HeadTracker</span></code></p></li>
 <li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">head</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.HeadPoseRecord</span></code></p></li>
 <li><p>Tests:</p>
@@ -618,7 +618,7 @@ struct<span class="w"> </span>Pose<span class="w"> </span>{
 <code class="docutils literal notranslate"><span class="pre">XrHandJointEXT</span></code> ordering) using the <code class="docutils literal notranslate"><span class="pre">XR_EXT_hand_tracking</span></code> extension.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/hand.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/hand.fbs</a></p></li>
-<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio/hand_tracker.hpp&gt;</span></code></p></li>
+<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio_trackers/hand_tracker.hpp&gt;</span></code></p></li>
 <li><p>Python import: <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaacteleop.deviceio</span> <span class="pre">import</span> <span class="pre">HandTracker</span></code></p></li>
 <li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">left_hand</span></code>, <code class="docutils literal notranslate"><span class="pre">right_hand</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.HandPoseRecord</span></code></p></li>
 <li><p>Tests:</p>
@@ -643,7 +643,7 @@ struct<span class="w"> </span>Pose<span class="w"> </span>{
 axis inputs. Uses standard OpenXR action bindings.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/controller.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/controller.fbs</a></p></li>
-<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio/controller_tracker.hpp&gt;</span></code></p></li>
+<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio_trackers/controller_tracker.hpp&gt;</span></code></p></li>
 <li><p>Python import: <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaacteleop.deviceio</span> <span class="pre">import</span> <span class="pre">ControllerTracker</span></code></p></li>
 <li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">left_controller</span></code>, <code class="docutils literal notranslate"><span class="pre">right_controller</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.ControllerSnapshotRecord</span></code></p></li>
 <li><p>Tests:</p>
@@ -732,9 +732,9 @@ collections. Uses the <a class="reference external" href="https://github.com/NVI
 utility internally.</p>
 <ul class="simple">
 <li><p>Schema: <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/core/schema/fbs/pedals.fbs" rel="noopener noreferrer" target="_blank">src/core/schema/fbs/pedals.fbs</a></p></li>
-<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio/generic_3axis_pedal_tracker.hpp&gt;</span></code></p></li>
+<li><p>C++ header: <code class="docutils literal notranslate"><span class="pre">#include</span> <span class="pre">&lt;deviceio_trackers/generic_3axis_pedal_tracker.hpp&gt;</span></code></p></li>
 <li><p>Python import: <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">isaacteleop.deviceio</span> <span class="pre">import</span> <span class="pre">Generic3AxisPedalTracker</span></code></p></li>
-<li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">pedals</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.Generic3AxisPedalOutputRecord</span></code></p></li>
+<li><p>Record channels: <code class="docutils literal notranslate"><span class="pre">pedals</span></code>, <code class="docutils literal notranslate"><span class="pre">pedals_tracked</span></code> | MCAP schema: <code class="docutils literal notranslate"><span class="pre">core.Generic3AxisPedalOutputRecord</span></code></p></li>
 <li><p>Tests:</p>
 <ul>
 <li><p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/tests/cpp/core/schema/test_pedals.cpp" rel="noopener noreferrer" target="_blank">tests/cpp/core/schema/test_pedals.cpp</a></p></li>
@@ -963,7 +963,7 @@ construction; see <a class="reference internal" href="../getting_started/teleop_
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 31, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 01, 2026.
       <br/>
     
   </p>
