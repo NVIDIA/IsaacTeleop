@@ -11,12 +11,11 @@ Default mode (WiFi streaming):
 USB-local mode (``--usb-local``):
     Teleop signalling and streaming travel over USB via ``adb reverse`` on the
     headset's loopback.  The headset URL uses ``serverIP=127.0.0.1`` and loads
-    the web client from ``https://localhost:<USB_UI_PORT>`` (Python
-    ``http.server`` in :mod:`~.oob_teleop_env` serves the prebuilt static
-    client over HTTPS, reusing the WSS proxy's PEM).  coturn runs locally and is reachable from
-    the headset through adb reverse for WebRTC ICE relay.  Note: WebRTC
-    requires a non-loopback interface on the headset, so WiFi must remain
-    connected (no traffic traverses it).
+    the web client from ``https://localhost:<PROXY_PORT>/client/`` on the WSS
+    proxy (same ``/client/`` path as ``--host-client``).  coturn runs locally
+    and is reachable from the headset through adb reverse for WebRTC ICE relay.
+    Note: WebRTC requires a non-loopback interface on the headset, so WiFi must
+    remain connected (no traffic traverses it).
 """
 
 from __future__ import annotations
@@ -481,7 +480,7 @@ def build_teleop_url(
             USB_TURN_USER,
             USB_TURN_CREDENTIAL,
             usb_turn_port,
-            usb_ui_port,
+            wss_proxy_port,
         )
 
         stream_cfg: dict = {
@@ -497,7 +496,7 @@ def build_teleop_url(
             **client_ui_fields_from_env(),
         }
         ovr = web_client_base or web_client_base_override_from_env()
-        web_base = ovr if ovr else f"https://localhost:{usb_ui_port()}"
+        web_base = ovr if ovr else f"https://localhost:{wss_proxy_port()}/client"
     else:
         stream_cfg = {
             "serverIP": resolve_lan_host_for_oob(),
@@ -702,24 +701,20 @@ def setup_adb_reverse_ports() -> None:
     """Set up ``adb reverse`` for the USB-local TCP ports.
 
     Reverse-maps headset loopback ports to the PC so the headset can reach
-    the WebXR static HTTPS server, WSS proxy, and CloudXR backend over USB.
+    the WSS proxy (including ``/client/``) and CloudXR backend over USB.
 
-    Ports reversed: the USB UI port (resolved via
-    :func:`~.oob_teleop_env.usb_ui_port`, default 8080; override via the
-    ``USB_UI_PORT`` env var) — the static HTTPS server started by
-    :func:`~.oob_teleop_env.start_usb_local_https_server` — the WSS proxy
-    port (resolved via :func:`~.oob_teleop_env.wss_proxy_port`), and the
-    CloudXR backend port (resolved via
-    :func:`~.oob_teleop_env.usb_backend_port`, default 49100; override via
-    the ``USB_BACKEND_PORT`` env var).
+    Ports reversed: the WSS proxy port (resolved via
+    :func:`~.oob_teleop_env.wss_proxy_port`) and the CloudXR backend port
+    (resolved via :func:`~.oob_teleop_env.usb_backend_port`, default 49100;
+    override via the ``USB_BACKEND_PORT`` env var).
 
     Raises:
         OobAdbError: device offline / unauthorized, or an ``adb reverse`` call failed.
     """
-    from .oob_teleop_env import usb_backend_port, usb_ui_port, wss_proxy_port  # noqa: PLC0415
+    from .oob_teleop_env import usb_backend_port, wss_proxy_port  # noqa: PLC0415
 
     assert_adb_device_online()
-    ports = [usb_ui_port(), wss_proxy_port(), usb_backend_port()]
+    ports = [wss_proxy_port(), usb_backend_port()]
     for port in ports:
         try:
             subprocess.run(
@@ -740,9 +735,9 @@ def setup_adb_reverse_ports() -> None:
 
 def teardown_adb_reverse_ports() -> None:
     """Remove the ``adb reverse`` rules set by :func:`setup_adb_reverse_ports`."""
-    from .oob_teleop_env import usb_backend_port, usb_ui_port, wss_proxy_port  # noqa: PLC0415
+    from .oob_teleop_env import usb_backend_port, wss_proxy_port  # noqa: PLC0415
 
-    ports = [usb_ui_port(), wss_proxy_port(), usb_backend_port()]
+    ports = [wss_proxy_port(), usb_backend_port()]
     for port in ports:
         subprocess.run(
             ["adb", "reverse", "--remove", f"tcp:{port}"],
@@ -1238,16 +1233,16 @@ async def _cdp_clear_origin_storage(ws_url: str, origins: list[str]) -> int:
 def clear_headset_browser_cache(*, usb_local: bool) -> int:
     """Sync wrapper around :func:`_cdp_clear_origin_storage` for the teleop UI origin.
 
-    USB-local clears both ``https://localhost:<port>`` (the bookmark host
-    used by ``build_teleop_url``) and ``https://127.0.0.1:<port>`` (the
+    USB-local clears both ``https://localhost:<PROXY_PORT>`` (the bookmark host
+    used by ``build_teleop_url``) and ``https://127.0.0.1:<PROXY_PORT>`` (the
     same listener but a different Chromium origin); WiFi clears the
     published client origin (or ``TELEOP_WEB_CLIENT_BASE`` override).
     Returns 0 if the browser isn't running. Never raises.
     """
     from .oob_teleop_env import (  # noqa: PLC0415
         default_web_client_origin,
-        usb_ui_port,
         web_client_base_override_from_env,
+        wss_proxy_port,
     )
 
     socket_name = _discover_devtools_socket()
@@ -1281,9 +1276,9 @@ def clear_headset_browser_cache(*, usb_local: bool) -> int:
         # ``127.0.0.1`` may have stale state from earlier development.
         origins: list[str] = []
         if usb_local:
-            ui_port = usb_ui_port()
-            origins.append(f"https://localhost:{ui_port}")
-            origins.append(f"https://127.0.0.1:{ui_port}")
+            proxy_port = wss_proxy_port()
+            origins.append(f"https://localhost:{proxy_port}")
+            origins.append(f"https://127.0.0.1:{proxy_port}")
         else:
             origin_base = (
                 web_client_base_override_from_env() or default_web_client_origin()

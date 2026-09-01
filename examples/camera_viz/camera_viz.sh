@@ -453,7 +453,7 @@ REMOTE (Jetson robot)
     service-status   [--host H --user U [--password P]]
     service-logs     [--host H --user U [--password P]]
     service-restart  [--host H --user U [--password P]]
-                          Inspect / manage the deployed service.
+                          Inspect / manage the deployed robot RTP service.
 
 ENVIRONMENT (remote commands)
     REMOTE_HOST, REMOTE_USER, REMOTE_PASSWORD

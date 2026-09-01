@@ -3,3 +3,4 @@
 
 cryptography>=3.0
 websockets>=14.0
+qrcode>=7.4

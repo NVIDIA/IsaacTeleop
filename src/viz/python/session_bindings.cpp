@@ -18,6 +18,7 @@
 #include <viz/layers/quad_layer.hpp>
 #include <viz/session/frame_info.hpp>
 #include <viz/session/viz_session.hpp>
+#include <viz/xr/openxr_session.hpp>
 
 #include <cstdint>
 #include <stdexcept>
@@ -96,8 +97,34 @@ Construct via ``VizSession.create(config)``. Add layers with
 / ``add_projection_layer``). Drive the frame loop with ``render()``
 (one-shot) or ``begin_frame()`` / ``end_frame()`` (paired).
 )doc")
-        .def_static("create", &viz::VizSession::create, "config"_a,
-                    "Factory: validates config + initializes Vulkan / display backend.")
+        .def_static(
+            "create",
+            [](const viz::VizSession::Config& config)
+            {
+                struct WaitPollHook
+                {
+                    void (*prev_)();
+                    WaitPollHook()
+                        : prev_(viz::OpenXrSession::set_wait_poll_hook(
+                              []()
+                              {
+                                  py::gil_scoped_acquire gil;
+                                  if (PyErr_CheckSignals() != 0)
+                                  {
+                                      throw py::error_already_set();
+                                  }
+                              }))
+                    {
+                    }
+                    ~WaitPollHook()
+                    {
+                        viz::OpenXrSession::set_wait_poll_hook(prev_);
+                    }
+                } hook;
+                py::gil_scoped_release release;
+                return viz::VizSession::create(config);
+            },
+            "config"_a, "Factory: validates config + initializes Vulkan / display backend.")
         .def("destroy", &viz::VizSession::destroy, py::call_guard<py::gil_scoped_release>())
         .def(
             "add_quad_layer",
