@@ -79,10 +79,6 @@ devices:
         - Isaac Teleop Web Client — runs in the headset browser
       requirements:
         - No additional software
-        - Not supported for full-body robot control
-        - label: Body Tracking guide
-          doc: /device/body_tracking
-          note: for full-body teleoperation, use equipment with Motion Trackers
       acquire:
         - label: meta.com
           url: https://www.meta.com/quest/
