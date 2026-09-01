@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "teleopcore-synchronization-tests"
+version = "0.0.0"  # Internal tests - not versioned
+description = "Device-clock synchronization binding tests for TeleopCore"
+requires-python = ">=3.11,<3.14"
+
+[project.optional-dependencies]
+# numpy is not used by these tests directly: importing isaacteleop pulls in the
+# retargeting engine, which needs it. Same reason tests/python/core/schema lists it.
+dev = [
+    "pytest",
+    "numpy",
+]
+
+[tool.pytest.ini_options]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+# Prevent pytest from recursing into parent directories
+norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]
