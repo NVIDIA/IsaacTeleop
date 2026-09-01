@@ -807,7 +807,8 @@ Mismatches will cause silent control errors.</p>
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop" rel="noopener noreferrer" target="_blank">Isaac Teleop repository</a>:</p>
 <ol class="arabic simple">
 <li><p>Inherit from <code class="docutils literal notranslate"><span class="pre">BaseRetargeter</span></code> and implement <code class="docutils literal notranslate"><span class="pre">input_spec()</span></code>, <code class="docutils literal notranslate"><span class="pre">output_spec()</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">compute()</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">_compute_fn()</span></code>. (<code class="docutils literal notranslate"><span class="pre">compute()</span></code> is concrete on the base class — it fills optional inputs
+and syncs parameters, then calls your <code class="docutils literal notranslate"><span class="pre">_compute_fn()</span></code>.)</p></li>
 <li><p>Optionally add a <code class="docutils literal notranslate"><span class="pre">ParameterState</span></code> for parameters that should be live-tunable via the
 retargeter tuning UI.</p></li>
 <li><p>Connect to existing source nodes (<code class="docutils literal notranslate"><span class="pre">HandsSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>) or create a new

@@ -462,7 +462,7 @@ Before vs After
    required_extensions = deviceio.DeviceIOSession.get_required_extensions([controller_tracker])
 
    # Create OpenXR session
-   oxr_session = oxr.OpenXRSession.create("MyApp", required_extensions)
+   oxr_session = oxr.OpenXRSession("MyApp", required_extensions)
    oxr_session.__enter__()
 
    # Create DeviceIO session

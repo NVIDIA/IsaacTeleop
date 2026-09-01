@@ -28,9 +28,7 @@ and the BD skeleton format used on the server.
 
    Meta Quest 3/3S also expose body tracking to WebXR via inside-out body
    tracking (IOBT), and the CloudXR client will stream it under the WebXR
-   Body Tracking extension. However, this can not currently be used for full
-   body control as a retargetting of the WebXR skeleton to the robot's full
-   body skeleton is inaccurate and not currently supported.
+   Body Tracking extension.
 
 .. seealso::
 
