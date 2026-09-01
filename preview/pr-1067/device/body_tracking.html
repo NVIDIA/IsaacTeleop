@@ -452,10 +452,10 @@ use the <strong>Activate enterprise account</strong> option in the headset setti
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Meta Quest 3/3S also expose body tracking to WebXR via inside-out body
-tracking (IOBT), and the CloudXR client will stream it. However the Quest
-skeleton is mapped to the PICO BD 24-joint layout in the current version,
-and accuracy is lower since there are no physical trackers. See
-<a class="reference internal" href="#quest-body-tracking-limited-support">Quest Body Tracking (Limited Support)</a> for details.</p>
+tracking (IOBT), and the CloudXR client will stream it under the WebXR
+Body Tracking extension. However, this can not currently be used for full
+body control as a retargetting of the WebXR skeleton to the robot’s full
+body skeleton is inaccurate and not currently supported.</p>
 </div>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
@@ -479,7 +479,6 @@ See that project’s setup guide for additional details.</p>
 </ul>
 </li>
 <li><p><a class="reference internal" href="#recording-and-replay" id="id9">Recording and Replay</a></p></li>
-<li><p><a class="reference internal" href="#quest-body-tracking-limited-support" id="id10">Quest Body Tracking (Limited Support)</a></p></li>
 </ul>
 </nav>
 <section id="setting-up-pico-motion-trackers">
@@ -717,22 +716,6 @@ timestamped take into <code class="docutils literal notranslate"><span class="pr
 </figcaption>
 </figure>
 </section>
-<section id="quest-body-tracking-limited-support">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Quest Body Tracking (Limited Support)</a><a class="headerlink" href="#quest-body-tracking-limited-support" title="Link to this heading">#</a></h2>
-<p>Meta Quest headsets expose inside-out body tracking (IOBT) to WebXR sessions.
-The CloudXR WebXR client will stream this data when the Quest browser grants the
-<code class="docutils literal notranslate"><span class="pre">body-tracking</span></code> feature.</p>
-<p>However, in the current version the Quest IOBT skeleton is mapped to the PICO BD
-24-joint layout before being sent to the server. This means the server always
-receives data in the <code class="docutils literal notranslate"><span class="pre">XR_BD_body_tracking</span></code> joint format regardless of the
-source headset.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Quest body tracking does not require external trackers. It uses the
-headset’s built-in cameras. Tracking quality may differ from the
-tracker-based PICO solution, particularly for lower-body joints.</p>
-</div>
-</section>
 </section>
 
 
@@ -796,7 +779,6 @@ tracker-based PICO solution, particularly for lower-body joints.</p>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-and-replay">Recording and Replay</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#quest-body-tracking-limited-support">Quest Body Tracking (Limited Support)</a></li>
 </ul>
   </nav></div>
 
