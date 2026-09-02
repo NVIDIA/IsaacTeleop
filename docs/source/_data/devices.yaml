@@ -16,6 +16,19 @@
 #   modes    the second column. Its heading is per section: "Input modes" for input
 #            devices, where the modes decide the available retargeters and control
 #            schemes, and "Provides" for the rest. One short phrase, not a sentence.
+#   since    optional; the earliest release carrying the device, rendered under the
+#            Details panel's columns as a tag linking to that release -- so a row without
+#            `details` cannot have one. A release tag spelled as the repository spells it
+#            ("v1.3.131", and the unprefixed "0.1.0" of the first two releases; the page
+#            shows every one with a "v"), or `main` for a device no release carries yet.
+#            Derive it, never date it: walk the release tags oldest-first and take the
+#            first whose tree carries the device's plugin or guide, as in
+#            ``git cat-file -e v1.4.142:src/plugins/oglo_tactile``; `main` when none does.
+#            Ask the tree, not the ancestry -- release branches are maintained by
+#            cherry-pick, so a change has a different commit on each branch and
+#            ``git tag --contains`` answers "no tag" for every device. Dates mislead too:
+#            v1.3.131 (2026-06-30) does not carry the LeRobot integration merged on
+#            2026-06-27, which first shipped in v1.4.142.
 #   company  optional; the mark of the company behind the device. A mark and nothing
 #            else -- no category and no copy, so the table stays the reference it is.
 #            `name` and `logo` are both required, `name` being the alt text; add
@@ -55,6 +68,7 @@ devices:
     url: https://www.apple.com/apple-vision-pro/
     group: xr
     modes: Hand tracking (26 joints), spatial controllers
+    since: v1.0.191
     details:
       setup:
         - label: Sample Client
@@ -72,6 +86,7 @@ devices:
     url: https://www.meta.com/quest/
     group: xr
     modes: Motion controllers, hand tracking
+    since: v1.0.191
     details:
       setup:
         - label: How To Connect
@@ -88,6 +103,7 @@ devices:
     url: https://www.picoxr.com/products/pico4-ultra
     group: xr
     modes: Motion controllers, hand tracking
+    since: v1.0.191
     company:
       name: PICO
       logo: pico.svg
@@ -110,6 +126,7 @@ devices:
     url: https://www.picoxr.com/global/products/pico-motion-tracker
     group: xr
     modes: Full body tracking
+    since: v1.3.131
     details:
       setup:
         - label: Body Tracking guide
@@ -131,6 +148,7 @@ devices:
     url: https://www.manus-meta.com/products/metagloves-pro
     group: peripheral
     modes: High-fidelity finger tracking
+    since: "0.1.0"
     company:
       name: MANUS
       logo: manus.svg
@@ -154,6 +172,7 @@ devices:
     url: https://haptikos.tech/product/haptikos/
     group: peripheral
     modes: Finger tracking, haptic feedback
+    since: v1.3.131
     company:
       name: Haptikos
       logo: haptikos.png
@@ -175,6 +194,7 @@ devices:
     url: https://www.opengraphlabs.com/
     group: peripheral
     modes: Tactile contact sensing (80 taxels), 6-axis IMU
+    since: v1.4.142
     company:
       name: OpenGraph Labs
       logo: opengraph-labs.svg
@@ -196,6 +216,7 @@ devices:
     url: https://www.logitechg.com/en-us/products/flight/flight-simulator-rudder-pedals.html
     group: peripheral
     modes: 3-axis foot pedal
+    since: v1.0.191
     details:
       setup:
         - label: Generic 3-axis Pedal Plugin
@@ -211,6 +232,7 @@ devices:
     url: https://shop.luxonis.com/products/oak-d
     group: peripheral
     modes: Offline data recording
+    since: v1.0.191
     details:
       setup:
         - label: OAK-D Camera Plugin
@@ -229,6 +251,7 @@ devices:
     url: https://huggingface.co/docs/lerobot
     group: data_factory
     modes: Robot learning framework, dataset collection
+    since: v1.4.142
     company:
       name: Hugging Face
       logo: hugging-face.svg
@@ -251,6 +274,7 @@ devices:
     url: https://www.noitom.com/
     group: data_factory
     modes: Full-body motion capture
+    since: main
     details:
       setup:
         - label: Noitom Mocap Plugin
