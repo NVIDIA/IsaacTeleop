@@ -13,7 +13,7 @@ mandatory **`AGENTS.md` preflight** in [`../../AGENTS.md`](../../AGENTS.md)
 
 `src/viz/` mirrors **`src/core/`**: a peer container of sub-modules, not a
 single sub-module. Each sub-module is its own static library. Tests live under
-[`../../../tests/`](../../../tests/) — see [`tests/AGENTS.md`](../../../tests/AGENTS.md).
+[`../../tests/`](../../tests/) — see [`tests/AGENTS.md`](../../tests/AGENTS.md).
 
 - **`viz/core/`** — foundational types + Vulkan/CUDA infrastructure.
   Library: `viz_core`. Today: `VkContext`, `VizBuffer`, `Pose3D`,
@@ -33,36 +33,45 @@ single sub-module. Each sub-module is its own static library. Tests live under
   from GLM 1.0.1 (FetchContent in `deps/third_party/`); use
   `glm::value_ptr(mat)` to get a raw `float*` for Vulkan / CUDA upload
   (POD-equivalent layout, no copy). CUDA-Vulkan interop requires CUDA
-  Toolkit at link time (`CUDAToolkit::cudart`). `VkContext::init()`
+  Toolkit at link time (`CUDA::cudart_static` — statically linked, so
+  consumers carry no runtime `libcudart` dependency). `VkContext::init()`
   matches the current CUDA device to the chosen Vulkan physical
   device by UUID — every viz_core type can assume CUDA and Vulkan
   are talking to the same GPU without re-doing the match.
-- **`viz/layers/`** — `LayerBase` and concrete layers. Library:
-  `viz_layers` (STATIC). Depends on `viz_core` + `viz_shaders`. Today:
-  `QuadLayer` (textured fullscreen quad, CUDA-fed via a 3-slot
-  mailbox of `DeviceImage`s; producer side is `submit(VizBuffer)` and
-  the renderer always samples the most recently published slot).
+- **`viz/layers/`** — the concrete layers. `LayerBase` itself lives in
+  `viz/session/`. Library: `viz_layers` (STATIC). Depends PUBLIC on
+  `viz::core` + `viz::session`, PRIVATE on `viz::shaders`. Today:
+  `ImageLayerBase` plus `QuadLayer`, `CylinderLayer` and
+  `EquirectLayer` on top of it, and `ProjectionLayer` directly on
+  `LayerBase`. The three image layers are CUDA-fed via a mailbox of
+  `DeviceImage`s owned by the shared `ImageLayerBase`, sized
+  `kSlotCount = kMaxFramesInFlight + 2`; producer side is
+  `submit(VizBuffer)` and the renderer always samples the most
+  recently published slot.
   Pipelines built per-layer using the driver-side `VkPipelineCache`
   from `VkContext`. **Deferred:** a zero-copy `acquire`/`release`
   variant for producers that can write directly into a tiled
   `cudaArray_t` (NVDEC, custom CUDA kernels). The mailbox internals
   already track slot ownership, so the addition is local to
-  `QuadLayer`; revisit when a real producer demands it. Open design
-  questions are captured under "Future: zero-copy acquire/release"
-  in `DESIGN.md`.
+  `ImageLayerBase` and the layers built on it; revisit when a real
+  producer demands it.
   Test-only fixture layers (`ClearRectLayer`, `ThrowingLayer`) live in
   `tests/cpp/viz/support/layers_testing/inc/viz/layers/testing/` and are exposed via
   the `viz::layers_testing` static library — used by `viz_session_tests`
   to compose into a `VizSession`.
 - **`viz/session/`** — `VizSession`, `VizCompositor`, `FrameInfo`,
-  `FrameTimingStats`, `SessionState`, display backends (today: offscreen
-  only; window/XR added by their respective backends). Library:
-  `viz_session`. Depends on `viz_core`, `viz_layers`. Public API for the
+  `FrameTimingStats`, `SessionState`, `LayerBase`, `Swapchain`,
+  `TileLayout`, and the display backends (offscreen, window/GLFW, and
+  XR). Library: `viz_session`. Links `viz::core`, `viz::xr`,
+  `oxr::oxr_utils`, `glfw`. Public API for the
   whole module — applications interact with Televiz through
   `VizSession::create()`.
-- **`viz/xr/`** — OpenXR backend (instance/session, swapchain wrapping,
-  frame loop, type conversion). Library: `viz_xr`. **Optional** behind
-  `BUILD_VIZ_XR`. Depends on `viz_core` + OpenXR.
+- **`viz/xr/`** — OpenXR instance/session lifecycle, event polling, and
+  the `xrWaitFrame`/`xrBeginFrame`/`xrEndFrame` loop. Swapchain wrapping
+  and OpenXR↔`viz` type conversion live in `viz_session`'s `XrBackend`.
+  Library: `viz_xr`. Always built under `BUILD_VIZ` — `viz_core` and
+  `viz_session` both require the OpenXR loader. Depends on `viz_core` +
+  OpenXR.
 - **`viz/python/`** — pybind11 module `_viz`, exposed as `isaacteleop.viz`.
 - **`viz/shaders/`** — GLSL → SPIR-V at build time. Library: `viz_shaders`
   (INTERFACE — exposes generated headers `viz/shaders/<name>.spv.h`,
@@ -81,10 +90,11 @@ and `tests/python/viz/` respectively (one Catch2 executable per sub-module:
 sub-module sub-directories. Sub-module `CMakeLists.txt` files build the
 actual libraries.
 
-The whole module is gated by **`BUILD_VIZ`** (default `OFF`) at the top
-level — viz requires Vulkan headers/loader, so it's opt-in to keep the
-default build path lightweight (matches the convention used by
-`BUILD_PLUGIN_OAK_CAMERA`, which also pulls in extra system deps).
+The whole module is gated by **`BUILD_VIZ`** at the top level, which
+defaults to `ON` when `find_package(Vulkan)` and `find_package(CUDAToolkit)`
+both succeed and `OFF` otherwise — a machine that cannot build viz still
+configures. Override with `-DBUILD_VIZ=ON/OFF`. Note this is *not* the
+`BUILD_PLUGIN_OAK_CAMERA` convention, which is a hard `OFF`.
 Build paths that ship viz (the wheel CI on Linux + Windows) pass
 `-DBUILD_VIZ=ON` explicitly. Lean Dockerfiles
 (`examples/teleop_ros2/Dockerfile`) get viz-free builds for free.
@@ -102,8 +112,9 @@ When `BUILD_VIZ=ON` the build machine must have:
 
 ## Code conventions
 
-- **C++ namespace:** all Televiz symbols in `viz`. Internal helpers
-  in `viz::detail`. Test infrastructure in `viz::testing`.
+- **C++ namespace:** all Televiz symbols in `viz`. Internal helpers go in
+  an anonymous namespace in the `.cpp` that needs them — there is no
+  `viz::detail`. Test infrastructure in `viz::testing`.
   This is shared across all sub-modules — no per-module nested namespace.
 - **Naming:** types `PascalCase`, methods/functions/variables
   `snake_case` (matches `src/core/`). Private members use trailing
@@ -111,7 +122,7 @@ When `BUILD_VIZ=ON` the build machine must have:
 - **Include paths:** mirror the on-disk nesting since sub-modules are
   *children* of `viz/`, not peers of each other:
   `<viz/core/vk_context.hpp>`, `<viz/layers/quad_layer.hpp>`,
-  `<viz/session/viz_session.hpp>`, `<viz/xr/xr_backend.hpp>`. Each
+  `<viz/session/viz_session.hpp>`, `<viz/xr/openxr_session.hpp>`. Each
   sub-module's `inc/viz/<sub-module>/` lives under that sub-module's
   `cpp/`, so per-library isolation is preserved (linking only `viz::core`
   exposes only `viz/core/...` headers, not other sub-modules).
@@ -133,8 +144,9 @@ When `BUILD_VIZ=ON` the build machine must have:
   required, must skip cleanly via `viz::testing::is_gpu_available`
   when no GPU), **`[xr]`** (OpenXR runtime required, manual-only).
 - `catch_discover_tests(<target> ADD_TAGS_AS_LABELS)` — exposes Catch2
-  tags as CTest labels. CI uses `ctest -L unit` and `ctest -L gpu` for
-  selection.
+  tags as CTest labels. CI uses `ctest -L unit` for CPU selection; the GPU
+  job runs each packaged `viz_*_tests` binary directly with the Catch2
+  `[gpu]` filter, because it downloads bare executables with no build tree.
 - GPU tests **must** use `GpuFixture` or call `is_gpu_available()` and
   `SKIP()` if false. Never assume a GPU is present.
 
@@ -193,9 +205,8 @@ the package step globs `viz_*_tests` and the runner loops over them.
 - **Public API surface (in `viz_core`, `viz_layers`, `viz_session`)
   must not expose OpenXR types.** Convert `XrPosef`/`XrFovf` to
   `viz::Pose3D`/`Fov` at the boundary. The conversion lives in
-  `viz::detail` inside `viz_xr` (where OpenXR headers are
-  available). This keeps `BUILD_VIZ_XR=OFF` viable for window/offscreen
-  builds without requiring OpenXR headers.
+  an anonymous namespace in `viz_session`'s `xr_backend.cpp`, where the
+  OpenXR headers are already in scope.
 - **Vulkan types are exposed** in the public API where functionally
   necessary (`VkCommandBuffer`, `VkRenderPass`, `VkImage` for custom
   layer authoring). This is intentional — Vulkan is the contract for
