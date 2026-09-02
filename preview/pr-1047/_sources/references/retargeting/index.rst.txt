@@ -356,7 +356,8 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 `Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_:
 
 #. Inherit from ``BaseRetargeter`` and implement ``input_spec()``, ``output_spec()``, and
-   ``compute()``.
+   ``_compute_fn()``. (``compute()`` is concrete on the base class — it fills optional inputs
+   and syncs parameters, then calls your ``_compute_fn()``.)
 #. Optionally add a ``ParameterState`` for parameters that should be live-tunable via the
    retargeter tuning UI.
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
