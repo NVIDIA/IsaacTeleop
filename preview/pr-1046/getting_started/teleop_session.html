@@ -870,7 +870,7 @@ of input sources.</p></li>
 <span class="n">required_extensions</span> <span class="o">=</span> <span class="n">deviceio</span><span class="o">.</span><span class="n">DeviceIOSession</span><span class="o">.</span><span class="n">get_required_extensions</span><span class="p">([</span><span class="n">controller_tracker</span><span class="p">])</span>
 
 <span class="c1"># Create OpenXR session</span>
-<span class="n">oxr_session</span> <span class="o">=</span> <span class="n">oxr</span><span class="o">.</span><span class="n">OpenXRSession</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"MyApp"</span><span class="p">,</span> <span class="n">required_extensions</span><span class="p">)</span>
+<span class="n">oxr_session</span> <span class="o">=</span> <span class="n">oxr</span><span class="o">.</span><span class="n">OpenXRSession</span><span class="p">(</span><span class="s2">"MyApp"</span><span class="p">,</span> <span class="n">required_extensions</span><span class="p">)</span>
 <span class="n">oxr_session</span><span class="o">.</span><span class="fm">__enter__</span><span class="p">()</span>
 
 <span class="c1"># Create DeviceIO session</span>
@@ -1131,7 +1131,7 @@ of input sources.</p></li>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 31, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 02, 2026.
       <br/>
     
   </p>

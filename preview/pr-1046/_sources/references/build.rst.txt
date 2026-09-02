@@ -52,7 +52,7 @@ The layout below reflects the actual ``CMakeLists.txt`` hierarchy (root ``CMakeL
 CMake integration
 -----------------
 
-The project uses a modern CMake target-based approach. Libraries export targets (e.g. OXR, DEVICEIO, schema); include directories are propagated. Package config files are generated for use after install. See the respective ``CMakeLists.txt`` in ``src/core`` and under ``examples/`` for target names and usage.
+The project uses a modern CMake target-based approach. Libraries export namespaced alias targets (e.g. ``oxr::oxr_core``, ``deviceio::deviceio_session``, ``isaacteleop_schema``); include directories are propagated. Package config files are generated for use after install. See the respective ``CMakeLists.txt`` in ``src/core`` and under ``examples/`` for target names and usage.
 
 Using the Python wheel
 ----------------------
