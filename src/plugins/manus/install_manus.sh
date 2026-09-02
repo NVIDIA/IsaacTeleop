@@ -245,6 +245,7 @@ cp -r "$SDK_SRC/include" "$SCRIPT_DIR/ManusSDK/"
 cp "$SDK_LIB_SRC" "$SCRIPT_DIR/ManusSDK/lib/libManusSDK.so"
 rm -rf "$TMP_EXTRACT_DIR"
 TMP_EXTRACT_DIR=""
+# Keep the archive for re-runs; SHA-256 verification above guards against corruption.
 done_ok
 
 # --- 4. Build the plugin ------------------------------------------------
@@ -252,16 +253,13 @@ step "[4/4] Building Manus plugin"
 cd "$TELEOP_ROOT"
 run cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DBUILD_PLUGINS=ON \
     -DBUILD_VIZ=OFF -DENABLE_CLANG_FORMAT_CHECK=OFF \
+    -DMANUS_SDK_ROOT="$SCRIPT_DIR/ManusSDK" \
     || die "cmake configure failed"
 run cmake --build "$BUILD_DIR" \
     --target manus_hand_plugin manus_hand_tracker_printer -j"$(nproc)" \
     || die "build failed"
 run cmake --install "$BUILD_DIR" --component manus || die "install failed"
 done_ok
-
-# Build and install succeeded; the extracted ManusSDK/ dir is all that's
-# needed for future builds, so the downloaded tarball can go.
-rm -f "$SCRIPT_DIR/$MANUS_SDK_ARCHIVE"
 
 # --- Done ---------------------------------------------------------------
 INSTALL_PREFIX="$(awk '/^CMAKE_INSTALL_PREFIX:PATH=/{sub(/^[^=]*=/, ""); print; exit}' "$BUILD_DIR/CMakeCache.txt")"
