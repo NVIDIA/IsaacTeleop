@@ -68,13 +68,16 @@ import CloudXR3DUI from './CloudXRUI';
 import { readUrlParam } from './config/resolve';
 import { RecorderComponent } from './RecorderComponent';
 import { RecorderProvider, useRecorder } from './RecorderContext';
+import { playRecordingCueSound, primeRecordingCueAudio } from './recordingCue';
 import { SuppressWebGLRendererWhenHeadless } from './SuppressWebGLRendererWhenHeadless';
 import { TraceVisualization } from './TraceVisualization';
 import {
-  SystemNotice,
   formatSystemNotice,
   formatSystemNoticeBody,
+  isRecordingStatusMessage,
   isSystemNoticeMessage,
+  RecordingStatus,
+  SystemNotice,
 } from './types/serverMessages';
 
 // Performance metrics signals - raw numeric data backing the in-XR HUD.
@@ -144,6 +147,7 @@ const systemNoticeBodyText = computed(() =>
 
 /** How long the in-XR notice stays up before dismissing itself [ms]. */
 const SYSTEM_NOTICE_AUTO_DISMISS_MS = 20000;
+const RECORDING_STATUS_AUTO_DISMISS_MS = 3000;
 
 const CONTROL_PANEL_LAYOUT = {
   distance: 1.8,
@@ -434,6 +438,7 @@ function AppContent() {
     // URL query params (URL_PARAMS) are applied inside initialize() and win over stored values.
     ui.initialize(resolvedPath);
     const doConnect = async () => {
+      void primeRecordingCueAudio();
       const config = ui.getConfiguration();
       const resolutionError = getResolutionValidationError(config.perEyeWidth, config.perEyeHeight);
       if (resolutionError) {
@@ -685,6 +690,17 @@ function AppContent() {
   // static colors at render time rather than subscribing.
   const [systemNoticeLevel, setSystemNoticeLevel] = useState<'warning' | 'info'>('warning');
 
+  const recordingStatusTimerRef = useRef<number | null>(null);
+  const [recordingStatus, setRecordingStatus] = useState<RecordingStatus | null>(null);
+
+  const dismissRecordingStatus = () => {
+    setRecordingStatus(null);
+    if (recordingStatusTimerRef.current !== null) {
+      clearTimeout(recordingStatusTimerRef.current);
+      recordingStatusTimerRef.current = null;
+    }
+  };
+
   /** Exact text this component last wrote to the shared 2D status box. */
   const systemNoticeTextRef = useRef<string | null>(null);
 
@@ -715,6 +731,9 @@ function AppContent() {
       if (systemNoticeTimerRef.current !== null) {
         clearTimeout(systemNoticeTimerRef.current);
       }
+      if (recordingStatusTimerRef.current !== null) {
+        clearTimeout(recordingStatusTimerRef.current);
+      }
     },
     []
   );
@@ -727,6 +746,23 @@ function AppContent() {
    * send message kinds this build does not know about.
    */
   const handleServerMessage = (message: unknown) => {
+    if (isRecordingStatusMessage(message)) {
+      const status = message.message;
+      setRecordingStatus(status);
+      void playRecordingCueSound(status);
+      if (recordingStatusTimerRef.current !== null) {
+        clearTimeout(recordingStatusTimerRef.current);
+        recordingStatusTimerRef.current = null;
+      }
+      if (status.state === 'stopped') {
+        recordingStatusTimerRef.current = window.setTimeout(() => {
+          recordingStatusTimerRef.current = null;
+          setRecordingStatus(null);
+        }, RECORDING_STATUS_AUTO_DISMISS_MS);
+      }
+      return;
+    }
+
     if (isSystemNoticeMessage(message)) {
       const notice = message.message;
       // No unmet requirements: treat it as an all-clear so a host can retract a
@@ -922,6 +958,7 @@ function AppContent() {
     // The notice describes the host we are leaving; it must not persist into a
     // later connection to a different one.
     dismissSystemNotice();
+    dismissRecordingStatus();
 
     // Close message channels before ending XR session to avoid
     // "Cannot send control message" errors during SDK cleanup.
@@ -1222,6 +1259,7 @@ function AppContent() {
                   systemNoticeVisible={systemNoticeVisible}
                   systemNoticeLevel={systemNoticeLevel}
                   onDismissSystemNotice={dismissSystemNotice}
+                  recordingStatus={recordingStatus}
                 />
               )}
             </>

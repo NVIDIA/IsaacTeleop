@@ -51,6 +51,7 @@ import arrowLeftStartOnRectangleSvg from './icons/arrow-left-start-on-rectangle.
 import arrowUturnLeftSvg from './icons/arrow-uturn-left.svg';
 import playCircleSvg from './icons/play-circle.svg';
 import { useRecorder } from './RecorderContext';
+import type { RecordingStatus } from './types/serverMessages';
 
 // Face-camera rotation constants
 const FACE_CAMERA_DAMPING = 10; // Higher = faster rotation toward camera
@@ -104,6 +105,8 @@ interface CloudXRUIProps {
   systemNoticeLevel?: 'warning' | 'info';
   /** Dismiss the workstation notice. */
   onDismissSystemNotice?: () => void;
+  /** Persistent active-recording state or the latest completed outcome. */
+  recordingStatus?: RecordingStatus | null;
 }
 
 /**
@@ -179,6 +182,66 @@ function SystemNoticeBanner({
           X
         </Text>
       </Button>
+    </Container>
+  );
+}
+
+const RECORDING_STATUS_PALETTE = {
+  recording: {
+    border: 'rgba(255, 82, 82, 1)',
+    background: 'rgba(90, 10, 10, 0.92)',
+    title: 'rgba(255, 120, 120, 1)',
+  },
+  success: {
+    border: 'rgba(76, 175, 80, 1)',
+    background: 'rgba(10, 70, 25, 0.92)',
+    title: 'rgba(120, 230, 130, 1)',
+  },
+  failure: {
+    border: 'rgba(244, 67, 54, 1)',
+    background: 'rgba(90, 10, 10, 0.92)',
+    title: 'rgba(255, 120, 110, 1)',
+  },
+  unknown: {
+    border: 'rgba(158, 158, 158, 1)',
+    background: 'rgba(45, 45, 50, 0.92)',
+    title: 'rgba(225, 225, 225, 1)',
+  },
+} as const;
+
+function RecordingStatusBanner({ status }: { status: RecordingStatus }) {
+  const state = status.state === 'recording' ? 'recording' : status.outcome;
+  const palette = RECORDING_STATUS_PALETTE[state];
+  const title =
+    status.state === 'recording'
+      ? 'REC - Episode recording'
+      : status.outcome === 'success'
+        ? 'Episode saved - Success'
+        : status.outcome === 'failure'
+          ? 'Episode saved - Failure'
+          : 'Episode saved - Unknown';
+  const help =
+    status.state === 'recording'
+      ? 'A: unknown   X: success   Y: failure'
+      : 'Press A to start the next episode';
+  return (
+    <Container
+      flexDirection="column"
+      gap={6}
+      alignItems="center"
+      justifyContent="center"
+      padding={14}
+      borderRadius={12}
+      borderWidth={3}
+      borderColor={palette.border}
+      backgroundColor={palette.background}
+    >
+      <Text fontSize={34} fontWeight="bold" color={palette.title} textAlign="center">
+        {title}
+      </Text>
+      <Text fontSize={25} color="rgba(245, 245, 245, 1)" textAlign="center">
+        {help}
+      </Text>
     </Container>
   );
 }
@@ -264,6 +327,7 @@ export default function CloudXR3DUI({
   systemNoticeVisible = false,
   systemNoticeLevel = 'warning',
   onDismissSystemNotice,
+  recordingStatus = null,
 }: CloudXRUIProps) {
   const recorder = useRecorder();
   const MINIMIZE_ON_PLAY_KEY = 'cxr.isaac.minimizeOnPlay';
@@ -316,6 +380,7 @@ export default function CloudXR3DUI({
   // that makes sense at full size.
   const noticeFloats = panelHidden || isCompact;
   const noticeY = panelHidden ? 0.42 : 0.6;
+  const recordingStatusY = noticeFloats ? (systemNoticeVisible ? noticeY + 0.48 : noticeY) : 1.3;
 
   // Face-camera rotation: smoothly rotate UI to face the user (Y-axis only)
   useFrame((state, dt) => {
@@ -877,6 +942,22 @@ export default function CloudXR3DUI({
                 level={systemNoticeLevel}
                 onDismiss={onDismissSystemNotice}
               />
+            </Container>
+          </group>
+        )}
+        {recordingStatus !== null && (
+          <group position={[0, recordingStatusY, 0.02]}>
+            <Container
+              pixelSize={0.001}
+              width={1000}
+              height={170}
+              alignItems="center"
+              justifyContent="center"
+              sizeX={1.67}
+              sizeY={0.28}
+              flexDirection="column"
+            >
+              <RecordingStatusBanner status={recordingStatus} />
             </Container>
           </group>
         )}

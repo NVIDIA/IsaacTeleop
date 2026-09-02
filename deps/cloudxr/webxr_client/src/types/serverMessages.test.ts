@@ -18,6 +18,7 @@
 import {
   formatSystemNotice,
   formatSystemNoticeBody,
+  isRecordingStatusMessage,
   isSystemNoticeMessage,
   SystemNotice,
 } from './serverMessages';
@@ -39,6 +40,28 @@ const validNotice = (): SystemNotice => ({
 });
 
 const validMessage = () => ({ type: 'system_notice', message: validNotice() });
+
+describe('isRecordingStatusMessage', () => {
+  it.each([
+    { type: 'recording_status', message: { state: 'recording' } },
+    { type: 'recording_status', message: { state: 'stopped', outcome: 'success' } },
+    { type: 'recording_status', message: { state: 'stopped', outcome: 'failure' } },
+    { type: 'recording_status', message: { state: 'stopped', outcome: 'unknown' } },
+  ])('accepts $message.state status', message => {
+    expect(isRecordingStatusMessage(message)).toBe(true);
+  });
+
+  it.each([
+    null,
+    { type: 'recording_status' },
+    { type: 'recording_status', message: { state: 'recording', outcome: 'success' } },
+    { type: 'recording_status', message: { state: 'stopped' } },
+    { type: 'recording_status', message: { state: 'stopped', outcome: 'partial' } },
+    { type: 'system_notice', message: { state: 'recording' } },
+  ])('rejects malformed status %#', message => {
+    expect(isRecordingStatusMessage(message)).toBe(false);
+  });
+});
 
 describe('isSystemNoticeMessage', () => {
   it('accepts a well-formed notice', () => {
@@ -83,9 +106,9 @@ describe('isSystemNoticeMessage', () => {
     ['a missing items', { items: undefined }],
     ['a non-string doc_url', { doc_url: 3 }],
   ])('rejects %s', (_label, override) => {
-    expect(isSystemNoticeMessage({ type: 'system_notice', message: { ...validNotice(), ...override } })).toBe(
-      false
-    );
+    expect(
+      isSystemNoticeMessage({ type: 'system_notice', message: { ...validNotice(), ...override } })
+    ).toBe(false);
   });
 
   // The XR panel dereferences every item field while rendering, so a bad item
@@ -101,12 +124,16 @@ describe('isSystemNoticeMessage', () => {
     ['an item with a non-string detail', [{ name: 'n', actual: 'a', required: 'r', detail: 5 }]],
     ['one bad item among good ones', [{ name: 'n', actual: 'a', required: 'r' }, null]],
   ])('rejects %s', (_label, items) => {
-    expect(isSystemNoticeMessage({ type: 'system_notice', message: { ...validNotice(), items } })).toBe(false);
+    expect(
+      isSystemNoticeMessage({ type: 'system_notice', message: { ...validNotice(), items } })
+    ).toBe(false);
   });
 
   it('accepts an item without the optional detail', () => {
     const items = [{ name: 'n', actual: 'a', required: 'r' }];
-    expect(isSystemNoticeMessage({ type: 'system_notice', message: { ...validNotice(), items } })).toBe(true);
+    expect(
+      isSystemNoticeMessage({ type: 'system_notice', message: { ...validNotice(), items } })
+    ).toBe(true);
   });
 });
 

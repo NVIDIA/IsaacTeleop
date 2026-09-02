@@ -58,6 +58,20 @@ export interface SystemNoticeMessage {
   message: SystemNotice;
 }
 
+/** Outcome attached to a completed robot-data episode. */
+export type RecordingOutcome = 'success' | 'failure' | 'unknown';
+
+/** Current state of host-side episode recording. */
+export type RecordingStatus =
+  | { state: 'recording' }
+  | { state: 'stopped'; outcome: RecordingOutcome };
+
+/** A host-side recording transition as it appears on the wire. */
+export interface RecordingStatusMessage {
+  type: 'recording_status';
+  message: RecordingStatus;
+}
+
 /** Narrow an unknown value to a {@link SystemNoticeItem}. */
 function isSystemNoticeItem(value: unknown): value is SystemNoticeItem {
   if (typeof value !== 'object' || value === null) return false;
@@ -96,6 +110,22 @@ export function isSystemNoticeMessage(value: unknown): value is SystemNoticeMess
     Array.isArray(notice.items) &&
     notice.items.every(isSystemNoticeItem) &&
     (notice.doc_url === undefined || typeof notice.doc_url === 'string')
+  );
+}
+
+/** Narrow an arbitrary parsed payload to a {@link RecordingStatusMessage}. */
+export function isRecordingStatusMessage(value: unknown): value is RecordingStatusMessage {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as { type?: unknown; message?: unknown };
+  if (candidate.type !== 'recording_status') return false;
+
+  const body = candidate.message;
+  if (typeof body !== 'object' || body === null) return false;
+  const status = body as Record<string, unknown>;
+  if (status.state === 'recording') return status.outcome === undefined;
+  return (
+    status.state === 'stopped' &&
+    (status.outcome === 'success' || status.outcome === 'failure' || status.outcome === 'unknown')
   );
 }
 
