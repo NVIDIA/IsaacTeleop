@@ -244,7 +244,7 @@ def _validate_since(since, source: str, name: str, details) -> None:
     release line, or "latest" would all make the tag a claim nobody can check, and none
     of them resolve to a page the link can point at.
     """
-    if since != SINCE_MAIN and not _SINCE_RE.match(str(since)):
+    if since != SINCE_MAIN and not _SINCE_RE.fullmatch(str(since)):
         _fail(
             source,
             name,
