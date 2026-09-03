@@ -38,8 +38,10 @@ The published wheels (Linux x86_64 / aarch64, CPython 3.11–3.13) bundle the co
    import isaacteleop.viz as televiz
 
 You only need to :doc:`build from source </getting_started/build_from_source/index>` when
-developing Isaac Teleop itself — that build enables Televiz automatically when Vulkan, the CUDA
-Toolkit, and ``glslangValidator`` are present.
+developing Isaac Teleop itself — that build enables Televiz automatically when Vulkan and the
+CUDA Toolkit are detected. ``glslangValidator`` is additionally required to compile the shaders:
+if it is missing, configuration fails rather than quietly dropping the module — install it, or
+pass ``-DBUILD_VIZ=OFF``.
 
 Overview
 --------
@@ -138,10 +140,11 @@ Session configuration
      - Default
      - Description
    * - ``mode``
-     - —
-     - ``DisplayMode.kXr`` / ``kWindow`` / ``kOffscreen``. Required.
+     - ``DisplayMode.kOffscreen``
+     - ``DisplayMode.kXr`` / ``kWindow`` / ``kOffscreen``. Set it explicitly; the default is
+       offscreen.
    * - ``window_width`` / ``window_height``
-     - —
+     - ``1024``
      - Render size for window and offscreen modes. Ignored in XR (the runtime dictates per-eye
        resolution; query it with ``get_recommended_resolution()``).
    * - ``app_name``
@@ -153,16 +156,17 @@ Session configuration
        components (e.g. ``TeleopSession`` trackers) need them. Televiz already enables its own
        rendering extensions. See `Sharing the XR session`_.
    * - ``xr_near_z`` / ``xr_far_z``
-     - —
+     - ``0.05`` / ``100.0``
      - Near / far planes for the XR projection.
    * - ``xr_system_wait_seconds``
-     - —
+     - ``0``
      - How long to wait for the OpenXR system (headset) to become available at create time.
+       Zero fails fast when no headset is present.
    * - ``clear_color``
-     - —
-     - Background color as an ``(r, g, b, a)`` sequence in ``[0, 1]``.
+     - ``(0, 0, 0, 0)``
+     - Background color as an ``(r, g, b, a)`` sequence in ``[0, 1]``. Transparent by default.
    * - ``gpu_timing``
-     - —
+     - ``False``
      - Enable GPU timestamp queries, surfaced via ``get_gpu_timing()``.
 
 Construct the session with the factory; never call the class directly:
@@ -242,7 +246,8 @@ Shared configuration
      - Source texture size, a ``Resolution``. Submitted buffers must match it.
    * - ``format``
      - —
-     - ``PixelFormat`` of the source (typically ``kRGBA8``).
+     - ``PixelFormat`` of the source. ``kRGBA8`` is the only value texture layers accept;
+       anything else raises ``ValueError``.
    * - ``placement``
      - —
      - Where and how big the surface is. Each layer has its own placement type describing its own
