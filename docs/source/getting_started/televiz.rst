@@ -127,6 +127,21 @@ For a window or headset, set ``mode`` to ``DisplayMode.kWindow`` or ``DisplayMod
 layer setup is identical; you just drive a frame loop (see `Frame loop`_) rather than the one-shot
 ``readback_to_host()``, which is offscreen-only.
 
+.. _orin-openxr-composition:
+
+.. note::
+
+   **Jetson Orin, XR.** The default ``openxr_composition = True`` path presents a solid
+   color, or black, in place of the submitted image. Until this is addressed in a future
+   release, set ``openxr_composition = False`` so Televiz composites the quad itself:
+
+   .. code-block:: python
+
+      layer_cfg.openxr_composition = False
+
+   Cylinder and equirect layers cannot opt out. In :doc:`/references/camera_streaming` the
+   same switch is YAML ``compositor: televiz`` (quads only).
+
 Session configuration
 ---------------------
 
@@ -222,7 +237,8 @@ Three consequences, in rough order of how often they bite:
 ``QuadLayer`` is the one layer with a choice, which is why ``openxr_composition`` and
 ``generate_mipmaps`` appear on its config and on no other. Set ``openxr_composition = False`` to
 draw the quad with Televiz's built-in compositor instead, where 3D-placed quads depth-test against
-each other in a shared render target — the way out of the no-depth constraint above. Cylinder and
+each other in a shared render target — the way out of the no-depth constraint above, and the
+setting to use on Jetson Orin in XR (see :ref:`Jetson Orin, XR <orin-openxr-composition>`). Cylinder and
 equirect layers have no such switch: they exist only as native runtime layers, and therefore only in
 XR. Window and offscreen modes always use the built-in compositor.
 
@@ -333,7 +349,8 @@ because the quad is the only layer that can be drawn either way:
    * - ``openxr_composition``
      - ``True``
      - ``True`` = the OpenXR runtime composites the quad, ``False`` = Televiz's built-in
-       compositor. See `Composition model`_.
+       compositor. On Jetson Orin in XR, set ``False`` (see :ref:`Jetson Orin, XR <orin-openxr-composition>`).
+       See `Composition model`_.
 
 Its placement is a ``QuadLayerPlacement`` — a ``pose`` plus ``size_meters``. It is optional:
 a quad with no placement fills the window in window mode.
