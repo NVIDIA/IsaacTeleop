@@ -19,11 +19,14 @@
 #   since    optional; the earliest release carrying the device, rendered under the
 #            Details panel's columns as a tag linking to that release -- so a row without
 #            `details` cannot have one. A release tag spelled as the repository spells it
-#            ("v1.3.131", and the unprefixed "0.1.0" of the first two releases; the page
-#            shows every one with a "v"), or `main` for a device no release carries yet.
+#            ("v1.3.131"), or `main` for a device no release carries yet.
 #            Derive it, never date it: walk the release tags oldest-first and take the
 #            first whose tree carries the device's plugin or guide, as in
 #            ``git cat-file -e v1.4.142:src/plugins/oglo_tactile``; `main` when none does.
+#            ``ecosystem_grid.SINCE_FLOOR`` is the oldest release this page names, and a
+#            device an earlier release carried is listed from the floor instead -- the
+#            build rejects anything older, so do not "correct" such a row back to what
+#            the walk returned.
 #            Ask the tree, not the ancestry -- release branches are maintained by
 #            cherry-pick, so a change has a different commit on each branch and
 #            ``git tag --contains`` answers "no tag" for every device. Dates mislead too:
@@ -148,7 +151,8 @@ devices:
     url: https://www.manus-meta.com/products/metagloves-pro
     group: peripheral
     modes: High-fidelity finger tracking
-    since: "0.1.0"
+    # The plugin shipped in 0.1.0, below the floor.
+    since: v1.0.191
     company:
       name: MANUS
       logo: manus.svg

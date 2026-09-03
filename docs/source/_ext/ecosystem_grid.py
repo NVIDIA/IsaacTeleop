@@ -29,6 +29,10 @@ DEVICE_LOGO_DIR = "_static/logos"
 # A device no release carries yet, so the only way to get it is to build main.
 SINCE_MAIN = "main"
 
+# The first stable release; everything before 1.0 was a pre-release. A device carried by
+# an earlier tag is listed from here rather than from a 0.x version.
+SINCE_FLOOR = "v1.0.191"
+
 # A link into the docs site or into the IsaacTeleop repository stays inside this
 # project, so it carries no external marker -- arrow or screen-reader label. Every
 # other domain gets one, including other GitHub organizations such as isaac-sim.
@@ -129,8 +133,10 @@ def _passthrough(self, node):
 
 _ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _ISSUE_RE = re.compile(r"/(?:issues|pull)/(\d+)/?$")
-# A release tag exactly as the repository spells it, because the link resolves it: the
-# first two releases predate the "v" prefix, so both "v1.0.191" and "0.1.0" occur.
+# A release tag exactly as the repository spells it, because the link resolves it. Every
+# tag from SINCE_FLOOR on carries the "v", and only the releases below it drop the
+# prefix; matching those too lets the floor explain itself rather than reading as a
+# misspelling.
 _SINCE_RE = re.compile(r"^v?\d+\.\d+\.\d+$")
 _TEL_RE = re.compile(r"[^\d+]")
 
@@ -237,6 +243,11 @@ def _validate_details(details, source: str, name: str) -> None:
             _validate_entry(entry, source, name, f"details.{key}")
 
 
+def _release_order(tag: str) -> tuple:
+    """Sortable form of a release tag, whose "v" is optional in the oldest ones."""
+    return tuple(int(part) for part in tag.lstrip("v").split("."))
+
+
 def _validate_since(since, source: str, name: str, details) -> None:
     """A release tag, or ``main``: both name something the tag can link to.
 
@@ -250,6 +261,13 @@ def _validate_since(since, source: str, name: str, details) -> None:
             name,
             f"since must be {SINCE_MAIN!r} or a release tag such as 'v1.3.131', "
             f"not {since!r}",
+        )
+    if since != SINCE_MAIN and _release_order(since) < _release_order(SINCE_FLOOR):
+        _fail(
+            source,
+            name,
+            f"since is {since!r}, older than {SINCE_FLOOR!r}; a device carried by an "
+            f"earlier release is listed from {SINCE_FLOOR!r} instead",
         )
     if not details:
         _fail(
