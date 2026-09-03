@@ -210,6 +210,20 @@ devices:
         - One BLE device per glove
         - Plugin off by default — enable at build time
 
+  # Noitom Robotics integrates Isaac Teleop; the suit streams through Noitom Ltd's Axis
+  # Studio and Hybrid Data Server, which is what the plugin reads. The row names the
+  # partner, so it links to them and not to the parent company's product pages.
+  - id: noitom
+    name: Noitom Robotics Motion Capture
+    url: https://www.noitomrobotics.com
+    group: peripheral
+    modes: Full-body motion capture
+    since: main
+    details:
+      setup:
+        - label: Noitom Mocap Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap
+
   # The plugin is named generically because any 3-axis HID pedal goes through it.
   - id: logitech-rudder-pedals
     name: Logitech Rudder Pedals
@@ -269,16 +283,18 @@ devices:
     group: data_factory
     modes: Ego data capture, simulation assets
 
-  - id: noitom
-    name: Noitom Motion Capture
-    url: https://www.noitom.com/
+  # No `since`: the datasets are a service, with nothing in this repository to date it
+  # against. ModalityNet is the platform the datasets come from, so it earns a label of
+  # its own rather than a second bare link off the name.
+  - id: noitom-robotics
+    name: Noitom Robotics
+    url: https://www.noitomrobotics.com
     group: data_factory
-    modes: Full-body motion capture
-    since: main
+    modes: Human-centric datasets
     details:
-      setup:
-        - label: Noitom Mocap Plugin
-          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap
+      acquire:
+        - label: ModalityNet
+          url: https://www.modalitynet.com
 
   # ------------------------------------------------------------------- cloud --
   - id: volcano-engine
