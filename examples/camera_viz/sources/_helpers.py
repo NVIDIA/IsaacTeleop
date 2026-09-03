@@ -46,10 +46,28 @@ import numpy as np
 from pipeline import Frame, FrameSource, SourceSpec
 
 
+_SINK = None
+
+
+def set_notify_sink(sink) -> None:
+    """Send notifications somewhere other than stderr.
+
+    The status panel redraws stderr in place, so it hands its own writer in
+    here: a lifecycle message printed underneath it would land mid-panel and
+    leave every later repaint misaligned.
+    """
+    global _SINK
+    _SINK = sink
+
+
 def notify(tag: str, msg: str) -> None:
     # Stderr-direct so it shows without a configured Python logger.
     # Reserved for lifecycle events; periodic stats use notify_verbose.
-    print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
+    line = f"[{tag}] {msg}"
+    if _SINK is not None:
+        _SINK(line)
+        return
+    print(line, file=sys.stderr, flush=True)
 
 
 _VERBOSE = False
@@ -75,7 +93,7 @@ def _verbose_enabled() -> bool:
 def notify_verbose(tag: str, msg: str) -> None:
     """Periodic stats; gated by YAML ``verbose:`` or CAMERA_VIZ_VERBOSE."""
     if _verbose_enabled():
-        print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
+        notify(tag, msg)
 
 
 logger = logging.getLogger(__name__)

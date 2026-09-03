@@ -198,6 +198,10 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
              "Update placement at runtime (validated; raises ValueError on non-positive "
              "size_meters). None switches to fullscreen (window mode only).")
         .def("placement", &viz::QuadLayer::placement)
+        .def("set_stereo_baseline_mm", &viz::QuadLayer::set_stereo_baseline_mm, "baseline_mm"_a,
+             "Live stereo baseline in millimeters. Takes effect on the next frame; "
+             "inert while the layer is mono. Raises ValueError on a non-finite value.")
+        .def_property_readonly("stereo_baseline_mm", &viz::QuadLayer::stereo_baseline_mm)
         // Bind via concrete-type lambdas: is_visible/set_visible live on
         // LayerBase, which isn't a registered pybind base of QuadLayer, so a
         // direct &QuadLayer::is_visible resolves to LayerBase and rejects a
@@ -246,6 +250,13 @@ numpy on a CUDA device pointer); the binding converts it on the fly.
                        "along the placement's local +x axis — same convention as QuadLayer. "
                        "0 (default) → both eyes see the same world cylinder and depth comes "
                        "from the image pair. Ignored unless stereo.")
+        .def_readwrite("stereo_convergence_deg", &viz::CylinderLayer::Config::stereo_convergence_deg,
+                       "Per-eye yaw in degrees; the left eye's surface rotates +half, the right "
+                       "-half. Prefer this over stereo_baseline_mm on a curved surface: a "
+                       "translation gives full disparity dead ahead and less toward the "
+                       "edges, and none at all at infinite radius, while a rotation is "
+                       "uniform across the arc. Positive pushes content away. Ignored "
+                       "unless stereo.")
         .def_readwrite(
             "alpha_blend", &viz::CylinderLayer::Config::alpha_blend,
             "Composite honoring the texture's alpha channel (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by default: opaque content composites fully within the layer bounds (passthrough still shows outside them) and alpha-free layers keep the frame eligible for CloudXR's client-reconstructed streaming, which excludes source-alpha layers. Turn on for translucent content (HUDs, overlays).")
@@ -266,7 +277,17 @@ order). Same submit contract as QuadLayer.
     cylinder_cls
         .def("set_placement", &viz::CylinderLayer::set_placement, "placement"_a,
              "Update placement at runtime (validated; raises ValueError on bad shape params).")
-        .def("placement", &viz::CylinderLayer::placement);
+        .def("placement", &viz::CylinderLayer::placement)
+        .def("set_stereo_baseline_mm", &viz::CylinderLayer::set_stereo_baseline_mm, "baseline_mm"_a,
+             "Live stereo baseline in millimeters. Takes effect on the next frame; "
+             "inert while the layer is mono. Raises ValueError on a non-finite value.")
+        .def_property_readonly("stereo_baseline_mm", &viz::CylinderLayer::stereo_baseline_mm)
+        .def("set_stereo_convergence_deg", &viz::CylinderLayer::set_stereo_convergence_deg, "convergence_deg"_a,
+             "Live per-eye yaw in degrees. The knob for curved surfaces: rotating them "
+             "gives uniform disparity across the arc and works at infinite radius, where "
+             "translating (stereo_baseline_mm) does nothing. Raises ValueError on a "
+             "non-finite value.")
+        .def_property_readonly("stereo_convergence_deg", &viz::CylinderLayer::stereo_convergence_deg);
     bind_image_layer_common<viz::CylinderLayer>(cylinder_cls, "CylinderLayer.submit");
 
     // ── EquirectLayer (native-only: XrCompositionLayerEquirect2KHR) ───
@@ -315,6 +336,13 @@ order). Same submit contract as QuadLayer.
                        "R changes by ~shift/R, which is zero for the infinite (0/+inf) sphere. "
                        "0 (default) keeps the VR180/VR360 shared-sphere convention. Ignored "
                        "unless stereo.")
+        .def_readwrite("stereo_convergence_deg", &viz::EquirectLayer::Config::stereo_convergence_deg,
+                       "Per-eye yaw in degrees; the left eye's surface rotates +half, the right "
+                       "-half. Prefer this over stereo_baseline_mm on a curved surface: a "
+                       "translation gives full disparity dead ahead and less toward the "
+                       "edges, and none at all at infinite radius, while a rotation is "
+                       "uniform across the arc. Positive pushes content away. Ignored "
+                       "unless stereo.")
         .def_readwrite(
             "alpha_blend", &viz::EquirectLayer::Config::alpha_blend,
             "Composite honoring the texture's alpha channel (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by default: opaque content composites fully within the layer bounds (passthrough still shows outside them) and alpha-free layers keep the frame eligible for CloudXR's client-reconstructed streaming, which excludes source-alpha layers. Turn on for translucent content (HUDs, overlays).")
@@ -336,7 +364,17 @@ FIRST when it acts as a background. Same submit contract as QuadLayer.
     equirect_cls
         .def("set_placement", &viz::EquirectLayer::set_placement, "placement"_a,
              "Update placement at runtime (validated; raises ValueError on bad shape params).")
-        .def("placement", &viz::EquirectLayer::placement);
+        .def("placement", &viz::EquirectLayer::placement)
+        .def("set_stereo_baseline_mm", &viz::EquirectLayer::set_stereo_baseline_mm, "baseline_mm"_a,
+             "Live stereo baseline in millimeters. Takes effect on the next frame; "
+             "inert while the layer is mono. Raises ValueError on a non-finite value.")
+        .def_property_readonly("stereo_baseline_mm", &viz::EquirectLayer::stereo_baseline_mm)
+        .def("set_stereo_convergence_deg", &viz::EquirectLayer::set_stereo_convergence_deg, "convergence_deg"_a,
+             "Live per-eye yaw in degrees. The knob for curved surfaces: rotating them "
+             "gives uniform disparity across the arc and works at infinite radius, where "
+             "translating (stereo_baseline_mm) does nothing. Raises ValueError on a "
+             "non-finite value.")
+        .def_property_readonly("stereo_convergence_deg", &viz::EquirectLayer::stereo_convergence_deg);
     bind_image_layer_common<viz::EquirectLayer>(equirect_cls, "EquirectLayer.submit");
 
     // ── ProjectionLayer ────────────────────────────────────────────────
