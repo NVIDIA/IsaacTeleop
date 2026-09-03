@@ -130,8 +130,8 @@ layer setup is identical; you just drive a frame loop (see `Frame loop`_) rather
 .. note::
 
    **Jetson Orin, XR.** The default ``openxr_composition = True`` path presents a solid
-   color, or black, in place of the submitted image. Set ``openxr_composition = False``
-   so Televiz composites the quad itself:
+   color, or black, in place of the submitted image. Until this is addressed in a future
+   release, set ``openxr_composition = False`` so Televiz composites the quad itself:
 
    .. code-block:: python
 
