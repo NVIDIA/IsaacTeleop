@@ -16,7 +16,7 @@
 # fresh full_body_<timestamp>.mcap into examples/mcap_record_replay/recordings/
 # (gitignored; created if missing; recorder args: [duration_seconds, default
 # 5 s] [output.mcap | output_dir/]); exiting after ~5 s is SUCCESS — replay
-# headless with examples/mcap_record_replay/python/replay_full_body.py, which
+# headless with `python -m isaacteleop_examples.mcap_record_replay.replay_full_body`, which
 # picks up the newest recording there by default.
 # See rigs/se3_tracker.yaml for the fully annotated exemplar of every key.
 name: full_body
