@@ -34,7 +34,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from pipeline import Frame, FrameSource, SourceSpec
+from ..pipeline import Frame, FrameSource, SourceSpec
 from ._helpers import alloc_pinned_host, notify, notify_verbose
 
 logger = logging.getLogger(__name__)
