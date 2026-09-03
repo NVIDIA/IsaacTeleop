@@ -487,8 +487,10 @@ Python API, which mirrors the C++ names one-to-one — see <a class="reference i
 </pre></div>
 </div>
 <p>You only need to <a class="reference internal" href="build_from_source/index.html"><span class="doc">build from source</span></a> when
-developing Isaac Teleop itself — that build enables Televiz automatically when Vulkan, the CUDA
-Toolkit, and <code class="docutils literal notranslate"><span class="pre">glslangValidator</span></code> are present.</p>
+developing Isaac Teleop itself — that build enables Televiz automatically when Vulkan and the
+CUDA Toolkit are detected. <code class="docutils literal notranslate"><span class="pre">glslangValidator</span></code> is additionally required to compile the shaders:
+if it is missing, configuration fails rather than quietly dropping the module — install it, or
+pass <code class="docutils literal notranslate"><span class="pre">-DBUILD_VIZ=OFF</span></code>.</p>
 </section>
 <section id="overview">
 <h2><a class="toc-backref" href="#id3" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
@@ -595,11 +597,12 @@ layer setup is identical; you just drive a frame loop (see <a class="reference i
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mode</span></code></p></td>
-<td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">DisplayMode.kXr</span></code> / <code class="docutils literal notranslate"><span class="pre">kWindow</span></code> / <code class="docutils literal notranslate"><span class="pre">kOffscreen</span></code>. Required.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DisplayMode.kOffscreen</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DisplayMode.kXr</span></code> / <code class="docutils literal notranslate"><span class="pre">kWindow</span></code> / <code class="docutils literal notranslate"><span class="pre">kOffscreen</span></code>. Set it explicitly; the default is
+offscreen.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">window_width</span></code> / <code class="docutils literal notranslate"><span class="pre">window_height</span></code></p></td>
-<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1024</span></code></p></td>
 <td><p>Render size for window and offscreen modes. Ignored in XR (the runtime dictates per-eye
 resolution; query it with <code class="docutils literal notranslate"><span class="pre">get_recommended_resolution()</span></code>).</p></td>
 </tr>
@@ -614,19 +617,20 @@ components (e.g. <code class="docutils literal notranslate"><span class="pre">Te
 rendering extensions. See <a class="reference internal" href="#id1">Sharing the XR session</a>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">xr_near_z</span></code> / <code class="docutils literal notranslate"><span class="pre">xr_far_z</span></code></p></td>
-<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.05</span></code> / <code class="docutils literal notranslate"><span class="pre">100.0</span></code></p></td>
 <td><p>Near / far planes for the XR projection.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">xr_system_wait_seconds</span></code></p></td>
-<td><p>—</p></td>
-<td><p>How long to wait for the OpenXR system (headset) to become available at create time.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+<td><p>How long to wait for the OpenXR system (headset) to become available at create time.
+Zero fails fast when no headset is present.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">clear_color</span></code></p></td>
-<td><p>—</p></td>
-<td><p>Background color as an <code class="docutils literal notranslate"><span class="pre">(r,</span> <span class="pre">g,</span> <span class="pre">b,</span> <span class="pre">a)</span></code> sequence in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">0,</span> <span class="pre">0,</span> <span class="pre">0)</span></code></p></td>
+<td><p>Background color as an <code class="docutils literal notranslate"><span class="pre">(r,</span> <span class="pre">g,</span> <span class="pre">b,</span> <span class="pre">a)</span></code> sequence in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>. Transparent by default.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gpu_timing</span></code></p></td>
-<td><p>—</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
 <td><p>Enable GPU timestamp queries, surfaced via <code class="docutils literal notranslate"><span class="pre">get_gpu_timing()</span></code>.</p></td>
 </tr>
 </tbody>
@@ -708,7 +712,8 @@ XR. Window and offscreen modes always use the built-in compositor.</p>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">format</span></code></p></td>
 <td><p>—</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">PixelFormat</span></code> of the source (typically <code class="docutils literal notranslate"><span class="pre">kRGBA8</span></code>).</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PixelFormat</span></code> of the source. <code class="docutils literal notranslate"><span class="pre">kRGBA8</span></code> is the only value texture layers accept;
+anything else raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">placement</span></code></p></td>
 <td><p>—</p></td>
@@ -1398,7 +1403,7 @@ output locations.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 02, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 03, 2026.
       <br/>
     
   </p>
