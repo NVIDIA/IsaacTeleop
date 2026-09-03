@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TypedDict, cast
 
-from constants import (
+from .constants import (
     SHARPA_HAND_RETARGETERS,
     HandRetargeter,
     HandTrackingPlugin,
