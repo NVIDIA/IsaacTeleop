@@ -212,7 +212,7 @@ Tracks articulated hand joints (26 joints per hand, following the OpenXR
 
   - :code-file:`examples/oxr/cpp/oxr_simple_api_demo.cpp`
   - :code-file:`examples/oxr/python/modular_example.py`
-  - :code-file:`examples/retargeting/python/sources_example.py`
+  - :code-file:`examples/retargeting/python/isaacteleop_examples/retargeting/sources_example.py`
 
 ControllerTracker
 ~~~~~~~~~~~~~~~~~
@@ -232,7 +232,7 @@ axis inputs. Uses standard OpenXR action bindings.
 
 - Examples:
 
-  - :code-file:`examples/retargeting/python/sources_example.py`
+  - :code-file:`examples/retargeting/python/isaacteleop_examples/retargeting/sources_example.py`
   - :code-file:`examples/teleop/python/locomotion_retargeting_example.py`
   - :code-file:`examples/teleop/python/gripper_retargeting_example_simple.py`
 
@@ -382,6 +382,6 @@ For end-to-end usage patterns combining trackers with a ``DeviceIOSession``, see
 
 For higher-level usage with the teleop session manager and retargeting, see:
 
-- :code-file:`examples/retargeting/python/sources_example.py`
+- :code-file:`examples/retargeting/python/isaacteleop_examples/retargeting/sources_example.py`
 - :code-file:`examples/teleop/python/gripper_retargeting_example_simple.py`
 - :code-file:`examples/teleop/python/locomotion_retargeting_example.py`
