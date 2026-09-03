@@ -102,17 +102,18 @@ instead of auto-launching another one.
 ## Behavior
 
 Retargeting lives in `noitom_retargeting.py` and is wired by
-`noitom_tasks.py`. It maps Noitom shoulder, elbow, and wrist bones into G1 Pink
-IK frame targets, with optional elbow and shoulder frame tasks enabled by
-default.
+`noitom_tasks.py`. It maps the Noitom torso orientation and arm bones into G1
+Pink IK frame targets. The robot root stays fixed; the torso task has zero
+position cost and drives the three waist joints from calibration-relative
+yaw, roll, and pitch. Elbow and shoulder position tasks remain optional.
 
 Pipeline:
 
 ```text
 FullBodyPose (`body.noitom` vendor)
   -> torso frame (pelvis, SPINE3, shoulders)
-  -> posture-based arm targets (shoulder, elbow, wrist)
-  -> Pink IK frame-task action [wrists, elbows, shoulders, hands, locomotion]
+  -> relative torso orientation + posture-based arm targets
+  -> Pink IK frame-task action [wrists, torso, optional elbows/shoulders, hands]
 ```
 
 Calibration:

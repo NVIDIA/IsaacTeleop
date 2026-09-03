@@ -30,6 +30,10 @@ namespace
 {
 
 constexpr float SDK_CENTIMETERS_TO_METERS = 0.01f;
+constexpr size_t MAX_EVENT_BATCHES_PER_UPDATE = 64;
+constexpr size_t MAX_EVENT_BYTES_PER_UPDATE = 4 * 1024 * 1024;
+constexpr size_t MAX_EVENTS_PER_UPDATE = MAX_EVENT_BYTES_PER_UPDATE / sizeof(MocapApi::MCPEvent_t);
+constexpr size_t MAX_EVENT_POLL_ATTEMPTS_PER_UPDATE = 128;
 constexpr std::string_view FULL_BODY_TENSOR_IDENTIFIER = "full_body";
 constexpr const char* ANSI_ORANGE = "\033[38;5;208m";
 constexpr const char* ANSI_RESET = "\033[0m";
@@ -161,6 +165,8 @@ std::string error_name(MocapApi::EMCPError err)
         return "None";
     case MocapApi::Error_MoreEvent:
         return "MoreEvent";
+    case MocapApi::Error_InsufficientBuffer:
+        return "InsufficientBuffer";
     case MocapApi::Error_ServerNotReady:
         return "ServerNotReady";
     case MocapApi::Error_ClientNotReady:
@@ -267,6 +273,15 @@ void NoitomMocapPlugin::initialize_mocap()
         throw std::runtime_error("NoitomMocapPlugin: failed to configure SDK position units to centimeters");
     }
 
+    const bool cache_events_enabled = open_mocap_application();
+
+    std::cout << "NoitomMocapPlugin: connected via " << (config_.protocol == MocapProtocol::Tcp ? "TCP" : "UDP")
+              << ", collection=" << config_.collection_id << ", sdk_units=centimeters, output_units=meters, event_cache="
+              << (cache_events_enabled ? "enabled" : "disabled") << std::endl;
+}
+
+bool NoitomMocapPlugin::open_mocap_application()
+{
     check_mocap(application_api_->CreateApplication(&application_handle_), "CreateApplication");
     check_mocap(
         application_api_->SetApplicationSettings(settings_handle_, application_handle_), "SetApplicationSettings");
@@ -293,10 +308,26 @@ void NoitomMocapPlugin::initialize_mocap()
     {
         check_mocap(cache_err, "EnableApplicationCacheEvents");
     }
+    return cache_events_enabled;
+}
 
-    std::cout << "NoitomMocapPlugin: connected via " << (config_.protocol == MocapProtocol::Tcp ? "TCP" : "UDP")
-              << ", collection=" << config_.collection_id << ", sdk_units=centimeters, output_units=meters, event_cache="
-              << (cache_events_enabled ? "enabled" : "disabled") << std::endl;
+void NoitomMocapPlugin::reset_oversized_event_backlog(uint32_t pending_event_count)
+{
+    std::cerr << ANSI_ORANGE
+              << "NoitomMocapPlugin: warning: discarding oversized SDK event backlog; pending=" << pending_event_count
+              << " limit=" << MAX_EVENTS_PER_UPDATE << ANSI_RESET << std::endl;
+
+    if (application_open_)
+    {
+        check_mocap(application_api_->CloseApplication(application_handle_), "CloseApplication(backlog reset)");
+        application_open_ = false;
+    }
+    check_mocap(application_api_->DestroyApplication(application_handle_), "DestroyApplication(backlog reset)");
+    application_handle_ = 0;
+    latest_sample_time_raw_device_clock_ns_ = 0;
+    warned_no_avatars_ = false;
+    open_mocap_application();
+    application_reset_this_update_ = true;
 }
 
 void NoitomMocapPlugin::close_mocap()
@@ -325,32 +356,137 @@ void NoitomMocapPlugin::close_mocap()
     }
 }
 
-std::vector<MocapApi::MCPEvent_t> NoitomMocapPlugin::poll_events()
+std::vector<MocapApi::MCPAvatarHandle_t> NoitomMocapPlugin::poll_updated_avatars()
 {
-    uint32_t event_count = 0;
-    MocapApi::EMCPError err = application_api_->PollApplicationNextEvent(nullptr, &event_count, application_handle_);
-    if (err != MocapApi::Error_None && err != MocapApi::Error_MoreEvent)
+    std::vector<MocapApi::MCPAvatarHandle_t> updated_avatars;
+    size_t batch_count = 0;
+    size_t allocation_bytes_attempted = 0;
+    size_t event_count_processed = 0;
+    size_t poll_attempt_count = 0;
+    uint32_t last_pending_event_count = 0;
+    bool drained = false;
+
+    while (poll_attempt_count < MAX_EVENT_POLL_ATTEMPTS_PER_UPDATE && batch_count < MAX_EVENT_BATCHES_PER_UPDATE &&
+           event_count_processed < MAX_EVENTS_PER_UPDATE)
     {
-        throw std::runtime_error("PollApplicationNextEvent(count): " + error_string(err));
-    }
-    if (event_count == 0)
-    {
-        return {};
+        ++poll_attempt_count;
+        uint32_t event_count = 0;
+        MocapApi::EMCPError err = application_api_->PollApplicationNextEvent(nullptr, &event_count, application_handle_);
+        if (err != MocapApi::Error_None && err != MocapApi::Error_MoreEvent && err != MocapApi::Error_InsufficientBuffer)
+        {
+            throw std::runtime_error("PollApplicationNextEvent(count): " + error_string(err));
+        }
+        if (event_count == 0)
+        {
+            if (err == MocapApi::Error_None)
+            {
+                drained = true;
+                break;
+            }
+            continue;
+        }
+        const uint32_t pending_event_count = event_count;
+        last_pending_event_count = pending_event_count;
+        if (event_count > MAX_EVENTS_PER_UPDATE)
+        {
+            reset_oversized_event_backlog(event_count);
+            return {};
+        }
+        if (event_count > MAX_EVENTS_PER_UPDATE - event_count_processed)
+        {
+            break;
+        }
+        const size_t batch_bytes = static_cast<size_t>(event_count) * sizeof(MocapApi::MCPEvent_t);
+        if (batch_bytes > MAX_EVENT_BYTES_PER_UPDATE - allocation_bytes_attempted)
+        {
+            break;
+        }
+        allocation_bytes_attempted += batch_bytes;
+
+        std::vector<MocapApi::MCPEvent_t> batch(event_count);
+        for (auto& event : batch)
+        {
+            event.size = sizeof(MocapApi::MCPEvent_t);
+        }
+
+        err = application_api_->PollApplicationNextEvent(batch.data(), &event_count, application_handle_);
+        if (err == MocapApi::Error_InsufficientBuffer)
+        {
+            continue;
+        }
+        if (err != MocapApi::Error_None && err != MocapApi::Error_MoreEvent)
+        {
+            throw std::runtime_error("PollApplicationNextEvent(events): " + error_string(err));
+        }
+
+        batch.resize(event_count);
+        if (batch.empty())
+        {
+            drained = true;
+            break;
+        }
+
+        ++batch_count;
+        event_count_processed += batch.size();
+        for (const auto& event : batch)
+        {
+            switch (event.eventType)
+            {
+            case MocapApi::MCPEvent_AvatarUpdated:
+            {
+                const auto avatar_handle = event.eventData.motionData.avatarHandle;
+                const auto existing = std::find(updated_avatars.begin(), updated_avatars.end(), avatar_handle);
+                if (existing != updated_avatars.end())
+                {
+                    updated_avatars.erase(existing);
+                }
+                updated_avatars.push_back(avatar_handle);
+                break;
+            }
+            case MocapApi::MCPEvent_Error:
+            {
+                const auto sdk_err = event.eventData.systemError.error;
+                std::cerr << ANSI_ORANGE << "NoitomMocapPlugin: warning: SDK error event " << error_string(sdk_err);
+                if (sdk_err == MocapApi::Error_ServerNotReady)
+                {
+                    std::cerr << " - Hybrid Data Server is not streaming avatar data yet. "
+                                 "On Windows: start Axis Studio calibration, then enable HDS TCP "
+                                 "broadcast on this port";
+                }
+                std::cerr << ANSI_RESET << std::endl;
+                break;
+            }
+            default:
+                break;
+            }
+        }
+
+        if (err == MocapApi::Error_None && pending_event_count == 1)
+        {
+            drained = true;
+            break;
+        }
     }
 
-    std::vector<MocapApi::MCPEvent_t> events(event_count);
-    for (auto& event : events)
+    if (!drained)
     {
-        event.size = sizeof(MocapApi::MCPEvent_t);
+        if (!warned_event_drain_limit_)
+        {
+            std::cerr
+                << ANSI_ORANGE
+                << "NoitomMocapPlugin: warning: event drain budget reached; attempts=" << poll_attempt_count
+                << " batches=" << batch_count << " events=" << event_count_processed
+                << " allocated_bytes=" << allocation_bytes_attempted << " last_pending=" << last_pending_event_count
+                << "; publishing the latest avatar state without waiting for the backlog" << ANSI_RESET << std::endl;
+            warned_event_drain_limit_ = true;
+        }
+    }
+    else
+    {
+        warned_event_drain_limit_ = false;
     }
 
-    err = application_api_->PollApplicationNextEvent(events.data(), &event_count, application_handle_);
-    if (err != MocapApi::Error_None && err != MocapApi::Error_MoreEvent)
-    {
-        throw std::runtime_error("PollApplicationNextEvent(events): " + error_string(err));
-    }
-    events.resize(event_count);
-    return events;
+    return updated_avatars;
 }
 
 std::vector<MocapApi::MCPAvatarHandle_t> NoitomMocapPlugin::poll_avatars()
@@ -400,6 +536,7 @@ bool NoitomMocapPlugin::handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle)
     }
     else if (posture_time_err == MocapApi::Error_NoneMessage)
     {
+        latest_sample_time_raw_device_clock_ns_ = 0;
         warn_optional_ptp_missing_once();
     }
     else
@@ -527,32 +664,17 @@ bool NoitomMocapPlugin::update()
 {
     try
     {
-        auto events = poll_events();
+        auto updated_avatars = poll_updated_avatars();
+        if (application_reset_this_update_)
+        {
+            application_reset_this_update_ = false;
+            return true;
+        }
         bool should_push = false;
 
-        for (const auto& event : events)
+        for (auto avatar_handle : updated_avatars)
         {
-            switch (event.eventType)
-            {
-            case MocapApi::MCPEvent_AvatarUpdated:
-                should_push = handle_avatar(event.eventData.motionData.avatarHandle) || should_push;
-                break;
-            case MocapApi::MCPEvent_Error:
-            {
-                const auto sdk_err = event.eventData.systemError.error;
-                std::cerr << ANSI_ORANGE << "NoitomMocapPlugin: warning: SDK error event " << error_string(sdk_err);
-                if (sdk_err == MocapApi::Error_ServerNotReady)
-                {
-                    std::cerr << " — Hybrid Data Server is not streaming avatar data yet. "
-                                 "On Windows: start Axis Studio calibration, then enable HDS TCP "
-                                 "broadcast on this port";
-                }
-                std::cerr << ANSI_RESET << std::endl;
-                break;
-            }
-            default:
-                break;
-            }
+            should_push = handle_avatar(avatar_handle) || should_push;
         }
 
         if (!should_push)

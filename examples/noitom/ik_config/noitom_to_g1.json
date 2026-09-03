@@ -1,0 +1,87 @@
+{
+  "_comment": [
+    "Noitom full-body to Unitree G1 upper-body IK targets for real-time locomanipulation.",
+    "Coordinates use Isaac Z-up after operator_faces_robot; quaternion order is xyzw.",
+    "Only shoulder, elbow, and wrist mappings are included; the Noitom task fixes the legs.",
+    "Calibration scales upper arms by 0.8 and forearms by 0.7.",
+    "Wrist rotation offsets are BVH-local post-rotations, not world poses or VR",
+    "controller offsets. The side-specific values align Noitom hand frames with G1."
+  ],
+  "human_root_name": "PELVIS",
+  "robot_root_name": "pelvis",
+  "arm_chains": {
+    "left": {
+      "shoulder": "left_shoulder_yaw_link",
+      "elbow": "left_elbow_link",
+      "wrist": "left_wrist_yaw_link"
+    },
+    "right": {
+      "shoulder": "right_shoulder_yaw_link",
+      "elbow": "right_elbow_link",
+      "wrist": "right_wrist_yaw_link"
+    }
+  },
+  "human_scale_table": {
+    "LEFT_SHOULDER": 0.8,
+    "LEFT_ELBOW": 0.8,
+    "LEFT_WRIST": 0.7,
+    "RIGHT_SHOULDER": 0.8,
+    "RIGHT_ELBOW": 0.8,
+    "RIGHT_WRIST": 0.7
+  },
+  "arm_segment_clamps_m": {
+    "upper_arm_min": 0.1,
+    "upper_arm_max": 0.5,
+    "forearm_min": 0.1,
+    "forearm_max": 0.45
+  },
+  "pink_task_weights": {
+    "torso_position": 0.0,
+    "torso_rotation": 5.0,
+    "null_space_posture": 0.05
+  },
+  "ik_match_table": {
+    "left_shoulder_yaw_link": [
+      "LEFT_SHOULDER",
+      0.0,
+      0.0,
+      [0.0, 0.0, 0.0],
+      [-0.2706, 0.6533, 0.2706, 0.6533]
+    ],
+    "left_elbow_link": [
+      "LEFT_ELBOW",
+      0.5,
+      0.0,
+      [0.0, 0.0, 0.0],
+      [-0.2706, 0.6533, 0.2706, 0.6533]
+    ],
+    "left_wrist_yaw_link": [
+      "LEFT_WRIST",
+      5.0,
+      0.75,
+      [0.0, 0.0, 0.0],
+      [0.0, 0.7071, 0.7071, 0.0]
+    ],
+    "right_shoulder_yaw_link": [
+      "RIGHT_SHOULDER",
+      0.0,
+      0.0,
+      [0.0, 0.0, 0.0],
+      [-0.7071, 0.0, 0.7071, 0.0]
+    ],
+    "right_elbow_link": [
+      "RIGHT_ELBOW",
+      0.5,
+      0.0,
+      [0.0, 0.0, 0.0],
+      [-0.7071, 0.0, 0.7071, 0.0]
+    ],
+    "right_wrist_yaw_link": [
+      "RIGHT_WRIST",
+      5.0,
+      0.75,
+      [0.0, 0.0, 0.0],
+      [-0.7071, 0.0, 0.0, 0.7071]
+    ]
+  }
+}

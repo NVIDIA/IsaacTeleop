@@ -57,8 +57,10 @@ private:
     InterfaceT* get_interface(const char* version);
 
     void initialize_mocap();
+    bool open_mocap_application();
+    void reset_oversized_event_backlog(uint32_t pending_event_count);
     void close_mocap();
-    std::vector<MocapApi::MCPEvent_t> poll_events();
+    std::vector<MocapApi::MCPAvatarHandle_t> poll_updated_avatars();
     std::vector<MocapApi::MCPAvatarHandle_t> poll_avatars();
     bool handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle);
     void ensure_pusher(size_t flatbuffer_size);
@@ -78,7 +80,9 @@ private:
     MocapApi::MCPRenderSettingsHandle_t render_settings_handle_ = 0;
     MocapApi::MCPApplicationHandle_t application_handle_ = 0;
     bool application_open_ = false;
+    bool application_reset_this_update_ = false;
     bool warned_no_avatars_ = false;
+    bool warned_event_drain_limit_ = false;
     bool logged_first_avatar_frame_ = false;
 
     core::FullBodyPoseT frame_;

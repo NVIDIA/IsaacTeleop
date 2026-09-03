@@ -64,6 +64,7 @@ Table of Contents
    device/add_device
    device/joint_space
    device/body_tracking
+   device/noitom
    device/haptic_feedback
    device/manus
    device/oak

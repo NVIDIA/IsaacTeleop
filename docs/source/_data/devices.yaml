@@ -253,6 +253,8 @@ devices:
     modes: Full-body motion capture
     details:
       setup:
+        - label: Noitom Motion Capture Guide
+          doc: /device/noitom
         - label: Noitom Mocap Plugin
           url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/noitom_mocap
 
