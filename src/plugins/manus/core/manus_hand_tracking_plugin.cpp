@@ -1,6 +1,22 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+// Bridges MANUS Core (integrated mode) to the IsaacTeleop DeviceIO layer for a
+// pair of MANUS gloves.
+//
+// MANUS SDK callbacks fire on SDK threads and only cache state: skeleton joints,
+// the glove ids discovered from the landscape, and raw flex-sensor transforms.
+// All consumption happens on the plugin tick in update(), which drives three
+// independently switchable datasets (see ManusPluginConfig):
+//   human   - cached joints are anchored to a wrist pose from the OpenXR xdev
+//             hand trackers, or a controller aim pose when xdev is unavailable,
+//             and injected as XR_EXT_hand_tracking joints.
+//   sensors - cached sensor transforms are pushed as JointState flatbuffers.
+//   haptic  - inbound HapticCommands are forwarded to the glove finger motors.
+//
+// ManusTracker is a singleton because the SDK's C callbacks carry no user
+// pointer and must reach the instance through instance().
+
 #include "inc/manus/manus_hand_tracking_plugin.hpp"
 
 #include "inc/manus/manus_glove_collection.hpp"
@@ -61,12 +77,7 @@ bool is_openxr_extension_supported(const char* ext_name)
 
 SDKReturnCode get_raw_skeleton_node_count(uint32_t glove_id, uint32_t& node_count)
 {
-#if defined(__aarch64__) || defined(__arm__) || defined(_M_ARM64) || defined(_M_ARM)
-    // Manus SDK 3.1.1 ships different declarations for this call across architectures.
     return CoreSdk_GetRawSkeletonNodeCount(glove_id, &node_count);
-#else
-    return CoreSdk_GetRawSkeletonNodeCount(glove_id, node_count);
-#endif
 }
 
 // Must agree with JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE on the consumer side.
