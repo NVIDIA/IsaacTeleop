@@ -216,30 +216,23 @@ permission. ``verify.sh`` diagnoses it properly.
 Container
 ~~~~~~~~~
 
+To build against this rig from inside a container:
+
 .. code-block:: bash
 
    src/plugins/sensing/docker/setup_container.sh
 
-Group membership belongs in the **image**, not in ``runArgs``. Docker resolves
-supplementary groups for the container user from the image's own
-``/etc/group``, so putting the user in ``i2c``, ``gpio`` and ``video`` at build
-time covers PID 1 and ``docker exec`` alike; ``--group-add`` adds nothing on
-top. The reverse does not hold — ``--group-add`` alone leaves an interactive
-shell without the gids, because ``docker exec`` ignores ``HostConfig.GroupAdd``.
-
-:code-file:`src/plugins/sensing/docker` carries that as a ``RUN`` another
-Dockerfile can import, plus ``run_docker_example.sh`` for the part no build can
-express — the bind mounts and ``--device`` flags, read off this host:
+It checks the container can reach the device nodes, then provisions both build
+SDKs — public downloads resolved from the version in ``/etc/nv_tegra_release``.
+The **Jetson Multimedia API** comes from the apt pool; the **SIPL API** is a
+tarball published alongside the L4T release, fetched by URL. To install that
+one by hand instead:
 
 .. code-block:: bash
 
-   src/plugins/sensing/docker/run_docker_example.sh --json        # runArgs
-   src/plugins/sensing/docker/run_docker_example.sh --print-gids  # ARG for the RUN
+   sudo tar xf Jetson_SIPL_API_R39.2.1_aarch64.tbz2 -C /usr/src/
 
-Reaching the nodes also needs the device cgroup opened, with ``--privileged``
-or a ``--device-cgroup-rule``. That is orthogonal to groups and easy to
-conflate: with the cgroup closed, every node is unreadable no matter which
-groups the process holds.
+Running the cameras needs none of that, only what the next two sections cover.
 
 Validating in a container
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -281,17 +274,54 @@ else:
      - ``SetPlatformConfig ... status: 10`` again — the CSV list carries no
        vendor-added driver or NITO
 
-Adapt your own image by taking the ``RUN`` and the packages from the Dockerfile
-above, and the flags from ``docker/run_docker_example.sh --json``.
+Adapting your own image
+~~~~~~~~~~~~~~~~~~~~~~~
 
-The script also provisions both build SDKs, and both are public downloads
-resolved from the version in ``/etc/nv_tegra_release``. The **Jetson Multimedia
-API** comes from the apt pool; the **SIPL API** is a tarball published
-alongside the L4T release, fetched by URL. To install that one by hand instead:
+Group membership belongs in the **image**, not in ``runArgs``: Docker resolves
+supplementary groups for the container user from the image's own
+``/etc/group``, so putting the user in ``i2c``, ``gpio`` and ``video`` at build
+time covers PID 1 and ``docker exec`` alike. Verified on this rig — with the
+gids in the image and no ``--group-add``, all of ``/dev/i2c-9``,
+``/dev/i2c-10``, ``/dev/gpiochip0`` and ``/dev/nvmap`` are readable. The
+reverse does not hold: ``--group-add`` *alone* leaves an interactive shell
+without them, because ``docker exec`` ignores ``HostConfig.GroupAdd``.
+
+The gids are host-specific, so read them off the host rather than copying:
+
+.. code-block:: console
+
+   $ src/plugins/sensing/docker/run_docker_example.sh --print-gids
+   114:i2c 985:gpio 44:video
+
+The image half is one ``RUN``. Expose the directory as a named build context —
+``docker build`` cannot ``COPY`` across into a submodule:
 
 .. code-block:: bash
 
-   sudo tar xf Jetson_SIPL_API_R39.2.1_aarch64.tbz2 -C /usr/src/
+   docker build --build-context sensing=path/to/src/plugins/sensing/docker ...
+
+.. code-block:: dockerfile
+
+   RUN --mount=type=bind,from=sensing,target=/mnt/sensing \
+       /mnt/sensing/image_setup.sh "$USERNAME" 114:i2c 985:gpio 44:video
+
+The bind mount leaves nothing behind, so the script is not baked into a layer.
+To layer onto an existing image instead of editing its Dockerfile:
+
+.. code-block:: bash
+
+   docker build -f docker/Dockerfile.example --build-arg BASE=my-image:latest \
+       --build-arg SENSING_USER=me -t my-image:sensing src/plugins/sensing/docker
+
+The runtime half comes from the same script:
+
+.. code-block:: bash
+
+   docker run $(src/plugins/sensing/docker/run_docker_example.sh --print-args) my-image:sensing ...
+
+``--json`` emits the same flags as ``devcontainer.json`` ``runArgs`` elements.
+``--with-groups`` adds ``--group-add`` for an image built *without*
+``image_setup.sh``; it is redundant otherwise.
 
 nvsipl_camera
 -------------
