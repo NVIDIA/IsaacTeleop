@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>SENSING GMSL Camera Plugin &#8212; Isaac Teleop Documentation</title>
+    <title>SENSING GMSL Camera &#8212; Isaac Teleop Documentation</title>
   
   
   
@@ -362,7 +362,7 @@
 <li class="toctree-l1"><a class="reference internal" href="manus.html">MANUS Gloves</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oak.html">OAK Camera Plugin</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oglo.html">OGLO Tactile Glove Plugin</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">SENSING GMSL Camera Plugin</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">SENSING GMSL Camera</a></li>
 <li class="toctree-l1"><a class="reference internal" href="wuji_glove.html">Wuji Glove</a></li>
 <li class="toctree-l1"><a class="reference internal" href="haptikos.html">Haptikos Exoskeletons</a></li>
 </ul>
@@ -413,7 +413,7 @@
         <i class="fa-solid fa-home"></i>
       </a>
     </li>
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">SENSING GMSL Camera Plugin</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">SENSING GMSL Camera</span></li>
   </ul>
 </nav>
 </div>
@@ -430,12 +430,13 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="sensing-gmsl-camera-plugin">
-<h1>SENSING GMSL Camera Plugin<a class="headerlink" href="#sensing-gmsl-camera-plugin" title="Link to this heading">#</a></h1>
-<p>C++ plugin that captures from SENSING GMSL2 cameras through <strong>SIPL</strong> on a
-Jetson AGX Orin, and either encodes H.264 on the Jetson’s V4L2 engine or hands
-frames to another process as CUDA device memory. Source and plugin README:
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/README.md" rel="noopener noreferrer" target="_blank">src/plugins/sensing/README.md</a>.</p>
+  <section id="sensing-gmsl-camera">
+<h1>SENSING GMSL Camera<a class="headerlink" href="#sensing-gmsl-camera" title="Link to this heading">#</a></h1>
+<p>Bring-up for SENSING GMSL2 cameras on a Jetson AGX Orin, where capture goes
+through <strong>SIPL</strong> rather than Argus or V4L2, and <code class="docutils literal notranslate"><span class="pre">camera_plugin_sensing</span></code>, the
+C++ plugin that captures from them — encoding H.264 on the Jetson’s V4L2 engine
+or handing frames to another process as CUDA device memory. Source and scripts
+live in <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing" rel="noopener noreferrer" target="_blank">src/plugins/sensing</a>.</p>
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
 <ul class="simple">
@@ -448,19 +449,24 @@ frames to another process as CUDA device memory. Source and plugin README:
 <li><p><a class="reference internal" href="#container" id="id6">Container</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#building-and-running" id="id7">Building and running</a></p>
+<li><p><a class="reference internal" href="#nvsipl-camera" id="id7">nvsipl_camera</a></p></li>
+<li><p><a class="reference internal" href="#building-and-running" id="id8">Building and running</a></p>
 <ul>
-<li><p><a class="reference internal" href="#geometry-comes-from-the-platform-config" id="id8">Geometry comes from the platform config</a></p></li>
-<li><p><a class="reference internal" href="#encoding-at-5-mp60" id="id9">Encoding at 5 MP60</a></p></li>
+<li><p><a class="reference internal" href="#geometry-comes-from-the-platform-config" id="id9">Geometry comes from the platform config</a></p></li>
+<li><p><a class="reference internal" href="#encoding-at-5-mp60" id="id10">Encoding at 5 MP60</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#live-streaming-with-camera-viz" id="id10">Live streaming with camera_viz</a></p>
+<li><p><a class="reference internal" href="#live-streaming-with-camera-viz" id="id11">Live streaming with camera_viz</a></p>
 <ul>
-<li><p><a class="reference internal" href="#pairing-the-two-eyes" id="id11">Pairing the two eyes</a></p></li>
-<li><p><a class="reference internal" href="#testing-without-a-camera" id="id12">Testing without a camera</a></p></li>
+<li><p><a class="reference internal" href="#pairing-the-two-eyes" id="id12">Pairing the two eyes</a></p></li>
+<li><p><a class="reference internal" href="#testing-without-a-camera" id="id13">Testing without a camera</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#troubleshooting" id="id13">Troubleshooting</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id14">Troubleshooting</a></p>
+<ul>
+<li><p><a class="reference internal" href="#display-and-the-egl-vendor" id="id15">DISPLAY and the EGL vendor</a></p></li>
+</ul>
+</li>
 </ul>
 </nav>
 <section id="supported-hardware">
@@ -571,6 +577,10 @@ access and the build SDKs only matter inside the container.</p>
 src/plugins/sensing/verify.sh<span class="w">     </span><span class="c1"># read-only report, runs anywhere</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">--host</span></code> / <code class="docutils literal notranslate"><span class="pre">--container</span></code> override the detection. Each script names every
+privileged action it will take before the first <code class="docutils literal notranslate"><span class="pre">sudo</span></code> prompt and asks before
+each optional one; <code class="docutils literal notranslate"><span class="pre">--yes</span></code> accepts them all, and a non-interactive stdin
+declines them all.</p>
 <section id="host">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Host</a><a class="headerlink" href="#host" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh
@@ -637,9 +647,17 @@ permission. <code class="docutils literal notranslate"><span class="pre">verify.
 <p>Add the group ids to the container’s <code class="docutils literal notranslate"><span class="pre">runArgs</span></code> (numeric, because the
 container has no matching group <em>names</em>; the kernel checks numbers):</p>
 <div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="s2">"--group-add"</span><span class="p">,</span><span class="w"> </span><span class="s2">"114"</span><span class="p">,</span>
-<span class="s2">"--group-add"</span><span class="p">,</span><span class="w"> </span><span class="s2">"985"</span>
+<span class="s2">"--group-add"</span><span class="p">,</span><span class="w"> </span><span class="s2">"985"</span><span class="p">,</span>
+<span class="s2">"--group-add"</span><span class="p">,</span><span class="w"> </span><span class="s2">"44"</span>
 </pre></div>
 </div>
+<p>Generate them for a given host with
+<code class="docutils literal notranslate"><span class="pre">src/plugins/sensing/docker/runtime_args.sh</span> <span class="pre">--json</span></code>, which reads the gids off
+the device nodes instead of trusting the list above.</p>
+<p><code class="docutils literal notranslate"><span class="pre">--group-add</span></code> is only half of it: it reaches PID 1, but <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">exec</span></code>
+resolves supplementary groups from the container’s own <code class="docutils literal notranslate"><span class="pre">/etc/group</span></code>, so the
+gids must exist in the image too. <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/docker" rel="noopener noreferrer" target="_blank">src/plugins/sensing/docker</a>
+carries both halves, the image side as a <code class="docutils literal notranslate"><span class="pre">RUN</span></code> another Dockerfile can import.</p>
 <p>The script also provisions both build SDKs, and both are public downloads
 resolved from the version in <code class="docutils literal notranslate"><span class="pre">/etc/nv_tegra_release</span></code>. The <strong>Jetson Multimedia
 API</strong> comes from the apt pool; the <strong>SIPL API</strong> is a tarball published
@@ -649,8 +667,67 @@ alongside the L4T release, fetched by URL. To install that one by hand instead:<
 </div>
 </section>
 </section>
+<section id="nvsipl-camera">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">nvsipl_camera</a><a class="headerlink" href="#nvsipl-camera" title="Link to this heading">#</a></h2>
+<p>The vendor reference application, installed to <code class="docutils literal notranslate"><span class="pre">/usr/sbin</span></code> by the package’s
+<code class="docutils literal notranslate"><span class="pre">install.sh</span></code>. It is the ground truth for “is the rig itself alive”: it drives
+the same SIPL API as any other client, so if it cannot stream, nothing else
+will either. Reach for it before debugging anything of ours.</p>
+<p><code class="docutils literal notranslate"><span class="pre">setup_host.sh</span> <span class="pre">--smoke-test</span></code> runs it for five seconds. To drive it by hand —
+after setup, which is what puts <code class="docutils literal notranslate"><span class="pre">shw5g.json</span></code> in the fetched package:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/*/SG8A-AGON-G2Y-A1/JetPack7.2.1/SG8A_*
+nvsipl_camera<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2<span class="w"> </span><span class="se">\</span>
+<span class="w">              </span>-m<span class="w"> </span><span class="s2">"0x0000 0x1100"</span><span class="w"> </span>--enable-camera-hal<span class="w"> </span>-s<span class="w"> </span>-Z<span class="w"> </span>-r<span class="w"> </span><span class="m">10</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Flag</p></th>
+<th class="head"><p>Why this rig needs it</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-t</span> <span class="pre">FILE</span></code></p></td>
+<td><p>platform config JSON, resolved against the working directory — hence the <code class="docutils literal notranslate"><span class="pre">cd</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-c</span> <span class="pre">NAME</span></code></p></td>
+<td><p>config within that file; <code class="docutils literal notranslate"><span class="pre">SHW5G_2</span></code> for two SHW5G, <code class="docutils literal notranslate"><span class="pre">-l</span></code> lists them</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-m</span> <span class="pre">MASKS</span></code></p></td>
+<td><p>one mask per deserializer in transport order: nothing on CSI-GH, links 2 and 3 on CSI-CD</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--enable-camera-hal</span></code></p></td>
+<td><p>the camera-HAL path; without it SIPL takes the legacy DevBlk path, which this carrier does not support</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-Z</span></code></p></td>
+<td><p>skip sensor authentication — these modules carry no auth keys</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-s</span></code></p></td>
+<td><p>print FPS every 2 s, which is how you tell streaming from merely starting</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">-r</span> <span class="pre">N</span></code></p></td>
+<td><p>exit after N seconds, and disable the interactive menu</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">3</span></code></p></td>
+<td><p>raise verbosity when a failure names nothing</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Expect ~60 fps per sensor with zero drops. Without <code class="docutils literal notranslate"><span class="pre">-r</span></code> it runs until <code class="docutils literal notranslate"><span class="pre">q</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">nvsipl_query</span></code> answers what the config <em>declares</em>, with no hardware and no
+capture:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nvsipl_query<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-l<span class="w">   </span><span class="c1"># config names</span>
+nvsipl_query<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2
+</pre></div>
+</div>
+</section>
 <section id="building-and-running">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Building and running</a><a class="headerlink" href="#building-and-running" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Building and running</a><a class="headerlink" href="#building-and-running" title="Link to this heading">#</a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DBUILD_PLUGIN_SENSING<span class="o">=</span>ON
 cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--target<span class="w"> </span>camera_plugin_sensing
 </pre></div>
@@ -686,14 +763,14 @@ indices are <strong>0 and 1</strong>. Always take the number from <code class="d
 why this is worth stating.</p>
 </div>
 <section id="geometry-comes-from-the-platform-config">
-<h3><a class="toc-backref" href="#id8" role="doc-backlink">Geometry comes from the platform config</a><a class="headerlink" href="#geometry-comes-from-the-platform-config" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id9" role="doc-backlink">Geometry comes from the platform config</a><a class="headerlink" href="#geometry-comes-from-the-platform-config" title="Link to this heading">#</a></h3>
 <p>There is no <code class="docutils literal notranslate"><span class="pre">--width</span></code>, <code class="docutils literal notranslate"><span class="pre">--height</span></code>, <code class="docutils literal notranslate"><span class="pre">--fps</span></code> or <code class="docutils literal notranslate"><span class="pre">--sensor-mode</span></code>. SIPL has
 no runtime mode index; resolution and frame rate are properties of the virtual
 channel in the platform config, and the plugin sizes its buffers from what the
 query reports.</p>
 </section>
 <section id="encoding-at-5-mp60">
-<h3><a class="toc-backref" href="#id9" role="doc-backlink">Encoding at 5 MP60</a><a class="headerlink" href="#encoding-at-5-mp60" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">Encoding at 5 MP60</a><a class="headerlink" href="#encoding-at-5-mp60" title="Link to this heading">#</a></h3>
 <p>Two sensors at 2560×1984 &#64; 60 is 4.9× the pixel rate the 1080p30 defaults were
 chosen for, so the codec settings moved with it:</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -728,7 +805,7 @@ chosen for, so the codec settings moved with it:</p>
 </section>
 </section>
 <section id="live-streaming-with-camera-viz">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Live streaming with camera_viz</a><a class="headerlink" href="#live-streaming-with-camera-viz" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Live streaming with camera_viz</a><a class="headerlink" href="#live-streaming-with-camera-viz" title="Link to this heading">#</a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">ipc=&lt;socket&gt;</span></code> serves a sensor’s frames to another process as <strong>CUDA device
 memory</strong> — RGBA8, no encode, no host round-trip — and
 <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/camera_viz/README.md" rel="noopener noreferrer" target="_blank">camera_viz</a> consumes it with
@@ -762,7 +839,7 @@ handshake and a mismatch is refused rather than rendered at the wrong stride.
 <strong>One consumer at a time</strong>: the producer serves whoever connected most recently,
 so a second viewer silently takes the feed from the first.</p>
 <section id="pairing-the-two-eyes">
-<h3><a class="toc-backref" href="#id11" role="doc-backlink">Pairing the two eyes</a><a class="headerlink" href="#pairing-the-two-eyes" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id12" role="doc-backlink">Pairing the two eyes</a><a class="headerlink" href="#pairing-the-two-eyes" title="Link to this heading">#</a></h3>
 <p>Both sensors are driven from one deserializer fsync generator, and every frame
 carries SIPL’s <code class="docutils literal notranslate"><span class="pre">frameCaptureTSC</span></code> on a timebase shared across the whole rig.
 It is recorded in the MCAP metadata as <code class="docutils literal notranslate"><span class="pre">capture_tsc_ns</span></code>.</p>
@@ -774,7 +851,7 @@ sensor’s own queueing jitter; the TSC does not.</p>
 </div>
 </section>
 <section id="testing-without-a-camera">
-<h3><a class="toc-backref" href="#id12" role="doc-backlink">Testing without a camera</a><a class="headerlink" href="#testing-without-a-camera" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id13" role="doc-backlink">Testing without a camera</a><a class="headerlink" href="#testing-without-a-camera" title="Link to this heading">#</a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">sensing_ipc_testsrc</span></code> publishes an animated pattern over the same protocol. It
 needs CUDA only — no SIPL, no encoder — so the viewer can be developed with
 nothing attached:</p>
@@ -788,7 +865,7 @@ stale or torn frame is visible rather than merely suspected.</p>
 </section>
 </section>
 <section id="troubleshooting">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 45.0%" />
@@ -809,27 +886,42 @@ stale or torn frame is visible rather than merely suspected.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cannot</span> <span class="pre">open</span> <span class="pre">NITO</span> <span class="pre">file</span> <span class="pre">.../SHW5G.nito</span></code></p></td>
 <td><p>vendor <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> was never run — re-run <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sensor=N</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">a</span> <span class="pre">pipeline</span> <span class="pre">in</span> <span class="pre">'&lt;config&gt;'</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">open</span> <span class="pre">file</span> <span class="pre">.../shw5g.json</span></code></p></td>
+<td><p>the fetched package ships no <code class="docutils literal notranslate"><span class="pre">SHW5G_2</span></code> config; <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> drops one in</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sensor=N</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">a</span> <span class="pre">pipeline</span> <span class="pre">in</span> <span class="pre">'&lt;config&gt;'</span></code></p></td>
 <td><p>using the link index or the JSON id; run <code class="docutils literal notranslate"><span class="pre">--list-sensors</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>capture hangs, no frames, no error</p></td>
+<tr class="row-odd"><td><p>capture hangs, no frames, no error</p></td>
 <td><p>another SIPL client holds the hardware — stop <code class="docutils literal notranslate"><span class="pre">nvsipl_camera</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ISP0</span> <span class="pre">reconciled</span> <span class="pre">to</span> <span class="pre">colour</span> <span class="pre">standard</span> <span class="pre">...</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ISP0</span> <span class="pre">reconciled</span> <span class="pre">to</span> <span class="pre">colour</span> <span class="pre">standard</span> <span class="pre">...</span></code></p></td>
 <td><p>the ISP refused BT.601; see the note in <code class="docutils literal notranslate"><span class="pre">sipl_camera.cpp</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Could</span> <span class="pre">not</span> <span class="pre">get</span> <span class="pre">EglImage</span> <span class="pre">from</span> <span class="pre">fd</span></code> / <code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">create</span> <span class="pre">EGLImage</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">DISPLAY</span></code> names an X server Tegra EGL cannot drive; see below</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>The vendor smoke test is the reference for “is the rig itself alive”.
-<code class="docutils literal notranslate"><span class="pre">setup_host.sh</span> <span class="pre">--smoke-test</span></code> runs it bounded to five seconds; unbounded:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>nvsipl_camera<span class="w"> </span>-t<span class="w"> </span><span class="nv">$PKG</span>/query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2<span class="w"> </span><span class="se">\</span>
-<span class="w">                   </span>-m<span class="w"> </span><span class="s2">"0x0000 0x1100"</span><span class="w"> </span>--enable-camera-hal<span class="w"> </span>-s<span class="w"> </span>-Z
+<section id="display-and-the-egl-vendor">
+<h3><a class="toc-backref" href="#id15" role="doc-backlink">DISPLAY and the EGL vendor</a><a class="headerlink" href="#display-and-the-egl-vendor" title="Link to this heading">#</a></h3>
+<p>Two X servers usually exist on this box: <code class="docutils literal notranslate"><span class="pre">:1</span></code> is a real server the Tegra
+driver can drive, <code class="docutils literal notranslate"><span class="pre">:99</span></code> is Xvfb and it cannot. With both <code class="docutils literal notranslate"><span class="pre">10_nvidia.json</span></code>
+and <code class="docutils literal notranslate"><span class="pre">50_mesa.json</span></code> installed, GLVND hands out <em>Mesa’s</em> EGL whenever
+<code class="docutils literal notranslate"><span class="pre">DISPLAY</span></code> names a server Tegra EGL cannot drive, and
+<code class="docutils literal notranslate"><span class="pre">NvBufSurfaceMapEglImage()</span></code> then fails with <code class="docutils literal notranslate"><span class="pre">Could</span> <span class="pre">not</span> <span class="pre">get</span> <span class="pre">EglImage</span> <span class="pre">from</span>
+<span class="pre">fd</span></code>.</p>
+<p>The container defaults to <code class="docutils literal notranslate"><span class="pre">DISPLAY=:99</span></code>, so anything that renders needs:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">DISPLAY</span><span class="o">=</span>:1<span class="w">     </span><span class="c1"># nvsipl_camera --egl-display, camera_viz, any viewer</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">$PKG</span></code> is wherever the package was fetched to, under
-<code class="docutils literal notranslate"><span class="pre">src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/</span></code>.</p>
-<p>Expect ~60 fps per sensor with zero drops. Stop it before starting the plugin.</p>
+<p><code class="docutils literal notranslate"><span class="pre">camera_plugin_sensing</span></code> is unaffected: it never renders and calls
+<code class="docutils literal notranslate"><span class="pre">unsetenv(&quot;DISPLAY&quot;)</span></code> before its first EGL call, which selects the Tegra
+driver regardless. Do not remove that because the capture path “has no
+display” — <code class="docutils literal notranslate"><span class="pre">NvBufSurfaceMapEglImage()</span></code> is how a SIPL buffer reaches CUDA, so
+EGL is on the critical path even headless.</p>
+</section>
 </section>
 </section>
 
@@ -890,6 +982,7 @@ stale or torn frame is visible rather than merely suspected.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#container">Container</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nvsipl-camera">nvsipl_camera</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#building-and-running">Building and running</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#geometry-comes-from-the-platform-config">Geometry comes from the platform config</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#encoding-at-5-mp60">Encoding at 5 MP60</a></li>
@@ -900,7 +993,10 @@ stale or torn frame is visible rather than merely suspected.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#testing-without-a-camera">Testing without a camera</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#display-and-the-egl-vendor">DISPLAY and the EGL vendor</a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

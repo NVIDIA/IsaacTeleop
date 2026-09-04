@@ -1,13 +1,14 @@
 .. SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
-SENSING GMSL Camera Plugin
-==========================
+SENSING GMSL Camera
+===================
 
-C++ plugin that captures from SENSING GMSL2 cameras through **SIPL** on a
-Jetson AGX Orin, and either encodes H.264 on the Jetson's V4L2 engine or hands
-frames to another process as CUDA device memory. Source and plugin README:
-:code-file:`src/plugins/sensing/README.md`.
+Bring-up for SENSING GMSL2 cameras on a Jetson AGX Orin, where capture goes
+through **SIPL** rather than Argus or V4L2, and ``camera_plugin_sensing``, the
+C++ plugin that captures from them — encoding H.264 on the Jetson's V4L2 engine
+or handing frames to another process as CUDA device memory. Source and scripts
+live in :code-file:`src/plugins/sensing`.
 
 .. contents:: On this page
    :local:
@@ -105,6 +106,11 @@ access and the build SDKs only matter inside the container.
    src/plugins/sensing/setup.sh      # auto-detects host vs container
    src/plugins/sensing/verify.sh     # read-only report, runs anywhere
 
+``--host`` / ``--container`` override the detection. Each script names every
+privileged action it will take before the first ``sudo`` prompt and asks before
+each optional one; ``--yes`` accepts them all, and a non-interactive stdin
+declines them all.
+
 Host
 ~~~~
 
@@ -173,7 +179,17 @@ container has no matching group *names*; the kernel checks numbers):
 .. code-block:: json
 
    "--group-add", "114",
-   "--group-add", "985"
+   "--group-add", "985",
+   "--group-add", "44"
+
+Generate them for a given host with
+``src/plugins/sensing/docker/runtime_args.sh --json``, which reads the gids off
+the device nodes instead of trusting the list above.
+
+``--group-add`` is only half of it: it reaches PID 1, but ``docker exec``
+resolves supplementary groups from the container's own ``/etc/group``, so the
+gids must exist in the image too. :code-file:`src/plugins/sensing/docker`
+carries both halves, the image side as a ``RUN`` another Dockerfile can import.
 
 The script also provisions both build SDKs, and both are public downloads
 resolved from the version in ``/etc/nv_tegra_release``. The **Jetson Multimedia
@@ -183,6 +199,56 @@ alongside the L4T release, fetched by URL. To install that one by hand instead:
 .. code-block:: bash
 
    sudo tar xf Jetson_SIPL_API_R39.2.1_aarch64.tbz2 -C /usr/src/
+
+nvsipl_camera
+-------------
+
+The vendor reference application, installed to ``/usr/sbin`` by the package's
+``install.sh``. It is the ground truth for "is the rig itself alive": it drives
+the same SIPL API as any other client, so if it cannot stream, nothing else
+will either. Reach for it before debugging anything of ours.
+
+``setup_host.sh --smoke-test`` runs it for five seconds. To drive it by hand —
+after setup, which is what puts ``shw5g.json`` in the fetched package:
+
+.. code-block:: bash
+
+   cd src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/*/SG8A-AGON-G2Y-A1/JetPack7.2.1/SG8A_*
+   nvsipl_camera -t query/sg8a_agth_g2a/shw5g.json -c SHW5G_2 \
+                 -m "0x0000 0x1100" --enable-camera-hal -s -Z -r 10
+
+.. list-table::
+   :widths: 25 75
+   :header-rows: 1
+
+   * - Flag
+     - Why this rig needs it
+   * - ``-t FILE``
+     - platform config JSON, resolved against the working directory — hence the ``cd``
+   * - ``-c NAME``
+     - config within that file; ``SHW5G_2`` for two SHW5G, ``-l`` lists them
+   * - ``-m MASKS``
+     - one mask per deserializer in transport order: nothing on CSI-GH, links 2 and 3 on CSI-CD
+   * - ``--enable-camera-hal``
+     - the camera-HAL path; without it SIPL takes the legacy DevBlk path, which this carrier does not support
+   * - ``-Z``
+     - skip sensor authentication — these modules carry no auth keys
+   * - ``-s``
+     - print FPS every 2 s, which is how you tell streaming from merely starting
+   * - ``-r N``
+     - exit after N seconds, and disable the interactive menu
+   * - ``-v 3``
+     - raise verbosity when a failure names nothing
+
+Expect ~60 fps per sensor with zero drops. Without ``-r`` it runs until ``q``.
+
+``nvsipl_query`` answers what the config *declares*, with no hardware and no
+capture:
+
+.. code-block:: bash
+
+   nvsipl_query -t query/sg8a_agth_g2a/shw5g.json -l   # config names
+   nvsipl_query -t query/sg8a_agth_g2a/shw5g.json -c SHW5G_2
 
 Building and running
 --------------------
@@ -344,22 +410,35 @@ Troubleshooting
      - ``--link-masks`` does not match the config
    * - ``cannot open NITO file .../SHW5G.nito``
      - vendor ``install.sh`` was never run — re-run ``setup_host.sh``
+   * - ``Failed to open file .../shw5g.json``
+     - the fetched package ships no ``SHW5G_2`` config; ``setup_host.sh`` drops one in
    * - ``sensor=N is not a pipeline in '<config>'``
      - using the link index or the JSON id; run ``--list-sensors``
    * - capture hangs, no frames, no error
      - another SIPL client holds the hardware — stop ``nvsipl_camera``
    * - ``ISP0 reconciled to colour standard ...``
      - the ISP refused BT.601; see the note in ``sipl_camera.cpp``
+   * - ``Could not get EglImage from fd`` / ``Failed to create EGLImage``
+     - ``DISPLAY`` names an X server Tegra EGL cannot drive; see below
 
-The vendor smoke test is the reference for "is the rig itself alive".
-``setup_host.sh --smoke-test`` runs it bounded to five seconds; unbounded:
+DISPLAY and the EGL vendor
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two X servers usually exist on this box: ``:1`` is a real server the Tegra
+driver can drive, ``:99`` is Xvfb and it cannot. With both ``10_nvidia.json``
+and ``50_mesa.json`` installed, GLVND hands out *Mesa's* EGL whenever
+``DISPLAY`` names a server Tegra EGL cannot drive, and
+``NvBufSurfaceMapEglImage()`` then fails with ``Could not get EglImage from
+fd``.
+
+The container defaults to ``DISPLAY=:99``, so anything that renders needs:
 
 .. code-block:: bash
 
-   sudo nvsipl_camera -t $PKG/query/sg8a_agth_g2a/shw5g.json -c SHW5G_2 \
-                      -m "0x0000 0x1100" --enable-camera-hal -s -Z
+   export DISPLAY=:1     # nvsipl_camera --egl-display, camera_viz, any viewer
 
-``$PKG`` is wherever the package was fetched to, under
-``src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/``.
-
-Expect ~60 fps per sensor with zero drops. Stop it before starting the plugin.
+``camera_plugin_sensing`` is unaffected: it never renders and calls
+``unsetenv("DISPLAY")`` before its first EGL call, which selects the Tegra
+driver regardless. Do not remove that because the capture path "has no
+display" — ``NvBufSurfaceMapEglImage()`` is how a SIPL buffer reaches CUDA, so
+EGL is on the critical path even headless.
