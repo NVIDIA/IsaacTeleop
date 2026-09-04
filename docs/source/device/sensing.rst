@@ -5,9 +5,10 @@ SENSING GMSL Camera
 ===================
 
 Bring-up for SENSING GMSL2 cameras on a Jetson AGX Orin, where capture goes
-through **SIPL** rather than Argus or V4L2. This page covers provisioning the
-rig and confirming it streams with the vendor's own tool; scripts live in
-:code-file:`src/plugins/sensing`.
+through **SIPL** rather than Argus or V4L2, and ``camera_plugin_sensing``, the
+C++ plugin that captures from them — encoding H.264 on the Jetson's V4L2 engine
+or handing frames to another process as CUDA device memory. Source and scripts
+live in :code-file:`src/plugins/sensing`.
 
 .. contents:: On this page
    :local:
@@ -385,6 +386,151 @@ capture:
    nvsipl_query -t query/sg8a_agth_g2a/shw5g.json -l   # config names
    nvsipl_query -t query/sg8a_agth_g2a/shw5g.json -c SHW5G_2
 
+Building and running
+--------------------
+
+.. code-block:: bash
+
+   cmake -B build -DBUILD_PLUGIN_SENSING=ON
+   cmake --build build --target camera_plugin_sensing
+
+The platform config is vendored at ``src/plugins/sensing/configs/shw5g.json``
+and resolved relative to the executable, so the plugin runs without the vendor
+package on disk; ``--platform-config=PATH`` points it at a newer vendor drop.
+
+.. note::
+
+   The published package has **no** ``SHW5G_2`` config — only the mixed
+   populations. SENSING sends ``shw5g.json`` directly to customers with a
+   2× SHW5G rig, so the vendored copy is the only one a fresh checkout has, and
+   ``setup.sh`` drops it into the fetched package for ``nvsipl_camera``.
+
+Start by asking the platform config what exists. This needs no hardware — the
+query API only parses the driver database and the JSON, so it works with the
+cameras unplugged:
+
+.. code-block:: bash
+
+   ./build/src/plugins/sensing/app/camera_plugin_sensing --list-sensors
+
+.. code-block:: text
+
+   SHW5G_2: 2 sensor(s)
+     sensor=0  SHW5G  2560x1984 @ 60 fps
+     sensor=1  SHW5G  2560x1984 @ 60 fps
+
+.. warning::
+
+   ``sensor=N`` is the **SIPL pipeline index**, and for ``SHW5G_2`` it is not
+   the number the JSON appears to name. The GMSL link indices, the CSI virtual
+   channels and the JSON's ``sensorInfo.id`` are all **2 and 3**; the pipeline
+   indices are **0 and 1**. Always take the number from ``--list-sensors``.
+
+   In the vendor's ``S56C_1_SHF3L_2`` config the two coincide, which is exactly
+   why this is worth stating.
+
+Geometry comes from the platform config
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There is no ``--width``, ``--height``, ``--fps`` or ``--sensor-mode``. SIPL has
+no runtime mode index; resolution and frame rate are properties of the virtual
+channel in the platform config, and the plugin sizes its buffers from what the
+query reports.
+
+Encoding at 5 MP60
+~~~~~~~~~~~~~~~~~~
+
+Two sensors at 2560×1984 @ 60 is 4.9× the pixel rate the 1080p30 defaults were
+chosen for, so the codec settings moved with it:
+
+.. list-table::
+   :widths: 25 20 55
+   :header-rows: 1
+
+   * - Setting
+     - Value
+     - Why
+   * - level
+     - **5.2**
+     - 1,190,400 MB/s exceeds Level 5.1's 983,040 by 21%
+   * - ``--bitrate``
+     - 40 Mbps
+     - 0.13 bits/pixel; 20 Mbps was 0.066
+   * - ``--peak-bitrate``
+     - 60 Mbps
+     - VBR ceiling; pass ``0`` to select CBR
+
+80 Mbps for the pair, about 36 GB/hour.
+
+Live streaming with camera_viz
+------------------------------
+
+``ipc=<socket>`` serves a sensor's frames to another process as **CUDA device
+memory** — RGBA8, no encode, no host round-trip — and
+:code-file:`camera_viz <examples/camera_viz/README.md>` consumes it with
+``type: cuda_ipc``. It is independent of ``output=``; an ``ipc``-only stream
+never starts an encoder.
+
+.. code-block:: bash
+
+   # terminal 1 — producer
+   ./build/src/plugins/sensing/app/camera_plugin_sensing \
+       --add-stream=sensor=0,ipc=/tmp/sensing0.sock \
+       --add-stream=sensor=1,ipc=/tmp/sensing1.sock
+
+   # terminal 2 — viewer
+   cd examples/camera_viz
+   ./camera_viz.sh setup                                     # one-time
+   ./camera_viz.sh run configs/cuda_ipc.yaml --mode window   # desktop window
+   ./camera_viz.sh run configs/cuda_ipc.yaml                 # XR headset
+
+:code-file:`configs/cuda_ipc.yaml <examples/camera_viz/configs/cuda_ipc.yaml>`
+needs only the socket path and the frame size:
+
+.. code-block:: yaml
+
+   cameras:
+     - name: left
+       type: cuda_ipc
+       socket: /tmp/sensing0.sock   # must match the producer's ipc= path
+       width: 2560                  # must match what the producer serves
+       height: 1984
+
+Order does not matter — the source retries until the socket appears and survives
+the producer restarting under it. ``width``/``height`` are checked during the
+handshake and a mismatch is refused rather than rendered at the wrong stride.
+**One consumer at a time**: the producer serves whoever connected most recently,
+so a second viewer silently takes the feed from the first.
+
+Pairing the two eyes
+~~~~~~~~~~~~~~~~~~~~
+
+Both sensors are driven from one deserializer fsync generator, and every frame
+carries SIPL's ``frameCaptureTSC`` on a timebase shared across the whole rig.
+It is recorded in the MCAP metadata as ``capture_tsc_ns``.
+
+.. important::
+
+   Pair on ``capture_tsc_ns``, not on the wrapper timestamps. The wrapper stamps
+   are ``CLOCK_MONOTONIC`` taken after per-sensor conversion, so they carry each
+   sensor's own queueing jitter; the TSC does not.
+
+Testing without a camera
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``sensing_ipc_testsrc`` publishes an animated pattern over the same protocol. It
+needs CUDA only — no SIPL, no encoder — so the viewer can be developed with
+nothing attached:
+
+.. code-block:: bash
+
+   cmake --build build --target sensing_ipc_testsrc
+   ./build/src/plugins/sensing/tools/sensing_ipc_testsrc --socket=/tmp/sensing0.sock \
+       --width=2560 --height=1984 --fps=60
+
+Each frame carries its 16-bit frame number as a binary bar across the top, so a
+stale or torn frame is visible rather than merely suspected.
+
 Troubleshooting
 ---------------
 
@@ -402,8 +548,12 @@ Troubleshooting
      - drivers were never installed — re-run ``setup.sh``
    * - ``Failed to open file .../shw5g.json``
      - the fetched package ships no ``SHW5G_2`` config; ``setup.sh`` drops one in
+   * - ``sensor=N is not a pipeline in '<config>'``
+     - using the link index or the JSON id; run ``--list-sensors``
    * - capture hangs, no frames, no error
      - another SIPL client holds the hardware — stop ``nvsipl_camera``
+   * - ``ISP0 reconciled to colour standard ...``
+     - the ISP refused BT.601; see the note in ``sipl_camera.cpp``
    * - ``Could not get EglImage from fd`` / ``Failed to create EGLImage``
      - ``DISPLAY`` names an X server Tegra EGL cannot drive; see below
 
@@ -421,4 +571,10 @@ The container defaults to ``DISPLAY=:99``, so anything that renders needs:
 
 .. code-block:: bash
 
-   export DISPLAY=:1     # nvsipl_camera --egl-display, or any viewer
+   export DISPLAY=:1     # nvsipl_camera --egl-display, camera_viz, any viewer
+
+``camera_plugin_sensing`` is unaffected: it never renders and calls
+``unsetenv("DISPLAY")`` before its first EGL call, which selects the Tegra
+driver regardless. Do not remove that because the capture path "has no
+display" — ``NvBufSurfaceMapEglImage()`` is how a SIPL buffer reaches CUDA, so
+EGL is on the critical path even headless.
