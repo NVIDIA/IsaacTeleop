@@ -447,12 +447,13 @@ rig and confirming it streams with the vendor’s own tool; scripts live in
 <li><p><a class="reference internal" href="#groups-not-root" id="id5">Groups, not root</a></p></li>
 <li><p><a class="reference internal" href="#container" id="id6">Container</a></p></li>
 <li><p><a class="reference internal" href="#validating-in-a-container" id="id7">Validating in a container</a></p></li>
+<li><p><a class="reference internal" href="#adapting-your-own-image" id="id8">Adapting your own image</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#nvsipl-camera" id="id8">nvsipl_camera</a></p></li>
-<li><p><a class="reference internal" href="#troubleshooting" id="id9">Troubleshooting</a></p>
+<li><p><a class="reference internal" href="#nvsipl-camera" id="id9">nvsipl_camera</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id10">Troubleshooting</a></p>
 <ul>
-<li><p><a class="reference internal" href="#display-and-the-egl-vendor" id="id10">DISPLAY and the EGL vendor</a></p></li>
+<li><p><a class="reference internal" href="#display-and-the-egl-vendor" id="id11">DISPLAY and the EGL vendor</a></p></li>
 </ul>
 </li>
 </ul>
@@ -673,26 +674,19 @@ permission. <code class="docutils literal notranslate"><span class="pre">verify.
 </section>
 <section id="container">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Container</a><a class="headerlink" href="#container" title="Link to this heading">#</a></h3>
+<p>To build against this rig from inside a container:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/setup_container.sh
 </pre></div>
 </div>
-<p>Group membership belongs in the <strong>image</strong>, not in <code class="docutils literal notranslate"><span class="pre">runArgs</span></code>. Docker resolves
-supplementary groups for the container user from the image’s own
-<code class="docutils literal notranslate"><span class="pre">/etc/group</span></code>, so putting the user in <code class="docutils literal notranslate"><span class="pre">i2c</span></code>, <code class="docutils literal notranslate"><span class="pre">gpio</span></code> and <code class="docutils literal notranslate"><span class="pre">video</span></code> at build
-time covers PID 1 and <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">exec</span></code> alike; <code class="docutils literal notranslate"><span class="pre">--group-add</span></code> adds nothing on
-top. The reverse does not hold — <code class="docutils literal notranslate"><span class="pre">--group-add</span></code> alone leaves an interactive
-shell without the gids, because <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">exec</span></code> ignores <code class="docutils literal notranslate"><span class="pre">HostConfig.GroupAdd</span></code>.</p>
-<p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/docker" rel="noopener noreferrer" target="_blank">src/plugins/sensing/docker</a> carries that as a <code class="docutils literal notranslate"><span class="pre">RUN</span></code> another
-Dockerfile can import, plus <code class="docutils literal notranslate"><span class="pre">run_docker_example.sh</span></code> for the part no build can
-express — the bind mounts and <code class="docutils literal notranslate"><span class="pre">--device</span></code> flags, read off this host:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--json<span class="w">        </span><span class="c1"># runArgs</span>
-src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--print-gids<span class="w">  </span><span class="c1"># ARG for the RUN</span>
+<p>It checks the container can reach the device nodes, then provisions both build
+SDKs — public downloads resolved from the version in <code class="docutils literal notranslate"><span class="pre">/etc/nv_tegra_release</span></code>.
+The <strong>Jetson Multimedia API</strong> comes from the apt pool; the <strong>SIPL API</strong> is a
+tarball published alongside the L4T release, fetched by URL. To install that
+one by hand instead:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tar<span class="w"> </span>xf<span class="w"> </span>Jetson_SIPL_API_R39.2.1_aarch64.tbz2<span class="w"> </span>-C<span class="w"> </span>/usr/src/
 </pre></div>
 </div>
-<p>Reaching the nodes also needs the device cgroup opened, with <code class="docutils literal notranslate"><span class="pre">--privileged</span></code>
-or a <code class="docutils literal notranslate"><span class="pre">--device-cgroup-rule</span></code>. That is orthogonal to groups and easy to
-conflate: with the cgroup closed, every node is unreadable no matter which
-groups the process holds.</p>
+<p>Running the cameras needs none of that, only what the next two sections cover.</p>
 </section>
 <section id="validating-in-a-container">
 <h3><a class="toc-backref" href="#id7" role="doc-backlink">Validating in a container</a><a class="headerlink" href="#validating-in-a-container" title="Link to this heading">#</a></h3>
@@ -740,19 +734,48 @@ vendor-added driver or NITO</p></td>
 </tbody>
 </table>
 </div>
-<p>Adapt your own image by taking the <code class="docutils literal notranslate"><span class="pre">RUN</span></code> and the packages from the Dockerfile
-above, and the flags from <code class="docutils literal notranslate"><span class="pre">docker/run_docker_example.sh</span> <span class="pre">--json</span></code>.</p>
-<p>The script also provisions both build SDKs, and both are public downloads
-resolved from the version in <code class="docutils literal notranslate"><span class="pre">/etc/nv_tegra_release</span></code>. The <strong>Jetson Multimedia
-API</strong> comes from the apt pool; the <strong>SIPL API</strong> is a tarball published
-alongside the L4T release, fetched by URL. To install that one by hand instead:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>tar<span class="w"> </span>xf<span class="w"> </span>Jetson_SIPL_API_R39.2.1_aarch64.tbz2<span class="w"> </span>-C<span class="w"> </span>/usr/src/
+</section>
+<section id="adapting-your-own-image">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Adapting your own image</a><a class="headerlink" href="#adapting-your-own-image" title="Link to this heading">#</a></h3>
+<p>Group membership belongs in the <strong>image</strong>, not in <code class="docutils literal notranslate"><span class="pre">runArgs</span></code>: Docker resolves
+supplementary groups for the container user from the image’s own
+<code class="docutils literal notranslate"><span class="pre">/etc/group</span></code>, so putting the user in <code class="docutils literal notranslate"><span class="pre">i2c</span></code>, <code class="docutils literal notranslate"><span class="pre">gpio</span></code> and <code class="docutils literal notranslate"><span class="pre">video</span></code> at build
+time covers PID 1 and <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">exec</span></code> alike. Verified on this rig — with the
+gids in the image and no <code class="docutils literal notranslate"><span class="pre">--group-add</span></code>, all of <code class="docutils literal notranslate"><span class="pre">/dev/i2c-9</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/dev/i2c-10</span></code>, <code class="docutils literal notranslate"><span class="pre">/dev/gpiochip0</span></code> and <code class="docutils literal notranslate"><span class="pre">/dev/nvmap</span></code> are readable. The
+reverse does not hold: <code class="docutils literal notranslate"><span class="pre">--group-add</span></code> <em>alone</em> leaves an interactive shell
+without them, because <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">exec</span></code> ignores <code class="docutils literal notranslate"><span class="pre">HostConfig.GroupAdd</span></code>.</p>
+<p>The gids are host-specific, so read them off the host rather than copying:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--print-gids
+<span class="go">114:i2c 985:gpio 44:video</span>
 </pre></div>
 </div>
+<p>The image half is one <code class="docutils literal notranslate"><span class="pre">RUN</span></code>. Expose the directory as a named build context —
+<code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">build</span></code> cannot <code class="docutils literal notranslate"><span class="pre">COPY</span></code> across into a submodule:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--build-context<span class="w"> </span><span class="nv">sensing</span><span class="o">=</span>path/to/src/plugins/sensing/docker<span class="w"> </span>...
+</pre></div>
+</div>
+<div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>bind,from<span class="o">=</span>sensing,target<span class="o">=</span>/mnt/sensing<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>/mnt/sensing/image_setup.sh<span class="w"> </span><span class="s2">"</span><span class="nv">$USERNAME</span><span class="s2">"</span><span class="w"> </span><span class="m">114</span>:i2c<span class="w"> </span><span class="m">985</span>:gpio<span class="w"> </span><span class="m">44</span>:video
+</pre></div>
+</div>
+<p>The bind mount leaves nothing behind, so the script is not baked into a layer.
+To layer onto an existing image instead of editing its Dockerfile:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>docker/Dockerfile.example<span class="w"> </span>--build-arg<span class="w"> </span><span class="nv">BASE</span><span class="o">=</span>my-image:latest<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">SENSING_USER</span><span class="o">=</span>me<span class="w"> </span>-t<span class="w"> </span>my-image:sensing<span class="w"> </span>src/plugins/sensing/docker
+</pre></div>
+</div>
+<p>The runtime half comes from the same script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="k">$(</span>src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--print-args<span class="k">)</span><span class="w"> </span>my-image:sensing<span class="w"> </span>...
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">--json</span></code> emits the same flags as <code class="docutils literal notranslate"><span class="pre">devcontainer.json</span></code> <code class="docutils literal notranslate"><span class="pre">runArgs</span></code> elements.
+<code class="docutils literal notranslate"><span class="pre">--with-groups</span></code> adds <code class="docutils literal notranslate"><span class="pre">--group-add</span></code> for an image built <em>without</em>
+<code class="docutils literal notranslate"><span class="pre">image_setup.sh</span></code>; it is redundant otherwise.</p>
 </section>
 </section>
 <section id="nvsipl-camera">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">nvsipl_camera</a><a class="headerlink" href="#nvsipl-camera" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">nvsipl_camera</a><a class="headerlink" href="#nvsipl-camera" title="Link to this heading">#</a></h2>
 <p>The vendor reference application, which setup installs to <code class="docutils literal notranslate"><span class="pre">/usr/sbin</span></code>. It is
 the ground truth for “is the rig itself alive”: it drives
 the same SIPL API as any other client, so if it cannot stream, nothing else
@@ -818,7 +841,7 @@ nvsipl_query<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2
 </div>
 </section>
 <section id="troubleshooting">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 45.0%" />
@@ -852,7 +875,7 @@ nvsipl_query<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2
 </table>
 </div>
 <section id="display-and-the-egl-vendor">
-<h3><a class="toc-backref" href="#id10" role="doc-backlink">DISPLAY and the EGL vendor</a><a class="headerlink" href="#display-and-the-egl-vendor" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id11" role="doc-backlink">DISPLAY and the EGL vendor</a><a class="headerlink" href="#display-and-the-egl-vendor" title="Link to this heading">#</a></h3>
 <p>Two X servers usually exist on this box: <code class="docutils literal notranslate"><span class="pre">:1</span></code> is a real server the Tegra
 driver can drive, <code class="docutils literal notranslate"><span class="pre">:99</span></code> is Xvfb and it cannot. With both <code class="docutils literal notranslate"><span class="pre">10_nvidia.json</span></code>
 and <code class="docutils literal notranslate"><span class="pre">50_mesa.json</span></code> installed, GLVND hands out <em>Mesa’s</em> EGL whenever
@@ -923,6 +946,7 @@ and <code class="docutils literal notranslate"><span class="pre">50_mesa.json</s
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#groups-not-root">Groups, not root</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#container">Container</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#validating-in-a-container">Validating in a container</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adapting-your-own-image">Adapting your own image</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nvsipl-camera">nvsipl_camera</a></li>
