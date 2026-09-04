@@ -573,10 +573,20 @@ declines them all.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh
 </pre></div>
 </div>
-<p>It fetches the vendor package if it is not already on disk, then offers to run
-<code class="docutils literal notranslate"><span class="pre">install.sh</span></code> whenever <code class="docutils literal notranslate"><span class="pre">nvsipl_camera</span></code>, the overlay, the drivers or the NITO
-are missing. <code class="docutils literal notranslate"><span class="pre">--pkg</span> <span class="pre">DIR</span></code> uses a package you already have, <code class="docutils literal notranslate"><span class="pre">--no-fetch</span></code>
-forbids the download, and <code class="docutils literal notranslate"><span class="pre">--install-drivers</span></code> reinstalls unconditionally.</p>
+<p>It refreshes the vendor package, compares every file <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> would copy
+against what is installed, and offers to run it when anything is missing <em>or
+stale</em>. <code class="docutils literal notranslate"><span class="pre">--pkg</span> <span class="pre">DIR</span></code> uses a package you already have, <code class="docutils literal notranslate"><span class="pre">--no-fetch</span></code> forbids
+the download, and <code class="docutils literal notranslate"><span class="pre">--install-drivers</span></code> reinstalls unconditionally.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Staleness is checked by content, not by version. SENSING reuses the package
+name across drops and does not bump <code class="docutils literal notranslate"><span class="pre">Version.md</span></code>, so a release that only
+rebuilds the drivers and retunes the ISP is invisible to any check that
+looks at names or timestamps.</p>
+<p>Such a drop needs no reboot either: <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> only copies files, and
+the overlay is the sole artifact the kernel reads at boot. The script says
+so rather than sending you through <code class="docutils literal notranslate"><span class="pre">jetson-io</span></code> again.</p>
+</div>
 <p>Then select the overlay and reboot:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>/opt/nvidia/jetson-io/jetson-io.py
 <span class="c1"># Configure Jetson AGX CSI Connector</span>
