@@ -11,6 +11,7 @@ add_executable(schema_tests
   test_full_body.cpp
   test_controller.cpp
   test_pedals.cpp
+  test_plugin_device_status.cpp
   test_se3_tracker.cpp
   test_serialized.cpp
   test_schema_conform.cpp
