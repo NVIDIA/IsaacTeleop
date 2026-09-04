@@ -105,9 +105,10 @@ Expected directory layout after placing the SDK:
        main.cpp
      core/
        manus_hand_tracking_plugin.cpp
-     inc/
-       core/
-         manus_hand_tracking_plugin.hpp
+       inc/
+         manus/
+           manus_glove_collection.hpp
+           manus_hand_tracking_plugin.hpp
      tools/
        manus_hand_tracker_printer.cpp
      ManusSDK/        <-- placed here

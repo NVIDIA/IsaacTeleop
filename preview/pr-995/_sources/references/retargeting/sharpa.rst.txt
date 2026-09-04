@@ -125,19 +125,20 @@ produced in your target joint order.
 Run the example
 ---------------
 
-The repo ships a bimanual demo at
-``examples/retargeting/python/sharpa_hand_retargeter_demo.py``:
+The repo ships a bimanual demo in ``examples/retargeting``:
 
 .. code-block:: console
 
+   $ uv pip install -e ./examples/retargeting
+
    # Synthetic curl animation (no headset, no GUI required):
-   $ python examples/retargeting/python/sharpa_hand_retargeter_demo.py --synthetic
+   $ python -m isaacteleop_examples.retargeting.sharpa_hand_retargeter_demo --synthetic
 
    # Live bimanual from a connected Quest headset:
-   $ python examples/retargeting/python/sharpa_hand_retargeter_demo.py
+   $ python -m isaacteleop_examples.retargeting.sharpa_hand_retargeter_demo
 
    # Custom MJCFs (e.g. the mesh-bearing variants):
-   $ python examples/retargeting/python/sharpa_hand_retargeter_demo.py \
+   $ python -m isaacteleop_examples.retargeting.sharpa_hand_retargeter_demo \
        --left-mjcf  /path/to/left_sharpawave.xml \
        --right-mjcf /path/to/right_sharpawave.xml
 

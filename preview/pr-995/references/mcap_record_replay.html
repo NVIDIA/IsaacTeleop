@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=35d49528" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=ec4b8e38" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -519,6 +519,25 @@ to add extra trackers that aren’t part of the pipeline:</p>
 <p><code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> is <strong>required</strong> when <code class="docutils literal notranslate"><span class="pre">mode</span></code> is <code class="docutils literal notranslate"><span class="pre">SessionMode.REPLAY</span></code>.
 Omitting it raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
 </div>
+<section id="schema-compatibility">
+<h3>Schema compatibility<a class="headerlink" href="#schema-compatibility" title="Link to this heading">#</a></h3>
+<p>Every recording embeds the FlatBuffer schema it was written under. Opening a replay
+session compares every schema the recording carries against the schema the running
+build was compiled from, and raises <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code> when the recorded bytes would be
+misread — a recording made before a breaking schema change, for instance. The whole
+recording is graded before the first frame is read, so replay never stops part-way
+through for a schema reason.</p>
+<p>That needs the list of schemas up front. It normally comes from the summary section at
+the end of the file; a recording whose writer never got to flush one, which is what a
+run cut short leaves behind, is scanned for its schema records instead. A recording so
+damaged that neither route works is refused.</p>
+<p>A difference that leaves every recorded field readable — a table field appended
+since, or one marked <code class="docutils literal notranslate"><span class="pre">(deprecated)</span></code> — is reported on stderr and replayed instead.
+There is no way to override the raise: a recording the running build would misread
+is not replayable, and reading it anyway would hand back records whose field values
+are quietly wrong. <code class="docutils literal notranslate"><span class="pre">src/core/schema/README.md</span></code> has the evolution rules that keep a
+schema change from getting there.</p>
+</section>
 </section>
 <section id="runnable-example">
 <h2>Runnable Example<a class="headerlink" href="#runnable-example" title="Link to this heading">#</a></h2>
@@ -546,9 +565,12 @@ contains exactly the matching channels.  To capture more data, add
 additional source nodes (<code class="docutils literal notranslate"><span class="pre">HeadSource</span></code>, <code class="docutils literal notranslate"><span class="pre">ControllersSource</span></code>, …) in
 <code class="docutils literal notranslate"><span class="pre">common.py</span></code>.</p>
 <p>For a live browser view of <strong>all</strong> human DeviceIO trackers at once (hands, head,
-controllers, and full body), see <code class="docutils literal notranslate"><span class="pre">examples/deviceio_live_view/python/</span></code>.  It is
-set up the same way as this example — the <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">sync</span></code> notes under <a class="reference internal" href="#recording">Recording</a>
-apply to it too.</p>
+controllers, and full body), see <code class="docutils literal notranslate"><span class="pre">examples/deviceio_live_view/</span></code> and its
+<code class="docutils literal notranslate"><span class="pre">README.md</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/deviceio_live_view
+python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.deviceio_live_view<span class="w"> </span>--accept-eula
+</pre></div>
+</div>
 <p>A C++ recorder lives at <code class="docutils literal notranslate"><span class="pre">examples/mcap_record_replay/cpp/</span></code>:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.cpp</span></code> — records the <code class="docutils literal notranslate"><span class="pre">full_body</span></code> channel by passing a
@@ -566,7 +588,9 @@ uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </sp
 uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>live_full_body.py<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w"> </span>--accept-eula<span class="w">  </span><span class="c1"># change viser port</span>
 </pre></div>
 </div>
-<p>Open the printed URL (default <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>) in a browser.</p>
+<p>Open the printed URL (default <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>) in a browser.  The
+viewers bind every interface, since they run where the headset is and get
+opened from another machine; pass <code class="docutils literal notranslate"><span class="pre">--host</span> <span class="pre">127.0.0.1</span></code> to keep one local.</p>
 </section>
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
@@ -700,7 +724,10 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#auto-population-and-appending-of-tracker-names">Auto-population and appending of tracker names</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying-a-recording">Replaying a Recording</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying-a-recording">Replaying a Recording</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#schema-compatibility">Schema compatibility</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-example">Runnable Example</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#live-preview">Live preview</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recording">Recording</a></li>
@@ -795,7 +822,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 28, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 04, 2026.
       <br/>
     
   </p>
