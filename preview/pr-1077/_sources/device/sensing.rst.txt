@@ -122,16 +122,39 @@ against what is installed, and offers to run it when anything is missing *or
 stale*. ``--pkg DIR`` uses a package you already have, ``--no-fetch`` forbids
 the download, and ``--install-drivers`` reinstalls unconditionally.
 
+Every file is classified by camera module, and only the modules this rig
+populates — ``SHW5G`` — are compared or installed. A drop that touches only
+S56C changes nothing here:
+
+.. code-block:: text
+
+   ==> Installed vs package  (modules: SHW5G)
+     · package SG8A-AGON-G2Y-A1-JetPack7.2.1 @ f4a59f7 (installed)
+     ✓ libnvuddf_max96712_library.so             [shared]
+     - libnvuddf_s56c_cameramodule_library.so    [S56C] not on this rig
+     ! libnvuddf_shw5g_cameramodule_library.so   [SHW5G] stale
+     ! SHW5G.nito                                [SHW5G] stale
+
 .. note::
 
    Staleness is checked by content, not by version. SENSING reuses the package
    name across drops and does not bump ``Version.md``, so a release that only
    rebuilds the drivers and retunes the ISP is invisible to any check that
-   looks at names or timestamps.
+   looks at names or timestamps. What was installed is recorded in
+   ``/var/lib/sensing/installed.json`` — a per-module digest plus the upstream
+   commit, which is the version to quote when reporting a problem to SENSING.
 
-   Such a drop needs no reboot either: ``install.sh`` only copies files, and
-   the overlay is the sole artifact the kernel reads at boot. The script says
-   so rather than sending you through ``jetson-io`` again.
+   Such a drop needs no reboot either: only files are copied, and the overlay
+   is the sole artifact the kernel reads at boot. The script says so rather
+   than sending you through ``jetson-io`` again.
+
+.. warning::
+
+   Setup copies the files itself rather than running the vendor
+   ``install.sh``, which wipes ``/usr/lib/nvsipl_drv`` and installs every
+   module's driver. The trade is that a new vendor artifact could go
+   unnoticed, so each run first checks that every source ``install.sh`` copies
+   is one setup knows about, and says so loudly if not.
 
 Then select the overlay and reboot:
 
