@@ -499,8 +499,13 @@ frames to another process as CUDA device memory. Source and plugin README:
 built or tested for them. They would also need an ICP passthrough path, since
 the SHF3L modules are YUV422 sensors that bypass the ISP entirely.</p>
 <p>Drivers come from the vendor SIPL package, which supplies userspace device
-drivers (<code class="docutils literal notranslate"><span class="pre">libnvuddf_*.so</span></code>), a device-tree overlay, and NITO ISP tuning files.
-The scripts below wrap it; they do not replace it.</p>
+drivers (<code class="docutils literal notranslate"><span class="pre">libnvuddf_*.so</span></code>), a device-tree overlay, NITO ISP tuning files and
+the <code class="docutils literal notranslate"><span class="pre">nvsipl_camera</span></code> reference application. The scripts below wrap it; they do
+not replace it.</p>
+<p>SENSING publishes it in <a class="reference external" href="https://github.com/SENSING-Technology/nvidia-jetson-camera-drivers" rel="noopener noreferrer" target="_blank">nvidia-jetson-camera-drivers</a> as a
+directory rather than a release, so <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> takes a blobless, shallow,
+sparse clone of just this board’s tree — 3.6 MB of a ~700 MB repo — into a
+gitignored <code class="docutils literal notranslate"><span class="pre">.cache/</span></code>. Nothing needs sourcing by hand.</p>
 </section>
 <section id="what-sipl-changes">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">What SIPL changes</a><a class="headerlink" href="#what-sipl-changes" title="Link to this heading">#</a></h2>
@@ -568,9 +573,13 @@ src/plugins/sensing/verify.sh<span class="w">     </span><span class="c1"># read
 </div>
 <section id="host">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Host</a><a class="headerlink" href="#host" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh<span class="w"> </span>--install-drivers<span class="w">   </span><span class="c1"># first time only</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh
 </pre></div>
 </div>
+<p>It fetches the vendor package if it is not already on disk, then offers to run
+<code class="docutils literal notranslate"><span class="pre">install.sh</span></code> whenever <code class="docutils literal notranslate"><span class="pre">nvsipl_camera</span></code>, the overlay, the drivers or the NITO
+are missing. <code class="docutils literal notranslate"><span class="pre">--pkg</span> <span class="pre">DIR</span></code> uses a package you already have, <code class="docutils literal notranslate"><span class="pre">--no-fetch</span></code>
+forbids the download, and <code class="docutils literal notranslate"><span class="pre">--install-drivers</span></code> reinstalls unconditionally.</p>
 <p>Then select the overlay and reboot:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>/opt/nvidia/jetson-io/jetson-io.py
 <span class="c1"># Configure Jetson AGX CSI Connector</span>
@@ -649,6 +658,13 @@ cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"
 <p>The platform config is vendored at <code class="docutils literal notranslate"><span class="pre">src/plugins/sensing/configs/shw5g.json</span></code>
 and resolved relative to the executable, so the plugin runs without the vendor
 package on disk; <code class="docutils literal notranslate"><span class="pre">--platform-config=PATH</span></code> points it at a newer vendor drop.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The published package has <strong>no</strong> <code class="docutils literal notranslate"><span class="pre">SHW5G_2</span></code> config — only the mixed
+populations. SENSING sends <code class="docutils literal notranslate"><span class="pre">shw5g.json</span></code> directly to customers with a
+2× SHW5G rig, so the vendored copy is the only one a fresh checkout has, and
+<code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> drops it into the fetched package for <code class="docutils literal notranslate"><span class="pre">nvsipl_camera</span></code>.</p>
+</div>
 <p>Start by asking the platform config what exists. This needs no hardware — the
 query API only parses the driver database and the JSON, so it works with the
 cameras unplugged:</p>
@@ -791,7 +807,7 @@ stale or torn frame is visible rather than merely suspected.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">--link-masks</span></code> does not match the config</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cannot</span> <span class="pre">open</span> <span class="pre">NITO</span> <span class="pre">file</span> <span class="pre">.../SHW5G.nito</span></code></p></td>
-<td><p>vendor <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> was never run on the host</p></td>
+<td><p>vendor <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> was never run — re-run <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">sensor=N</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">a</span> <span class="pre">pipeline</span> <span class="pre">in</span> <span class="pre">'&lt;config&gt;'</span></code></p></td>
 <td><p>using the link index or the JSON id; run <code class="docutils literal notranslate"><span class="pre">--list-sensors</span></code></p></td>
@@ -805,11 +821,14 @@ stale or torn frame is visible rather than merely suspected.</p>
 </tbody>
 </table>
 </div>
-<p>The vendor smoke test is the reference for “is the rig itself alive”:</p>
+<p>The vendor smoke test is the reference for “is the rig itself alive”.
+<code class="docutils literal notranslate"><span class="pre">setup_host.sh</span> <span class="pre">--smoke-test</span></code> runs it bounded to five seconds; unbounded:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>nvsipl_camera<span class="w"> </span>-t<span class="w"> </span><span class="nv">$PKG</span>/query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2<span class="w"> </span><span class="se">\</span>
 <span class="w">                   </span>-m<span class="w"> </span><span class="s2">"0x0000 0x1100"</span><span class="w"> </span>--enable-camera-hal<span class="w"> </span>-s<span class="w"> </span>-Z
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">$PKG</span></code> is wherever the package was fetched to, under
+<code class="docutils literal notranslate"><span class="pre">src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/</span></code>.</p>
 <p>Expect ~60 fps per sensor with zero drops. Stop it before starting the plugin.</p>
 </section>
 </section>

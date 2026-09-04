@@ -42,8 +42,15 @@ built or tested for them. They would also need an ICP passthrough path, since
 the SHF3L modules are YUV422 sensors that bypass the ISP entirely.
 
 Drivers come from the vendor SIPL package, which supplies userspace device
-drivers (``libnvuddf_*.so``), a device-tree overlay, and NITO ISP tuning files.
-The scripts below wrap it; they do not replace it.
+drivers (``libnvuddf_*.so``), a device-tree overlay, NITO ISP tuning files and
+the ``nvsipl_camera`` reference application. The scripts below wrap it; they do
+not replace it.
+
+SENSING publishes it in `nvidia-jetson-camera-drivers
+<https://github.com/SENSING-Technology/nvidia-jetson-camera-drivers>`_ as a
+directory rather than a release, so ``setup_host.sh`` takes a blobless, shallow,
+sparse clone of just this board's tree — 3.6 MB of a ~700 MB repo — into a
+gitignored ``.cache/``. Nothing needs sourcing by hand.
 
 What SIPL changes
 -----------------
@@ -103,7 +110,12 @@ Host
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup_host.sh --install-drivers   # first time only
+   src/plugins/sensing/setup_host.sh
+
+It fetches the vendor package if it is not already on disk, then offers to run
+``install.sh`` whenever ``nvsipl_camera``, the overlay, the drivers or the NITO
+are missing. ``--pkg DIR`` uses a package you already have, ``--no-fetch``
+forbids the download, and ``--install-drivers`` reinstalls unconditionally.
 
 Then select the overlay and reboot:
 
@@ -183,6 +195,13 @@ Building and running
 The platform config is vendored at ``src/plugins/sensing/configs/shw5g.json``
 and resolved relative to the executable, so the plugin runs without the vendor
 package on disk; ``--platform-config=PATH`` points it at a newer vendor drop.
+
+.. note::
+
+   The published package has **no** ``SHW5G_2`` config — only the mixed
+   populations. SENSING sends ``shw5g.json`` directly to customers with a
+   2× SHW5G rig, so the vendored copy is the only one a fresh checkout has, and
+   ``setup_host.sh`` drops it into the fetched package for ``nvsipl_camera``.
 
 Start by asking the platform config what exists. This needs no hardware — the
 query API only parses the driver database and the JSON, so it works with the
@@ -324,7 +343,7 @@ Troubleshooting
    * - ``no modules left in '<config>' after applying the link masks``
      - ``--link-masks`` does not match the config
    * - ``cannot open NITO file .../SHW5G.nito``
-     - vendor ``install.sh`` was never run on the host
+     - vendor ``install.sh`` was never run — re-run ``setup_host.sh``
    * - ``sensor=N is not a pipeline in '<config>'``
      - using the link index or the JSON id; run ``--list-sensors``
    * - capture hangs, no frames, no error
@@ -332,11 +351,15 @@ Troubleshooting
    * - ``ISP0 reconciled to colour standard ...``
      - the ISP refused BT.601; see the note in ``sipl_camera.cpp``
 
-The vendor smoke test is the reference for "is the rig itself alive":
+The vendor smoke test is the reference for "is the rig itself alive".
+``setup_host.sh --smoke-test`` runs it bounded to five seconds; unbounded:
 
 .. code-block:: bash
 
    sudo nvsipl_camera -t $PKG/query/sg8a_agth_g2a/shw5g.json -c SHW5G_2 \
                       -m "0x0000 0x1100" --enable-camera-hal -s -Z
+
+``$PKG`` is wherever the package was fetched to, under
+``src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/``.
 
 Expect ~60 fps per sensor with zero drops. Stop it before starting the plugin.
