@@ -576,14 +576,14 @@ starting the other. There is no daemon to arbitrate between them.</p>
 does not need to. Whether you then run the camera on the host or in a container
 only decides what comes after:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. On the Jetson, once: install the drivers.</span>
-src/plugins/sensing/setup.sh
+src/plugins/sensing/scripts/setup.sh
 
 <span class="c1"># 2. Confirm the rig streams. Same script on the host and in a container.</span>
-src/plugins/sensing/validate.sh
+src/plugins/sensing/scripts/validate.sh
 
 <span class="c1"># 3. Only if you want a container:</span>
-src/plugins/sensing/docker/run_docker_example.sh<span class="w">   </span><span class="c1"># ready-made, drops you at a shell</span>
-src/plugins/sensing/docker/setup_container.sh<span class="w">      </span><span class="c1"># or adapt your own</span>
+src/plugins/sensing/scripts/run_docker_example.sh<span class="w">   </span><span class="c1"># ready-made, drops you at a shell</span>
+src/plugins/sensing/scripts/setup_container.sh<span class="w">      </span><span class="c1"># or adapt your own</span>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">verify.sh</span></code> is a read-only report that runs on either side and is what to
@@ -598,7 +598,7 @@ so. That is the one step no script can do for you.</p>
 </div>
 <section id="host">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Host</a><a class="headerlink" href="#host" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/scripts/setup.sh
 </pre></div>
 </div>
 <p>It refreshes the vendor package, compares every file <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> would copy
@@ -688,7 +688,7 @@ permission. <code class="docutils literal notranslate"><span class="pre">verify.
 <section id="container">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Container</a><a class="headerlink" href="#container" title="Link to this heading">#</a></h3>
 <p>To build against this rig from inside a container:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/setup_container.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/scripts/setup_container.sh
 </pre></div>
 </div>
 <p>It checks the container can reach the device nodes, then provisions both build
@@ -704,12 +704,12 @@ one by hand instead:</p>
 <section id="validating-in-a-container">
 <h3><a class="toc-backref" href="#id7" role="doc-backlink">Validating in a container</a><a class="headerlink" href="#validating-in-a-container" title="Link to this heading">#</a></h3>
 <p>Before adapting your own image, prove the rig works from a throwaway one:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/run_docker_example.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/scripts/run_docker_example.sh
 <span class="c1"># ... builds, then drops you at a shell in the container:</span>
 ./validate.sh
 </pre></div>
 </div>
-<p>The script builds <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/docker/Dockerfile.example" rel="noopener noreferrer" target="_blank">docker/Dockerfile.example</a> — which does nothing but add
+<p>The script builds <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/scripts/Dockerfile.example" rel="noopener noreferrer" target="_blank">scripts/Dockerfile.example</a> — which does nothing but add
 the EGL runtime and run <code class="docutils literal notranslate"><span class="pre">image_setup.sh</span></code> — and starts it with the flags no
 Dockerfile can express. <code class="docutils literal notranslate"><span class="pre">--print-args</span></code> and <code class="docutils literal notranslate"><span class="pre">--json</span></code> emit those flags for
 your own container instead; <code class="docutils literal notranslate"><span class="pre">--</span> <span class="pre">validate.sh</span></code> runs the check and exits rather
@@ -759,13 +759,13 @@ gids in the image and no <code class="docutils literal notranslate"><span class=
 reverse does not hold: <code class="docutils literal notranslate"><span class="pre">--group-add</span></code> <em>alone</em> leaves an interactive shell
 without them, because <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">exec</span></code> ignores <code class="docutils literal notranslate"><span class="pre">HostConfig.GroupAdd</span></code>.</p>
 <p>The gids are host-specific, so read them off the host rather than copying:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--print-gids
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>src/plugins/sensing/scripts/run_docker_example.sh<span class="w"> </span>--print-gids
 <span class="go">114:i2c 985:gpio 44:video</span>
 </pre></div>
 </div>
 <p>The image half is one <code class="docutils literal notranslate"><span class="pre">RUN</span></code>. Expose the directory as a named build context —
 <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">build</span></code> cannot <code class="docutils literal notranslate"><span class="pre">COPY</span></code> across into a submodule:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--build-context<span class="w"> </span><span class="nv">sensing</span><span class="o">=</span>path/to/src/plugins/sensing/docker<span class="w"> </span>...
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--build-context<span class="w"> </span><span class="nv">sensing</span><span class="o">=</span>path/to/src/plugins/sensing/scripts<span class="w"> </span>...
 </pre></div>
 </div>
 <div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>bind,from<span class="o">=</span>sensing,target<span class="o">=</span>/mnt/sensing<span class="w"> </span><span class="se">\</span>
@@ -774,12 +774,12 @@ without them, because <code class="docutils literal notranslate"><span class="pr
 </div>
 <p>The bind mount leaves nothing behind, so the script is not baked into a layer.
 To layer onto an existing image instead of editing its Dockerfile:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>docker/Dockerfile.example<span class="w"> </span>--build-arg<span class="w"> </span><span class="nv">BASE</span><span class="o">=</span>my-image:latest<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">SENSING_USER</span><span class="o">=</span>me<span class="w"> </span>-t<span class="w"> </span>my-image:sensing<span class="w"> </span>src/plugins/sensing/docker
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>scripts/Dockerfile.example<span class="w"> </span>--build-arg<span class="w"> </span><span class="nv">BASE</span><span class="o">=</span>my-image:latest<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">SENSING_USER</span><span class="o">=</span>me<span class="w"> </span>-t<span class="w"> </span>my-image:sensing<span class="w"> </span>src/plugins/sensing/scripts
 </pre></div>
 </div>
 <p>The runtime half comes from the same script:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="k">$(</span>src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--print-args<span class="k">)</span><span class="w"> </span>my-image:sensing<span class="w"> </span>...
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span><span class="k">$(</span>src/plugins/sensing/scripts/run_docker_example.sh<span class="w"> </span>--print-args<span class="k">)</span><span class="w"> </span>my-image:sensing<span class="w"> </span>...
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">--json</span></code> emits the same flags as <code class="docutils literal notranslate"><span class="pre">devcontainer.json</span></code> <code class="docutils literal notranslate"><span class="pre">runArgs</span></code> elements.
@@ -795,9 +795,9 @@ the same SIPL API as any other client, so if it cannot stream, nothing else
 will either. Reach for it before debugging anything of ours.</p>
 <p><code class="docutils literal notranslate"><span class="pre">validate.sh</span></code> wraps it with this rig’s arguments and runs the same way on the
 host and inside a container:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/validate.sh<span class="w">              </span><span class="c1"># stream both sensors for 10 s</span>
-src/plugins/sensing/validate.sh<span class="w"> </span>--query<span class="w">      </span><span class="c1"># ask the config, no hardware</span>
-src/plugins/sensing/validate.sh<span class="w"> </span>-t<span class="w"> </span><span class="m">0</span><span class="w">         </span><span class="c1"># until 'q'</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/scripts/validate.sh<span class="w">              </span><span class="c1"># stream both sensors for 10 s</span>
+src/plugins/sensing/scripts/validate.sh<span class="w"> </span>--query<span class="w">      </span><span class="c1"># ask the config, no hardware</span>
+src/plugins/sensing/scripts/validate.sh<span class="w"> </span>-t<span class="w"> </span><span class="m">0</span><span class="w">         </span><span class="c1"># until 'q'</span>
 </pre></div>
 </div>
 <p>It resolves the package itself and fails with the reason rather than a status
