@@ -446,12 +446,13 @@ rig and confirming it streams with the vendor’s own tool; scripts live in
 <li><p><a class="reference internal" href="#host" id="id4">Host</a></p></li>
 <li><p><a class="reference internal" href="#groups-not-root" id="id5">Groups, not root</a></p></li>
 <li><p><a class="reference internal" href="#container" id="id6">Container</a></p></li>
+<li><p><a class="reference internal" href="#validating-in-a-container" id="id7">Validating in a container</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#nvsipl-camera" id="id7">nvsipl_camera</a></p></li>
-<li><p><a class="reference internal" href="#troubleshooting" id="id8">Troubleshooting</a></p>
+<li><p><a class="reference internal" href="#nvsipl-camera" id="id8">nvsipl_camera</a></p></li>
+<li><p><a class="reference internal" href="#troubleshooting" id="id9">Troubleshooting</a></p>
 <ul>
-<li><p><a class="reference internal" href="#display-and-the-egl-vendor" id="id9">DISPLAY and the EGL vendor</a></p></li>
+<li><p><a class="reference internal" href="#display-and-the-egl-vendor" id="id10">DISPLAY and the EGL vendor</a></p></li>
 </ul>
 </li>
 </ul>
@@ -557,17 +558,28 @@ starting the other. There is no daemon to arbitrate between them.</p>
 </section>
 <section id="setup">
 <h2><a class="toc-backref" href="#id3" role="doc-backlink">Setup</a><a class="headerlink" href="#setup" title="Link to this heading">#</a></h2>
-<p>Bring-up is two-sided and neither half can do the other’s job: installing the
-vendor drivers and selecting the overlay only happen on the host, while device
-access and the build SDKs only matter inside the container.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup.sh<span class="w">      </span><span class="c1"># auto-detects host vs container</span>
-src/plugins/sensing/verify.sh<span class="w">     </span><span class="c1"># read-only report, runs anywhere</span>
+<p>Drivers are installed on the <strong>host</strong>, always — a container cannot do it, and
+does not need to. Whether you then run the camera on the host or in a container
+only decides what comes after:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. On the Jetson, once. Installs the drivers and prints how to validate.</span>
+src/plugins/sensing/setup.sh
+
+<span class="c1"># 2a. Bare metal: nothing else to do.</span>
+<span class="c1"># 2b. In a container: give it device access and the driver mounts.</span>
+src/plugins/sensing/setup_container.sh<span class="w">     </span><span class="c1"># checks access, fetches build SDKs</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">--host</span></code> / <code class="docutils literal notranslate"><span class="pre">--container</span></code> override the detection. Each script names every
-privileged action it will take before the first <code class="docutils literal notranslate"><span class="pre">sudo</span></code> prompt and asks before
-each optional one; <code class="docutils literal notranslate"><span class="pre">--yes</span></code> accepts them all, and a non-interactive stdin
-declines them all.</p>
+<p><code class="docutils literal notranslate"><span class="pre">setup.sh</span></code> detects which side it is on; <code class="docutils literal notranslate"><span class="pre">--host</span></code> / <code class="docutils literal notranslate"><span class="pre">--container</span></code> override
+it, and <code class="docutils literal notranslate"><span class="pre">verify.sh</span></code> is a read-only report that runs on either. Every script
+names the privileged actions it will take before the first <code class="docutils literal notranslate"><span class="pre">sudo</span></code> prompt and
+asks before each optional one; <code class="docutils literal notranslate"><span class="pre">--yes</span></code> accepts them all, and a
+non-interactive stdin declines them all.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>First install only: after the drivers land you must select the device-tree
+overlay and reboot before anything streams. <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> stops and says
+so. That is the one step no script can do for you.</p>
+</div>
 <section id="host">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Host</a><a class="headerlink" href="#host" title="Link to this heading">#</a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh
@@ -679,6 +691,67 @@ src/plugins/sensing/docker/runtime_args.sh<span class="w"> </span>--print-gids<s
 or a <code class="docutils literal notranslate"><span class="pre">--device-cgroup-rule</span></code>. That is orthogonal to groups and easy to
 conflate: with the cgroup closed, every node is unreadable no matter which
 groups the process holds.</p>
+</section>
+<section id="validating-in-a-container">
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Validating in a container</a><a class="headerlink" href="#validating-in-a-container" title="Link to this heading">#</a></h3>
+<p>Run the vendor tool in a throwaway container before adapting your own image.
+Everything a container needs to reach the cameras is in this one command:</p>
+<div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="c"># Dockerfile</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">ubuntu:24.04</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>--no-install-recommends<span class="w"> </span><span class="se">\</span>
+<span class="w">        </span>libegl1<span class="w"> </span>libgles2<span class="w"> </span>libglib2.0-0<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>/var/lib/apt/lists/*
+<span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>bind,from<span class="o">=</span>sensing,target<span class="o">=</span>/mnt/s<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>/mnt/s/image_setup.sh<span class="w"> </span>root<span class="w"> </span><span class="m">114</span>:i2c<span class="w"> </span><span class="m">985</span>:gpio<span class="w"> </span><span class="m">44</span>:video
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--build-context<span class="w"> </span><span class="nv">sensing</span><span class="o">=</span>src/plugins/sensing/docker<span class="w"> </span>-t<span class="w"> </span>sensing-check<span class="w"> </span>.
+
+<span class="nv">PKG</span><span class="o">=</span><span class="k">$(</span>readlink<span class="w"> </span>-f<span class="w"> </span>src/plugins/sensing/.cache/SG8A-AGON-G2Y-A1-JetPack7.2.1<span class="k">)</span>
+docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--privileged<span class="w"> </span>--runtime<span class="o">=</span>nvidia<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-e<span class="w"> </span><span class="nv">NVIDIA_VISIBLE_DEVICES</span><span class="o">=</span>all<span class="w"> </span>-e<span class="w"> </span><span class="nv">NVIDIA_DRIVER_CAPABILITIES</span><span class="o">=</span>all<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span>/dev:/dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span>/usr/lib/nvsipl_drv:/usr/lib/nvsipl_drv:ro<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span>/var/nvidia/nvcam/settings/sipl:/var/nvidia/nvcam/settings/sipl:ro<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PKG</span><span class="s2">"</span>:/pkg:ro<span class="w"> </span>-w<span class="w"> </span>/pkg<span class="w"> </span>sensing-check<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>./nvsipl_camera<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2<span class="w"> </span><span class="se">\</span>
+<span class="w">                    </span>-m<span class="w"> </span><span class="s2">"0x0000 0x1100"</span><span class="w"> </span>--enable-camera-hal<span class="w"> </span>-s<span class="w"> </span>-Z<span class="w"> </span>-r<span class="w"> </span><span class="m">10</span>
+</pre></div>
+</div>
+<p>Five ingredients, and leaving any one out fails in a way that names something
+else:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 32.0%" />
+<col style="width: 68.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Ingredient</p></th>
+<th class="head"><p>What its absence looks like</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">image_setup.sh</span></code> groups</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SetPlatformConfig</span> <span class="pre">...</span> <span class="pre">status:</span> <span class="pre">10</span></code>, naming no node</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--privileged</span></code> (or <code class="docutils literal notranslate"><span class="pre">--device-cgroup-rule</span></code>)</p></td>
+<td><p>every node unreadable no matter which groups the process holds</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NVIDIA_*</span></code> env with <code class="docutils literal notranslate"><span class="pre">--runtime=nvidia</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">libnvsipl.so:</span> <span class="pre">cannot</span> <span class="pre">open</span> <span class="pre">shared</span> <span class="pre">object</span> <span class="pre">file</span></code> — the runtime injects
+the BSP libraries only when the capabilities are requested</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">libegl1</span></code> in the image</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">libEGL.so.1:</span> <span class="pre">cannot</span> <span class="pre">open</span> <span class="pre">shared</span> <span class="pre">object</span> <span class="pre">file</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>the two <code class="docutils literal notranslate"><span class="pre">:ro</span></code> mounts</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SetPlatformConfig</span> <span class="pre">...</span> <span class="pre">status:</span> <span class="pre">10</span></code> again — the CSV list carries no
+vendor-added driver or NITO</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Adapt your own image by taking the <code class="docutils literal notranslate"><span class="pre">RUN</span></code> and the packages from the Dockerfile
+above, and the flags from <code class="docutils literal notranslate"><span class="pre">docker/runtime_args.sh</span> <span class="pre">--json</span></code>.</p>
 <p>The script also provisions both build SDKs, and both are public downloads
 resolved from the version in <code class="docutils literal notranslate"><span class="pre">/etc/nv_tegra_release</span></code>. The <strong>Jetson Multimedia
 API</strong> comes from the apt pool; the <strong>SIPL API</strong> is a tarball published
@@ -689,14 +762,14 @@ alongside the L4T release, fetched by URL. To install that one by hand instead:<
 </section>
 </section>
 <section id="nvsipl-camera">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">nvsipl_camera</a><a class="headerlink" href="#nvsipl-camera" title="Link to this heading">#</a></h2>
-<p>The vendor reference application, installed to <code class="docutils literal notranslate"><span class="pre">/usr/sbin</span></code> by the package’s
-<code class="docutils literal notranslate"><span class="pre">install.sh</span></code>. It is the ground truth for “is the rig itself alive”: it drives
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">nvsipl_camera</a><a class="headerlink" href="#nvsipl-camera" title="Link to this heading">#</a></h2>
+<p>The vendor reference application, which setup installs to <code class="docutils literal notranslate"><span class="pre">/usr/sbin</span></code>. It is
+the ground truth for “is the rig itself alive”: it drives
 the same SIPL API as any other client, so if it cannot stream, nothing else
 will either. Reach for it before debugging anything of ours.</p>
 <p><code class="docutils literal notranslate"><span class="pre">setup_host.sh</span> <span class="pre">--smoke-test</span></code> runs it for five seconds. To drive it by hand —
 after setup, which is what puts <code class="docutils literal notranslate"><span class="pre">shw5g.json</span></code> in the fetched package:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/*/SG8A-AGON-G2Y-A1/JetPack7.2.1/SG8A_*
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>src/plugins/sensing/.cache/SG8A-AGON-G2Y-A1-JetPack7.2.1
 nvsipl_camera<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2<span class="w"> </span><span class="se">\</span>
 <span class="w">              </span>-m<span class="w"> </span><span class="s2">"0x0000 0x1100"</span><span class="w"> </span>--enable-camera-hal<span class="w"> </span>-s<span class="w"> </span>-Z<span class="w"> </span>-r<span class="w"> </span><span class="m">10</span>
 </pre></div>
@@ -748,7 +821,7 @@ nvsipl_query<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2
 </div>
 </section>
 <section id="troubleshooting">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Troubleshooting</a><a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 45.0%" />
@@ -782,7 +855,7 @@ nvsipl_query<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2
 </table>
 </div>
 <section id="display-and-the-egl-vendor">
-<h3><a class="toc-backref" href="#id9" role="doc-backlink">DISPLAY and the EGL vendor</a><a class="headerlink" href="#display-and-the-egl-vendor" title="Link to this heading">#</a></h3>
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">DISPLAY and the EGL vendor</a><a class="headerlink" href="#display-and-the-egl-vendor" title="Link to this heading">#</a></h3>
 <p>Two X servers usually exist on this box: <code class="docutils literal notranslate"><span class="pre">:1</span></code> is a real server the Tegra
 driver can drive, <code class="docutils literal notranslate"><span class="pre">:99</span></code> is Xvfb and it cannot. With both <code class="docutils literal notranslate"><span class="pre">10_nvidia.json</span></code>
 and <code class="docutils literal notranslate"><span class="pre">50_mesa.json</span></code> installed, GLVND hands out <em>Mesa’s</em> EGL whenever
@@ -852,6 +925,7 @@ and <code class="docutils literal notranslate"><span class="pre">50_mesa.json</s
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#host">Host</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#groups-not-root">Groups, not root</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#container">Container</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#validating-in-a-container">Validating in a container</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#nvsipl-camera">nvsipl_camera</a></li>
