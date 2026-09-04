@@ -1,0 +1,46 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "timestamp.fbs";
+
+namespace core;
+
+enum PluginDeviceState : byte {
+  UNKNOWN = 0,
+  CONNECTED = 1,
+  DISCONNECTED = 2,
+  DEGRADED = 3,
+  FAILED = 4,
+  DISABLED = 5
+}
+
+enum PluginDeviceReason : byte {
+  NONE = 0,
+  NO_HARDWARE_SIGNAL = 1,
+  HARDWARE_CONNECTED = 2,
+  HARDWARE_DISCONNECTED = 3,
+  RECOVERING = 4,
+  PARTIAL_FUNCTIONALITY = 5,
+  DEVICE_ERROR = 6,
+  DISABLED_BY_CONFIGURATION = 7
+}
+
+table PluginDeviceStatus {
+  path: string (id: 0);
+  state: PluginDeviceState = UNKNOWN (id: 1);
+  reason: PluginDeviceReason = NONE (id: 2);
+  error: string (id: 3);
+}
+
+table PluginDeviceStatusSnapshot {
+  schema_version: uint (id: 0);
+  report_time_ns: long (id: 1);
+  devices: [PluginDeviceStatus] (id: 2);
+}
+
+table PluginDeviceStatusSnapshotRecord {
+  data: PluginDeviceStatusSnapshot (id: 0);
+  timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type PluginDeviceStatusSnapshotRecord;

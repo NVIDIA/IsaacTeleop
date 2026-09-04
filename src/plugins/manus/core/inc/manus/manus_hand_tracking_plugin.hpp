@@ -13,12 +13,14 @@
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>
+#include <plugin_utils/plugin_device_status_publisher.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <ManusSDK.h>
 #include <XR_MNDX_xdev_space.h>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -44,6 +46,7 @@ inline constexpr std::size_t kManusFingerCount = 5;
 struct ManusPluginConfig
 {
     std::string app_name = "ManusHandPlugin";
+    std::optional<std::string> monitoring_plugin_root_id;
     std::string left_calibration_file;
     std::string right_calibration_file;
     bool human = true; // OpenXR HandInjector
@@ -100,6 +103,7 @@ private:
 
     void push_sensor_states();
     void push_sensor_side(bool is_left, core::SchemaPusher& pusher);
+    void publish_device_status();
 
     // OpenXR specific methods
     void inject_hand_data();
@@ -126,6 +130,7 @@ private:
     std::optional<uint32_t> right_glove_id;
     std::vector<unsigned char> m_left_calibration_file;
     std::vector<unsigned char> m_right_calibration_file;
+    std::array<bool, 2> m_calibration_failed{ { false, false } };
     bool is_connected = false;
 
     // Haptic state — the per-side log-once flags use std::atomic to stay
@@ -153,6 +158,8 @@ private:
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     std::unique_ptr<core::SchemaPusher> m_left_sensor_pusher;
     std::unique_ptr<core::SchemaPusher> m_right_sensor_pusher;
+    std::unique_ptr<plugin_utils::PluginDeviceStatusPublisher> m_status_publisher;
+    bool m_status_publish_error_logged = false;
 
     // XDev native hand trackers (Quest 3 hand tracking via XR_MNDX_xdev_space)
     XrXDevListMNDX m_xdev_list = XR_NULL_HANDLE;
@@ -177,6 +184,7 @@ private:
     mutable std::mutex m_skeleton_mutex;
     std::vector<SkeletonNode> m_left_hand_nodes;
     std::vector<SkeletonNode> m_right_hand_nodes;
+    std::array<std::chrono::steady_clock::time_point, 2> m_skeleton_stamps{};
     // Node topology (parent IDs) — populated once per glove connect
     std::vector<NodeInfo> m_left_node_info;
     std::vector<NodeInfo> m_right_node_info;
