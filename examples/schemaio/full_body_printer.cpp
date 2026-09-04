@@ -74,7 +74,7 @@ void print_body_pose(const core::FullBodyPose& data, size_t sample_count)
 
 } // namespace
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** argv)
 try
 {
     std::cout << "Full Body Printer (XR_BD_body_tracking)" << std::endl;
