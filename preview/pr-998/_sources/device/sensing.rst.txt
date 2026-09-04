@@ -97,19 +97,30 @@ moved:
 Setup
 -----
 
-Bring-up is two-sided and neither half can do the other's job: installing the
-vendor drivers and selecting the overlay only happen on the host, while device
-access and the build SDKs only matter inside the container.
+Drivers are installed on the **host**, always — a container cannot do it, and
+does not need to. Whether you then run the camera on the host or in a container
+only decides what comes after:
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup.sh      # auto-detects host vs container
-   src/plugins/sensing/verify.sh     # read-only report, runs anywhere
+   # 1. On the Jetson, once. Installs the drivers and prints how to validate.
+   src/plugins/sensing/setup.sh
 
-``--host`` / ``--container`` override the detection. Each script names every
-privileged action it will take before the first ``sudo`` prompt and asks before
-each optional one; ``--yes`` accepts them all, and a non-interactive stdin
-declines them all.
+   # 2a. Bare metal: nothing else to do.
+   # 2b. In a container: give it device access and the driver mounts.
+   src/plugins/sensing/setup_container.sh     # checks access, fetches build SDKs
+
+``setup.sh`` detects which side it is on; ``--host`` / ``--container`` override
+it, and ``verify.sh`` is a read-only report that runs on either. Every script
+names the privileged actions it will take before the first ``sudo`` prompt and
+asks before each optional one; ``--yes`` accepts them all, and a
+non-interactive stdin declines them all.
+
+.. note::
+
+   First install only: after the drivers land you must select the device-tree
+   overlay and reboot before anything streams. ``setup_host.sh`` stops and says
+   so. That is the one step no script can do for you.
 
 Host
 ~~~~
@@ -228,6 +239,60 @@ or a ``--device-cgroup-rule``. That is orthogonal to groups and easy to
 conflate: with the cgroup closed, every node is unreadable no matter which
 groups the process holds.
 
+Validating in a container
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Run the vendor tool in a throwaway container before adapting your own image.
+Everything a container needs to reach the cameras is in this one command:
+
+.. code-block:: dockerfile
+
+   # Dockerfile
+   FROM ubuntu:24.04
+   RUN apt-get update && apt-get install -y --no-install-recommends \
+           libegl1 libgles2 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+   RUN --mount=type=bind,from=sensing,target=/mnt/s \
+       /mnt/s/image_setup.sh root 114:i2c 985:gpio 44:video
+
+.. code-block:: bash
+
+   docker build --build-context sensing=src/plugins/sensing/docker -t sensing-check .
+
+   PKG=$(readlink -f src/plugins/sensing/.cache/SG8A-AGON-G2Y-A1-JetPack7.2.1)
+   docker run --rm --privileged --runtime=nvidia \
+       -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
+       -v /dev:/dev \
+       -v /usr/lib/nvsipl_drv:/usr/lib/nvsipl_drv:ro \
+       -v /var/nvidia/nvcam/settings/sipl:/var/nvidia/nvcam/settings/sipl:ro \
+       -v "$PKG":/pkg:ro -w /pkg sensing-check \
+       ./nvsipl_camera -t query/sg8a_agth_g2a/shw5g.json -c SHW5G_2 \
+                       -m "0x0000 0x1100" --enable-camera-hal -s -Z -r 10
+
+Five ingredients, and leaving any one out fails in a way that names something
+else:
+
+.. list-table::
+   :widths: 32 68
+   :header-rows: 1
+
+   * - Ingredient
+     - What its absence looks like
+   * - ``image_setup.sh`` groups
+     - ``SetPlatformConfig ... status: 10``, naming no node
+   * - ``--privileged`` (or ``--device-cgroup-rule``)
+     - every node unreadable no matter which groups the process holds
+   * - ``NVIDIA_*`` env with ``--runtime=nvidia``
+     - ``libnvsipl.so: cannot open shared object file`` — the runtime injects
+       the BSP libraries only when the capabilities are requested
+   * - ``libegl1`` in the image
+     - ``libEGL.so.1: cannot open shared object file``
+   * - the two ``:ro`` mounts
+     - ``SetPlatformConfig ... status: 10`` again — the CSV list carries no
+       vendor-added driver or NITO
+
+Adapt your own image by taking the ``RUN`` and the packages from the Dockerfile
+above, and the flags from ``docker/runtime_args.sh --json``.
+
 The script also provisions both build SDKs, and both are public downloads
 resolved from the version in ``/etc/nv_tegra_release``. The **Jetson Multimedia
 API** comes from the apt pool; the **SIPL API** is a tarball published
@@ -240,8 +305,8 @@ alongside the L4T release, fetched by URL. To install that one by hand instead:
 nvsipl_camera
 -------------
 
-The vendor reference application, installed to ``/usr/sbin`` by the package's
-``install.sh``. It is the ground truth for "is the rig itself alive": it drives
+The vendor reference application, which setup installs to ``/usr/sbin``. It is
+the ground truth for "is the rig itself alive": it drives
 the same SIPL API as any other client, so if it cannot stream, nothing else
 will either. Reach for it before debugging anything of ours.
 
@@ -250,7 +315,7 @@ after setup, which is what puts ``shw5g.json`` in the fetched package:
 
 .. code-block:: bash
 
-   cd src/plugins/sensing/.cache/nvidia-jetson-camera-drivers/*/SG8A-AGON-G2Y-A1/JetPack7.2.1/SG8A_*
+   cd src/plugins/sensing/.cache/SG8A-AGON-G2Y-A1-JetPack7.2.1
    nvsipl_camera -t query/sg8a_agth_g2a/shw5g.json -c SHW5G_2 \
                  -m "0x0000 0x1100" --enable-camera-hal -s -Z -r 10
 
