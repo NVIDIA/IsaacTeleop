@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=6a40af5b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=ec4b8e38" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -340,6 +340,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../../index.html">Isaac Teleop</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../overview/architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview/ecosystem.html">Ecosystem</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
@@ -508,16 +509,18 @@ the last valid command instead of forwarding the invalid output.</p></td>
 <h2>Run the example<a class="headerlink" href="#run-the-example" title="Link to this heading">#</a></h2>
 <p>The example supports a device-free synthetic pose, recorded keypoints, and a
 real Wuji hand:</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp"># </span>Device-free<span class="w"> </span>smoke<span class="w"> </span><span class="nb">test</span>
-<span class="gp">$ </span>python<span class="w"> </span>examples/retargeting/python/wuji_hand_retargeter_demo.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/retargeting
+
+<span class="gp"># </span>Device-free<span class="w"> </span>smoke<span class="w"> </span><span class="nb">test</span>
+<span class="gp">$ </span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.retargeting.wuji_hand_retargeter_demo<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--mode<span class="w"> </span>synthetic<span class="w"> </span>--model<span class="w"> </span>wuji_hand_2<span class="w"> </span>--hand<span class="w"> </span>right
 
 <span class="gp"># </span>Replay<span class="w"> </span>MediaPipe-format<span class="w"> </span>keypoints
-<span class="gp">$ </span>python<span class="w"> </span>examples/retargeting/python/wuji_hand_retargeter_demo.py<span class="w"> </span><span class="se">\</span>
+<span class="gp">$ </span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.retargeting.wuji_hand_retargeter_demo<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--mode<span class="w"> </span>replay<span class="w"> </span>--replay<span class="w"> </span>my_take.pkl<span class="w"> </span>--model<span class="w"> </span>wuji_hand_2<span class="w"> </span>--hand<span class="w"> </span>right
 
 <span class="gp"># </span>Drive<span class="w"> </span>real<span class="w"> </span>hardware<span class="w"> </span>and<span class="w"> </span><span class="nb">let</span><span class="w"> </span>TeleopSession<span class="w"> </span>launch<span class="w"> </span>the<span class="w"> </span>Wuji<span class="w"> </span>glove<span class="w"> </span>plugin
-<span class="gp">$ </span>python<span class="w"> </span>examples/retargeting/python/wuji_hand_retargeter_demo.py<span class="w"> </span><span class="se">\</span>
+<span class="gp">$ </span>python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.retargeting.wuji_hand_retargeter_demo<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--mode<span class="w"> </span>drive<span class="w"> </span>--hand<span class="w"> </span>right<span class="w"> </span>--plugin-path<span class="w"> </span>build/src/plugins
 </pre></div>
 </div>
@@ -687,7 +690,7 @@ into a complete pipeline.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 26, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 04, 2026.
       <br/>
     
   </p>

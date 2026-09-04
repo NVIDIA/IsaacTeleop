@@ -68,6 +68,9 @@ Run this **inside the build environment** (devcontainer or Isaac ROS container):
    cd src/plugins/manus
    ./install_manus.sh
 
+Pass ``--build-dir <path>`` to reuse a non-default top-level CMake build
+directory.
+
 The script will:
 
 1. Install the required system packages for MANUS Core Integrated.
@@ -76,7 +79,9 @@ The script will:
 4. Build the plugin and the diagnostic tool.
 
 When run inside a container, ``install_manus.sh`` skips the udev step and
-reminds you to run ``install_udev_rules.sh`` on the host.
+reminds you to run ``install_udev_rules.sh`` on the host. Pass ``--container``
+when the build environment does not expose standard container markers, such as
+during a Docker BuildKit build.
 
 Manual installation
 ~~~~~~~~~~~~~~~~~~~
@@ -100,9 +105,10 @@ Expected directory layout after placing the SDK:
        main.cpp
      core/
        manus_hand_tracking_plugin.cpp
-     inc/
-       core/
-         manus_hand_tracking_plugin.hpp
+       inc/
+         manus/
+           manus_glove_collection.hpp
+           manus_hand_tracking_plugin.hpp
      tools/
        manus_hand_tracker_printer.cpp
      ManusSDK/        <-- placed here

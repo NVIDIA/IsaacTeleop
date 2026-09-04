@@ -4,7 +4,7 @@
 SENSING GMSL Camera Plugin
 ==========================
 
-C++ plugin that captures from SENSING GMSL2 cameras through **libargus** on a
+C++ plugin that captures from SENSING GMSL2 cameras through **SIPL** on a
 Jetson AGX Orin, and either encodes H.264 on the Jetson's V4L2 engine or hands
 frames to another process as CUDA device memory. Source and plugin README:
 :code-file:`src/plugins/sensing/README.md`.
@@ -23,221 +23,223 @@ This plugin is developed and verified against exactly one configuration:
    :header-rows: 0
 
    * - Host
-     - NVIDIA Jetson AGX Orin
+     - NVIDIA Jetson AGX Orin (``p3737-0000 + p3701-0005``, 64 GB)
    * - Software
-     - JetPack 6.2 / L4T R36.4.3, kernel ``5.15.148-tegra``
+     - JetPack 7.2.1 / L4T R39.2.1
    * - Carrier
-     - SENSING **SG10A-AGON-G2M-A1** (GMSL2)
-   * - Camera
-     - Orbbec Astra **S56C**, 1920×1080 @ 30 fps, ``sensor_mode=0`` (its only mode)
+     - SENSING **SG8A-AGON-G2Y-A1** (GMSL2)
+   * - Cameras
+     - Two Astra **SHW5G** (VB1940), 2560×1984 @ 60 fps, RAW10 → ISP
+   * - Platform config
+     - ``SHW5G_2`` on CN1 CAM2/CAM3, link masks ``0x0000 0x1100``
    * - Device tree
-     - ``Jetson Sensing SG10A_AGON_G2M_A1 S56Cx1 SHF3Lx6``
+     - ``Jetson Sensing SG8A-AGON-G2Y-A1 SIPL GMSL2x8``
 
-The carrier also takes up to six SHF3L/SHF3H modules. Those are **out of scope**
-for this plugin — they are already ISP-processed on the module and stream YUV
-over plain V4L2, so ``examples/camera_viz/configs/v4l2.yaml`` reads them
-directly. The S56C emits 10-bit Bayer and *must* go through the ISP, which is
-why it needs Argus.
+The carrier also takes S56C and SHF3L modules, and the vendor package ships
+``S56C_1_SHF3L_2`` and ``SHF3L_2_SHW5G_2`` configs for them. Those remain
+*addressable* — the config name and JSON path are arguments — but nothing is
+built or tested for them. They would also need an ICP passthrough path, since
+the SHF3L modules are YUV422 sensors that bypass the ISP entirely.
 
-Drivers come from the vendor package,
-`nvidia-jetson-camera-drivers <https://github.com/SENSING-Technology/nvidia-jetson-camera-drivers>`_
-(kernel ``Image``, sensor ``.ko`` files, ``.dtbo`` overlays, ISP tuning). The
-scripts below wrap it; they do not replace it.
+Drivers come from the vendor SIPL package, which supplies userspace device
+drivers (``libnvuddf_*.so``), a device-tree overlay, and NITO ISP tuning files.
+The scripts below wrap it; they do not replace it.
+
+What SIPL changes
+-----------------
+
+If you know the previous Argus-based rig, almost every operational assumption
+moved:
+
+.. list-table::
+   :widths: 22 39 39
+   :header-rows: 1
+
+   * -
+     - Argus (SG10A)
+     - SIPL (SG8A)
+   * - Sensor drivers
+     - kernel ``.ko``, loaded every boot
+     - userspace ``.so`` in ``/usr/lib/nvsipl_drv``
+   * - Device nodes
+     - ``/dev/video0..9``
+     - none
+   * - Arbitration
+     - ``nvargus-daemon``, multi-client
+     - in-process, **exclusive**
+   * - Per-boot step
+     - ``load_modules.sh`` + systemd unit
+     - none
+   * - Frame sync
+     - PWM trigger + J19 strap
+     - deserializer ``fsyncMode: osc_manual``
+   * - Geometry
+     - ``--width``/``--height``/``--sensor-mode``
+     - read from the platform config
+   * - Privilege
+     - container user + ``/tmp/argus_socket``
+     - container user + two groups
+
+.. warning::
+
+   SIPL takes **exclusive** ownership of the hardware. ``nvsipl_camera`` and
+   ``camera_plugin_sensing`` cannot run at the same time; stop one before
+   starting the other. There is no daemon to arbitrate between them.
 
 Setup
 -----
 
-Bring-up is two-sided and neither half can do the other's job: kernel modules,
-the device-tree overlay and the POC/PWM register writes only exist on the host,
-while the Argus client socket and the build headers only matter inside the
-devcontainer.
+Bring-up is two-sided and neither half can do the other's job: installing the
+vendor drivers and selecting the overlay only happen on the host, while device
+access and the build SDKs only matter inside the container.
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup.sh      # on the Jetson host    -> setup_host.sh
-   src/plugins/sensing/setup.sh      # in the devcontainer   -> setup_container.sh
-   src/plugins/sensing/verify.sh     # anywhere, read-only
+   src/plugins/sensing/setup.sh      # auto-detects host vs container
+   src/plugins/sensing/verify.sh     # read-only report, runs anywhere
 
-``setup.sh`` auto-detects the context; ``--host`` / ``--container`` override it.
-Each script prints every privileged action it will take before the first
-``sudo`` prompt and asks again per optional action. ``--yes`` accepts them all;
-non-interactive stdin declines them all.
-
-Host — first install
-~~~~~~~~~~~~~~~~~~~~
+Host
+~~~~
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup_host.sh --install-drivers
+   src/plugins/sensing/setup_host.sh --install-drivers   # first time only
 
-This runs the vendor ``install.sh`` and stops. Select the overlay and reboot
-before continuing:
-
-.. code-block:: bash
-
-   sudo /opt/nvidia/jetson-io/jetson-io.py   # Configure Jetson AGX CSI Connector
-                                             # -> Jetson Sensing SG10A_AGON_G2M_A1 S56Cx1 SHF3Lx6
-
-The package is autodetected under ``~/Sensing/``, ``~``, ``/home/*/Sensing/``
-and ``/opt/sensing/``; ``--pkg`` or ``$SENSING_PKG_DIR`` overrides.
-
-Host — every boot
-~~~~~~~~~~~~~~~~~
+Then select the overlay and reboot:
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup_host.sh [--fps 30] [--free-run|--trigger-sync] [--service]
-
-The vendor ``install.sh`` never copies the sensor ``.ko`` files into
-``/lib/modules``, so nothing auto-loads them and ``/dev/video*`` is empty after
-every reboot. That is the most common cause of "the cameras stopped working".
-``setup_host.sh`` loads them, then offers to install ``sensing-camera.service``
-so it happens at boot.
+   sudo /opt/nvidia/jetson-io/jetson-io.py
+   # Configure Jetson AGX CSI Connector
+   #   -> Configure for compatible hardware
+   #   -> Jetson Sensing SG8A-AGON-G2Y-A1 SIPL GMSL2x8
+   sudo nvpmodel -m 0 && sudo jetson_clocks
 
 .. note::
 
-   The unit is ordered ``Before=nvargus-daemon.service``, **not**
-   ``After=multi-user.target``. ``nvargus-daemon`` is itself part of
-   ``multi-user.target``; a daemon that starts before the sensors exist
-   enumerates an empty camera list and never retries.
+   There is **no per-boot step**. The vendor ``install.sh`` is copy-only, so
+   once the overlay is selected the rig comes up on its own. The old
+   ``sensing-load.sh`` and ``sensing-camera.service`` no longer exist.
 
-The vendor default slaves every sensor to the carrier's PWM trigger, which only
-fires when **J19 pins 2 and 4 are strapped together** — without the strap the
-camera opens fine and then delivers no frames, which looks like a software
-hang. ``--free-run`` (the default) clears the trigger mode. Use
-``--trigger-sync`` only when the strap is fitted and you need cross-camera sync.
+Groups, not root
+~~~~~~~~~~~~~~~~
+
+SIPL needs no root, but it does need two supplementary groups beyond ``video``:
+
+.. list-table::
+   :widths: 35 15 50
+   :header-rows: 1
+
+   * - Node
+     - Group
+     - Why
+   * - ``/dev/i2c-9``, ``/dev/i2c-10``
+     - ``i2c``
+     - the two MAX96712 deserializers
+   * - ``/dev/gpiochip0``, ``/dev/gpiochip1``
+     - ``gpio``
+     - deserializer power enable
+
+.. code-block:: bash
+
+   sudo usermod -aG i2c,gpio $USER   # then log out and back in
+
+Omit either and SIPL fails with exactly one line — ``Master SetPlatformConfig
+(Camera HAL) failed. status: 10`` — which names neither the node nor the
+permission. ``verify.sh`` diagnoses it properly.
 
 Container
 ~~~~~~~~~
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup_container.sh [--argus-include DIR] [--yes]
+   src/plugins/sensing/setup_container.sh
 
-One thing the container cannot fix for itself: ``libnvargus_socketclient``
-reaches ``nvargus-daemon`` through ``/tmp/argus_socket``, and a container gets
-its own ``/tmp``. Add the bind mount to ``runArgs`` and rebuild:
+Add the group ids to the container's ``runArgs`` (numeric, because the
+container has no matching group *names*; the kernel checks numbers):
 
 .. code-block:: json
 
-   "-v", "/tmp/argus_socket:/tmp/argus_socket"
+   "--group-add", "114",
+   "--group-add", "985"
 
-The script also checks for the Argus headers (``v4l-utils``, EGL headers,
-``nvcc``), and offers to symlink an Argus tree it finds to
-``/usr/src/jetson_multimedia_api/argus``.
+The script also provisions both build SDKs, and both are public downloads
+resolved from the version in ``/etc/nv_tegra_release``. The **Jetson Multimedia
+API** comes from the apt pool; the **SIPL API** is a tarball published
+alongside the L4T release, fetched by URL. To install that one by hand instead:
 
-Build
------
+.. code-block:: bash
+
+   sudo tar xf Jetson_SIPL_API_R39.2.1_aarch64.tbz2 -C /usr/src/
+
+Building and running
+--------------------
 
 .. code-block:: bash
 
    cmake -B build -DBUILD_PLUGIN_SENSING=ON
-   cmake --build build --target camera_plugin_sensing --parallel
+   cmake --build build --target camera_plugin_sensing
 
-Both dependencies live outside the repo. On a Jetson host they come from
-``sudo apt install nvidia-l4t-jetson-multimedia-api``. In a container, copy the
-tree in and point CMake at it:
+The platform config is vendored at ``src/plugins/sensing/configs/shw5g.json``
+and resolved relative to the executable, so the plugin runs without the vendor
+package on disk; ``--platform-config=PATH`` points it at a newer vendor drop.
+
+Start by asking the platform config what exists. This needs no hardware — the
+query API only parses the driver database and the JSON, so it works with the
+cameras unplugged:
 
 .. code-block:: bash
 
-   cmake -B build -DBUILD_PLUGIN_SENSING=ON \
-       -DARGUS_INCLUDE_DIRS=$HOME/Sensing/argus/include \
-       -DJETSON_MMAPI_DIR=$HOME/Sensing/jetson_multimedia_api
+   ./build/src/plugins/sensing/app/camera_plugin_sensing --list-sensors
+
+.. code-block:: text
+
+   SHW5G_2: 2 sensor(s)
+     sensor=0  SHW5G  2560x1984 @ 60 fps
+     sensor=1  SHW5G  2560x1984 @ 60 fps
 
 .. warning::
 
-   Argus needs NVIDIA's EGL. GLVND picks the EGL vendor from ``DISPLAY``, and
-   Tegra's EGL cannot drive an Xvfb or forwarded X server, so it loses the probe
-   to Mesa and every Argus-to-CUDA path fails. The plugin clears ``DISPLAY``
-   itself before the first EGL call and refuses to start on a non-NVIDIA vendor,
-   but anything else in the process that renders will be affected by this.
+   ``sensor=N`` is the **SIPL pipeline index**, and for ``SHW5G_2`` it is not
+   the number the JSON appears to name. The GMSL link indices, the CSI virtual
+   channels and the JSON's ``sensorInfo.id`` are all **2 and 3**; the pipeline
+   indices are **0 and 1**. Always take the number from ``--list-sensors``.
 
-Sensor ids are not ``/dev/video`` numbers
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   In the vendor's ``S56C_1_SHF3L_2`` config the two coincide, which is exactly
+   why this is worth stating.
 
-``sensor=`` in ``--add-stream`` is the **Argus sensor id**, which follows
-device-tree module order. On this overlay ids 0–3 are the S56C group and 4–9 the
-SHF3L ports. Re-derive after any overlay change:
+Geometry comes from the platform config
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
+There is no ``--width``, ``--height``, ``--fps`` or ``--sensor-mode``. SIPL has
+no runtime mode index; resolution and frame rate are properties of the virtual
+channel in the platform config, and the plugin sizes its buffers from what the
+query reports.
 
-   for i in $(seq 0 9); do
-     printf '%s ' "$i"
-     cat /proc/device-tree/tegra-camera-platform/modules/module$i/badge
-     echo
-   done
+Encoding at 5 MP60
+~~~~~~~~~~~~~~~~~~
 
-Recording H.264
----------------
-
-``output=<path>`` on a stream encodes that sensor on the Jetson V4L2 M2M engine
-and writes raw Annex-B H.264 — no container, no timestamps. ``--add-stream`` is
-repeatable, one per sensor:
-
-.. code-block:: bash
-
-   ./build/src/plugins/sensing/app/camera_plugin_sensing \
-       --add-stream=sensor=2,output=./left.h264 \
-       --add-stream=sensor=3,output=./right.h264 \
-       --mcap-filename=./meta.mcap
-
-Press ``Ctrl+C`` to stop. Run with ``--help`` for the full list; the knobs that
-matter most:
+Two sensors at 2560×1984 @ 60 is 4.9× the pixel rate the 1080p30 defaults were
+chosen for, so the codec settings moved with it:
 
 .. list-table::
-   :widths: 30 15 55
+   :widths: 25 20 55
    :header-rows: 1
 
-   * - Option
-     - Default
-     - Description
-   * - ``--add-stream=sensor=<id>[,output=<path>][,ipc=<socket>]``
-     - (at least one required)
-     - Add a capture stream. At least one of ``output`` / ``ipc`` is required;
-       both may be given. Repeatable.
-   * - ``--sensor-mode=N``
-     - 0
-     - Argus sensor mode. The S56C has only mode 0.
-   * - ``--width=N`` / ``--height=N``
-     - 1920 / 1080
-     - Capture resolution
-   * - ``--fps=N``
-     - 30
-     - Frame rate for all streams
-   * - ``--bitrate=N``
-     - 20000000
-     - H.264 bitrate (bps)
-   * - ``--gop=N``
-     - ``fps*5``
-     - IDR period in frames
-   * - ``--mcap-filename=PATH``
-     - none
-     - Record per-frame metadata to an MCAP file
+   * - Setting
+     - Value
+     - Why
+   * - level
+     - **5.2**
+     - 1,190,400 MB/s exceeds Level 5.1's 983,040 by 21%
+   * - ``--bitrate``
+     - 40 Mbps
+     - 0.13 bits/pixel; 20 Mbps was 0.066
+   * - ``--peak-bitrate``
+     - 60 Mbps
+     - VBR ceiling; pass ``0`` to select CBR
 
-Metadata
-~~~~~~~~
-
-Each frame emits a ``core.FrameMetadataSensingRecord`` (sequence number,
-timestamps). ``--mcap-filename`` writes it to channel
-``sensing_metadata/sensor<N>``; the binary schema is embedded, so ``mcap cat
---json meta.mcap`` decodes it without any Isaac headers.
-
-Playback
-~~~~~~~~
-
-Since the file carries no timestamps, a player has to be told the frame rate:
-
-.. code-block:: bash
-
-   ffplay -f h264 left.h264
-   ffmpeg -f h264 -framerate 30 -i left.h264 -c copy left.mp4   # -framerate must match --fps
-
-   # on the Jetson, decoded on the hardware engine that wrote it
-   gst-launch-1.0 filesrc location=left.h264 ! h264parse ! nvv4l2decoder ! nv3dsink
-
-To sanity-check a file with no tools installed, the 5th byte after each ``00 00
-01`` start code carries the NAL type in its low 5 bits — a healthy recording
-opens ``67`` (SPS), ``68`` (PPS), ``65`` (IDR): ``xxd -l 16 left.h264``.
+80 Mbps for the pair, about 36 GB/hour.
 
 Live streaming with camera_viz
 ------------------------------
@@ -246,14 +248,14 @@ Live streaming with camera_viz
 memory** — RGBA8, no encode, no host round-trip — and
 :code-file:`camera_viz <examples/camera_viz/README.md>` consumes it with
 ``type: cuda_ipc``. It is independent of ``output=``; an ``ipc``-only stream
-never starts an encoder. Measured on an AGX Orin at 1920×1080: **~1 ms** from
-producer timestamp to consumer receipt, sustained at 60 fps.
+never starts an encoder.
 
 .. code-block:: bash
 
    # terminal 1 — producer
    ./build/src/plugins/sensing/app/camera_plugin_sensing \
-       --add-stream=sensor=2,ipc=/tmp/sensing2.sock --width=1920 --height=1080
+       --add-stream=sensor=0,ipc=/tmp/sensing0.sock \
+       --add-stream=sensor=1,ipc=/tmp/sensing1.sock
 
    # terminal 2 — viewer
    cd examples/camera_viz
@@ -267,11 +269,11 @@ needs only the socket path and the frame size:
 .. code-block:: yaml
 
    cameras:
-     - name: cam
+     - name: left
        type: cuda_ipc
-       socket: /tmp/sensing2.sock   # must match the producer's ipc= path
-       width: 1920                  # must match what the producer serves
-       height: 1080
+       socket: /tmp/sensing0.sock   # must match the producer's ipc= path
+       width: 2560                  # must match what the producer serves
+       height: 1984
 
 Order does not matter — the source retries until the socket appears and survives
 the producer restarting under it. ``width``/``height`` are checked during the
@@ -279,71 +281,62 @@ handshake and a mismatch is refused rather than rendered at the wrong stride.
 **One consumer at a time**: the producer serves whoever connected most recently,
 so a second viewer silently takes the feed from the first.
 
+Pairing the two eyes
+~~~~~~~~~~~~~~~~~~~~
+
+Both sensors are driven from one deserializer fsync generator, and every frame
+carries SIPL's ``frameCaptureTSC`` on a timebase shared across the whole rig.
+It is recorded in the MCAP metadata as ``capture_tsc_ns``.
+
+.. important::
+
+   Pair on ``capture_tsc_ns``, not on the wrapper timestamps. The wrapper stamps
+   are ``CLOCK_MONOTONIC`` taken after per-sensor conversion, so they carry each
+   sensor's own queueing jitter; the TSC does not.
+
 Testing without a camera
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``sensing_ipc_testsrc`` publishes an animated pattern over the same protocol. It
-needs CUDA only — no Argus, no encoder — so the viewer can be developed with
+needs CUDA only — no SIPL, no encoder — so the viewer can be developed with
 nothing attached:
 
 .. code-block:: bash
 
    cmake --build build --target sensing_ipc_testsrc
-   ./build/src/plugins/sensing/tools/sensing_ipc_testsrc --socket=/tmp/sensing2.sock \
-       --width=1920 --height=1080 --fps=60
+   ./build/src/plugins/sensing/tools/sensing_ipc_testsrc --socket=/tmp/sensing0.sock \
+       --width=2560 --height=1984 --fps=60
 
 Each frame carries its 16-bit frame number as a binary bar across the top, so a
 stale or torn frame is visible rather than merely suspected.
 
-.. note::
-
-   Legacy CUDA IPC does not work on Tegra and fails misleadingly:
-   ``cudaIpcGetMemHandle`` returns ``cudaSuccess`` in the producer, then the
-   consumer's ``cudaIpcOpenMemHandle`` fails with ``cudaErrorInvalidValue``. The
-   transport therefore uses the virtual-memory-management API — ``cuMemCreate``
-   plus ``cuMemExportToShareableHandle`` to a POSIX fd, passed over the Unix
-   socket with ``SCM_RIGHTS``. Do not rewrite it back to
-   ``cudaIpcMemHandle_t``. The wire format lives in
-   :code-file:`src/plugins/sensing/core/cuda_ipc_protocol.hpp` and is
-   re-declared by the consumer in
-   :code-file:`examples/camera_viz/sources/cuda_ipc.py`, so the two change
-   together.
-
 Troubleshooting
 ---------------
-
-Run ``verify.sh`` first — it names the fixing script for each failure.
 
 .. list-table::
    :widths: 45 55
    :header-rows: 1
 
    * - Symptom
-     - Cause and fix
-   * - No ``/dev/video*`` after reboot
-     - Drivers not loaded. Run ``setup_host.sh``, then install the service.
-   * - Camera opens, no frames
-     - Sensor slaved to an absent trigger. ``setup_host.sh --free-run``.
-   * - Argus finds no cameras
-     - ``nvargus-daemon`` started before the drivers.
-       ``sudo systemctl restart nvargus-daemon``.
-   * - ``EGL_NO_STREAM_KHR``, or ``NvBufSurfaceMapEglImage`` "Failed to create
-       EGLImage"
-     - EGL resolved to Mesa, not NVIDIA. Unset ``DISPLAY``, or point it at an X
-       server Tegra EGL can drive.
-   * - ``Connection refused`` on every Argus call right after restarting
-       ``nvargus-daemon``
-     - The container bind-mounts ``/tmp/argus_socket`` as a *file*; the daemon
-       unlinks and recreates it, so the mount pins a deleted inode
-       (``grep argus /proc/self/mountinfo`` shows ``//deleted``). Mount the
-       host's ``/tmp`` and symlink instead, or restart the container.
-   * - ``/tmp/argus_socket`` is a *directory*
-     - The container started before ``nvargus-daemon``, so Docker created the
-       missing bind source.
-       ``sudo rmdir /tmp/argus_socket && sudo systemctl restart nvargus-daemon``.
-   * - ``insmod: invalid module format``
-     - Kernel is not ``5.15.148-tegra``; the prebuilt ``.ko`` files will not
-       load.
-   * - ``argus_camera: command not found`` in the container
-     - It is installed at ``/usr/local/bin`` on the *host*.
-       ``setup_container.sh`` offers to link a built copy.
+     - Cause
+   * - ``SetPlatformConfig (Camera HAL) failed. status: 10``
+     - missing ``i2c`` or ``gpio`` group — run ``verify.sh``
+   * - ``no modules left in '<config>' after applying the link masks``
+     - ``--link-masks`` does not match the config
+   * - ``cannot open NITO file .../SHW5G.nito``
+     - vendor ``install.sh`` was never run on the host
+   * - ``sensor=N is not a pipeline in '<config>'``
+     - using the link index or the JSON id; run ``--list-sensors``
+   * - capture hangs, no frames, no error
+     - another SIPL client holds the hardware — stop ``nvsipl_camera``
+   * - ``ISP0 reconciled to colour standard ...``
+     - the ISP refused BT.601; see the note in ``sipl_camera.cpp``
+
+The vendor smoke test is the reference for "is the rig itself alive":
+
+.. code-block:: bash
+
+   sudo nvsipl_camera -t $PKG/query/sg8a_agth_g2a/shw5g.json -c SHW5G_2 \
+                      -m "0x0000 0x1100" --enable-camera-hal -s -Z
+
+Expect ~60 fps per sensor with zero drops. Stop it before starting the plugin.
