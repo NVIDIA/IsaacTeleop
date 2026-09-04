@@ -7,7 +7,7 @@ SENSING GMSL Camera
 Bring-up for SENSING GMSL2 cameras on a Jetson AGX Orin, where capture goes
 through **SIPL** rather than Argus or V4L2. This page covers provisioning the
 rig and confirming it streams with the vendor's own tool; scripts live in
-:code-file:`src/plugins/sensing`.
+:code-file:`src/plugins/sensing/scripts`.
 
 .. contents:: On this page
    :local:
@@ -103,14 +103,14 @@ only decides what comes after:
 .. code-block:: bash
 
    # 1. On the Jetson, once: install the drivers.
-   src/plugins/sensing/setup.sh
+   src/plugins/sensing/scripts/setup.sh
 
    # 2. Confirm the rig streams. Same script on the host and in a container.
-   src/plugins/sensing/validate.sh
+   src/plugins/sensing/scripts/validate.sh
 
    # 3. Only if you want a container:
-   src/plugins/sensing/docker/run_docker_example.sh   # ready-made, drops you at a shell
-   src/plugins/sensing/docker/setup_container.sh      # or adapt your own
+   src/plugins/sensing/scripts/run_docker_example.sh   # ready-made, drops you at a shell
+   src/plugins/sensing/scripts/setup_container.sh      # or adapt your own
 
 ``verify.sh`` is a read-only report that runs on either side and is what to
 paste into a bug. Every script names the privileged actions it will take before
@@ -128,7 +128,7 @@ Host
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup.sh
+   src/plugins/sensing/scripts/setup.sh
 
 It refreshes the vendor package, compares every file ``install.sh`` would copy
 against what is installed, and offers to run it when anything is missing *or
@@ -219,7 +219,7 @@ To build against this rig from inside a container:
 
 .. code-block:: bash
 
-   src/plugins/sensing/docker/setup_container.sh
+   src/plugins/sensing/scripts/setup_container.sh
 
 It checks the container can reach the device nodes, then provisions both build
 SDKs — public downloads resolved from the version in ``/etc/nv_tegra_release``.
@@ -240,12 +240,12 @@ Before adapting your own image, prove the rig works from a throwaway one:
 
 .. code-block:: bash
 
-   src/plugins/sensing/docker/run_docker_example.sh
+   src/plugins/sensing/scripts/run_docker_example.sh
    # ... builds, then drops you at a shell in the container:
    ./validate.sh
 
-The script builds :code-file:`docker/Dockerfile.example
-<src/plugins/sensing/docker/Dockerfile.example>` — which does nothing but add
+The script builds :code-file:`scripts/Dockerfile.example
+<src/plugins/sensing/scripts/Dockerfile.example>` — which does nothing but add
 the EGL runtime and run ``image_setup.sh`` — and starts it with the flags no
 Dockerfile can express. ``--print-args`` and ``--json`` emit those flags for
 your own container instead; ``-- validate.sh`` runs the check and exits rather
@@ -289,7 +289,7 @@ The gids are host-specific, so read them off the host rather than copying:
 
 .. code-block:: console
 
-   $ src/plugins/sensing/docker/run_docker_example.sh --print-gids
+   $ src/plugins/sensing/scripts/run_docker_example.sh --print-gids
    114:i2c 985:gpio 44:video
 
 The image half is one ``RUN``. Expose the directory as a named build context —
@@ -297,7 +297,7 @@ The image half is one ``RUN``. Expose the directory as a named build context —
 
 .. code-block:: bash
 
-   docker build --build-context sensing=path/to/src/plugins/sensing/docker ...
+   docker build --build-context sensing=path/to/src/plugins/sensing/scripts ...
 
 .. code-block:: dockerfile
 
@@ -309,14 +309,14 @@ To layer onto an existing image instead of editing its Dockerfile:
 
 .. code-block:: bash
 
-   docker build -f docker/Dockerfile.example --build-arg BASE=my-image:latest \
-       --build-arg SENSING_USER=me -t my-image:sensing src/plugins/sensing/docker
+   docker build -f scripts/Dockerfile.example --build-arg BASE=my-image:latest \
+       --build-arg SENSING_USER=me -t my-image:sensing src/plugins/sensing/scripts
 
 The runtime half comes from the same script:
 
 .. code-block:: bash
 
-   docker run $(src/plugins/sensing/docker/run_docker_example.sh --print-args) my-image:sensing ...
+   docker run $(src/plugins/sensing/scripts/run_docker_example.sh --print-args) my-image:sensing ...
 
 ``--json`` emits the same flags as ``devcontainer.json`` ``runArgs`` elements.
 ``--with-groups`` adds ``--group-add`` for an image built *without*
@@ -335,9 +335,9 @@ host and inside a container:
 
 .. code-block:: bash
 
-   src/plugins/sensing/validate.sh              # stream both sensors for 10 s
-   src/plugins/sensing/validate.sh --query      # ask the config, no hardware
-   src/plugins/sensing/validate.sh -t 0         # until 'q'
+   src/plugins/sensing/scripts/validate.sh              # stream both sensors for 10 s
+   src/plugins/sensing/scripts/validate.sh --query      # ask the config, no hardware
+   src/plugins/sensing/scripts/validate.sh -t 0         # until 'q'
 
 It resolves the package itself and fails with the reason rather than a status
 code when the config or the binary is missing. To drive the tool directly:
