@@ -206,23 +206,26 @@ Container
 
    src/plugins/sensing/setup_container.sh
 
-Add the group ids to the container's ``runArgs`` (numeric, because the
-container has no matching group *names*; the kernel checks numbers):
+Group membership belongs in the **image**, not in ``runArgs``. Docker resolves
+supplementary groups for the container user from the image's own
+``/etc/group``, so putting the user in ``i2c``, ``gpio`` and ``video`` at build
+time covers PID 1 and ``docker exec`` alike; ``--group-add`` adds nothing on
+top. The reverse does not hold — ``--group-add`` alone leaves an interactive
+shell without the gids, because ``docker exec`` ignores ``HostConfig.GroupAdd``.
 
-.. code-block:: json
+:code-file:`src/plugins/sensing/docker` carries that as a ``RUN`` another
+Dockerfile can import, plus ``runtime_args.sh`` for the part no build can
+express — the bind mounts and ``--device`` flags, read off this host:
 
-   "--group-add", "114",
-   "--group-add", "985",
-   "--group-add", "44"
+.. code-block:: bash
 
-Generate them for a given host with
-``src/plugins/sensing/docker/runtime_args.sh --json``, which reads the gids off
-the device nodes instead of trusting the list above.
+   src/plugins/sensing/docker/runtime_args.sh --json        # runArgs
+   src/plugins/sensing/docker/runtime_args.sh --print-gids  # ARG for the RUN
 
-``--group-add`` is only half of it: it reaches PID 1, but ``docker exec``
-resolves supplementary groups from the container's own ``/etc/group``, so the
-gids must exist in the image too. :code-file:`src/plugins/sensing/docker`
-carries both halves, the image side as a ``RUN`` another Dockerfile can import.
+Reaching the nodes also needs the device cgroup opened, with ``--privileged``
+or a ``--device-cgroup-rule``. That is orthogonal to groups and easy to
+conflate: with the cgroup closed, every node is unreadable no matter which
+groups the process holds.
 
 The script also provisions both build SDKs, and both are public downloads
 resolved from the version in ``/etc/nv_tegra_release``. The **Jetson Multimedia
