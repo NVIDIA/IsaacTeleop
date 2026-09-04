@@ -1,0 +1,3 @@
+# Cached SDK downloads (jetson_multimedia_api deb, Jetson_SIPL_API tarball).
+# ~73 MB, refetched by setup_container.sh when absent.
+.cache/

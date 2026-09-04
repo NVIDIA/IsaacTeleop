@@ -7,6 +7,6 @@ if(BUILD_VIZ)
     add_subdirectory(viz)
 endif()
 
-if(BUILD_PLUGINS AND BUILD_PLUGIN_OGLO)
+if(BUILD_PLUGINS AND (BUILD_PLUGIN_OGLO OR BUILD_PLUGIN_SENSING))
     add_subdirectory(plugins)
 endif()
