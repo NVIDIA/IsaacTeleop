@@ -1263,7 +1263,7 @@ def compute_robot_reference_positions(
     parsed = _parse_upper_body(frame)
     if parsed is None:
         return {}
-    torso, left, right, _pelvis_world = parsed
+    _torso, left, right, _pelvis_world = parsed
     yaw_delta = _resolve_yaw_delta(current_yaw - calib.body_yaw_isaac, settings)
     anchor = settings.robot_pelvis_world.astype(np.float64)
     positions: dict[int, np.ndarray] = {int(BodyJoint.PELVIS): anchor.copy()}
@@ -1753,7 +1753,7 @@ def _solve_wrist_target(
     yaw_delta = _resolve_yaw_delta(_compute_torso_yaw(torso) - calib_yaw, settings)
 
     if settings.use_posture_based_arms:
-        shoulder_robot, elbow_robot, wrist_robot = _arm_fk_robot_blended(
+        _shoulder_robot, elbow_robot, wrist_robot = _arm_fk_robot_blended(
             arm, neutral, settings, yaw_delta, is_left
         )
         forearm = wrist_robot - elbow_robot

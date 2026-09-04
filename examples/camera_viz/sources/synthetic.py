@@ -234,27 +234,29 @@ class SyntheticStereoSource(FrameSource):
             diag_l = (x_grid_l + y_grid) / float(w + h)
             diag_r = (x_grid_r + y_grid) / float(w + h)
 
+            # Defined once, above the loop: taking phase as a parameter avoids
+            # rebuilding a closure over it on every generated frame.
+            def fill(buf, diag, phase):
+                r = (cp.sin((diag + phase) * 6.2831853) * 127.0 + 128.0).astype(
+                    cp.uint8
+                )
+                g = (
+                    cp.sin((diag + phase + 0.3333) * 6.2831853) * 127.0 + 128.0
+                ).astype(cp.uint8)
+                b = (
+                    cp.sin((diag + phase + 0.6667) * 6.2831853) * 127.0 + 128.0
+                ).astype(cp.uint8)
+                buf[..., 0] = r
+                buf[..., 1] = g
+                buf[..., 2] = b
+                buf[..., 3] = 255
+
             while not self._stop.is_set():
                 t = (time.monotonic_ns() - self._t0_ns) * 1e-9
                 phase = (t * self._hue_speed_hz) % 1.0
 
-                def fill(buf, diag):
-                    r = (cp.sin((diag + phase) * 6.2831853) * 127.0 + 128.0).astype(
-                        cp.uint8
-                    )
-                    g = (
-                        cp.sin((diag + phase + 0.3333) * 6.2831853) * 127.0 + 128.0
-                    ).astype(cp.uint8)
-                    b = (
-                        cp.sin((diag + phase + 0.6667) * 6.2831853) * 127.0 + 128.0
-                    ).astype(cp.uint8)
-                    buf[..., 0] = r
-                    buf[..., 1] = g
-                    buf[..., 2] = b
-                    buf[..., 3] = 255
-
-                fill(self._left[self._write_idx], diag_l)
-                fill(self._right[self._write_idx], diag_r)
+                fill(self._left[self._write_idx], diag_l, phase)
+                fill(self._right[self._write_idx], diag_r, phase)
                 cp.cuda.Stream.null.synchronize()
 
                 with self._lock:
