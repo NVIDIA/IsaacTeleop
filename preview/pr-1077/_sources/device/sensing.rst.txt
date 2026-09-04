@@ -7,7 +7,7 @@ SENSING GMSL Camera
 Bring-up for SENSING GMSL2 cameras on a Jetson AGX Orin, where capture goes
 through **SIPL** rather than Argus or V4L2. This page covers provisioning the
 rig and confirming it streams with the vendor's own tool; scripts live in
-:code-file:`src/plugins/sensing/scripts`.
+:code-file:`src/plugins/sensing`.
 
 .. contents:: On this page
    :local:
@@ -110,9 +110,13 @@ only decides what comes after:
 
    # 3. Only if you want a container:
    src/plugins/sensing/scripts/run_docker_example.sh   # ready-made, drops you at a shell
-   src/plugins/sensing/scripts/setup_container.sh      # or adapt your own
+   src/plugins/sensing/docker/setup_container.sh      # or adapt your own
 
-``verify.sh`` is a read-only report that runs on either side and is what to
+:code-file:`scripts/ <src/plugins/sensing/scripts>` holds what you run —
+on the host, or on either side in the case of ``validate.sh`` and
+``verify.sh``. :code-file:`docker/ <src/plugins/sensing/docker>` holds what
+runs *inside* a container: the example image and the two scripts that only
+make sense there. ``verify.sh`` is a read-only report and is what to
 paste into a bug. Every script names the privileged actions it will take before
 the first ``sudo`` prompt and asks before each optional one; ``--yes`` accepts
 them all, and a non-interactive stdin declines them all.
@@ -219,7 +223,7 @@ To build against this rig from inside a container:
 
 .. code-block:: bash
 
-   src/plugins/sensing/scripts/setup_container.sh
+   src/plugins/sensing/docker/setup_container.sh
 
 It checks the container can reach the device nodes, then provisions both build
 SDKs — public downloads resolved from the version in ``/etc/nv_tegra_release``.
@@ -244,8 +248,8 @@ Before adapting your own image, prove the rig works from a throwaway one:
    # ... builds, then drops you at a shell in the container:
    ./validate.sh
 
-The script builds :code-file:`scripts/Dockerfile.example
-<src/plugins/sensing/scripts/Dockerfile.example>` — which does nothing but add
+The script builds :code-file:`docker/Dockerfile.example
+<src/plugins/sensing/docker/Dockerfile.example>` — which does nothing but add
 the EGL runtime and run ``image_setup.sh`` — and starts it with the flags no
 Dockerfile can express. ``--print-args`` and ``--json`` emit those flags for
 your own container instead; ``-- validate.sh`` runs the check and exits rather
@@ -297,7 +301,7 @@ The image half is one ``RUN``. Expose the directory as a named build context —
 
 .. code-block:: bash
 
-   docker build --build-context sensing=path/to/src/plugins/sensing/scripts ...
+   docker build --build-context sensing=path/to/src/plugins/sensing/docker ...
 
 .. code-block:: dockerfile
 
@@ -309,8 +313,8 @@ To layer onto an existing image instead of editing its Dockerfile:
 
 .. code-block:: bash
 
-   docker build -f scripts/Dockerfile.example --build-arg BASE=my-image:latest \
-       --build-arg SENSING_USER=me -t my-image:sensing src/plugins/sensing/scripts
+   docker build -f docker/Dockerfile.example --build-arg BASE=my-image:latest \
+       --build-arg SENSING_USER=me -t my-image:sensing src/plugins/sensing/docker
 
 The runtime half comes from the same script:
 

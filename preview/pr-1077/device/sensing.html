@@ -435,7 +435,7 @@
 <p>Bring-up for SENSING GMSL2 cameras on a Jetson AGX Orin, where capture goes
 through <strong>SIPL</strong> rather than Argus or V4L2. This page covers provisioning the
 rig and confirming it streams with the vendor’s own tool; scripts live in
-<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/scripts" rel="noopener noreferrer" target="_blank">src/plugins/sensing/scripts</a>.</p>
+<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing" rel="noopener noreferrer" target="_blank">src/plugins/sensing</a>.</p>
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
 <ul class="simple">
@@ -570,10 +570,14 @@ src/plugins/sensing/scripts/validate.sh
 
 <span class="c1"># 3. Only if you want a container:</span>
 src/plugins/sensing/scripts/run_docker_example.sh<span class="w">   </span><span class="c1"># ready-made, drops you at a shell</span>
-src/plugins/sensing/scripts/setup_container.sh<span class="w">      </span><span class="c1"># or adapt your own</span>
+src/plugins/sensing/docker/setup_container.sh<span class="w">      </span><span class="c1"># or adapt your own</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">verify.sh</span></code> is a read-only report that runs on either side and is what to
+<p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/scripts" rel="noopener noreferrer" target="_blank">scripts/</a> holds what you run —
+on the host, or on either side in the case of <code class="docutils literal notranslate"><span class="pre">validate.sh</span></code> and
+<code class="docutils literal notranslate"><span class="pre">verify.sh</span></code>. <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/docker" rel="noopener noreferrer" target="_blank">docker/</a> holds what
+runs <em>inside</em> a container: the example image and the two scripts that only
+make sense there. <code class="docutils literal notranslate"><span class="pre">verify.sh</span></code> is a read-only report and is what to
 paste into a bug. Every script names the privileged actions it will take before
 the first <code class="docutils literal notranslate"><span class="pre">sudo</span></code> prompt and asks before each optional one; <code class="docutils literal notranslate"><span class="pre">--yes</span></code> accepts
 them all, and a non-interactive stdin declines them all.</p>
@@ -675,7 +679,7 @@ permission. <code class="docutils literal notranslate"><span class="pre">verify.
 <section id="container">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Container</a><a class="headerlink" href="#container" title="Link to this heading">#</a></h3>
 <p>To build against this rig from inside a container:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/scripts/setup_container.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/setup_container.sh
 </pre></div>
 </div>
 <p>It checks the container can reach the device nodes, then provisions both build
@@ -696,7 +700,7 @@ one by hand instead:</p>
 ./validate.sh
 </pre></div>
 </div>
-<p>The script builds <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/scripts/Dockerfile.example" rel="noopener noreferrer" target="_blank">scripts/Dockerfile.example</a> — which does nothing but add
+<p>The script builds <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/docker/Dockerfile.example" rel="noopener noreferrer" target="_blank">docker/Dockerfile.example</a> — which does nothing but add
 the EGL runtime and run <code class="docutils literal notranslate"><span class="pre">image_setup.sh</span></code> — and starts it with the flags no
 Dockerfile can express. <code class="docutils literal notranslate"><span class="pre">--print-args</span></code> and <code class="docutils literal notranslate"><span class="pre">--json</span></code> emit those flags for
 your own container instead; <code class="docutils literal notranslate"><span class="pre">--</span> <span class="pre">validate.sh</span></code> runs the check and exits rather
@@ -752,7 +756,7 @@ without them, because <code class="docutils literal notranslate"><span class="pr
 </div>
 <p>The image half is one <code class="docutils literal notranslate"><span class="pre">RUN</span></code>. Expose the directory as a named build context —
 <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">build</span></code> cannot <code class="docutils literal notranslate"><span class="pre">COPY</span></code> across into a submodule:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--build-context<span class="w"> </span><span class="nv">sensing</span><span class="o">=</span>path/to/src/plugins/sensing/scripts<span class="w"> </span>...
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--build-context<span class="w"> </span><span class="nv">sensing</span><span class="o">=</span>path/to/src/plugins/sensing/docker<span class="w"> </span>...
 </pre></div>
 </div>
 <div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>bind,from<span class="o">=</span>sensing,target<span class="o">=</span>/mnt/sensing<span class="w"> </span><span class="se">\</span>
@@ -761,8 +765,8 @@ without them, because <code class="docutils literal notranslate"><span class="pr
 </div>
 <p>The bind mount leaves nothing behind, so the script is not baked into a layer.
 To layer onto an existing image instead of editing its Dockerfile:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>scripts/Dockerfile.example<span class="w"> </span>--build-arg<span class="w"> </span><span class="nv">BASE</span><span class="o">=</span>my-image:latest<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">SENSING_USER</span><span class="o">=</span>me<span class="w"> </span>-t<span class="w"> </span>my-image:sensing<span class="w"> </span>src/plugins/sensing/scripts
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>-f<span class="w"> </span>docker/Dockerfile.example<span class="w"> </span>--build-arg<span class="w"> </span><span class="nv">BASE</span><span class="o">=</span>my-image:latest<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--build-arg<span class="w"> </span><span class="nv">SENSING_USER</span><span class="o">=</span>me<span class="w"> </span>-t<span class="w"> </span>my-image:sensing<span class="w"> </span>src/plugins/sensing/docker
 </pre></div>
 </div>
 <p>The runtime half comes from the same script:</p>
