@@ -14,12 +14,15 @@ if(NOT BUILD_PYTHON_BINDINGS)
     return()
 endif()
 
-# CONFIGURE_DEPENDS: adding or removing a .py re-runs configure. Globbing *.py
-# rather than copying the directory keeps __pycache__ out by construction.
+# CONFIGURE_DEPENDS: adding or removing a file re-runs configure. Globbing by
+# extension rather than copying the directory keeps __pycache__ out by construction.
+# The .xml are viz/robot/assets/'s MJCF wrappers, which assets.ensure_so101_scene()
+# reads out of its own installed directory.
 file(GLOB_RECURSE ISAAC_TELEOP_PYTHON_SOURCES
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop/*.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop/*.xml"
 )
 
 # viz/__init__.py does a top-level `from ._viz import ...`, so without _viz it is

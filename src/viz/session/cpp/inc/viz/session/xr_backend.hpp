@@ -118,6 +118,10 @@ public:
     {
         return session_.get();
     }
+    OpenXrSession* xr_session() noexcept
+    {
+        return session_.get();
+    }
 
 private:
     // Per-view OpenXR swapchain. `acquired` is set immediately after
