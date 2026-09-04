@@ -6,3 +6,7 @@ add_subdirectory(plugin_utils)
 if(BUILD_PLUGIN_OGLO)
     add_subdirectory(oglo_tactile)
 endif()
+
+if(BUILD_PLUGIN_SENSING)
+    add_subdirectory(sensing)
+endif()
