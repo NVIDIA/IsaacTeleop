@@ -49,6 +49,9 @@ import { useRef, useEffect } from 'react';
 import type { WebGLRenderer } from 'three';
 import { applyTargetFrameRate } from '../../src/config/frameRate';
 
+/** Clear color shown in headless mode so it's visually obvious the client is running with rendering suppressed. */
+const HEADLESS_CLEAR_COLOR = 0x00194d;
+
 /**
  * Props for the CloudXRComponent.
  */
@@ -192,6 +195,15 @@ export default function CloudXRComponent({
 
   // Disable Three.js so it doesn't clear the framebuffer after CloudXR renders.
   threeRenderer.autoClear = false;
+
+  // In headless mode the CloudXR frame blit is skipped, so mark the connected-but-suppressed
+  // case with a distinct dark blue instead of leaving whatever was last in the framebuffer -
+  // that's the one case where, non-headless, the client would actually be rendering a scene.
+  useEffect(() => {
+    if (headless) {
+      threeRenderer.setClearColor(HEADLESS_CLEAR_COLOR, 1);
+    }
+  }, [headless, threeRenderer]);
 
   // Access Three.js WebXRManager and WebGL context.
   const gl: WebGL2RenderingContext = threeRenderer.getContext() as WebGL2RenderingContext;
@@ -603,6 +615,11 @@ export default function CloudXRComponent({
           if (!headless) {
             const layer: XRWebGLLayer = webXRManager.getBaseLayer() as XRWebGLLayer;
             cxrSession.render(timestamp, xrFrame, layer);
+          } else {
+            // Connected but the frame blit is suppressed - this is the one case where,
+            // non-headless, the client would actually be rendering a scene. Clear to the dark
+            // blue marker color every frame so it's visually obvious this is headless.
+            threeRenderer.clear();
           }
         } catch (error) {
           // Handle deferred exceptions from callbacks or render errors
