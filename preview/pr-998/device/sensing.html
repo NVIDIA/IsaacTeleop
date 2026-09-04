@@ -590,15 +590,36 @@ declines them all.</p>
 against what is installed, and offers to run it when anything is missing <em>or
 stale</em>. <code class="docutils literal notranslate"><span class="pre">--pkg</span> <span class="pre">DIR</span></code> uses a package you already have, <code class="docutils literal notranslate"><span class="pre">--no-fetch</span></code> forbids
 the download, and <code class="docutils literal notranslate"><span class="pre">--install-drivers</span></code> reinstalls unconditionally.</p>
+<p>Every file is classified by camera module, and only the modules this rig
+populates — <code class="docutils literal notranslate"><span class="pre">SHW5G</span></code> — are compared or installed. A drop that touches only
+S56C changes nothing here:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>==&gt; Installed vs package  (modules: SHW5G)
+  · package SG8A-AGON-G2Y-A1-JetPack7.2.1 @ f4a59f7 (installed)
+  ✓ libnvuddf_max96712_library.so             [shared]
+  - libnvuddf_s56c_cameramodule_library.so    [S56C] not on this rig
+  ! libnvuddf_shw5g_cameramodule_library.so   [SHW5G] stale
+  ! SHW5G.nito                                [SHW5G] stale
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Staleness is checked by content, not by version. SENSING reuses the package
 name across drops and does not bump <code class="docutils literal notranslate"><span class="pre">Version.md</span></code>, so a release that only
 rebuilds the drivers and retunes the ISP is invisible to any check that
-looks at names or timestamps.</p>
-<p>Such a drop needs no reboot either: <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> only copies files, and
-the overlay is the sole artifact the kernel reads at boot. The script says
-so rather than sending you through <code class="docutils literal notranslate"><span class="pre">jetson-io</span></code> again.</p>
+looks at names or timestamps. What was installed is recorded in
+<code class="docutils literal notranslate"><span class="pre">/var/lib/sensing/installed.json</span></code> — a per-module digest plus the upstream
+commit, which is the version to quote when reporting a problem to SENSING.</p>
+<p>Such a drop needs no reboot either: only files are copied, and the overlay
+is the sole artifact the kernel reads at boot. The script says so rather
+than sending you through <code class="docutils literal notranslate"><span class="pre">jetson-io</span></code> again.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Setup copies the files itself rather than running the vendor
+<code class="docutils literal notranslate"><span class="pre">install.sh</span></code>, which wipes <code class="docutils literal notranslate"><span class="pre">/usr/lib/nvsipl_drv</span></code> and installs every
+module’s driver. The trade is that a new vendor artifact could go
+unnoticed, so each run first checks that every source <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> copies
+is one setup knows about, and says so loudly if not.</p>
 </div>
 <p>Then select the overlay and reboot:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>/opt/nvidia/jetson-io/jetson-io.py
