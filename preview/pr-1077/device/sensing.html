@@ -497,7 +497,7 @@ drivers (<code class="docutils literal notranslate"><span class="pre">libnvuddf_
 the <code class="docutils literal notranslate"><span class="pre">nvsipl_camera</span></code> reference application. The scripts below wrap it; they do
 not replace it.</p>
 <p>SENSING publishes it in <a class="reference external" href="https://github.com/SENSING-Technology/nvidia-jetson-camera-drivers" rel="noopener noreferrer" target="_blank">nvidia-jetson-camera-drivers</a> as a
-directory rather than a release, so <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> takes a blobless, shallow,
+directory rather than a release, so <code class="docutils literal notranslate"><span class="pre">setup.sh</span></code> takes a blobless, shallow,
 sparse clone of just this board’s tree — 3.6 MB of a ~700 MB repo — into a
 gitignored <code class="docutils literal notranslate"><span class="pre">.cache/</span></code>. Nothing needs sourcing by hand.</p>
 </section>
@@ -561,28 +561,30 @@ starting the other. There is no daemon to arbitrate between them.</p>
 <p>Drivers are installed on the <strong>host</strong>, always — a container cannot do it, and
 does not need to. Whether you then run the camera on the host or in a container
 only decides what comes after:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. On the Jetson, once. Installs the drivers and prints how to validate.</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. On the Jetson, once: install the drivers.</span>
 src/plugins/sensing/setup.sh
 
-<span class="c1"># 2a. Bare metal: nothing else to do.</span>
-<span class="c1"># 2b. In a container: give it device access and the driver mounts.</span>
-src/plugins/sensing/setup_container.sh<span class="w">     </span><span class="c1"># checks access, fetches build SDKs</span>
+<span class="c1"># 2. Confirm the rig streams. Same script on the host and in a container.</span>
+src/plugins/sensing/validate.sh
+
+<span class="c1"># 3. Only if you want a container:</span>
+src/plugins/sensing/docker/run_docker_example.sh<span class="w">   </span><span class="c1"># ready-made, drops you at a shell</span>
+src/plugins/sensing/docker/setup_container.sh<span class="w">      </span><span class="c1"># or adapt your own</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">setup.sh</span></code> detects which side it is on; <code class="docutils literal notranslate"><span class="pre">--host</span></code> / <code class="docutils literal notranslate"><span class="pre">--container</span></code> override
-it, and <code class="docutils literal notranslate"><span class="pre">verify.sh</span></code> is a read-only report that runs on either. Every script
-names the privileged actions it will take before the first <code class="docutils literal notranslate"><span class="pre">sudo</span></code> prompt and
-asks before each optional one; <code class="docutils literal notranslate"><span class="pre">--yes</span></code> accepts them all, and a
-non-interactive stdin declines them all.</p>
+<p><code class="docutils literal notranslate"><span class="pre">verify.sh</span></code> is a read-only report that runs on either side and is what to
+paste into a bug. Every script names the privileged actions it will take before
+the first <code class="docutils literal notranslate"><span class="pre">sudo</span></code> prompt and asks before each optional one; <code class="docutils literal notranslate"><span class="pre">--yes</span></code> accepts
+them all, and a non-interactive stdin declines them all.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>First install only: after the drivers land you must select the device-tree
-overlay and reboot before anything streams. <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> stops and says
+overlay and reboot before anything streams. <code class="docutils literal notranslate"><span class="pre">setup.sh</span></code> stops and says
 so. That is the one step no script can do for you.</p>
 </div>
 <section id="host">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Host</a><a class="headerlink" href="#host" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_host.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup.sh
 </pre></div>
 </div>
 <p>It refreshes the vendor package, compares every file <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> would copy
@@ -671,7 +673,7 @@ permission. <code class="docutils literal notranslate"><span class="pre">verify.
 </section>
 <section id="container">
 <h3><a class="toc-backref" href="#id6" role="doc-backlink">Container</a><a class="headerlink" href="#container" title="Link to this heading">#</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/setup_container.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/setup_container.sh
 </pre></div>
 </div>
 <p>Group membership belongs in the <strong>image</strong>, not in <code class="docutils literal notranslate"><span class="pre">runArgs</span></code>. Docker resolves
@@ -681,10 +683,10 @@ time covers PID 1 and <code class="docutils literal notranslate"><span class="pr
 top. The reverse does not hold — <code class="docutils literal notranslate"><span class="pre">--group-add</span></code> alone leaves an interactive
 shell without the gids, because <code class="docutils literal notranslate"><span class="pre">docker</span> <span class="pre">exec</span></code> ignores <code class="docutils literal notranslate"><span class="pre">HostConfig.GroupAdd</span></code>.</p>
 <p><a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/docker" rel="noopener noreferrer" target="_blank">src/plugins/sensing/docker</a> carries that as a <code class="docutils literal notranslate"><span class="pre">RUN</span></code> another
-Dockerfile can import, plus <code class="docutils literal notranslate"><span class="pre">runtime_args.sh</span></code> for the part no build can
+Dockerfile can import, plus <code class="docutils literal notranslate"><span class="pre">run_docker_example.sh</span></code> for the part no build can
 express — the bind mounts and <code class="docutils literal notranslate"><span class="pre">--device</span></code> flags, read off this host:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/runtime_args.sh<span class="w"> </span>--json<span class="w">        </span><span class="c1"># runArgs</span>
-src/plugins/sensing/docker/runtime_args.sh<span class="w"> </span>--print-gids<span class="w">  </span><span class="c1"># ARG for the RUN</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--json<span class="w">        </span><span class="c1"># runArgs</span>
+src/plugins/sensing/docker/run_docker_example.sh<span class="w"> </span>--print-gids<span class="w">  </span><span class="c1"># ARG for the RUN</span>
 </pre></div>
 </div>
 <p>Reaching the nodes also needs the device cgroup opened, with <code class="docutils literal notranslate"><span class="pre">--privileged</span></code>
@@ -694,29 +696,17 @@ groups the process holds.</p>
 </section>
 <section id="validating-in-a-container">
 <h3><a class="toc-backref" href="#id7" role="doc-backlink">Validating in a container</a><a class="headerlink" href="#validating-in-a-container" title="Link to this heading">#</a></h3>
-<p>Run the vendor tool in a throwaway container before adapting your own image.
-Everything a container needs to reach the cameras is in this one command:</p>
-<div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="c"># Dockerfile</span>
-<span class="k">FROM</span><span class="w"> </span><span class="s">ubuntu:24.04</span>
-<span class="k">RUN</span><span class="w"> </span>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span>--no-install-recommends<span class="w"> </span><span class="se">\</span>
-<span class="w">        </span>libegl1<span class="w"> </span>libgles2<span class="w"> </span>libglib2.0-0<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>/var/lib/apt/lists/*
-<span class="k">RUN</span><span class="w"> </span>--mount<span class="o">=</span><span class="nv">type</span><span class="o">=</span>bind,from<span class="o">=</span>sensing,target<span class="o">=</span>/mnt/s<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>/mnt/s/image_setup.sh<span class="w"> </span>root<span class="w"> </span><span class="m">114</span>:i2c<span class="w"> </span><span class="m">985</span>:gpio<span class="w"> </span><span class="m">44</span>:video
+<p>Before adapting your own image, prove the rig works from a throwaway one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/docker/run_docker_example.sh
+<span class="c1"># ... builds, then drops you at a shell in the container:</span>
+./validate.sh
 </pre></div>
 </div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>build<span class="w"> </span>--build-context<span class="w"> </span><span class="nv">sensing</span><span class="o">=</span>src/plugins/sensing/docker<span class="w"> </span>-t<span class="w"> </span>sensing-check<span class="w"> </span>.
-
-<span class="nv">PKG</span><span class="o">=</span><span class="k">$(</span>readlink<span class="w"> </span>-f<span class="w"> </span>src/plugins/sensing/.cache/SG8A-AGON-G2Y-A1-JetPack7.2.1<span class="k">)</span>
-docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--privileged<span class="w"> </span>--runtime<span class="o">=</span>nvidia<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-e<span class="w"> </span><span class="nv">NVIDIA_VISIBLE_DEVICES</span><span class="o">=</span>all<span class="w"> </span>-e<span class="w"> </span><span class="nv">NVIDIA_DRIVER_CAPABILITIES</span><span class="o">=</span>all<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span>/dev:/dev<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span>/usr/lib/nvsipl_drv:/usr/lib/nvsipl_drv:ro<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span>/var/nvidia/nvcam/settings/sipl:/var/nvidia/nvcam/settings/sipl:ro<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PKG</span><span class="s2">"</span>:/pkg:ro<span class="w"> </span>-w<span class="w"> </span>/pkg<span class="w"> </span>sensing-check<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>./nvsipl_camera<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2<span class="w"> </span><span class="se">\</span>
-<span class="w">                    </span>-m<span class="w"> </span><span class="s2">"0x0000 0x1100"</span><span class="w"> </span>--enable-camera-hal<span class="w"> </span>-s<span class="w"> </span>-Z<span class="w"> </span>-r<span class="w"> </span><span class="m">10</span>
-</pre></div>
-</div>
+<p>The script builds <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/src/plugins/sensing/docker/Dockerfile.example" rel="noopener noreferrer" target="_blank">docker/Dockerfile.example</a> — which does nothing but add
+the EGL runtime and run <code class="docutils literal notranslate"><span class="pre">image_setup.sh</span></code> — and starts it with the flags no
+Dockerfile can express. <code class="docutils literal notranslate"><span class="pre">--print-args</span></code> and <code class="docutils literal notranslate"><span class="pre">--json</span></code> emit those flags for
+your own container instead; <code class="docutils literal notranslate"><span class="pre">--</span> <span class="pre">validate.sh</span></code> runs the check and exits rather
+than opening a shell.</p>
 <p>Five ingredients, and leaving any one out fails in a way that names something
 else:</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -751,7 +741,7 @@ vendor-added driver or NITO</p></td>
 </table>
 </div>
 <p>Adapt your own image by taking the <code class="docutils literal notranslate"><span class="pre">RUN</span></code> and the packages from the Dockerfile
-above, and the flags from <code class="docutils literal notranslate"><span class="pre">docker/runtime_args.sh</span> <span class="pre">--json</span></code>.</p>
+above, and the flags from <code class="docutils literal notranslate"><span class="pre">docker/run_docker_example.sh</span> <span class="pre">--json</span></code>.</p>
 <p>The script also provisions both build SDKs, and both are public downloads
 resolved from the version in <code class="docutils literal notranslate"><span class="pre">/etc/nv_tegra_release</span></code>. The <strong>Jetson Multimedia
 API</strong> comes from the apt pool; the <strong>SIPL API</strong> is a tarball published
@@ -767,8 +757,15 @@ alongside the L4T release, fetched by URL. To install that one by hand instead:<
 the ground truth for “is the rig itself alive”: it drives
 the same SIPL API as any other client, so if it cannot stream, nothing else
 will either. Reach for it before debugging anything of ours.</p>
-<p><code class="docutils literal notranslate"><span class="pre">setup_host.sh</span> <span class="pre">--smoke-test</span></code> runs it for five seconds. To drive it by hand —
-after setup, which is what puts <code class="docutils literal notranslate"><span class="pre">shw5g.json</span></code> in the fetched package:</p>
+<p><code class="docutils literal notranslate"><span class="pre">validate.sh</span></code> wraps it with this rig’s arguments and runs the same way on the
+host and inside a container:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>src/plugins/sensing/validate.sh<span class="w">              </span><span class="c1"># stream both sensors for 10 s</span>
+src/plugins/sensing/validate.sh<span class="w"> </span>--query<span class="w">      </span><span class="c1"># ask the config, no hardware</span>
+src/plugins/sensing/validate.sh<span class="w"> </span>-t<span class="w"> </span><span class="m">0</span><span class="w">         </span><span class="c1"># until 'q'</span>
+</pre></div>
+</div>
+<p>It resolves the package itself and fails with the reason rather than a status
+code when the config or the binary is missing. To drive the tool directly:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>src/plugins/sensing/.cache/SG8A-AGON-G2Y-A1-JetPack7.2.1
 nvsipl_camera<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2a/shw5g.json<span class="w"> </span>-c<span class="w"> </span>SHW5G_2<span class="w"> </span><span class="se">\</span>
 <span class="w">              </span>-m<span class="w"> </span><span class="s2">"0x0000 0x1100"</span><span class="w"> </span>--enable-camera-hal<span class="w"> </span>-s<span class="w"> </span>-Z<span class="w"> </span>-r<span class="w"> </span><span class="m">10</span>
@@ -840,10 +837,10 @@ nvsipl_query<span class="w"> </span>-t<span class="w"> </span>query/sg8a_agth_g2
 <td><p><code class="docutils literal notranslate"><span class="pre">--link-masks</span></code> does not match the config</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cannot</span> <span class="pre">open</span> <span class="pre">NITO</span> <span class="pre">file</span> <span class="pre">.../SHW5G.nito</span></code></p></td>
-<td><p>vendor <code class="docutils literal notranslate"><span class="pre">install.sh</span></code> was never run — re-run <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code></p></td>
+<td><p>drivers were never installed — re-run <code class="docutils literal notranslate"><span class="pre">setup.sh</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">open</span> <span class="pre">file</span> <span class="pre">.../shw5g.json</span></code></p></td>
-<td><p>the fetched package ships no <code class="docutils literal notranslate"><span class="pre">SHW5G_2</span></code> config; <code class="docutils literal notranslate"><span class="pre">setup_host.sh</span></code> drops one in</p></td>
+<td><p>the fetched package ships no <code class="docutils literal notranslate"><span class="pre">SHW5G_2</span></code> config; <code class="docutils literal notranslate"><span class="pre">setup.sh</span></code> drops one in</p></td>
 </tr>
 <tr class="row-even"><td><p>capture hangs, no frames, no error</p></td>
 <td><p>another SIPL client holds the hardware — stop <code class="docutils literal notranslate"><span class="pre">nvsipl_camera</span></code></p></td>

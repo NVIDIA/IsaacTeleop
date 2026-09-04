@@ -48,7 +48,7 @@ not replace it.
 
 SENSING publishes it in `nvidia-jetson-camera-drivers
 <https://github.com/SENSING-Technology/nvidia-jetson-camera-drivers>`_ as a
-directory rather than a release, so ``setup_host.sh`` takes a blobless, shallow,
+directory rather than a release, so ``setup.sh`` takes a blobless, shallow,
 sparse clone of just this board's tree — 3.6 MB of a ~700 MB repo — into a
 gitignored ``.cache/``. Nothing needs sourcing by hand.
 
@@ -102,23 +102,25 @@ only decides what comes after:
 
 .. code-block:: bash
 
-   # 1. On the Jetson, once. Installs the drivers and prints how to validate.
+   # 1. On the Jetson, once: install the drivers.
    src/plugins/sensing/setup.sh
 
-   # 2a. Bare metal: nothing else to do.
-   # 2b. In a container: give it device access and the driver mounts.
-   src/plugins/sensing/setup_container.sh     # checks access, fetches build SDKs
+   # 2. Confirm the rig streams. Same script on the host and in a container.
+   src/plugins/sensing/validate.sh
 
-``setup.sh`` detects which side it is on; ``--host`` / ``--container`` override
-it, and ``verify.sh`` is a read-only report that runs on either. Every script
-names the privileged actions it will take before the first ``sudo`` prompt and
-asks before each optional one; ``--yes`` accepts them all, and a
-non-interactive stdin declines them all.
+   # 3. Only if you want a container:
+   src/plugins/sensing/docker/run_docker_example.sh   # ready-made, drops you at a shell
+   src/plugins/sensing/docker/setup_container.sh      # or adapt your own
+
+``verify.sh`` is a read-only report that runs on either side and is what to
+paste into a bug. Every script names the privileged actions it will take before
+the first ``sudo`` prompt and asks before each optional one; ``--yes`` accepts
+them all, and a non-interactive stdin declines them all.
 
 .. note::
 
    First install only: after the drivers land you must select the device-tree
-   overlay and reboot before anything streams. ``setup_host.sh`` stops and says
+   overlay and reboot before anything streams. ``setup.sh`` stops and says
    so. That is the one step no script can do for you.
 
 Host
@@ -126,7 +128,7 @@ Host
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup_host.sh
+   src/plugins/sensing/setup.sh
 
 It refreshes the vendor package, compares every file ``install.sh`` would copy
 against what is installed, and offers to run it when anything is missing *or
@@ -215,7 +217,7 @@ Container
 
 .. code-block:: bash
 
-   src/plugins/sensing/setup_container.sh
+   src/plugins/sensing/docker/setup_container.sh
 
 Group membership belongs in the **image**, not in ``runArgs``. Docker resolves
 supplementary groups for the container user from the image's own
@@ -225,13 +227,13 @@ top. The reverse does not hold — ``--group-add`` alone leaves an interactive
 shell without the gids, because ``docker exec`` ignores ``HostConfig.GroupAdd``.
 
 :code-file:`src/plugins/sensing/docker` carries that as a ``RUN`` another
-Dockerfile can import, plus ``runtime_args.sh`` for the part no build can
+Dockerfile can import, plus ``run_docker_example.sh`` for the part no build can
 express — the bind mounts and ``--device`` flags, read off this host:
 
 .. code-block:: bash
 
-   src/plugins/sensing/docker/runtime_args.sh --json        # runArgs
-   src/plugins/sensing/docker/runtime_args.sh --print-gids  # ARG for the RUN
+   src/plugins/sensing/docker/run_docker_example.sh --json        # runArgs
+   src/plugins/sensing/docker/run_docker_example.sh --print-gids  # ARG for the RUN
 
 Reaching the nodes also needs the device cgroup opened, with ``--privileged``
 or a ``--device-cgroup-rule``. That is orthogonal to groups and easy to
@@ -241,31 +243,20 @@ groups the process holds.
 Validating in a container
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Run the vendor tool in a throwaway container before adapting your own image.
-Everything a container needs to reach the cameras is in this one command:
-
-.. code-block:: dockerfile
-
-   # Dockerfile
-   FROM ubuntu:24.04
-   RUN apt-get update && apt-get install -y --no-install-recommends \
-           libegl1 libgles2 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
-   RUN --mount=type=bind,from=sensing,target=/mnt/s \
-       /mnt/s/image_setup.sh root 114:i2c 985:gpio 44:video
+Before adapting your own image, prove the rig works from a throwaway one:
 
 .. code-block:: bash
 
-   docker build --build-context sensing=src/plugins/sensing/docker -t sensing-check .
+   src/plugins/sensing/docker/run_docker_example.sh
+   # ... builds, then drops you at a shell in the container:
+   ./validate.sh
 
-   PKG=$(readlink -f src/plugins/sensing/.cache/SG8A-AGON-G2Y-A1-JetPack7.2.1)
-   docker run --rm --privileged --runtime=nvidia \
-       -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=all \
-       -v /dev:/dev \
-       -v /usr/lib/nvsipl_drv:/usr/lib/nvsipl_drv:ro \
-       -v /var/nvidia/nvcam/settings/sipl:/var/nvidia/nvcam/settings/sipl:ro \
-       -v "$PKG":/pkg:ro -w /pkg sensing-check \
-       ./nvsipl_camera -t query/sg8a_agth_g2a/shw5g.json -c SHW5G_2 \
-                       -m "0x0000 0x1100" --enable-camera-hal -s -Z -r 10
+The script builds :code-file:`docker/Dockerfile.example
+<src/plugins/sensing/docker/Dockerfile.example>` — which does nothing but add
+the EGL runtime and run ``image_setup.sh`` — and starts it with the flags no
+Dockerfile can express. ``--print-args`` and ``--json`` emit those flags for
+your own container instead; ``-- validate.sh`` runs the check and exits rather
+than opening a shell.
 
 Five ingredients, and leaving any one out fails in a way that names something
 else:
@@ -290,7 +281,7 @@ else:
        vendor-added driver or NITO
 
 Adapt your own image by taking the ``RUN`` and the packages from the Dockerfile
-above, and the flags from ``docker/runtime_args.sh --json``.
+above, and the flags from ``docker/run_docker_example.sh --json``.
 
 The script also provisions both build SDKs, and both are public downloads
 resolved from the version in ``/etc/nv_tegra_release``. The **Jetson Multimedia
@@ -309,8 +300,17 @@ the ground truth for "is the rig itself alive": it drives
 the same SIPL API as any other client, so if it cannot stream, nothing else
 will either. Reach for it before debugging anything of ours.
 
-``setup_host.sh --smoke-test`` runs it for five seconds. To drive it by hand —
-after setup, which is what puts ``shw5g.json`` in the fetched package:
+``validate.sh`` wraps it with this rig's arguments and runs the same way on the
+host and inside a container:
+
+.. code-block:: bash
+
+   src/plugins/sensing/validate.sh              # stream both sensors for 10 s
+   src/plugins/sensing/validate.sh --query      # ask the config, no hardware
+   src/plugins/sensing/validate.sh -t 0         # until 'q'
+
+It resolves the package itself and fails with the reason rather than a status
+code when the config or the binary is missing. To drive the tool directly:
 
 .. code-block:: bash
 
@@ -365,9 +365,9 @@ Troubleshooting
    * - ``no modules left in '<config>' after applying the link masks``
      - ``--link-masks`` does not match the config
    * - ``cannot open NITO file .../SHW5G.nito``
-     - vendor ``install.sh`` was never run — re-run ``setup_host.sh``
+     - drivers were never installed — re-run ``setup.sh``
    * - ``Failed to open file .../shw5g.json``
-     - the fetched package ships no ``SHW5G_2`` config; ``setup_host.sh`` drops one in
+     - the fetched package ships no ``SHW5G_2`` config; ``setup.sh`` drops one in
    * - capture hangs, no frames, no error
      - another SIPL client holds the hardware — stop ``nvsipl_camera``
    * - ``Could not get EglImage from fd`` / ``Failed to create EGLImage``
