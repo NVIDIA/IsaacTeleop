@@ -696,17 +696,21 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
         // Save data for OpenXR Injection
         {
             std::lock_guard<std::mutex> lock(tracker.m_skeleton_mutex);
+            if (!skeleton_read_succeeded)
+            {
+                tracker.m_skeleton_stamps[is_left_glove ? 0 : 1] = {};
+                continue;
+            }
+
             if (is_left_glove)
             {
                 tracker.m_left_hand_nodes = nodes;
-                tracker.m_skeleton_stamps[0] = skeleton_read_succeeded ? std::chrono::steady_clock::now() :
-                                                                         std::chrono::steady_clock::time_point{};
+                tracker.m_skeleton_stamps[0] = std::chrono::steady_clock::now();
             }
             else if (is_right_glove)
             {
                 tracker.m_right_hand_nodes = nodes;
-                tracker.m_skeleton_stamps[1] = skeleton_read_succeeded ? std::chrono::steady_clock::now() :
-                                                                         std::chrono::steady_clock::time_point{};
+                tracker.m_skeleton_stamps[1] = std::chrono::steady_clock::now();
             }
         }
     }
