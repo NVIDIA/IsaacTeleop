@@ -199,7 +199,7 @@ void Plugin::start_process(const std::string& command,
 void Plugin::stop_process()
 {
 #ifndef _WIN32
-    std::lock_guard<std::mutex> lock(m_process_mutex);
+    std::unique_lock<std::mutex> lock(m_process_mutex);
     if (m_pid == -1)
     {
         return;
@@ -224,10 +224,13 @@ void Plugin::stop_process()
         refresh_process_snapshot_locked(false);
         if (m_pid != -1)
         {
+            lock.unlock();
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            lock.lock();
         }
     }
 
+    refresh_process_snapshot_locked(false);
     if (m_pid == -1)
     {
         return;
