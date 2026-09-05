@@ -73,6 +73,9 @@ SDKReturnCode get_raw_skeleton_node_count(uint32_t glove_id, uint32_t& node_coun
 // Must agree with JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE on the consumer side.
 constexpr size_t kSensorFlatbufferSize = 4096;
 constexpr auto kSkeletonStaleThreshold = std::chrono::milliseconds(200);
+// MANUS supplies 25 nodes. Injection expands them to OpenXR's 26 joints by
+// deriving the palm from the final MANUS node.
+constexpr size_t kMinimumUsableSkeletonNodes = static_cast<size_t>(XR_HAND_JOINT_COUNT_EXT) - 1;
 
 int64_t steady_now_ns()
 {
@@ -83,7 +86,7 @@ bool has_current_usable_skeleton(const std::vector<SkeletonNode>& nodes,
                                  std::chrono::steady_clock::time_point stamp,
                                  std::chrono::steady_clock::time_point now)
 {
-    return nodes.size() >= static_cast<size_t>(XR_HAND_JOINT_COUNT_EXT) && now - stamp <= kSkeletonStaleThreshold;
+    return nodes.size() >= kMinimumUsableSkeletonNodes && now - stamp <= kSkeletonStaleThreshold;
 }
 
 std::vector<unsigned char> read_calibration_file(const std::string& path)
