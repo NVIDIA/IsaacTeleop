@@ -93,6 +93,16 @@ std::vector<std::string> PluginManager::get_plugin_names() const
     return names;
 }
 
+PluginInfo PluginManager::get_plugin_info(const std::string& plugin_name) const
+{
+    const auto it = m_discovered_plugins.find(plugin_name);
+    if (it == m_discovered_plugins.end())
+    {
+        throw std::runtime_error("Plugin not found: " + plugin_name);
+    }
+    return it->second;
+}
+
 void PluginManager::discover_plugins()
 {
     m_discovered_plugins.clear();
@@ -139,13 +149,7 @@ void PluginManager::discover_plugins()
 
 std::vector<std::string> PluginManager::query_devices(const std::string& plugin_name) const
 {
-    auto it = m_discovered_plugins.find(plugin_name);
-    if (it == m_discovered_plugins.end())
-    {
-        throw std::runtime_error("Plugin not found: " + plugin_name);
-    }
-
-    const auto& info = it->second;
+    const PluginInfo info = get_plugin_info(plugin_name);
     std::vector<std::string> result;
     result.reserve(info.devices.size());
     for (const auto& device : info.devices)

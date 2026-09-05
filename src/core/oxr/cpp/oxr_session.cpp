@@ -9,6 +9,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 
 namespace core
 {
@@ -92,6 +93,108 @@ OpenXRSessionHandles OpenXRSession::get_handles() const
     return OpenXRSessionHandles(instance_.get(), session_.get(), space_.get(), ::xrGetInstanceProcAddr);
 }
 
+OpenXRProviderSnapshot OpenXRSession::get_provider_snapshot()
+{
+    if (provider_snapshot_.state == OpenXRProviderState::FAILED)
+    {
+        return provider_snapshot_;
+    }
+
+    const auto fail = [this](OpenXRProviderReason reason, std::optional<std::int32_t> result_code, std::string error)
+    {
+        provider_snapshot_.state = OpenXRProviderState::FAILED;
+        provider_snapshot_.reason = reason;
+        provider_snapshot_.result_code = result_code;
+        provider_snapshot_.error = std::move(error);
+        return provider_snapshot_;
+    };
+
+    std::optional<OpenXRProviderReason> terminal_reason;
+    std::string terminal_error;
+    while (true)
+    {
+        XrEventDataBuffer event{ XR_TYPE_EVENT_DATA_BUFFER };
+        const XrResult result = xrPollEvent(instance_.get(), &event);
+        if (result == XR_EVENT_UNAVAILABLE)
+        {
+            break;
+        }
+        if (result == XR_ERROR_INSTANCE_LOST)
+        {
+            return fail(OpenXRProviderReason::INSTANCE_LOST, static_cast<std::int32_t>(result),
+                        "xrPollEvent failed because the OpenXR instance was lost");
+        }
+        if (XR_FAILED(result))
+        {
+            if (terminal_reason)
+            {
+                return fail(*terminal_reason, std::nullopt, std::move(terminal_error));
+            }
+            return fail(OpenXRProviderReason::POLL_ERROR, static_cast<std::int32_t>(result),
+                        "xrPollEvent failed with XrResult " + std::to_string(result));
+        }
+
+        if (event.type == XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING && !terminal_reason)
+        {
+            const auto* loss = reinterpret_cast<const XrEventDataInstanceLossPending*>(&event);
+            terminal_reason = OpenXRProviderReason::INSTANCE_LOST;
+            terminal_error = "OpenXR instance loss is pending at time " + std::to_string(loss->lossTime);
+        }
+        if (event.type != XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED)
+        {
+            continue;
+        }
+
+        const auto* state_change = reinterpret_cast<const XrEventDataSessionStateChanged*>(&event);
+        if (state_change->session != session_.get())
+        {
+            continue;
+        }
+        if (state_change->state == XR_SESSION_STATE_LOSS_PENDING && !terminal_reason)
+        {
+            terminal_reason = OpenXRProviderReason::SESSION_LOST;
+            terminal_error = "OpenXR session entered XR_SESSION_STATE_LOSS_PENDING";
+        }
+        if (state_change->state == XR_SESSION_STATE_EXITING && !terminal_reason)
+        {
+            terminal_reason = OpenXRProviderReason::SESSION_LOST;
+            terminal_error = "OpenXR session entered XR_SESSION_STATE_EXITING";
+        }
+    }
+    if (terminal_reason)
+    {
+        return fail(*terminal_reason, std::nullopt, std::move(terminal_error));
+    }
+
+    XrSystemGetInfo system_info{ XR_TYPE_SYSTEM_GET_INFO };
+    system_info.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
+    XrSystemId system_id = XR_NULL_SYSTEM_ID;
+    const XrResult result = xrGetSystem(instance_.get(), &system_info, &system_id);
+    if (result == XR_ERROR_FORM_FACTOR_UNAVAILABLE)
+    {
+        provider_snapshot_.headset_state = OpenXRHeadsetState::DISCONNECTED;
+        provider_snapshot_.reason = OpenXRProviderReason::FORM_FACTOR_UNAVAILABLE;
+        provider_snapshot_.result_code = static_cast<std::int32_t>(result);
+        provider_snapshot_.error = "OpenXR HMD form factor is unavailable (XrResult " + std::to_string(result) + ")";
+        return provider_snapshot_;
+    }
+    if (result == XR_ERROR_INSTANCE_LOST)
+    {
+        return fail(OpenXRProviderReason::INSTANCE_LOST, static_cast<std::int32_t>(result),
+                    "xrGetSystem failed because the OpenXR instance was lost");
+    }
+    if (XR_FAILED(result))
+    {
+        return fail(OpenXRProviderReason::POLL_ERROR, static_cast<std::int32_t>(result),
+                    "xrGetSystem failed with XrResult " + std::to_string(result));
+    }
+
+    provider_snapshot_.headset_state = OpenXRHeadsetState::CONNECTED;
+    provider_snapshot_.reason = OpenXRProviderReason::NONE;
+    provider_snapshot_.result_code.reset();
+    provider_snapshot_.error.clear();
+    return provider_snapshot_;
+}
 
 void OpenXRSession::create_instance(const std::string& app_name, const std::vector<std::string>& extensions)
 {
