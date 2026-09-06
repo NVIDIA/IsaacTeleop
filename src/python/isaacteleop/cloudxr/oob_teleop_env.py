@@ -23,7 +23,7 @@ from urllib.request import Request, urlopen
 
 from .oob_teleop_hub import OOB_WS_PATH
 
-log = logging.getLogger("oob-teleop-env")
+log = logging.getLogger("isaacteleop.cloudxr.oob_teleop_env")
 
 WSS_PROXY_DEFAULT_PORT = 48322
 

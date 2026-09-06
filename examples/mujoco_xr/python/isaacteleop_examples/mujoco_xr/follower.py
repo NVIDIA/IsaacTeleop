@@ -23,7 +23,7 @@ from isaacteleop.retargeters.rate_limiter import _quat_geodesic_angle
 
 from . import _mujoco_xr
 
-LOG = logging.getLogger("mujoco_xr")
+LOG = logging.getLogger("isaacteleop.mujoco_xr")
 
 # Declared by assets/follower/follower_arm.xml and repointed onto every follower geom
 # at startup, so the arm recolours in one write.

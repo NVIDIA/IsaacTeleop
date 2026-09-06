@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
-
+from isaacteleop import logging_config
 from pipeline import FrameSource
 from sources import (
     PairedFrameSource,
@@ -38,7 +38,7 @@ from sources import (
 )
 from transports import RtpH264Sender, make_encoder
 
-logger = logging.getLogger("camera_streamer")
+logger = logging.getLogger("isaacteleop.camera_streamer")
 
 # Retry interval between construction attempts. Long enough that a missing
 # /dev/video0 doesn't spam the journal; short enough that a camera plugged
@@ -250,16 +250,12 @@ class CameraSupervisor:
 
 
 def _setup_logging() -> None:
-    # systemd captures stdout/stderr — journal formats timestamps, so we
-    # don't add our own. Keep level info by default; DEBUG via env var.
+    # Uses the shared isaacteleop line format (which has its own timestamp), so
+    # under systemd the journal's timestamp prefix and this one will both show.
     import os
 
-    level = logging.DEBUG if os.environ.get("CAMERA_STREAMER_DEBUG") else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(name)s [%(levelname)s] %(message)s",
-        stream=sys.stderr,
-    )
+    level = "debug" if os.environ.get("CAMERA_STREAMER_DEBUG") else "info"
+    logging_config.set_console_level(level)
 
 
 def main(argv: Optional[List[str]] = None) -> int:

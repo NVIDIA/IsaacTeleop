@@ -38,10 +38,19 @@ from typing import NamedTuple
 
 import mujoco
 import numpy as np
-
-from isaacteleop import viz
+from isaacteleop import logging_config, viz
 from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.oxr import OpenXRSessionHandles
+from isaacteleop.retargeters.rate_limiter import (
+    EE_POSE_KEY,
+    EePoseRateLimiter,
+    RateLimiterConfig,
+)
+from isaacteleop.retargeters.SO101.clutch_retargeter import SO101ClutchRetargeter
+from isaacteleop.retargeters.SO101.gripper_retargeter import (
+    GRIPPER_COMMAND_KEY,
+    SO101GripperRetargeter,
+)
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeting_engine.interface import (
     ExecutionEvents,
@@ -55,16 +64,6 @@ from isaacteleop.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
 )
 from isaacteleop.retargeting_engine.tensor_types import BoolType, ControllerInputIndex
-from isaacteleop.retargeters.rate_limiter import (
-    EE_POSE_KEY,
-    EePoseRateLimiter,
-    RateLimiterConfig,
-)
-from isaacteleop.retargeters.SO101.clutch_retargeter import SO101ClutchRetargeter
-from isaacteleop.retargeters.SO101.gripper_retargeter import (
-    GRIPPER_COMMAND_KEY,
-    SO101GripperRetargeter,
-)
 from isaacteleop.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
@@ -74,7 +73,7 @@ from isaacteleop.teleop_session_manager import (
 from . import _mujoco_xr, follower
 from .harness import ControllerPoseSource, HandPose, HarnessBand, InterventionMonitor
 
-LOG = logging.getLogger("mujoco_xr")
+LOG = logging.getLogger("isaacteleop.mujoco_xr")
 
 # The app's only clip planes. VizSessionConfig, the projection and the submitted depth
 # must all agree, or world-locked geometry swims under head motion, and only a headset
@@ -1329,10 +1328,7 @@ def main(argv: list[str]) -> int:
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="[mujoco_xr] %(message)s",
-    )
+    logging_config.set_console_level("debug" if args.verbose else "info")
 
     # Before launch_context starts the runtime, so an unfetched checkout says so
     # plainly rather than buried in the runtime's startup logging.
