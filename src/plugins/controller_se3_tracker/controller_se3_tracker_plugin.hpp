@@ -5,7 +5,7 @@
 
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <oxr/oxr_session.hpp>
+#include <pusherio/plugin_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <memory>
@@ -46,7 +46,7 @@ private:
     bool m_use_left_hand;
 
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
-    std::shared_ptr<core::OpenXRSession> m_session;
+    core::PluginSessionHandle m_plugin_session;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     std::unique_ptr<core::SchemaPusher> m_pusher;
 };

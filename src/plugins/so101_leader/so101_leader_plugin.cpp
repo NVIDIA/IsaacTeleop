@@ -6,7 +6,6 @@
 #include "feetech_bus.hpp"
 
 #include <flatbuffers/flatbuffers.h>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/joint_state_generated.h>
 
@@ -24,8 +23,10 @@
 #include <memory>
 #include <numbers>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace plugins
@@ -39,6 +40,21 @@ namespace
 // Must agree with JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE on the consumer side; sizes the
 // fixed tensor buffer (6 named joints + optional channels fit comfortably).
 constexpr size_t kMaxFlatbufferSize = 4096;
+
+std::unique_ptr<core::ISchemaPushChannel> make_push_channel(const core::PluginSessionHandle& session,
+                                                            const std::string& collection_id)
+{
+    if (!session)
+    {
+        throw std::invalid_argument("So101LeaderPlugin requires a plugin session");
+    }
+
+    return session->create_schema_push_channel(core::SchemaPusherConfig{ .collection_id = collection_id,
+                                                                         .max_flatbuffer_size = kMaxFlatbufferSize,
+                                                                         .tensor_identifier = "joint_state",
+                                                                         .localized_name = "SO-101 Leader Arm",
+                                                                         .app_name = "So101LeaderPlugin" });
+}
 
 // SO-101 DOF order (matches Simulation/SO101/so101_new_calib.urdf and the schema name keys).
 constexpr std::array<const char*, kNumJoints> kJointNames = { "shoulder_pan", "shoulder_lift", "elbow_flex",
@@ -55,16 +71,12 @@ constexpr double kSynthPeriodFrames = 90.0; // one cycle per ~1 s at 90 Hz
 
 So101LeaderPlugin::So101LeaderPlugin(const std::string& device_path,
                                      const std::string& collection_id,
+                                     core::PluginSessionHandle session,
                                      const std::string& calibration_path)
     : device_path_(device_path),
       collection_id_(collection_id),
-      session_(std::make_shared<core::OpenXRSession>("So101LeaderPlugin", core::SchemaPusher::get_required_extensions())),
-      pusher_(session_->get_handles(),
-              core::SchemaPusherConfig{ .collection_id = collection_id,
-                                        .max_flatbuffer_size = kMaxFlatbufferSize,
-                                        .tensor_identifier = "joint_state",
-                                        .localized_name = "SO-101 Leader Arm",
-                                        .app_name = "So101LeaderPlugin" })
+      session_(std::move(session)),
+      pusher_(make_push_channel(session_, collection_id))
 {
     // Defaults: servo ids 1..6 in DOF order, no sign flip, centered at the servo midpoint (2048),
     // full tick range (so the clamp is a no-op until a calibration file narrows it).

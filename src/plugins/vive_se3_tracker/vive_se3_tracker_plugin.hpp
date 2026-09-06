@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <pusherio/plugin_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <vut/vut_client.h>
 #include <vut/vut_types.h>
@@ -12,11 +13,6 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
-
-namespace core
-{
-class OpenXRSession;
-}
 
 namespace plugins
 {
@@ -87,7 +83,7 @@ constexpr int64_t kMaxStaleMs = 3600000;
 class ViveSe3TrackerPlugin
 {
 public:
-    ViveSe3TrackerPlugin();
+    explicit ViveSe3TrackerPlugin(core::PluginSessionHandle session);
     ~ViveSe3TrackerPlugin();
 
     ViveSe3TrackerPlugin(const ViveSe3TrackerPlugin&) = delete;
@@ -126,7 +122,7 @@ private:
     // stream is rebuilt so samples never land in the previous tracker's collection.
     DeviceStream& stream_for(uint32_t device_id, const std::string& serial);
 
-    std::shared_ptr<core::OpenXRSession> session_;
+    core::PluginSessionHandle session_;
 
     // --- VIVEHub VUT client ---
     std::unique_ptr<vut::Client> vut_client_;

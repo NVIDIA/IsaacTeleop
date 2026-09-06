@@ -5,7 +5,6 @@
 
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <flatbuffers/flatbuffers.h>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/se3_tracker_generated.h>
 #include <sys/stat.h>
@@ -17,6 +16,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <unistd.h>
 #include <utility>
@@ -98,11 +98,14 @@ core::SchemaPusherConfig make_pusher_config(const std::string& collection_id)
 
 } // namespace
 
-ViveSe3TrackerPlugin::ViveSe3TrackerPlugin()
-    : session_(
-          std::make_shared<core::OpenXRSession>("ViveSe3TrackerPlugin", core::SchemaPusher::get_required_extensions())),
-      start_time_ns_(core::os_monotonic_now_ns())
+ViveSe3TrackerPlugin::ViveSe3TrackerPlugin(core::PluginSessionHandle session)
+    : session_(std::move(session)), start_time_ns_(core::os_monotonic_now_ns())
 {
+    if (!session_)
+    {
+        throw std::invalid_argument("ViveSe3TrackerPlugin requires a plugin session");
+    }
+
     // Clamp VIVE_SE3_STALE_MS before scaling to ns: a non-numeric env yields 0
     // (env_int), which would mark every sample stale, and a huge value would
     // overflow the * 1'000'000. Reject out-of-range values, use the default.
@@ -268,8 +271,8 @@ ViveSe3TrackerPlugin::DeviceStream& ViveSe3TrackerPlugin::stream_for(uint32_t de
     DeviceStream stream;
     stream.serial = serial;
     stream.collection_id = make_collection_id(device_id, serial);
-    stream.pusher =
-        std::make_unique<core::SchemaPusher>(session_->get_handles(), make_pusher_config(stream.collection_id));
+    stream.pusher = std::make_unique<core::SchemaPusher>(
+        session_->create_schema_push_channel(make_pusher_config(stream.collection_id)));
     std::cout << "[vive_se3_tracker] created tensor collection '" << stream.collection_id
               << "' for device_id=" << device_id << std::endl;
     DeviceStream& ref = streams_.emplace(device_id, std::move(stream)).first->second;
@@ -332,7 +335,7 @@ void ViveSe3TrackerPlugin::update()
     if (synthetic_mode_)
         generate_synthetic_poses(core::os_monotonic_now_ns());
 
-    // Snapshot under the lock, push outside it (pushes go through OpenXR).
+    // Snapshot under the lock, push outside it.
     std::unordered_map<uint32_t, LatestPose> snapshot;
     {
         std::lock_guard<std::mutex> lock(pose_mutex_);

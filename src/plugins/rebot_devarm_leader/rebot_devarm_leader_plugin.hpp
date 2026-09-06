@@ -3,16 +3,12 @@
 
 #pragma once
 
+#include <pusherio/plugin_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <cstdint>
 #include <memory>
 #include <string>
-
-namespace core
-{
-class OpenXRSession;
-}
 
 namespace plugins
 {
@@ -59,11 +55,13 @@ public:
      *        Empty selects the synthetic backend.
      * @param collection_id Tensor collection id; must match the consumer's JointStateTracker.
      *        Also used as the JointStateOutput.device_id.
+     * @param session Session that creates the transport channel used by the pusher.
      * @param calibration_path Optional calibration file (see load_calibration()); empty uses
      *        defaults (motor ids 1..7, feedback ids 0x11..0x17, sign +1, zero offset 0).
      */
     RebotDevarmLeaderPlugin(const std::string& device_path,
                             const std::string& collection_id,
+                            core::PluginSessionHandle session,
                             const std::string& calibration_path = "");
     ~RebotDevarmLeaderPlugin();
 
@@ -112,7 +110,7 @@ private:
     std::unique_ptr<DamiaoBus> bus_;
     std::unique_ptr<RobStrideBus> rs_bus_;
 
-    std::shared_ptr<core::OpenXRSession> session_;
+    core::PluginSessionHandle session_;
     core::SchemaPusher pusher_;
 };
 

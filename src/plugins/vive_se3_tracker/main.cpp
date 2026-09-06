@@ -3,12 +3,16 @@
 
 #include "vive_se3_tracker_plugin.hpp"
 
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstddef>
 #include <iostream>
+#include <memory>
 #include <thread>
+#include <utility>
 
 using namespace plugins::vive_se3_tracker;
 
@@ -31,7 +35,9 @@ try
     std::signal(SIGINT, on_signal);
     std::signal(SIGTERM, on_signal);
 
-    ViveSe3TrackerPlugin plugin;
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "ViveSe3TrackerPlugin", core::PluginSessionRequirements{ .schema_push = true });
+    ViveSe3TrackerPlugin plugin(std::move(session));
 
     // Poll/push at 90 Hz; valid samples carry the VUT sample time, so the loop
     // rate only bounds delivery latency, not timestamp accuracy.

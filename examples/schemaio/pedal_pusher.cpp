@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /*!
- * @brief Demo application that pushes serialized FlatBuffer Generic3AxisPedalOutput data into the OpenXR runtime.
+ * @brief Demo application that pushes serialized FlatBuffer Generic3AxisPedalOutput data.
  *
  * This application demonstrates using the SchemaPusher class to push Generic3AxisPedalOutput FlatBuffer
- * messages. The application creates the OpenXR session with required extensions and passes
- * the handles to the pusherio library.
+ * messages. Plugin-facing examples obtain channels from IPluginSession; only the concrete session adapter
+ * owns transport-specific handles.
  *
  * Note: Both pusher and reader agree on the schema (Generic3AxisPedalOutput from pedals.fbs), so the schema
  * does not need to be sent over the wire.
@@ -15,7 +15,8 @@
 #include "common_utils.hpp"
 
 #include <flatbuffers/flatbuffers.h>
-#include <oxr/oxr_session.hpp>
+#include <plugin_utils/openxr_plugin_session.hpp>
+#include <pusherio/plugin_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/pedals_generated.h>
 
@@ -25,24 +26,19 @@
 #include <iostream>
 #include <memory>
 #include <thread>
+#include <utility>
 
 using namespace schemaio_example;
 
 /*!
  * @brief Generic3AxisPedalOutput-specific pusher that serializes and pushes foot pedal messages.
  *
- * Uses composition with SchemaPusher to handle the OpenXR tensor pushing.
+ * Uses composition with the transport-independent SchemaPusher.
  */
 class Generic3AxisPedalPusher
 {
 public:
-    Generic3AxisPedalPusher(const core::OpenXRSessionHandles& handles, const std::string& collection_id)
-        : m_pusher(handles,
-                   core::SchemaPusherConfig{ .collection_id = collection_id,
-                                             .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
-                                             .tensor_identifier = "generic_3axis_pedal",
-                                             .localized_name = "Generic 3-Axis Pedal Pusher Demo",
-                                             .app_name = "Generic3AxisPedalPusher" })
+    explicit Generic3AxisPedalPusher(std::unique_ptr<core::ISchemaPushChannel> channel) : m_pusher(std::move(channel))
     {
     }
 
@@ -72,21 +68,21 @@ try
 {
     std::cout << "Schema Pusher (collection: " << COLLECTION_ID << ")" << std::endl;
 
-    // Step 1: Create OpenXR session with required extensions for pushing tensor data
-    std::cout << "[Step 1] Creating OpenXR session with tensor push extensions..." << std::endl;
+    // Step 1: Select the concrete transport at the composition root.
+    std::cout << "[Step 1] Creating OpenXR plugin session..." << std::endl;
 
-    auto required_extensions = core::SchemaPusher::get_required_extensions();
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "SchemaPusher", core::PluginSessionRequirements{ .schema_push = true });
 
-    auto oxr_session = std::make_shared<core::OpenXRSession>("SchemaPusher", required_extensions);
-
-    std::cout << "  OpenXR session created" << std::endl;
-
-    // Step 2: Create the pusher with the session handles
+    // Step 2: Ask the abstract session for a channel, then give it to the typed pusher.
     std::cout << "[Step 2] Creating Generic3AxisPedalPusher..." << std::endl;
 
-    std::unique_ptr<Generic3AxisPedalPusher> pusher;
-    auto handles = oxr_session->get_handles();
-    pusher = std::make_unique<Generic3AxisPedalPusher>(handles, COLLECTION_ID);
+    auto pusher = std::make_unique<Generic3AxisPedalPusher>(session->create_schema_push_channel(
+        core::SchemaPusherConfig{ .collection_id = COLLECTION_ID,
+                                  .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
+                                  .tensor_identifier = "generic_3axis_pedal",
+                                  .localized_name = "Generic 3-Axis Pedal Pusher Demo",
+                                  .app_name = "Generic3AxisPedalPusher" }));
 
     // Step 3: Push samples
     std::cout << "[Step 3] Pushing samples..." << std::endl;

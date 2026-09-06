@@ -29,9 +29,9 @@ add_executable(vive_se3_tracker_plugin
 target_include_directories(vive_se3_tracker_plugin PRIVATE "${VUT_SDK_DIR}/include")
 
 target_link_libraries(vive_se3_tracker_plugin PRIVATE
+    Teleop::plugin_utils
     deviceio::deviceio_trackers
     pusherio::pusherio
-    oxr::oxr_core
     isaacteleop_schema
     "${_vut_lib}"
     Threads::Threads

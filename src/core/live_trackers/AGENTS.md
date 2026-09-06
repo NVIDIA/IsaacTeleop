@@ -9,6 +9,8 @@ SPDX-License-Identifier: Apache-2.0
 
 ## Time and OpenXR
 
+- Keep push-channel selection in `LiveDeviceIOFactory`; push tracker impls receive an
+  `ISchemaPushChannel` and do not construct OpenXR channels from session handles.
 - Store **`last_update_time_` as `int64_t`** (monotonic ns), not **`XrTime`**.
 - **Once per `update` call:** `const XrTime xr_time = time_converter_.convert_monotonic_ns_to_xrtime(monotonic_time_ns);` then use **`xr_time`** for every **`xrLocate*`** / hand / body call **and** for MCAP (see below). **Do not** call **`convert_monotonic_ns_to_xrtime`** again in the MCAP block.
 - **Full-body limp mode:** if the body tracker handle is null and you **return early**, **do not** compute **`xr_time`** first—only convert after you know you will call OpenXR.

@@ -9,8 +9,8 @@ add_executable(rebot_devarm_leader_plugin
 )
 
 target_link_libraries(rebot_devarm_leader_plugin PRIVATE
+    Teleop::plugin_utils
     pusherio::pusherio
-    oxr::oxr_core
     isaacteleop_schema
 )
 

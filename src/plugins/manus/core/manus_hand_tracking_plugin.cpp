@@ -6,11 +6,10 @@
 #include "inc/manus/manus_glove_collection.hpp"
 
 #include <flatbuffers/flatbuffers.h>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/math.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <oxr_utils/pose_conversions.hpp>
-#include <plugin_utils/hand_injector.hpp>
+#include <plugin_utils/openxr_plugin_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/haptic_command_generated.h>
 #include <schema/joint_state_generated.h>
@@ -39,25 +38,6 @@ namespace manus
 
 namespace
 {
-
-// Returns true if the OpenXR loader/runtime advertises the given extension.
-// xrEnumerateInstanceExtensionProperties is a loader-level function that can be
-// called before any XrInstance exists, so this is safe to use at init time.
-bool is_openxr_extension_supported(const char* ext_name)
-{
-    uint32_t count = 0;
-    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr)))
-    {
-        return false;
-    }
-    std::vector<XrExtensionProperties> props(count, XrExtensionProperties{ XR_TYPE_EXTENSION_PROPERTIES });
-    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, count, &count, props.data())))
-    {
-        return false;
-    }
-    return std::any_of(props.begin(), props.end(),
-                       [ext_name](const XrExtensionProperties& p) { return std::string(p.extensionName) == ext_name; });
-}
 
 SDKReturnCode get_raw_skeleton_node_count(uint32_t glove_id, uint32_t& node_count)
 {
@@ -296,127 +276,74 @@ void ManusTracker::initialize() noexcept(false)
     try
     {
         std::vector<std::shared_ptr<core::ITracker>> trackers;
+        bool native_hand_tracking_supported = false;
 
         if (m_config.human)
         {
-            // Create ControllerTracker unconditionally; HandTracker requires
-            // XR_EXT_hand_tracking which is optional — only add it when the runtime
-            // advertises support so xrCreateInstance does not fail with
-            // XR_ERROR_EXTENSION_NOT_PRESENT on runtimes that lack the extension.
             m_controller_tracker = std::make_shared<core::ControllerTracker>();
             trackers.push_back(m_controller_tracker);
 
-            const bool hand_tracking_supported = is_openxr_extension_supported(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
-            if (hand_tracking_supported)
+            native_hand_tracking_supported = plugin_utils::OpenXRPluginSession::supports_native_hand_tracking();
+            if (native_hand_tracking_supported)
             {
                 m_hand_tracker = std::make_shared<core::HandTracker>();
                 trackers.push_back(m_hand_tracker);
             }
             else
             {
-                std::cout << "[Manus] " << XR_EXT_HAND_TRACKING_EXTENSION_NAME
-                          << " is not supported by the current runtime; HandTracker will not be created." << std::endl;
+                std::cout << "[Manus] Native optical hand tracking is not supported by the current runtime; "
+                             "controller fallback will be used."
+                          << std::endl;
             }
         }
 
         if (m_config.haptic)
         {
-            // Registering the reader pulls XR_NVX1_tensor_data into the
-            // OpenXRSession's required-extension set; the session will fail
-            // loudly on a runtime that doesn't advertise it. The reader's buffer
-            // must be >= the producer's collection sample size; we use the shared
-            // default (matching the producer's PushTensorHapticDevice) rather than
-            // a Manus-specific size that could drift below it.
+            // The reader lets the session adapter collect the inbound tensor
+            // prerequisite. Its buffer must be >= the producer's collection
+            // sample size, so use the shared default rather than a Manus-specific
+            // size that could drift below it.
             m_haptic_reader = std::make_shared<core::HapticCommandReaderTracker>(MANUS_GLOVE_COLLECTION_ID);
             trackers.push_back(m_haptic_reader);
         }
 
-        std::vector<std::string> extensions;
-        if (!trackers.empty())
-        {
-            extensions = core::DeviceIOSession::get_required_extensions(trackers);
-        }
-
-        if (m_config.sensors)
-        {
-            for (const auto& ext : core::SchemaPusher::get_required_extensions())
-            {
-                if (std::find(extensions.begin(), extensions.end(), ext) == extensions.end())
-                {
-                    extensions.push_back(ext);
-                }
-            }
-        }
-
-        if (m_config.human)
-        {
-            extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
-        }
-
-        // XR_MNDX_XDEV_SPACE_EXTENSION_NAME is optional: it enables optical (HMD) hand
-        // tracking as a higher-quality wrist source. If the runtime does not advertise
-        // it we fall back to controller-based tracking instead of crashing.
-        bool xdev_extension_supported = false;
-        if (m_config.human)
-        {
-            xdev_extension_supported = is_openxr_extension_supported(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
-            if (xdev_extension_supported)
-            {
-                extensions.push_back(XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
-            }
-            else
-            {
-                std::cout << "[Manus] " << XR_MNDX_XDEV_SPACE_EXTENSION_NAME
-                          << " is not supported by the current runtime; optical hand tracking"
-                          << " will not be available and controller fallback will be used." << std::endl;
-            }
-        }
-
-        // Create session with required extensions - constructor automatically begins the session
-        m_session = std::make_shared<core::OpenXRSession>(m_config.app_name, extensions);
-        m_handles = m_session->get_handles();
+        auto openxr_session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+            m_config.app_name,
+            core::PluginSessionRequirements{ .schema_push = m_config.sensors, .hand_tracking_push = m_config.human },
+            std::move(trackers));
+        m_handles = openxr_session->get_openxr_handles();
+        m_plugin_session = openxr_session;
 
         // Initialize time converter now that handles are ready
         m_time_converter.emplace(m_handles);
 
         if (m_config.human)
         {
-            m_left_injector = std::make_unique<plugin_utils::HandInjector>(
-                m_handles.instance, m_handles.session, XR_HAND_LEFT_EXT, m_handles.space);
-            m_right_injector = std::make_unique<plugin_utils::HandInjector>(
-                m_handles.instance, m_handles.session, XR_HAND_RIGHT_EXT, m_handles.space);
+            m_left_hand_pusher = std::make_unique<core::HandTrackingPusher>(
+                m_plugin_session->create_hand_tracking_push_channel(XR_HAND_LEFT_EXT));
+            m_right_hand_pusher = std::make_unique<core::HandTrackingPusher>(
+                m_plugin_session->create_hand_tracking_push_channel(XR_HAND_RIGHT_EXT));
         }
 
         if (m_config.sensors)
         {
-            m_left_sensor_pusher = std::make_unique<core::SchemaPusher>(
-                m_handles, core::SchemaPusherConfig{ .collection_id = MANUS_SENSORS_LEFT_COLLECTION_ID,
-                                                     .max_flatbuffer_size = kSensorFlatbufferSize,
-                                                     .tensor_identifier = "joint_state",
-                                                     .localized_name = "Manus Sensors Left",
-                                                     .app_name = m_config.app_name });
-            m_right_sensor_pusher = std::make_unique<core::SchemaPusher>(
-                m_handles, core::SchemaPusherConfig{ .collection_id = MANUS_SENSORS_RIGHT_COLLECTION_ID,
-                                                     .max_flatbuffer_size = kSensorFlatbufferSize,
-                                                     .tensor_identifier = "joint_state",
-                                                     .localized_name = "Manus Sensors Right",
-                                                     .app_name = m_config.app_name });
+            m_left_sensor_pusher = std::make_unique<core::SchemaPusher>(m_plugin_session->create_schema_push_channel(
+                core::SchemaPusherConfig{ .collection_id = MANUS_SENSORS_LEFT_COLLECTION_ID,
+                                          .max_flatbuffer_size = kSensorFlatbufferSize,
+                                          .tensor_identifier = "joint_state",
+                                          .localized_name = "Manus Sensors Left",
+                                          .app_name = m_config.app_name }));
+            m_right_sensor_pusher = std::make_unique<core::SchemaPusher>(m_plugin_session->create_schema_push_channel(
+                core::SchemaPusherConfig{ .collection_id = MANUS_SENSORS_RIGHT_COLLECTION_ID,
+                                          .max_flatbuffer_size = kSensorFlatbufferSize,
+                                          .tensor_identifier = "joint_state",
+                                          .localized_name = "Manus Sensors Right",
+                                          .app_name = m_config.app_name }));
         }
 
-        if (!trackers.empty())
-        {
-            m_deviceio_session = core::DeviceIOSession::run(trackers, m_handles);
-        }
-        else
-        {
-            // Sensors-only: still need a DeviceIOSession clock for update(); use an empty tracker list.
-            m_deviceio_session = core::DeviceIOSession::run({}, m_handles);
-        }
+        m_deviceio_session = openxr_session->create_deviceio_session();
 
-        // Only attempt XDev hand tracker setup when the extension was actually enabled.
-        // Skipping here avoids calling xrGetInstanceProcAddr for MNDX entry points that
-        // the runtime would not have loaded.
-        if (xdev_extension_supported)
+        if (native_hand_tracking_supported)
         {
             initialize_xdev_hand_trackers();
         }
@@ -446,8 +373,8 @@ void ManusTracker::initialize() noexcept(false)
         // Drop every OpenXR-related member that may have been created before the
         // throw (trackers/injectors first — they may hold session handles).
         cleanup_xdev_hand_trackers();
-        m_left_injector.reset();
-        m_right_injector.reset();
+        m_left_hand_pusher.reset();
+        m_right_hand_pusher.reset();
         m_left_sensor_pusher.reset();
         m_right_sensor_pusher.reset();
         m_controller_tracker.reset();
@@ -455,7 +382,7 @@ void ManusTracker::initialize() noexcept(false)
         m_haptic_reader.reset();
         m_deviceio_session.reset();
         m_time_converter.reset();
-        m_session.reset();
+        m_plugin_session.reset();
     }
 
     std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
@@ -1084,8 +1011,8 @@ void ManusTracker::inject_hand_data()
         right_nodes = m_right_hand_nodes;
     }
 
-    // Get current XrTime from the system monotonic clock
-    XrTime time = m_time_converter->os_monotonic_now();
+    const int64_t sample_time_ns = core::os_monotonic_now_ns();
+    const XrTime time = m_time_converter->convert_monotonic_ns_to_xrtime(sample_time_ns);
 
     auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
     {
@@ -1201,11 +1128,11 @@ void ManusTracker::inject_hand_data()
 
         if (is_left)
         {
-            m_left_injector->push(joints, time);
+            m_left_hand_pusher->push(joints, sample_time_ns);
         }
         else
         {
-            m_right_injector->push(joints, time);
+            m_right_hand_pusher->push(joints, sample_time_ns);
         }
     };
 

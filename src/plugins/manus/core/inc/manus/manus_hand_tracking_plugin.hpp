@@ -10,9 +10,9 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <openxr/openxr_platform.h>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
-#include <plugin_utils/hand_injector.hpp>
+#include <pusherio/hand_tracking_pusher.hpp>
+#include <pusherio/plugin_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <ManusSDK.h>
@@ -46,7 +46,7 @@ struct ManusPluginConfig
     std::string app_name = "ManusHandPlugin";
     std::string left_calibration_file;
     std::string right_calibration_file;
-    bool human = true; // OpenXR HandInjector
+    bool human = true; // hand tracking push
     bool sensors = true; // RawDeviceData -> SchemaPusher
     bool haptic = true; // inbound HapticCommandReaderTracker
 };
@@ -141,10 +141,10 @@ private:
     std::array<bool, 2> m_sensors_logged_on{ { false, false } };
 
     // OpenXR State
-    std::shared_ptr<core::OpenXRSession> m_session;
+    core::PluginSessionHandle m_plugin_session;
     core::OpenXRSessionHandles m_handles;
-    std::unique_ptr<plugin_utils::HandInjector> m_left_injector;
-    std::unique_ptr<plugin_utils::HandInjector> m_right_injector;
+    std::unique_ptr<core::HandTrackingPusher> m_left_hand_pusher;
+    std::unique_ptr<core::HandTrackingPusher> m_right_hand_pusher;
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
     std::shared_ptr<core::HandTracker> m_hand_tracker;
     // Inbound HapticCommand tensor; collection identity in

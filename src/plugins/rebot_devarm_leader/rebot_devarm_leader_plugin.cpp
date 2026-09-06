@@ -7,7 +7,6 @@
 #include "robstride_bus.hpp"
 
 #include <flatbuffers/flatbuffers.h>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/joint_state_generated.h>
 
@@ -19,8 +18,10 @@
 #include <iostream>
 #include <numbers>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 
 namespace plugins
 {
@@ -33,6 +34,21 @@ namespace
 // Must agree with JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE on the consumer side; sizes the
 // fixed tensor buffer (7 named joints + velocity fit comfortably).
 constexpr size_t kMaxFlatbufferSize = 4096;
+
+std::unique_ptr<core::ISchemaPushChannel> make_push_channel(const core::PluginSessionHandle& session,
+                                                            const std::string& collection_id)
+{
+    if (!session)
+    {
+        throw std::invalid_argument("RebotDevarmLeaderPlugin requires a plugin session");
+    }
+
+    return session->create_schema_push_channel(core::SchemaPusherConfig{ .collection_id = collection_id,
+                                                                         .max_flatbuffer_size = kMaxFlatbufferSize,
+                                                                         .tensor_identifier = "joint_state",
+                                                                         .localized_name = "reBot DevArm Leader",
+                                                                         .app_name = "RebotDevarmLeaderPlugin" });
+}
 
 // reBot DevArm DOF order (matches the reBot-DevArm_fixend URDF joint names; the gripper is the
 // extra 7th Damiao motor).
@@ -115,17 +131,12 @@ ModelLimits model_limits(const std::string& model)
 
 RebotDevarmLeaderPlugin::RebotDevarmLeaderPlugin(const std::string& device_path,
                                                  const std::string& collection_id,
+                                                 core::PluginSessionHandle session,
                                                  const std::string& calibration_path)
     : device_path_(device_path),
       collection_id_(collection_id),
-      session_(std::make_shared<core::OpenXRSession>(
-          "RebotDevarmLeaderPlugin", core::SchemaPusher::get_required_extensions())),
-      pusher_(session_->get_handles(),
-              core::SchemaPusherConfig{ .collection_id = collection_id,
-                                        .max_flatbuffer_size = kMaxFlatbufferSize,
-                                        .tensor_identifier = "joint_state",
-                                        .localized_name = "reBot DevArm Leader",
-                                        .app_name = "RebotDevarmLeaderPlugin" })
+      session_(std::move(session)),
+      pusher_(make_push_channel(session_, collection_id))
 {
     // Defaults: factory ids (1..7 / 0x11..0x17), factory models, no sign flip, zero offset.
     for (int i = 0; i < kNumJoints; ++i)

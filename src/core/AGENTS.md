@@ -12,6 +12,9 @@ To see **all** `AGENTS.md` files in the IsaacTeleop repo, use the **`find` comma
 If work under **`src/core/`** went wrong—**user** correction, **pre-commit/CI** failure, or **repeated** same-class mistakes—you **must** follow the repo root **[`AGENTS.md`](../../AGENTS.md)** **Mandatory learning loop**: distill a short rule and **update** the **nearest** relevant `AGENTS.md` (this file or a package file) or **source comments** in the same session (including **delta vs `main`** scope).
 
 - Async retargeting pacing behavior belongs on the pacing config objects; keep the worker focused on scheduling mechanics and avoid adding concrete pacing-mode or subclass branches there.
+- When transport-neutralizing an existing data path, preserve its operation-specific facade and abstract the session-created channel beneath it; add named-port discovery only when a real dynamic-routing requirement needs it.
+- Keep session capability declarations transport-neutral in `PluginSessionRequirements`; concrete sessions translate them into backend prerequisites and reject undeclared channel creation.
+- Reusing OpenXR value structs and enums in a channel contract is acceptable when minimizing migration; keep runtime handles, function pointers, calls, and runtime-clock timestamps inside the OpenXR implementation.
 - Prefer coarse-grained async boundaries around an existing synchronous step before splitting DeviceIO/source polling away from graph execution; split internals only when a measured correctness or performance need justifies the extra thread-safety surface.
 - In pipelined `TeleopSession`, `last_context` follows the returned completed frame; reset/control-transition events travel with that frame and must not force exact-current-frame waits. Use sync mode for exact current-frame behavior.
 - Keep async retargeting comments short and local to invariants; user-facing pacing tuning guidance belongs in docs rather than long code docstrings.

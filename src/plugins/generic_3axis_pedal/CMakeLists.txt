@@ -14,8 +14,8 @@ add_executable(generic_3axis_pedal_plugin
 )
 
 target_link_libraries(generic_3axis_pedal_plugin PRIVATE
+    Teleop::plugin_utils
     pusherio::pusherio
-    oxr::oxr_core
     isaacteleop_schema
 )
 

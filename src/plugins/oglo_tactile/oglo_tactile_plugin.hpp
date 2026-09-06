@@ -39,7 +39,7 @@ public:
         std::chrono::milliseconds stall_timeout{ 3000 }; //!< no-notify -> reconnect
     };
 
-    explicit OgloTactilePlugin(Options options);
+    OgloTactilePlugin(Options options, core::PluginSessionHandle session);
     ~OgloTactilePlugin();
 
     //! Connect, then run until @p stop is set. Reconnects automatically on drop.
@@ -62,6 +62,7 @@ private:
 
     Options m_opts;
     OgloDeviceConfig m_config;
+    core::PluginSessionHandle m_session;
     // Written by the consumer thread on (re)connect, read by the BLE thread in
     // on_notify(); atomic so the geometry handoff across threads is race-free.
     std::atomic<int> m_values_per_sample{ kNumTaxels };

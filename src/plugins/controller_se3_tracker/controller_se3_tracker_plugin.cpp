@@ -6,10 +6,10 @@
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <oxr_utils/os_time.hpp>
+#include <plugin_utils/openxr_plugin_session.hpp>
 #include <schema/controller_generated.h>
 #include <schema/se3_tracker_generated.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <vector>
@@ -21,19 +21,6 @@ namespace controller_se3_tracker
 
 namespace
 {
-
-std::vector<std::string> make_required_extensions(const std::vector<std::shared_ptr<core::ITracker>>& trackers)
-{
-    auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
-    for (const auto& ext : core::SchemaPusher::get_required_extensions())
-    {
-        if (std::find(extensions.begin(), extensions.end(), ext) == extensions.end())
-        {
-            extensions.push_back(ext);
-        }
-    }
-    return extensions;
-}
 
 core::SchemaPusherConfig make_pusher_config(const std::string& collection_id)
 {
@@ -54,11 +41,12 @@ ControllerSe3TrackerPlugin::ControllerSe3TrackerPlugin(bool use_left_hand, const
     m_controller_tracker = std::make_shared<core::ControllerTracker>();
     std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
 
-    m_session = std::make_shared<core::OpenXRSession>("ControllerSe3TrackerPlugin", make_required_extensions(trackers));
-    const auto handles = m_session->get_handles();
-
-    m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
-    m_pusher = std::make_unique<core::SchemaPusher>(handles, make_pusher_config(collection_id));
+    auto openxr_session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "ControllerSe3TrackerPlugin", core::PluginSessionRequirements{ .schema_push = true }, std::move(trackers));
+    m_deviceio_session = openxr_session->create_deviceio_session();
+    m_plugin_session = std::move(openxr_session);
+    m_pusher = std::make_unique<core::SchemaPusher>(
+        m_plugin_session->create_schema_push_channel(make_pusher_config(collection_id)));
 
     std::cout << "ControllerSe3TrackerPlugin: republishing " << (m_use_left_hand ? "left" : "right")
               << " controller grip pose on collection '" << collection_id << "'" << std::endl;

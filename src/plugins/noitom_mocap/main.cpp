@@ -3,14 +3,18 @@
 
 #include "noitom_mocap_plugin.hpp"
 
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 
 using namespace plugins::noitom_mocap;
 
@@ -142,7 +146,9 @@ try
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    NoitomMocapPlugin plugin(config);
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "NoitomMocapPlugin", core::PluginSessionRequirements{ .schema_push = true });
+    NoitomMocapPlugin plugin(std::move(config), std::move(session));
 
     const auto frame_duration = std::chrono::nanoseconds(static_cast<int64_t>(1000000000.0 / rate_hz));
     const auto program_start = std::chrono::steady_clock::now();

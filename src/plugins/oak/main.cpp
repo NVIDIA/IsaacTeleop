@@ -4,13 +4,17 @@
 #include "core/frame_sink.hpp"
 #include "core/oak_camera.hpp"
 
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 
 using namespace plugins::oak;
 
@@ -202,7 +206,13 @@ try
     std::cout << "OAK Camera Plugin Starting" << std::endl;
     std::cout << "============================================================" << std::endl;
 
-    OakCamera camera(camera_config, stream_configs, create_frame_sink(stream_configs, collection_prefix, mcap_filename));
+    core::PluginSessionHandle session;
+    if (!collection_prefix.empty())
+        session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+            "OakCameraPlugin", core::PluginSessionRequirements{ .schema_push = true });
+
+    OakCamera camera(camera_config, stream_configs,
+                     create_frame_sink(stream_configs, collection_prefix, mcap_filename, std::move(session)));
 
     std::cout << "------------------------------------------------------------" << std::endl;
     std::cout << "Running capture loop. Press Ctrl+C to stop." << std::endl;

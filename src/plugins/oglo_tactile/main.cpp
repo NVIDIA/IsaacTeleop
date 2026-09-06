@@ -3,11 +3,15 @@
 
 #include "oglo_tactile_plugin.hpp"
 
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <atomic>
 #include <csignal>
 #include <cstddef>
 #include <iostream>
+#include <memory>
 #include <string>
+#include <utility>
 
 using namespace plugins::oglo_tactile;
 
@@ -120,7 +124,9 @@ try
               << "OGLO Tactile Glove Plugin (" << to_string(opts.side) << ")\n"
               << "============================================================" << std::endl;
 
-    OgloTactilePlugin plugin(std::move(opts));
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "OgloTactilePlugin", core::PluginSessionRequirements{ .schema_push = true });
+    OgloTactilePlugin plugin(std::move(opts), std::move(session));
     plugin.run(g_stop);
 
     return 0;

@@ -1,4 +1,5 @@
 std::unique_ptr<@IFACE@> LiveDeviceIOFactory::create_@NAME@_tracker_impl(const @CLASS@* tracker)
 {
-    return std::make_unique<@LIVE_IMPL@>(handles_, tracker);
+    return std::make_unique<@LIVE_IMPL@>(
+        make_openxr_schema_push_channel(handles_, make_schema_push_config(tracker)));
 }

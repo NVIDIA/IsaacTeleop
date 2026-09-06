@@ -21,6 +21,7 @@
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
+#include <pusherio/openxr_schema_push_channel.hpp>
 
 #include <cassert>
 #include <optional>
@@ -54,6 +55,15 @@ bool try_add_extensions(const ITracker& tracker, std::set<std::string>& out)
     for (const auto& ext : ImplT::required_extensions())
         out.insert(ext);
     return true;
+}
+
+template <typename TrackerT>
+SchemaPusherConfig make_schema_push_config(const TrackerT* tracker)
+{
+    return SchemaPusherConfig{ .collection_id = tracker->collection_id(),
+                               .max_flatbuffer_size = tracker->max_payload_size(),
+                               .tensor_identifier = tracker->tensor_identifier(),
+                               .localized_name = tracker->tensor_identifier() };
 }
 
 std::unique_ptr<ITrackerImpl> try_create_head_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
@@ -455,7 +465,8 @@ std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_trac
 
 std::unique_ptr<ITensorPushTrackerImpl> LiveDeviceIOFactory::create_tensor_push_tracker_impl(const TensorPushTracker* tracker)
 {
-    return std::make_unique<LiveTensorPushTrackerImpl>(handles_, tracker);
+    return std::make_unique<LiveTensorPushTrackerImpl>(
+        make_openxr_schema_push_channel(handles_, make_schema_push_config(tracker)));
 }
 
 std::unique_ptr<IHapticCommandReaderTrackerImpl> LiveDeviceIOFactory::create_haptic_command_reader_tracker_impl(

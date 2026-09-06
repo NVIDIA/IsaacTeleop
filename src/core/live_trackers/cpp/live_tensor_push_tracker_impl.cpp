@@ -5,26 +5,13 @@
 
 #include <oxr_utils/os_time.hpp>
 
+#include <utility>
+
 namespace core
 {
 
-namespace
-{
-
-SchemaPusherConfig make_tensor_push_config(const TensorPushTracker* tracker)
-{
-    SchemaPusherConfig cfg;
-    cfg.collection_id = tracker->collection_id();
-    cfg.max_flatbuffer_size = tracker->max_payload_size();
-    cfg.tensor_identifier = tracker->tensor_identifier();
-    cfg.localized_name = tracker->tensor_identifier();
-    return cfg;
-}
-
-} // namespace
-
-LiveTensorPushTrackerImpl::LiveTensorPushTrackerImpl(const OpenXRSessionHandles& handles, const TensorPushTracker* tracker)
-    : pusher_(handles, make_tensor_push_config(tracker))
+LiveTensorPushTrackerImpl::LiveTensorPushTrackerImpl(std::unique_ptr<ISchemaPushChannel> channel)
+    : pusher_(std::move(channel))
 {
 }
 

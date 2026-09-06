@@ -10,10 +10,10 @@ add_executable(controller_se3_tracker_plugin
 )
 
 target_link_libraries(controller_se3_tracker_plugin PRIVATE
+    Teleop::plugin_utils
     deviceio::deviceio_session
     deviceio::deviceio_trackers
     isaacteleop_schema
-    oxr::oxr_core
     pusherio::pusherio
 )
 

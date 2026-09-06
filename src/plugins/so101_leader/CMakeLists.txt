@@ -8,8 +8,8 @@ add_executable(so101_leader_plugin
 )
 
 target_link_libraries(so101_leader_plugin PRIVATE
+    Teleop::plugin_utils
     pusherio::pusherio
-    oxr::oxr_core
     isaacteleop_schema
 )
 

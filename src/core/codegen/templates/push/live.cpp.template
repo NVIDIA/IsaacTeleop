@@ -7,23 +7,12 @@
 
 #include <span>
 #include <stdexcept>
+#include <utility>
 
 namespace core
 {
-namespace
-{
-SchemaPusherConfig make_@NAME@_push_config(const @CLASS@* tracker)
-{
-    SchemaPusherConfig cfg;
-    cfg.collection_id = tracker->collection_id();
-    cfg.max_flatbuffer_size = tracker->max_payload_size();
-    cfg.tensor_identifier = tracker->tensor_identifier();
-    cfg.localized_name = tracker->tensor_identifier();
-    return cfg;
-}
-} // namespace
-@LIVE_IMPL@::@LIVE_IMPL@(const OpenXRSessionHandles& handles, const @CLASS@* tracker)
-    : pusher_(handles, make_@NAME@_push_config(tracker))
+@LIVE_IMPL@::@LIVE_IMPL@(std::unique_ptr<ISchemaPushChannel> channel)
+    : pusher_(std::move(channel))
 {
     // No-op: members set in the initializer list.
 }

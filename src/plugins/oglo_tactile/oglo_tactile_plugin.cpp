@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -21,8 +22,12 @@ constexpr int64_t kNsPerUs = 1000;
 constexpr uint64_t kDeviceUsWrap = (1ull << 32); // device_time_us is uint32
 } // namespace
 
-OgloTactilePlugin::OgloTactilePlugin(Options options) : m_opts(std::move(options))
+OgloTactilePlugin::OgloTactilePlugin(Options options, core::PluginSessionHandle session)
+    : m_opts(std::move(options)), m_session(std::move(session))
 {
+    if (!m_session)
+        throw std::invalid_argument("OgloTactilePlugin requires a plugin session");
+
     m_ble = make_ble_client(m_opts.device_name_override);
     m_ble->on_state_change([this](bool connected) { m_connected.store(connected, std::memory_order_relaxed); });
 }
@@ -68,7 +73,7 @@ void OgloTactilePlugin::connect_and_subscribe()
     // The sink is created once (first connect); reconnects reuse it so the
     // OpenXR collection stays continuous across drops.
     if (!m_sink)
-        m_sink = create_glove_sink(m_opts.side, m_opts.collection_prefix);
+        m_sink = create_glove_sink(m_opts.side, m_opts.collection_prefix, m_session);
 
     m_ble->subscribe([this](const uint8_t* data, std::size_t len) { on_notify(data, len); });
     m_last_notify_ns.store(core::os_monotonic_now_ns(), std::memory_order_relaxed);

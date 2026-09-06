@@ -3,11 +3,15 @@
 
 #include "generic_3axis_pedal_plugin.hpp"
 
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <chrono>
 #include <cstddef>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 
 using namespace plugins::generic_3axis_pedal;
 
@@ -25,7 +29,9 @@ try
 
     std::cout << "Generic 3-Axis Pedal (device: " << device_path << ", collection: " << collection_id << ")" << std::endl;
 
-    Generic3AxisPedalPlugin plugin(device_path, collection_id);
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "Generic3AxisPedalPlugin", core::PluginSessionRequirements{ .schema_push = true });
+    Generic3AxisPedalPlugin plugin(device_path, collection_id, std::move(session));
 
     // Push data at 90 Hz
     // TODO: Make the device push rate configurable

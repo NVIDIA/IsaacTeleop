@@ -4,26 +4,26 @@
 #pragma once
 
 #include <deviceio_base/tensor_push_tracker_base.hpp>
-#include <deviceio_trackers/tensor_push_tracker.hpp>
-#include <oxr_utils/oxr_session_handles.hpp>
+#include <pusherio/openxr_schema_push_channel.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace core
 {
 
-// Wraps core::SchemaPusher; owns the XR_NVX1_push_tensor handle.
+// Wraps core::SchemaPusher and owns its transport channel.
 class LiveTensorPushTrackerImpl : public ITensorPushTrackerImpl
 {
 public:
     static std::vector<std::string> required_extensions()
     {
-        return SchemaPusher::get_required_extensions();
+        return OpenXRSchemaPushChannel::get_required_extensions();
     }
 
-    LiveTensorPushTrackerImpl(const OpenXRSessionHandles& handles, const TensorPushTracker* tracker);
+    explicit LiveTensorPushTrackerImpl(std::unique_ptr<ISchemaPushChannel> channel);
 
     LiveTensorPushTrackerImpl(const LiveTensorPushTrackerImpl&) = delete;
     LiveTensorPushTrackerImpl& operator=(const LiveTensorPushTrackerImpl&) = delete;

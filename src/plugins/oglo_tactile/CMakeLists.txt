@@ -56,8 +56,8 @@ add_executable(oglo_tactile_plugin
 target_include_directories(oglo_tactile_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(oglo_tactile_plugin PRIVATE
+    Teleop::plugin_utils
     pusherio::pusherio
-    oxr::oxr_core
     isaacteleop_schema
     nlohmann_json::nlohmann_json
     PkgConfig::DBUS
