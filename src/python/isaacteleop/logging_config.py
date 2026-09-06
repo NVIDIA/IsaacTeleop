@@ -28,7 +28,22 @@ DEFAULT_LOG_DIR = Path("~/.isaacteleop/logs").expanduser()
 _FILE_MAX_BYTES = 10 * 1024 * 1024  # 10 MiB
 _FILE_BACKUP_COUNT = 5
 
+# Below DEBUG (10). Default level for loggers wrapping third-party/vendor
+# output, so vendor chatter is silent unless a handler/logger explicitly
+# lowers its threshold to TRACE.
+TRACE = 5
+logging.addLevelName(TRACE, "TRACE")
+
+
+def _trace(self: logging.Logger, msg: object, *args: object, **kwargs: object) -> None:
+    if self.isEnabledFor(TRACE):
+        self._log(TRACE, msg, args, **kwargs)
+
+
+logging.Logger.trace = _trace
+
 _LEVEL_NAMES = {
+    "trace": TRACE,
     "debug": logging.DEBUG,
     "info": logging.INFO,
     "warning": logging.WARNING,
@@ -83,7 +98,7 @@ def _ensure_console_handler() -> logging.Handler:
         handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
         handler.setLevel(logging.INFO)
         root = logging.getLogger(ROOT_LOGGER_NAME)
-        root.setLevel(logging.DEBUG)  # handlers filter; the logger itself must stay permissive
+        root.setLevel(TRACE)  # handlers filter; the logger itself must stay maximally permissive
         root.addHandler(handler)
         _console_handler = handler
         return _console_handler
