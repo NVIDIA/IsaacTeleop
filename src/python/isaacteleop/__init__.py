@@ -20,6 +20,7 @@ from . import (
     deviceio,
     deviceio_session,
     deviceio_trackers,
+    log_bridge,
     logging_config,
     oxr,
     plugin_manager,
@@ -28,6 +29,7 @@ from . import (
 )
 
 __all__ = [
+    "log_bridge",
     "logging_config",
     "deviceio_trackers",
     "deviceio_session",
