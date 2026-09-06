@@ -7,7 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 Use the Haptikos Exoskeletons with the Isaac Teleop framework. Currently only `Linux` is supported. Tested on `Meta Quest` headsets. Other headsets with controller may work as well.
 
 ## Overview
-Reads the controllers' position and the hand tracking data from the Haptikos Core App, combines them and pushes them into the OpenXR runtime. To inject the hand tracking data, the controllers, the Haptikos Core App and the exoskeletons need to be active.
+Reads controller poses through an `IPluginPullChannel`, combines them with hand
+data from the Haptikos Core App, and publishes the result through
+`HandTrackingPusher`. The executable currently selects `OpenXRPluginSession`;
+the plugin implementation depends only on `IPluginSession`. The controllers,
+Haptikos Core App, and exoskeletons must all be active.
 
 ## Quick Start
 

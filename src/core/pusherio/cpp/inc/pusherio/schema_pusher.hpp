@@ -35,7 +35,7 @@ struct SchemaPusherConfig
     //! Human-readable description for debugging and runtime display.
     std::string localized_name;
 
-    //! OpenXR application name. If empty, defaults to "Pusher" or "Reader".
+    //! Optional producer label for backend diagnostics.
     std::string app_name = "";
 };
 

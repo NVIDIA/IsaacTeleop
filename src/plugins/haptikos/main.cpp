@@ -3,12 +3,18 @@
 
 #include "haptikos_hands_plugin.hpp"
 
+#include <deviceio_trackers/controller_tracker.hpp>
+#include <deviceio_trackers/hand_tracker.hpp>
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <atomic>
 #include <csignal>
 #include <cstring>
 #include <iostream>
 #include <memory>
 #include <thread>
+#include <utility>
+#include <vector>
 
 using namespace plugins::haptikos;
 
@@ -47,7 +53,13 @@ try
     std::cout << "Haptikos Hands Plugin" << std::endl;
     std::cout << "Plugin Root ID: " << plugin_root_id << std::endl;
 
-    auto plugin = std::make_unique<HaptikosHandsPlugin>(plugin_root_id);
+    auto controller_tracker = std::make_shared<core::ControllerTracker>();
+    auto hand_tracker = std::make_shared<core::HandTracker>();
+    std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker, std::move(hand_tracker) };
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "HaptikosHands", core::PluginSessionRequirements{ .hand_tracking_push = true }, std::move(trackers));
+    auto plugin =
+        std::make_unique<HaptikosHandsPlugin>(plugin_root_id, std::move(controller_tracker), std::move(session));
 
     std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
     while (!g_stop_requested.load(std::memory_order_relaxed))

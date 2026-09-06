@@ -3,16 +3,15 @@
 
 #pragma once
 
-#include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <deviceio_trackers/hand_tracker.hpp>
 #include <openxr/openxr.h>
-#include <oxr/oxr_session.hpp>
-#include <oxr_utils/oxr_time.hpp>
-#include <plugin_utils/hand_injector.hpp>
+#include <pusherio/hand_tracking_pusher.hpp>
+#include <pusherio/plugin_session.hpp>
 
 #include <Client.hpp>
 #include <atomic>
+#include <memory>
+#include <string>
 #include <thread>
 
 
@@ -24,7 +23,9 @@ class HaptikosHandsPlugin
 {
 
 public:
-    HaptikosHandsPlugin(const std::string& plugin_root_id) noexcept(false);
+    HaptikosHandsPlugin(const std::string& plugin_root_id,
+                        std::shared_ptr<core::ControllerTracker> controller_tracker,
+                        core::PluginSessionHandle plugin_session) noexcept(false);
     ~HaptikosHandsPlugin();
 
     HaptikosHandsPlugin(const HaptikosHandsPlugin&) = delete;
@@ -35,15 +36,11 @@ public:
 private:
     void worker_thread();
 
-    // OpenXR State
-    std::shared_ptr<core::OpenXRSession> m_session;
-    std::unique_ptr<plugin_utils::HandInjector> m_left_injector;
-    std::unique_ptr<plugin_utils::HandInjector> m_right_injector;
-    std::optional<core::XrTimeConverter> m_time_converter;
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
-    std::shared_ptr<core::HandTracker> m_hand_tracker;
-    std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
-
+    core::PluginSessionHandle m_plugin_session;
+    std::unique_ptr<core::IPluginPullChannel> m_pull_channel;
+    std::unique_ptr<core::HandTrackingPusher> m_left_pusher;
+    std::unique_ptr<core::HandTrackingPusher> m_right_pusher;
 
     std::string m_root_id;
     Haptikos::Client m_client;

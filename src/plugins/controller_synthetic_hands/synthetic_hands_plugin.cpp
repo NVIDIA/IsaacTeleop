@@ -3,6 +3,7 @@
 
 #include "synthetic_hands_plugin.hpp"
 
+#include <oxr_utils/os_time.hpp>
 #include <oxr_utils/pose_conversions.hpp>
 
 #include <algorithm>
@@ -10,36 +11,36 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <stdexcept>
+#include <utility>
 
 namespace plugins
 {
 namespace controller_synthetic_hands
 {
 
-SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false)
-    : m_root_id(plugin_root_id)
+SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id,
+                                           std::shared_ptr<core::ControllerTracker> controller_tracker,
+                                           core::PluginSessionHandle plugin_session) noexcept(false)
+    : m_controller_tracker(std::move(controller_tracker)),
+      m_plugin_session(std::move(plugin_session)),
+      m_root_id(plugin_root_id)
 {
     std::cout << "Initializing SyntheticHandsPlugin with root: " << m_root_id << std::endl;
 
-    // Create ControllerTracker first to get required extensions
-    m_controller_tracker = std::make_shared<core::ControllerTracker>();
-    std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
+    if (!m_controller_tracker || !m_plugin_session)
+    {
+        throw std::invalid_argument("SyntheticHandsPlugin requires a controller tracker and plugin session");
+    }
+    m_pull_channel = m_plugin_session->create_pull_channel();
+    if (!m_pull_channel)
+    {
+        throw std::runtime_error("The plugin session could not create a pull channel");
+    }
 
-    // Get required extensions from trackers
-    auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
-    extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
-
-    // Initialize session - constructor automatically begins the session
-    m_session = std::make_shared<core::OpenXRSession>("ControllerSyntheticHands", extensions);
-    const auto handles = m_session->get_handles();
-
-    // Create DeviceIOSession with trackers
-    m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
-
-    // Injectors are created lazily in worker_thread once a controller is first seen,
+    // Pushers are created lazily in worker_thread once a controller is first seen,
     // and destroyed when the controller disappears. This ensures isActive reflects
     // whether a controller is actually present.
-    m_time_converter.emplace(handles);
 
     // Start worker thread
     m_running = true;
@@ -73,31 +74,28 @@ void SyntheticHandsPlugin::worker_thread()
         core::Serialized<core::ControllerSnapshot> right_tracked;
         try
         {
-            // Update DeviceIOSession (handles time and tracker updates)
-            m_deviceio_session->update();
+            m_pull_channel->update();
 
             // Read tracker data in the same exception boundary as update.
-            left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
-            right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
+            left_tracked = m_controller_tracker->get_left_controller(*m_pull_channel);
+            right_tracked = m_controller_tracker->get_right_controller(*m_pull_channel);
         }
         catch (const std::exception& e)
         {
             std::cerr << "SyntheticHandsPlugin update error: " << e.what() << std::endl;
-            m_left_injector.reset();
-            m_right_injector.reset();
+            m_left_pusher.reset();
+            m_right_pusher.reset();
             std::exit(1);
         }
         catch (...)
         {
             std::cerr << "SyntheticHandsPlugin update error: unknown exception" << std::endl;
-            m_left_injector.reset();
-            m_right_injector.reset();
+            m_left_pusher.reset();
+            m_right_pusher.reset();
             std::exit(1);
         }
 
-        // Use the OpenXR runtime clock for injection time so it aligns with the
-        // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
-        XrTime time = m_time_converter->os_monotonic_now();
+        const int64_t sample_time_ns = core::os_monotonic_now_ns();
 
         // Get target curl values from trigger inputs
         float left_target = 0.0f;
@@ -130,7 +128,7 @@ void SyntheticHandsPlugin::worker_thread()
 
         // This plugin treats controller presence as a prerequisite for hand injection:
         // if the controller is gone, the synthetic hand is deactivated by resetting the
-        // injector. A different plugin could choose a different policy — for example, a
+        // pusher. A different plugin could choose a different policy — for example, a
         // plugin with independent joint data (e.g. a glove) could keep pushing joints
         // even when no controller pose is available.
         if (m_left_enabled && left_tracked)
@@ -142,21 +140,20 @@ void SyntheticHandsPlugin::worker_thread()
 
             if (grip_valid && aim_valid)
             {
-                if (!m_left_injector)
+                if (!m_left_pusher)
                 {
-                    const auto handles = m_session->get_handles();
-                    m_left_injector = std::make_unique<plugin_utils::HandInjector>(
-                        handles.instance, handles.session, XR_HAND_LEFT_EXT, handles.space);
+                    m_left_pusher = std::make_unique<core::HandTrackingPusher>(
+                        m_plugin_session->create_hand_tracking_push_channel(XR_HAND_LEFT_EXT));
                 }
                 m_hand_gen.generate(left_joints, wrist, true, left_curl_current);
-                m_left_injector->push(left_joints, time);
+                m_left_pusher->push(left_joints, sample_time_ns);
             }
         }
         else
         {
-            // Controller not present — destroy the injector so the runtime sees
+            // Controller not present — destroy the pusher so the receiver sees
             // isActive=false rather than a frozen hand pose.
-            m_left_injector.reset();
+            m_left_pusher.reset();
         }
 
         if (m_right_enabled && right_tracked)
@@ -168,21 +165,20 @@ void SyntheticHandsPlugin::worker_thread()
 
             if (grip_valid && aim_valid)
             {
-                if (!m_right_injector)
+                if (!m_right_pusher)
                 {
-                    const auto handles = m_session->get_handles();
-                    m_right_injector = std::make_unique<plugin_utils::HandInjector>(
-                        handles.instance, handles.session, XR_HAND_RIGHT_EXT, handles.space);
+                    m_right_pusher = std::make_unique<core::HandTrackingPusher>(
+                        m_plugin_session->create_hand_tracking_push_channel(XR_HAND_RIGHT_EXT));
                 }
                 m_hand_gen.generate(right_joints, wrist, false, right_curl_current);
-                m_right_injector->push(right_joints, time);
+                m_right_pusher->push(right_joints, sample_time_ns);
             }
         }
         else
         {
-            // Controller not present — destroy the injector so the runtime sees
+            // Controller not present — destroy the pusher so the receiver sees
             // isActive=false rather than a frozen hand pose.
-            m_right_injector.reset();
+            m_right_pusher.reset();
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(16));

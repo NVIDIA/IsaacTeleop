@@ -5,8 +5,10 @@ SPDX-License-Identifier: Apache-2.0
 
 # Wuji Glove → Isaac Teleop
 
-Drive a **Wuji dexterous hand** from a **Wuji data glove** through the Isaac
-Teleop / CloudXR (OpenXR) stack.
+Drive a **Wuji dexterous hand** from a **Wuji data glove** through an Isaac
+Teleop plugin session. The executable currently selects the local OpenXR
+adapter, while the plugin implementation uses transport-neutral pull and hand
+tracking channels.
 
 Full documentation — components, prerequisites, installation, running, and
 troubleshooting — lives in the docs tree:

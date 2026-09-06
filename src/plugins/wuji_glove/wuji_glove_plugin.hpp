@@ -3,12 +3,9 @@
 
 #pragma once
 
-#include <deviceio_session/deviceio_session.hpp>
 #include <openxr/openxr.h>
-#include <oxr/oxr_session.hpp>
-#include <oxr_utils/oxr_time.hpp>
-#include <plugin_utils/hand_injector.hpp>
-#include <plugin_utils/wrist_pose_source.hpp>
+#include <pusherio/hand_tracking_pusher.hpp>
+#include <pusherio/plugin_session.hpp>
 
 extern "C"
 {
@@ -30,16 +27,15 @@ namespace plugins
 namespace wuji_glove
 {
 
-// Wuji glove -> OpenXR hand-tracking device plugin.
+// Wuji glove -> session-backed hand-tracking plugin.
 //
 // Reads the glove's 21-joint MediaPipe skeleton via the wuji_sdk C API
 // (callback-based subscription), converts each frame to a 26-joint
-// XrHandJointLocationEXT set, and injects it into the OpenXR hand layer via
-// plugin_utils::HandInjector. The existing core::HandTracker consumes it.
+// XrHandJointLocationEXT set, and publishes it through the plugin session.
 class WujiGlovePlugin
 {
 public:
-    explicit WujiGlovePlugin(const std::string& plugin_root_id) noexcept(false);
+    WujiGlovePlugin(const std::string& plugin_root_id, core::PluginSessionHandle plugin_session) noexcept(false);
     ~WujiGlovePlugin();
 
     bool is_running() const noexcept;
@@ -95,20 +91,17 @@ private:
     void disconnect_glove(GloveConnection& connection);
     void discover_gloves();
 
-    // Push (or reset) one hand's injector based on the latest HandFrame.
-    void pump_hand(std::unique_ptr<plugin_utils::HandInjector>& injector,
+    // Push (or reset) one hand's stream based on the latest HandFrame.
+    void pump_hand(std::unique_ptr<core::HandTrackingPusher>& pusher,
                    XrHandEXT hand,
                    const HandFrame& frame,
-                   XrTime time);
+                   int64_t sample_time_ns);
 
-    std::shared_ptr<core::OpenXRSession> m_session;
-    std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
-    std::unique_ptr<plugin_utils::HandInjector> m_left_injector;
-    std::unique_ptr<plugin_utils::HandInjector> m_right_injector;
-    std::optional<core::XrTimeConverter> m_time_converter;
-    // Declared after m_session/m_deviceio_session: destroyed first, while the
-    // XR handles and the (non-owned) DeviceIOSession it references are alive.
-    std::unique_ptr<plugin_utils::WristPoseSource> m_wrist_source;
+    core::PluginSessionHandle m_plugin_session;
+    std::unique_ptr<core::IPluginPullChannel> m_pull_channel;
+    std::unique_ptr<core::IWristTrackingSource> m_wrist_source;
+    std::unique_ptr<core::HandTrackingPusher> m_left_pusher;
+    std::unique_ptr<core::HandTrackingPusher> m_right_pusher;
 
     // Owned exclusively by m_connection_thread until it is joined.
     std::vector<std::unique_ptr<GloveConnection>> m_connections;

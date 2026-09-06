@@ -16,6 +16,7 @@ struct CapturedHandState
 {
     const XrHandJointLocationEXT* joints{ nullptr };
     int64_t sample_time_ns{ 0 };
+    bool channel_closed{ false };
 };
 
 class CapturingHandChannel final : public core::IHandTrackingPushChannel
@@ -23,6 +24,11 @@ class CapturingHandChannel final : public core::IHandTrackingPushChannel
 public:
     explicit CapturingHandChannel(std::shared_ptr<CapturedHandState> state) : state_(std::move(state))
     {
+    }
+
+    ~CapturingHandChannel() override
+    {
+        state_->channel_closed = true;
     }
 
     void push(const XrHandJointLocationEXT* joint_locations, int64_t sample_time_local_common_clock_ns) override
@@ -56,4 +62,14 @@ TEST_CASE("HandTrackingPusher rejects an invalid channel or sample", "[pusherio]
     auto state = std::make_shared<CapturedHandState>();
     core::HandTrackingPusher pusher(std::make_unique<CapturingHandChannel>(state));
     REQUIRE_THROWS_AS(pusher.push(nullptr, 1234), std::invalid_argument);
+}
+
+TEST_CASE("HandTrackingPusher closes its logical hand stream on destruction", "[pusherio][unit]")
+{
+    auto state = std::make_shared<CapturedHandState>();
+    {
+        core::HandTrackingPusher pusher(std::make_unique<CapturingHandChannel>(state));
+        REQUIRE_FALSE(state->channel_closed);
+    }
+    REQUIRE(state->channel_closed);
 }

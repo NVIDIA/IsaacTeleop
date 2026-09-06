@@ -5,225 +5,88 @@ SPDX-License-Identifier: Apache-2.0
 
 # Controller Synthetic Hands
 
-Generates hand tracking data from controller poses and injects it into the OpenXR runtime.
+Generates hand tracking data from controller poses and publishes it through an
+Isaac Teleop plugin session.
 
 ## Overview
 
-Reads controller grip and aim poses, generates realistic hand joint configurations, and pushes the data to the runtime via push devices.
+The plugin reads controller grip and aim poses through an
+`IPluginPullChannel`, generates a 26-joint hand pose, and publishes each active
+hand through a `HandTrackingPusher`.
+
+The executable is the composition root. It currently constructs an
+`OpenXRPluginSession`, but the `SyntheticHandsPlugin` implementation depends
+only on `IPluginSession` and can use another session adapter.
+
+```text
+ControllerTracker
+      |
+IPluginPullChannel --update()--> controller snapshot
+      |
+HandGenerator
+      |
+HandTrackingPusher --> IHandTrackingPushChannel --> session backend
+```
+
+The per-hand pusher is created when its controller becomes active and destroyed
+when the controller disappears. Closing the channel marks that hand inactive
+instead of leaving a frozen pose.
 
 ## Quick Start
 
 ### Build
 
 ```bash
-cd build
-cmake ..
-make controller_synthetic_hands
+cmake -S . -B build
+cmake --build build --target controller_synthetic_hands
 ```
 
 ### Run
 
 ```bash
-./controller_synthetic_hands
+./build/src/plugins/controller_synthetic_hands/controller_synthetic_hands
 ```
 
 Press Ctrl+C to exit.
 
-## Architecture
-
-### Components
-
-Four focused components:
-
-**session** (`oxr/oxr_session.hpp`) - OpenXR initialization and session management (from core)
-```cpp
-class OpenXRSession {
-    OpenXRSession(const std::string& app_name, const std::vector<std::string>& extensions);
-    OpenXRSessionHandles get_handles() const;
-};
-```
-
-**controllers** (`controllers.hpp/cpp`) - Controller input tracking
-```cpp
-class Controllers {
-    Controllers(XrInstance, XrSession, XrSpace);
-    void update(XrTime time);
-    const ControllerPose& left() const;
-    const ControllerPose& right() const;
-};
-```
-
-**hand_generator** (`hand_generator.hpp/cpp`) - Hand joint generation
-```cpp
-class HandGenerator {
-    void generate(XrHandJointLocationEXT* joints,
-                  const XrPosef& wrist_pose,
-                  bool is_left_hand,
-                  float curl = 0.0f);
-};
-```
-
-**hand_injector** (`hand_injector.hpp/cpp`) - Push device data injection
-```cpp
-class HandInjector {
-    HandInjector(XrInstance, XrSession, XrHandEXT hand, XrSpace base_space);
-    void push(const XrHandJointLocationEXT*, XrTime);
-    // Destructor automatically signals isActive=false before releasing the push device.
-};
-```
-
-### Data Flow
-
-```
-Controllers → Wrist Pose → Hand Generator → Hand Injector → OpenXR Runtime
-```
-
-## Implementation
-
-### Main Loop
+## Plugin-facing setup
 
 ```cpp
-#include <deviceio/controller_tracker.hpp>
-#include <deviceio/deviceio_session.hpp>
-#include <oxr_utils/pose_conversions.hpp>
-
-// Create controller tracker and get required extensions
 auto controller_tracker = std::make_shared<core::ControllerTracker>();
-std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
-auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
-extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
+std::vector<std::shared_ptr<core::ITracker>> trackers = {controller_tracker};
 
-// Create session with required extensions
-auto session = std::make_shared<core::OpenXRSession>("MyApp", extensions);
-auto h = session->get_handles();
+core::PluginSessionHandle session =
+    std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "ControllerSyntheticHands",
+        core::PluginSessionRequirements{.hand_tracking_push = true},
+        std::move(trackers));
 
-// Create DeviceIOSession to manage trackers
-auto deviceio_session = core::DeviceIOSession::run(trackers, h);
+SyntheticHandsPlugin plugin(
+    plugin_root_id, std::move(controller_tracker), std::move(session));
+```
 
-HandGenerator hands;
-HandInjector left_injector(h.instance, h.session, XR_HAND_LEFT_EXT, h.space);
-HandInjector right_injector(h.instance, h.session, XR_HAND_RIGHT_EXT, h.space);
+Only the composition root names the concrete adapter. Inside the plugin, one
+tick is:
 
-while (running) {
-    deviceio_session->update();
+```cpp
+pull_channel->update();
+const auto& controller = controller_tracker->get_left_controller(*pull_channel);
 
-    const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
-    if (left_tracked) {
-        bool grip_valid, aim_valid;
-        oxr_utils::get_grip_pose(*left_tracked, grip_valid);
-        XrPosef wrist = oxr_utils::get_aim_pose(*left_tracked, aim_valid);
-
-        if (grip_valid && aim_valid) {
-            float trigger = left_tracked->inputs().trigger_value();
-            hands.generate(joints, wrist, true, trigger);
-            left_injector.push(joints, time);
-        }
-    }
+if (controller) {
+    hand_generator.generate(joints, wrist_pose, true, trigger_value);
+    left_pusher->push(joints, sample_time_local_common_clock_ns);
 }
-// left_injector and right_injector signal isActive=false on destruction.
 ```
 
-### Using Individual Components
+## Hand generation
 
-#### Session Initialization
+Joint offsets are defined in meters relative to the wrist and transformed by
+the wrist pose. The left-hand coordinate conventions are:
 
-```cpp
-#include <oxr/oxr_session.hpp>
+- X: thumb side to pinky side
+- Y: back of hand to palm
+- Z: fingers to wrist
 
-auto session = std::make_shared<core::OpenXRSession>("MyApp", {"XR_EXT_hand_tracking"});
-auto handles = session->get_handles();
-// handles.instance, handles.session, handles.space are available
-```
-
-#### Controller Tracking
-
-```cpp
-#include <deviceio/controller_tracker.hpp>
-#include <deviceio/deviceio_session.hpp>
-#include <oxr_utils/pose_conversions.hpp>
-
-auto controller_tracker = std::make_shared<core::ControllerTracker>();
-std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
-auto deviceio_session = core::DeviceIOSession::run(trackers, handles);
-
-deviceio_session->update();
-const auto& left_tracked = controller_tracker->get_left_controller(*deviceio_session);
-const auto& right_tracked = controller_tracker->get_right_controller(*deviceio_session);
-// Dereference left_tracked / right_tracked (empty handles when inactive)
-```
-
-#### Hand Generation
-
-```cpp
-#include "hand_generator.hpp"
-
-HandGenerator generator;
-XrHandJointLocationEXT joints[XR_HAND_JOINT_COUNT_EXT];
-generator.generate(joints, wrist_pose, true, curl_value);
-```
-
-#### Hand Injection
-
-```cpp
-#include <plugin_utils/hand_injector.hpp>
-
-HandInjector left_injector(instance, session, XR_HAND_LEFT_EXT, space);
-HandInjector right_injector(instance, session, XR_HAND_RIGHT_EXT, space);
-left_injector.push(joints, timestamp);
-// Destruction automatically signals isActive=false.
-```
-
-## Technical Details
-
-### Hand Joint Generation
-
-Generates 26 joints per hand with anatomically correct positions and orientations. Joint offsets are defined in meters relative to the wrist, then rotated by the wrist orientation.
-
-Coordinate system for left hand:
-- X-axis: positive = thumb side, negative = pinky side
-- Y-axis: positive = back of hand, negative = palm side
-- Z-axis: positive = forward (fingers pointing), negative = toward wrist
-
-Right hand is mirrored on the X-axis.
-
-### Resource Management
-
-All components use RAII - resources acquired in constructor, released in destructor.
-
-### Dependencies
-
-```
-controller_synthetic_hands.cpp
-    ├── oxr_session (from core, standalone)
-    ├── controllers (requires OpenXR handles)
-    ├── hand_generator (standalone)
-    └── hand_injector (requires OpenXR handles)
-```
-
-## Extension Points
-
-### New Input Sources
-
-```cpp
-class HandTrackingInput {
-    HandTrackingInput(XrInstance, XrSession);
-    void update(XrTime);
-    const HandData& left() const;
-};
-```
-
-### Data Recording
-
-```cpp
-class HandDataRecorder {
-    void record(const XrHandJointLocationEXT*, XrTime);
-};
-```
-
-### Gesture Recognition
-
-```cpp
-class GestureRecognizer {
-    Gesture recognize(const XrHandJointLocationEXT*);
-};
-```
+The right hand is mirrored on the X axis. OpenXR value structs describe the
+established joint and pose layout; runtime handles and calls remain in the
+concrete session adapter.

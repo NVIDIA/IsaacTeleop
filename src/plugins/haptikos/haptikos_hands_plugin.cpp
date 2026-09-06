@@ -3,40 +3,43 @@
 
 #include "haptikos_hands_plugin.hpp"
 
+#include <oxr_utils/os_time.hpp>
 #include <oxr_utils/pose_conversions.hpp>
 
 #include <chrono>
+#include <cstdlib>
+#include <iostream>
+#include <stdexcept>
+#include <utility>
 
 namespace plugins
 {
 namespace haptikos
 {
 
-HaptikosHandsPlugin::HaptikosHandsPlugin(const std::string& plugin_root_id) noexcept(false) : m_root_id(plugin_root_id)
+HaptikosHandsPlugin::HaptikosHandsPlugin(const std::string& plugin_root_id,
+                                         std::shared_ptr<core::ControllerTracker> controller_tracker,
+                                         core::PluginSessionHandle plugin_session) noexcept(false)
+    : m_controller_tracker(std::move(controller_tracker)),
+      m_plugin_session(std::move(plugin_session)),
+      m_root_id(plugin_root_id)
 {
     static_assert(XR_HAND_JOINT_COUNT_EXT == HAPTIKOS_NUM_OF_JOINTS, "Unexpected XR Hand Joint number");
     std::cout << "Initializing HaptikosHandsPlugin with root: " << m_root_id << std::endl;
 
-    // Create ControllerTracker first to get required extensions
-    m_controller_tracker = std::make_shared<core::ControllerTracker>();
-    m_hand_tracker = std::make_shared<core::HandTracker>();
-    std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker, m_hand_tracker };
+    if (!m_controller_tracker || !m_plugin_session)
+    {
+        throw std::invalid_argument("HaptikosHandsPlugin requires a controller tracker and plugin session");
+    }
+    m_pull_channel = m_plugin_session->create_pull_channel();
+    if (!m_pull_channel)
+    {
+        throw std::runtime_error("The plugin session could not create a pull channel");
+    }
 
-    // Get required extensions from trackers
-    auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
-    extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
-
-    // Initialize session - constructor automatically begins the session
-    m_session = std::make_shared<core::OpenXRSession>("HaptikosHands", extensions);
-    const auto handles = m_session->get_handles();
-
-    // Create DeviceIOSession with trackers
-    m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
-
-    // Injectors are created lazily in worker_thread once a controller is first seen,
+    // Pushers are created lazily in worker_thread once a controller is first seen,
     // and destroyed when the controller disappears. This ensures isActive reflects
     // whether a controller is actually present.
-    m_time_converter.emplace(handles);
 
     // Start worker thread
     m_running = true;
@@ -68,36 +71,30 @@ void HaptikosHandsPlugin::worker_thread()
         core::Serialized<core::ControllerSnapshot> left_tracked;
         core::Serialized<core::ControllerSnapshot> right_tracked;
 
-        core::Serialized<core::HandPose> left_hand;
-        core::Serialized<core::HandPose> rigth_hand;
-
         try
         {
-            // Update DeviceIOSession (handles time and tracker updates)
-            m_deviceio_session->update();
+            m_pull_channel->update();
 
             // Read tracker data in the same exception boundary as update.
-            left_tracked = m_controller_tracker->get_left_controller(*m_deviceio_session);
-            right_tracked = m_controller_tracker->get_right_controller(*m_deviceio_session);
+            left_tracked = m_controller_tracker->get_left_controller(*m_pull_channel);
+            right_tracked = m_controller_tracker->get_right_controller(*m_pull_channel);
         }
         catch (const std::exception& e)
         {
             std::cerr << "HaptikosHandsPlugin update error: " << e.what() << std::endl;
-            m_left_injector.reset();
-            m_right_injector.reset();
+            m_left_pusher.reset();
+            m_right_pusher.reset();
             std::exit(1);
         }
         catch (...)
         {
             std::cerr << "HaptikosHandsPlugin update error: unknown exception" << std::endl;
-            m_left_injector.reset();
-            m_right_injector.reset();
+            m_left_pusher.reset();
+            m_right_pusher.reset();
             std::exit(1);
         }
 
-        // Use the OpenXR runtime clock for injection time so it aligns with the
-        // runtime's own time domain (XrTime), rather than a raw steady_clock cast.
-        XrTime time = m_time_converter->os_monotonic_now();
+        const int64_t sample_time_ns = core::os_monotonic_now_ns();
 
 
         bool rigth_published = false;
@@ -110,22 +107,21 @@ void HaptikosHandsPlugin::worker_thread()
             if (right_data.IsValid() == 1 && valid_wrist)
             {
                 calculate_hand_pose(right_joints, right_data, rigth_controller);
-                if (!m_right_injector)
+                if (!m_right_pusher)
                 {
-                    const auto handles = m_session->get_handles();
-                    m_right_injector = std::make_unique<plugin_utils::HandInjector>(
-                        handles.instance, handles.session, XR_HAND_RIGHT_EXT, handles.space);
+                    m_right_pusher = std::make_unique<core::HandTrackingPusher>(
+                        m_plugin_session->create_hand_tracking_push_channel(XR_HAND_RIGHT_EXT));
                 }
 
-                m_right_injector->push(right_joints, time);
+                m_right_pusher->push(right_joints, sample_time_ns);
                 rigth_published = true;
             }
         }
 
 
-        if (!rigth_published && m_right_injector)
+        if (!rigth_published && m_right_pusher)
         {
-            m_right_injector.reset();
+            m_right_pusher.reset();
         }
 
 
@@ -140,20 +136,19 @@ void HaptikosHandsPlugin::worker_thread()
             {
                 calculate_hand_pose(left_joints, left_data, left_controller);
 
-                if (!m_left_injector)
+                if (!m_left_pusher)
                 {
-                    const auto handles = m_session->get_handles();
-                    m_left_injector = std::make_unique<plugin_utils::HandInjector>(
-                        handles.instance, handles.session, XR_HAND_LEFT_EXT, handles.space);
+                    m_left_pusher = std::make_unique<core::HandTrackingPusher>(
+                        m_plugin_session->create_hand_tracking_push_channel(XR_HAND_LEFT_EXT));
                 }
-                m_left_injector->push(left_joints, time);
+                m_left_pusher->push(left_joints, sample_time_ns);
                 left_published = true;
             }
         }
 
-        if (!left_published && m_left_injector)
+        if (!left_published && m_left_pusher)
         {
-            m_left_injector.reset();
+            m_left_pusher.reset();
         }
 
         std::this_thread::sleep_until(frame_start + target_frame_duration);
