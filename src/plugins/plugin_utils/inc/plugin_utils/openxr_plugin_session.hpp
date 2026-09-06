@@ -23,7 +23,8 @@ namespace plugin_utils
  * @brief Local plugin session that creates OpenXR-backed operation channels.
  *
  * The adapter owns the OpenXR session. Its owner must destroy every returned
- * pull and push channel before destroying this session.
+ * pull and push channel before destroying this session. OpenXR permits action
+ * sets to be attached only once, so create_pull_channel() may be called once.
  */
 class OpenXRPluginSession final : public core::IPluginSession
 {
@@ -47,6 +48,7 @@ private:
     std::vector<std::shared_ptr<core::ITracker>> trackers_;
     std::shared_ptr<core::ControllerTracker> wrist_controller_tracker_;
     bool native_hand_tracking_enabled_ = false;
+    bool pull_channel_creation_attempted_ = false;
     std::shared_ptr<core::OpenXRSession> session_;
 };
 

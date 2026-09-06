@@ -603,29 +603,38 @@ void WujiGlovePlugin::worker_thread()
         try
         {
             m_pull_channel->update();
+
+            const int64_t sample_time_ns = core::os_monotonic_now_ns();
+
+            HandFrame left_copy;
+            HandFrame right_copy;
+            {
+                std::lock_guard<std::mutex> lock(m_frame_mutex);
+                left_copy = m_left;
+                right_copy = m_right;
+            }
+
+            pump_hand(m_left_pusher, XR_HAND_LEFT_EXT, left_copy, sample_time_ns);
+            pump_hand(m_right_pusher, XR_HAND_RIGHT_EXT, right_copy, sample_time_ns);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "WujiGlovePlugin update error: " << e.what() << std::endl;
+            std::cerr << "WujiGlovePlugin worker error: " << e.what() << std::endl;
             m_left_pusher.reset();
             m_right_pusher.reset();
             m_failed.store(true, std::memory_order_release);
             m_running.store(false, std::memory_order_release);
             return;
         }
-
-        const int64_t sample_time_ns = core::os_monotonic_now_ns();
-
-        HandFrame left_copy;
-        HandFrame right_copy;
+        catch (...)
         {
-            std::lock_guard<std::mutex> lock(m_frame_mutex);
-            left_copy = m_left;
-            right_copy = m_right;
+            std::cerr << "WujiGlovePlugin worker error: unknown exception" << std::endl;
+            m_left_pusher.reset();
+            m_right_pusher.reset();
+            m_failed.store(true, std::memory_order_release);
+            m_running.store(false, std::memory_order_release);
+            return;
         }
-
-        pump_hand(m_left_pusher, XR_HAND_LEFT_EXT, left_copy, sample_time_ns);
-        pump_hand(m_right_pusher, XR_HAND_RIGHT_EXT, right_copy, sample_time_ns);
 
         std::this_thread::sleep_for(kFramePeriod);
     }

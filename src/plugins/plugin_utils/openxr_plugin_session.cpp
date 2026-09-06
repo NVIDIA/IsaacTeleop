@@ -213,6 +213,12 @@ OpenXRPluginSession::~OpenXRPluginSession() = default;
 
 std::unique_ptr<core::IPluginPullChannel> OpenXRPluginSession::create_pull_channel()
 {
+    if (pull_channel_creation_attempted_)
+    {
+        throw std::logic_error("OpenXRPluginSession supports only one pull channel per session");
+    }
+    pull_channel_creation_attempted_ = true;
+
     return std::make_unique<OpenXRPluginPullChannel>(session_->get_handles(), trackers_,
                                                      requirements_.wrist_tracking_pull, native_hand_tracking_enabled_,
                                                      wrist_controller_tracker_);

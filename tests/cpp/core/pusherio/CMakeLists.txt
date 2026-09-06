@@ -15,4 +15,4 @@ target_link_libraries(pusherio_tests PRIVATE
     Catch2::Catch2WithMain
 )
 
-catch_discover_tests(pusherio_tests)
+catch_discover_tests(pusherio_tests ADD_TAGS_AS_LABELS)

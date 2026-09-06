@@ -68,87 +68,84 @@ void HaptikosHandsPlugin::worker_thread()
     {
         auto frame_start = std::chrono::steady_clock::now();
 
-        core::Serialized<core::ControllerSnapshot> left_tracked;
-        core::Serialized<core::ControllerSnapshot> right_tracked;
-
         try
         {
+            core::Serialized<core::ControllerSnapshot> left_tracked;
+            core::Serialized<core::ControllerSnapshot> right_tracked;
+
             m_pull_channel->update();
 
             // Read tracker data in the same exception boundary as update.
             left_tracked = m_controller_tracker->get_left_controller(*m_pull_channel);
             right_tracked = m_controller_tracker->get_right_controller(*m_pull_channel);
+
+            const int64_t sample_time_ns = core::os_monotonic_now_ns();
+
+            bool rigth_published = false;
+            if (right_tracked)
+            {
+                Haptikos::HandData right_data = m_client.GetData(true, Haptikos::GlobalToWrist, true, true, false);
+                bool valid_wrist = false;
+                XrPosef rigth_controller = oxr_utils::get_aim_pose(*right_tracked, valid_wrist);
+
+                if (right_data.IsValid() == 1 && valid_wrist)
+                {
+                    calculate_hand_pose(right_joints, right_data, rigth_controller);
+                    if (!m_right_pusher)
+                    {
+                        m_right_pusher = std::make_unique<core::HandTrackingPusher>(
+                            m_plugin_session->create_hand_tracking_push_channel(XR_HAND_RIGHT_EXT));
+                    }
+
+                    m_right_pusher->push(right_joints, sample_time_ns);
+                    rigth_published = true;
+                }
+            }
+
+            if (!rigth_published && m_right_pusher)
+            {
+                m_right_pusher.reset();
+            }
+
+            bool left_published = false;
+            if (left_tracked)
+            {
+                Haptikos::HandData left_data = m_client.GetData(false, Haptikos::GlobalToWrist, true, true, false);
+                bool valid_wrist = false;
+                XrPosef left_controller = oxr_utils::get_aim_pose(*left_tracked, valid_wrist);
+
+                if (left_data.IsValid() == 1 && valid_wrist)
+                {
+                    calculate_hand_pose(left_joints, left_data, left_controller);
+
+                    if (!m_left_pusher)
+                    {
+                        m_left_pusher = std::make_unique<core::HandTrackingPusher>(
+                            m_plugin_session->create_hand_tracking_push_channel(XR_HAND_LEFT_EXT));
+                    }
+                    m_left_pusher->push(left_joints, sample_time_ns);
+                    left_published = true;
+                }
+            }
+
+            if (!left_published && m_left_pusher)
+            {
+                m_left_pusher.reset();
+            }
         }
         catch (const std::exception& e)
         {
-            std::cerr << "HaptikosHandsPlugin update error: " << e.what() << std::endl;
+            std::cerr << "HaptikosHandsPlugin worker error: " << e.what() << std::endl;
             m_left_pusher.reset();
             m_right_pusher.reset();
             std::exit(1);
         }
         catch (...)
         {
-            std::cerr << "HaptikosHandsPlugin update error: unknown exception" << std::endl;
+            std::cerr << "HaptikosHandsPlugin worker error: unknown exception" << std::endl;
             m_left_pusher.reset();
             m_right_pusher.reset();
             std::exit(1);
-        }
-
-        const int64_t sample_time_ns = core::os_monotonic_now_ns();
-
-
-        bool rigth_published = false;
-        if (right_tracked)
-        {
-            Haptikos::HandData right_data = m_client.GetData(true, Haptikos::GlobalToWrist, true, true, false);
-            bool valid_wrist = false;
-            XrPosef rigth_controller = oxr_utils::get_aim_pose(*right_tracked, valid_wrist);
-
-            if (right_data.IsValid() == 1 && valid_wrist)
-            {
-                calculate_hand_pose(right_joints, right_data, rigth_controller);
-                if (!m_right_pusher)
-                {
-                    m_right_pusher = std::make_unique<core::HandTrackingPusher>(
-                        m_plugin_session->create_hand_tracking_push_channel(XR_HAND_RIGHT_EXT));
-                }
-
-                m_right_pusher->push(right_joints, sample_time_ns);
-                rigth_published = true;
-            }
-        }
-
-
-        if (!rigth_published && m_right_pusher)
-        {
-            m_right_pusher.reset();
-        }
-
-
-        bool left_published = false;
-        if (left_tracked)
-        {
-            Haptikos::HandData left_data = m_client.GetData(false, Haptikos::GlobalToWrist, true, true, false);
-            bool valid_wrist = false;
-            XrPosef left_controller = oxr_utils::get_aim_pose(*left_tracked, valid_wrist);
-
-            if (left_data.IsValid() == 1 && valid_wrist)
-            {
-                calculate_hand_pose(left_joints, left_data, left_controller);
-
-                if (!m_left_pusher)
-                {
-                    m_left_pusher = std::make_unique<core::HandTrackingPusher>(
-                        m_plugin_session->create_hand_tracking_push_channel(XR_HAND_LEFT_EXT));
-                }
-                m_left_pusher->push(left_joints, sample_time_ns);
-                left_published = true;
-            }
-        }
-
-        if (!left_published && m_left_pusher)
-        {
-            m_left_pusher.reset();
         }
 
         std::this_thread::sleep_until(frame_start + target_frame_duration);
