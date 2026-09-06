@@ -153,3 +153,45 @@ def test_file_handler_captures_debug_regardless_of_console_level():
     handler.flush()
 
     assert marker in Path(handler.baseFilename).read_text(encoding="utf-8")
+
+
+def test_trace_level_value_and_name():
+    assert logging_config.TRACE == 5
+    assert logging.getLevelName(5) == "TRACE"
+
+
+def test_trace_method_exists_and_is_callable():
+    logger = logging.getLogger("isaacteleop.test_trace_method")
+    logger.trace("a trace message, level=%s", "trace")  # must not raise
+
+
+def test_trace_is_below_debug_and_filtered_by_default():
+    logger = logging.getLogger("isaacteleop.test_trace_filtering")
+    logging_config.set_console_level("debug")  # still above TRACE
+    handler = logging_config._ensure_console_handler()
+    stream = io.StringIO()
+    original_stream = handler.stream
+    handler.stream = stream
+    try:
+        logger.trace("should not appear")
+        logger.debug("should appear")
+    finally:
+        handler.stream = original_stream
+
+    assert "should not appear" not in stream.getvalue()
+    assert "should appear" in stream.getvalue()
+
+
+def test_trace_visible_once_console_level_lowered_to_trace():
+    logger = logging.getLogger("isaacteleop.test_trace_opt_in")
+    logging_config.set_console_level("trace")
+    handler = logging_config._ensure_console_handler()
+    stream = io.StringIO()
+    original_stream = handler.stream
+    handler.stream = stream
+    try:
+        logger.trace("now visible")
+    finally:
+        handler.stream = original_stream
+
+    assert "now visible" in stream.getvalue()
