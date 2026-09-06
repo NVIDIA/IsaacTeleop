@@ -35,21 +35,18 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 import threading
 import time
 from abc import abstractmethod
 from typing import Optional
 
 import numpy as np
-
 from pipeline import Frame, FrameSource, SourceSpec
 
 
 def notify(tag: str, msg: str) -> None:
-    # Stderr-direct so it shows without a configured Python logger.
-    # Reserved for lifecycle events; periodic stats use notify_verbose.
-    print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
+    """Lifecycle events (opening/connected/streaming/errors); see notify_verbose for stats."""
+    logger.info("[%s] %s", tag, msg)
 
 
 _VERBOSE = False
@@ -75,10 +72,12 @@ def _verbose_enabled() -> bool:
 def notify_verbose(tag: str, msg: str) -> None:
     """Periodic stats; gated by YAML ``verbose:`` or CAMERA_VIZ_VERBOSE."""
     if _verbose_enabled():
-        print(f"[{tag}] {msg}", file=sys.stderr, flush=True)
+        logger.info("[%s] %s", tag, msg)
 
 
-logger = logging.getLogger(__name__)
+# Named under isaacteleop.* (not plain __name__) so the module actually
+# nests under, and inherits handlers from, the root isaacteleop logger.
+logger = logging.getLogger("isaacteleop.camera_viz.sources")
 
 
 def alloc_pinned_host(shape: tuple, dtype: np.dtype) -> np.ndarray:

@@ -13,11 +13,12 @@ import time
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-import numpy as np
 import glfw  # type: ignore[import-not-found]
 import imgui  # type: ignore[import-not-found]
+import numpy as np
 from imgui.integrations.glfw import GlfwRenderer  # type: ignore[import-not-found]
 
+from isaacteleop import logging_config
 from isaacteleop.retargeting_engine.interface import (
     BoolParameter,
     FloatParameter,
@@ -25,6 +26,8 @@ from isaacteleop.retargeting_engine.interface import (
     ParameterSpec,
     VectorParameter,
 )
+
+logger = logging_config.get_logger(__name__)
 
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, ParameterState
@@ -606,7 +609,7 @@ class MultiRetargeterTuningUIImGui:
             self._thread.start()
 
         except Exception as e:
-            print(f"[MultiRetargeterTuningUIImGui] Failed to start: {e}")
+            logger.error("Failed to start: %s", e)
             self._running = False
 
     def _run_ui_loop(self):
