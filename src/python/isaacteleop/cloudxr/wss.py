@@ -8,16 +8,17 @@ import errno
 import json
 import logging
 import os
-from http import HTTPStatus
-from urllib.parse import unquote, urlparse
 import ssl
 import subprocess
 import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from http import HTTPStatus
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
+from .. import logging_config
 from .env_config import get_env_config
 from .oob_teleop_adb import (
     OobAdbError,
@@ -73,7 +74,7 @@ def _patch_request_parser_for_cors():
 
 _patch_request_parser_for_cors()
 
-log = logging.getLogger("wss-proxy")
+log = logging.getLogger("isaacteleop.cloudxr.wss")
 
 
 @dataclass(frozen=True)
@@ -578,24 +579,21 @@ async def run(
     serving from one still generating certificates or about to fail on a
     taken port.
     """
-    logger = log
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-    _log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    # Console output comes from propagation to the root `isaacteleop` logger's
+    # own handler (isaacteleop.logging_config); this only adds an optional,
+    # additional per-session file, on top of that, when the caller wants one.
     if log_file_path is not None:
-        _handler: logging.Handler = logging.FileHandler(
-            log_file_path, mode="a", encoding="utf-8"
+        _handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
+        _handler.setFormatter(
+            logging.Formatter(logging_config.LINE_FORMAT, datefmt=logging_config.DATE_FORMAT)
         )
-    else:
-        _handler = logging.StreamHandler(sys.stderr)
-    _handler.setFormatter(_log_fmt)
-    logger.addHandler(_handler)
-    # Route oob-teleop-adb and oob-teleop-env logs to the same destination
-    for _extra_log_name in ("oob-teleop-adb", "oob-teleop-env"):
-        _extra_log = logging.getLogger(_extra_log_name)
-        _extra_log.setLevel(logging.INFO)
-        _extra_log.propagate = False
-        _extra_log.addHandler(_handler)
+        log.addHandler(_handler)
+        # Route oob-teleop-adb and oob-teleop-env logs to the same file
+        for _extra_log_name in (
+            "isaacteleop.cloudxr.oob_teleop_adb",
+            "isaacteleop.cloudxr.oob_teleop_env",
+        ):
+            logging.getLogger(_extra_log_name).addHandler(_handler)
 
     try:
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
@@ -689,6 +687,8 @@ async def run(
                 if usb_local:
                     from .oob_teleop_env import (  # noqa: PLC0415
                         require_web_client_static_dir as _req_static,
+                    )
+                    from .oob_teleop_env import (
                         start_usb_local_https_server,
                         stop_usb_local_https_server,
                         usb_ui_port,
@@ -709,8 +709,8 @@ async def run(
 
                 if usb_local:
                     from .oob_teleop_env import (  # noqa: PLC0415
-                        USB_TURN_USER,
                         USB_TURN_CREDENTIAL,
+                        USB_TURN_USER,
                         usb_backend_port,
                         usb_turn_port,
                     )
@@ -722,11 +722,11 @@ async def run(
                     _usb_turn_port_resolved = usb_turn_port()
                     from .oob_teleop_adb import (  # noqa: PLC0415
                         setup_adb_reverse_ports,
-                        teardown_adb_reverse_ports,
                         setup_adb_reverse_turn,
-                        teardown_adb_reverse_turn,
                         start_coturn,
                         stop_coturn,
+                        teardown_adb_reverse_ports,
+                        teardown_adb_reverse_turn,
                         verify_adb_reverse_rules,
                         verify_coturn_listening,
                         watch_coturn,
@@ -930,5 +930,6 @@ async def run(
             ) from e
         raise
     finally:
-        logger.removeHandler(_handler)
-        _handler.close()
+        if log_file_path is not None:
+            log.removeHandler(_handler)
+            _handler.close()

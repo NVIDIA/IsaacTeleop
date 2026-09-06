@@ -20,7 +20,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-log = logging.getLogger("oob-teleop-hub")
+log = logging.getLogger("isaacteleop.cloudxr.oob_teleop_hub")
 
 OOB_WS_PATH = "/oob/v1/ws"
 
