@@ -5,6 +5,8 @@
 
 import io
 import logging
+import os
+from pathlib import Path
 
 import pytest
 from isaacteleop import logging_config
@@ -111,3 +113,43 @@ def test_console_handler_end_to_end_level_filtering():
 
     assert "should not appear" not in stream.getvalue()
     assert "should appear" in stream.getvalue()
+
+
+def test_log_dir_defaults_to_dot_isaacteleop(monkeypatch):
+    monkeypatch.delenv("ISAACTELEOP_LOG_DIR", raising=False)
+    assert logging_config._log_dir() == logging_config.DEFAULT_LOG_DIR
+
+
+def test_log_dir_honors_env_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
+    assert logging_config._log_dir() == tmp_path
+
+
+def test_file_handler_attaches_once():
+    root = logging.getLogger(logging_config.ROOT_LOGGER_NAME)
+    handler = logging_config._ensure_file_handler()
+    assert handler in root.handlers
+    assert logging_config._ensure_file_handler() is handler
+    assert root.handlers.count(handler) == 1
+
+
+def test_file_handler_is_always_debug_level():
+    assert logging_config._ensure_file_handler().level == logging.DEBUG
+
+
+def test_file_handler_filename_includes_pid():
+    handler = logging_config._ensure_file_handler()
+    assert f".{os.getpid()}.log" in handler.baseFilename
+
+
+def test_file_handler_captures_debug_regardless_of_console_level():
+    """The file is the full record even when the console is set well above DEBUG."""
+    logger = logging.getLogger("isaacteleop.test_file_handler_captures_debug")
+    logging_config.set_console_level("error")
+    handler = logging_config._ensure_file_handler()
+    marker = "unique-marker-for-file-debug-capture-test"
+
+    logger.debug(marker)
+    handler.flush()
+
+    assert marker in Path(handler.baseFilename).read_text(encoding="utf-8")
