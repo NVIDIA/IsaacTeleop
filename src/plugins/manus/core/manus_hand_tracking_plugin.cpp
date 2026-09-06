@@ -302,16 +302,16 @@ void ManusTracker::initialize() noexcept(false)
         m_right_calibration_file = read_calibration_file(m_config.right_calibration_file);
     }
 
-    m_logger->info("Initializing SDK...");
+    m_logger->trace("Initializing SDK...");
     const SDKReturnCode t_InitializeResult = CoreSdk_InitializeIntegrated();
     if (t_InitializeResult != SDKReturnCode::SDKReturnCode_Success)
     {
         throw std::runtime_error("Failed to initialize Manus SDK, error code: " +
                                  std::to_string(static_cast<int>(t_InitializeResult)));
     }
-    m_logger->info("SDK initialized successfully");
-    m_logger->info("datasets: human={} sensors={} haptic={}", m_config.human ? "on" : "off",
-                   m_config.sensors ? "on" : "off", m_config.haptic ? "on" : "off");
+    m_logger->trace("SDK initialized successfully");
+    m_logger->trace("datasets: human={} sensors={} haptic={}", m_config.human ? "on" : "off",
+                    m_config.sensors ? "on" : "off", m_config.haptic ? "on" : "off");
 
     RegisterCallbacks();
 
@@ -322,7 +322,7 @@ void ManusTracker::initialize() noexcept(false)
     t_VUH.view = AxisView::AxisView_ZToViewer;
     t_VUH.unitScale = 1.0f;
 
-    m_logger->info("Setting up coordinate system (Y-up, right-handed, meters)...");
+    m_logger->trace("Setting up coordinate system (Y-up, right-handed, meters)...");
     const SDKReturnCode t_CoordinateResult = CoreSdk_InitializeCoordinateSystemWithVUH(t_VUH, true);
 
     if (t_CoordinateResult != SDKReturnCode::SDKReturnCode_Success)
@@ -330,7 +330,7 @@ void ManusTracker::initialize() noexcept(false)
         throw std::runtime_error("Failed to initialize Manus SDK coordinate system, error code: " +
                                  std::to_string(static_cast<int>(t_CoordinateResult)));
     }
-    m_logger->info("Coordinate system initialized successfully");
+    m_logger->trace("Coordinate system initialized successfully");
 
     ConnectToGloves();
 
@@ -338,7 +338,7 @@ void ManusTracker::initialize() noexcept(false)
     const bool needs_openxr = m_config.human || m_config.sensors || m_config.haptic || monitoring_enabled;
     if (!needs_openxr)
     {
-        m_logger->info("No OpenXR datasets enabled; running Manus-only (skeleton callbacks only).");
+        m_logger->trace("No OpenXR datasets enabled; running Manus-only (skeleton callbacks only).");
         std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
         m_initialized = true;
         return;
@@ -368,8 +368,8 @@ void ManusTracker::initialize() noexcept(false)
             }
             else
             {
-                m_logger->info("{} is not supported by the current runtime; HandTracker will not be created.",
-                               XR_EXT_HAND_TRACKING_EXTENSION_NAME);
+                m_logger->trace("{} is not supported by the current runtime; HandTracker will not be created.",
+                                XR_EXT_HAND_TRACKING_EXTENSION_NAME);
             }
         }
 
@@ -431,7 +431,7 @@ void ManusTracker::initialize() noexcept(false)
             }
             else
             {
-                m_logger->info(
+                m_logger->trace(
                     "{} is not supported by the current runtime; optical hand tracking will not be "
                     "available and controller fallback will be used.",
                     XR_MNDX_XDEV_SPACE_EXTENSION_NAME);
@@ -494,11 +494,11 @@ void ManusTracker::initialize() noexcept(false)
 
         if (m_config.human)
         {
-            m_logger->info("Initialized with wrist source: {}", m_xdev_available ? "HandTracking" : "Controllers");
+            m_logger->trace("Initialized with wrist source: {}", m_xdev_available ? "HandTracking" : "Controllers");
         }
         else
         {
-            m_logger->info("OpenXR session ready (human injection disabled).");
+            m_logger->trace("OpenXR session ready (human injection disabled).");
         }
 
         success = true;
@@ -573,7 +573,7 @@ void ManusTracker::ConnectToGloves() noexcept(false)
     const auto retry_delay = std::chrono::milliseconds(1000); // 1 second delay between attempts
     int attempts = 0;
 
-    m_logger->info("Looking for Manus gloves...");
+    m_logger->trace("Looking for Manus gloves...");
 
     while (!connected && attempts < max_attempts)
     {
@@ -581,7 +581,7 @@ void ManusTracker::ConnectToGloves() noexcept(false)
 
         if (const auto start_result = CoreSdk_LookForHosts(1, false); start_result != SDKReturnCode::SDKReturnCode_Success)
         {
-            m_logger->warn("Failed to look for hosts (attempt {}/{})", attempts, max_attempts);
+            m_logger->trace("Failed to look for hosts (attempt {}/{})", attempts, max_attempts);
             std::this_thread::sleep_for(retry_delay);
             continue;
         }
@@ -590,14 +590,14 @@ void ManusTracker::ConnectToGloves() noexcept(false)
         if (const auto number_result = CoreSdk_GetNumberOfAvailableHostsFound(&number_of_hosts_found);
             number_result != SDKReturnCode::SDKReturnCode_Success)
         {
-            m_logger->warn("Failed to get number of available hosts (attempt {}/{})", attempts, max_attempts);
+            m_logger->trace("Failed to get number of available hosts (attempt {}/{})", attempts, max_attempts);
             std::this_thread::sleep_for(retry_delay);
             continue;
         }
 
         if (number_of_hosts_found == 0)
         {
-            m_logger->warn("Failed to find hosts (attempt {}/{})", attempts, max_attempts);
+            m_logger->trace("Failed to find hosts (attempt {}/{})", attempts, max_attempts);
             std::this_thread::sleep_for(retry_delay);
             continue;
         }
@@ -607,7 +607,7 @@ void ManusTracker::ConnectToGloves() noexcept(false)
         if (const auto hosts_result = CoreSdk_GetAvailableHostsFound(available_hosts.data(), number_of_hosts_found);
             hosts_result != SDKReturnCode::SDKReturnCode_Success)
         {
-            m_logger->warn("Failed to get available hosts (attempt {}/{})", attempts, max_attempts);
+            m_logger->trace("Failed to get available hosts (attempt {}/{})", attempts, max_attempts);
             std::this_thread::sleep_for(retry_delay);
             continue;
         }
@@ -615,14 +615,14 @@ void ManusTracker::ConnectToGloves() noexcept(false)
         if (const auto connect_result = CoreSdk_ConnectToHost(available_hosts[0]);
             connect_result == SDKReturnCode::SDKReturnCode_NotConnected)
         {
-            m_logger->warn("Failed to connect to host (attempt {}/{})", attempts, max_attempts);
+            m_logger->trace("Failed to connect to host (attempt {}/{})", attempts, max_attempts);
             std::this_thread::sleep_for(retry_delay);
             continue;
         }
 
         connected = true;
         is_connected = true;
-        m_logger->info("Successfully connected to Manus host after {} attempts", attempts);
+        m_logger->trace("Successfully connected to Manus host after {} attempts", attempts);
     }
 
     if (!connected)
@@ -638,7 +638,7 @@ void ManusTracker::DisconnectFromGloves()
     {
         CoreSdk_Disconnect();
         is_connected = false;
-        m_logger->info("Disconnected from Manus gloves");
+        m_logger->trace("Disconnected from Manus gloves");
     }
 }
 
@@ -660,7 +660,7 @@ bool ManusTracker::apply_glove_calibration(uint32_t glove_id, bool is_left)
         return false;
     }
 
-    m_logger->info("Applied {} glove calibration file to glove id={}", is_left ? "left" : "right", glove_id);
+    m_logger->trace("Applied {} glove calibration file to glove id={}", is_left ? "left" : "right", glove_id);
     return true;
 }
 
@@ -967,7 +967,7 @@ void ManusTracker::push_sensor_side(bool is_left, core::SchemaPusher& pusher)
     if (!m_sensors_logged_on[side])
     {
         m_sensors_logged_on[side] = true;
-        m_logger->info("{} sensors=on", is_left ? "left" : "right");
+        m_logger->trace("{} sensors=on", is_left ? "left" : "right");
     }
 
     core::JointStateOutputT out;

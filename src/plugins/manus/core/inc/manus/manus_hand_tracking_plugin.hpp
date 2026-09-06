@@ -120,7 +120,11 @@ private:
     // -- Member Variables --
 
     ManusPluginConfig m_config;
-    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
+    // ThirdParty: this logger carries the Manus SDK's own vendor-passthrough narration
+    // (connection/init progress, calibration-apply, coordinate-system setup) at .trace(),
+    // reserving warn/error for IsaacTeleop's own reactions to unexpected SDK behavior.
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker", isaacteleop::LoggerKind::ThirdParty);
 
     // Lifecycle
     std::mutex m_lifecycle_mutex;
