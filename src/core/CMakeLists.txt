@@ -9,6 +9,10 @@ add_subdirectory(schema)
 # Grades one binary schema against another; used by the conform test and by replay.
 add_subdirectory(schema_compat)
 
+# isaacteleop::Logger. Added early -- before any module that might want to
+# log during its own construction.
+add_subdirectory(log_bridge)
+
 # Build OXR Utils first - header-only utilities (no dependencies)
 add_subdirectory(oxr_utils)
 
