@@ -4,6 +4,8 @@
 #pragma once
 #include "plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -68,6 +70,7 @@ private:
 
     std::vector<std::string> m_search_paths;
     std::map<std::string, PluginInfo> m_discovered_plugins;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.core.PluginManager");
 };
 
 } // namespace core

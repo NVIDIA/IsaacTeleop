@@ -6,7 +6,6 @@
 #include <mcap/recording_traits.hpp>
 #include <schema/@SCHEMA@_bfbs_generated.h>
 
-#include <iostream>
 #include <utility>
 #include <vector>
 
@@ -20,7 +19,8 @@ namespace core
           base_name,
           std::vector<std::string>(@TRAITS@::replay_channels.begin(), @TRAITS@::replay_channels.end()),
           recorded)),
-      no_data_message_("@REPLAY_IMPL@[" + std::string(base_name) + "]: no data (EOF or gap)")
+      logger_(isaacteleop::Logger::get("isaacteleop.core.@REPLAY_IMPL@")),
+      no_data_message_("no data (EOF or gap), base_name=" + std::string(base_name))
 {
     // No-op: members set in the initializer list.
 }
@@ -40,7 +40,7 @@ void @REPLAY_IMPL@::update(int64_t /*monotonic_time_ns*/)
     {
         if (!warned_no_data_)
         {
-            std::cerr << no_data_message_ << std::endl;
+            logger_->warn("{}", no_data_message_);
             warned_no_data_ = true;
         }
         tracked_.reset();

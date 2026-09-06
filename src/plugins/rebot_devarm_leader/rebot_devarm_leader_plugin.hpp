@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <cstdint>
@@ -114,6 +115,8 @@ private:
 
     std::shared_ptr<core::OpenXRSession> session_;
     core::SchemaPusher pusher_;
+    std::shared_ptr<spdlog::logger> logger_ =
+        isaacteleop::Logger::get("isaacteleop.plugins.rebot_devarm_leader.RebotDevarmLeaderPlugin");
 };
 
 //! Hardware probe helper: open @p device_path (serial path => Damiao, SocketCAN interface name

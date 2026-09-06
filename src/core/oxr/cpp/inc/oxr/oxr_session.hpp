@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_session_handles.hpp>
 
@@ -41,6 +42,7 @@ private:
     SessionHandle session_;
     SpaceHandle space_;
     bool wait_for_system_;
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.OpenXRSession");
 };
 
 } // namespace core

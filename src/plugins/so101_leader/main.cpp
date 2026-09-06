@@ -3,9 +3,10 @@
 
 #include "so101_leader_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <chrono>
 #include <cstddef>
-#include <iostream>
 #include <string>
 #include <thread>
 
@@ -30,9 +31,9 @@ try
     const std::string collection_id = (argc > 2) ? argv[2] : "so101_leader";
     const std::string calibration_path = (argc > 3) ? argv[3] : "";
 
-    std::cout << "SO-101 Leader Arm (device: " << (device_path.empty() ? "<synthetic>" : device_path)
-              << ", collection: " << collection_id
-              << (calibration_path.empty() ? "" : ", calibration: " + calibration_path) << ")" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.so101_leader.main")
+        ->info("SO-101 Leader Arm (device: {}, collection: {}{})", device_path.empty() ? "<synthetic>" : device_path,
+               collection_id, calibration_path.empty() ? "" : ", calibration: " + calibration_path);
 
     So101LeaderPlugin plugin(device_path, collection_id, calibration_path);
 
@@ -52,11 +53,11 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.so101_leader.main")->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.so101_leader.main")->error("{}: Unknown error", argv[0]);
     return 1;
 }

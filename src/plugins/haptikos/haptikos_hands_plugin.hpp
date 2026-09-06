@@ -6,6 +6,7 @@
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
@@ -50,6 +51,8 @@ private:
 
     std::thread m_thread;
     std::atomic<bool> m_running{ false };
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaacteleop::Logger::get("isaacteleop.plugins.haptikos.HaptikosHandsPlugin");
 
     void calculate_hand_pose(XrHandJointLocationEXT* result, const Haptikos::HandData& data, const XrPosef& wrist_pose);
 

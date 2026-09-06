@@ -7,6 +7,7 @@
 #include "robstride_bus.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <log_bridge/logger.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/joint_state_generated.h>
@@ -106,8 +107,9 @@ ModelLimits model_limits(const std::string& model)
             return entry;
         }
     }
-    std::cerr << "RebotDevarmLeaderPlugin: warning: unknown Damiao model '" << model << "'; assuming 4310 limits"
-              << std::endl;
+    // Free function (not a class method): reuse the plugin's memoized logger by name.
+    isaacteleop::Logger::get("isaacteleop.plugins.rebot_devarm_leader.RebotDevarmLeaderPlugin")
+        ->warn("unknown Damiao model '{}'; assuming 4310 limits", model);
     return kModelLimits[0];
 }
 
@@ -147,7 +149,7 @@ RebotDevarmLeaderPlugin::RebotDevarmLeaderPlugin(const std::string& device_path,
     {
         // Throws if the SocketCAN interface doesn't exist; throws unconditionally off Linux.
         rs_bus_ = std::make_unique<RobStrideBus>(device_path_);
-        std::cout << "RebotDevarmLeaderPlugin: RobStride SocketCAN backend on " << device_path_ << std::endl;
+        logger_->info("RobStride SocketCAN backend on {}", device_path_);
 
         // Leader arm: stop the motors so the operator can back-drive them by hand. RobStride
         // motors keep answering parameter reads while stopped (verified on RS-series hardware).
@@ -155,8 +157,7 @@ RebotDevarmLeaderPlugin::RebotDevarmLeaderPlugin(const std::string& device_path,
         {
             if (!rs_bus_->disable(static_cast<uint8_t>(calibration_[i].motor_id)))
             {
-                std::cerr << "RebotDevarmLeaderPlugin: warning: failed to send stop to motor 0x" << std::hex
-                          << calibration_[i].motor_id << std::dec << " (is " << device_path_ << " up?)" << std::endl;
+                logger_->warn("failed to send stop to motor 0x{:x} (is {} up?)", calibration_[i].motor_id, device_path_);
             }
         }
         // Drain any stop-command replies so the first feedback cycle starts clean.
@@ -169,7 +170,7 @@ RebotDevarmLeaderPlugin::RebotDevarmLeaderPlugin(const std::string& device_path,
     {
         // Throws on POSIX if the port can't be opened; throws unconditionally on Windows.
         bus_ = std::make_unique<DamiaoBus>(device_path_);
-        std::cout << "RebotDevarmLeaderPlugin: Damiao dm-serial backend on " << device_path_ << std::endl;
+        logger_->info("Damiao dm-serial backend on {}", device_path_);
 
         // Leader arm: disable torque so the operator can back-drive it by hand. Damiao motors
         // keep replying to feedback requests while disabled (verified on the B601-DM hardware).
@@ -177,8 +178,8 @@ RebotDevarmLeaderPlugin::RebotDevarmLeaderPlugin(const std::string& device_path,
         {
             if (!bus_->disable(calibration_[i].motor_id))
             {
-                std::cerr << "RebotDevarmLeaderPlugin: warning: failed to send disable to motor 0x" << std::hex
-                          << calibration_[i].motor_id << std::dec << " (is the adapter connected?)" << std::endl;
+                logger_->warn(
+                    "failed to send disable to motor 0x{:x} (is the adapter connected?)", calibration_[i].motor_id);
             }
         }
         // Drain the disable-command status replies so the first feedback cycle starts clean.
@@ -189,7 +190,7 @@ RebotDevarmLeaderPlugin::RebotDevarmLeaderPlugin(const std::string& device_path,
     }
     else
     {
-        std::cout << "RebotDevarmLeaderPlugin: using synthetic joint backend (no device path)" << std::endl;
+        logger_->info("using synthetic joint backend (no device path)");
     }
 }
 
@@ -200,8 +201,7 @@ void RebotDevarmLeaderPlugin::load_calibration(const std::string& path)
     std::ifstream file(path);
     if (!file)
     {
-        std::cerr << "RebotDevarmLeaderPlugin: warning: cannot open calibration file '" << path << "'; using defaults"
-                  << std::endl;
+        logger_->warn("cannot open calibration file '{}'; using defaults", path);
         return;
     }
 
@@ -238,8 +238,7 @@ void RebotDevarmLeaderPlugin::load_calibration(const std::string& path)
         }
         if (idx < 0)
         {
-            std::cerr << "RebotDevarmLeaderPlugin: warning: unknown joint '" << name << "' at " << path << ":"
-                      << line_no << std::endl;
+            logger_->warn("unknown joint '{}' at {}:{}", name, path, line_no);
             continue;
         }
         // The RobStride backend reads exact f32 values, so the model column only selects
@@ -363,11 +362,11 @@ void RebotDevarmLeaderPlugin::check_gripper_travel()
     const bool out_of_travel = gripper_pos < kGripperTravelMinRad || gripper_pos > kGripperTravelMaxRad;
     if (out_of_travel && !gripper_out_of_travel_)
     {
-        std::cerr << "RebotDevarmLeaderPlugin: warning: gripper reads " << gripper_pos
-                  << " rad, outside its physical travel [" << kGripperTravelMinRad << ", " << kGripperTravelMaxRad
-                  << "]. The multi-turn encoder most likely wrapped by 2*pi "
-                  << "after a power cycle; the gripper joint is streamed as invalid until it reads "
-                  << "in-travel again. Re-home the gripper (close against the stop and re-zero)." << std::endl;
+        logger_->warn(
+            "gripper reads {} rad, outside its physical travel [{}, {}]. The multi-turn encoder most likely "
+            "wrapped by 2*pi after a power cycle; the gripper joint is streamed as invalid until it reads "
+            "in-travel again. Re-home the gripper (close against the stop and re-zero).",
+            gripper_pos, kGripperTravelMinRad, kGripperTravelMaxRad);
     }
     gripper_out_of_travel_ = out_of_travel;
 }
@@ -420,11 +419,12 @@ void RebotDevarmLeaderPlugin::update()
 
 int run_probe(const std::string& device_path, const std::string& calibration_path, int seconds)
 {
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.rebot_devarm_leader.main");
     if (device_path.empty())
     {
-        std::cerr << "probe: a device is required: a serial path (e.g. /dev/ttyACM0, Damiao) or a "
-                     "SocketCAN interface name (e.g. can0, RobStride)"
-                  << std::endl;
+        logger->error(
+            "a device is required: a serial path (e.g. /dev/ttyACM0, Damiao) or a SocketCAN interface name "
+            "(e.g. can0, RobStride)");
         return 2;
     }
 
@@ -602,13 +602,12 @@ int run_probe(const std::string& device_path, const std::string& calibration_pat
         if (!joints[i].seen)
         {
             all_ok = false;
-            std::cerr << "probe: no feedback from motor 0x" << std::hex << joints[i].motor_id << std::dec << " ("
-                      << kJointNames[i] << ")" << std::endl;
+            logger->warn("no feedback from motor 0x{:x} ({})", joints[i].motor_id, kJointNames[i]);
         }
     }
     if (!all_ok)
     {
-        std::cout << "probe: some motors missing" << std::endl;
+        logger->warn("some motors missing");
         return 1;
     }
 
@@ -619,15 +618,15 @@ int run_probe(const std::string& device_path, const std::string& calibration_pat
     const ProbeJoint& gripper = joints[kGripperJointIndex];
     if (gripper.pos < kGripperTravelMinRad || gripper.pos > kGripperTravelMaxRad)
     {
-        std::cerr << "probe: WARNING: gripper reads " << gripper.pos << " rad, outside its physical travel ["
-                  << kGripperTravelMinRad << ", " << kGripperTravelMaxRad
-                  << "]: the multi-turn encoder wrapped after a power cycle. Re-home the gripper "
-                  << "(close against the stop and re-zero) before teleoperating." << std::endl;
-        std::cout << "probe: all motors replied (gripper out of travel)" << std::endl;
+        logger->warn(
+            "gripper reads {} rad, outside its physical travel [{}, {}]: the multi-turn encoder wrapped after "
+            "a power cycle. Re-home the gripper (close against the stop and re-zero) before teleoperating.",
+            gripper.pos, kGripperTravelMinRad, kGripperTravelMaxRad);
+        logger->info("all motors replied (gripper out of travel)");
         return 3;
     }
 
-    std::cout << "probe: all motors replied" << std::endl;
+    logger->info("all motors replied");
     return 0;
 }
 

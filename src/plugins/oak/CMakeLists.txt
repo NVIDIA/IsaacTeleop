@@ -221,6 +221,7 @@ target_link_libraries(camera_plugin_oak
     PRIVATE
         depthai::core
         isaacteleop_schema
+        log_bridge::log_bridge_core
         mcap::mcap
         oxr::oxr_core
         pusherio::pusherio

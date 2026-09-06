@@ -10,7 +10,6 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
 
 namespace core
 {
@@ -27,7 +26,8 @@ ReplayControllerTrackerImpl::ReplayControllerTrackerImpl(std::unique_ptr<mcap::M
           base_name,
           std::vector<std::string>(
               ControllerRecordingTraits::replay_channels.begin(), ControllerRecordingTraits::replay_channels.end()),
-          recorded))
+          recorded)),
+      logger_(isaacteleop::Logger::get("isaacteleop.core.ReplayControllerTrackerImpl"))
 {
 }
 
@@ -48,20 +48,30 @@ void ReplayControllerTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     if (left_record)
     {
         left_tracked_ = left_record.narrow(left_record->data());
+        warned_no_left_data_ = false;
     }
     else
     {
-        std::cerr << "ReplayControllerTrackerImpl: left controller data not found" << std::endl;
+        if (!warned_no_left_data_)
+        {
+            logger_->warn("left controller data not found");
+            warned_no_left_data_ = true;
+        }
         left_tracked_.reset();
     }
 
     if (right_record)
     {
         right_tracked_ = right_record.narrow(right_record->data());
+        warned_no_right_data_ = false;
     }
     else
     {
-        std::cerr << "ReplayControllerTrackerImpl: right controller data not found" << std::endl;
+        if (!warned_no_right_data_)
+        {
+            logger_->warn("right controller data not found");
+            warned_no_right_data_ = true;
+        }
         right_tracked_.reset();
     }
 }

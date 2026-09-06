@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+#include <log_bridge/logger.hpp>
 #include <manus/manus_hand_tracking_plugin.hpp>
 
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -58,6 +58,7 @@ ManusPluginConfig parse_args(int argc, char** argv)
 {
     ManusPluginConfig config;
     std::string datasets_arg = "human,sensors,haptic";
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.main");
 
     for (int i = 1; i < argc; ++i)
     {
@@ -80,7 +81,7 @@ ManusPluginConfig parse_args(int argc, char** argv)
         }
         else
         {
-            std::cerr << "ManusHandPlugin: ignoring unknown argument '" << arg << "'" << std::endl;
+            logger->warn("ignoring unknown argument '{}'", arg);
         }
     }
 
@@ -103,7 +104,7 @@ ManusPluginConfig parse_args(int argc, char** argv)
         }
         else
         {
-            std::cerr << "ManusHandPlugin: ignoring unknown data set '" << ds << "'" << std::endl;
+            logger->warn("ignoring unknown data set '{}'", ds);
         }
     }
 
@@ -120,7 +121,8 @@ ManusPluginConfig parse_args(int argc, char** argv)
 int main(int argc, char** argv)
 try
 {
-    std::cout << "Manus Hand Plugin starting..." << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.main");
+    logger->info("Manus Hand Plugin starting...");
 
     const ManusPluginConfig config = parse_args(argc, argv);
 
@@ -129,7 +131,7 @@ try
 
     auto& tracker = ManusTracker::instance(config);
 
-    std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
+    logger->info("Plugin running. Press Ctrl+C to stop.");
 
     // Target 90Hz frequency (~11.1ms period)
     const auto target_frame_duration = std::chrono::nanoseconds(1000000000 / 90);
@@ -148,11 +150,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.main");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.main");
+    logger->error("{}: Unknown error occurred", argv[0]);
     return 1;
 }

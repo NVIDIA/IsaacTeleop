@@ -9,6 +9,7 @@
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr_platform.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
@@ -115,6 +116,7 @@ private:
     // -- Member Variables --
 
     ManusPluginConfig m_config;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
 
     // Lifecycle
     std::mutex m_lifecycle_mutex;
