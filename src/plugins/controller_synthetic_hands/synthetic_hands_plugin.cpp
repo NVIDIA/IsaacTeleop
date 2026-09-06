@@ -9,7 +9,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <exception>
-#include <iostream>
 
 namespace plugins
 {
@@ -19,7 +18,7 @@ namespace controller_synthetic_hands
 SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false)
     : m_root_id(plugin_root_id)
 {
-    std::cout << "Initializing SyntheticHandsPlugin with root: " << m_root_id << std::endl;
+    m_logger->info("Initializing with root: {}", m_root_id);
 
     // Create ControllerTracker first to get required extensions
     m_controller_tracker = std::make_shared<core::ControllerTracker>();
@@ -45,12 +44,12 @@ SyntheticHandsPlugin::SyntheticHandsPlugin(const std::string& plugin_root_id) no
     m_running = true;
     m_thread = std::thread(&SyntheticHandsPlugin::worker_thread, this);
 
-    std::cout << "SyntheticHandsPlugin initialized and running" << std::endl;
+    m_logger->info("initialized and running");
 }
 
 SyntheticHandsPlugin::~SyntheticHandsPlugin()
 {
-    std::cout << "Shutting down SyntheticHandsPlugin..." << std::endl;
+    m_logger->info("Shutting down...");
 
     m_running = false;
     m_thread.join();
@@ -82,14 +81,14 @@ void SyntheticHandsPlugin::worker_thread()
         }
         catch (const std::exception& e)
         {
-            std::cerr << "SyntheticHandsPlugin update error: " << e.what() << std::endl;
+            m_logger->error("update error: {}", e.what());
             m_left_injector.reset();
             m_right_injector.reset();
             std::exit(1);
         }
         catch (...)
         {
-            std::cerr << "SyntheticHandsPlugin update error: unknown exception" << std::endl;
+            m_logger->error("update error: unknown exception");
             m_left_injector.reset();
             m_right_injector.reset();
             std::exit(1);

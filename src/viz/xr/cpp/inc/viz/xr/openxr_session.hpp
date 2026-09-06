@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
 
 #include <chrono>
@@ -240,6 +241,9 @@ private:
     bool session_running_ = false;
     bool exit_requested_ = false;
     bool reference_space_changed_ = false;
+
+    // Declared last: no teardown-order relationship with the OpenXR handles above.
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.viz.OpenXrSession");
 };
 
 } // namespace viz

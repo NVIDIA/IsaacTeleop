@@ -3,11 +3,12 @@
 
 #include "vive_se3_tracker_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstddef>
-#include <iostream>
 #include <thread>
 
 using namespace plugins::vive_se3_tracker;
@@ -24,7 +25,8 @@ void on_signal(int)
 int main(int, char** argv)
 try
 {
-    std::cout << "Vive SE3 Tracker Plugin (one collection per Ultimate Tracker)" << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.vive_se3_tracker.main");
+    logger->info("Vive SE3 Tracker Plugin (one collection per Ultimate Tracker)");
 
     // Stop cleanly on Ctrl+C / kill so ~ViveSe3TrackerPlugin runs and removes the
     // collections advertisement file (else readers see stale collection ids).
@@ -46,16 +48,18 @@ try
         std::this_thread::sleep_until(program_start + frame_duration * frame_count);
     }
 
-    std::cout << "Vive SE3 Tracker Plugin: shutting down." << std::endl;
+    logger->info("shutting down.");
     return 0;
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.vive_se3_tracker.main");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error" << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.vive_se3_tracker.main");
+    logger->error("{}: Unknown error", argv[0]);
     return 1;
 }

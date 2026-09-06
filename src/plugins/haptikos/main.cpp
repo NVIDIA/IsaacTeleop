@@ -3,10 +3,11 @@
 
 #include "haptikos_hands_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <csignal>
 #include <cstring>
-#include <iostream>
 #include <memory>
 #include <thread>
 
@@ -30,6 +31,8 @@ void signal_handler(int signal)
 int main(int argc, char** argv)
 try
 {
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.haptikos.main");
+
     std::string plugin_root_id = "haptikos_hands";
 
     // Parse command line arguments
@@ -44,12 +47,12 @@ try
 
     std::signal(SIGINT, signal_handler);
 
-    std::cout << "Haptikos Hands Plugin" << std::endl;
-    std::cout << "Plugin Root ID: " << plugin_root_id << std::endl;
+    logger->info("Haptikos Hands Plugin");
+    logger->info("Plugin Root ID: {}", plugin_root_id);
 
     auto plugin = std::make_unique<HaptikosHandsPlugin>(plugin_root_id);
 
-    std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
+    logger->info("Plugin running. Press Ctrl+C to stop.");
     while (!g_stop_requested.load(std::memory_order_relaxed))
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -61,11 +64,11 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.haptikos.main")->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.haptikos.main")->error("{}: Unknown error", argv[0]);
     return 1;
 }

@@ -4,6 +4,8 @@
 #include "core/frame_sink.hpp"
 #include "core/oak_camera.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -122,6 +124,8 @@ void print_usage(const char* program_name)
 int main(int argc, char** argv)
 try
 {
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.oak.main");
+
     OakConfig camera_config;
     std::map<core::StreamType, StreamConfig> stream_map;
     std::string collection_prefix;
@@ -175,7 +179,7 @@ try
         }
         else
         {
-            std::cerr << "Unknown option: " << arg << std::endl;
+            logger->error("Unknown option: {}", arg);
             print_usage(argv[0]);
             return 1;
         }
@@ -183,7 +187,7 @@ try
 
     if (stream_map.empty())
     {
-        std::cerr << "Error: at least one --add-stream is required." << std::endl;
+        logger->error("at least one --add-stream is required.");
         print_usage(argv[0]);
         return 1;
     }
@@ -198,14 +202,11 @@ try
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    std::cout << "============================================================" << std::endl;
-    std::cout << "OAK Camera Plugin Starting" << std::endl;
-    std::cout << "============================================================" << std::endl;
+    logger->info("OAK Camera Plugin Starting");
 
     OakCamera camera(camera_config, stream_configs, create_frame_sink(stream_configs, collection_prefix, mcap_filename));
 
-    std::cout << "------------------------------------------------------------" << std::endl;
-    std::cout << "Running capture loop. Press Ctrl+C to stop." << std::endl;
+    logger->info("Running capture loop. Press Ctrl+C to stop.");
 
     constexpr auto stats_interval = std::chrono::seconds(5);
     auto last_stats_time = std::chrono::steady_clock::now();
@@ -222,21 +223,19 @@ try
         }
     }
 
-    std::cout << "------------------------------------------------------------" << std::endl;
-    std::cout << "Shutting down OAK Camera Plugin..." << std::endl;
+    logger->info("Shutting down OAK Camera Plugin...");
     camera.print_stats();
-    std::cout << "Plugin stopped" << std::endl;
-    std::cout << "============================================================" << std::endl;
+    logger->info("Plugin stopped");
 
     return 0;
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.oak.main")->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.oak.main")->error("{}: Unknown error", argv[0]);
     return 1;
 }

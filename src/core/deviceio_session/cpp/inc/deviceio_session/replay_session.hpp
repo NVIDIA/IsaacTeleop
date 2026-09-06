@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/tracker.hpp>
+#include <log_bridge/logger.hpp>
 
 #include <memory>
 #include <stdexcept>
@@ -62,6 +63,7 @@ public:
 private:
     explicit ReplaySession(const McapReplayConfig& config);
 
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.ReplaySession");
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
 };
 

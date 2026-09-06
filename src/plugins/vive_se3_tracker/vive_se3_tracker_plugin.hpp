@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <vut/vut_client.h>
 #include <vut/vut_types.h>
@@ -125,6 +126,9 @@ private:
     // if the daemon later reassigns this device_id to a different serial, the
     // stream is rebuilt so samples never land in the previous tracker's collection.
     DeviceStream& stream_for(uint32_t device_id, const std::string& serial);
+
+    std::shared_ptr<spdlog::logger> logger_ =
+        isaacteleop::Logger::get("isaacteleop.plugins.vive_se3_tracker.ViveSe3TrackerPlugin");
 
     std::shared_ptr<core::OpenXRSession> session_;
 

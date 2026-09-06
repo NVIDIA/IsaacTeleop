@@ -3,10 +3,11 @@
 
 #include "rebot_devarm_leader_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
-#include <iostream>
 #include <string>
 #include <thread>
 
@@ -34,9 +35,9 @@ try
     const std::string collection_id = (argc > 2) ? argv[2] : "rebot_devarm_leader";
     const std::string calibration_path = (argc > 3) ? argv[3] : "";
 
-    std::cout << "reBot DevArm Leader (device: " << (device_path.empty() ? "<synthetic>" : device_path)
-              << ", collection: " << collection_id
-              << (calibration_path.empty() ? "" : ", calibration: " + calibration_path) << ")" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.rebot_devarm_leader.main")
+        ->info("reBot DevArm Leader (device: {}, collection: {}{})", device_path.empty() ? "<synthetic>" : device_path,
+               collection_id, calibration_path.empty() ? "" : ", calibration: " + calibration_path);
 
     RebotDevarmLeaderPlugin plugin(device_path, collection_id, calibration_path);
 
@@ -56,11 +57,11 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.rebot_devarm_leader.main")->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.rebot_devarm_leader.main")->error("{}: Unknown error", argv[0]);
     return 1;
 }
