@@ -69,21 +69,27 @@ class KeywordFilter(logging.Filter):
     def __init__(self, pattern: str, target: str = "both") -> None:
         super().__init__()
         if target not in ("logger_name", "content", "both"):
-            raise ValueError(f"target must be 'logger_name', 'content', or 'both', got {target!r}")
+            raise ValueError(
+                f"target must be 'logger_name', 'content', or 'both', got {target!r}"
+            )
         self._regex = re.compile(pattern)
         self._target = target
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if self._target in ("logger_name", "both") and self._regex.search(record.name):
-            return True
-        if self._target in ("content", "both") and self._regex.search(record.getMessage()):
-            return True
-        return False
+        return (
+            self._target in ("logger_name", "both")
+            and bool(self._regex.search(record.name))
+        ) or (
+            self._target in ("content", "both")
+            and bool(self._regex.search(record.getMessage()))
+        )
 
 
 _lock = threading.Lock()
 _console_handler: logging.Handler | None = None
 _console_filter: KeywordFilter | None = None
+_filter_pattern: str | None = None
+_filter_target: str = "both"
 
 
 def _ensure_console_handler() -> logging.Handler:
@@ -98,7 +104,9 @@ def _ensure_console_handler() -> logging.Handler:
         handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
         handler.setLevel(logging.INFO)
         root = logging.getLogger(ROOT_LOGGER_NAME)
-        root.setLevel(TRACE)  # handlers filter; the logger itself must stay maximally permissive
+        root.setLevel(
+            TRACE
+        )  # handlers filter; the logger itself must stay maximally permissive
         root.addHandler(handler)
         _console_handler = handler
         return _console_handler
@@ -116,10 +124,12 @@ def set_console_level(level: int | str) -> None:
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
     """Set the console handler's keyword filter, or clear it if *pattern* is ``None``."""
     handler = _ensure_console_handler()
-    global _console_filter
+    global _console_filter, _filter_pattern, _filter_target
     if _console_filter is not None:
         handler.removeFilter(_console_filter)
         _console_filter = None
+    _filter_pattern = pattern
+    _filter_target = target
     if pattern is not None:
         _console_filter = KeywordFilter(pattern, target=target)
         handler.addFilter(_console_filter)
@@ -171,6 +181,46 @@ def _ensure_file_handler() -> logging.Handler:
         logging.getLogger(ROOT_LOGGER_NAME).addHandler(handler)
         _file_handler = handler
         return _file_handler
+
+
+class _Unset:
+    """Sentinel type for :func:`configure`'s "leave this parameter as-is" default.
+
+    Distinct from ``None``, which for *filter* means "explicitly clear the
+    filter" rather than "the caller didn't pass this parameter".
+    """
+
+    def __repr__(self) -> str:
+        return "UNSET"
+
+
+UNSET = _Unset()
+
+
+def configure(
+    level: int | str | _Unset = UNSET,
+    filter: str | None | _Unset = UNSET,
+    filter_target: str | _Unset = UNSET,
+) -> None:
+    """Partially overlay the console handler's display level and/or keyword filter.
+
+    Each parameter defaults to :data:`UNSET`: an omitted parameter leaves
+    whatever is already configured untouched, including a value set by an
+    earlier ``configure()`` call. Passing ``filter=None`` is different from
+    omitting *filter* — it explicitly clears a previously set filter.
+
+    Only ever touches the console handler. The file handler always captures
+    everything at ``DEBUG``+ regardless of what is passed here, and no
+    logger's own default level (e.g. ``TRACE`` for third-party loggers) is
+    affected.
+    """
+    if level is not UNSET:
+        set_console_level(level)  # type: ignore[arg-type]
+
+    if filter is not UNSET or filter_target is not UNSET:
+        new_pattern = _filter_pattern if filter is UNSET else filter
+        new_target = _filter_target if filter_target is UNSET else filter_target
+        set_console_filter(new_pattern, target=new_target)  # type: ignore[arg-type]
 
 
 _ensure_console_handler()
