@@ -19,6 +19,8 @@ def _restore_console_state():
     saved_level = handler.level
     saved_filters = list(handler.filters)
     saved_console_filter = logging_config._console_filter
+    saved_filter_pattern = logging_config._filter_pattern
+    saved_filter_target = logging_config._filter_target
     yield
     handler.setLevel(saved_level)
     for f in list(handler.filters):
@@ -26,6 +28,8 @@ def _restore_console_state():
     for f in saved_filters:
         handler.addFilter(f)
     logging_config._console_filter = saved_console_filter
+    logging_config._filter_pattern = saved_filter_pattern
+    logging_config._filter_target = saved_filter_target
 
 
 def test_console_handler_attaches_once():
@@ -85,7 +89,9 @@ def test_set_console_filter_applies_and_clears():
 
 
 def test_get_logger_without_cls_matches_plain_getlogger():
-    assert logging_config.get_logger("isaacteleop.foo") is logging.getLogger("isaacteleop.foo")
+    assert logging_config.get_logger("isaacteleop.foo") is logging.getLogger(
+        "isaacteleop.foo"
+    )
 
 
 def test_get_logger_with_cls_suffixes_class_name():
@@ -195,3 +201,44 @@ def test_trace_visible_once_console_level_lowered_to_trace():
         handler.stream = original_stream
 
     assert "now visible" in stream.getvalue()
+
+
+def test_configure_level_only_does_not_touch_filter():
+    logging_config.set_console_filter("existing")
+    logging_config.configure(level="warning")
+    assert logging_config._ensure_console_handler().level == logging.WARNING
+    assert logging_config._filter_pattern == "existing"
+
+
+def test_configure_partial_overlay_preserves_filter_across_calls():
+    """The exact two-call sequence from the design doc's section 12, Step 8."""
+    logging_config.configure(filter="manus")
+    assert logging_config._filter_pattern == "manus"
+
+    logging_config.configure(level="debug")
+    assert logging_config._ensure_console_handler().level == logging.DEBUG
+    assert logging_config._filter_pattern == "manus"  # not cleared by the second call
+
+
+def test_configure_explicit_none_clears_filter():
+    logging_config.configure(filter="manus")
+    assert logging_config._filter_pattern == "manus"
+
+    logging_config.configure(filter=None)
+    assert logging_config._filter_pattern is None
+    assert logging_config._console_filter is None
+
+
+def test_configure_filter_target_alone_preserves_pattern():
+    logging_config.configure(filter="manus", filter_target="logger_name")
+    logging_config.configure(filter_target="content")
+    assert logging_config._filter_pattern == "manus"
+    assert logging_config._filter_target == "content"
+
+
+def test_configure_with_no_arguments_is_a_no_op():
+    logging_config.set_console_level("warning")
+    logging_config.set_console_filter("existing")
+    logging_config.configure()
+    assert logging_config._ensure_console_handler().level == logging.WARNING
+    assert logging_config._filter_pattern == "existing"
