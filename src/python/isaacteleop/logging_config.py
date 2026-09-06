@@ -13,13 +13,20 @@ building its own ad-hoc ``logging.basicConfig()``.
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 ROOT_LOGGER_NAME = "isaacteleop"
 
 LINE_FORMAT = "[%(asctime)s.%(msecs)03d] [%(levelname)-5s] [%(name)s] [pid:%(process)d] %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+DEFAULT_LOG_DIR = Path("~/.isaacteleop/logs").expanduser()
+_FILE_MAX_BYTES = 10 * 1024 * 1024  # 10 MiB
+_FILE_BACKUP_COUNT = 5
 
 _LEVEL_NAMES = {
     "debug": logging.DEBUG,
@@ -85,8 +92,8 @@ def _ensure_console_handler() -> logging.Handler:
 def set_console_level(level: int | str) -> None:
     """Set the console handler's display threshold.
 
-    Independent of the file handler (added in a later commit), which always
-    captures everything regardless of what the console is set to.
+    Independent of the file handler, which always captures everything
+    regardless of what the console is set to.
     """
     _ensure_console_handler().setLevel(_resolve_level(level))
 
@@ -114,4 +121,42 @@ def get_logger(name: str, cls: type | None = None) -> logging.Logger:
     return logging.getLogger(name)
 
 
+def _log_dir() -> Path:
+    override = os.environ.get("ISAACTELEOP_LOG_DIR")
+    return Path(override).expanduser() if override else DEFAULT_LOG_DIR
+
+
+_file_handler: logging.Handler | None = None
+
+
+def _ensure_file_handler() -> logging.Handler:
+    """Create and attach the file handler on first use; idempotent after that.
+
+    One file per process (the name includes the pid): concurrent processes
+    rotating the same file can corrupt it, so each process gets its own.
+    Always captures everything (``DEBUG``+) — not user-configurable, unlike
+    the console handler's level.
+    """
+    global _file_handler
+    if _file_handler is not None:
+        return _file_handler
+    with _lock:
+        if _file_handler is not None:
+            return _file_handler
+        log_dir = _log_dir()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        handler = RotatingFileHandler(
+            log_dir / f"isaacteleop.{os.getpid()}.log",
+            maxBytes=_FILE_MAX_BYTES,
+            backupCount=_FILE_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
+        handler.setLevel(logging.DEBUG)
+        logging.getLogger(ROOT_LOGGER_NAME).addHandler(handler)
+        _file_handler = handler
+        return _file_handler
+
+
 _ensure_console_handler()
+_ensure_file_handler()
