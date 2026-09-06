@@ -4,12 +4,15 @@
 #include "controller_se3_tracker_plugin.hpp"
 
 #include <deviceio_trackers/se3_tracker.hpp>
+#include <plugin_utils/openxr_plugin_session.hpp>
 
 #include <chrono>
 #include <cstddef>
 #include <iostream>
 #include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 using namespace plugins::controller_se3_tracker;
 
@@ -29,7 +32,11 @@ try
 
     std::cout << "Controller SE3 Tracker (hand: " << hand << ", collection: " << collection_id << ")" << std::endl;
 
-    ControllerSe3TrackerPlugin plugin(hand == "left", collection_id);
+    auto controller_tracker = std::make_shared<core::ControllerTracker>();
+    std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "ControllerSe3TrackerPlugin", core::PluginSessionRequirements{ .schema_push = true }, std::move(trackers));
+    ControllerSe3TrackerPlugin plugin(hand == "left", collection_id, std::move(controller_tracker), std::move(session));
 
     // Push data at 90 Hz
     const auto frame_duration = std::chrono::nanoseconds(1000000000 / 90);

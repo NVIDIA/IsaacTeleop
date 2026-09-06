@@ -6,13 +6,13 @@
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <flatbuffers/flatbuffers.h>
 #include <oxr_utils/os_time.hpp>
-#include <plugin_utils/openxr_plugin_session.hpp>
 #include <schema/controller_generated.h>
 #include <schema/se3_tracker_generated.h>
 
 #include <cstdint>
 #include <iostream>
-#include <vector>
+#include <stdexcept>
+#include <utility>
 
 namespace plugins
 {
@@ -35,16 +35,23 @@ core::SchemaPusherConfig make_pusher_config(const std::string& collection_id)
 
 } // namespace
 
-ControllerSe3TrackerPlugin::ControllerSe3TrackerPlugin(bool use_left_hand, const std::string& collection_id)
-    : m_use_left_hand(use_left_hand)
+ControllerSe3TrackerPlugin::ControllerSe3TrackerPlugin(bool use_left_hand,
+                                                       const std::string& collection_id,
+                                                       std::shared_ptr<core::ControllerTracker> controller_tracker,
+                                                       core::PluginSessionHandle plugin_session)
+    : m_use_left_hand(use_left_hand),
+      m_controller_tracker(std::move(controller_tracker)),
+      m_plugin_session(std::move(plugin_session))
 {
-    m_controller_tracker = std::make_shared<core::ControllerTracker>();
-    std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
-
-    auto openxr_session = std::make_shared<plugin_utils::OpenXRPluginSession>(
-        "ControllerSe3TrackerPlugin", core::PluginSessionRequirements{ .schema_push = true }, std::move(trackers));
-    m_deviceio_session = openxr_session->create_deviceio_session();
-    m_plugin_session = std::move(openxr_session);
+    if (!m_controller_tracker || !m_plugin_session)
+    {
+        throw std::invalid_argument("ControllerSe3TrackerPlugin requires a controller tracker and plugin session");
+    }
+    m_pull_channel = m_plugin_session->create_pull_channel();
+    if (!m_pull_channel)
+    {
+        throw std::runtime_error("The plugin session could not create a pull channel");
+    }
     m_pusher = std::make_unique<core::SchemaPusher>(
         m_plugin_session->create_schema_push_channel(make_pusher_config(collection_id)));
 
@@ -54,18 +61,15 @@ ControllerSe3TrackerPlugin::ControllerSe3TrackerPlugin(bool use_left_hand, const
 
 void ControllerSe3TrackerPlugin::update()
 {
-    // Capture the sample time BEFORE update(): DeviceIOSession::update() samples
-    // os_monotonic_now_ns() internally and locates the controller pose at that tick
-    // (deviceio_session.cpp). The pre-update capture approximates that tick time to
-    // microseconds; do not move this to post-update/push time — that would add loop
-    // processing bias to cross-device synchronization.
+    // Capture before update so the output timestamp approximates the pull
+    // channel's polling tick instead of including this loop's processing time.
     const int64_t sample_time_ns = core::os_monotonic_now_ns();
 
-    m_deviceio_session->update();
+    m_pull_channel->update();
 
     const core::Serialized<core::ControllerSnapshot>& tracked =
-        m_use_left_hand ? m_controller_tracker->get_left_controller(*m_deviceio_session) :
-                          m_controller_tracker->get_right_controller(*m_deviceio_session);
+        m_use_left_hand ? m_controller_tracker->get_left_controller(*m_pull_channel) :
+                          m_controller_tracker->get_right_controller(*m_pull_channel);
 
     const core::ControllerSnapshot* snapshot = tracked.get();
 
