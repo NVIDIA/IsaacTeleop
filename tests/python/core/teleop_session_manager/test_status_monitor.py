@@ -96,8 +96,8 @@ def make_monitor(*, entries=None, context=None, now_ns=10_000_000_000):
         report(
             now_ns,
             [
-                entry("/left", "CONNECTED", "HARDWARE_CONNECTED"),
-                entry("/right", "DISCONNECTED", "HARDWARE_DISCONNECTED"),
+                entry("/left", "CONNECTED"),
+                entry("/right", "DISCONNECTED", "NO_HARDWARE_SIGNAL"),
             ],
         )
         if entries is None
@@ -125,23 +125,66 @@ def make_monitor(*, entries=None, context=None, now_ns=10_000_000_000):
 
 
 @pytest.mark.parametrize(
-    ("schema_state", "expected"),
+    ("schema_state", "schema_reason", "expected_state", "expected_reason"),
     [
-        ("UNKNOWN", DeviceState.UNKNOWN),
-        ("CONNECTED", DeviceState.CONNECTED),
-        ("DISCONNECTED", DeviceState.DISCONNECTED),
-        ("DEGRADED", DeviceState.DEGRADED),
-        ("FAILED", DeviceState.FAILED),
-        ("DISABLED", DeviceState.DISABLED),
+        (
+            "UNKNOWN",
+            "NO_HARDWARE_SIGNAL",
+            DeviceState.UNKNOWN,
+            StatusReason.NO_HARDWARE_SIGNAL,
+        ),
+        (
+            "UNKNOWN",
+            "NO_CURRENT_DATA",
+            DeviceState.UNKNOWN,
+            StatusReason.NO_CURRENT_DATA,
+        ),
+        ("CONNECTED", "NONE", DeviceState.CONNECTED, StatusReason.NONE),
+        (
+            "DISCONNECTED",
+            "NO_HARDWARE_SIGNAL",
+            DeviceState.DISCONNECTED,
+            StatusReason.NO_HARDWARE_SIGNAL,
+        ),
+        (
+            "DEGRADED",
+            "NO_CURRENT_DATA",
+            DeviceState.DEGRADED,
+            StatusReason.NO_CURRENT_DATA,
+        ),
+        (
+            "DEGRADED",
+            "CALIBRATION_FAILED",
+            DeviceState.DEGRADED,
+            StatusReason.CALIBRATION_FAILED,
+        ),
+        (
+            "DEGRADED",
+            "DEVICE_ERROR",
+            DeviceState.DEGRADED,
+            StatusReason.DEVICE_ERROR,
+        ),
+        ("FAILED", "DEVICE_ERROR", DeviceState.FAILED, StatusReason.DEVICE_ERROR),
+        (
+            "DISABLED",
+            "DISABLED_BY_CONFIGURATION",
+            DeviceState.DISABLED,
+            StatusReason.DISABLED_BY_CONFIGURATION,
+        ),
     ],
 )
-def test_all_schema_device_states_are_mapped(schema_state, expected):
+def test_all_schema_device_states_are_mapped(
+    schema_state,
+    schema_reason,
+    expected_state,
+    expected_reason,
+):
     now_ns = 10_000_000_000
     monitor, tracker = make_monitor(now_ns=now_ns)
     tracker.report = report(
         now_ns,
         [
-            entry("/left", schema_state, "DISABLED_BY_CONFIGURATION"),
+            entry("/left", schema_state, schema_reason),
             entry("/right", "CONNECTED"),
         ],
     )
@@ -149,12 +192,8 @@ def test_all_schema_device_states_are_mapped(schema_state, expected):
     monitor.refresh(object(), now_ns=now_ns)
 
     device = monitor.get_device_status("/provider/left")
-    assert device.status == expected
-    assert device.reason == (
-        StatusReason.DISABLED_BY_CONFIGURATION
-        if expected == DeviceState.DISABLED
-        else StatusReason.REPORTED
-    )
+    assert device.status == expected_state
+    assert device.reason == expected_reason
 
 
 @pytest.mark.parametrize(
@@ -235,6 +274,16 @@ def test_provider_precedence_overrides_reports(
             ),
             StatusReason.MALFORMED_REPORT,
         ),
+        (
+            report(
+                10_000_000_000,
+                [
+                    entry("/left", "CONNECTED", "CALIBRATION_FAILED"),
+                    entry("/right", "CONNECTED"),
+                ],
+            ),
+            StatusReason.MALFORMED_REPORT,
+        ),
         (RuntimeError("transport failed"), StatusReason.MALFORMED_REPORT),
     ],
 )
@@ -260,7 +309,12 @@ def test_valid_report_recovers_after_malformed_report():
     tracker.report = report(
         now_ns,
         [
-            entry("/left", "DEGRADED", "RECOVERING"),
+            entry(
+                "/left",
+                "DEGRADED",
+                "NO_CURRENT_DATA",
+                error="waiting for skeleton",
+            ),
             entry("/right", "CONNECTED"),
         ],
     )
@@ -270,6 +324,11 @@ def test_valid_report_recovers_after_malformed_report():
         DeviceState.DEGRADED,
         DeviceState.CONNECTED,
     ]
+    assert [device.reason for device in monitor.get_status().devices] == [
+        StatusReason.NO_CURRENT_DATA,
+        StatusReason.NONE,
+    ]
+    assert monitor.get_status().devices[0].error == "waiting for skeleton"
 
 
 @pytest.mark.parametrize(

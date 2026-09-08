@@ -15,7 +15,7 @@ def test_plugin_device_status_snapshot_is_an_encoded_read_only_view():
     device = PluginDeviceStatus(
         "/input/left",
         PluginDeviceState.DEGRADED,
-        PluginDeviceReason.PARTIAL_FUNCTIONALITY,
+        PluginDeviceReason.NO_CURRENT_DATA,
         "finger sensor unavailable",
     )
     snapshot = PluginDeviceStatusSnapshot(1, 42, [device])
@@ -25,7 +25,7 @@ def test_plugin_device_status_snapshot_is_an_encoded_read_only_view():
     assert len(snapshot.devices) == 1
     assert snapshot.devices[0].path == "/input/left"
     assert snapshot.devices[0].state == PluginDeviceState.DEGRADED
-    assert snapshot.devices[0].reason == PluginDeviceReason.PARTIAL_FUNCTIONALITY
+    assert snapshot.devices[0].reason == PluginDeviceReason.NO_CURRENT_DATA
     assert snapshot.devices[0].error == "finger sensor unavailable"
 
 

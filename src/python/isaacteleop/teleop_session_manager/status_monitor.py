@@ -27,6 +27,27 @@ OPENXR_DEVICE_ID = "openxr/headset"
 PLUGIN_STATUS_COLLECTION_SUFFIX = "/device_status"
 OPENXR_IDENTIFIER_MAX_BYTES = 255
 
+_PLUGIN_DEVICE_REASON_MAP = {
+    "NONE": StatusReason.NONE,
+    "NO_HARDWARE_SIGNAL": StatusReason.NO_HARDWARE_SIGNAL,
+    "CALIBRATION_FAILED": StatusReason.CALIBRATION_FAILED,
+    "NO_CURRENT_DATA": StatusReason.NO_CURRENT_DATA,
+    "DEVICE_ERROR": StatusReason.DEVICE_ERROR,
+    "DISABLED_BY_CONFIGURATION": StatusReason.DISABLED_BY_CONFIGURATION,
+}
+
+_VALID_PLUGIN_DEVICE_STATE_REASON_PAIRS = {
+    ("UNKNOWN", "NO_HARDWARE_SIGNAL"),
+    ("UNKNOWN", "NO_CURRENT_DATA"),
+    ("CONNECTED", "NONE"),
+    ("DISCONNECTED", "NO_HARDWARE_SIGNAL"),
+    ("DEGRADED", "CALIBRATION_FAILED"),
+    ("DEGRADED", "NO_CURRENT_DATA"),
+    ("DEGRADED", "DEVICE_ERROR"),
+    ("FAILED", "DEVICE_ERROR"),
+    ("DISABLED", "DISABLED_BY_CONFIGURATION"),
+}
+
 
 @dataclass(frozen=True, slots=True)
 class PluginProviderSpec:
@@ -176,18 +197,20 @@ def _reduce_report(
                 ) from error
 
             reason_name = _enum_name(entry.reason)
-            if reason_name not in {
-                "NONE",
-                "NO_HARDWARE_SIGNAL",
-                "HARDWARE_CONNECTED",
-                "HARDWARE_DISCONNECTED",
-                "RECOVERING",
-                "PARTIAL_FUNCTIONALITY",
-                "DEVICE_ERROR",
-                "DISABLED_BY_CONFIGURATION",
-            }:
+            try:
+                reason = _PLUGIN_DEVICE_REASON_MAP[reason_name]
+            except KeyError as error:
                 raise ValueError(
                     f"plugin status report contains invalid reason {reason_name!r}"
+                ) from error
+
+            if (
+                state_name,
+                reason_name,
+            ) not in _VALID_PLUGIN_DEVICE_STATE_REASON_PAIRS:
+                raise ValueError(
+                    "plugin status report contains invalid state/reason pair "
+                    f"{state_name}/{reason_name}"
                 )
 
             entry_error = entry.error
@@ -195,24 +218,11 @@ def _reduce_report(
                 raise TypeError(
                     f"plugin status report error for {device.path!r} is not a string"
                 )
-            redundant_reason = (state_name, reason_name) in {
-                ("CONNECTED", "HARDWARE_CONNECTED"),
-                ("DISCONNECTED", "HARDWARE_DISCONNECTED"),
-                ("DISABLED", "DISABLED_BY_CONFIGURATION"),
-            }
-            if reason_name != "NONE" and not redundant_reason:
-                entry_error = (
-                    f"{reason_name}: {entry_error}" if entry_error else reason_name
-                )
             reduced.append(
                 replace(
                     device,
                     status=state,
-                    reason=(
-                        StatusReason.DISABLED_BY_CONFIGURATION
-                        if state == DeviceState.DISABLED
-                        else StatusReason.REPORTED
-                    ),
+                    reason=reason,
                     error=entry_error,
                 )
             )

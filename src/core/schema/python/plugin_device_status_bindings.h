@@ -31,10 +31,8 @@ inline void bind_plugin_device_status(py::module& m)
     py::enum_<PluginDeviceReason>(m, "PluginDeviceReason")
         .value("NONE", PluginDeviceReason_NONE)
         .value("NO_HARDWARE_SIGNAL", PluginDeviceReason_NO_HARDWARE_SIGNAL)
-        .value("HARDWARE_CONNECTED", PluginDeviceReason_HARDWARE_CONNECTED)
-        .value("HARDWARE_DISCONNECTED", PluginDeviceReason_HARDWARE_DISCONNECTED)
-        .value("RECOVERING", PluginDeviceReason_RECOVERING)
-        .value("PARTIAL_FUNCTIONALITY", PluginDeviceReason_PARTIAL_FUNCTIONALITY)
+        .value("CALIBRATION_FAILED", PluginDeviceReason_CALIBRATION_FAILED)
+        .value("NO_CURRENT_DATA", PluginDeviceReason_NO_CURRENT_DATA)
         .value("DEVICE_ERROR", PluginDeviceReason_DEVICE_ERROR)
         .value("DISABLED_BY_CONFIGURATION", PluginDeviceReason_DISABLED_BY_CONFIGURATION);
 

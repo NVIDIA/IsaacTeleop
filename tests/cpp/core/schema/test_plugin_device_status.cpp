@@ -28,12 +28,10 @@ static_assert(core::PluginDeviceState_DISABLED == 5);
 
 static_assert(core::PluginDeviceReason_NONE == 0);
 static_assert(core::PluginDeviceReason_NO_HARDWARE_SIGNAL == 1);
-static_assert(core::PluginDeviceReason_HARDWARE_CONNECTED == 2);
-static_assert(core::PluginDeviceReason_HARDWARE_DISCONNECTED == 3);
-static_assert(core::PluginDeviceReason_RECOVERING == 4);
-static_assert(core::PluginDeviceReason_PARTIAL_FUNCTIONALITY == 5);
-static_assert(core::PluginDeviceReason_DEVICE_ERROR == 6);
-static_assert(core::PluginDeviceReason_DISABLED_BY_CONFIGURATION == 7);
+static_assert(core::PluginDeviceReason_CALIBRATION_FAILED == 2);
+static_assert(core::PluginDeviceReason_NO_CURRENT_DATA == 3);
+static_assert(core::PluginDeviceReason_DEVICE_ERROR == 4);
+static_assert(core::PluginDeviceReason_DISABLED_BY_CONFIGURATION == 5);
 
 TEST_CASE("Plugin device status fields are optional", "[schema][plugin_device_status]")
 {
@@ -55,7 +53,7 @@ TEST_CASE("Plugin device status snapshot round-trips", "[schema][plugin_device_s
     auto device = std::make_shared<core::PluginDeviceStatusT>();
     device->path = "/input/left_hand";
     device->state = core::PluginDeviceState_DEGRADED;
-    device->reason = core::PluginDeviceReason_PARTIAL_FUNCTIONALITY;
+    device->reason = core::PluginDeviceReason_NO_CURRENT_DATA;
     device->error = "finger sensor unavailable";
     native.devices.push_back(std::move(device));
 
@@ -70,7 +68,7 @@ TEST_CASE("Plugin device status snapshot round-trips", "[schema][plugin_device_s
     REQUIRE(snapshot->devices()->size() == 1);
     CHECK(snapshot->devices()->Get(0)->path()->str() == "/input/left_hand");
     CHECK(snapshot->devices()->Get(0)->state() == core::PluginDeviceState_DEGRADED);
-    CHECK(snapshot->devices()->Get(0)->reason() == core::PluginDeviceReason_PARTIAL_FUNCTIONALITY);
+    CHECK(snapshot->devices()->Get(0)->reason() == core::PluginDeviceReason_NO_CURRENT_DATA);
     CHECK(snapshot->devices()->Get(0)->error()->str() == "finger sensor unavailable");
 }
 

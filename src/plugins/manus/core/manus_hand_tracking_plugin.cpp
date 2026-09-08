@@ -920,24 +920,24 @@ void ManusTracker::publish_device_status()
             if (!present)
             {
                 entry.state = core::PluginDeviceState_DISCONNECTED;
-                entry.reason = core::PluginDeviceReason_HARDWARE_DISCONNECTED;
+                entry.reason = core::PluginDeviceReason_NO_HARDWARE_SIGNAL;
             }
             else if (calibration_failed)
             {
                 entry.state = core::PluginDeviceState_DEGRADED;
-                entry.reason = core::PluginDeviceReason_DEVICE_ERROR;
+                entry.reason = core::PluginDeviceReason_CALIBRATION_FAILED;
                 entry.error = "glove calibration failed";
             }
             else if (!has_current_skeleton)
             {
                 entry.state = core::PluginDeviceState_DEGRADED;
-                entry.reason = core::PluginDeviceReason_PARTIAL_FUNCTIONALITY;
+                entry.reason = core::PluginDeviceReason_NO_CURRENT_DATA;
                 entry.error = "glove present but has no current usable skeleton data";
             }
             else
             {
                 entry.state = core::PluginDeviceState_CONNECTED;
-                entry.reason = core::PluginDeviceReason_HARDWARE_CONNECTED;
+                entry.reason = core::PluginDeviceReason_NONE;
             }
             entries.push_back(std::move(entry));
         };

@@ -57,7 +57,7 @@ plugin_utils::PluginDeviceStatusEntry connected(std::string path)
     return plugin_utils::PluginDeviceStatusEntry{
         .path = std::move(path),
         .state = core::PluginDeviceState_CONNECTED,
-        .reason = core::PluginDeviceReason_HARDWARE_CONNECTED,
+        .reason = core::PluginDeviceReason_NONE,
     };
 }
 
