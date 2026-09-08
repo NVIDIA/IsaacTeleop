@@ -197,8 +197,8 @@ class TeleopSession:
         self._status_monitor = StatusMonitor()
 
         # The robot twin's render thread, when config.joint_publisher is set.
-        self._twin_runner: Optional[Any] = None
-        self._twin_teardown_clean: Optional[bool] = None
+        self._twin_runner: Any | None = None
+        self._twin_teardown_clean: bool | None = None
 
         # Exit stack for RAII resource management
         self._exit_stack = ExitStack()
@@ -240,7 +240,7 @@ class TeleopSession:
         return self._oxr_session
 
     @property
-    def twin_teardown_clean(self) -> Optional[bool]:
+    def twin_teardown_clean(self) -> bool | None:
         """Did the robot twin's render thread shut down cleanly?
 
         ``None`` when no twin was configured or the session has not exited yet. **False
@@ -256,7 +256,7 @@ class TeleopSession:
         return self._twin_teardown_clean
 
     @property
-    def twin_resolution(self) -> Optional[Any]:
+    def twin_resolution(self) -> Any | None:
         """Per-view resolution the twin was built at, or ``None`` without one."""
         return None if self._twin_runner is None else self._twin_runner.resolution
 
@@ -271,7 +271,7 @@ class TeleopSession:
         return runner.take_recentered() if runner is not None else False
 
     @property
-    def twin_head_pose(self) -> Optional[Any]:
+    def twin_head_pose(self) -> Any | None:
         """The last rendered frame's 7-D head pose ``[x, y, z, qx, qy, qz, qw]``.
 
         ``None`` without a twin, and before its first rendered frame. Read from the
@@ -292,7 +292,7 @@ class TeleopSession:
         return self._twin_runner is not None and self._twin_runner.rendering
 
     @property
-    def last_context(self) -> Optional[ComputeContext]:
+    def last_context(self) -> ComputeContext | None:
         """Most recent ComputeContext produced by ``step()``, or ``None`` before first step."""
         return self._last_context
 
@@ -1198,8 +1198,8 @@ class TeleopSession:
         self._active_retargeting_execution_mode = self.config.retargeting_execution.mode
 
     def _start_twin(
-        self, stack: ExitStack, required_extensions: List[str]
-    ) -> Tuple[int, int, int, int]:
+        self, stack: ExitStack, required_extensions: list[str]
+    ) -> tuple[int, int, int, int]:
         """Bring up the robot twin's render thread and return its OpenXR handles.
 
         The same aggregated ``required_extensions`` every tracker asked for: this is
