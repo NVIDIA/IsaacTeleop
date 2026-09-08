@@ -202,8 +202,8 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Viser HTTP bind address (default: 127.0.0.1; pass 0.0.0.0 to expose externally)",
+        default="0.0.0.0",
+        help="Viser HTTP bind address (default: 0.0.0.0, all interfaces; pass 127.0.0.1 to keep it local)",
     )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
     args = parser.parse_args(argv[1:])
