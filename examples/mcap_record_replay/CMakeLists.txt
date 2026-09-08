@@ -7,4 +7,4 @@ cmake_minimum_required(VERSION 3.20)
 add_subdirectory(cpp)
 
 include(${CMAKE_SOURCE_DIR}/cmake/InstallPythonExample.cmake)
-install_python_example(DESTINATION examples/mcap_record_replay/python)
+install_python_example(DESTINATION examples/mcap_record_replay)

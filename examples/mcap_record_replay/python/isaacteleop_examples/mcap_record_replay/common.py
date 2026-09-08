@@ -48,6 +48,71 @@ from isaacteleop.retargeting_engine.tensor_types.ndarray_types import (
 )
 
 
+class GroundGrid:
+    """The ground plane and the default camera, anchored to what is tracked.
+
+    The session asks OpenXR for a stage (floor-relative) space, but a runtime
+    that cannot supply one falls back to a head-relative origin: y=0 then sits
+    at eye height and the skeleton hangs below a grid drawn at zero. Following
+    the lowest tracked joint puts the grid on the floor in either space, and
+    the camera is framed against that floor rather than against y=0 -- aiming
+    at a fixed height leaves the subject at the bottom of the viewport in a
+    head-relative space.
+    """
+
+    def __init__(self, server, handle, smoothing: float = 0.05):
+        self._server = server
+        self._handle = handle
+        self._smoothing = smoothing
+        self._y: float | None = None
+
+        @server.on_client_connect
+        def _(client) -> None:
+            self._frame(client)
+
+    def _frame(self, client) -> None:
+        """Stand back from the floor at eye height, looking at torso height."""
+        floor = 0.0 if self._y is None else self._y
+        client.camera.position = (0.0, floor + 1.5, 2.5)
+        client.camera.look_at = (0.0, floor + 0.9, 0.0)
+
+    def follow(self, positions: np.ndarray, valid: np.ndarray) -> None:
+        points = np.asarray(positions, dtype=np.float32)[np.asarray(valid, dtype=bool)]
+        if points.size == 0:
+            return
+        lowest = float(np.min(points[:, 1]))
+        # Ease toward it: a single mistracked frame should not drop the floor.
+        first = self._y is None
+        self._y = lowest if first else self._y + self._smoothing * (lowest - self._y)
+        self._handle.position = (0.0, self._y, 0.0)
+
+        # Re-aim once, when the floor is first known. Doing it every frame would
+        # fight the mouse.
+        if first:
+            for client in self._server.get_clients().values():
+                self._frame(client)
+
+
+def setup_scene(server) -> GroundGrid:
+    """Up axis, ground grid and a starting camera, shared by every viewer here.
+
+    viser's ``add_grid`` defaults to the XY plane, which stands up as a wall
+    once the up direction is +y -- it has to be ``xz`` to lie on the ground.
+    Returns the grid so a caller with tracked joints can keep it on the floor.
+    """
+    server.scene.set_up_direction("+y")
+    grid = server.scene.add_grid(
+        name="/grid",
+        width=6.0,
+        height=6.0,
+        plane="xz",
+        cell_size=0.25,
+        section_size=1.0,
+    )
+
+    return GroundGrid(server, grid)
+
+
 _ZERO_POSITIONS = np.zeros((NUM_HAND_JOINTS, 3), dtype=np.float32)
 
 
@@ -456,7 +521,8 @@ class ControllerViz:
 class FullBodyViz:
     """Viser handles for full-body skeleton (joint cloud + skeleton segments)."""
 
-    def __init__(self, server: viser.ViserServer):
+    def __init__(self, server: viser.ViserServer, ground: "GroundGrid | None" = None):
+        self._ground = ground
         self.color = np.array(TRACKED_COLOR, dtype=np.float32)
         zero_pts = np.zeros((len(BODY_JOINT_NAMES), 3), dtype=np.float32)
         zero_segs = np.zeros((0, 2, 3), dtype=np.float32)
@@ -494,3 +560,6 @@ class FullBodyViz:
         segs = _valid_bone_segments(positions, valid_bool)
         self.bones.points = segs
         self.bones.colors = np.tile(self.color, (segs.shape[0], 2, 1))
+
+        if self._ground is not None:
+            self._ground.follow(positions, valid_bool)

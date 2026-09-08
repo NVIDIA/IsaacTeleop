@@ -5,7 +5,8 @@
 Visualize live OpenXR hand-tracking in real time with viser.
 
 ``CloudXRLauncher`` starts the CloudXR runtime and WSS proxy automatically.
-Open the URL viser prints (default http://localhost:8080) in a browser to see
+Open the URL viser prints in a browser (binds all interfaces, so another
+machine can reach it at http://<this-host>:8080) to see
 both hands rendered as joint clouds + bone segments, updating live as you move.
 
 Usage:
@@ -26,7 +27,7 @@ import viser
 from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import HandViz, LEFT_COLOR, RIGHT_COLOR, build_hand_pipeline
+from .common import HandViz, LEFT_COLOR, RIGHT_COLOR, build_hand_pipeline, setup_scene
 
 
 def main(argv: list[str]) -> int:
@@ -41,8 +42,7 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv[1:])
 
     server = viser.ViserServer(host=args.host, port=args.port)
-    server.scene.set_up_direction("+y")
-    server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
+    setup_scene(server)
 
     config = TeleopSessionConfig(
         app_name="LiveHandExample",

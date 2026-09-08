@@ -2,16 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Replay a recorded hand-tracking MCAP file and visualize it with viser.
+Replay a recorded controller-tracking MCAP file and visualize it with viser.
 
 ``mode=SessionMode.REPLAY`` skips all OpenXR initialization, so this runs
 headless on any machine. Open the URL viser prints (default
-http://localhost:8080) in a browser to see the hands move.
+http://localhost:8080) in a browser to see aim/grip points + a per-controller
+HUD (thumbstick, trigger, squeeze, buttons).
 
 Usage:
-    python replay_hand.py [path/to/file.mcap] [--port 8080] [--loop]
+    python replay_controller.py [path/to/file.mcap] [--port 8080] [--loop]
 
-If no path is given, the newest file under ``../recordings/`` is used.
+If no path is given, the newest file under ``./recordings/`` is used.
 ``--loop`` keeps replaying the file end-to-end until the process is killed.
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
@@ -22,7 +23,6 @@ import sys
 import time
 from pathlib import Path
 
-import numpy as np
 import viser
 from mcap.reader import make_reader
 
@@ -33,14 +33,21 @@ from isaacteleop.teleop_session_manager import (
     TeleopSessionConfig,
 )
 
-from common import HandViz, LEFT_COLOR, RIGHT_COLOR, build_hand_pipeline
+from .common import (
+    setup_scene,
+    ControllerViz,
+    LEFT_COLOR,
+    RIGHT_COLOR,
+    build_controller_pipeline,
+    controller_state,
+)
 
 
 def mcap_duration_s(path: Path) -> float:
     """Read MCAP summary statistics and return wall-clock duration in seconds.
 
     The C++ replay session does not signal end-of-file — it just logs
-    ``ReplayHandTrackerImpl: ... data not found`` and keeps spinning. We use
+    ``Replay*TrackerImpl: ... data not found`` and keeps spinning. We use
     this duration as the stop condition so playback exits cleanly.
     """
     with open(path, "rb") as f:
@@ -61,12 +68,12 @@ def resolve_mcap(path_arg: str | None) -> Path:
             sys.exit(f"[replay] error: {path} does not exist")
         return path
 
-    recordings = Path(__file__).resolve().parent.parent / "recordings"
+    recordings = Path.cwd() / "recordings"
     candidates = list(recordings.glob("*.mcap"))
     if not candidates:
         sys.exit(
             f"[replay] error: no .mcap files in {recordings}. "
-            "Run record_hand.py first or pass a path."
+            "Run record_controller.py first or pass a path."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
@@ -74,13 +81,13 @@ def resolve_mcap(path_arg: str | None) -> Path:
 def run_once(
     mcap_path: Path,
     duration_s: float,
-    viz_left: HandViz,
-    viz_right: HandViz,
+    viz_left: ControllerViz,
+    viz_right: ControllerViz,
 ) -> int:
     """Play the file once for ``duration_s`` wall-clock seconds. Returns frame count."""
     config = TeleopSessionConfig(
-        app_name="McapHandReplayExample",
-        pipeline=build_hand_pipeline(),
+        app_name="McapControllerReplayExample",
+        pipeline=build_controller_pipeline(),
         mode=SessionMode.REPLAY,
         mcap_config=McapReplayConfig(str(mcap_path)),
     )
@@ -90,22 +97,20 @@ def run_once(
         start = time.time()
         while time.time() - start < duration_s:
             result = session.step()
-            viz_left.update(
-                np.asarray(result["left_positions"][0]),
-                bool(result["left_valid"][0]),
-            )
-            viz_right.update(
-                np.asarray(result["right_positions"][0]),
-                bool(result["right_valid"][0]),
-            )
-            frames = session.frame_count
 
+            l_state = controller_state(result["controller_left"])
+            r_state = controller_state(result["controller_right"])
+
+            viz_left.update(l_state)
+            viz_right.update(r_state)
+
+            frames = session.frame_count
             if frames % 60 == 0:
                 print(
                     f"[replay] t={time.time() - start:5.2f}s  "
                     f"frame={frames}  "
-                    f"L={'Y' if bool(result['left_valid'][0]) else '-'} "
-                    f"R={'Y' if bool(result['right_valid'][0]) else '-'}"
+                    f"L={'Y' if l_state['aim_valid'] else '-'} "
+                    f"R={'Y' if r_state['aim_valid'] else '-'}"
                 )
             time.sleep(1 / 60)
     print(f"[replay] reached end of recording after {frames} frames")
@@ -132,11 +137,10 @@ def main(argv: list[str]) -> int:
     duration_s = mcap_duration_s(mcap_path)
 
     server = viser.ViserServer(host=args.host, port=args.port)
-    server.scene.set_up_direction("+y")
-    server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
+    setup_scene(server)
 
-    viz_left = HandViz(server, "hand_left", LEFT_COLOR)
-    viz_right = HandViz(server, "hand_right", RIGHT_COLOR)
+    viz_left = ControllerViz(server, "controller_left", LEFT_COLOR)
+    viz_right = ControllerViz(server, "controller_right", RIGHT_COLOR)
 
     print(
         f"[replay] viser listening on {args.host}:{args.port} "
