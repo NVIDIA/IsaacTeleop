@@ -741,7 +741,7 @@ jobs:
             -v /tmp:/tmp \
             -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p hand_retargeter:=$hand_retargeter -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
+            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m isaacteleop_examples.teleop_ros2 --ros-args -p mode:=$mode -p hand_retargeter:=$hand_retargeter -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -767,7 +767,7 @@ jobs:
             if docker exec \
               -e PYTHONUNBUFFERED=1 \
               "$RUN_NAME" bash -c \
-              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode --hand-retargeter $hand_retargeter"; then
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m isaacteleop_examples.teleop_ros2.integration_tests.teleop_ros2_topic_verifier --mode $mode --hand-retargeter $hand_retargeter"; then
               verifier_rc=0
             else
               verifier_rc=$?
@@ -848,7 +848,7 @@ jobs:
           -e PYTHONUNBUFFERED=1 \
           -e ACCEPT_CLOUDXR_EULA=Y \
           --entrypoint bash "$IMAGE" -c \
-          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p hand_retargeter:=$HAND_RETARGETER -p hand_tracking_plugin:=$HAND_TRACKING_PLUGIN -p cloudxr_accept_eula:=true" >/dev/null
+          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m isaacteleop_examples.teleop_ros2 --ros-args -p mode:=$MODE -p hand_retargeter:=$HAND_RETARGETER -p hand_tracking_plugin:=$HAND_TRACKING_PLUGIN -p cloudxr_accept_eula:=true" >/dev/null
 
         fail() {
           echo "Error: $1"
