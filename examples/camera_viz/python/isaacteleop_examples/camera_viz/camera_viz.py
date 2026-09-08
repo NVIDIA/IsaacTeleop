@@ -31,9 +31,9 @@ import yaml
 import isaacteleop.viz as viz
 from isaacteleop.cloudxr import CloudXRLauncher
 
-from pipeline import FrameSource, VizRunner
-from placements import PlacementConfig, PlacementStrategy, build as build_placement
-from sources import (
+from .pipeline import FrameSource, VizRunner
+from .placements import PlacementConfig, PlacementStrategy, build as build_placement
+from .sources import (
     PairedFrameSource,
     RtpH264Source,
     build_local_camera,
@@ -505,7 +505,3 @@ def main(argv: Optional[list[str]] = None) -> int:
         if stop_launcher:
             launch_ctx.__exit__(None, None, None)
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

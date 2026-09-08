@@ -17,8 +17,8 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from pipeline import Frame, FrameSource, SourceSpec
-from sources._helpers import PairedFrameSource
+from isaacteleop_examples.camera_viz.pipeline import Frame, FrameSource, SourceSpec
+from isaacteleop_examples.camera_viz.sources._helpers import PairedFrameSource
 
 
 class FakeSource(FrameSource):
