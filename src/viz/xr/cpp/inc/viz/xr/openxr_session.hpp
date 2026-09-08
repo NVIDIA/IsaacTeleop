@@ -5,10 +5,12 @@
 
 #include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
+#include <oxr_utils/debug_utils_messenger.hpp>
 
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -220,6 +222,9 @@ private:
     // Member declaration order matters: destruction is reverse, and
     // OpenXR requires Spaces → Session → Instance teardown order.
     InstanceHandle instance_{ nullptr, nullptr };
+    // Must be destroyed before instance_ (declared after it); only active() once
+    // create_instance() constructs it, and only if the runtime advertised support.
+    std::optional<oxr_utils::DebugUtilsMessenger> debug_messenger_;
     XrSystemId system_id_ = XR_NULL_SYSTEM_ID;
     bool has_depth_composition_layer_ = false;
     bool has_cylinder_composition_layer_ = false;

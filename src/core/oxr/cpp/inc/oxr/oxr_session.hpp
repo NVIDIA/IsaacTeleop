@@ -5,6 +5,7 @@
 
 #include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
+#include <oxr_utils/debug_utils_messenger.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 
 #include <cstdint>
@@ -73,6 +74,9 @@ private:
     void begin();
 
     InstanceHandle instance_;
+    // Must be destroyed before instance_ (declared after it: members destroy in reverse
+    // declaration order), and only becomes active() once create_instance() constructs it.
+    std::optional<oxr_utils::DebugUtilsMessenger> debug_messenger_;
     XrSystemId system_id_;
     SessionHandle session_;
     SpaceHandle space_;
