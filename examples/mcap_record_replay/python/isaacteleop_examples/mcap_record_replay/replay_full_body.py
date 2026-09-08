@@ -122,8 +122,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("mcap", nargs="?", help="Path to .mcap file")
     parser.add_argument(
         "--host",
-        default="127.0.0.1",
-        help="Viser HTTP bind address (default: 127.0.0.1; pass 0.0.0.0 to expose externally)",
+        default="0.0.0.0",
+        help="Viser HTTP bind address (default: 0.0.0.0, all interfaces; pass 127.0.0.1 to keep it local)",
     )
     parser.add_argument("--port", type=int, default=8080, help="Viser HTTP port")
     parser.add_argument(
@@ -140,7 +140,10 @@ def main(argv: list[str]) -> int:
     ground = setup_scene(server)
     viz = FullBodyViz(server, ground)
 
-    print(f"[replay] viser running at http://localhost:{args.port}")
+    print(
+        f"[replay] viser listening on {args.host}:{args.port} "
+        f"(http://localhost:{args.port})"
+    )
     print(f"[replay] reading {mcap_path} (duration {duration_s:.2f}s)")
 
     while True:
