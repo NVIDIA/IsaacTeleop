@@ -6,6 +6,8 @@
 #include "oak_camera.hpp"
 #include "rawdata_writer.hpp"
 
+#include <pusherio/plugin_session.hpp>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -60,7 +62,8 @@ private:
  */
 std::unique_ptr<FrameSink> create_frame_sink(const std::vector<StreamConfig>& streams,
                                              const std::string& collection_prefix,
-                                             const std::string& mcap_filename);
+                                             const std::string& mcap_filename,
+                                             core::PluginSessionHandle session);
 
 } // namespace oak
 } // namespace plugins

@@ -4,6 +4,7 @@
 #include "wuji_glove_plugin.hpp"
 
 #include <oxr_utils/math.hpp>
+#include <oxr_utils/os_time.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -14,6 +15,7 @@
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
+#include <utility>
 
 namespace plugins
 {
@@ -197,23 +199,23 @@ XrPosef pose_from_env(const char* name, const XrPosef& fallback)
 
 // Wrist-source selection: WUJI_GLOVE_WRIST_SOURCE = auto (default) |
 // hand_tracking | controller.
-plugin_utils::WristSourceMode wrist_source_mode_from_env()
+core::WristTrackingSourceMode wrist_source_mode_from_env()
 {
     const char* value = std::getenv("WUJI_GLOVE_WRIST_SOURCE");
     if (value == nullptr || *value == '\0' || std::strcmp(value, "auto") == 0)
     {
-        return plugin_utils::WristSourceMode::Auto;
+        return core::WristTrackingSourceMode::Auto;
     }
     if (std::strcmp(value, "hand_tracking") == 0)
     {
-        return plugin_utils::WristSourceMode::HandTracking;
+        return core::WristTrackingSourceMode::HandTracking;
     }
     if (std::strcmp(value, "controller") == 0)
     {
-        return plugin_utils::WristSourceMode::Controller;
+        return core::WristTrackingSourceMode::Controller;
     }
     std::cerr << "WujiGlovePlugin: unknown WUJI_GLOVE_WRIST_SOURCE '" << value << "', using 'auto'" << std::endl;
-    return plugin_utils::WristSourceMode::Auto;
+    return core::WristTrackingSourceMode::Auto;
 }
 
 // Resolve the glove's hand side explicitly via the device's "hand_side" GET
@@ -245,33 +247,32 @@ const char* safe_err()
 
 } // namespace
 
-WujiGlovePlugin::WujiGlovePlugin(const std::string& plugin_root_id) noexcept(false) : m_root_id(plugin_root_id)
+WujiGlovePlugin::WujiGlovePlugin(const std::string& plugin_root_id,
+                                 core::PluginSessionHandle plugin_session) noexcept(false)
+    : m_plugin_session(std::move(plugin_session)), m_root_id(plugin_root_id)
 {
     std::cout << "Initializing WujiGlovePlugin with root: " << m_root_id << std::endl;
 
-    // The glove itself is not an OpenXR upstream tracker — it is read
-    // out-of-band via wuji_sdk. The tracker list carries only what the wrist
-    // source needs (the controller tracker for the aim-pose fallback); the
-    // OpenXR session exists for the push-device (injection) extension, the
-    // wrist-source queries, and the XrTime base.
-    plugin_utils::WristSourceConfig wrist_config;
+    if (!m_plugin_session)
+    {
+        throw std::invalid_argument("WujiGlovePlugin requires a plugin session");
+    }
+
+    core::WristTrackingSourceConfig wrist_config;
     wrist_config.mode = wrist_source_mode_from_env();
     wrist_config.left_aim_to_wrist = pose_from_env("WUJI_GLOVE_AIM_TO_WRIST_LEFT", kLeftAimToWrist);
     wrist_config.right_aim_to_wrist = pose_from_env("WUJI_GLOVE_AIM_TO_WRIST_RIGHT", kRightAimToWrist);
-    auto wrist_requirements = plugin_utils::WristPoseSource::collect_requirements(wrist_config.mode);
-
-    std::vector<std::shared_ptr<core::ITracker>> trackers = wrist_requirements.trackers;
-    auto extensions = core::DeviceIOSession::get_required_extensions(trackers);
-    extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
-    extensions.insert(extensions.end(), wrist_requirements.extensions.begin(), wrist_requirements.extensions.end());
-
-    m_session = std::make_shared<core::OpenXRSession>("WujiGlove", extensions);
-    const auto handles = m_session->get_handles();
-
-    m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
-    m_time_converter.emplace(handles);
-    m_wrist_source = std::make_unique<plugin_utils::WristPoseSource>(
-        wrist_config, handles, m_deviceio_session.get(), wrist_requirements.controller_tracker);
+    m_pull_channel = m_plugin_session->create_pull_channel();
+    if (!m_pull_channel)
+    {
+        throw std::runtime_error("The plugin session could not create a pull channel");
+    }
+    m_wrist_source = m_pull_channel->create_wrist_tracking_source(wrist_config);
+    if (!m_wrist_source)
+    {
+        std::cout << "WujiGlovePlugin: requested wrist source is unavailable; publishing wrist-relative joints"
+                  << std::endl;
+    }
 
     WujiInitOptions init_opts{};
     init_opts.log_level = 2; // warn only; the plugin reports connection and errors itself
@@ -546,24 +547,23 @@ void WujiGlovePlugin::invalidate_hand(bool is_left)
     slot.valid = false;
 }
 
-void WujiGlovePlugin::pump_hand(std::unique_ptr<plugin_utils::HandInjector>& injector,
+void WujiGlovePlugin::pump_hand(std::unique_ptr<core::HandTrackingPusher>& pusher,
                                 XrHandEXT hand,
                                 const HandFrame& frame,
-                                XrTime time)
+                                int64_t sample_time_ns)
 {
-    // Treat data older than 200 ms as "hand absent": drop the injector so the
-    // runtime reports isActive=false rather than a frozen pose.
+    // Treat data older than 200 ms as "hand absent": close the stream so the
+    // receiver reports isActive=false rather than a frozen pose.
     using namespace std::chrono;
     const bool fresh = frame.valid && (steady_clock::now() - frame.stamp) < kStaleThreshold;
     if (!fresh)
     {
-        injector.reset();
+        pusher.reset();
         return;
     }
-    if (!injector)
+    if (!pusher)
     {
-        const auto handles = m_session->get_handles();
-        injector = std::make_unique<plugin_utils::HandInjector>(handles.instance, handles.session, hand, handles.space);
+        pusher = std::make_unique<core::HandTrackingPusher>(m_plugin_session->create_hand_tracking_push_channel(hand));
     }
 
     // Fuse the device wrist pose: place the wrist-relative skeleton at the
@@ -571,10 +571,10 @@ void WujiGlovePlugin::pump_hand(std::unique_ptr<plugin_utils::HandInjector>& inj
     // actively tracked. With no wrist source available the skeleton stays
     // wrist-relative at the space origin with VALID-only flags (honest
     // degradation: consumers see the shape but know the pose is untracked).
-    plugin_utils::WristSample wrist;
+    core::WristTrackingSample wrist;
     if (m_wrist_source)
     {
-        wrist = m_wrist_source->query(hand == XR_HAND_LEFT_EXT, time);
+        wrist = m_wrist_source->query(hand == XR_HAND_LEFT_EXT, sample_time_ns);
     }
 
     std::array<XrHandJointLocationEXT, XR_HAND_JOINT_COUNT_EXT> joints = frame.joints;
@@ -593,7 +593,7 @@ void WujiGlovePlugin::pump_hand(std::unique_ptr<plugin_utils::HandInjector>& inj
             }
         }
     }
-    injector->push(joints.data(), time);
+    pusher->push(joints.data(), sample_time_ns);
 }
 
 void WujiGlovePlugin::worker_thread()
@@ -602,30 +602,39 @@ void WujiGlovePlugin::worker_thread()
     {
         try
         {
-            m_deviceio_session->update();
+            m_pull_channel->update();
+
+            const int64_t sample_time_ns = core::os_monotonic_now_ns();
+
+            HandFrame left_copy;
+            HandFrame right_copy;
+            {
+                std::lock_guard<std::mutex> lock(m_frame_mutex);
+                left_copy = m_left;
+                right_copy = m_right;
+            }
+
+            pump_hand(m_left_pusher, XR_HAND_LEFT_EXT, left_copy, sample_time_ns);
+            pump_hand(m_right_pusher, XR_HAND_RIGHT_EXT, right_copy, sample_time_ns);
         }
         catch (const std::exception& e)
         {
-            std::cerr << "WujiGlovePlugin update error: " << e.what() << std::endl;
-            m_left_injector.reset();
-            m_right_injector.reset();
+            std::cerr << "WujiGlovePlugin worker error: " << e.what() << std::endl;
+            m_left_pusher.reset();
+            m_right_pusher.reset();
             m_failed.store(true, std::memory_order_release);
             m_running.store(false, std::memory_order_release);
             return;
         }
-
-        const XrTime time = m_time_converter->os_monotonic_now();
-
-        HandFrame left_copy;
-        HandFrame right_copy;
+        catch (...)
         {
-            std::lock_guard<std::mutex> lock(m_frame_mutex);
-            left_copy = m_left;
-            right_copy = m_right;
+            std::cerr << "WujiGlovePlugin worker error: unknown exception" << std::endl;
+            m_left_pusher.reset();
+            m_right_pusher.reset();
+            m_failed.store(true, std::memory_order_release);
+            m_running.store(false, std::memory_order_release);
+            return;
         }
-
-        pump_hand(m_left_injector, XR_HAND_LEFT_EXT, left_copy, time);
-        pump_hand(m_right_injector, XR_HAND_RIGHT_EXT, right_copy, time);
 
         std::this_thread::sleep_for(kFramePeriod);
     }

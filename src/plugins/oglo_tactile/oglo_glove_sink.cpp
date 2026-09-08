@@ -4,7 +4,6 @@
 #include "oglo_glove_sink.hpp"
 
 #include <flatbuffers/flatbuffers.h>
-#include <oxr/oxr_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/oglo_tactile_generated.h>
 
@@ -38,6 +37,21 @@ core::OgloGloveSampleT to_native(const GloveSample& s)
     return out;
 }
 
+std::unique_ptr<core::ISchemaPushChannel> make_push_channel(const core::PluginSessionHandle& session,
+                                                            Side side,
+                                                            const std::string& collection_prefix)
+{
+    if (!session)
+        throw std::invalid_argument("SchemaPusherGloveSink requires a plugin session");
+
+    return session->create_schema_push_channel(
+        core::SchemaPusherConfig{ .collection_id = collection_prefix + "/" + to_string(side),
+                                  .max_flatbuffer_size = kMaxFlatbufferSize,
+                                  .tensor_identifier = "oglo_tactile",
+                                  .localized_name = "OGLO Tactile Glove",
+                                  .app_name = "OgloTactilePlugin" });
+}
+
 // =============================================================================
 // OpenXR SchemaPusher sink (read by a host tracker into a shared session MCAP)
 // =============================================================================
@@ -45,15 +59,8 @@ core::OgloGloveSampleT to_native(const GloveSample& s)
 class SchemaPusherGloveSink final : public IGloveSink
 {
 public:
-    SchemaPusherGloveSink(Side side, const std::string& collection_prefix)
-        : m_session(std::make_shared<core::OpenXRSession>(
-              "OgloTactilePlugin", core::SchemaPusher::get_required_extensions())),
-          m_pusher(m_session->get_handles(),
-                   core::SchemaPusherConfig{ .collection_id = collection_prefix + "/" + to_string(side),
-                                             .max_flatbuffer_size = kMaxFlatbufferSize,
-                                             .tensor_identifier = "oglo_tactile",
-                                             .localized_name = "OGLO Tactile Glove",
-                                             .app_name = "OgloTactilePlugin" })
+    SchemaPusherGloveSink(Side side, const std::string& collection_prefix, core::PluginSessionHandle session)
+        : m_session(std::move(session)), m_pusher(make_push_channel(m_session, side, collection_prefix))
     {
         std::cout << "Pushing collection: " << collection_prefix << "/" << to_string(side) << std::endl;
     }
@@ -68,18 +75,20 @@ public:
     }
 
 private:
-    std::shared_ptr<core::OpenXRSession> m_session;
+    core::PluginSessionHandle m_session;
     core::SchemaPusher m_pusher;
 };
 
 } // namespace
 
-std::unique_ptr<IGloveSink> create_glove_sink(Side side, const std::string& collection_prefix)
+std::unique_ptr<IGloveSink> create_glove_sink(Side side,
+                                              const std::string& collection_prefix,
+                                              core::PluginSessionHandle session)
 {
     if (collection_prefix.empty())
         throw std::runtime_error("OGLO: --collection-prefix is required");
 
-    return std::make_unique<SchemaPusherGloveSink>(side, collection_prefix);
+    return std::make_unique<SchemaPusherGloveSink>(side, collection_prefix, std::move(session));
 }
 
 } // namespace oglo_tactile

@@ -222,7 +222,7 @@ target_link_libraries(camera_plugin_oak
         depthai::core
         isaacteleop_schema
         mcap::mcap
-        oxr::oxr_core
+        Teleop::plugin_utils
         pusherio::pusherio
         SDL2::SDL2-static
 )

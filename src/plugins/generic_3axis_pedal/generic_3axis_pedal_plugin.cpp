@@ -5,7 +5,6 @@
 
 #include <flatbuffers/flatbuffers.h>
 #include <linux/joystick.h>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/pedals_generated.h>
 #include <sys/select.h>
@@ -14,7 +13,9 @@
 #include <cstring>
 #include <fcntl.h>
 #include <iostream>
+#include <stdexcept>
 #include <unistd.h>
+#include <utility>
 
 namespace plugins
 {
@@ -28,6 +29,21 @@ constexpr size_t kJsEventSize = sizeof(js_event);
 constexpr double kMaxAxisValue = 32767.0;
 constexpr size_t kMaxFlatbufferSize = 256;
 
+std::unique_ptr<core::ISchemaPushChannel> make_push_channel(const core::PluginSessionHandle& session,
+                                                            const std::string& collection_id)
+{
+    if (!session)
+    {
+        throw std::invalid_argument("Generic3AxisPedalPlugin requires a plugin session");
+    }
+
+    return session->create_schema_push_channel(core::SchemaPusherConfig{ .collection_id = collection_id,
+                                                                         .max_flatbuffer_size = kMaxFlatbufferSize,
+                                                                         .tensor_identifier = "generic_3axis_pedal",
+                                                                         .localized_name = "Generic 3-Axis Pedal",
+                                                                         .app_name = "Generic3AxisPedalPlugin" });
+}
+
 double normalize_axis(int16_t raw_value)
 {
     return std::max(-1.0, std::min(1.0, static_cast<double>(raw_value) / kMaxAxisValue));
@@ -35,16 +51,10 @@ double normalize_axis(int16_t raw_value)
 
 } // namespace
 
-Generic3AxisPedalPlugin::Generic3AxisPedalPlugin(const std::string& device_path, const std::string& collection_id)
-    : device_path_(device_path),
-      session_(std::make_shared<core::OpenXRSession>(
-          "Generic3AxisPedalPlugin", core::SchemaPusher::get_required_extensions())),
-      pusher_(session_->get_handles(),
-              core::SchemaPusherConfig{ .collection_id = collection_id,
-                                        .max_flatbuffer_size = kMaxFlatbufferSize,
-                                        .tensor_identifier = "generic_3axis_pedal",
-                                        .localized_name = "Generic 3-Axis Pedal",
-                                        .app_name = "Generic3AxisPedalPlugin" })
+Generic3AxisPedalPlugin::Generic3AxisPedalPlugin(const std::string& device_path,
+                                                 const std::string& collection_id,
+                                                 core::PluginSessionHandle session)
+    : device_path_(device_path), session_(std::move(session)), pusher_(make_push_channel(session_, collection_id))
 {
     if (!open_device())
         throw std::runtime_error("Generic3AxisPedalPlugin: Failed to open " + device_path + " (" + strerror(errno) + ")");

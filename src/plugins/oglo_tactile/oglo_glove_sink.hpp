@@ -6,6 +6,8 @@
 #include "oglo_config.hpp"
 #include "oglo_packet_parser.hpp"
 
+#include <pusherio/plugin_session.hpp>
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -36,7 +38,9 @@ public:
 //! @param collection_prefix OpenXR collection prefix (pushes @c PREFIX/left or
 //!                          @c PREFIX/right).
 //! @throws std::runtime_error if @p collection_prefix is empty.
-std::unique_ptr<IGloveSink> create_glove_sink(Side side, const std::string& collection_prefix);
+std::unique_ptr<IGloveSink> create_glove_sink(Side side,
+                                              const std::string& collection_prefix,
+                                              core::PluginSessionHandle session);
 
 } // namespace oglo_tactile
 } // namespace plugins

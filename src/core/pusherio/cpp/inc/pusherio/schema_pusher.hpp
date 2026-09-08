@@ -3,15 +3,10 @@
 
 #pragma once
 
-#include <oxr_utils/oxr_session_handles.hpp>
-#include <oxr_utils/oxr_time.hpp>
-
-#include <XR_NVX1_push_tensor.h>
-#include <XR_NVX1_tensor_data.h>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
-#include <vector>
 
 namespace core
 {
@@ -19,8 +14,8 @@ namespace core
 /*!
  * @brief Configuration for SchemaPusher.
  *
- * This struct contains all parameters needed to set up a tensor collection
- * for pushing FlatBuffer schema data via OpenXR extensions.
+ * This struct contains all parameters needed to set up a channel for pushing
+ * FlatBuffer schema data. Local OpenXR sessions map it to a tensor collection.
  */
 struct SchemaPusherConfig
 {
@@ -40,32 +35,43 @@ struct SchemaPusherConfig
     //! Human-readable description for debugging and runtime display.
     std::string localized_name;
 
-    //! OpenXR application name. If empty, defaults to "Pusher" or "Reader".
+    //! Optional producer label for backend diagnostics.
     std::string app_name = "";
 };
 
+/*!
+ * @brief Transport-owned channel for one configured schema stream.
+ *
+ * OpenXR and remote transports implement this operation-specific interface.
+ * Implementations own any child resources needed to keep the channel valid.
+ */
+class ISchemaPushChannel
+{
+public:
+    virtual ~ISchemaPushChannel() = default;
+
+    virtual const SchemaPusherConfig& config() const = 0;
+
+    // buffer is borrowed for this call only; asynchronous transports must copy it before returning.
+    virtual void push_buffer(const uint8_t* buffer,
+                             size_t size,
+                             int64_t sample_time_local_common_clock_ns,
+                             int64_t sample_time_raw_device_clock_ns) = 0;
+};
 
 /*!
- * @brief Pushes FlatBuffer schema data via OpenXR tensor extensions.
+ * @brief Pushes FlatBuffer schema data through a transport-owned channel.
  *
- * This class uses externally-provided OpenXR session handles and handles tensor collection
- * creation and sample pushing logic. Use composition to wrap this class with typed push methods.
- *
- * The caller is responsible for creating the OpenXR session with the required extensions
- * (XR_NVX1_PUSH_TENSOR_EXTENSION_NAME, XR_NVX1_TENSOR_DATA_EXTENSION_NAME) and passing
- * the handles to this class.
+ * This is the plugin-facing facade. It preserves the existing opaque FlatBuffer
+ * contract while allowing the owning session to select the local OpenXR or remote
+ * transport implementation. Use composition to add typed push methods where useful.
  *
  * Example usage with composition:
  * @code
  * class HeadPosePusher {
  * public:
- *     HeadPosePusher(const OpenXRSessionHandles& handles, const std::string& collection_id)
- *         : m_pusher(handles, {
- *             .collection_id = collection_id,
- *             .max_flatbuffer_size = 256,
- *             .tensor_identifier = "head_pose",
- *             .localized_name = "HeadPose Data"
- *         }) {}
+ *     explicit HeadPosePusher(std::unique_ptr<ISchemaPushChannel> channel)
+ *         : m_pusher(std::move(channel)) {}
  *
  *     void push(const HeadPoseT& data,
  *              int64_t sample_time_local_common_clock_ns,
@@ -87,30 +93,15 @@ class SchemaPusher
 {
 public:
     /*!
-     * @brief Get required OpenXR extensions for pushing tensor data.
+     * @brief Constructs a pusher from an already-created transport channel.
      *
-     * Includes platform-specific time conversion extension.
+     * The owning plugin session selects and creates the concrete channel before
+     * constructing this transport-independent facade.
      */
-    static std::vector<std::string> get_required_extensions()
-    {
-        std::vector<std::string> required_extensions = { "XR_NVX1_push_tensor", "XR_NVX1_tensor_data" };
-        for (const auto& ext : XrTimeConverter::get_required_extensions())
-        {
-            required_extensions.push_back(ext);
-        }
-        return required_extensions;
-    }
+    explicit SchemaPusher(std::unique_ptr<ISchemaPushChannel> channel);
 
     /*!
-     * @brief Constructs the pusher and initializes the OpenXR tensor collection.
-     * @param handles OpenXR session handles (caller must create session with required extensions).
-     * @param config Configuration for the tensor collection.
-     * @throws std::runtime_error if initialization fails.
-     */
-    SchemaPusher(const OpenXRSessionHandles& handles, SchemaPusherConfig config);
-
-    /*!
-     * @brief Destroys the pusher and cleans up OpenXR resources.
+     * @brief Destroys the pusher and its transport-owned channel.
      */
     ~SchemaPusher();
 
@@ -123,15 +114,17 @@ public:
     /*!
      * @brief Push raw serialized FlatBuffer data with timestamps.
      *
-     * The buffer will be padded to max_flatbuffer_size if smaller.
+     * The channel receives the logical serialized size. The local OpenXR channel
+     * pads it to max_flatbuffer_size to satisfy the fixed-size tensor contract.
      *
      * Both timestamp parameters must be in nanoseconds. The local common clock is
      * system monotonic time (CLOCK_MONOTONIC on Linux, QueryPerformanceCounter on
      * Windows) — values are comparable across all sources on the same machine.
-     * This class converts the local common clock value to XrTime internally before
-     * storing; the reader side (SchemaTracker) converts it back to monotonic ns so
-     * that DeviceDataTimestamp always carries monotonic nanoseconds in both
-     * _local_common_clock fields.
+     * The local OpenXR channel converts the local common clock value to XrTime
+     * before storing; the reader side (SchemaTracker) converts it back so that
+     * DeviceDataTimestamp carries monotonic nanoseconds in both local-common-clock
+     * fields. A remote channel owns any client-to-server monotonic clock mapping
+     * needed before its server-side OpenXR injection.
      *
      * If the raw device clock is not available, pass the local common clock value
      * as a best-effort substitute.
@@ -153,19 +146,8 @@ public:
     const SchemaPusherConfig& config() const;
 
 private:
-    void initialize_push_tensor_functions(const OpenXRSessionHandles& handles);
-    void create_tensor_collection(const OpenXRSessionHandles& handles);
-
     SchemaPusherConfig m_config;
-    XrTimeConverter m_time_converter;
-
-    // Push tensor collection handle
-    XrPushTensorCollectionNV m_push_tensor{ XR_NULL_HANDLE };
-
-    // Extension function pointers
-    PFN_xrCreatePushTensorCollectionNV m_create_fn{ nullptr };
-    PFN_xrPushTensorCollectionDataNV m_push_fn{ nullptr };
-    PFN_xrDestroyPushTensorCollectionNV m_destroy_fn{ nullptr };
+    std::unique_ptr<ISchemaPushChannel> m_channel;
 };
 
 } // namespace core

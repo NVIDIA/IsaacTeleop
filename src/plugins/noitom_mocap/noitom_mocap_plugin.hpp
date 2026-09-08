@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <pusherio/plugin_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/full_body_generated.h>
 
@@ -12,11 +13,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
-namespace core
-{
-class OpenXRSession;
-}
 
 namespace plugins
 {
@@ -46,7 +42,7 @@ struct NoitomMocapPluginConfig
 class NoitomMocapPlugin
 {
 public:
-    explicit NoitomMocapPlugin(NoitomMocapPluginConfig config);
+    NoitomMocapPlugin(NoitomMocapPluginConfig config, core::PluginSessionHandle session);
     ~NoitomMocapPlugin();
 
     // Returns false when the Noitom SDK connection is lost (caller should exit).
@@ -65,7 +61,7 @@ private:
     void push_frame(int64_t sample_time_local_common_clock_ns, int64_t sample_time_raw_device_clock_ns);
 
     NoitomMocapPluginConfig config_;
-    std::shared_ptr<core::OpenXRSession> session_;
+    core::PluginSessionHandle session_;
     std::unique_ptr<core::SchemaPusher> pusher_;
 
     MocapApi::IMCPSettings* settings_api_ = nullptr;

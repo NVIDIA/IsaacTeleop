@@ -5,11 +5,12 @@
 
 #include <deviceio_base/@BASE_HEADER@.hpp>
 #include <deviceio_trackers/@HEADER@.hpp>
-#include <oxr_utils/oxr_session_handles.hpp>
+#include <pusherio/openxr_schema_push_channel.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/@SCHEMA@_generated.h>
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace core
@@ -19,9 +20,9 @@ class @LIVE_IMPL@ : public @IFACE@
 public:
     static std::vector<std::string> required_extensions()
     {
-        return SchemaPusher::get_required_extensions();
+        return OpenXRSchemaPushChannel::get_required_extensions();
     }
-    @LIVE_IMPL@(const OpenXRSessionHandles& handles, const @CLASS@* tracker);
+    explicit @LIVE_IMPL@(std::unique_ptr<ISchemaPushChannel> channel);
     void update(int64_t monotonic_time_ns) override;
     void push(const Serialized<@FB_TABLE@>& data) const override;
 

@@ -3,6 +3,8 @@
 
 #include "wuji_glove_plugin.hpp"
 
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -10,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 
 using namespace plugins::wuji_glove;
 
@@ -47,7 +50,9 @@ try
     std::cout << "Wuji Glove Plugin" << std::endl;
     std::cout << "Plugin Root ID: " << plugin_root_id << std::endl;
 
-    auto plugin = std::make_unique<WujiGlovePlugin>(plugin_root_id);
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "WujiGlove", core::PluginSessionRequirements{ .hand_tracking_push = true, .wrist_tracking_pull = true });
+    auto plugin = std::make_unique<WujiGlovePlugin>(plugin_root_id, std::move(session));
 
     std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
     while (!g_stop_requested.load(std::memory_order_relaxed) && plugin->is_running())

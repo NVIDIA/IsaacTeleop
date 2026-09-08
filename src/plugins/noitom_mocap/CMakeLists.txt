@@ -100,10 +100,10 @@ add_executable(noitom_mocap_plugin
 )
 
 target_link_libraries(noitom_mocap_plugin PRIVATE
+    Teleop::plugin_utils
     NoitomMocapApi::MocapApi
     deviceio::deviceio_trackers
     pusherio::pusherio
-    oxr::oxr_core
     isaacteleop_schema
 )
 

@@ -6,14 +6,13 @@ cmake_minimum_required(VERSION 3.20)
 find_package(Threads REQUIRED)
 
 # Create pusher executable
-# Note: Examples link to oxr_core for OpenXR session creation, but pusherio itself doesn't
 add_executable(pedal_pusher
     pedal_pusher.cpp
 )
 
 target_link_libraries(pedal_pusher PRIVATE
+    Teleop::plugin_utils
     pusherio::pusherio
-    oxr::oxr_core
     isaacteleop_schema
     ${CMAKE_DL_LIBS}
     Threads::Threads

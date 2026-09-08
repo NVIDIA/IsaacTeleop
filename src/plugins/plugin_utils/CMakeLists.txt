@@ -5,6 +5,10 @@
 add_library(teleop_plugin_utils STATIC
     hand_injector.cpp
     inc/plugin_utils/hand_injector.hpp
+    openxr_hand_tracking_push_channel.cpp
+    openxr_hand_tracking_push_channel.hpp
+    openxr_plugin_session.cpp
+    inc/plugin_utils/openxr_plugin_session.hpp
     wrist_pose_source.cpp
     inc/plugin_utils/wrist_pose_source.hpp
 )
@@ -17,8 +21,11 @@ target_link_libraries(teleop_plugin_utils
     deviceio::deviceio_session
     deviceio::deviceio_trackers
     oxr::oxr_utils
+    pusherio::pusherio
     Teleop::openxr_extensions
     OpenXR::openxr_loader
+    PRIVATE
+    oxr::oxr_core
 )
 
 # Include directories

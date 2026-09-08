@@ -3,10 +3,15 @@
 
 #include "synthetic_hands_plugin.hpp"
 
+#include <deviceio_trackers/controller_tracker.hpp>
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <csignal>
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <utility>
+#include <vector>
 
 using namespace plugins::controller_synthetic_hands;
 
@@ -45,7 +50,12 @@ try
     std::cout << "Controller Synthetic Hands Plugin" << std::endl;
     std::cout << "Plugin Root ID: " << plugin_root_id << std::endl;
 
-    auto plugin = std::make_unique<SyntheticHandsPlugin>(plugin_root_id);
+    auto controller_tracker = std::make_shared<core::ControllerTracker>();
+    std::vector<std::shared_ptr<core::ITracker>> trackers = { controller_tracker };
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "ControllerSyntheticHands", core::PluginSessionRequirements{ .hand_tracking_push = true }, std::move(trackers));
+    auto plugin =
+        std::make_unique<SyntheticHandsPlugin>(plugin_root_id, std::move(controller_tracker), std::move(session));
 
     std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
     while (!g_stop_requested.load(std::memory_order_relaxed))

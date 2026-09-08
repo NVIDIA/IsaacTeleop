@@ -5,7 +5,6 @@
 
 #include <flatbuffers/flatbuffers.h>
 #include <openxr/openxr.h>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/math.hpp>
 #include <oxr_utils/os_time.hpp>
 
@@ -202,10 +201,14 @@ void warn_optional_ptp_missing_once()
 
 } // namespace
 
-NoitomMocapPlugin::NoitomMocapPlugin(NoitomMocapPluginConfig config)
-    : config_(std::move(config)),
-      session_(std::make_shared<core::OpenXRSession>("NoitomMocapPlugin", core::SchemaPusher::get_required_extensions()))
+NoitomMocapPlugin::NoitomMocapPlugin(NoitomMocapPluginConfig config, core::PluginSessionHandle session)
+    : config_(std::move(config)), session_(std::move(session))
 {
+    if (!session_)
+    {
+        throw std::invalid_argument("NoitomMocapPlugin requires a plugin session");
+    }
+
     initialize_mocap();
 }
 
@@ -600,14 +603,14 @@ void NoitomMocapPlugin::ensure_pusher(size_t flatbuffer_size)
         return;
     }
 
-    // Keep the OpenXR tensor collection stable. SchemaPusher pads smaller samples
+    // Keep the tensor collection stable. A fixed-size transport may pad smaller samples
     // to max_flatbuffer_size before publishing.
-    pusher_ = std::make_unique<core::SchemaPusher>(
-        session_->get_handles(), core::SchemaPusherConfig{ .collection_id = config_.collection_id,
-                                                           .max_flatbuffer_size = config_.max_flatbuffer_size,
-                                                           .tensor_identifier = std::string(FULL_BODY_TENSOR_IDENTIFIER),
-                                                           .localized_name = "Noitom Full Body",
-                                                           .app_name = "NoitomMocapPlugin" });
+    pusher_ = std::make_unique<core::SchemaPusher>(session_->create_schema_push_channel(
+        core::SchemaPusherConfig{ .collection_id = config_.collection_id,
+                                  .max_flatbuffer_size = config_.max_flatbuffer_size,
+                                  .tensor_identifier = std::string(FULL_BODY_TENSOR_IDENTIFIER),
+                                  .localized_name = "Noitom Full Body",
+                                  .app_name = "NoitomMocapPlugin" }));
     std::cout << "NoitomMocapPlugin: push tensor sample size set to " << config_.max_flatbuffer_size << " bytes"
               << std::endl;
 }

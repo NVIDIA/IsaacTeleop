@@ -4,16 +4,13 @@
 #pragma once
 #include "hand_generator.hpp"
 
-#include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <oxr/oxr_session.hpp>
-#include <oxr_utils/oxr_time.hpp>
-#include <plugin_utils/hand_injector.hpp>
+#include <pusherio/hand_tracking_pusher.hpp>
+#include <pusherio/plugin_session.hpp>
 
 #include <atomic>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 
@@ -25,7 +22,9 @@ namespace controller_synthetic_hands
 class SyntheticHandsPlugin
 {
 public:
-    explicit SyntheticHandsPlugin(const std::string& plugin_root_id) noexcept(false);
+    SyntheticHandsPlugin(const std::string& plugin_root_id,
+                         std::shared_ptr<core::ControllerTracker> controller_tracker,
+                         core::PluginSessionHandle plugin_session) noexcept(false);
     ~SyntheticHandsPlugin();
 
     SyntheticHandsPlugin(const SyntheticHandsPlugin&) = delete;
@@ -36,12 +35,11 @@ public:
 private:
     void worker_thread();
 
-    std::shared_ptr<core::OpenXRSession> m_session;
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
-    std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
-    std::unique_ptr<plugin_utils::HandInjector> m_left_injector;
-    std::unique_ptr<plugin_utils::HandInjector> m_right_injector;
-    std::optional<core::XrTimeConverter> m_time_converter;
+    core::PluginSessionHandle m_plugin_session;
+    std::unique_ptr<core::IPluginPullChannel> m_pull_channel;
+    std::unique_ptr<core::HandTrackingPusher> m_left_pusher;
+    std::unique_ptr<core::HandTrackingPusher> m_right_pusher;
     HandGenerator m_hand_gen;
 
     std::thread m_thread;

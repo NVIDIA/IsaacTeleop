@@ -6,7 +6,6 @@
 
 #include <flatbuffers/flatbuffers.h>
 #include <mcap/writer.hpp>
-#include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/oak_bfbs_generated.h>
@@ -15,6 +14,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 
 namespace plugins
 {
@@ -59,19 +59,23 @@ void FrameSink::on_frame(const OakFrame& frame)
 class SchemaMetadataPusher : public IMetadataPusher
 {
 public:
-    SchemaMetadataPusher(const std::vector<StreamConfig>& streams, const std::string& collection_prefix)
-        : m_oxr_session(
-              std::make_shared<core::OpenXRSession>("OakCameraPlugin", core::SchemaPusher::get_required_extensions()))
+    SchemaMetadataPusher(const std::vector<StreamConfig>& streams,
+                         const std::string& collection_prefix,
+                         core::PluginSessionHandle session)
+        : m_session(std::move(session))
     {
+        if (!m_session)
+            throw std::invalid_argument("SchemaMetadataPusher requires a plugin session");
+
         for (const auto& config : streams)
         {
             auto collection_id = collection_prefix + "/" + core::EnumNameStreamType(config.camera);
-            m_pushers[config.camera] = std::make_unique<core::SchemaPusher>(
-                m_oxr_session->get_handles(), core::SchemaPusherConfig{ .collection_id = collection_id,
-                                                                        .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
-                                                                        .tensor_identifier = "frame_metadata",
-                                                                        .localized_name = "Frame Metadata Pusher",
-                                                                        .app_name = "OakCameraPlugin" });
+            m_pushers[config.camera] = std::make_unique<core::SchemaPusher>(m_session->create_schema_push_channel(
+                core::SchemaPusherConfig{ .collection_id = collection_id,
+                                          .max_flatbuffer_size = MAX_FLATBUFFER_SIZE,
+                                          .tensor_identifier = "frame_metadata",
+                                          .localized_name = "Frame Metadata Pusher",
+                                          .app_name = "OakCameraPlugin" }));
             std::cout << "  Metadata:  " << collection_id << std::endl;
         }
     }
@@ -97,7 +101,7 @@ public:
 
 private:
     static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
-    std::shared_ptr<core::OpenXRSession> m_oxr_session;
+    core::PluginSessionHandle m_session;
     std::map<core::StreamType, std::unique_ptr<core::SchemaPusher>> m_pushers;
 };
 
@@ -193,7 +197,8 @@ private:
 
 std::unique_ptr<FrameSink> create_frame_sink(const std::vector<StreamConfig>& streams,
                                              const std::string& collection_prefix,
-                                             const std::string& mcap_filename)
+                                             const std::string& mcap_filename,
+                                             core::PluginSessionHandle session)
 {
     if (!collection_prefix.empty() && !mcap_filename.empty())
         throw std::runtime_error("Cannot specify both --collection-prefix and --mcap-filename");
@@ -201,7 +206,7 @@ std::unique_ptr<FrameSink> create_frame_sink(const std::vector<StreamConfig>& st
     std::unique_ptr<IMetadataPusher> pusher;
 
     if (!collection_prefix.empty())
-        pusher = std::make_unique<SchemaMetadataPusher>(streams, collection_prefix);
+        pusher = std::make_unique<SchemaMetadataPusher>(streams, collection_prefix, std::move(session));
     else if (!mcap_filename.empty())
         pusher = std::make_unique<McapMetadataPusher>(streams, mcap_filename);
 

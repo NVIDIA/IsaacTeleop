@@ -3,12 +3,16 @@
 
 #include "rebot_devarm_leader_plugin.hpp"
 
+#include <plugin_utils/openxr_plugin_session.hpp>
+
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 
 using namespace plugins::rebot_devarm_leader;
 
@@ -38,7 +42,9 @@ try
               << ", collection: " << collection_id
               << (calibration_path.empty() ? "" : ", calibration: " + calibration_path) << ")" << std::endl;
 
-    RebotDevarmLeaderPlugin plugin(device_path, collection_id, calibration_path);
+    core::PluginSessionHandle session = std::make_shared<plugin_utils::OpenXRPluginSession>(
+        "RebotDevarmLeaderPlugin", core::PluginSessionRequirements{ .schema_push = true });
+    RebotDevarmLeaderPlugin plugin(device_path, collection_id, std::move(session), calibration_path);
 
     // Push joint state at 90 Hz.
     const auto frame_duration = std::chrono::nanoseconds(1000000000 / 90);
