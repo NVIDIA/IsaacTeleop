@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 Xsens Technologies B.V. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: xsens_full_body
+description: "Xsens MVN full-body stream over UDP, republished as an OpenXR tensor collection"
+command: "./xsens_full_body_plugin"
+version: "0.1.0"
+# No --address: the deployed default binds every interface, as it always has. Add
+# `--address=127.0.0.1` (or a specific NIC) to narrow which interface accepts the suit stream.
+args:
+  - "--collection-id=xsens_full_body"
+  - "--port=9764"
+  - "--max-flatbuffer-size=4096"
+devices:
+  - path: "/mocap/xsens"
+    type: "xsens_full_body"
+    description: "Xsens MVN 24-joint full-body pose (hands untracked)"

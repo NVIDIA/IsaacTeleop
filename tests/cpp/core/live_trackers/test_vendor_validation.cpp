@@ -103,6 +103,22 @@ TEST_CASE("vendor validation: accepted configurations resolve extensions", "[liv
                                                                  { "max_flatbuffer_size", "32768" } } } } };
         REQUIRE_NOTHROW(core::DeviceIOSession::get_required_extensions(trackers, core::VendorConfig{ vendors }));
     }
+
+    SECTION("Xsens vendor selects tensor data extensions")
+    {
+        VendorList vendors{ { body.get(), core::TrackerVendor{ "body.xsens" } } };
+        const auto extensions = core::DeviceIOSession::get_required_extensions(trackers, core::VendorConfig{ vendors });
+        REQUIRE(contains(extensions, "XR_NVX1_tensor_data"));
+        REQUIRE_FALSE(contains(extensions, "XR_BD_body_tracking"));
+    }
+
+    SECTION("Xsens vendor accepts collection and sample-size parameters")
+    {
+        VendorList vendors{ { body.get(), core::TrackerVendor{ "body.xsens",
+                                                               { { "collection_id", "custom_xsens" },
+                                                                 { "max_flatbuffer_size", "32768" } } } } };
+        REQUIRE_NOTHROW(core::DeviceIOSession::get_required_extensions(trackers, core::VendorConfig{ vendors }));
+    }
 }
 
 TEST_CASE("vendor validation: invalid configurations are rejected", "[live_trackers][vendor]")
@@ -154,6 +170,32 @@ TEST_CASE("vendor validation: invalid configurations are rejected", "[live_track
             { body.get(), core::TrackerVendor{ "body.noitom", { { "max_flatbuffer_size", "0" } } } },
         };
         REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("must be a positive integer"));
+    }
+
+    SECTION("an unsupported Xsens vendor parameter is rejected")
+    {
+        VendorList vendors{
+            { body.get(), core::TrackerVendor{ "body.xsens", { { "unsupported", "value" } } } },
+        };
+        REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("does not support parameter"));
+    }
+
+    SECTION("an invalid Xsens max flatbuffer size is rejected")
+    {
+        VendorList vendors{
+            { body.get(), core::TrackerVendor{ "body.xsens", { { "max_flatbuffer_size", "0" } } } },
+        };
+        REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("must be a positive integer"));
+    }
+
+    SECTION("an empty Xsens collection_id is rejected rather than silently never connecting")
+    {
+        // The pusher and reader rendezvous on collection_id, so a mismatch fails silently and
+        // forever. An empty one is always a configuration error and must be caught up front.
+        VendorList vendors{
+            { body.get(), core::TrackerVendor{ "body.xsens", { { "collection_id", "" } } } },
+        };
+        REQUIRE_THAT(vendor_validation_error(trackers, vendors), ContainsSubstring("must not be empty"));
     }
 
     SECTION("a duplicate selection for the same tracker is rejected")
