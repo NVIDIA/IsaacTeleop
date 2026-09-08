@@ -444,7 +444,7 @@ Examples
 Complete Examples
 ^^^^^^^^^^^^^^^^^
 
-#. **Simplified Gripper Example**: ``examples/teleop/python/gripper_retargeting_example_simple.py``
+#. **Simplified Gripper Example**: ``examples/teleop/python/isaacteleop_examples/teleop/gripper_retargeting_example_simple.py``
    -- Shows the minimal configuration approach and demonstrates auto-creation
    of input sources.
 
