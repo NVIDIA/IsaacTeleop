@@ -89,14 +89,14 @@ public:
      * @brief Check if plugin crashed (lightweight, non-blocking)
      * @throws PluginCrashException if the plugin has crashed
      */
-    void check_health() const;
+    void check_health();
 
     /**
      * @brief Poll and return the current process state without throwing process-health exceptions.
      *
      * Terminal state is cached, so repeated calls return the same exit, signal, or observation error.
      */
-    ProcessSnapshot get_process_snapshot() const;
+    ProcessSnapshot get_process_snapshot();
 
 private:
     void start_process(const std::string& command,
@@ -105,17 +105,17 @@ private:
                        const std::vector<std::string>& plugin_args);
 
     void stop_process();
-    void refresh_process_snapshot_locked(bool block) const;
-    void cache_signal_error_locked(int error_code, const std::string& operation) const;
+    void refresh_process_snapshot_locked(bool block);
+    void cache_signal_error_locked(int error_code, const std::string& operation);
 
 #ifndef _WIN32
-    mutable pid_t m_pid = -1;
+    pid_t m_pid = -1;
 #else
-    mutable int m_pid = -1;
+    int m_pid = -1;
 #endif
-    mutable bool m_stop_requested = false;
-    mutable ProcessSnapshot m_process_snapshot;
-    mutable std::mutex m_process_mutex;
+    bool m_stop_requested = false;
+    ProcessSnapshot m_process_snapshot;
+    std::mutex m_process_mutex;
 };
 
 } // namespace core

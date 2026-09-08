@@ -47,7 +47,7 @@ void Plugin::stop()
     stop_process();
 }
 
-void Plugin::check_health() const
+void Plugin::check_health()
 {
     const ProcessSnapshot snapshot = get_process_snapshot();
     switch (snapshot.state)
@@ -67,7 +67,7 @@ void Plugin::check_health() const
     }
 }
 
-ProcessSnapshot Plugin::get_process_snapshot() const
+ProcessSnapshot Plugin::get_process_snapshot()
 {
     std::lock_guard<std::mutex> lock(m_process_mutex);
 #ifndef _WIN32
@@ -245,7 +245,7 @@ void Plugin::stop_process()
 #endif
 }
 
-void Plugin::refresh_process_snapshot_locked(bool block) const
+void Plugin::refresh_process_snapshot_locked(bool block)
 {
 #ifndef _WIN32
     if (m_pid == -1)
@@ -339,7 +339,7 @@ void Plugin::refresh_process_snapshot_locked(bool block) const
 #endif
 }
 
-void Plugin::cache_signal_error_locked(int error_code, const std::string& operation) const
+void Plugin::cache_signal_error_locked(int error_code, const std::string& operation)
 {
     m_process_snapshot.state = ProcessState::ERROR;
     m_process_snapshot.reason = ProcessReason::SIGNAL_ERROR;
