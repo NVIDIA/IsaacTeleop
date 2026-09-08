@@ -21,6 +21,7 @@ target_include_directories(oxr_utils
 target_link_libraries(oxr_utils
     INTERFACE
         OpenXR::headers
+        log_bridge::log_bridge_core
 )
 
 # Platform-specific definitions for XrTime conversion (used by oxr_time.hpp)
