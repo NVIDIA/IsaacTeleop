@@ -308,7 +308,7 @@ void OpenXRSession::create_session()
 
     session_.reset(session);
 
-    logger_->info("Created OpenXR session (headless mode), handle: {}", session_.get());
+    logger_->info("Created OpenXR session (headless mode), handle: {}", fmt::ptr(session_.get()));
 }
 
 void OpenXRSession::create_reference_space()
@@ -326,7 +326,7 @@ void OpenXRSession::create_reference_space()
 
     space_.reset(space);
 
-    logger_->info("Created reference space, handle: {}", space_.get());
+    logger_->info("Created reference space, handle: {}", fmt::ptr(space_.get()));
 }
 
 void OpenXRSession::begin()
