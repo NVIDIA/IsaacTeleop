@@ -62,7 +62,9 @@ def resolve_mcap(path_arg: str | None) -> Path:
         return path
 
     recordings = Path.cwd() / "recordings"
-    candidates = list(recordings.glob("*.mcap"))
+    candidates = list(recordings.glob("hands_*.mcap")) or list(
+        recordings.glob("*.mcap")
+    )
     if not candidates:
         sys.exit(
             f"[replay] error: no .mcap files in {recordings}. "
