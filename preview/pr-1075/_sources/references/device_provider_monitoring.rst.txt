@@ -103,6 +103,10 @@ Device states
    The manifest declares the capability, but startup arguments intentionally
    excluded it for this plugin instance.
 
+Device state records the current condition; its reason records the cause and
+must not restate the state. The error field carries optional human-readable detail
+rather than another reason code.
+
 Plugin status transport
 -----------------------
 
@@ -130,7 +134,7 @@ declared devices ``UNKNOWN`` until a valid current snapshot arrives.
        {PluginDeviceStatusEntry{
            .path = "/my/device",
            .state = core::PluginDeviceState_CONNECTED,
-           .reason = core::PluginDeviceReason_HARDWARE_CONNECTED,
+           .reason = core::PluginDeviceReason_NONE,
        }},
        monotonic_time_ns);
 

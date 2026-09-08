@@ -518,6 +518,9 @@ precedence overrides any earlier device report.</p>
 excluded it for this plugin instance.</p>
 </dd>
 </dl>
+<p>Device state records the current condition; its reason records the cause and
+must not restate the state. The error field carries optional human-readable detail
+rather than another reason code.</p>
 </section>
 <section id="plugin-status-transport">
 <h2>Plugin status transport<a class="headerlink" href="#plugin-status-transport" title="Link to this heading">#</a></h2>
@@ -541,7 +544,7 @@ declared devices <code class="docutils literal notranslate"><span class="pre">UN
 <span class="w">    </span><span class="p">{</span><span class="n">PluginDeviceStatusEntry</span><span class="p">{</span>
 <span class="w">        </span><span class="p">.</span><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"/my/device"</span><span class="p">,</span>
 <span class="w">        </span><span class="p">.</span><span class="n">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">core</span><span class="o">::</span><span class="n">PluginDeviceState_CONNECTED</span><span class="p">,</span>
-<span class="w">        </span><span class="p">.</span><span class="n">reason</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">core</span><span class="o">::</span><span class="n">PluginDeviceReason_HARDWARE_CONNECTED</span><span class="p">,</span>
+<span class="w">        </span><span class="p">.</span><span class="n">reason</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">core</span><span class="o">::</span><span class="n">PluginDeviceReason_NONE</span><span class="p">,</span>
 <span class="w">    </span><span class="p">}},</span>
 <span class="w">    </span><span class="n">monotonic_time_ns</span><span class="p">);</span>
 </pre></div>
@@ -701,7 +704,7 @@ integration.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 05, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 08, 2026.
       <br/>
     
   </p>
