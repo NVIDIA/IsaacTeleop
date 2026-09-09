@@ -94,6 +94,13 @@ class KeywordFilter(logging.Filter):
 
 _ANSI_RESET = "\033[0m"
 
+# One or more SGR sequences, which is all a colour needs -- ``\x1b[36m``,
+# ``\x1b[38;2;255;136;0m``, or ``\x1b[1m\x1b[36m`` to combine. Deliberately excludes the
+# rest of ANSI: a registered value is written to the terminal verbatim, so anything
+# beyond SGR (cursor control, OSC, a bare newline) could reposition or reprogram the
+# terminal, or split one record across lines.
+_SGR_ESCAPE = re.compile(r"(?:\x1b\[[0-9;]*m)+")
+
 # Exact logger name -> ANSI escape, stored verbatim as registered. Empty means every
 # name renders in the terminal's default colour.
 _logger_colors: dict[str, str] = {}
@@ -120,18 +127,26 @@ class _LoggerNameColorFormatter(logging.Formatter):
 def set_logger_colors(colors: dict[str, str | None]) -> None:
     """Overlay the console emphasis colour of the ``[logger_name]`` field.
 
-    *colors* maps an exact logger name to an ANSI escape -- ``"\\033[36m"``,
+    *colors* maps an exact logger name to an SGR escape -- ``"\\033[36m"``,
     ``"\\033[38;2;255;136;0m"`` and the like, emitted as given -- or to ``None``
     to drop a colour set earlier. Names left out keep whatever they already
     have, and an unregistered logger renders in the terminal's default colour.
     Only the console handler is affected; the log file never receives escapes.
+
+    Raises:
+        ValueError: if a value is not composed solely of SGR escapes.
     """
     _ensure_console_handler()
     for name, color in colors.items():
         if color is None:
             _logger_colors.pop(name, None)
-        else:
-            _logger_colors[name] = color
+            continue
+        if not _SGR_ESCAPE.fullmatch(color):
+            raise ValueError(
+                f"Colour for logger {name!r} must be one or more SGR escapes, such as "
+                f"'\\033[36m' or '\\033[38;2;255;136;0m', got {color!r}"
+            )
+        _logger_colors[name] = color
 
 
 _lock = threading.Lock()
