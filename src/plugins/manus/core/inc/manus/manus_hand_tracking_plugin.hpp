@@ -125,12 +125,7 @@ private:
     // -- Member Variables --
 
     ManusPluginConfig m_config;
-    // ThirdParty (trace floor): OnLog routes the SDK's own Debug messages here at trace,
-    // which a debug floor would drop. Own narration below keeps info/warn/error. This is
-    // the effective creation site -- it runs before initialize() registers OnLog, and
-    // Logger::get() memoizes, so OnLog's lookup by name returns this object.
-    std::shared_ptr<spdlog::logger> m_logger =
-        isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker", isaacteleop::LoggerKind::ThirdParty);
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
 
     // Lifecycle
     std::mutex m_lifecycle_mutex;
