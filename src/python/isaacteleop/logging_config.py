@@ -57,6 +57,15 @@ _LEVEL_NAMES = {
 # into ISAACTELEOP_LOG_LEVEL for out-of-process C++.
 _LEVEL_NAME_BY_VALUE = {value: name for name, value in _LEVEL_NAMES.items()}
 
+# The console view, published for processes the in-process bridge cannot reach: plugins
+# are fork+exec'd (core/plugin_manager), so they inherit this environment and rebuild the
+# same view from it in sink_config.cpp. Without them a plugin's spdlog console sink writes
+# to fd 1 unfiltered and uncoloured, which looks identical to the Python format and so
+# reads as the configuration silently not applying.
+_FILTER_ENV = "ISAACTELEOP_LOG_FILTER"
+_FILTER_TARGET_ENV = "ISAACTELEOP_LOG_FILTER_TARGET"
+_COLORS_ENV = "ISAACTELEOP_LOG_COLORS"
+
 
 def _resolve_level(level: int | str) -> int:
     """Accept either a stdlib level int or one of the names in ``_LEVEL_NAMES``."""
@@ -131,7 +140,7 @@ def set_logger_colors(colors: dict[str, str | None]) -> None:
     ``"\\033[38;2;255;136;0m"`` and the like, emitted as given -- or to ``None``
     to drop a colour set earlier. Names left out keep whatever they already
     have, and an unregistered logger renders in the terminal's default colour.
-    Only the console handler is affected; the log file never receives escapes.
+    Only the console is affected; the log file never receives escapes.
 
     Raises:
         ValueError: if a value is not composed solely of SGR escapes.
@@ -147,6 +156,11 @@ def set_logger_colors(colors: dict[str, str | None]) -> None:
                 f"'\\033[36m' or '\\033[38;2;255;136;0m', got {color!r}"
             )
         _logger_colors[name] = color
+    # ',' and '=' are unambiguous separators precisely because _SGR_ESCAPE rejects both.
+    if _logger_colors:
+        os.environ[_COLORS_ENV] = ",".join(f"{n}={c}" for n, c in _logger_colors.items())
+    else:
+        os.environ.pop(_COLORS_ENV, None)
 
 
 _lock = threading.Lock()
@@ -229,7 +243,11 @@ def set_console_level(level: int | str) -> None:
 
 
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
-    """Set the console handler's keyword filter, or clear it if *pattern* is ``None``."""
+    """Set the console keyword filter, or clear it if *pattern* is ``None``.
+
+    *pattern* is also evaluated by out-of-process plugins, where ``std::regex``
+    reads it as ECMAScript, so keep it to the syntax both dialects share.
+    """
     handler = _ensure_console_handler()
     global _console_filter, _filter_pattern, _filter_target
     if _console_filter is not None:
@@ -240,6 +258,11 @@ def set_console_filter(pattern: str | None, target: str = "both") -> None:
     if pattern is not None:
         _console_filter = KeywordFilter(pattern, target=target)
         handler.addFilter(_console_filter)
+        os.environ[_FILTER_ENV] = pattern
+        os.environ[_FILTER_TARGET_ENV] = target
+    else:
+        os.environ.pop(_FILTER_ENV, None)
+        os.environ.pop(_FILTER_TARGET_ENV, None)
 
 
 def get_logger(name: str, cls: type | None = None) -> logging.Logger:
