@@ -36,6 +36,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+include(GNUInstallDirs)
+
+# log_bridge_core is shared and staged at isaacteleop/lib (src/core/log_bridge/cpp).
+# The build rpath has to carry the relative path too, not just the absolute one
+# CMake adds: the wheel is assembled by copying the staged tree verbatim, so
+# whatever a binary is linked with here is what it will search there. The install
+# rpath covers both depths a consumer sits at, bin/ and plugins/<name>/.
+set(CMAKE_BUILD_RPATH "$ORIGIN/../lib")
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR};$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}")
+
 # ==============================================================================
 # Python Version Configuration (SINGLE SOURCE OF TRUTH)
 # ==============================================================================

@@ -51,7 +51,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-wuji.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_trackers_py deviceio_session_py log_bridge_py oxr_py plugin_manager_py schema_py isaacteleop_python cloudxr_python stage_generated_tracker_exports
+    DEPENDS deviceio_trackers_py deviceio_session_py log_bridge_core log_bridge_py oxr_py plugin_manager_py schema_py isaacteleop_python cloudxr_python stage_generated_tracker_exports
     COMMENT "Preparing Python package structure"
 )
 

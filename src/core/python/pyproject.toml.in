@@ -56,7 +56,7 @@ namespaces = false
 include = ["isaacteleop*", "robotic_grounding", "robotic_grounding.retarget"]
 
 [tool.setuptools.package-data]
-isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed"]
+isaacteleop = ["*.so", "*.pyd", "*.pyi", "py.typed", "lib/*.so", "lib/*.so.*", "lib/*.dll"]
 "isaacteleop.deviceio" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.deviceio_trackers" = ["*.so", "*.pyd", "*.pyi"]
 "isaacteleop.deviceio_session" = ["*.so", "*.pyd", "*.pyi"]
