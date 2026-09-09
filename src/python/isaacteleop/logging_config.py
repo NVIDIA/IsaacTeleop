@@ -15,10 +15,12 @@ from __future__ import annotations
 import logging
 import os
 import re
+import sys
 import threading
 import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import TextIO
 
 ROOT_LOGGER_NAME = "isaacteleop"
 
@@ -87,13 +89,13 @@ class KeywordFilter(logging.Filter):
 
 
 _lock = threading.Lock()
-_console_handler: logging.Handler | None = None
+_console_handler: logging.StreamHandler | None = None
 _console_filter: KeywordFilter | None = None
 _filter_pattern: str | None = None
 _filter_target: str = "both"
 
 
-def _ensure_console_handler() -> logging.Handler:
+def _ensure_console_handler() -> logging.StreamHandler:
     """Create and attach the console handler on first use; idempotent after that."""
     global _console_handler
     if _console_handler is not None:
@@ -113,13 +115,52 @@ def _ensure_console_handler() -> logging.Handler:
         return _console_handler
 
 
+_native_stderr: tuple[TextIO, TextIO] | None = None
+
+
+def _gate_native_stderr(level: int) -> None:
+    """Send fd 2 to ``/dev/null`` unless the console is showing ``TRACE``.
+
+    Native code -- the CloudXR/Monado OpenXR runtime above all -- writes its
+    diagnostics straight to fd 2 and cannot be routed into this logger tree:
+    it exports no log hook and does not implement ``XR_EXT_debug_utils``, so
+    the descriptor is the only seam. ``sys.stderr`` is moved onto a duplicate
+    of the real descriptor instead of following fd 2, so tracebacks and
+    ``print(file=sys.stderr)`` stay visible. Processes forked afterwards
+    inherit the redirection; the C++ console sink writes to fd 1 and is
+    unaffected.
+    """
+    global _native_stderr
+    discard = level > TRACE
+    if discard == (_native_stderr is not None):
+        return
+    if _native_stderr is None:
+        real_stderr = os.fdopen(os.dup(2), "w", buffering=1)
+        devnull_fd = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull_fd, 2)
+        os.close(devnull_fd)
+        _native_stderr = (real_stderr, sys.stderr)
+        sys.stderr = real_stderr
+        _ensure_console_handler().setStream(real_stderr)
+    else:
+        real_stderr, original = _native_stderr
+        os.dup2(real_stderr.fileno(), 2)
+        sys.stderr = original
+        _native_stderr = None
+        # Detach the handler before closing, or its flush hits a closed stream.
+        _ensure_console_handler().setStream(original)
+        real_stderr.close()
+
+
 def set_console_level(level: int | str) -> None:
     """Set the console handler's display threshold.
 
     Independent of the file handler, which always captures everything
     regardless of what the console is set to.
     """
-    _ensure_console_handler().setLevel(_resolve_level(level))
+    resolved = _resolve_level(level)
+    _ensure_console_handler().setLevel(resolved)
+    _gate_native_stderr(resolved)
 
 
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
@@ -228,5 +269,5 @@ def configure(
         set_console_filter(new_pattern, target=new_target)  # type: ignore[arg-type]
 
 
-_ensure_console_handler()
+_gate_native_stderr(_ensure_console_handler().level)
 _ensure_file_handler()
