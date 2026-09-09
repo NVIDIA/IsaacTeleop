@@ -474,9 +474,11 @@ void ManusTracker::shutdown_sdk()
     CoreSdk_RegisterCallbackForLandscapeStream(nullptr);
     CoreSdk_RegisterCallbackForErgonomicsStream(nullptr);
     CoreSdk_RegisterCallbackForRawDeviceDataStream(nullptr);
-    CoreSdk_RegisterCallbackForOnLog(nullptr);
+    // Left registered through DisconnectFromGloves()/CoreSdk_ShutDown() so their own
+    // shutdown-sequence log messages are still captured; unregistered last.
     DisconnectFromGloves();
     CoreSdk_ShutDown();
+    CoreSdk_RegisterCallbackForOnLog(nullptr);
 }
 
 void ManusTracker::RegisterCallbacks()
