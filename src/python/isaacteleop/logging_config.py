@@ -92,6 +92,48 @@ class KeywordFilter(logging.Filter):
         )
 
 
+_ANSI_RESET = "\033[0m"
+
+# Exact logger name -> ANSI escape, stored verbatim as registered. Empty means every
+# name renders in the terminal's default colour.
+_logger_colors: dict[str, str] = {}
+
+
+class _LoggerNameColorFormatter(logging.Formatter):
+    """Renders ``[%(name)s]`` in the logger's registered emphasis colour."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        escape = _logger_colors.get(record.name)
+        if escape is None:
+            return super().format(record)
+        # The record is shared with the file handler, which must stay escape-free:
+        # callHandlers formats handlers one at a time on the emitting thread, so
+        # restoring the name here keeps the substitution local to this call.
+        original = record.name
+        record.name = f"{escape}{original}{_ANSI_RESET}"
+        try:
+            return super().format(record)
+        finally:
+            record.name = original
+
+
+def set_logger_colors(colors: dict[str, str | None]) -> None:
+    """Overlay the console emphasis colour of the ``[logger_name]`` field.
+
+    *colors* maps an exact logger name to an ANSI escape -- ``"\\033[36m"``,
+    ``"\\033[38;2;255;136;0m"`` and the like, emitted as given -- or to ``None``
+    to drop a colour set earlier. Names left out keep whatever they already
+    have, and an unregistered logger renders in the terminal's default colour.
+    Only the console handler is affected; the log file never receives escapes.
+    """
+    _ensure_console_handler()
+    for name, color in colors.items():
+        if color is None:
+            _logger_colors.pop(name, None)
+        else:
+            _logger_colors[name] = color
+
+
 _lock = threading.Lock()
 _console_handler: logging.StreamHandler | None = None
 _console_filter: KeywordFilter | None = None
@@ -108,7 +150,7 @@ def _ensure_console_handler() -> logging.StreamHandler:
         if _console_handler is not None:
             return _console_handler
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
+        handler.setFormatter(_LoggerNameColorFormatter(LINE_FORMAT, datefmt=DATE_FORMAT))
         handler.setLevel(logging.INFO)
         root = logging.getLogger(ROOT_LOGGER_NAME)
         root.setLevel(
