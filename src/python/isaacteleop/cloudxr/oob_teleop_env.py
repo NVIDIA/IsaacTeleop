@@ -12,7 +12,6 @@ import re
 import socket
 import ssl
 import subprocess
-import sys
 import threading
 import time
 from importlib.metadata import PackageNotFoundError, version
@@ -556,13 +555,11 @@ def resolve_lan_host_for_oob() -> str:
 def oob_progress(stage: str, msg: str) -> None:
     """One-line progress update for ``--setup-oob`` / ``--usb-local`` steps.
 
-    Goes to stderr in dim cyan so the operator can see *where* the launcher
-    is in its sequence of steps without these lines competing with the
-    success banner (stdout) or error prints (red). Distinct from
-    ``log.info``, which writes to log files only and is invisible at the
-    terminal.
+    *stage* becomes the record's logger name rather than a bracket prefix in
+    the message, so the launcher's phases stay greppable and independently
+    filterable the way module names already are.
     """
-    print(f"\033[36m[{stage}]\033[0m {msg}", file=sys.stderr, flush=True)
+    logging.getLogger(f"isaacteleop.cloudxr.{stage}").info(msg)
 
 
 def print_oob_hub_startup_banner(
