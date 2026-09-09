@@ -38,6 +38,7 @@
 import { ReadonlySignal } from '@preact/signals-react';
 import { useFrame } from '@react-three/fiber';
 import { Handle, HandleState, HandleTarget } from '@react-three/handle';
+import { Text as DreiText } from '@react-three/drei';
 import { Container, Image, Text } from '@react-three/uikit';
 import { Button } from '@react-three/uikit-default';
 import React, { useEffect, useRef, useState } from 'react';
@@ -56,9 +57,9 @@ import { useRecorder } from './RecorderContext';
 const FACE_CAMERA_DAMPING = 10; // Higher = faster rotation toward camera
 
 /** Display size for the Performance metrics slot (width and height passed to PerformanceCanvasImage and its container). */
-const METRIC_SLOT_WIDTH = 512;
-/** Tracks PerformanceCanvasImage's 1024x760 canvas: the session-quality card plus four metric cards. */
-const METRIC_SLOT_HEIGHT = 380;
+const METRIC_SLOT_WIDTH = 660;
+/** Tracks PerformanceCanvasImage's 1320x1310 canvas: the session-quality card, five metric cards, and four sub-rows. */
+const METRIC_SLOT_HEIGHT = 655;
 
 interface CloudXRUIProps {
   onStartTeleop?: () => void;
@@ -82,6 +83,13 @@ interface CloudXRUIProps {
   streamingFpsText?: ReadonlySignal<string>;
   /** Computed signal for pose-to-render latency text - updates without React re-render */
   poseToRenderText?: ReadonlySignal<string>;
+  /** Computed signal for total Pose-to-Pose latency text (P0+P3→P2→P1+lookahead). */
+  poseToPoseText?: ReadonlySignal<string>;
+  /** Individual pipeline-stage latency sub-rows (indented under Pose-to-Pose). */
+  p2pP0Text?: ReadonlySignal<string>;
+  p2pP1Text?: ReadonlySignal<string>;
+  p2pP2Text?: ReadonlySignal<string>;
+  p2pP3Text?: ReadonlySignal<string>;
   /** Live session quality 0-4 ({@link CloudXR.QualityScore}); drives the HUD quality bars. */
   sessionQuality?: ReadonlySignal<number>;
   /** Network test status line; empty when no test is running or configured. */
@@ -253,6 +261,11 @@ export default function CloudXR3DUI({
   poseSendFpsText,
   streamingFpsText,
   poseToRenderText,
+  poseToPoseText,
+  p2pP0Text,
+  p2pP1Text,
+  p2pP2Text,
+  p2pP3Text,
   sessionQuality,
   streamTestText,
   streamTestColor,
@@ -388,6 +401,18 @@ export default function CloudXR3DUI({
             />
           </mesh>
         </Handle>
+        {!panelHidden && (
+          <DreiText
+            position={[0, handleY, 0.022]}
+            fontSize={0.016}
+            color="rgba(220,220,220,0.85)"
+            anchorX="center"
+            anchorY="middle"
+            letterSpacing={0.08}
+          >
+            [CLICK TO DRAG]
+          </DreiText>
+        )}
 
         <Container
           pixelSize={0.001}
@@ -513,7 +538,7 @@ export default function CloudXR3DUI({
             >
               {/* Left Column - Performance Metrics */}
               <Container
-                width={520}
+                width={760}
                 flexDirection="column"
                 gap={24}
                 alignItems="center"
@@ -552,6 +577,11 @@ export default function CloudXR3DUI({
                       poseSendFpsText={poseSendFpsText}
                       streamingFpsText={streamingFpsText}
                       poseToRenderText={poseToRenderText}
+                      poseToPoseText={poseToPoseText}
+                      p2pP0Text={p2pP0Text}
+                      p2pP1Text={p2pP1Text}
+                      p2pP2Text={p2pP2Text}
+                      p2pP3Text={p2pP3Text}
                       sessionQuality={sessionQuality}
                     />
                   </Container>
