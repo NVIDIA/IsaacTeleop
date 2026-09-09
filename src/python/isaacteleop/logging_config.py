@@ -53,6 +53,10 @@ _LEVEL_NAMES = {
     "error": logging.ERROR,
 }
 
+# spdlog spells its levels exactly like the keys above, so a name round-trips straight
+# into ISAACTELEOP_LOG_LEVEL for out-of-process C++.
+_LEVEL_NAME_BY_VALUE = {value: name for name, value in _LEVEL_NAMES.items()}
+
 
 def _resolve_level(level: int | str) -> int:
     """Accept either a stdlib level int or one of the names in ``_LEVEL_NAMES``."""
@@ -161,6 +165,10 @@ def set_console_level(level: int | str) -> None:
     resolved = _resolve_level(level)
     _ensure_console_handler().setLevel(resolved)
     _gate_native_stderr(resolved)
+    # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
+    # the in-process bridge; they read their own console threshold from this variable.
+    if resolved in _LEVEL_NAME_BY_VALUE:
+        os.environ["ISAACTELEOP_LOG_LEVEL"] = _LEVEL_NAME_BY_VALUE[resolved]
 
 
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
