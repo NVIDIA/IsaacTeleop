@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import threading
+import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -157,10 +158,13 @@ _file_handler: logging.Handler | None = None
 def _ensure_file_handler() -> logging.Handler:
     """Create and attach the file handler on first use; idempotent after that.
 
-    One file per process (the name includes the pid): concurrent processes
-    rotating the same file can corrupt it, so each process gets its own.
-    Always captures everything (``DEBUG``+) — not user-configurable, unlike
-    the console handler's level.
+    One file per process (the name includes a start-time timestamp and the
+    pid): concurrent processes rotating the same file can corrupt it, so
+    each process gets its own; the timestamp makes the file's creation time
+    greppable/sortable from its name and guards against a reused pid
+    colliding with an older run's file, while the pid still guards against
+    two processes starting in the same second. Always captures everything
+    (``DEBUG``+) — not user-configurable, unlike the console handler's level.
     """
     global _file_handler
     if _file_handler is not None:
@@ -170,8 +174,9 @@ def _ensure_file_handler() -> logging.Handler:
             return _file_handler
         log_dir = _log_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
         handler = RotatingFileHandler(
-            log_dir / f"isaacteleop.{os.getpid()}.log",
+            log_dir / f"isaacteleop.{timestamp}.{os.getpid()}.log",
             maxBytes=_FILE_MAX_BYTES,
             backupCount=_FILE_BACKUP_COUNT,
             encoding="utf-8",
