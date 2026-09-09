@@ -6,6 +6,7 @@
 import io
 import logging
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -146,6 +147,14 @@ def test_file_handler_is_always_debug_level():
 def test_file_handler_filename_includes_pid():
     handler = logging_config._ensure_file_handler()
     assert f".{os.getpid()}.log" in handler.baseFilename
+
+
+def test_file_handler_filename_includes_timestamp():
+    handler = logging_config._ensure_file_handler()
+    name = Path(handler.baseFilename).name
+    assert re.fullmatch(rf"isaacteleop\.\d{{8}}-\d{{6}}\.{os.getpid()}\.log", name), (
+        name
+    )
 
 
 def test_file_handler_captures_debug_regardless_of_console_level():

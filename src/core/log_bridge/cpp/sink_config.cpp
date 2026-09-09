@@ -7,6 +7,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <string>
 
@@ -34,6 +35,21 @@ int current_pid()
 #else
     return static_cast<int>(::_getpid());
 #endif
+}
+
+// Local time, filename-safe (no ':' or ' '): YYYYMMDD-HHMMSS.
+std::string current_timestamp()
+{
+    const std::time_t now = std::time(nullptr);
+    std::tm tm_buf{};
+#ifndef _WIN32
+    ::localtime_r(&now, &tm_buf);
+#else
+    ::localtime_s(&tm_buf, &now);
+#endif
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y%m%d-%H%M%S", &tm_buf);
+    return std::string(buf);
 }
 
 std::filesystem::path log_dir()
@@ -67,8 +83,11 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         std::filesystem::create_directories(dir);
         // One file per process: concurrent processes rotating a shared file
         // can corrupt it, so each process gets its own (mirrors the Python
-        // side's isaacteleop.<pid>.log default).
-        auto filename = dir / ("isaacteleop." + std::to_string(current_pid()) + ".log");
+        // side's isaacteleop.<timestamp>.<pid>.log default). The timestamp
+        // makes the file's creation time greppable/sortable from its name and
+        // guards against a reused pid colliding with an older run's file; the
+        // pid still guards against two processes starting in the same second.
+        auto filename = dir / ("isaacteleop." + current_timestamp() + "." + std::to_string(current_pid()) + ".log");
 
         auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         console->set_level(console_level());
