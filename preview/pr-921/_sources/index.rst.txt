@@ -79,6 +79,7 @@ Table of Contents
    references/build
    references/generated_trackers
    references/retargeting/index
+   references/device_provider_monitoring
    references/camera_streaming
    references/mcap_record_replay
    references/cloudxr
