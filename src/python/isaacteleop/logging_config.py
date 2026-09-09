@@ -3,18 +3,43 @@
 
 """Central ``logging`` configuration for the ``isaacteleop`` logger tree.
 
-Attaches one console handler to the root ``isaacteleop`` logger so any logger
-named ``isaacteleop.<module>[.<ClassName>]`` — anywhere in the package, in
-examples, or (once bridged) from C++ — is visible through one consistently
-formatted, independently filterable view, instead of each entry point
-building its own ad-hoc ``logging.basicConfig()``.
+Attaches one console handler and one file handler to the root ``isaacteleop``
+logger so any logger named ``isaacteleop.<module>[.<ClassName>]`` — anywhere
+in the package, in examples, from in-process C++ (once bridged), or from an
+out-of-process C++/Python worker this session spawned (forwarded — see
+below) — is visible through one consistently formatted, independently
+filterable view and lands in one log file, instead of each entry point or
+each process building its own ad-hoc handlers.
+
+**Cross-process design.** The first process to import this module in a
+session — the "leader" — owns the real console+file handlers below and
+starts a background log receiver (``_ensure_log_receiver``), publishing its
+address via ``ISAACTELEOP_LOG_SOCKET``. Every process that inherits that
+variable — a fork+exec'd plugin executable (``core/plugin_manager``) or a
+``subprocess.Popen``'d Python worker (e.g. the CloudXR runtime worker) —
+is a "forwarding child": instead of its own local handlers, it gets a single
+``_ForwardingHandler`` that ships every record to the leader's receiver,
+which re-emits it through the *leader's* root logger. C++'s equivalent is
+``SocketForwardSink`` (``src/core/log_bridge/cpp/socket_sink.hpp``), used by
+``isaacteleop::Logger`` in place of the local console+file sinks under the
+same variable — a standalone C++ process (no Python interpreter at all, e.g.
+the Manus plugin) forwards exactly the same way a Python child does. Either
+way, only the leader ever touches disk or a real terminal stream for
+``isaacteleop`` records, which is what makes "one log file for the whole
+session" and "every process's console line looks the same" true regardless
+of which process, or language, emitted the record.
 """
 
 from __future__ import annotations
 
+import atexit
+import json
 import logging
 import os
 import re
+import socket
+import socketserver
+import struct
 import sys
 import threading
 import time
@@ -156,8 +181,25 @@ _filter_pattern: str | None = None
 _filter_target: str = "both"
 
 
+def _forwarding_socket_path() -> str | None:
+    """Path this process should forward every record to, or ``None`` if this
+    process is the session leader and owns the real console+file handlers.
+    See the module docstring's cross-process design section.
+    """
+    return os.environ.get("ISAACTELEOP_LOG_SOCKET") or None
+
+
 def _ensure_console_handler() -> logging.StreamHandler:
-    """Create and attach the console handler on first use; idempotent after that."""
+    """Create the console handler on first use; idempotent after that.
+
+    Attached to the root logger only for the session leader (see
+    :func:`_forwarding_socket_path`) — a forwarding child still builds this
+    object (``_gate_native_stderr`` needs somewhere to redirect its stream
+    bookkeeping to regardless of leader/child status), it just never receives
+    records, so it never prints a local, second copy of what the leader's own
+    console handler already shows once the record comes back through the
+    forwarder.
+    """
     global _console_handler
     if _console_handler is not None:
         return _console_handler
@@ -165,13 +207,16 @@ def _ensure_console_handler() -> logging.StreamHandler:
         if _console_handler is not None:
             return _console_handler
         handler = logging.StreamHandler()
-        handler.setFormatter(_LoggerNameColorFormatter(LINE_FORMAT, datefmt=DATE_FORMAT))
+        handler.setFormatter(
+            _LoggerNameColorFormatter(LINE_FORMAT, datefmt=DATE_FORMAT)
+        )
         handler.setLevel(logging.INFO)
         root = logging.getLogger(ROOT_LOGGER_NAME)
         root.setLevel(
             TRACE
         )  # handlers filter; the logger itself must stay maximally permissive
-        root.addHandler(handler)
+        if _forwarding_socket_path() is None:
+            root.addHandler(handler)
         _console_handler = handler
         return _console_handler
 
@@ -294,6 +339,168 @@ def _ensure_file_handler() -> logging.Handler:
         return _file_handler
 
 
+_FRAME_HEADER = struct.Struct(">I")  # 4-byte big-endian payload length prefix
+
+_forwarding_handler: logging.Handler | None = None
+
+
+class _ForwardingHandler(logging.Handler):
+    """Ships every record to the session leader's log receiver instead of
+    formatting/printing/persisting it locally -- see the module docstring's
+    cross-process design.
+
+    Best-effort: a record is dropped, not queued or retried, if the leader's
+    socket is unreachable. Losing a line during a connection hiccup beats
+    blocking the emitting thread or crashing this process.
+    """
+
+    def __init__(self, socket_path: str) -> None:
+        super().__init__()
+        self._socket_path = socket_path
+        self._sock: socket.socket | None = None
+        self._send_lock = threading.Lock()
+
+    def _connect(self) -> socket.socket | None:
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(1.0)
+            sock.connect(self._socket_path)
+            return sock
+        except OSError:
+            return None
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            payload = json.dumps(
+                {
+                    "name": record.name,
+                    "levelno": record.levelno,
+                    "msg": record.getMessage(),
+                    "created": record.created,
+                    "process": record.process,
+                }
+            ).encode("utf-8")
+        except Exception:  # noqa: BLE001 -- Handler.emit()'s own documented contract
+            self.handleError(record)
+            return
+        frame = _FRAME_HEADER.pack(len(payload)) + payload
+        with self._send_lock:
+            if self._sock is None:
+                self._sock = self._connect()
+                if self._sock is None:
+                    return
+            try:
+                self._sock.sendall(frame)
+            except OSError:
+                self._sock.close()
+                self._sock = None
+
+
+def _ensure_forwarding_handler(socket_path: str) -> logging.Handler:
+    """Create and attach this process's single forwarding handler; idempotent."""
+    global _forwarding_handler
+    if _forwarding_handler is not None:
+        return _forwarding_handler
+    with _lock:
+        if _forwarding_handler is not None:
+            return _forwarding_handler
+        handler = _ForwardingHandler(socket_path)
+        logging.getLogger(ROOT_LOGGER_NAME).addHandler(handler)
+        _forwarding_handler = handler
+        return _forwarding_handler
+
+
+class _ForwardingRequestHandler(socketserver.StreamRequestHandler):
+    """Reads length-prefixed JSON records from one forwarding child and
+    re-emits each through *this* (the leader's) root logger -- the same
+    formatting, filtering, and file as everything logged directly here.
+    """
+
+    def handle(self) -> None:
+        while True:
+            header = self._recv_exact(_FRAME_HEADER.size)
+            if header is None:
+                return
+            (length,) = _FRAME_HEADER.unpack(header)
+            body = self._recv_exact(length)
+            if body is None:
+                return
+            try:
+                payload = json.loads(body.decode("utf-8"))
+                record = logging.makeLogRecord(
+                    {
+                        "name": payload["name"],
+                        "levelno": payload["levelno"],
+                        "levelname": logging.getLevelName(payload["levelno"]),
+                        "msg": payload["msg"],
+                        "created": payload["created"],
+                        "process": payload["process"],
+                    }
+                )
+                # Not record.name's own .log()/.info(): the child already decided this
+                # record passed its own effective level before ever sending it here, so
+                # .handle() correctly skips re-checking level and only applies filters
+                # and propagation -- the standard pattern for received network records.
+                logging.getLogger(payload["name"]).handle(record)
+            except (KeyError, ValueError, UnicodeDecodeError, TypeError):
+                continue  # malformed frame; drop it and keep the connection alive
+
+    def _recv_exact(self, n: int) -> bytes | None:
+        buf = bytearray()
+        while len(buf) < n:
+            chunk = self.rfile.read(n - len(buf))
+            if not chunk:
+                return None
+            buf.extend(chunk)
+        return bytes(buf)
+
+
+class _ThreadingUnixStreamServer(
+    socketserver.ThreadingMixIn, socketserver.UnixStreamServer
+):
+    daemon_threads = True
+
+
+_log_receiver_socket: str | None = None
+
+
+def _ensure_log_receiver() -> str:
+    """Start this process's log receiver if it hasn't already, and return its
+    socket path. Idempotent. Runs in a background thread -- not a forked
+    process -- specifically so it shares this interpreter's already
+    thread-safe ``logging`` locks rather than risking a fork-inherited lock
+    held by some other thread at fork time, which is the deadlock class this
+    design avoids by construction.
+
+    Sets ``ISAACTELEOP_LOG_SOCKET`` in ``os.environ`` so every process this
+    one spawns afterwards -- fork+exec'd (inherits the full environ) or
+    ``subprocess.Popen``'d with an ``os.environ``-derived ``env=`` (as every
+    site in this tree already does) -- finds it automatically.
+    """
+    global _log_receiver_socket
+    if _log_receiver_socket is not None:
+        return _log_receiver_socket
+    with _lock:
+        if _log_receiver_socket is not None:
+            return _log_receiver_socket
+        log_dir = _log_dir()
+        log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        socket_path = str(log_dir / f"isaacteleop.{timestamp}.{os.getpid()}.sock")
+        if os.path.exists(socket_path):
+            os.unlink(socket_path)
+        server = _ThreadingUnixStreamServer(socket_path, _ForwardingRequestHandler)
+        thread = threading.Thread(
+            target=server.serve_forever, name="isaacteleop-log-receiver", daemon=True
+        )
+        thread.start()
+        atexit.register(server.shutdown)
+        atexit.register(lambda: os.path.exists(socket_path) and os.unlink(socket_path))
+        os.environ["ISAACTELEOP_LOG_SOCKET"] = socket_path
+        _log_receiver_socket = socket_path
+        return socket_path
+
+
 class _Unset:
     """Sentinel type for :func:`configure`'s "leave this parameter as-is" default.
 
@@ -334,5 +541,32 @@ def configure(
         set_console_filter(new_pattern, target=new_target)  # type: ignore[arg-type]
 
 
-_gate_native_stderr(_ensure_console_handler().level)
-_ensure_file_handler()
+def _ensure_root_setup() -> None:
+    """Idempotent one-time setup: attaches this process's console and
+    persistence handlers to the ``isaacteleop`` root logger. Runs once at
+    import time -- see the module docstring's cross-process design.
+    """
+    socket_path = _forwarding_socket_path()
+    if socket_path is not None:
+        # Not this process's own console handler/level: it has none anymore,
+        # only the leader does. ISAACTELEOP_LOG_LEVEL is the existing
+        # mechanism for propagating the leader's current console threshold to
+        # out-of-process code (set_console_level() below); native fd 2 spew
+        # can never be forwarded (it bypasses this logger tree entirely), so
+        # gating it in this process still has to key off that same variable.
+        env_level_name = os.environ.get("ISAACTELEOP_LOG_LEVEL")
+        env_level = (
+            _LEVEL_NAMES.get(env_level_name.lower(), logging.INFO)
+            if env_level_name
+            else logging.INFO
+        )
+        _gate_native_stderr(env_level)
+        _ensure_forwarding_handler(socket_path)
+        return
+
+    _gate_native_stderr(_ensure_console_handler().level)
+    _ensure_file_handler()
+    _ensure_log_receiver()
+
+
+_ensure_root_setup()

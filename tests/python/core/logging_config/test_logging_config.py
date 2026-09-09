@@ -7,6 +7,8 @@ import io
 import logging
 import os
 import re
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -251,3 +253,77 @@ def test_configure_with_no_arguments_is_a_no_op():
     logging_config.configure()
     assert logging_config._ensure_console_handler().level == logging.WARNING
     assert logging_config._filter_pattern == "existing"
+
+
+def test_forwarding_socket_path_reads_env_var(monkeypatch):
+    monkeypatch.delenv("ISAACTELEOP_LOG_SOCKET", raising=False)
+    assert logging_config._forwarding_socket_path() is None
+    monkeypatch.setenv("ISAACTELEOP_LOG_SOCKET", "/tmp/does-not-need-to-exist.sock")
+    assert (
+        logging_config._forwarding_socket_path() == "/tmp/does-not-need-to-exist.sock"
+    )
+
+
+def test_forwarding_round_trip(tmp_path):
+    """A record sent through _ForwardingHandler reaches the receiving logger
+    with the same name, level, and rendered message -- the exact contract
+    src/core/log_bridge/cpp/socket_sink.cpp's C++ sender must also match.
+    """
+    socket_path = str(tmp_path / "test.sock")
+    server = logging_config._ThreadingUnixStreamServer(
+        socket_path, logging_config._ForwardingRequestHandler
+    )
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    receiver_name = "isaacteleop.test_forwarding_round_trip.receiver"
+    receiver_logger = logging.getLogger(receiver_name)
+    receiver_logger.setLevel(logging.DEBUG)
+    received: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            received.append(record)
+
+    capture = _Capture()
+    receiver_logger.addHandler(capture)
+
+    try:
+        handler = logging_config._ForwardingHandler(socket_path)
+        try:
+            record = logging.LogRecord(
+                receiver_name,
+                logging.WARNING,
+                __file__,
+                1,
+                "hello %s",
+                ("world",),
+                None,
+            )
+            handler.emit(record)
+
+            deadline = time.monotonic() + 2.0
+            while not received and time.monotonic() < deadline:
+                time.sleep(0.01)
+        finally:
+            handler.close()
+    finally:
+        receiver_logger.removeHandler(capture)
+        server.shutdown()
+        server.server_close()
+
+    assert len(received) == 1
+    got = received[0]
+    assert got.name == receiver_name
+    assert got.levelno == logging.WARNING
+    assert got.getMessage() == "hello world"
+
+
+def test_forwarding_handler_drops_record_when_leader_unreachable(tmp_path):
+    """No listener at the socket path -- emit() must not raise."""
+    handler = logging_config._ForwardingHandler(str(tmp_path / "nobody-listening.sock"))
+    record = logging.LogRecord(
+        "isaacteleop.x", logging.INFO, __file__, 1, "msg", None, None
+    )
+    handler.emit(record)  # must not raise
+    handler.close()

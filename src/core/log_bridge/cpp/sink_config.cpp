@@ -3,6 +3,8 @@
 
 #include "sink_config.hpp"
 
+#include "socket_sink.hpp"
+
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -79,6 +81,19 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
 {
     static const std::vector<spdlog::sink_ptr> sinks = []
     {
+        // Set by the process that spawned us (the session leader, or an intermediate
+        // forwarder) so its own logging_config.py receiver becomes the one place that
+        // formats, filters, and persists every process's records -- the session's
+        // single log file. Standalone/manual runs with nothing to forward to (no
+        // ISAACTELEOP_LOG_SOCKET) fall back to this process's own console+file sinks
+        // below, unchanged from before this existed.
+        if (auto socket_path = forwarding_socket_path(); !socket_path.empty())
+        {
+            auto forward = std::make_shared<SocketForwardSink>(std::move(socket_path));
+            forward->set_level(spdlog::level::trace); // the receiver's own logger does the filtering
+            return std::vector<spdlog::sink_ptr>{ forward };
+        }
+
         auto dir = log_dir();
         std::filesystem::create_directories(dir);
         // One file per process: concurrent processes rotating a shared file

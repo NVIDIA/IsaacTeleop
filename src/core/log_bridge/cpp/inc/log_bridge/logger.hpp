@@ -55,6 +55,14 @@ std::shared_ptr<spdlog::sinks::sink> bridge_sink();
 // the bridge.
 void set_bridge_sink(std::shared_ptr<spdlog::sinks::sink> sink);
 
+// isaacteleop.logging_config's level constants (Python's stdlib levels, plus the
+// module's own TRACE = 5). Shared by every sink that hands a record to Python's
+// logging module -- directly in-process (log_bridge_py's PythonBridgeSink) or
+// serialized across a socket to another process's Python logger (SocketForwardSink,
+// this library) -- so both speak the exact same numbering as
+// isaacteleop/logging_config.py's _LEVEL_NAMES.
+int to_python_level(spdlog::level::level_enum level);
+
 } // namespace detail
 
 } // namespace isaacteleop
