@@ -39,15 +39,16 @@ import React, { useRef, useState, useEffect } from 'react';
 import { CanvasTexture } from 'three';
 
 /** Canvas resolution (pixels). High values keep text sharp when the texture is scaled to the display size. */
-const CANVAS_WIDTH = 1024;
-const CANVAS_HEIGHT = 760;
+const CANVAS_WIDTH = 1320;
+const CANVAS_HEIGHT = 1310;
 
 // Layout constants (canvas space) — compact card style with label + value side-by-side.
-// SQ card (200px) + 4 metric cards (110px) + 4 gaps (14px) = 696px, centred in 760px canvas (32px margin each side).
+// Content: SQ(200) + gap(14) + 5×(120+14) + 4×(82+8) = 1244px, centred in 1310px (33px top/bottom margin).
+// Displayed at METRIC_SLOT 660×655, maintaining 0.5× scale for ~30px effective text size.
 const LAYOUT = {
-  fontSize: 52,
+  fontSize: 60,
   sqCardHeight: 200, // session-quality bars card — must exceed tallest bar (160px) plus 10px padding
-  cardHeight: 110, // metric text cards
+  cardHeight: 120, // metric text cards
   cardGap: 14,
   margin: 56,
   paddingLeft: 40,
@@ -109,6 +110,13 @@ export interface PerformanceCanvasImageProps {
   streamingFpsText?: ReadonlySignal<string>;
   /** Signal for pose-to-render latency (e.g. "12.3ms"). Label "Pose-to-Render: " is drawn here. */
   poseToRenderText?: ReadonlySignal<string>;
+  /** Signal for total Pose-to-Pose latency (P0 + P1 + P2 + P3). */
+  poseToPoseText?: ReadonlySignal<string>;
+  /** Indented sub-row signals for individual pipeline stages. */
+  p2pP0Text?: ReadonlySignal<string>;  // Client-to-Host
+  p2pP1Text?: ReadonlySignal<string>;  // Teleop (pico_manager)
+  p2pP2Text?: ReadonlySignal<string>;  // Motion Policy (ONNX + lookahead)
+  p2pP3Text?: ReadonlySignal<string>;  // Robot Driver (sim / real robot)
   /** Signal carrying live session quality (0–4); see {@link CloudXR.MetricsName.SessionQuality}. */
   sessionQuality?: ReadonlySignal<number>;
 }
@@ -125,6 +133,11 @@ export function PerformanceCanvasImage({
   poseSendFpsText,
   streamingFpsText,
   poseToRenderText,
+  poseToPoseText,
+  p2pP0Text,
+  p2pP1Text,
+  p2pP2Text,
+  p2pP3Text,
   sessionQuality,
 }: PerformanceCanvasImageProps) {
   /** Ref for the uikit Image; we set .texture.value on it to use our CanvasTexture. */
@@ -191,10 +204,26 @@ export function PerformanceCanvasImage({
       ['Render FPS', renderFpsText?.value ?? '—', 'rgba(100, 255, 100, 1)'],
       ['Pose Send FPS', poseSendFpsText?.value ?? '—', 'rgba(180, 255, 140, 1)'],
       ['Streaming FPS', streamingFpsText?.value ?? '—', 'rgba(100, 200, 255, 1)'],
-      ['Pose-to-Render', poseToRenderText?.value ?? '—', 'rgba(255, 200, 100, 1)'],
+      ['Pose-to-Render Latency', poseToRenderText?.value ?? '—', 'rgba(255, 200, 100, 1)'],
+      ['Pose-to-Pose Latency', poseToPoseText?.value ?? '—', 'rgba(255, 120, 180, 1)'],
     ];
-    // Vertically center: 1 SQ card + N metric cards + N gaps between each adjacent pair.
-    const totalHeight = sqCardHeight + metrics.length * cardHeight + metrics.length * cardGap;
+    // Four indented sub-rows under Pose-to-Pose (ordered downstream → upstream).
+    const subRows: [string, string][] = [
+      ['Robot Driver Latency', p2pP3Text?.value ?? '—'],
+      ['Motion Policy Latency', p2pP2Text?.value ?? '—'],
+      ['Teleop Latency', p2pP1Text?.value ?? '—'],
+      ['Client-to-Host Latency', p2pP0Text?.value ?? '—'],
+    ];
+    const subRowHeight = 82;
+    const subRowGap = 8;
+    const subRowFontSize = 44;
+    const subRowIndent = paddingLeft + 50; // extra indent beyond card paddingLeft
+    const subRowColor = 'rgba(255, 160, 200, 0.85)';
+    // Vertically center: SQ card + N metric cards + M sub-rows, each followed by a gap.
+    const totalHeight =
+      sqCardHeight + cardGap +
+      metrics.length * (cardHeight + cardGap) +
+      subRows.length * (subRowHeight + subRowGap);
     let cardY = (canvas.height - totalHeight) / 2;
 
     ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
@@ -250,6 +279,26 @@ export function PerformanceCanvasImage({
 
       // Advance to the next card position.
       cardY += cardHeight + cardGap;
+    }
+
+    // Draw 4 indented sub-rows under Pose-to-Pose.
+    ctx.font = `${subRowFontSize}px system-ui, sans-serif`;
+    const subCenterY = subRowHeight / 2;
+    for (const [label, value] of subRows) {
+      ctx.fillStyle = cardFillStyle;
+      drawRoundRect(ctx, margin + 40, cardY, CARD_WIDTH - 40, subRowHeight, radius);
+      ctx.fill();
+
+      const textY = cardY + subCenterY;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = labelColor;
+      ctx.fillText(label, margin + subRowIndent, textY);
+
+      const labelWidth = ctx.measureText(label).width;
+      ctx.fillStyle = subRowColor;
+      ctx.fillText('  ' + value, margin + subRowIndent + labelWidth, textY);
+
+      cardY += subRowHeight + subRowGap;
     }
 
     texture.needsUpdate = true;

@@ -86,6 +86,12 @@ import {
 const renderFps = signal<number | null>(null);
 const poseSendFps = signal<number | null>(null);
 const streamingMetrics = signal<{ fps: number; latencyMs: number } | null>(null);
+const poseToPoseMs = signal<number | null>(null);
+// Individual pipeline-stage latencies for the HUD sub-rows.
+const p2pP0Ms = signal<number | null>(null);  // Client-to-Host
+const p2pP1Ms = signal<number | null>(null);  // Teleop (pico_manager)
+const p2pP2Ms = signal<number | null>(null);  // Motion Policy (ONNX + lookahead)
+const p2pP3Ms = signal<number | null>(null);  // Robot Driver (sim / real robot)
 
 // Live session quality 0-4; see CloudXR.QualityScore. 0 is NoData, which is also the
 // resting state between sessions.
@@ -109,6 +115,13 @@ const streamingFpsText = computed(() =>
 const poseToRenderText = computed(() =>
   streamingMetrics.value ? `${streamingMetrics.value.latencyMs.toFixed(1)}ms` : '-'
 );
+const poseToPoseText = computed(() =>
+  poseToPoseMs.value !== null ? `${poseToPoseMs.value.toFixed(1)}ms` : '-'
+);
+const p2pP0Text = computed(() => (p2pP0Ms.value !== null ? `${p2pP0Ms.value.toFixed(1)}ms` : '-'));
+const p2pP1Text = computed(() => (p2pP1Ms.value !== null ? `${p2pP1Ms.value.toFixed(1)}ms` : '-'));
+const p2pP2Text = computed(() => (p2pP2Ms.value !== null ? `${p2pP2Ms.value.toFixed(1)}ms` : '-'));
+const p2pP3Text = computed(() => (p2pP3Ms.value !== null ? `${p2pP3Ms.value.toFixed(1)}ms` : '-'));
 const streamTestText = computed(() => streamTest.value?.text ?? '');
 const streamTestColor = computed(() => streamTest.value?.color ?? 'white');
 
@@ -572,6 +585,11 @@ function AppContent() {
       renderFps.value = null;
       poseSendFps.value = null;
       streamingMetrics.value = null;
+      poseToPoseMs.value = null;
+      p2pP0Ms.value = null;
+      p2pP1Ms.value = null;
+      p2pP2Ms.value = null;
+      p2pP3Ms.value = null;
     }
 
     // Reload on session end per mode; read live off the stable 2D UI to avoid a stale closure.
@@ -758,6 +776,16 @@ function AppContent() {
     }
 
     const type = (message as { type?: unknown })?.type;
+    if (type === 'poseToPose') {
+      const m = message as { ms?: unknown; p0?: unknown; p1?: unknown; p2?: unknown; p3?: unknown };
+      if (typeof m.ms === 'number') poseToPoseMs.value = m.ms;
+      if (typeof m.p0 === 'number') p2pP0Ms.value = m.p0;
+      if (typeof m.p1 === 'number') p2pP1Ms.value = m.p1;
+      if (typeof m.p2 === 'number') p2pP2Ms.value = m.p2;
+      // p3 may be null (real-robot fallback — no sim stage).
+      p2pP3Ms.value = typeof m.p3 === 'number' ? m.p3 : null;
+      return;
+    }
     console.info(`Ignoring server message of unhandled type: ${String(type)}`);
   };
 
@@ -1213,6 +1241,11 @@ function AppContent() {
                   poseSendFpsText={poseSendFpsText}
                   streamingFpsText={streamingFpsText}
                   poseToRenderText={poseToRenderText}
+                  poseToPoseText={poseToPoseText}
+                  p2pP0Text={p2pP0Text}
+                  p2pP1Text={p2pP1Text}
+                  p2pP2Text={p2pP2Text}
+                  p2pP3Text={p2pP3Text}
                   sessionQuality={sessionQuality}
                   streamTestText={streamTestText}
                   streamTestColor={streamTestColor}
