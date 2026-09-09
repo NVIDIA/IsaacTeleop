@@ -842,14 +842,14 @@ void ManusTracker::OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_L
     static const auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
     const std::string message(p_Log, p_Length);
 
-    // Inherit the SDK's own severity rather than collapsing everything to one level.
+    // Follow the SDK's own severity ordering, but demote one step below Warn: the SDK
+    // narrates routine service lifecycle at Info, which is not console-worthy for an
+    // IsaacTeleop operator. Warn and Error are the SDK reporting something wrong and
+    // keep their level.
     switch (p_Severity)
     {
     case LogSeverity_Debug:
-        logger->debug("{}", message);
-        break;
-    case LogSeverity_Info:
-        logger->info("{}", message);
+        logger->trace("{}", message);
         break;
     case LogSeverity_Warn:
         logger->warn("{}", message);
@@ -857,8 +857,9 @@ void ManusTracker::OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_L
     case LogSeverity_Error:
         logger->error("{}", message);
         break;
+    case LogSeverity_Info:
     default:
-        logger->info("{}", message);
+        logger->debug("{}", message);
         break;
     }
 }
