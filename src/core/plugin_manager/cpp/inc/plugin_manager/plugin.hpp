@@ -9,6 +9,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace core
@@ -70,6 +71,12 @@ private:
 #else
     int m_pid = -1;
 #endif
+
+    // Drains the plugin's stdout/stderr into this process's logger tree, so the
+    // host's single logging configuration governs the plugin's output too. Ends
+    // on EOF, which the kernel delivers once the reaped child's descriptors are
+    // gone -- hence joined after stop_process(), never before.
+    std::thread m_log_relay;
 };
 
 } // namespace core

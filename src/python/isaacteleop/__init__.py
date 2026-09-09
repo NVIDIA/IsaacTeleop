@@ -28,11 +28,12 @@ from . import (
     teleop_session_manager,
 )
 
-# Without this, in-process C++ keeps its own console/file sinks and its own
-# ISAACTELEOP_LOG_LEVEL threshold, so logging_config.configure() silently governs only
-# the Python half of the tree. Runs after logging_config, whose import-time setup builds
-# the handlers these records land in; loggers created before this point are re-sinked by
-# set_bridge_sink().
+# Without this, in-process C++ keeps its own console/file sinks and its own threshold,
+# so logging_config.configure() silently governs only the Python half of the tree. This
+# is also what makes the relay work: a plugin's records arrive through Plugin's reader
+# thread as C++ records, and only a bridged tree carries them on into Python's handlers.
+# Runs after logging_config, whose import-time setup builds the handlers these records
+# land in; loggers created before this point are re-sinked by set_bridge_sink().
 log_bridge.install_python_sink()
 
 __all__ = [

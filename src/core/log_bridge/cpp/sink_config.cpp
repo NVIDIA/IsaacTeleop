@@ -3,8 +3,11 @@
 
 #include "sink_config.hpp"
 
+#include "inc/log_bridge/log_relay.hpp"
+
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/stdout_sinks.h>
 
 #include <cstdlib>
 #include <ctime>
@@ -79,6 +82,19 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
 {
     static const std::vector<spdlog::sink_ptr> sinks = []
     {
+        // Relayed: the host process owns the console and the log file, so this one
+        // holds no policy at all. Every record is framed onto fd 1 -- which Plugin
+        // has pointed at its pipe -- and the host decides what to show and where to
+        // write it. A second, locally-thresholded copy here would be exactly the
+        // duplicated rule the relay exists to remove.
+        if (std::getenv(kRelayEnvVar) != nullptr)
+        {
+            auto relay = std::make_shared<spdlog::sinks::stdout_sink_mt>();
+            relay->set_level(spdlog::level::trace);
+            relay->set_pattern(kRelayPattern);
+            return std::vector<spdlog::sink_ptr>{ relay };
+        }
+
         auto dir = log_dir();
         std::filesystem::create_directories(dir);
         // One file per process: concurrent processes rotating a shared file

@@ -3,10 +3,14 @@
 
 #include "inc/plugin_manager/plugin.hpp"
 
+#include <log_bridge/log_relay.hpp>
+
 #ifndef _WIN32
 #    include <sys/wait.h>
 
+#    include <fcntl.h>
 #    include <signal.h>
+#    include <stdlib.h>
 #    include <string.h>
 #    include <unistd.h>
 #endif
@@ -19,6 +23,23 @@
 
 namespace core
 {
+namespace
+{
+
+// Where this plugin's unframed output lands: the OpenXR runtime and vendor SDKs
+// write straight to the descriptor and name no logger, so the executable is the
+// most specific attribution available.
+std::string relay_logger_name(const std::string& command)
+{
+    std::string executable = command.substr(0, command.find(' '));
+    if (const auto slash = executable.find_last_of('/'); slash != std::string::npos)
+    {
+        executable.erase(0, slash + 1);
+    }
+    return "isaacteleop.plugins." + (executable.empty() ? std::string("unknown") : executable) + ".stdio";
+}
+
+} // namespace
 
 Plugin::Plugin(const std::string& command,
                const std::string& working_dir,
@@ -86,9 +107,20 @@ void Plugin::start_process(const std::string& command,
                            const std::vector<std::string>& plugin_args)
 {
 #ifndef _WIN32
+    // O_CLOEXEC so the ends this process keeps do not leak into later plugins:
+    // a stray write end elsewhere would hold the pipe open and starve the reader
+    // of the EOF it uses to finish.
+    int log_pipe[2];
+    if (pipe2(log_pipe, O_CLOEXEC) != 0)
+    {
+        throw std::runtime_error("Failed to create log relay pipe for plugin: " + std::string(strerror(errno)));
+    }
+
     m_pid = fork();
     if (m_pid == -1)
     {
+        close(log_pipe[0]);
+        close(log_pipe[1]);
         throw std::runtime_error("Failed to fork process for plugin");
     }
 
@@ -107,6 +139,18 @@ void Plugin::start_process(const std::string& command,
                 std::cerr << "Failed to change directory to " << working_dir << std::endl;
                 _exit(1);
             }
+        }
+
+        // Hand both streams to the relay pipe before anything can write to them,
+        // and mark the process relayed so its log sink frames records onto fd 1
+        // rather than applying a console policy of its own. dup2 clears O_CLOEXEC,
+        // so these two survive the exec. setenv allocates and so is not strictly
+        // permitted here, but neither are the stream and string operations this
+        // window already performs.
+        if (dup2(log_pipe[1], STDOUT_FILENO) == -1 || dup2(log_pipe[1], STDERR_FILENO) == -1 ||
+            setenv(isaacteleop::kRelayEnvVar, "1", 1) != 0)
+        {
+            _exit(1);
         }
 
         // Close file descriptors to avoid sharing with parent process
@@ -166,6 +210,11 @@ void Plugin::start_process(const std::string& command,
     }
     else
     {
+        // The child's copy is the only write end left, so closing this one is what
+        // makes the reader see EOF when the child exits.
+        close(log_pipe[1]);
+        m_log_relay = std::thread(isaacteleop::relay_logs, log_pipe[0], relay_logger_name(command));
+
         // Parent process - give the plugin a moment to start
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -175,6 +224,7 @@ void Plugin::start_process(const std::string& command,
         if (result == m_pid)
         {
             m_pid = -1;
+            m_log_relay.join();
             throw std::runtime_error("Plugin process exited immediately");
         }
     }
@@ -205,6 +255,12 @@ void Plugin::stop_process()
         }
 
         m_pid = -1;
+    }
+
+    // Only now can the reader reach EOF: the reaped child's descriptors are gone.
+    if (m_log_relay.joinable())
+    {
+        m_log_relay.join();
     }
 #endif
 }
