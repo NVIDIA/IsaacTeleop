@@ -5,8 +5,9 @@
 
 #include "mj_api.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <csetjmp>
-#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -22,6 +23,16 @@ thread_local std::jmp_buf g_recover;
 thread_local bool g_armed = false;
 thread_local std::string g_message;
 
+// Vendor passthrough (MuJoCo's own error/warning text), so ThirdParty -- mirrors how
+// Manus's SDK log stream is wrapped. Both callbacks below fire on a regular thread (not
+// a signal handler, not between fork() and exec()), so logging from them is safe.
+std::shared_ptr<spdlog::logger>& logger()
+{
+    static auto instance =
+        isaacteleop::Logger::get("isaacteleop.viz.robot_twin.MuJoCo", isaacteleop::LoggerKind::ThirdParty);
+    return instance;
+}
+
 void on_error(const char* message)
 {
     g_message = message == nullptr ? "" : message;
@@ -29,7 +40,7 @@ void on_error(const char* message)
     {
         // Outside a guarded call there is nowhere to land. A core dump beats continuing
         // on state MuJoCo has already declared invalid.
-        std::fprintf(stderr, "robot_twin: unguarded MuJoCo error: %s\n", g_message.c_str());
+        logger()->error("unguarded MuJoCo error: {}", g_message);
         std::abort();
     }
     g_armed = false;
@@ -38,7 +49,7 @@ void on_error(const char* message)
 
 void on_warning(const char* message)
 {
-    std::fprintf(stderr, "robot_twin: MuJoCo warning: %s\n", message == nullptr ? "" : message);
+    logger()->warn("{}", message == nullptr ? "" : message);
 }
 
 } // namespace

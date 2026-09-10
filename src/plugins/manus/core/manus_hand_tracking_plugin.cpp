@@ -152,7 +152,7 @@ void ManusTracker::update()
     {
         if (!m_status_publish_error_logged)
         {
-            std::cerr << "[Manus] Device status publishing failed; tracking will continue: " << error.what() << std::endl;
+            m_logger->warn("Device status publishing failed; tracking will continue: {}", error.what());
             m_status_publish_error_logged = true;
         }
     }
@@ -160,7 +160,7 @@ void ManusTracker::update()
     {
         if (!m_status_publish_error_logged)
         {
-            std::cerr << "[Manus] Device status publishing failed; tracking will continue." << std::endl;
+            m_logger->warn("Device status publishing failed; tracking will continue.");
             m_status_publish_error_logged = true;
         }
     }
@@ -532,13 +532,12 @@ void ManusTracker::initialize() noexcept(false)
 
         if (monitoring_enabled)
         {
+            m_logger->error("Managed Manus launch requires an OpenXR monitoring session: {}", error_msg);
             shutdown_sdk();
             throw std::runtime_error("Managed Manus launch requires an OpenXR monitoring session: " + error_msg);
         }
 
-        std::cerr << "[Manus] Continuing in unmanaged Manus-only mode "
-                     "(no hand injection, sensor push, or OpenXR positioning)."
-                  << std::endl;
+        m_logger->warn("Continuing in unmanaged Manus-only mode (no hand injection, sensor push, or OpenXR positioning).");
     }
 
     std::lock_guard<std::mutex> lock(m_lifecycle_mutex);
