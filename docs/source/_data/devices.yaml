@@ -145,6 +145,33 @@ devices:
         - email: Veronica.li@bytedance.com
         - phone: +1 (909) 569-2774
 
+  - id: vive-ultimate-tracker
+    name: VIVE Ultimate Tracker
+    url: https://www.vive.com/us/accessory/vive-ultimate-tracker/
+    group: xr
+    # HTC's own words, in the sentence case every other row uses. Rewording the claim
+    # itself is theirs to do, not ours.
+    modes: Motion capture, body tracking
+    since: main
+    company:
+      # VIVE's horizontal alternate logo, trimmed of the transparent margin it ships with
+      # -- a twelfth of the canvas on every side. Marks are sized by canvas height, so
+      # untrimmed the wordmark drew at half the cap height of every other logo here. Only
+      # fully transparent pixels were dropped; the artwork itself is theirs, uncut.
+      name: HTC VIVE
+      logo: htc-vive.png
+      logo_dark: htc-vive-dark.png
+    details:
+      setup:
+        - label: Vive SE3 Tracker Plugin
+          url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/vive_se3_tracker
+      requirements:
+        - VIVEHub for Linux 1.0.1 or newer
+        - Built from source with -DVUT_SDK_DIR
+      acquire:
+        - label: vive.com
+          url: https://www.vive.com/us/accessory/vive-ultimate-tracker/
+
   # -------------------------------------------------------------- peripheral --
   - id: manus-gloves
     name: MANUS Metagloves Pro
