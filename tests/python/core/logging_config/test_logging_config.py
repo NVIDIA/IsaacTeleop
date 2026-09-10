@@ -154,7 +154,7 @@ def test_file_handler_filename_includes_pid():
 def test_file_handler_filename_includes_timestamp():
     handler = logging_config._ensure_file_handler()
     name = Path(handler.baseFilename).name
-    assert re.fullmatch(rf"isaacteleop\.\d{{8}}-\d{{6}}\.{os.getpid()}\.log", name), (
+    assert re.fullmatch(rf"\d{{8}}-\d{{6}}\.isaacteleop\.{os.getpid()}\.log", name), (
         name
     )
 

@@ -273,7 +273,7 @@ def _capture_native_stderr() -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     sink_fd = os.open(
-        log_dir / f"isaacteleop.{timestamp}.{os.getpid()}.native.log",
+        log_dir / f"{timestamp}.isaacteleop.{os.getpid()}.native.log",
         os.O_WRONLY | os.O_CREAT | os.O_APPEND,
         0o644,
     )
@@ -370,10 +370,11 @@ _file_handler: logging.Handler | None = None
 def _ensure_file_handler() -> logging.Handler:
     """Create and attach the file handler on first use; idempotent after that.
 
-    One file per process (the name includes a start-time timestamp and the
-    pid): concurrent processes rotating the same file can corrupt it, so
-    each process gets its own; the timestamp makes the file's creation time
-    greppable/sortable from its name and guards against a reused pid
+    One file per process (the name leads with a start-time timestamp and
+    ends with the pid): concurrent processes rotating the same file can
+    corrupt it, so each process gets its own; the leading timestamp makes
+    the run's start time the first thing the name says, keeps a run's files
+    adjacent whatever produced them, and guards against a reused pid
     colliding with an older run's file, while the pid still guards against
     two processes starting in the same second. Always captures everything
     (``DEBUG``+) — not user-configurable, unlike the console handler's level.
@@ -388,7 +389,7 @@ def _ensure_file_handler() -> logging.Handler:
         log_dir.mkdir(parents=True, exist_ok=True)
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         handler = RotatingFileHandler(
-            log_dir / f"isaacteleop.{timestamp}.{os.getpid()}.log",
+            log_dir / f"{timestamp}.isaacteleop.{os.getpid()}.log",
             maxBytes=_FILE_MAX_BYTES,
             backupCount=_FILE_BACKUP_COUNT,
             encoding="utf-8",
