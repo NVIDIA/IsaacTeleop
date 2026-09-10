@@ -221,41 +221,102 @@ def _ensure_console_handler() -> logging.StreamHandler:
         return _console_handler
 
 
-_native_stderr: tuple[TextIO, TextIO] | None = None
+_native_stderr: TextIO | None = None
+_native_pump: threading.Thread | None = None
+_native_echo = False
 
 
-def _gate_native_stderr(level: int) -> None:
-    """Send fd 2 to ``/dev/null`` unless the console is showing ``TRACE``.
+def _write_all(fd: int, data: bytes) -> None:
+    """``os.write`` until *data* is gone; a tty or a full disk can short-write."""
+    while data:
+        data = data[os.write(fd, data) :]
+
+
+def _pump_native_stderr(read_fd: int, sink_fd: int) -> None:
+    """Drain fd 2's pipe into the capture file, mirroring it while echo is on."""
+    try:
+        with os.fdopen(read_fd, "rb", buffering=0) as pipe:
+            while chunk := pipe.read(65536):
+                try:
+                    _write_all(sink_fd, chunk)
+                    if _native_echo and _native_stderr is not None:
+                        _write_all(_native_stderr.fileno(), chunk)
+                except OSError:
+                    pass  # keep draining regardless: see the finally below
+    finally:
+        os.close(sink_fd)
+        # Nothing else drains this pipe, so a writer would block for good once
+        # it filled (64 KiB) -- the very failure cloudxr/service/_service.py
+        # avoids by giving the runtime a file. Hand fd 2 back to the terminal
+        # instead: losing the capture beats wedging the runtime.
+        if _native_stderr is not None:
+            os.dup2(_native_stderr.fileno(), 2)
+
+
+def _capture_native_stderr() -> None:
+    """Point fd 2 at a pipe drained into its own file in the log dir; idempotent.
 
     Native code -- the CloudXR/Monado OpenXR runtime above all -- writes its
     diagnostics straight to fd 2 and cannot be routed into this logger tree:
     it exports no log hook and does not implement ``XR_EXT_debug_utils``, so
-    the descriptor is the only seam. ``sys.stderr`` is moved onto a duplicate
-    of the real descriptor instead of following fd 2, so tracebacks and
-    ``print(file=sys.stderr)`` stay visible. Processes forked afterwards
-    inherit the redirection; the C++ console sink writes to fd 1 and is
-    unaffected.
+    the descriptor is the only seam. What comes out is raw text rather than
+    records, hence a separate file from the handler-formatted one.
+    ``sys.stderr`` is moved onto a duplicate of the real descriptor instead of
+    following fd 2, so tracebacks and ``print(file=sys.stderr)`` stay on the
+    terminal. Processes forked afterwards inherit the redirection; the C++
+    console sink writes to fd 1 and is unaffected.
     """
-    global _native_stderr
-    discard = level > TRACE
-    if discard == (_native_stderr is not None):
+    global _native_stderr, _native_pump
+    if _native_stderr is not None:
         return
+    log_dir = _log_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    sink_fd = os.open(
+        log_dir / f"isaacteleop.{timestamp}.{os.getpid()}.native.log",
+        os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+        0o644,
+    )
+    read_fd, write_fd = os.pipe()
+    _native_stderr = os.fdopen(os.dup(2), "w", buffering=1)
+    os.dup2(write_fd, 2)
+    os.close(write_fd)
+    sys.stderr = _native_stderr
+    _ensure_console_handler().setStream(_native_stderr)
+    _native_pump = threading.Thread(
+        target=_pump_native_stderr,
+        args=(read_fd, sink_fd),
+        name="isaacteleop-native-stderr",
+        daemon=True,
+    )
+    _native_pump.start()
+    atexit.register(_drain_native_stderr)
+
+
+def _drain_native_stderr() -> None:
+    """Drop this process's write end so the pump reaches EOF and lands the tail.
+
+    The pump is a daemon thread, so without this the bytes still in the pipe at
+    interpreter shutdown never reach the file. The wait is bounded because a
+    surviving child still holding the write end would keep EOF from arriving.
+    """
     if _native_stderr is None:
-        real_stderr = os.fdopen(os.dup(2), "w", buffering=1)
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull_fd, 2)
-        os.close(devnull_fd)
-        _native_stderr = (real_stderr, sys.stderr)
-        sys.stderr = real_stderr
-        _ensure_console_handler().setStream(real_stderr)
-    else:
-        real_stderr, original = _native_stderr
-        os.dup2(real_stderr.fileno(), 2)
-        sys.stderr = original
-        _native_stderr = None
-        # Detach the handler before closing, or its flush hits a closed stream.
-        _ensure_console_handler().setStream(original)
-        real_stderr.close()
+        return
+    os.dup2(_native_stderr.fileno(), 2)
+    if _native_pump is not None:
+        _native_pump.join(timeout=0.5)
+
+
+def _gate_native_stderr(level: int) -> None:
+    """Always capture fd 2 to file; mirror it to the terminal only at ``TRACE``.
+
+    The mirror is decided when the pump drains, not when the bytes were
+    written, so a level change mid-session applies to whatever is still in the
+    pipe. Callers set the level once at startup, where that is invisible.
+    """
+    global _native_echo
+    _capture_native_stderr()
+    _native_echo = level <= TRACE
 
 
 def set_console_level(level: int | str) -> None:
