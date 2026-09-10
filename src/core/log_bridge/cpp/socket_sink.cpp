@@ -3,7 +3,7 @@
 
 #include "socket_sink.hpp"
 
-#include <log_bridge/logger.hpp>
+#include "inc/log_bridge/logger.hpp"
 
 #include <chrono>
 #include <cstdint>
