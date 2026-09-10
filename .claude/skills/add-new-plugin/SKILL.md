@@ -1,83 +1,111 @@
 ---
 name: add-new-plugin
-description: >
-  Add a new input device to IsaacTeleop — glove, pedal, tracker, camera, leader arm.
-  Four phases: orient, spec, build, report. Produces a device.spec.yaml, a verified
-  plugin under src/plugins/<device>/, and a report. Triggers on "add / integrate my
-  device into IsaacTeleop". Input devices only.
+description: >-
+  Plan and implement IsaacTeleop input-device integrations, choosing native reuse, typed push,
+  optional hand injection, or external bulk media per stream. Use for assessing, designing,
+  building, or testing support for new input hardware; output and haptic integrations are outside
+  this workflow.
 ---
 
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# Add a Device Plugin to IsaacTeleop
+# Add an IsaacTeleop Input Device
 
-Takes a device IsaacTeleop has never seen — a glove, a pedal, a tracker, a camera, a leader arm —
-and gets its data all the way to a robot command.
+Add only the acquisition and data-path pieces that IsaacTeleop does not already provide. Decide
+the route independently for every stream from a device; a mixed device may reuse native tracking,
+push typed measurements, and carry bulk media externally at the same time.
 
-That means seven layers, in fixed order:
+## Boundaries
 
+- This workflow covers input devices. Do not improvise an output/haptic implementation. If one is
+  requested, state that it is unverified here and point only to `HapticSink`, `HapticCommand`, and
+  `TeleopSessionConfig(sinks=[...])` for separate investigation.
+- Inspection is read-only. A planning request may create or update only the plan artifact. A plan
+  marked `ready` records an approved design; it does not authorize implementation edits.
+- Do not execute supplied vendor code, installers, binaries, or scripts merely to inspect them.
+- Do not start or stop services, accept licenses, change system configuration, or terminate
+  processes unless the user explicitly authorizes that action.
+
+## Start With Current Evidence
+
+1. Locate the IsaacTeleop repository root and identify every path that may be touched.
+2. Before editing, read the root `AGENTS.md` and every applicable `AGENTS.md` on those paths.
+3. Inspect the current source, tests, CMake, repository documentation, user evidence, and official
+   device/protocol documentation. Re-resolve every example path and referenced API before copying it.
+4. List the device's input streams and check whether the runtime, an existing plugin, tracker, or
+   source already exposes each required meaning.
+
+If an evidence gap could change the route, schema, safety boundary, or test contract, use the short
+interview loop in `references/plan-device.md`; do not guess.
+
+## Choose One Route Per Stream
+
+```text
+Existing runtime/tracker exposes the exact required semantics?
+├─ yes → reuse it; no plugin work for this stream
+└─ no
+   ├─ Native OpenXR hand behavior explicitly required?
+   │  └─ yes → verify a truthful joint/frame/time mapping, then inject; no device-specific push schema
+   ├─ Bulk video, depth, or audio?
+   │  └─ yes → keep payload outside the retargeting graph; schema only required correlation metadata
+   └─ typed push
+      ├─ Existing schema is an exact semantic contract → reuse the schema
+      └─ otherwise → create the smallest lossless typed payload and timestamped Record root
+
+For typed push:
+ordinary SchemaPusher/SchemaTracker collection → manifest-generated tracker
+xrLocate, opaque channel, vendor facade, or multi-endpoint reader → current hand-written path
 ```
-acquire → schema → tracker → bindings → source → boundary → robot step
-```
 
-A **plugin** reads the hardware and pushes its data in; a **schema** fixes the record format; a
-**tracker** exposes it to C++; **bindings** expose that to Python; a **source** converts it to a
-standard tensor shape; a **retargeter** turns that into joint commands. Most devices reuse most of
-the chain — the work is deciding which layers already fit and building only the ones that do not.
+An exact schema match includes meaning, units, coordinate frame, validity, timing and freshness,
+cardinality, and consumer needs. Similar fields or byte layout are not enough. Reusing a schema
+also does not prove that its source or consumer fits.
 
-The skill runs that as four phases: orient in the codebase, interview the user and write a spec,
-build it node by node verifying each, then report what happened. The spec is the contract between
-phases — Phase 1 decides and records, Phase 2 implements and proves.
+## Plan
 
-## Phases
+When no approved plan exists, read [references/plan-device.md](references/plan-device.md).
 
-| Phase | Does | Read | Produces |
-|---|---|---|---|
-| 0 · Context | Orient in the codebase | `phases/0-teleop-context.md` | Key files read; the seven layers understood |
-| 1 · Spec | Interview the user, pick the schema | `phases/1-spec-device.md` | `device.spec.yaml` with `status: ready` |
-| 2 · Build | Implement node by node, verify each | `phases/2-build-device.md` | Verified plugin, tests, README |
-| 3 · Report | Write up the run | `phases/3-onboard-report.md` | `report.md` |
+- Start from `assets/device-plan.template.yaml`.
+- Write the plan to the requested path, defaulting to
+  `src/plugins/<device>/device.spec.yaml` for an in-repository integration.
+- Keep every stream-contract field and all seven pipeline nodes from the master template. Use the
+  closest example under `assets/device-plan-examples/` only for its route decision and node pattern.
+- Treat `pipeline` as the device-level implementation plan. For multiple streams, fold their routes
+  into the same seven nodes and name the affected streams in each node's `reason` and
+  `verify.expected`.
+- Keep `status: draft` while assumptions, pointers, or decisions remain unresolved.
+- Review the proposed routes and repository touchpoints with the user before marking it `ready`.
+- Stop after planning unless implementation is explicitly authorized.
 
-**These are files, not skills — `Read` the path.** There is no `Skill()` to call for a phase.
+## Build
 
-Announce each phase as you enter it — *"Phase 2 (build): implementing the approved spec."* A
-skipped phase should be visible in the transcript.
+For an approved plan and an implementation request, read
+[references/build-device.md](references/build-device.md).
 
-## Where to start
+- Implement only nodes marked `create` or `modify`. Keep `reuse` and `not_applicable` nodes in the
+  plan so the complete data path remains visible, but do not edit their implementation files.
+- Do not implement a plan while any node or verification action is still `undecided`.
+- Match the closest maintained sibling and preserve IsaacTeleop's organized, clean, minimal, and
+  readable style.
+- Follow every node's `verify` block. Derive acquisition tests from device evidence; a generic
+  repository test is not proof of a new device protocol or SDK path.
+- For a plugin-backed typed or hand-injection route, adapt `assets/device_live.py.template` into
+  `examples/<device>/python/<device>_live.py`. Fill its planned plugin identity, configuration, test
+  duration, and polling interval, then adapt its three device hooks: pipeline construction, copied
+  value extraction, and verification. Run bounded `test` mode only when the runtime lifecycle and
+  device or simulator are available and authorized; use `live` only for human inspection.
+- For CloudXR lifecycle, physical-headset-free browser emulation, headless-mode questions, or
+  runtime diagnosis, read [references/troubleshoot.md](references/troubleshoot.md) only when needed.
 
-Start at the phase whose inputs you already have:
+## Handoff
 
-- Nothing but a user with a device → Phase 0, then 1.
-- A `device.spec.yaml` with `status: ready` → Phase 2.
-- A finished run, or its artifacts (`trajectory.jsonl`, `run.patch`) → Phase 3.
+Report:
 
-Each phase states what it requires. If you cannot satisfy it, go back one phase rather than
-guessing.
+- the route and schema decision for each stream;
+- files and symbols changed, or why no plugin was needed;
+- exact commands run and observable results;
+- checks not run, why they were unavailable, and the exact next command or condition needed.
 
-**Invoked with no device in hand?** Print this table, say which phase you would start at, and
-stop. Do not begin interviewing.
-
-## Scope
-
-**Input devices only** — devices that sense and feed data in. Feedback/output devices
-(vibration, force) are not covered.
-
-**Head, hands, controllers, and body are already native.** The runtime delivers them over OpenXR
-and every node exists; there is nothing to add. Phase 1 triages this first. A device that merely
-plugs into the headset is *not* native — see Phase 1, 4a.
-
-## Shared files
-
-- `examples/device.spec.template.yaml` — the spec every device fills in; defines every field and
-  each node's files and symbols
-- `examples/*.device.spec.yaml` — one filled example per device shape
-- `troubleshoot.md` — CloudXR check / start / stop, and the traps
-
-## Notes
-
-- Phases 1 and 2 are sequential — Phase 2 needs an approved spec.
-- Phase 0 can be read at any time; it is read-only orientation, no code changes.
-- Phase 3 can run straight after Phase 2, or much later from collected artifacts.
-- The user is an engineer who knows their device and nothing about IsaacTeleop. Use the repo's
-  terms, but define each one as you use it — see Phase 1.
+Never describe an unexecuted check as passed. Treat an unexplained runtime failure as unresolved,
+not as proof that the implementation or assertion is wrong.
