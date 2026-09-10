@@ -515,7 +515,6 @@ void ManusTracker::initialize() noexcept(false)
     if (!success)
     {
         m_logger->warn("OpenXR initialization failed: {}", error_msg);
-        m_logger->warn("Continuing in Manus-only mode (no hand injection, sensor push, or OpenXR positioning).");
         // Drop every OpenXR-related member that may have been created before the
         // throw (trackers/injectors first — they may hold session handles).
         cleanup_xdev_hand_trackers();
