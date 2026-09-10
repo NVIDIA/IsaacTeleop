@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <log_bridge/logger.hpp>
+#include "inc/log_bridge/logger.hpp"
 
 namespace isaacteleop::detail
 {
