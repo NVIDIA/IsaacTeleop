@@ -23,6 +23,8 @@
 #            Derive it, never date it: walk the release tags oldest-first and take the
 #            first whose tree carries the device's plugin or guide, as in
 #            ``git cat-file -e v1.4.142:src/plugins/oglo_tactile``; `main` when none does.
+#            Spell the tag out as shown: zsh reads the `:s` in ``$tag:src/...`` as a
+#            history modifier, and the mangled argument answers "present" for every tag.
 #            ``ecosystem_grid.SINCE_FLOOR`` is the oldest release this page names, and a
 #            device an earlier release carried is listed from the floor instead -- the
 #            build rejects anything older, so do not "correct" such a row back to what
