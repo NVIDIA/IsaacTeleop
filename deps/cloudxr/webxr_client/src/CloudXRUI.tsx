@@ -56,10 +56,8 @@ import { useRecorder } from './RecorderContext';
 // Face-camera rotation constants
 const FACE_CAMERA_DAMPING = 10; // Higher = faster rotation toward camera
 
-/** Display size for the Performance metrics slot (width and height passed to PerformanceCanvasImage and its container). */
+/** Display width for the Performance metrics slot. */
 const METRIC_SLOT_WIDTH = 660;
-/** Tracks PerformanceCanvasImage's 1320x1310 canvas: the session-quality card, five metric cards, and four sub-rows. */
-const METRIC_SLOT_HEIGHT = 655;
 
 interface CloudXRUIProps {
   onStartTeleop?: () => void;
@@ -90,6 +88,8 @@ interface CloudXRUIProps {
   p2pP1Text?: ReadonlySignal<string>;
   p2pP2Text?: ReadonlySignal<string>;
   p2pP3Text?: ReadonlySignal<string>;
+  /** Motion-to-Motion total: t_input(65ms) + P0+P1+P2+P3 + t_output(100ms). */
+  motionToMotionText?: ReadonlySignal<string>;
   /** Live session quality 0-4 ({@link CloudXR.QualityScore}); drives the HUD quality bars. */
   sessionQuality?: ReadonlySignal<number>;
   /** Network test status line; empty when no test is running or configured. */
@@ -266,6 +266,7 @@ export default function CloudXR3DUI({
   p2pP1Text,
   p2pP2Text,
   p2pP3Text,
+  motionToMotionText,
   sessionQuality,
   streamTestText,
   streamTestColor,
@@ -554,37 +555,24 @@ export default function CloudXR3DUI({
                   borderRadius={20}
                   padding={36}
                 >
-                  <Text
-                    fontSize={52}
-                    fontWeight="bold"
-                    color="white"
-                    textAlign="center"
-                    marginBottom={4}
-                  >
+                  <Text fontSize={52} fontWeight="bold" color="white" textAlign="center" marginBottom={4}>
                     Performance
                   </Text>
 
-                  <Container
+                  <PerformanceCanvasImage
                     width={METRIC_SLOT_WIDTH}
-                    height={METRIC_SLOT_HEIGHT}
-                    alignItems="center"
-                    justifyContent="center"
-                  >
-                    <PerformanceCanvasImage
-                      width={METRIC_SLOT_WIDTH}
-                      height={METRIC_SLOT_HEIGHT}
-                      renderFpsText={renderFpsText}
-                      poseSendFpsText={poseSendFpsText}
-                      streamingFpsText={streamingFpsText}
-                      poseToRenderText={poseToRenderText}
-                      poseToPoseText={poseToPoseText}
-                      p2pP0Text={p2pP0Text}
-                      p2pP1Text={p2pP1Text}
-                      p2pP2Text={p2pP2Text}
-                      p2pP3Text={p2pP3Text}
-                      sessionQuality={sessionQuality}
-                    />
-                  </Container>
+                    renderFpsText={renderFpsText}
+                    poseSendFpsText={poseSendFpsText}
+                    streamingFpsText={streamingFpsText}
+                    poseToRenderText={poseToRenderText}
+                    poseToPoseText={poseToPoseText}
+                    p2pP0Text={p2pP0Text}
+                    p2pP1Text={p2pP1Text}
+                    p2pP2Text={p2pP2Text}
+                    p2pP3Text={p2pP3Text}
+                    motionToMotionText={motionToMotionText}
+                    sessionQuality={sessionQuality}
+                  />
                 </Container>
 
                 <Container
