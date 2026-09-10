@@ -98,11 +98,12 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         std::filesystem::create_directories(dir);
         // One file per process: concurrent processes rotating a shared file
         // can corrupt it, so each process gets its own (mirrors the Python
-        // side's isaacteleop.<timestamp>.<pid>.log default). The timestamp
-        // makes the file's creation time greppable/sortable from its name and
-        // guards against a reused pid colliding with an older run's file; the
-        // pid still guards against two processes starting in the same second.
-        auto filename = dir / ("isaacteleop." + current_timestamp() + "." + std::to_string(current_pid()) + ".log");
+        // side's <timestamp>.isaacteleop.<pid>.log default). The leading
+        // timestamp makes the run's start time the first thing the name says,
+        // keeps a run's files adjacent whatever produced them, and guards
+        // against a reused pid colliding with an older run's file; the pid
+        // still guards against two processes starting in the same second.
+        auto filename = dir / (current_timestamp() + ".isaacteleop." + std::to_string(current_pid()) + ".log");
 
         auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         console->set_level(console_level());
