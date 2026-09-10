@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
-from ...logging_config import DEFAULT_LOG_DIR
+from ...logging_config import log_dir
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -441,14 +441,9 @@ class CloudXRService:
 
         # The runtime process's own fd 1/2 (its Vulkan-loader/GPU-init
         # diagnostics) land in isaacteleop.logging_config's native-fd capture
-        # files, not under `logs_dir` (CloudXR's own ~/.cloudxr/logs) -- see
-        # logging_config._log_dir() / ISAACTELEOP_LOG_DIR. Most recent first.
-        isaacteleop_logs_dir = Path(
-            os.environ.get("ISAACTELEOP_LOG_DIR") or DEFAULT_LOG_DIR
-        ).expanduser()
-        native_stderr_logs = sorted(
-            isaacteleop_logs_dir.glob("*.isaacteleop.*.native-stderr.log")
-        )
+        # files, not under `logs_dir` (CloudXR's own ~/.cloudxr/logs). Most
+        # recent first.
+        native_stderr_logs = sorted(log_dir().glob("*.isaacteleop.*.native-stderr.log"))
         if native_stderr_logs:
             result.append(native_stderr_logs[-1])
 
