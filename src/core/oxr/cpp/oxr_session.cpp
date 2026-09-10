@@ -213,13 +213,6 @@ void OpenXRSession::create_instance(const std::string& app_name, const std::vect
     all_extensions.push_back("XR_MND_headless");
     all_extensions.push_back("XR_EXTX_overlay");
 
-    // Opt in when the runtime advertises it; debug_messenger_ stays inactive otherwise.
-    const bool debug_utils_supported = oxr_utils::extension_supported(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    if (debug_utils_supported)
-    {
-        all_extensions.push_back(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
-
     // Convert vector<string> to array of const char* for OpenXR API
     std::vector<const char*> extension_ptrs;
     for (const auto& ext : all_extensions)
@@ -238,11 +231,6 @@ void OpenXRSession::create_instance(const std::string& app_name, const std::vect
     }
 
     instance_.reset(instance);
-
-    if (debug_utils_supported)
-    {
-        debug_messenger_.emplace(instance_.get(), ::xrGetInstanceProcAddr, logger_);
-    }
 
     logger_->info("Created OpenXR instance");
 }

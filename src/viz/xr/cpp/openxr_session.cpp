@@ -77,7 +77,6 @@ void OpenXrSession::create_instance(const std::string& app_name, const std::vect
     const bool runtime_has_time_conversion = available_exts.count(XR_KHR_CONVERT_TIMESPEC_TIME_EXTENSION_NAME) > 0;
     const bool runtime_has_cylinder_layer = available_exts.count(XR_KHR_COMPOSITION_LAYER_CYLINDER_EXTENSION_NAME) > 0;
     const bool runtime_has_equirect2_layer = available_exts.count(XR_KHR_COMPOSITION_LAYER_EQUIRECT2_EXTENSION_NAME) > 0;
-    const bool runtime_has_debug_utils = available_exts.count(XR_EXT_DEBUG_UTILS_EXTENSION_NAME) > 0;
 
     // Build the request list deduped: required → opt-in → caller extras.
     // Caller extras are validated; passing an unsupported one is fatal.
@@ -110,10 +109,6 @@ void OpenXrSession::create_instance(const std::string& app_name, const std::vect
     {
         add_unique(XR_KHR_COMPOSITION_LAYER_EQUIRECT2_EXTENSION_NAME);
     }
-    if (runtime_has_debug_utils)
-    {
-        add_unique(XR_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
     for (const auto& e : extra_extensions)
     {
         if (available_exts.count(e) == 0)
@@ -137,11 +132,6 @@ void OpenXrSession::create_instance(const std::string& app_name, const std::vect
     has_depth_composition_layer_ = runtime_has_depth_layer;
     has_cylinder_composition_layer_ = runtime_has_cylinder_layer;
     has_equirect2_composition_layer_ = runtime_has_equirect2_layer;
-
-    if (runtime_has_debug_utils)
-    {
-        debug_messenger_.emplace(instance_.get(), xrGetInstanceProcAddr, logger_);
-    }
 
     // Resolve PFNs only if both succeed — leave the feature off rather
     // than half-working.
