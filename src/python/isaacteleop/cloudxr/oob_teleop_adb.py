@@ -890,6 +890,11 @@ def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen
     # shell quoting issues with special characters in credentials.
     conf_path = f"/tmp/turnserver-cloudxr-{turn_port}.conf"
     log_path = f"/tmp/coturn-cloudxr-{turn_port}.log"
+    # coturn's own log-file= below only opens once it has parsed *conf_path*
+    # successfully; a bad config (or coturn itself failing before that point)
+    # would otherwise print to stdout/stderr and go nowhere. Separate file, not
+    # log_path itself: coturn truncates and owns that one via its own config.
+    stdio_log_path = f"/tmp/coturn-cloudxr-{turn_port}.stdio.log"
     conf_content = f"""\
 listening-port={turn_port}
 listening-ip=127.0.0.1
@@ -922,11 +927,12 @@ simple-log
         pass
 
     try:
-        proc = subprocess.Popen(
-            [coturn_bin, "-c", conf_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        with open(stdio_log_path, "w", encoding="utf-8") as stdio_file:
+            proc = subprocess.Popen(
+                [coturn_bin, "-c", conf_path],
+                stdout=stdio_file,
+                stderr=subprocess.STDOUT,
+            )
     except OSError as exc:
         log.warning("coturn failed to start (%s): %s", coturn_bin, exc)
         return None
@@ -934,11 +940,20 @@ simple-log
     # Give coturn a moment to start (or exit with a config error)
     time.sleep(0.5)
     if proc.poll() is not None:
+        # A config-parse failure exits before coturn ever opens log_path (its
+        # own log-file= target stays empty), so this reads whichever of the
+        # two actually has content -- most likely stdio_log_path in that case.
+        stdio_detail = _tail_file(stdio_log_path, 10)
+        detail_path, detail = (
+            (stdio_log_path, stdio_detail)
+            if stdio_detail
+            else (log_path, _tail_file(log_path, 10))
+        )
         log.warning(
             "coturn exited immediately (exit code %d). Tail of %s:\n%s",
             proc.returncode,
-            log_path,
-            _tail_file(log_path, 10),
+            detail_path,
+            detail,
         )
         return None
 

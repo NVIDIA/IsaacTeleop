@@ -194,7 +194,7 @@ def _ensure_console_handler() -> logging.StreamHandler:
 
     Attached to the root logger only for the session leader (see
     :func:`_forwarding_socket_path`) — a forwarding child still builds this
-    object (``_gate_native_stderr`` needs somewhere to redirect its stream
+    object (``_gate_native_fds`` needs somewhere to redirect its stream
     bookkeeping to regardless of leader/child status), it just never receives
     records, so it never prints a local, second copy of what the leader's own
     console handler already shows once the record comes back through the
@@ -221,9 +221,11 @@ def _ensure_console_handler() -> logging.StreamHandler:
         return _console_handler
 
 
-_native_stderr: TextIO | None = None
-_native_pump: threading.Thread | None = None
-_native_echo = False
+_NATIVE_FD_LABELS = {1: "stdout", 2: "stderr"}
+
+_native_saved: dict[int, TextIO] = {}
+_native_pumps: dict[int, threading.Thread] = {}
+_native_echo: dict[int, bool] = {}
 
 
 def _write_all(fd: int, data: bytes) -> None:
@@ -232,91 +234,114 @@ def _write_all(fd: int, data: bytes) -> None:
         data = data[os.write(fd, data) :]
 
 
-def _pump_native_stderr(read_fd: int, sink_fd: int) -> None:
-    """Drain fd 2's pipe into the capture file, mirroring it while echo is on."""
+def _pump_native_fd(fd: int, read_fd: int, sink_fd: int) -> None:
+    """Drain *fd*'s pipe into its capture file, mirroring it while echo is on."""
     try:
         with os.fdopen(read_fd, "rb", buffering=0) as pipe:
             while chunk := pipe.read(65536):
                 try:
                     _write_all(sink_fd, chunk)
-                    if _native_echo and _native_stderr is not None:
-                        _write_all(_native_stderr.fileno(), chunk)
+                    saved = _native_saved.get(fd)
+                    if _native_echo.get(fd) and saved is not None:
+                        _write_all(saved.fileno(), chunk)
                 except OSError:
                     pass  # keep draining regardless: see the finally below
     finally:
         os.close(sink_fd)
         # Nothing else drains this pipe, so a writer would block for good once
         # it filled (64 KiB) -- the very failure cloudxr/service/_service.py
-        # avoids by giving the runtime a file. Hand fd 2 back to the terminal
-        # instead: losing the capture beats wedging the runtime.
-        if _native_stderr is not None:
-            os.dup2(_native_stderr.fileno(), 2)
+        # avoids by giving the runtime a file. Hand the fd back to the
+        # terminal instead: losing the capture beats wedging the runtime.
+        saved = _native_saved.get(fd)
+        if saved is not None:
+            os.dup2(saved.fileno(), fd)
 
 
-def _capture_native_stderr() -> None:
-    """Point fd 2 at a pipe drained into its own file in the log dir; idempotent.
+def _capture_native_fd(fd: int) -> None:
+    """Point *fd* (1 or 2) at a pipe drained into its own file; idempotent.
 
     Native code -- the CloudXR/Monado OpenXR runtime above all -- writes its
-    diagnostics straight to fd 2 and cannot be routed into this logger tree:
+    diagnostics straight to fd 1/2 and cannot be routed into this logger tree:
     it exports no log hook and does not implement ``XR_EXT_debug_utils``, so
     the descriptor is the only seam. What comes out is raw text rather than
-    records, hence a separate file from the handler-formatted one.
-    ``sys.stderr`` is moved onto a duplicate of the real descriptor instead of
-    following fd 2, so tracebacks and ``print(file=sys.stderr)`` stay on the
-    terminal. Processes forked afterwards inherit the redirection; the C++
-    console sink writes to fd 1 and is unaffected.
+    records, hence a separate file per fd from the handler-formatted one.
+
+    ``sys.stdout``/``sys.stderr`` are moved onto a duplicate of the real
+    descriptor instead of following it, so ``print()``, ``print(file=
+    sys.stderr)``, and uncaught tracebacks all stay on the terminal --
+    without this, ordinary ``print()`` calls (targeting fd 1 by default)
+    would vanish into the capture pipe along with the native library's own
+    fd 1 writes, since Python cannot tell the two apart at the fd level.
+    Processes forked afterwards inherit the redirection; the C++ console
+    sink writes through its own fd 1 handle taken before this runs, and
+    the file rotation handler writes through a plain file object, so
+    neither is affected by fd 1 being repointed here.
     """
-    global _native_stderr, _native_pump
-    if _native_stderr is not None:
+    if fd in _native_saved:
         return
+    label = _NATIVE_FD_LABELS[fd]
     log_dir = _log_dir()
     log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     sink_fd = os.open(
-        log_dir / f"{timestamp}.isaacteleop.{os.getpid()}.native.log",
+        log_dir / f"{timestamp}.isaacteleop.{os.getpid()}.native-{label}.log",
         os.O_WRONLY | os.O_CREAT | os.O_APPEND,
         0o644,
     )
     read_fd, write_fd = os.pipe()
-    _native_stderr = os.fdopen(os.dup(2), "w", buffering=1)
-    os.dup2(write_fd, 2)
+    saved = os.fdopen(os.dup(fd), "w", buffering=1)
+    os.dup2(write_fd, fd)
     os.close(write_fd)
-    sys.stderr = _native_stderr
-    _ensure_console_handler().setStream(_native_stderr)
-    _native_pump = threading.Thread(
-        target=_pump_native_stderr,
-        args=(read_fd, sink_fd),
-        name="isaacteleop-native-stderr",
+    _native_saved[fd] = saved
+    if fd == 2:
+        sys.stderr = saved
+        _ensure_console_handler().setStream(saved)
+    else:
+        sys.stdout = saved
+    pump = threading.Thread(
+        target=_pump_native_fd,
+        args=(fd, read_fd, sink_fd),
+        name=f"isaacteleop-native-{label}",
         daemon=True,
     )
-    _native_pump.start()
-    atexit.register(_drain_native_stderr)
+    pump.start()
+    _native_pumps[fd] = pump
+    atexit.register(_drain_native_fd, fd)
 
 
-def _drain_native_stderr() -> None:
+def _drain_native_fd(fd: int) -> None:
     """Drop this process's write end so the pump reaches EOF and lands the tail.
 
     The pump is a daemon thread, so without this the bytes still in the pipe at
     interpreter shutdown never reach the file. The wait is bounded because a
     surviving child still holding the write end would keep EOF from arriving.
     """
-    if _native_stderr is None:
+    saved = _native_saved.get(fd)
+    if saved is None:
         return
-    os.dup2(_native_stderr.fileno(), 2)
-    if _native_pump is not None:
-        _native_pump.join(timeout=0.5)
+    os.dup2(saved.fileno(), fd)
+    pump = _native_pumps.get(fd)
+    if pump is not None:
+        pump.join(timeout=0.5)
 
 
-def _gate_native_stderr(level: int) -> None:
-    """Always capture fd 2 to file; mirror it to the terminal only at ``TRACE``.
+def _gate_native_fds(level: int) -> None:
+    """Always capture fd 1 + fd 2 to file; mirror them to the terminal only at ``TRACE``.
 
-    The mirror is decided when the pump drains, not when the bytes were
-    written, so a level change mid-session applies to whatever is still in the
-    pipe. Callers set the level once at startup, where that is invisible.
+    Both descriptors, not just fd 2: the CloudXR runtime worker used to
+    ``dup2`` fd 1 to ``/dev/null`` and fd 2 to its own separate,
+    never-mirrored file (``cloudxr/runtime.py``, removed) precisely because
+    nothing here covered fd 1 -- covering both closes that gap and the fd 2
+    race it created (two independent redirects of the same descriptor in one
+    process). The mirror is decided when the pump drains, not when the bytes
+    were written, so a level change mid-session applies to whatever is still
+    in the pipe. Callers set the level once at startup, where that is
+    invisible.
     """
-    global _native_echo
-    _capture_native_stderr()
-    _native_echo = level <= TRACE
+    echo = level <= TRACE
+    for fd in _NATIVE_FD_LABELS:
+        _capture_native_fd(fd)
+        _native_echo[fd] = echo
 
 
 def set_console_level(level: int | str) -> None:
@@ -327,7 +352,7 @@ def set_console_level(level: int | str) -> None:
     """
     resolved = _resolve_level(level)
     _ensure_console_handler().setLevel(resolved)
-    _gate_native_stderr(resolved)
+    _gate_native_fds(resolved)
     # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
     # the in-process bridge; they read their own console threshold from this variable.
     if resolved in _LEVEL_NAME_BY_VALUE:
@@ -622,11 +647,11 @@ def _ensure_root_setup() -> None:
             if env_level_name
             else logging.INFO
         )
-        _gate_native_stderr(env_level)
+        _gate_native_fds(env_level)
         _ensure_forwarding_handler(socket_path)
         return
 
-    _gate_native_stderr(_ensure_console_handler().level)
+    _gate_native_fds(_ensure_console_handler().level)
     _ensure_file_handler()
     _ensure_log_receiver()
 
