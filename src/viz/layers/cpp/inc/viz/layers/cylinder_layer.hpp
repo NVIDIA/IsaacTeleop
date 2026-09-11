@@ -9,6 +9,7 @@
 #include <viz/core/viz_types.hpp>
 #include <vulkan/vulkan.h>
 
+#include <atomic>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -56,6 +57,14 @@ public:
         // image pair (the VR-video convention). Ignored when stereo is
         // false.
         float stereo_baseline_mm = 0.0f;
+
+        // Per-eye yaw in degrees; the left eye's surface rotates +half, the
+        // right −half. This is the knob to reach for on a curved surface:
+        // translating one (stereo_baseline_mm) gives full disparity dead
+        // ahead and progressively less toward the edges, and does nothing
+        // at all at infinite radius. A rotation is uniform across the arc
+        // and works at any radius. Positive pushes content away.
+        float stereo_convergence_deg = 0.0f;
 
         // Composite honoring the texture's alpha channel
         // (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). Off by
@@ -116,10 +125,24 @@ public:
     void set_placement(const Config::Placement& placement);
     Config::Placement placement() const noexcept;
 
+    // Live stereo baseline, thread-safe vs the render thread; takes effect
+    // next frame. No-op while the layer is mono (Config::stereo == false).
+    // Throws std::invalid_argument on a non-finite value.
+    void set_stereo_baseline_mm(float baseline_mm);
+    float stereo_baseline_mm() const noexcept;
+
+    // Live per-eye yaw, thread-safe vs the render thread; takes effect next
+    // frame. No-op while the layer is mono. Throws std::invalid_argument on
+    // a non-finite value.
+    void set_stereo_convergence_deg(float convergence_deg);
+    float stereo_convergence_deg() const noexcept;
+
 private:
     Config config_;
 
     mutable std::mutex placement_mutex_;
+    std::atomic<float> stereo_baseline_mm_;
+    std::atomic<float> stereo_convergence_deg_;
     Config::Placement placement_{};
 };
 

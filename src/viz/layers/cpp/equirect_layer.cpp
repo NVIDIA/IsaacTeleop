@@ -49,6 +49,10 @@ const EquirectLayer::Config& validate_config(const EquirectLayer::Config& config
     {
         throw std::invalid_argument("EquirectLayer: stereo_baseline_mm must be finite");
     }
+    if (!std::isfinite(config.stereo_convergence_deg))
+    {
+        throw std::invalid_argument("EquirectLayer: stereo_convergence_deg must be finite");
+    }
     validate_placement(config.placement);
     return config;
 }
@@ -63,7 +67,9 @@ EquirectLayer::EquirectLayer(const VkContext& ctx, Config config)
                      config.format,
                      config.stereo,
                      /*mip_levels=*/1),
-      config_(std::move(config))
+      config_(std::move(config)),
+      stereo_baseline_mm_(config_.stereo_baseline_mm),
+      stereo_convergence_deg_(config_.stereo_convergence_deg)
 {
     placement_ = config_.placement;
 }
@@ -115,7 +121,8 @@ std::optional<NativeLayerView> EquirectLayer::acquire_native_layer(uint32_t in_f
     v.color_right = config_.stereo ? slots_right_[cur]->vk_image() : VK_NULL_HANDLE;
     v.extent = resolution();
     v.pose = placement.pose;
-    v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.stereo_baseline_mm = config_.stereo ? stereo_baseline_mm_.load(std::memory_order_relaxed) : 0.0f;
+    v.stereo_convergence_deg = config_.stereo ? stereo_convergence_deg_.load(std::memory_order_relaxed) : 0.0f;
     v.alpha_blend = config_.alpha_blend;
     v.radius = placement.radius_m;
     v.central_horizontal_angle = placement.central_horizontal_angle_rad;
@@ -136,6 +143,34 @@ EquirectLayer::Config::Placement EquirectLayer::placement() const noexcept
 {
     std::lock_guard<std::mutex> lk(placement_mutex_);
     return placement_;
+}
+
+void EquirectLayer::set_stereo_baseline_mm(float baseline_mm)
+{
+    if (!std::isfinite(baseline_mm))
+    {
+        throw std::invalid_argument("EquirectLayer: stereo_baseline_mm must be finite");
+    }
+    stereo_baseline_mm_.store(baseline_mm, std::memory_order_relaxed);
+}
+
+float EquirectLayer::stereo_baseline_mm() const noexcept
+{
+    return stereo_baseline_mm_.load(std::memory_order_relaxed);
+}
+
+void EquirectLayer::set_stereo_convergence_deg(float convergence_deg)
+{
+    if (!std::isfinite(convergence_deg))
+    {
+        throw std::invalid_argument("EquirectLayer: stereo_convergence_deg must be finite");
+    }
+    stereo_convergence_deg_.store(convergence_deg, std::memory_order_relaxed);
+}
+
+float EquirectLayer::stereo_convergence_deg() const noexcept
+{
+    return stereo_convergence_deg_.load(std::memory_order_relaxed);
 }
 
 } // namespace viz

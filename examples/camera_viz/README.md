@@ -129,8 +129,10 @@ display:                      # camera_viz only
       offset_x: 0.0
       offset_y: 0.0
       # size: [w_m, h_m]
-      # stereo_baseline_mm: 0  # stereo cams: 0 = both eyes share the world quad
-                               # (parallax from the frames); ~65 = virtual IPD push
+      # stereo_plane_distance_cm: 0   # stereo cams: gap between the left- and
+                                      # right-eye planes; 0 = both eyes share
+                                      # one plane. See "Stereo plane distance"
+      # equirect_yaw_deg: 0.0  # equirect: heading the middle of the feed points at
       # shape: quad            # quad (default) | cylinder | equirect — XR only for
                                # the curved shapes
       # compositor: openxr     # openxr (default) | televiz — quads only
@@ -169,15 +171,147 @@ display:
 
 Lazy knobs under `placements.<name>`: `look_away_angle_deg`, `reposition_distance`, `reposition_delay_s`, `transition_duration_s`.
 
+## Controller bindings (XR)
+
+Retune the view without editing YAML and restarting. The right hand changes how the feed looks, the left what surface it's on. Quest and Pico report these identically.
+
+| Input | Effect |
+|---|---|
+| **Right stick** ←/→ | Stereo plane gap. Stereo cameras only — on `equirect`, pans instead |
+| **Right stick click** | Recenter on your view |
+| **A** | Lock mode: `world` → `head` → `gimbal` → `lazy` |
+| **B** | Mono / stereo. Stereo cameras only |
+| **X** | Shape: `quad` → `cylinder` → `equirect` |
+| **Y** | Reset everything to the YAML values |
+| **Left stick** | Per shape, below |
+
+| Shape | ←/→ | ↑/↓ |
+|---|---|---|
+| `quad` | size, aspect preserved | slide up / down |
+| `cylinder` | arc width | slide up / down |
+| `equirect` | horizontal span | vertical span |
+
+Recentering reads per shape: an `equirect` yaws so the middle of the panorama lands dead ahead, and a placed surface re-snaps its anchor — the way back from a `world`-locked plane left in another part of the room.
+
+Changes apply to every camera at once and appear on the status panel and an in-headset HUD that auto-hides ~2.5 s later (`hud: false` to disable). Nothing is written back to the YAML.
+
+Neither toggle reallocates: **B** sends the left frame to both eyes, **X** flips visibility between shapes all built at startup. The cost is VRAM — two extra layers per camera, reported at startup; `shape_switching: false` keeps only the configured shape.
+
+A quad's `distance` and a cylinder's `cylinder_radius_m` stay YAML-only. Apparent size is `2·atan((w/2)/d)` and arc width is `radius × angle`, so moving either surface further away enlarges it by the same factor and looks identical — they'd duplicate the size axis. What they *do* change is the real distance to the surface, which the stereo gap works from.
+
+```yaml
+display:
+  controls:
+    enabled: true                      # false disables the bindings
+    hud: true                          # in-headset readout
+    shape_switching: true              # keep all 3 shapes resident for X
+    deadzone: 0.2                      # stick rest-position tolerance
+    plane_distance_rate_cm_per_s: 2.0  # held-stick ramp rates
+    size_rate_m_per_s: 0.5
+    offset_rate_m_per_s: 0.5
+    angle_rate_deg_per_s: 40.0
+```
+
+Limits — `plane_distance_min_cm` / `plane_distance_max_cm`, `size_range_m`, `offset_y_range_m`, `cylinder_angle_range_deg`, `equirect_h_range_deg`, `equirect_v_half_range_deg` — all default inside what the layers accept. See `configs/zed.yaml`.
+
+### Stereo plane distance
+
+A stereo layer draws each eye's image on its own plane; `stereo_plane_distance_cm` is the gap between them.
+
+```yaml
+display:
+  placements:
+    zed:
+      distance: 1.0                  # how far away the planes are
+      stereo_plane_distance_cm: 5.0  # how far apart they are
+```
+
+At `0` both eyes share one plane, so the whole scene — near objects and far background alike — is packed into the space between you and `distance`. Widening the gap pushes it back and lets it spread out. Applied exactly as given (×10 into the layer's `stereo_baseline_mm`); the stick moves it in 0.1 cm steps.
+
+The HUD suggests a value from the plane distance and the headset's measured IPD, shown beside the one in use (`5.0/5.2` on the panel). Advice only — the stick sets the value, which is also how you correct a headset whose IPD setting doesn't match your eyes.
+
+The stick can't reach **divergent parallax**: at a gap equal to your IPD the eyes' rays are parallel, and beyond it they would have to splay outward — the classic cause of stereo eye strain. The ceiling comes from the measured IPD, not the config.
+
+**B** parks the gap at zero while mono, since one image on two separated planes would only shift its depth, and restores it on the way back.
+
+Not applicable to `equirect`: the gap shifts each eye's surface, and the sphere sits at infinite radius where translating it does nothing, so the stick skips it there and pans instead. Curved layers have a rotation-based equivalent in Televiz (`stereo_convergence_deg`), which is uniform across the arc and works at any radius.
+
+> **Not the camera's baseline.** That is the physical gap between the camera's two lenses — fixed in hardware, baked into the pixels, and what sets the scene's depth *scale*. This only moves where that scene sits.
+
+> Live adjustment needs `Layer.set_stereo_baseline_mm`, newer than the released `isaacteleop` wheel. On an older wheel that one binding disables itself with a notice; A, B, X and Y still work.
+
+### Aiming an equirect
+
+The middle of the texture maps to the sphere pose's **−z**, and the middle row to its horizon. With no rotation that is the reference space's forward — wherever the headset faced when it last recentered — so a camera mounted facing another way puts the interesting part of the feed off to one side.
+
+```yaml
+display:
+  placements:
+    sky:
+      shape: equirect
+      equirect_yaw_deg: -90.0  # heading the middle of the feed points at
+```
+
+Positive is a turn to the left. The right stick pans it live and the stick click snaps it to your view; **Y** puts it back to the YAML value. The heading in use rides in the panel's `shape` column (`equirect +35°`).
+
+The sphere has no lock mode: it is centred on you and follows your head everywhere, so `world` / `head` / `lazy` and the `distance` / `size` knobs are all blank for it. This heading is its whole placement.
+
 ---
+
+## CloudXR runtime settings
+
+The runtime is configured by environment variables, and there are three ways to set one and be silently ignored: a name nothing reads, a stale `source ~/.cloudxr/run/cloudxr.env` in your shell (which outranks both `os.environ` and `--cloudxr-device-profile`), and a boolean spelled `False` — which the runtime's exact-match parser doesn't recognise, so it reads as **true**.
+
+camera_viz ships defaults in `cloudxr_env.DEFAULT_ENV` — pose wait off, runtime foveation on — so a config that says nothing gets both. `display.cloudxr` is a per-deployment override; list only what you want to change:
+
+```yaml
+display:
+  cloudxr:
+    NV_DEVICE_PROFILE: apple-vision-pro
+    NV_ENABLE_POSE_WAIT: null   # null drops a camera_viz default
+```
+
+camera_viz writes these to a generated `--cloudxr-env-config` file, the one tier that outranks the process environment. Booleans are lowercased for you; the launcher-computed keys (`XR_RUNTIME_JSON`, `NV_CXR_RUNTIME_DIR`, `NV_CXR_OUTPUT_DIR`, `XRT_NO_STDIN`) are refused by name. Passing `--cloudxr-env-config` yourself wins — camera_viz won't overwrite it.
+
+An unknown variable name warns with a suggestion before anything launches — `NV_CXR_DEVICE_PROFILE` is not a name the runtime reads, and it's one keystroke from one that is — but is still passed through, since the runtime has more knobs than camera_viz lists.
+
+To confirm what the runtime actually resolved, read the settings dump at the top of the newest `~/.cloudxr/logs/cxr_server.*.log`. Monado's `DEBUG_GET_ONCE` options (`NV_ENABLE_POSE_WAIT` among them) aren't in that dump; run with `XRT_PRINT_OPTIONS=true` and each is logged as `NAME=value (raw)`, where `(nil)` means it never arrived.
+
+> `NV_DEVICE_PROFILE` is device matching, not tuning. Anything other than `quest3` selects separate-frames packing, and `isFrameClientReconstructed()` bails unless packing is packed-frame — so a non-Quest profile gives up client-reconstructed streaming.
+
+---
+
+## Status panel
+
+On a terminal, camera_viz redraws a snapshot in place instead of scrolling a log:
+
+```
+camera_viz  xr · local · 1 camera
+────────────────────────────────────────────────────────────────────
+  render 58.0 fps (target 72)   missed 0   gpu 2.1 ms
+
+  camera      shape          lock    eyes   size m  height m  planes cm   submit/s
+  zed         cylinder       lazy    stereo 1.00    +0.00     5.0/5.2     64.0
+
+  headset IPD 63 mm
+
+  stereo planes: 5.0 cm  ·  suggested: 5.2 cm · IPD: 63 mm
+```
+
+`planes cm` is the value in use and the suggestion. `-` means the field doesn't apply — equirect has no gap, window mode has no controls. While the panel is live it owns stderr: control messages and source lifecycle lines go through it rather than printing underneath and pushing it out of alignment. When stderr isn't a terminal (piped, or a `deploy`ed systemd unit) it falls back to one line every 5 s with the same numbers.
 
 ## Layout
 
 ```
 camera_viz/
 ├── camera_viz.sh        — CLI: setup / loopback / run / deploy / service-*
-├── camera_viz.py        — receiver / viewer
+├── camera_viz.py        — receiver / viewer (entrypoint + wiring)
 ├── camera_streamer.py   — robot-side RTP sender (per-camera supervisor)
+├── config.py            — YAML → SourceEntry: parse + validate, no allocation
+├── display.py           — VizSession + one layer per surface
+├── cloudxr_env.py       — display.cloudxr → the runtime's env file
+├── dashboard.py         — terminal status panel
+├── controls/            — XR controller bindings, shapes, stereo geometry, HUD
 ├── pipeline/            — source ABC + threaded runner
 ├── placements/          — XR lock-mode strategies
 ├── sources/             — V4L2 / OAK-D / ZED / synthetic / video replay / rtp_h264

@@ -16,16 +16,34 @@ VizRunner owns two threads:
 from __future__ import annotations
 
 import logging
-import sys
+import math
 import threading
 import time
 from typing import Callable, Optional, Sequence
 
 import isaacteleop.viz as viz
 
+from dashboard import CameraRow, Dashboard, Snapshot
+
 from .interface import FrameSource
 
 logger = logging.getLogger(__name__)
+
+
+def _measure_ipd_mm(info) -> Optional[float]:
+    """Headset IPD from the per-eye view poses, or None outside XR stereo.
+
+    This is what the runtime believes the lens separation to be. It drives
+    the stereo-distance maths, and a user whose headset IPD setting is wrong
+    trims the difference out by hand on the stick.
+    """
+    views = getattr(info, "views", None)
+    if views is None or len(views) < 2:
+        return None
+    left, right = views[0].pose.position, views[1].pose.position
+    ipd = math.dist(tuple(left), tuple(right)) * 1000.0
+    # A degenerate value means the runtime has not placed the eyes yet.
+    return ipd if ipd > 1.0 else None
 
 
 # Submit thread poll interval when no source has new data.
@@ -38,6 +56,9 @@ SUBMIT_POLL_S = 0.001
 # below the display rate points at the XR runtime pacing (missed
 # deadlines / GPU time).
 STATS_PERIOD_S = 5.0
+
+# The panel is a snapshot, so it refreshes far more often than a log would.
+LIVE_STATS_PERIOD_S = 0.5
 
 # Window-mode stop-check granularity. stop() calls cond.notify_all()
 # so this is normally a safety net, not a hot path — value isn't a
@@ -63,6 +84,10 @@ class VizRunner:
         sources: Sequence[FrameSource],
         layers: Sequence[viz.QuadLayer],
         placement_strategies: Optional[Sequence[Optional[object]]] = None,
+        controls: Optional[object] = None,
+        dashboard: Optional[Dashboard] = None,
+        header: str = "",
+        notes: Optional[Sequence[str]] = None,
     ) -> None:
         if len(sources) != len(layers):
             raise ValueError(
@@ -84,9 +109,17 @@ class VizRunner:
             if placement_strategies is not None
             else [None] * len(layers)
         )
+        # Polled on the render thread once per XR frame. It owns the live
+        # shape / lock-mode state, so the active layer and strategy are
+        # resolved through it rather than read from the lists above.
+        self._controls = controls
+        self._dashboard = dashboard if dashboard is not None else Dashboard()
+        self._header = header
+        self._notes = list(notes or ())
         self._stop = threading.Event()
         self._submit_thread: Optional[threading.Thread] = None
         self._render_thread: Optional[threading.Thread] = None
+        self._stats_thread: Optional[threading.Thread] = None
         # Submit thread bumps the version + notifies after each publish;
         # render thread compares versions under the lock, so wakeups
         # can't be lost.
@@ -100,7 +133,6 @@ class VizRunner:
         # Per-source submit counters (submit thread writes, stats print
         # reads — plain ints under the GIL, approximate reads are fine).
         self._submit_counts = [0] * len(self._layers)
-        self._stats_t0 = 0.0
 
     def start(self) -> None:
         if self._submit_thread is not None or self._render_thread is not None:
@@ -128,6 +160,11 @@ class VizRunner:
             target=self._render_loop, name="camera_viz_render", daemon=False
         )
         self._render_thread.start()
+        # Daemon: it only draws, so it must never hold up an exit.
+        self._stats_thread = threading.Thread(
+            target=self._stats_loop, name="camera_viz_stats", daemon=True
+        )
+        self._stats_thread.start()
 
     def stop(self) -> bool:
         """Returns True iff both worker threads exited within the join budget.
@@ -210,6 +247,25 @@ class VizRunner:
 
     # ── Submit thread ──────────────────────────────────────────────────
 
+    def _active_layer(self, index: int):
+        """Layer to submit to / place this frame.
+
+        Resolved through the controls, never from ``self._layers``: this
+        class copies the lists it is handed, so a shape switch made by the
+        controls would otherwise be invisible here and the runner would keep
+        feeding the layer that just went hidden.
+        """
+        if self._controls is not None:
+            return self._controls.active_layer(index)
+        return self._layers[index]
+
+    def _active_strategy(self, index: int):
+        """Placement strategy for this frame; same reasoning as above (the
+        A button swaps it)."""
+        if self._controls is not None:
+            return self._controls.strategy(index)
+        return self._strategies[index]
+
     def _submit_loop(self) -> None:
         try:
             self._submit_loop_inner()
@@ -219,20 +275,42 @@ class VizRunner:
     def _submit_loop_inner(self) -> None:
         # Pin to the source's GPU on the first frame.
         device_pinned = False
-        self._stats_t0 = time.monotonic()
+        # Which layer each source was last submitted to, and the frame it
+        # sent, so a shape switch can re-send immediately (below).
+        last_layers = [None] * len(self._layers)
+        last_frames = [None] * len(self._layers)
         while not self._stop.is_set():
             published_any = False
-            for i, (layer, source) in enumerate(zip(self._layers, self._sources)):
+            for i, source in enumerate(self._sources):
+                # Re-read per pass: the controls swap this on a shape change.
+                layer = self._active_layer(i)
                 frame = source.latest()
                 if frame is None:
-                    continue
+                    # No new frame. If the shape just changed, re-send the
+                    # last one so the newly visible layer isn't blank until
+                    # the camera produces the next (up to 1/fps away). The
+                    # source may have recycled the buffer, so the worst case
+                    # is one torn frame on the switch, not a stall.
+                    if layer is last_layers[i] or last_frames[i] is None:
+                        continue
+                    frame = last_frames[i]
                 if not device_pinned:
                     self._pin_to_device(frame)
                     device_pinned = True
                 if frame.image_right is not None:
-                    layer.submit(frame.image, frame.image_right, stream=frame.stream)
+                    # A stereo layer must always be fed two buffers, so the
+                    # mono override ships the left frame to both eyes rather
+                    # than dropping to the one-arg form (which would throw).
+                    right = (
+                        frame.image
+                        if self._controls is not None and self._controls.force_mono(i)
+                        else frame.image_right
+                    )
+                    layer.submit(frame.image, right, stream=frame.stream)
                 else:
                     layer.submit(frame.image, stream=frame.stream)
+                last_layers[i] = layer
+                last_frames[i] = frame
                 self._submit_counts[i] += 1
                 published_any = True
             if published_any:
@@ -241,34 +319,76 @@ class VizRunner:
                     self._data_cond.notify()
             else:
                 self._stop.wait(timeout=SUBMIT_POLL_S)
+
+    # ── Stats thread ───────────────────────────────────────────────────
+
+    def _stats_loop(self) -> None:
+        """The panel on its own thread, never the submit thread.
+
+        Writing it from the submit thread put a blocking write() between the
+        camera and the layer: a terminal that stops draining (a paused ssh
+        session, tmux scrollback, ^S) fills the pty buffer in about 25 paints
+        and then the feed stops until someone scrolls back down. A paint costs
+        0.035 ms on a local pty -- it is the tail that matters, not the median.
+        """
+        period = LIVE_STATS_PERIOD_S if self._dashboard.live else STATS_PERIOD_S
+        last = time.monotonic()
+        while not self._stop.wait(timeout=period):
             now = time.monotonic()
-            if now - self._stats_t0 >= STATS_PERIOD_S:
-                self._print_stats(now - self._stats_t0)
-                self._stats_t0 = now
+            try:
+                self._print_stats(now - last)
+            except Exception:  # noqa: BLE001 — a broken pipe must not stop the feed
+                logger.debug("status panel write failed", exc_info=True)
+            last = now
 
     def _print_stats(self, elapsed: float) -> None:
-        """One stderr line per STATS_PERIOD_S: per-source submit rate +
-        the session's render-side numbers."""
-        parts = []
+        """Push a snapshot of everything to the status panel.
+
+        The panel redraws in place on a terminal and falls back to one line
+        per period when it isn't one, so this is the only stats path.
+        """
+        rows = []
         for i, source in enumerate(self._sources):
             rate = self._submit_counts[i] / elapsed if elapsed > 0 else 0.0
             self._submit_counts[i] = 0
-            parts.append(f"{source.spec.name} {rate:.1f} submit/s")
+            state = self._controls.status(i) if self._controls is not None else {}
+            rows.append(
+                CameraRow(
+                    name=source.spec.name,
+                    shape=state.get("shape", "quad"),
+                    lock_mode=state.get("lock_mode", "-"),
+                    stereo=bool(state.get("stereo", False)),
+                    size_m=state.get("size_m"),
+                    offset_y_m=state.get("offset_y_m"),
+                    plane_distance_cm=state.get("plane_distance_cm"),
+                    suggested_cm=state.get("suggested_cm"),
+                    submit_fps=rate,
+                )
+            )
+        self._dashboard.show(
+            Snapshot(
+                header=self._header,
+                render=self._render_summary(),
+                rows=rows,
+                ipd_mm=self._controls.ipd_mm if self._controls is not None else None,
+                notes=self._notes,
+                last_event=self._controls.last_event
+                if self._controls is not None
+                else "",
+            )
+        )
+
+    def _render_summary(self) -> str:
         try:
             t = self._session.get_frame_timing_stats()
-            render = (
-                f"render {t.render_fps:.1f} fps"
-                + (f" (target {t.target_fps:.0f})" if t.target_fps else "")
-                + f", missed {t.missed_frames}"
-                + (f", gpu {t.gpu_time_ms:.1f} ms" if t.gpu_time_ms else "")
-                + (f", stale {t.stale_layers}" if t.stale_layers else "")
-            )
         except Exception:
-            render = "render n/a"
-        print(
-            "camera_viz: stats: " + render + " | " + " | ".join(parts),
-            file=sys.stderr,
-            flush=True,
+            return "render n/a"
+        return (
+            f"render {t.render_fps:.1f} fps"
+            + (f" (target {t.target_fps:.0f})" if t.target_fps else "")
+            + f"   missed {t.missed_frames}"
+            + (f"   gpu {t.gpu_time_ms:.1f} ms" if t.gpu_time_ms else "")
+            + (f"   stale {t.stale_layers}" if t.stale_layers else "")
         )
 
     def _pin_to_device(self, frame) -> None:
@@ -305,9 +425,20 @@ class VizRunner:
             self._render_loop_window()
 
     def _render_loop_xr(self) -> None:
+        last = time.monotonic()
+        ipd_mm = None
         while not self._stop.is_set():
+            now = time.monotonic()
+            dt, last = now - last, now
+            if self._controls is not None:
+                # Before placements: a lock-mode change this frame should
+                # take effect on this frame's pose, not the next one. The IPD
+                # is one frame stale, which is irrelevant -- it is fixed by
+                # the headset's lens separation.
+                self._controls.step(dt, ipd_mm)
             self._apply_xr_placements()
-            self._session.render()
+            info = self._session.render()
+            ipd_mm = _measure_ipd_mm(info) or ipd_mm
             if self._session.should_close():
                 self._stop.set()
 
@@ -328,13 +459,19 @@ class VizRunner:
                 self._stop.set()
 
     def _apply_xr_placements(self) -> None:
-        if not any(s is not None for s in self._strategies):
+        strategies = [self._active_strategy(i) for i in range(len(self._layers))]
+        if not any(s is not None for s in strategies):
             return
         head = self._session.head_pose_now()
         if head is None:
             return
-        for layer, strategy in zip(self._layers, self._strategies):
+        for i, strategy in enumerate(strategies):
             if strategy is None:
+                continue
+            layer = self._active_layer(i)
+            # An equirect sphere is centred on the operator: no pose to
+            # re-lock, and its placement type isn't a QuadLayerPlacement.
+            if isinstance(layer, viz.EquirectLayer):
                 continue
             placement = strategy.update(head.position, head.orientation)
             if isinstance(layer, viz.CylinderLayer):

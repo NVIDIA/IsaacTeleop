@@ -125,7 +125,8 @@ QuadLayer::QuadLayer(const VkContext& ctx, VkRenderPass render_pass, Config conf
                      resolve_mip_levels(config)),
       render_pass_(render_pass),
       config_(std::move(config)),
-      mip_levels_(resolve_mip_levels(config_))
+      mip_levels_(resolve_mip_levels(config_)),
+      stereo_baseline_mm_(config_.stereo_baseline_mm)
 {
     placement_ = config_.placement;
     init();
@@ -350,7 +351,7 @@ std::optional<NativeLayerView> QuadLayer::acquire_native_layer(uint32_t in_fligh
     v.extent = config_.resolution;
     v.pose = placement->pose;
     v.size_meters = placement->size_meters;
-    v.stereo_baseline_mm = config_.stereo ? config_.stereo_baseline_mm : 0.0f;
+    v.stereo_baseline_mm = config_.stereo ? stereo_baseline_mm_.load(std::memory_order_relaxed) : 0.0f;
     v.alpha_blend = config_.alpha_blend;
     v.source_id = this;
     return v;
@@ -425,7 +426,8 @@ void QuadLayer::record(VkCommandBuffer cmd,
     // constant. Skipped when the layer is mono (baseline doesn't apply)
     // OR outside kXr (both eyes converge to a single view, no signed
     // disambiguation possible). Zero baseline elides to the mono MVP.
-    const bool apply_baseline = xr_mode && config_.stereo && config_.stereo_baseline_mm != 0.0f;
+    const float baseline_mm = stereo_baseline_mm_.load(std::memory_order_relaxed);
+    const bool apply_baseline = xr_mode && config_.stereo && baseline_mm != 0.0f;
     glm::vec3 baseline_axis_ws{ 0.0f };
     if (apply_baseline)
     {
@@ -457,7 +459,7 @@ void QuadLayer::record(VkCommandBuffer cmd,
                 const float sign = (view_idx == 0) ? -1.0f : +1.0f;
                 // 0.5 to halve the disparity per eye, 0.001 to convert mm → m
                 // (placement.pose.position is in world meters).
-                eye_placement.pose.position += sign * (config_.stereo_baseline_mm * 0.0005f) * baseline_axis_ws;
+                eye_placement.pose.position += sign * (baseline_mm * 0.0005f) * baseline_axis_ws;
             }
             const glm::mat4 mvp = placement_mvp(eye_placement, view);
             std::memcpy(data.mvp, &mvp[0][0], sizeof(data.mvp));
@@ -480,6 +482,20 @@ std::optional<QuadLayer::Config::Placement> QuadLayer::placement() const noexcep
 {
     std::lock_guard<std::mutex> lk(placement_mutex_);
     return placement_;
+}
+
+void QuadLayer::set_stereo_baseline_mm(float baseline_mm)
+{
+    if (!std::isfinite(baseline_mm))
+    {
+        throw std::invalid_argument("QuadLayer: stereo_baseline_mm must be finite");
+    }
+    stereo_baseline_mm_.store(baseline_mm, std::memory_order_relaxed);
+}
+
+float QuadLayer::stereo_baseline_mm() const noexcept
+{
+    return stereo_baseline_mm_.load(std::memory_order_relaxed);
 }
 
 VkPipelineStageFlags QuadLayer::first_read_stage() const noexcept
