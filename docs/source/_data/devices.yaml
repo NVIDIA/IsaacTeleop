@@ -165,13 +165,13 @@ devices:
       setup:
         - label: VIVE Tracker Plugin
           url: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/vive_se3_tracker
-        - label: VIVE Ultimate Tracker SDK
-          url: https://github.com/ViveRoboticsSoftware/vive-ultimate-tracker-sdk
-        - label: VIVEHub for Linux
-          url: https://github.com/ViveRoboticsSoftware/vivehub-linux
+        - label: Developer Guide
+          url: https://github.com/ViveRoboticsSoftware/vive-ultimate-tracker-sdk/blob/main/VIVE-Ultimate-Tracker-SDK-Guide-EN.md
       requirements:
-        - VIVEHub for Linux 1.0.1 or newer
-        - Built from source with -DVUT_SDK_DIR
+        - label: VIVE Hub on Linux v1.0.1+
+          url: https://github.com/ViveRoboticsSoftware/vivehub-linux
+        - label: VIVE Ultimate Tracker SDK v0.0.1+
+          url: https://github.com/ViveRoboticsSoftware/vive-ultimate-tracker-sdk
       acquire:
         - label: vive.com
           url: https://www.vive.com/us/accessory/vive-ultimate-tracker/
