@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
+from ...logging_config import log_dir
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -50,8 +51,8 @@ drop the live session.
     python -m isaacteleop.cloudxr.service stop
   (Ctrl+C in its terminal if it is running in the foreground.)"""
 
-#: Runtime worker stderr, kept apart from runtime_stderr.log so the worker and
-#: :func:`~.runtime.run` never append to one file from two processes.
+#: Runtime worker stderr, kept apart from the runtime process's own -- see
+#: _gather_diagnostic_logs, which reads both.
 _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
 
 
@@ -415,7 +416,8 @@ class CloudXRService:
             else:
                 parts.append("Process is still running but did not signal readiness.")
 
-        for log_path in self._gather_diagnostic_logs(logs_dir):
+        runtime_pid = proc.pid if proc is not None else None
+        for log_path in self._gather_diagnostic_logs(logs_dir, runtime_pid):
             try:
                 content = log_path.read_text(errors="replace").strip()
                 if not content:
@@ -430,14 +432,32 @@ class CloudXRService:
         return "  ".join(parts)
 
     @staticmethod
-    def _gather_diagnostic_logs(logs_dir: Path) -> list[Path]:
+    def _gather_diagnostic_logs(
+        logs_dir: Path, runtime_pid: int | None = None
+    ) -> list[Path]:
         """Return log files useful for diagnosing a startup failure."""
         result: list[Path] = []
 
-        for name in (_WORKER_STDERR_LOG, "runtime_stderr.log"):
-            log = logs_dir / name
-            if log.is_file():
-                result.append(log)
+        worker_stderr = logs_dir / _WORKER_STDERR_LOG
+        if worker_stderr.is_file():
+            result.append(worker_stderr)
+
+        # The runtime process's own fd 1/2 (its Vulkan-loader/GPU-init
+        # diagnostics, and the startup banner on fd 1) land in
+        # isaacteleop.logging_config's native-fd capture files, not under
+        # `logs_dir` (CloudXR's own ~/.cloudxr/logs). Matched on the runtime's
+        # own pid: every isaacteleop process writes a pair of these into the
+        # same directory, so "the newest one" could just as easily be a plugin
+        # from this session, or a leftover from an unrelated one.
+        for stream in ("stderr", "stdout"):
+            pattern = (
+                f"*.isaacteleop.{runtime_pid}.native-{stream}.log"
+                if runtime_pid is not None
+                else f"*.isaacteleop.*.native-{stream}.log"
+            )
+            captures = sorted(log_dir().glob(pattern))
+            if captures:
+                result.append(captures[-1])
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:

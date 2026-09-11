@@ -9,6 +9,7 @@ import logging
 import os
 import threading
 
+from . import _native_fd
 from ._core import (
     _LEVEL_NAME_BY_VALUE,
     DATE_FORMAT,
@@ -45,7 +46,9 @@ def ensure_handler() -> logging.StreamHandler:
 def set_console_level(level: int | str) -> None:
     """Set the console handler's display threshold."""
     resolved = resolve_level(level)
-    ensure_handler().setLevel(resolved)
+    handler = ensure_handler()
+    handler.setLevel(resolved)
+    _native_fd.gate(resolved, handler)
     # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
     # the in-process bridge; they read their own console threshold from this variable.
     if resolved in _LEVEL_NAME_BY_VALUE:
