@@ -9,10 +9,14 @@ and the main thread calls sync_all() to apply them to member variables.
 """
 
 import json
+import logging
 import threading
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 from .tunable_parameter import ParameterSpec
+
+logger = logging.getLogger(__name__)
 
 
 class ParameterState:
@@ -86,11 +90,9 @@ class ParameterState:
         try:
             with open(self._config_file, "r") as f:
                 self._loaded_config = json.load(f)
-            print(
-                f"[ParameterState:{self._name}] Loaded config from {self._config_file}"
-            )
+            logger.info("[%s] Loaded config from %s", self._name, self._config_file)
         except Exception as e:
-            print(f"[ParameterState:{self._name}] Failed to load config: {e}")
+            logger.error("[%s] Failed to load config: %s", self._name, e)
 
     def _register_parameter(self, parameter: ParameterSpec) -> None:
         """
@@ -112,8 +114,8 @@ class ParameterState:
                     self._loaded_config[parameter.name]
                 )
             except Exception as e:
-                print(
-                    f"[ParameterState:{self._name}] Failed to apply config for {parameter.name}: {e}"
+                logger.warning(
+                    "[%s] Failed to apply config for %s: %s", self._name, parameter.name, e
                 )
                 self._values[parameter.name] = parameter.get_default_value()
         else:
@@ -206,7 +208,7 @@ class ParameterState:
             file_path = str(self._config_file) if self._config_file else None
 
         if file_path is None:
-            print(f"[ParameterState:{self._name}] No config file path specified")
+            logger.warning("[%s] No config file path specified", self._name)
             return False
 
         try:
@@ -224,11 +226,11 @@ class ParameterState:
             with open(path, "w") as f:
                 json.dump(config, f, indent=2)
 
-            print(f"[ParameterState:{self._name}] Saved to {path}")
+            logger.info("[%s] Saved to %s", self._name, path)
             return True
 
         except Exception as e:
-            print(f"[ParameterState:{self._name}] Failed to save: {e}")
+            logger.error("[%s] Failed to save: %s", self._name, e)
             return False
 
     def load_from_file(self, file_path: Optional[str] = None) -> bool:
@@ -250,11 +252,11 @@ class ParameterState:
                             param_name
                         ].deserialize(value)
 
-            print(f"[ParameterState:{self._name}] Loaded from {file_path}")
+            logger.info("[%s] Loaded from %s", self._name, file_path)
             return True
 
         except Exception as e:
-            print(f"[ParameterState:{self._name}] Failed to load: {e}")
+            logger.error("[%s] Failed to load: %s", self._name, e)
             return False
 
     def reset_to_defaults(self) -> None:
