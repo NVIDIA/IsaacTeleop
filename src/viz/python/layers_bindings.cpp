@@ -131,7 +131,9 @@ void bind_layers(py::module_& m)
                        "the projection layer entirely. Set False to composite into the shared "
                        "render target instead, where 3D-placed quads depth-test against each "
                        "other (native quads carry no depth: flat billboard, submission-order "
-                       "composited). Ignored outside kXr "
+                       "composited). Set False on Jetson Orin in kXr, where the native path "
+                       "presents a solid color in place of the submitted image. "
+                       "Ignored outside kXr "
                        "(window/offscreen always composite). Stereo emits one quad per eye.")
         .def_readwrite(
             "alpha_blend", &viz::QuadLayer::Config::alpha_blend,
