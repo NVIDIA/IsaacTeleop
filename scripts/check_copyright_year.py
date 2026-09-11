@@ -4,6 +4,8 @@
 """Check that SPDX-FileCopyrightText year includes the last-modified year (from git).
 Use --fix to update. Falls back to current year if not in a git repo."""
 
+from __future__ import annotations
+
 import os
 import re
 import subprocess
