@@ -6,6 +6,7 @@
 import io
 import logging
 import os
+import re
 import stat
 import threading
 import time
@@ -13,7 +14,7 @@ from pathlib import Path
 
 import pytest
 from isaacteleop import logging_config
-from isaacteleop.logging_config import _console, _core, _forwarding
+from isaacteleop.logging_config import _console, _core, _file, _forwarding
 
 
 @pytest.fixture(autouse=True)
@@ -39,15 +40,18 @@ def test_console_handler_attaches_once():
     assert _console.ensure_handler() is handler
     assert root.handlers.count(handler) == 1
 
+
 def test_set_console_level_by_name_and_int():
     logging_config.set_console_level("warning")
     assert _console.ensure_handler().level == logging.WARNING
     logging_config.set_console_level(logging.INFO)
     assert _console.ensure_handler().level == logging.INFO
 
+
 def test_set_console_level_rejects_unknown_name():
     with pytest.raises(ValueError):
         logging_config.set_console_level("nope")
+
 
 def test_set_console_level_does_not_touch_filter():
     logging_config.set_console_filter("existing")
@@ -57,18 +61,22 @@ def test_set_console_level_does_not_touch_filter():
     assert _console._active_filter is active
     assert active in _console.ensure_handler().filters
 
+
 def _record(name: str, message: str) -> logging.LogRecord:
     return logging.LogRecord(name, logging.INFO, __file__, 1, message, None, None)
+
 
 def test_keyword_filter_matches_logger_name():
     f = _console.KeywordFilter("manus", target="logger_name")
     assert f.filter(_record("isaacteleop.plugins.manus", "hello"))
     assert not f.filter(_record("isaacteleop.oxr", "hello"))
 
+
 def test_keyword_filter_matches_content():
     f = _console.KeywordFilter("dongle", target="content")
     assert f.filter(_record("isaacteleop.x", "Connected to dongle 0"))
     assert not f.filter(_record("isaacteleop.x", "unrelated"))
+
 
 def test_keyword_filter_both_target_matches_either():
     f = _console.KeywordFilter("manus", target="both")
@@ -76,9 +84,11 @@ def test_keyword_filter_both_target_matches_either():
     assert f.filter(_record("isaacteleop.x", "manus glove connected"))
     assert not f.filter(_record("isaacteleop.x", "hello"))
 
+
 def test_keyword_filter_rejects_unknown_target():
     with pytest.raises(ValueError):
         _console.KeywordFilter("manus", target="nope")
+
 
 def test_set_console_filter_applies_and_clears():
     logging_config.set_console_filter("manus")
@@ -106,9 +116,11 @@ def test_console_handler_end_to_end_level_filtering():
     assert "should not appear" not in stream.getvalue()
     assert "should appear" in stream.getvalue()
 
+
 def test_log_dir_defaults_to_per_user_tmp(monkeypatch):
     monkeypatch.delenv("ISAACTELEOP_LOG_DIR", raising=False)
     assert logging_config.log_dir() == Path(f"/tmp/isaacteleop-{os.getuid()}/logs")
+
 
 def test_ensure_log_dir_is_owner_only(monkeypatch, tmp_path):
     target = tmp_path / "nested" / "logs"
@@ -116,6 +128,7 @@ def test_ensure_log_dir_is_owner_only(monkeypatch, tmp_path):
     created = _core.ensure_log_dir()
     assert created == target
     assert stat.S_IMODE(created.stat().st_mode) == 0o700
+
 
 def test_ensure_log_dir_refuses_a_directory_owned_by_someone_else(monkeypatch, tmp_path):
     """A /tmp directory another user got to first is how a symlink gets planted."""
@@ -126,14 +139,54 @@ def test_ensure_log_dir_refuses_a_directory_owned_by_someone_else(monkeypatch, t
     with pytest.raises(PermissionError):
         _core.ensure_log_dir()
 
+
 def test_log_dir_honors_env_override(monkeypatch, tmp_path):
     monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
     assert logging_config.log_dir() == tmp_path
 
 
+def test_file_handler_attaches_once():
+    root = logging.getLogger(_core.ROOT_LOGGER_NAME)
+    handler = _file.ensure_handler()
+    assert handler in root.handlers
+    assert _file.ensure_handler() is handler
+    assert root.handlers.count(handler) == 1
+
+
+def test_file_handler_is_always_debug_level():
+    assert _file.ensure_handler().level == logging.DEBUG
+
+
+def test_file_handler_filename_includes_pid():
+    handler = _file.ensure_handler()
+    assert f".{os.getpid()}.log" in handler.baseFilename
+
+
+def test_file_handler_filename_includes_timestamp():
+    handler = _file.ensure_handler()
+    name = Path(handler.baseFilename).name
+    assert re.fullmatch(rf"\d{{8}}-\d{{6}}\.isaacteleop\.{os.getpid()}\.log", name), (
+        name
+    )
+
+
+def test_file_handler_captures_debug_regardless_of_console_level():
+    """The file is the full record even when the console is set well above DEBUG."""
+    logger = logging.getLogger("isaacteleop.test_file_handler_captures_debug")
+    logging_config.set_console_level("error")
+    handler = _file.ensure_handler()
+    marker = "unique-marker-for-file-debug-capture-test"
+
+    logger.debug(marker)
+    handler.flush()
+
+    assert marker in Path(handler.baseFilename).read_text(encoding="utf-8")
+
+
 def test_trace_level_value_and_name():
     assert logging_config.TRACE == 5
     assert logging.getLevelName(5) == "TRACE"
+
 
 def test_trace_is_below_debug_and_filtered_by_default():
     logger = logging.getLogger("isaacteleop.test_trace_filtering")
@@ -150,6 +203,7 @@ def test_trace_is_below_debug_and_filtered_by_default():
 
     assert "should not appear" not in stream.getvalue()
     assert "should appear" in stream.getvalue()
+
 
 def test_trace_visible_once_console_level_lowered_to_trace():
     logger = logging.getLogger("isaacteleop.test_trace_opt_in")
@@ -171,6 +225,7 @@ def test_forwarding_socket_path_reads_env_var(monkeypatch):
     assert _forwarding.socket_path() is None
     monkeypatch.setenv("ISAACTELEOP_LOG_SOCKET", "/tmp/does-not-need-to-exist.sock")
     assert _forwarding.socket_path() == "/tmp/does-not-need-to-exist.sock"
+
 
 def test_forwarding_round_trip(tmp_path):
     """A record sent through ForwardingHandler reaches the receiving logger
@@ -225,6 +280,7 @@ def test_forwarding_round_trip(tmp_path):
     assert got.name == receiver_name
     assert got.levelno == logging.WARNING
     assert got.getMessage() == "hello world"
+
 
 def test_forwarding_handler_drops_record_when_leader_unreachable(tmp_path):
     """No listener at the socket path -- emit() must not raise."""
