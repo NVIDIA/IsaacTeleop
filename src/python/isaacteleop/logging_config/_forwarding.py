@@ -32,6 +32,18 @@ import time
 from ._core import ROOT_LOGGER_NAME, log_dir
 
 _FRAME_HEADER = struct.Struct(">I")  # 4-byte big-endian payload length prefix
+
+# Only ever used for its formatException(); the leader applies the real format.
+_EXC_FORMATTER = logging.Formatter()
+
+
+def _format_exception(record: logging.LogRecord) -> str | None:
+    """The record's traceback as text, or ``None`` when it carries no exception."""
+    if record.exc_text:
+        return record.exc_text
+    if record.exc_info:
+        return _EXC_FORMATTER.formatException(record.exc_info)
+    return None
 # A single log record has no business approaching this; caps how much a corrupted or
 # malicious length prefix can make the receiver thread try to buffer before giving up.
 _MAX_FRAME_SIZE = 1 * 1024 * 1024  # 1 MiB
@@ -79,6 +91,11 @@ class ForwardingHandler(logging.Handler):
                     "msg": record.getMessage(),
                     "created": record.created,
                     "process": record.process,
+                    # Rendered here: exc_info holds a traceback object, which does
+                    # not survive JSON, so logger.exception() in a child would
+                    # otherwise reach the leader as a bare message with the stack
+                    # silently dropped.
+                    "exc_text": _format_exception(record),
                 }
             ).encode("utf-8")
         except Exception:  # noqa: BLE001 -- Handler.emit()'s own documented contract
@@ -140,7 +157,14 @@ class RequestHandler(socketserver.StreamRequestHandler):
                         "levelname": logging.getLevelName(payload["levelno"]),
                         "msg": payload["msg"],
                         "created": payload["created"],
+                        # LogRecord.__init__ derived msecs from *this* process's
+                        # clock before __dict__.update() replaced created, so
+                        # without this the line renders the sender's seconds with
+                        # the receiver's milliseconds. LINE_FORMAT prints both.
+                        "msecs": (payload["created"] - int(payload["created"])) * 1000,
                         "process": payload["process"],
+                        # Absent from the C++ sender, which has no exceptions.
+                        "exc_text": payload.get("exc_text"),
                     }
                 )
                 # Not record.name's own .log()/.info(): the child already decided this
