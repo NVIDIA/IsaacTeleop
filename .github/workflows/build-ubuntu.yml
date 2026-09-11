@@ -715,18 +715,20 @@ jobs:
           "source /usr/local/bin/teleop-env-setup && exec /opt/isaacteleop/install/examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator '$REPLAY_MCAP'"
 
         scenarios=(
-          "controller_teleop mode_default"
-          "hand_teleop mode_default"
-          "controller_raw mode_default"
-          "full_body mode_default"
-          "controller_teleop pink_ik"
-          "controller_teleop wuji"
-          "hand_teleop wuji"
+          "controller_teleop mode_default native"
+          "hand_teleop mode_default native"
+          "controller_raw mode_default native"
+          "full_body mode_default native"
+          "controller_teleop pink_ik native"
+          "controller_teleop wuji native"
+          "hand_teleop wuji native"
+          "controller_teleop dexpilot manus"
+          "controller_teleop dexpilot wuji"
         )
         for scenario in "${scenarios[@]}"; do
-          read -r mode hand_retargeter <<< "$scenario"
-          scenario_name="${mode}_${hand_retargeter}"
-          echo "Testing mode: $mode (hand_retargeter=$hand_retargeter)"
+          read -r mode hand_retargeter hand_tracking_provider <<< "$scenario"
+          scenario_name="${mode}_${hand_retargeter}_${hand_tracking_provider}"
+          echo "Testing mode: $mode (hand_retargeter=$hand_retargeter, hand_tracking_provider=$hand_tracking_provider)"
           LOG_FILE="${LOG_FILE_BASE}_${scenario_name}.log"
           RUN_NAME="teleop-ros2-${PROJECT_NAME}-${scenario_name//_/-}"
           verifier_rc=0
@@ -741,7 +743,7 @@ jobs:
             -v /tmp:/tmp \
             -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p hand_retargeter:=$hand_retargeter -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
+            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p hand_retargeter:=$hand_retargeter -p hand_tracking_provider:=$hand_tracking_provider -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -767,7 +769,7 @@ jobs:
             if docker exec \
               -e PYTHONUNBUFFERED=1 \
               "$RUN_NAME" bash -c \
-              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode --hand-retargeter $hand_retargeter"; then
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode --hand-retargeter $hand_retargeter --hand-tracking-provider $hand_tracking_provider"; then
               verifier_rc=0
             else
               verifier_rc=$?
@@ -816,7 +818,7 @@ jobs:
         LOG_FILE="/tmp/ros2_cloudxr_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
         MODE="controller_teleop"
         HAND_RETARGETER="dexpilot"
-        HAND_TRACKING_PLUGIN="wuji"
+        HAND_TRACKING_PROVIDER="wuji"
 
         # The node logs this after CloudXRLauncher returns: runtime ready + WSS
         # proxy up. This is the primary bring-up marker.
@@ -848,7 +850,7 @@ jobs:
           -e PYTHONUNBUFFERED=1 \
           -e ACCEPT_CLOUDXR_EULA=Y \
           --entrypoint bash "$IMAGE" -c \
-          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p hand_retargeter:=$HAND_RETARGETER -p hand_tracking_plugin:=$HAND_TRACKING_PLUGIN -p cloudxr_accept_eula:=true" >/dev/null
+          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p hand_retargeter:=$HAND_RETARGETER -p hand_tracking_provider:=$HAND_TRACKING_PROVIDER -p cloudxr_accept_eula:=true" >/dev/null
 
         fail() {
           echo "Error: $1"
