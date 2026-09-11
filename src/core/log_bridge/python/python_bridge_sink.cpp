@@ -4,7 +4,6 @@
 #include "python_bridge_sink.hpp"
 
 #include <log_bridge/logger.hpp>
-
 #include <pybind11/pybind11.h>
 
 #include <string>
