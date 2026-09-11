@@ -33,6 +33,10 @@ _LEVEL_NAMES = {
     "error": logging.ERROR,
 }
 
+# spdlog spells its levels exactly like the keys above, so a name round-trips straight
+# into ISAACTELEOP_LOG_LEVEL for out-of-process C++.
+_LEVEL_NAME_BY_VALUE = {value: name for name, value in _LEVEL_NAMES.items()}
+
 
 def resolve_level(level: int | str) -> int:
     """Accept either a stdlib level int or one of the names in ``_LEVEL_NAMES``."""
