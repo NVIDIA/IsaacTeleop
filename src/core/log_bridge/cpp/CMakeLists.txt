@@ -11,6 +11,8 @@ add_library(log_bridge_core STATIC
     logger.cpp
     sink_config.cpp
     sink_config.hpp
+    socket_sink.cpp
+    socket_sink.hpp
     inc/log_bridge/logger.hpp
 )
 
