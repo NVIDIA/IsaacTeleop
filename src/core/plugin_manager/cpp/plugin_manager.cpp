@@ -5,7 +5,6 @@
 
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 
 #include <yaml-cpp/yaml.h>
@@ -134,7 +133,7 @@ void PluginManager::discover_plugins()
                         }
                         catch (const std::exception& e)
                         {
-                            std::cerr << "Error parsing metadata for " << plugin_dir << ": " << e.what() << std::endl;
+                            m_logger->error("Error parsing metadata for {}: {}", plugin_dir.string(), e.what());
                         }
                     }
                 }
@@ -142,7 +141,7 @@ void PluginManager::discover_plugins()
         }
         catch (const std::exception& e)
         {
-            std::cerr << "Error scanning directory " << base_path << ": " << e.what() << std::endl;
+            m_logger->error("Error scanning directory {}: {}", base_path, e.what());
         }
     }
 }

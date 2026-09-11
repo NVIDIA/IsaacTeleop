@@ -4,7 +4,6 @@
 #include "preview_stream.hpp"
 
 #include <SDL.h>
-#include <iostream>
 #include <stdexcept>
 
 namespace plugins
@@ -83,7 +82,9 @@ std::unique_ptr<PreviewStream> PreviewStream::create(const std::string& name, da
     auto stream = std::unique_ptr<PreviewStream>(new PreviewStream());
     stream->m_impl = std::move(impl);
 
-    std::cout << "Color preview enabled (" << preview_w << "x" << preview_h << ")" << std::endl;
+    // create() is static (no `this`), but `stream` already holds a valid
+    // m_logger at this point, so reuse it instead of a fresh Logger::get().
+    stream->m_logger->info("Color preview enabled ({}x{})", preview_w, preview_h);
     return stream;
 }
 
@@ -110,7 +111,7 @@ void PreviewStream::update()
 
         if (!m_impl->texture)
         {
-            std::cerr << "Preview: SDL_CreateTexture failed: " << SDL_GetError() << std::endl;
+            m_logger->warn("SDL_CreateTexture failed: {}", SDL_GetError());
             return;
         }
 

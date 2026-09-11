@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <schema/timestamp_generated.h>
@@ -10,6 +11,7 @@
 #include <XR_NVX1_tensor_data.h>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -122,6 +124,7 @@ private:
     OpenXRSessionHandles m_handles;
     SchemaTrackerConfig m_config;
     XrTimeConverter m_time_converter;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.core.SchemaTrackerBase");
 
     XrTensorListNV m_tensor_list{ XR_NULL_HANDLE };
 

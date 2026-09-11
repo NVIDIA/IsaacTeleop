@@ -61,6 +61,7 @@ target_link_libraries(oglo_tactile_plugin PRIVATE
     isaacteleop_schema
     nlohmann_json::nlohmann_json
     PkgConfig::DBUS
+    log_bridge::log_bridge_core
 )
 
 set_target_properties(oglo_tactile_plugin PROPERTIES INSTALL_RPATH "$ORIGIN")

@@ -9,7 +9,6 @@
 #include <XR_NVX1_tensor_data.h>
 #include <cassert>
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
 
 namespace core
@@ -43,7 +42,7 @@ SchemaTrackerBase::SchemaTrackerBase(const OpenXRSessionHandles& handles, Schema
     // Create tensor list
     create_tensor_list();
 
-    std::cout << "SchemaTracker initialized, looking for collection: " << m_config.collection_id << std::endl;
+    m_logger->info("SchemaTracker initialized, looking for collection: {}", m_config.collection_id);
 }
 
 SchemaTrackerBase::~SchemaTrackerBase()
@@ -54,7 +53,7 @@ SchemaTrackerBase::~SchemaTrackerBase()
     XrResult result = m_destroy_list_fn(m_tensor_list);
     if (result != XR_SUCCESS)
     {
-        std::cerr << "Warning: Failed to destroy tensor list, result=" << result << std::endl;
+        m_logger->warn("Failed to destroy tensor list, result={}", static_cast<int>(result));
     }
 }
 
@@ -147,7 +146,7 @@ bool SchemaTrackerBase::ensure_collection()
         if (i != m_target_collection_index)
         {
             m_last_sample_index.reset();
-            std::cout << "Found target collection at index " << i << std::endl;
+            m_logger->info("Found target collection at index {}", i);
         }
         m_target_collection_index = i;
         return true;
@@ -247,9 +246,9 @@ bool SchemaTrackerBase::read_next_sample(SampleResult& out)
         if (result == XR_ERROR_TENSOR_LOST_NV)
         {
             // Policy: temporary collection loss is treated as non-fatal.
-            std::cerr << "[SchemaTracker] m_get_data_fn(m_tensor_list, &retrievalInfo, &tensorData): "
-                      << "XR_ERROR_TENSOR_LOST_NV — tensor/collection data lost; clearing m_target_collection_index."
-                      << std::endl;
+            m_logger->warn(
+                "xrGetTensorDataNV: XR_ERROR_TENSOR_LOST_NV -- tensor/collection data lost; "
+                "clearing m_target_collection_index.");
         }
         else
         {
@@ -268,8 +267,8 @@ bool SchemaTrackerBase::read_next_sample(SampleResult& out)
     // Guard against invalid runtime state: batch stride must cover at least one full sample.
     if (dataBuffer.size() < m_sample_size)
     {
-        std::cerr << "[SchemaTracker] read_next_sample: dataBuffer (" << dataBuffer.size()
-                  << " B) is smaller than m_sample_size (" << m_sample_size << " B); skipping copy." << std::endl;
+        m_logger->warn("read_next_sample: dataBuffer ({} B) is smaller than m_sample_size ({} B); skipping copy.",
+                       dataBuffer.size(), m_sample_size);
         return false;
     }
 

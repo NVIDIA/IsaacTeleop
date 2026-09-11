@@ -3,11 +3,11 @@
 
 #include "inc/plugin_utils/wrist_pose_source.hpp"
 
+#include <log_bridge/logger.hpp>
 #include <oxr_utils/math.hpp>
 #include <oxr_utils/pose_conversions.hpp>
 
 #include <algorithm>
-#include <iostream>
 #include <string>
 
 namespace plugin_utils
@@ -54,9 +54,11 @@ WristPoseSource::Requirements WristPoseSource::collect_requirements(WristSourceM
         }
         else
         {
-            std::cout << "[WristPoseSource] " << XR_MNDX_XDEV_SPACE_EXTENSION_NAME << " and/or "
-                      << XR_EXT_HAND_TRACKING_EXTENSION_NAME << " not supported by the runtime; "
-                      << "the optical hand-tracking wrist source will be unavailable." << std::endl;
+            isaacteleop::Logger::get("isaacteleop.plugins.plugin_utils.WristPoseSource")
+                ->warn(
+                    "{} and/or {} not supported by the runtime; the optical hand-tracking wrist source will be "
+                    "unavailable.",
+                    XR_MNDX_XDEV_SPACE_EXTENSION_NAME, XR_EXT_HAND_TRACKING_EXTENSION_NAME);
         }
     }
 
@@ -84,8 +86,8 @@ WristPoseSource::WristPoseSource(const WristSourceConfig& config,
     }
 
     const bool controller_available = m_controller_tracker != nullptr && m_deviceio_session != nullptr;
-    std::cout << "[WristPoseSource] wrist sources: optical=" << (m_xdev_available ? "available" : "unavailable")
-              << " controller=" << (controller_available ? "available" : "unavailable") << std::endl;
+    m_logger->info("wrist sources: optical={} controller={}", m_xdev_available ? "available" : "unavailable",
+                   controller_available ? "available" : "unavailable");
 }
 
 WristPoseSource::~WristPoseSource()
@@ -137,8 +139,7 @@ void WristPoseSource::initialize_xdev_hand_trackers()
         !load_func("xrEnumerateXDevsMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_enumerate_xdevs)) ||
         !load_func("xrGetXDevPropertiesMNDX", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_get_xdev_properties)))
     {
-        std::cerr << "[WristPoseSource] XR_MNDX_xdev_space functions unavailable; optical wrist source disabled"
-                  << std::endl;
+        m_logger->warn("XR_MNDX_xdev_space functions unavailable; optical wrist source disabled");
         return;
     }
 
@@ -146,8 +147,7 @@ void WristPoseSource::initialize_xdev_hand_trackers()
         !load_func("xrDestroyHandTrackerEXT", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_destroy_hand_tracker)) ||
         !load_func("xrLocateHandJointsEXT", reinterpret_cast<PFN_xrVoidFunction*>(&m_pfn_locate_hand_joints)))
     {
-        std::cerr << "[WristPoseSource] XR_EXT_hand_tracking functions unavailable; optical wrist source disabled"
-                  << std::endl;
+        m_logger->warn("XR_EXT_hand_tracking functions unavailable; optical wrist source disabled");
         return;
     }
 
@@ -155,7 +155,7 @@ void WristPoseSource::initialize_xdev_hand_trackers()
     XrResult result = m_pfn_create_xdev_list(m_handles.session, &create_info, &m_xdev_list);
     if (XR_FAILED(result))
     {
-        std::cerr << "[WristPoseSource] Failed to create XDevList; optical wrist source disabled" << std::endl;
+        m_logger->warn("Failed to create XDevList; optical wrist source disabled");
         return;
     }
 
@@ -163,7 +163,7 @@ void WristPoseSource::initialize_xdev_hand_trackers()
     result = m_pfn_enumerate_xdevs(m_xdev_list, 0, &xdev_count, nullptr);
     if (XR_FAILED(result) || xdev_count == 0)
     {
-        std::cerr << "[WristPoseSource] No XDevs found; optical wrist source disabled" << std::endl;
+        m_logger->warn("No XDevs found; optical wrist source disabled");
         return;
     }
 
@@ -223,10 +223,11 @@ void WristPoseSource::initialize_xdev_hand_trackers()
             serials_list += s;
             serials_list += '"';
         }
-        std::cerr << "[WristPoseSource] Could not match optical hand-tracking XDevs by serial. "
-                  << "Expected \"Head Device (0)\" (left) and \"Head Device (1)\" (right), "
-                  << "but found: [" << serials_list << "]. "
-                  << "These serial strings are runtime-specific and may have changed." << std::endl;
+        m_logger->warn(
+            "Could not match optical hand-tracking XDevs by serial. Expected \"Head Device (0)\" (left) and "
+            "\"Head Device (1)\" (right), but found: [{}]. These serial strings are runtime-specific and may have "
+            "changed.",
+            serials_list);
     }
 
     auto create_tracker = [this](XrXDevIdMNDX xdev_id, XrHandEXT hand, XrHandTrackerEXT& out_tracker) -> bool
@@ -257,8 +258,7 @@ void WristPoseSource::initialize_xdev_hand_trackers()
     }
     else
     {
-        std::cerr << "[WristPoseSource] Failed to create native hand trackers; optical wrist source disabled"
-                  << std::endl;
+        m_logger->warn("Failed to create native hand trackers; optical wrist source disabled");
         cleanup_xdev_hand_trackers();
     }
 }

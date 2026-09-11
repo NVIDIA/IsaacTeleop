@@ -6,6 +6,7 @@
 #include "feetech_bus.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <log_bridge/logger.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/joint_state_generated.h>
@@ -89,15 +90,15 @@ So101LeaderPlugin::So101LeaderPlugin(const std::string& device_path,
     {
         // Throws on POSIX if the port can't be opened; throws unconditionally on Windows.
         bus_ = std::make_unique<FeetechBus>(device_path_, kFeetechBaud);
-        std::cout << "So101LeaderPlugin: FEETECH serial backend on " << device_path_ << std::endl;
+        logger_->info("FEETECH serial backend on {}", device_path_);
 
         // Leader arm: disable torque so the operator can back-drive it by hand.
         for (int i = 0; i < kNumJoints; ++i)
         {
             if (!bus_->disable_torque(calibration_[i].servo_id))
             {
-                std::cerr << "So101LeaderPlugin: warning: failed to disable torque on servo "
-                          << static_cast<int>(calibration_[i].servo_id) << " (is it powered / on the bus?)" << std::endl;
+                logger_->warn("failed to disable torque on servo {} (is it powered / on the bus?)",
+                              static_cast<int>(calibration_[i].servo_id));
             }
         }
 
@@ -107,7 +108,7 @@ So101LeaderPlugin::So101LeaderPlugin(const std::string& device_path,
     }
     else
     {
-        std::cout << "So101LeaderPlugin: using synthetic joint backend (no device path)" << std::endl;
+        logger_->info("using synthetic joint backend (no device path)");
     }
 }
 
@@ -124,8 +125,7 @@ void So101LeaderPlugin::load_calibration(const std::string& path)
     std::ifstream file(path);
     if (!file)
     {
-        std::cerr << "So101LeaderPlugin: warning: cannot open calibration file '" << path << "'; using defaults"
-                  << std::endl;
+        logger_->warn("cannot open calibration file '{}'; using defaults", path);
         return;
     }
 
@@ -169,8 +169,7 @@ void So101LeaderPlugin::load_calibration(const std::string& path)
         }
         if (idx < 0)
         {
-            std::cerr << "So101LeaderPlugin: warning: unknown joint '" << name << "' at " << path << ":" << line_no
-                      << std::endl;
+            logger_->warn("unknown joint '{}' at {}:{}", name, path, line_no);
             continue;
         }
         calibration_[idx] = JointCalibration{ static_cast<uint8_t>(servo_id), (sign < 0.0 ? -1.0 : 1.0), home_ticks,
@@ -183,8 +182,7 @@ void So101LeaderPlugin::load_lerobot_calibration(const std::string& path)
     std::ifstream file(path);
     if (!file)
     {
-        std::cerr << "So101LeaderPlugin: warning: cannot open LeRobot calibration '" << path << "'; using defaults"
-                  << std::endl;
+        logger_->warn("cannot open LeRobot calibration '{}'; using defaults", path);
         return;
     }
     std::stringstream buffer;
@@ -192,8 +190,7 @@ void So101LeaderPlugin::load_lerobot_calibration(const std::string& path)
     const auto motors = parse_lerobot_calibration(buffer.str());
     if (motors.empty())
     {
-        std::cerr << "So101LeaderPlugin: warning: could not parse LeRobot calibration '" << path << "'; using defaults"
-                  << std::endl;
+        logger_->warn("could not parse LeRobot calibration '{}'; using defaults", path);
         return;
     }
 
@@ -211,7 +208,7 @@ void So101LeaderPlugin::load_lerobot_calibration(const std::string& path)
         }
         if (idx < 0)
         {
-            std::cerr << "So101LeaderPlugin: warning: unknown joint '" << name << "' in " << path << std::endl;
+            logger_->warn("unknown joint '{}' in {}", name, path);
             continue;
         }
 
@@ -244,9 +241,8 @@ void So101LeaderPlugin::compensate_homing()
         int servo_offset = 0;
         if (!bus_->read_homing_offset(calibration_[i].servo_id, servo_offset))
         {
-            std::cerr << "So101LeaderPlugin: warning: could not read Homing_Offset of servo "
-                      << static_cast<int>(calibration_[i].servo_id) << "; assuming it matches the calibration file"
-                      << std::endl;
+            logger_->warn("could not read Homing_Offset of servo {}; assuming it matches the calibration file",
+                          static_cast<int>(calibration_[i].servo_id));
             continue;
         }
         // File offsets are in the servo's homed frame; shift into this servo's current frame.
@@ -372,9 +368,10 @@ std::vector<int> averaged_positions(FeetechBus& bus, const std::vector<uint8_t>&
 
 int run_calibration(const std::string& device_path, const std::string& output_path)
 {
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.so101_leader.main");
     if (device_path.empty())
     {
-        std::cerr << "calibrate: a serial device path is required (e.g. /dev/ttyACM0)" << std::endl;
+        logger->error("a serial device path is required (e.g. /dev/ttyACM0)");
         return 2;
     }
 
@@ -437,8 +434,7 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
         if (!home_ok[i])
         {
             all_ok = false;
-            std::cerr << "  warning: no reply from servo " << static_cast<int>(ids[i]) << " (" << kJointNames[i]
-                      << "); writing defaults" << std::endl;
+            logger->warn("no reply from servo {} ({}); writing defaults", static_cast<int>(ids[i]), kJointNames[i]);
         }
         std::cout << "  " << kJointNames[i] << "  id=" << static_cast<int>(ids[i]) << "  home=" << home[i]
                   << "  range=[" << range_min[i] << ", " << range_max[i] << "]" << std::endl;
@@ -457,7 +453,7 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
         std::ofstream out(output_path);
         if (!out)
         {
-            std::cerr << "calibrate: cannot write '" << output_path << "'" << std::endl;
+            logger->error("cannot write '{}'", output_path);
             return 2;
         }
         if (output_path.ends_with(".json"))

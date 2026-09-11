@@ -8,6 +8,8 @@
 #include "oglo_glove_sink.hpp"
 #include "oglo_packet_parser.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -62,6 +64,9 @@ private:
 
     Options m_opts;
     OgloDeviceConfig m_config;
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaacteleop::Logger::get("isaacteleop.plugins.oglo_tactile.OgloTactilePlugin");
+
     // Written by the consumer thread on (re)connect, read by the BLE thread in
     // on_notify(); atomic so the geometry handoff across threads is race-free.
     std::atomic<int> m_values_per_sample{ kNumTaxels };

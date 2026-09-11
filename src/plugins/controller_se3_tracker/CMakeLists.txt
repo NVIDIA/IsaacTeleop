@@ -13,6 +13,7 @@ target_link_libraries(controller_se3_tracker_plugin PRIVATE
     deviceio::deviceio_session
     deviceio::deviceio_trackers
     isaacteleop_schema
+    log_bridge::log_bridge_core
     oxr::oxr_core
     pusherio::pusherio
 )
