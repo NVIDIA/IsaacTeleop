@@ -10,7 +10,9 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
-  - controller_teleop (default): ee_poses (from controller aim poses),
+  - controller_teleop (default): ee_poses (from controller aim poses for native
+                       or MANUS input, with MANUS calibration when selected; from
+                       provider wrist poses for Wuji input),
                        root_twist, root_pose, finger_joints
                        (retargeted TriHand angles), controller_data, head_pose,
                        and TF transforms for left/right wrists and head
@@ -87,7 +89,7 @@ class TeleopRos2Node(Node):
         self._profile_spec = resolve_teleop_profile_spec(
             self._params.mode,
             self._params.resolved_hand_retargeter,
-            self._params.hand_tracking_plugin,
+            self._params.hand_tracking_provider,
         )
         if self._profile_spec.apply_manus_controller_to_hand_transform:
             self.get_logger().info(

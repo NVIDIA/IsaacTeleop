@@ -23,7 +23,7 @@ from constants import (
     TRACKED_HAND_RETARGETERS,
     WUJI_HAND_JOINT_COUNT,
     HandRetargeter,
-    HandTrackingPlugin,
+    HandTrackingProvider,
     TeleopMode,
 )
 from isaacteleop.retargeters import (
@@ -46,7 +46,6 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
 from isaacteleop.retargeting_engine.interface import OutputCombiner
 from isaacteleop.teleop_session_manager import (
     PluginConfig,
-    SessionMode,
     TeleopSessionConfig,
 )
 from node_parameters import NodeParameters
@@ -111,13 +110,10 @@ def _maybe_gate_hand_joints_on_tracking(
 def _resolve_hand_tracking_plugin_configs(
     params: NodeParameters,
 ) -> list[PluginConfig]:
-    if (
-        params.hand_tracking_plugin == HandTrackingPlugin.NONE
-        or params.session_mode == SessionMode.REPLAY
-    ):
+    if not params.start_hand_tracking_plugin:
         return []
 
-    if params.hand_tracking_plugin == HandTrackingPlugin.MANUS:
+    if params.hand_tracking_provider == HandTrackingProvider.MANUS:
         return [
             PluginConfig(
                 plugin_name="manus_hand_plugin",
@@ -127,7 +123,7 @@ def _resolve_hand_tracking_plugin_configs(
                 required=True,
             )
         ]
-    if params.hand_tracking_plugin == HandTrackingPlugin.WUJI:
+    if params.hand_tracking_provider == HandTrackingProvider.WUJI:
         return [
             PluginConfig(
                 plugin_name="wuji_glove_plugin",
@@ -137,7 +133,8 @@ def _resolve_hand_tracking_plugin_configs(
             )
         ]
     raise ValueError(
-        f"Unsupported hand-tracking plugin {params.hand_tracking_plugin!r}"
+        f"Cannot start a plugin for hand-tracking provider "
+        f"{params.hand_tracking_provider!r}"
     )
 
 

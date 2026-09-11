@@ -64,19 +64,47 @@ def test_apply_transform_returns_a_new_pose_without_mutating_input() -> None:
     np.testing.assert_allclose(_position(transformed), [5.0, 7.0, 9.0])
 
 
-def test_manus_calibration_is_side_specific_and_finite() -> None:
-    controller_pose = to_pose([0.1, 0.2, 0.3], [0.0, 0.0, 0.0, 1.0])
+@pytest.mark.parametrize(
+    ("side", "expected_position", "expected_orientation"),
+    (
+        (
+            "left",
+            [0.0103315472, 0.055536544, -0.0566476072],
+            [
+                -0.1315856570103413,
+                -0.3586609382547703,
+                0.9111816820492541,
+                -0.15425786377769118,
+            ],
+        ),
+        (
+            "right",
+            [0.0103315472, -0.055536544, -0.0566476072],
+            [
+                -0.1315856570103413,
+                0.3586609382547703,
+                0.9111816820492541,
+                0.15425786377769118,
+            ],
+        ),
+    ),
+)
+def test_manus_controller_calibration_matches_known_good_transform(
+    side: str,
+    expected_position: list[float],
+    expected_orientation: list[float],
+) -> None:
+    controller_pose = to_pose([0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
 
-    left_hand = apply_manus_controller_to_hand_pose(controller_pose, "left")
-    right_hand = apply_manus_controller_to_hand_pose(controller_pose, "right")
+    calibrated_pose = apply_manus_controller_to_hand_pose(controller_pose, side)
 
-    assert np.isfinite(_position(left_hand)).all()
-    assert np.isfinite(_orientation(left_hand)).all()
-    assert np.isfinite(_position(right_hand)).all()
-    assert np.isfinite(_orientation(right_hand)).all()
-    assert not np.allclose(_orientation(left_hand), _orientation(right_hand))
+    np.testing.assert_allclose(_position(calibrated_pose), expected_position)
+    np.testing.assert_allclose(_orientation(calibrated_pose), expected_orientation)
 
 
-def test_manus_calibration_rejects_unknown_side() -> None:
+def test_manus_controller_calibration_rejects_unknown_side() -> None:
     with pytest.raises(ValueError, match="side must be 'left' or 'right'"):
-        apply_manus_controller_to_hand_pose(to_pose([0.0, 0.0, 0.0]), "center")
+        apply_manus_controller_to_hand_pose(
+            to_pose([0.0, 0.0, 0.0]),
+            "center",
+        )

@@ -22,7 +22,6 @@ def apply_manus_controller_to_hand_pose(pose: Pose, side: str) -> Pose:
     if side not in ("left", "right"):
         raise ValueError(f"side must be 'left' or 'right', got {side!r}")
 
-    # All MANUS calibration data is intentionally kept in this one function.
     hand_left_pico_rotation = np.array(
         [
             [-0.91777945, -0.18672461, -0.35044942],
@@ -54,14 +53,12 @@ def apply_manus_controller_to_hand_pose(pose: Pose, side: str) -> Pose:
             pose.orientation.w,
         ]
     )
-
     controller_to_hand_rot = Rotation.from_matrix(controller_to_hand_rot_mat)
 
     world_hand_pos = world_controller_pos + world_controller_rot.apply(
         controller_to_hand_trans
     )
     world_hand_rot = world_controller_rot * controller_to_hand_rot
-
     return to_pose(world_hand_pos, world_hand_rot.as_quat())
 
 
