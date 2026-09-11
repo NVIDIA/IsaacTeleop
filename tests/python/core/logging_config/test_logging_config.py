@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from isaacteleop import logging_config
-from isaacteleop.logging_config import _console, _file, _forwarding
+from isaacteleop.logging_config import _console, _core, _file, _forwarding
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +33,7 @@ def _restore_console_state():
 
 
 def test_console_handler_attaches_once():
-    root = logging.getLogger(logging_config.ROOT_LOGGER_NAME)
+    root = logging.getLogger(_core.ROOT_LOGGER_NAME)
     handler = _console.ensure_handler()
     assert handler in root.handlers
     assert _console.ensure_handler() is handler
@@ -66,19 +66,19 @@ def _record(name: str, message: str) -> logging.LogRecord:
 
 
 def test_keyword_filter_matches_logger_name():
-    f = logging_config.KeywordFilter("manus", target="logger_name")
+    f = _console.KeywordFilter("manus", target="logger_name")
     assert f.filter(_record("isaacteleop.plugins.manus", "hello"))
     assert not f.filter(_record("isaacteleop.oxr", "hello"))
 
 
 def test_keyword_filter_matches_content():
-    f = logging_config.KeywordFilter("dongle", target="content")
+    f = _console.KeywordFilter("dongle", target="content")
     assert f.filter(_record("isaacteleop.x", "Connected to dongle 0"))
     assert not f.filter(_record("isaacteleop.x", "unrelated"))
 
 
 def test_keyword_filter_both_target_matches_either():
-    f = logging_config.KeywordFilter("manus", target="both")
+    f = _console.KeywordFilter("manus", target="both")
     assert f.filter(_record("isaacteleop.plugins.manus", "hello"))
     assert f.filter(_record("isaacteleop.x", "manus glove connected"))
     assert not f.filter(_record("isaacteleop.x", "hello"))
@@ -86,7 +86,7 @@ def test_keyword_filter_both_target_matches_either():
 
 def test_keyword_filter_rejects_unknown_target():
     with pytest.raises(ValueError):
-        logging_config.KeywordFilter("manus", target="nope")
+        _console.KeywordFilter("manus", target="nope")
 
 
 def test_set_console_filter_applies_and_clears():
@@ -95,20 +95,6 @@ def test_set_console_filter_applies_and_clears():
     assert _console._active_filter in handler.filters
     logging_config.set_console_filter(None)
     assert _console._active_filter is None
-
-
-def test_get_logger_without_cls_matches_plain_getlogger():
-    assert logging_config.get_logger("isaacteleop.foo") is logging.getLogger(
-        "isaacteleop.foo"
-    )
-
-
-def test_get_logger_with_cls_suffixes_class_name():
-    class SomeClass:
-        pass
-
-    logger = logging_config.get_logger("isaacteleop.foo", cls=SomeClass)
-    assert logger.name == "isaacteleop.foo.SomeClass"
 
 
 def test_console_handler_end_to_end_level_filtering():
@@ -141,7 +127,7 @@ def test_log_dir_honors_env_override(monkeypatch, tmp_path):
 
 
 def test_file_handler_attaches_once():
-    root = logging.getLogger(logging_config.ROOT_LOGGER_NAME)
+    root = logging.getLogger(_core.ROOT_LOGGER_NAME)
     handler = _file.ensure_handler()
     assert handler in root.handlers
     assert _file.ensure_handler() is handler

@@ -22,30 +22,17 @@ on its own configures nothing. Applications then narrow the console view::
 The file handler always captures ``DEBUG`` and above regardless of that.
 """
 
-from ._console import (
-    KeywordFilter,
-    set_console_filter,
-    set_console_level,
-    set_logger_colors,
-)
-from ._core import (
-    DATE_FORMAT,
-    LINE_FORMAT,
-    ROOT_LOGGER_NAME,
-    TRACE,
-    get_logger,
-    log_dir,
-)
-from ._setup import install
+from ._console import set_console_filter, set_console_level, set_logger_colors
+from ._core import DATE_FORMAT, LINE_FORMAT, TRACE, log_dir
+
+# Not in __all__: the bootstrap ``isaacteleop/__init__.py`` calls once. Importing it
+# here is what makes ``logging_config.install()`` resolve; nothing else should call it.
+from ._setup import install as install
 
 __all__ = [
     "DATE_FORMAT",
-    "KeywordFilter",
     "LINE_FORMAT",
-    "ROOT_LOGGER_NAME",
     "TRACE",
-    "get_logger",
-    "install",
     "log_dir",
     "set_console_filter",
     "set_console_level",

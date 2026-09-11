@@ -36,10 +36,10 @@ Key points for integrators:
 from __future__ import annotations
 
 import argparse
+import logging
 import time
 
 import numpy as np
-from isaacteleop import logging_config
 from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.haptic_devices.controller import ControllerHapticDevice
 from isaacteleop.retargeters.tactile_retargeters import TactileVectorToControllerPulse
@@ -65,7 +65,7 @@ from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfi
 APP_NAME = "ControllerHapticFeedbackExample"
 FPS = 60.0  # demo loop rate; the retargeting pipeline runs once per frame
 
-logger = logging_config.get_logger(__name__)
+logger = logging.getLogger("isaacteleop.haptic_feedback.controller")
 
 
 class TriggerToTactile(BaseRetargeter):

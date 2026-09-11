@@ -9,14 +9,14 @@ and the main thread calls sync_all() to apply them to member variables.
 """
 
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ... import logging_config
 from .tunable_parameter import ParameterSpec
 
-logger = logging_config.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ParameterState:

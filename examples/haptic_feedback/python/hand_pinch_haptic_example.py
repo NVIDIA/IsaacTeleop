@@ -45,9 +45,9 @@ Key points for integrators:
 from __future__ import annotations
 
 import time
+import logging
 
 import numpy as np
-from isaacteleop import logging_config
 from isaacteleop.haptic_devices.glove import haptic_glove_device
 from isaacteleop.retargeters.tactile_retargeters import TactileVectorToFingerPower
 from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, HapticSink
@@ -71,7 +71,7 @@ from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfi
 APP_NAME = "HandPinchHapticExample"
 FPS = 60.0  # demo loop rate; the retargeting pipeline runs once per frame
 
-logger = logging_config.get_logger(__name__)
+logger = logging.getLogger("isaacteleop.haptic_feedback.hand_pinch")
 
 # Haptic-glove plugin's tensor-collection id. The Manus plugin uses this exact
 # string (src/plugins/manus/core/inc/manus/manus_glove_collection.hpp); for a

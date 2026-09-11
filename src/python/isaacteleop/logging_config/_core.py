@@ -50,17 +50,6 @@ def resolve_level(level: int | str) -> int:
     return level
 
 
-def get_logger(name: str, cls: type | None = None) -> logging.Logger:
-    """Return the logger for *name* (normally ``__name__``), suffixed with *cls*'s name.
-
-    Only needed when a module defines more than one loggable class; otherwise
-    ``get_logger(__name__)`` and ``logging.getLogger(__name__)`` are equivalent.
-    """
-    if cls is not None:
-        name = f"{name}.{cls.__name__}"
-    return logging.getLogger(name)
-
-
 def log_dir() -> Path:
     """Directory every log file of this session lands in.
 

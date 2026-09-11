@@ -18,7 +18,8 @@ import imgui  # type: ignore[import-not-found]
 import numpy as np
 from imgui.integrations.glfw import GlfwRenderer  # type: ignore[import-not-found]
 
-from isaacteleop import logging_config
+import logging
+
 from isaacteleop.retargeting_engine.interface import (
     BoolParameter,
     FloatParameter,
@@ -27,7 +28,7 @@ from isaacteleop.retargeting_engine.interface import (
     VectorParameter,
 )
 
-logger = logging_config.get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaacteleop.retargeting_engine.interface import BaseRetargeter, ParameterState
