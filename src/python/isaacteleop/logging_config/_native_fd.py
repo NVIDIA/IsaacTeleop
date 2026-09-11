@@ -51,6 +51,28 @@ def _pump(fd: int, read_fd: int, sink_fd: int) -> None:
             os.dup2(saved.fileno(), fd)
 
 
+def _reserve_std_fds() -> None:
+    """Make sure fds 1 and 2 are open before any allocation below.
+
+    os.open()/os.pipe() hand out the lowest free descriptor. If this process
+    was started with stdout or stderr closed -- daemons do exactly that -- the
+    capture file or the pipe lands *on* the number we are about to dup2() over,
+    and the dup2 then silently repoints it: sink_fd stops referring to the file
+    and becomes the pipe's own write end, so the pump reads a chunk and writes
+    it straight back into the pipe it came from. Every captured byte is lost.
+    Attaching /dev/null to a closed std fd first keeps every allocation clear of
+    the two descriptors this module rebinds.
+    """
+    for std in (1, 2):
+        try:
+            os.fstat(std)
+        except OSError:
+            opened = os.open(os.devnull, os.O_WRONLY)
+            if opened != std:
+                os.dup2(opened, std)
+                os.close(opened)
+
+
 def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     """Point *fd* (1 or 2) at a pipe drained into its own file; idempotent.
 
@@ -73,6 +95,7 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     """
     if fd in _saved:
         return
+    _reserve_std_fds()
     label = _FD_LABELS[fd]
     directory = log_dir()
     directory.mkdir(parents=True, exist_ok=True)
