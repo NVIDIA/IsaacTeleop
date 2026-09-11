@@ -202,3 +202,40 @@ if(BUILD_VIZ)
     FetchContent_MakeAvailable(glfw)
     message(STATUS "GLFW 3.4 fetched")
 endif()
+
+# ==============================================================================
+# MuJoCo (robot twin scene + renderer)
+# ==============================================================================
+# Built from upstream sources unmodified and shipped under a private name, so the robot
+# twin's MuJoCo is an implementation detail nothing else in the process can see.
+# Mujoco.cmake beside this file is that contract and the function consumers reach it
+# through; src/viz/robot_twin is the only consumer.
+#
+# Upstream builds one library -- engine, renderer, MJCF parser -- with no renderer-only
+# target, so this is the whole of it even though the twin calls no dynamics.
+# src/viz/robot_twin is the only consumer and it is a pybind11 extension, so a build
+# without the bindings has nothing to link this to.
+if(BUILD_VIZ AND BUILD_PYTHON_BINDINGS)
+    message(STATUS "Fetching MuJoCo from GitHub...")
+    FetchContent_Declare(
+        mujoco
+        GIT_REPOSITORY https://github.com/google-deepmind/mujoco.git
+        GIT_TAG        3.11.0
+        GIT_SHALLOW    TRUE
+    )
+
+    # Before MakeAvailable, which is what runs MuJoCo's own CMakeLists -- so these cannot
+    # move into Mujoco.cmake below. Plain variables, not the `CACHE ... FORCE` the entries
+    # above use: MuJoCo sets CMAKE_POLICY_DEFAULT_CMP0077 NEW before its own project(), so
+    # a normal variable wins over its option() and leaves no knob in the cache. Turning the
+    # tests off is what keeps abseil, googletest and benchmark out of _deps.
+    set(MUJOCO_BUILD_EXAMPLES OFF)
+    set(MUJOCO_BUILD_SIMULATE OFF)
+    set(MUJOCO_BUILD_TESTS OFF)
+    set(MUJOCO_TEST_PYTHON_UTIL OFF)
+
+    FetchContent_MakeAvailable(mujoco)
+    message(STATUS "MuJoCo 3.11.0 fetched")
+
+    include("${CMAKE_CURRENT_LIST_DIR}/Mujoco.cmake")
+endif()

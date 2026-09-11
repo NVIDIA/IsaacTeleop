@@ -23,6 +23,8 @@ Available Retargeters:
     - WujiHandRetargeter: Retargeting for the Wuji hand via wuji_sdk.retargeting
     - JointStateRetargeter: Generic joint-space device (leader arm, exoskeleton) -> joint or EE action
     - EePoseRateLimiter / JointRateLimiter: Safety-harness velocity bounds for EE-pose / joint streams
+    - ControllerPoseSource: A controller's grip or aim pose as an ``ee_pose``, Optional so
+      tracking loss survives the node
     - SharpaHandRetargeter: Pinocchio/Pink IK-based retargeting for Sharpa hand
     - SharpaBiManualRetargeter: Bimanual version of SharpaHandRetargeter
     - Se3AbsRetargeter: Absolute EE pose control
@@ -140,6 +142,9 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
         None,
     ),
     # .rate_limiter (safety harness: per-frame velocity bounds for EE / joint streams)
+    # .controller_pose
+    "ControllerPoseSource": (".controller_pose", "ControllerPoseSource", None),
+    "HandPose": (".controller_pose", "HandPose", None),
     "EePoseRateLimiter": (".rate_limiter", "EePoseRateLimiter", None),
     "JointRateLimiter": (".rate_limiter", "JointRateLimiter", None),
     "RateLimiterConfig": (".rate_limiter", "RateLimiterConfig", None),
@@ -244,7 +249,9 @@ __all__ = [
     "JointStateRetargeter",
     "JointStateRetargeterConfig",
     # Safety-harness rate limiters (per-frame velocity bounds)
+    "ControllerPoseSource",
     "EePoseRateLimiter",
+    "HandPose",
     "JointRateLimiter",
     "RateLimiterConfig",
     "Se3AbsRetargeter",

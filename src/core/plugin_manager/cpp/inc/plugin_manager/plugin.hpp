@@ -7,12 +7,46 @@
 #    include <sys/types.h>
 #endif
 
+#include <cstdint>
+#include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace core
 {
+
+enum class ProcessState
+{
+    RUNNING,
+    EXITED,
+    SIGNALED,
+    STOPPED,
+    ERROR,
+};
+
+enum class ProcessReason
+{
+    NONE,
+    CLEAN_EXIT,
+    NONZERO_EXIT,
+    SIGNAL,
+    EXPLICIT_STOP,
+    WAIT_ERROR,
+    SIGNAL_ERROR,
+};
+
+struct ProcessSnapshot
+{
+    ProcessState state = ProcessState::RUNNING;
+    ProcessReason reason = ProcessReason::NONE;
+    std::int64_t pid = -1;
+    std::optional<int> exit_code;
+    std::optional<int> term_signal;
+    std::optional<int> error_code;
+    std::string error;
+};
 
 /**
  * @brief Custom exception thrown when a plugin crashes or exits unexpectedly
@@ -55,7 +89,14 @@ public:
      * @brief Check if plugin crashed (lightweight, non-blocking)
      * @throws PluginCrashException if the plugin has crashed
      */
-    void check_health() const;
+    void check_health();
+
+    /**
+     * @brief Poll and return the current process state without throwing process-health exceptions.
+     *
+     * Terminal state is cached, so repeated calls return the same exit, signal, or observation error.
+     */
+    ProcessSnapshot get_process_snapshot();
 
 private:
     void start_process(const std::string& command,
@@ -64,12 +105,17 @@ private:
                        const std::vector<std::string>& plugin_args);
 
     void stop_process();
+    void refresh_process_snapshot_locked(bool block);
+    void cache_signal_error_locked(int error_code, const std::string& operation);
 
 #ifndef _WIN32
     pid_t m_pid = -1;
 #else
     int m_pid = -1;
 #endif
+    bool m_stop_requested = false;
+    ProcessSnapshot m_process_snapshot;
+    std::mutex m_process_mutex;
 };
 
 } // namespace core

@@ -66,6 +66,11 @@ Every section of `overview/ecosystem.rst` is a `device-matrix` table fed by
 deleted, not disabled, so "partner" is not a word to reintroduce in markup, data, or class
 names — and a second data file describing companies is the shape that was removed.
 
+That header, plus the four section dividers, is the only commentary the data file carries.
+Why a row has no `since`, who cleared a contact, why a plugin is named generically — none
+of it annotates the row: state it in a field the page renders, put a rule that outlives the
+row in the header, and leave the rest to the commit message.
+
 ## What a company sends is copy and artwork, not a record
 
 A logo lives in `source/_static/logos/`, is named after the company rather than the device,

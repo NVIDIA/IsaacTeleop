@@ -6,3 +6,4 @@ ManusSDK/
 
 # Downloaded SDK archive (kept locally to avoid re-downloading)
 MANUS_Core_*_SDK.zip
+MANUS_Core_*_SDK_Linux.tar.gz

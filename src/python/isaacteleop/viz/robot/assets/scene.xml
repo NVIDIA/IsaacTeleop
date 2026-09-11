@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+The shipped scene: the SO-101 follower arm and the leader gripper ghost. No
+ground plane and no furniture -- this is an AR scene and passthrough is the
+background.
+
+cpp/frames.hpp's constants place the ghost and the eye pose alike, so they
+cancel and it lands on the hand whatever they are. The follower's base is static
+content and does not get that for free: preview_arm.py authors its placement in
+the XR reference frame and pushes it through mj_from_xr at startup, so the
+constants cancel there too and kTransMjFromXr stays untuned.
+
+assets.py copies this file and its two fragments into the fetch cache and drops
+every mesh FLAT beside them, so all three resolve against one directory.
+-->
+<mujoco model="robot_viz_scene">
+  <!-- A high ambient FLOOR, not a brighter light. Ambient is
+       direction-independent, so it bounds how dark a surface can get (measured:
+       0.40 of albedo, exactly the ambient term) while diffuse carries the shape.
+       MuJoCo's own defaults leave 94% of this ghost below a third of its albedo.
+       Ambient + diffuse = 0.8 leaves the headroom that keeps the specular
+       highlight from clipping. Do not lower ambient to "fix" a dark pose: the
+       headlight is not head-mounted here. See README.md#scene-assets. -->
+  <visual>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.4 0.4 0.4" specular="0.3 0.3 0.3"/>
+  </visual>
+
+  <include file="follower_arm.xml"/>
+  <include file="leader_gripper.xml"/>
+</mujoco>
