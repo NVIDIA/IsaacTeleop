@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.sources._nv_decode")
 
 
 class NvH264Decoder:

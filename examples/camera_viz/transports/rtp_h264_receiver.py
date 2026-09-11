@@ -34,7 +34,7 @@ import logging
 import threading
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.transports.rtp_h264_receiver")
 
 # Module-level guard so ``Gst.init`` runs exactly once across all
 # transport instances (GStreamer is not happy about double init).

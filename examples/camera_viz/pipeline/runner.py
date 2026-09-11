@@ -25,7 +25,7 @@ import isaacteleop.viz as viz
 
 from .interface import FrameSource
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.pipeline.runner")
 
 
 # Submit thread poll interval when no source has new data.

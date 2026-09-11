@@ -15,16 +15,23 @@ except PackageNotFoundError:
     __version__ = "0+unknown"
 
 # Import submodules.
-from . import deviceio_trackers
-from . import deviceio_session
-from . import deviceio
-from . import oxr
-from . import plugin_manager
-from . import schema
-from . import teleop_session_manager
-from . import cloudxr
+from . import (
+    cloudxr,
+    deviceio,
+    deviceio_session,
+    deviceio_trackers,
+    logging_config,
+    oxr,
+    plugin_manager,
+    schema,
+    teleop_session_manager,
+)
+
+# Builds the handlers every isaacteleop.* logger in this process emits through.
+logging_config.install()
 
 __all__ = [
+    "logging_config",
     "deviceio_trackers",
     "deviceio_session",
     "deviceio",

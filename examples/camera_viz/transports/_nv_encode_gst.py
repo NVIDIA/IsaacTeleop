@@ -22,7 +22,7 @@ import numpy as np
 
 from ._nv12_convert import build_rgba_to_nv12_kernel, launch_rgba_to_nv12
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.transports._nv_encode_gst")
 
 # Encoder element candidates in priority order. nvv4l2h264enc is Jetson;
 # nvh264enc is the desktop GstCUDA path (gst-plugins-bad with NVIDIA

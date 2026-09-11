@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.transports._encoder_factory")
 
 
 def _has_native_codec() -> bool:
