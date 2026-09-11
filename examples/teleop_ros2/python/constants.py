@@ -50,7 +50,7 @@ SHARPA_HAND_RETARGETERS = (HandRetargeter.PINK_IK, HandRetargeter.DEXPILOT)
 TRACKED_HAND_RETARGETERS = (*SHARPA_HAND_RETARGETERS, HandRetargeter.WUJI)
 TELEOP_MODES = tuple(mode.value for mode in TeleopMode)
 WUJI_HAND_MODELS = ("wuji_hand", "wuji_hand_2")
-EE_POSE_FRAMES = tuple(f.value for f in EePoseFrame)
+EE_POSE_FRAMES = tuple(frame.value for frame in EePoseFrame)
 
 TRIHAND_JOINT_NAMES = [
     "thumb_rotation",
