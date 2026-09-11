@@ -47,7 +47,7 @@ from __future__ import annotations
 import time
 
 import numpy as np
-
+from isaacteleop import logging_config
 from isaacteleop.haptic_devices.glove import haptic_glove_device
 from isaacteleop.retargeters.tactile_retargeters import TactileVectorToFingerPower
 from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, HapticSink
@@ -59,18 +59,19 @@ from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
 )
 from isaacteleop.retargeting_engine.interface.tensor_group_type import OptionalType
 from isaacteleop.retargeting_engine.tensor_types import (
+    NUM_HAPTIC_FINGERS,
     FingerIndex,
     HandInput,
     HandInputIndex,
     HandJointIndex,
-    NUM_HAPTIC_FINGERS,
     TactileVector,
 )
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-
 APP_NAME = "HandPinchHapticExample"
 FPS = 60.0  # demo loop rate; the retargeting pipeline runs once per frame
+
+logger = logging_config.get_logger(__name__)
 
 # Haptic-glove plugin's tensor-collection id. The Manus plugin uses this exact
 # string (src/plugins/manus/core/inc/manus/manus_glove_collection.hpp); for a
@@ -212,7 +213,7 @@ def main() -> None:
         while True:
             result = session.step()
             line = f"{_row('L', _powers(result, 'powers_left'))}   |   {_row('R', _powers(result, 'powers_right'))}"
-            print(f"\r{line:<104}", end="", flush=True)
+            logger.info(line)
             time.sleep(frame_period_s)
 
 

@@ -39,7 +39,8 @@ import argparse
 import time
 
 import numpy as np
-
+from isaacteleop import logging_config
+from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.haptic_devices.controller import ControllerHapticDevice
 from isaacteleop.retargeters.tactile_retargeters import TactileVectorToControllerPulse
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
@@ -59,12 +60,12 @@ from isaacteleop.retargeting_engine.tensor_types import (
     ControllerInputIndex,
     TactileVector,
 )
-from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
-
 
 APP_NAME = "ControllerHapticFeedbackExample"
 FPS = 60.0  # demo loop rate; the retargeting pipeline runs once per frame
+
+logger = logging_config.get_logger(__name__)
 
 
 class TriggerToTactile(BaseRetargeter):
@@ -182,7 +183,7 @@ def main() -> None:
                     "   |   "
                     f"R trig {_bar(trig_r)} {trig_r:.2f} -> R rumble {_bar(hap_r)} {hap_r:.2f}"
                 )
-                print(f"\r{line:<96}", end="", flush=True)
+                logger.info(line)
                 time.sleep(frame_period_s)
 
 
