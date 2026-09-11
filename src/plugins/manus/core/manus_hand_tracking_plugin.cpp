@@ -828,35 +828,47 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
     }
 }
 
-void ManusTracker::OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_Length)
+void ManusTracker::OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_Length) noexcept
 {
-    // Deliberately does not go through instance(): this can fire synchronously from
-    // CoreSdk_InitializeIntegrated(), called mid-constructor, before the function-local
-    // static in instance() has finished constructing -- reentering that initialization
-    // from the same thread is undefined behavior. Look the logger up directly by name
-    // instead; isaacteleop::Logger::get() is memoized, so this is the same object m_logger
-    // holds once the tracker exists.
-    static const auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
-    const std::string message(p_Log, p_Length);
-
-    // Inherit the SDK's own severity rather than collapsing everything to one level.
-    switch (p_Severity)
+    // Handed to the Manus SDK as a C callback, so nothing may escape: constructing the
+    // std::string can throw bad_alloc, and Logger::get() allocates and touches spdlog's
+    // registry on first use. Unwinding into the SDK's own frames is undefined behaviour,
+    // and this fires from inside CoreSdk_InitializeIntegrated(). Dropping one vendor log
+    // line is the acceptable outcome; there is nowhere to report the failure, because
+    // logging is the thing that failed.
+    try
     {
-    case LogSeverity_Debug:
-        logger->debug("{}", message);
-        break;
-    case LogSeverity_Info:
-        logger->info("{}", message);
-        break;
-    case LogSeverity_Warn:
-        logger->warn("{}", message);
-        break;
-    case LogSeverity_Error:
-        logger->error("{}", message);
-        break;
-    default:
-        logger->info("{}", message);
-        break;
+        // Deliberately does not go through instance(): this can fire synchronously from
+        // CoreSdk_InitializeIntegrated(), called mid-constructor, before the function-local
+        // static in instance() has finished constructing -- reentering that initialization
+        // from the same thread is undefined behavior. Look the logger up directly by name
+        // instead; isaacteleop::Logger::get() is memoized, so this is the same object m_logger
+        // holds once the tracker exists.
+        static const auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
+        const std::string message(p_Log, p_Length);
+
+        // Inherit the SDK's own severity rather than collapsing everything to one level.
+        switch (p_Severity)
+        {
+        case LogSeverity_Debug:
+            logger->debug("{}", message);
+            break;
+        case LogSeverity_Info:
+            logger->info("{}", message);
+            break;
+        case LogSeverity_Warn:
+            logger->warn("{}", message);
+            break;
+        case LogSeverity_Error:
+            logger->error("{}", message);
+            break;
+        default:
+            logger->info("{}", message);
+            break;
+        }
+    }
+    catch (...)
+    {
     }
 }
 

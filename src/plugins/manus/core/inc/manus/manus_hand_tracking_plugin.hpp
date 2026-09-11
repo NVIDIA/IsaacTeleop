@@ -105,7 +105,7 @@ private:
     // synchronously from within that call, on the calling thread, before the ManusTracker
     // singleton (a function-local static in instance()) has finished constructing. Must
     // therefore never call instance() -- see the definition for how it gets its logger.
-    static void OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_Length);
+    static void OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_Length) noexcept;
 
     void push_sensor_states();
     void push_sensor_side(bool is_left, core::SchemaPusher& pusher);
