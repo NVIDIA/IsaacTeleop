@@ -108,8 +108,8 @@ message(STATUS "Fetching spdlog from GitHub...")
 FetchContent_Declare(
     spdlog
     GIT_REPOSITORY https://github.com/gabime/spdlog.git
-    GIT_TAG        v1.17.0
-    GIT_SHALLOW    TRUE
+    GIT_TAG        79524ddd08a4ec981b7fea76afd08ee05f83755d  # v1.17.0
+    GIT_SHALLOW    FALSE  # Need full history for this specific commit
 )
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "Skip spdlog examples" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Skip spdlog tests" FORCE)
