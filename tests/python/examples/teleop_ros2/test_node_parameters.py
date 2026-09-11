@@ -70,37 +70,40 @@ def test_replay_preserves_provider_without_starting_plugin() -> None:
     assert not use_external_plugin
 
 
-def test_external_plugin_requires_non_native_provider() -> None:
+def test_external_plugin_setting_is_ignored_for_native() -> None:
     node = _Node(
         hand_tracking_provider="native",
         use_external_hand_tracking_plugin=True,
     )
 
-    with pytest.raises(
-        ValueError,
-        match="requires hand_tracking_provider:=manus or hand_tracking_provider:=wuji",
-    ):
-        _load_hand_tracking_provider(
-            node,
-            TeleopMode.CONTROLLER_TELEOP,
-            HandRetargeter.DEXPILOT,
-            SessionMode.LIVE,
-        )
+    provider, use_external_plugin, search_paths = _load_hand_tracking_provider(
+        node,
+        TeleopMode.CONTROLLER_TELEOP,
+        HandRetargeter.DEXPILOT,
+        SessionMode.LIVE,
+    )
+
+    assert provider == HandTrackingProvider.NATIVE
+    assert use_external_plugin
+    assert search_paths == ()
 
 
-def test_replay_rejects_external_plugin() -> None:
+def test_external_plugin_setting_is_ignored_for_replay() -> None:
     node = _Node(
         hand_tracking_provider="wuji",
         use_external_hand_tracking_plugin=True,
     )
 
-    with pytest.raises(ValueError, match="must be false.*during MCAP replay"):
-        _load_hand_tracking_provider(
-            node,
-            TeleopMode.CONTROLLER_TELEOP,
-            HandRetargeter.WUJI,
-            SessionMode.REPLAY,
-        )
+    provider, use_external_plugin, search_paths = _load_hand_tracking_provider(
+        node,
+        TeleopMode.CONTROLLER_TELEOP,
+        HandRetargeter.WUJI,
+        SessionMode.REPLAY,
+    )
+
+    assert provider == HandTrackingProvider.WUJI
+    assert use_external_plugin
+    assert search_paths == ()
 
 
 def test_non_native_provider_requires_tracked_hand_mode() -> None:

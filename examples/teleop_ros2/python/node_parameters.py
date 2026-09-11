@@ -406,17 +406,6 @@ def _load_hand_tracking_provider(
             "does not consume OpenXR hand tracking"
         )
 
-    if use_external_plugin and provider == HandTrackingProvider.NATIVE:
-        raise ValueError(
-            "Parameter 'use_external_hand_tracking_plugin' requires "
-            "hand_tracking_provider:=manus or hand_tracking_provider:=wuji"
-        )
-    if use_external_plugin and session_mode == SessionMode.REPLAY:
-        raise ValueError(
-            "Parameter 'use_external_hand_tracking_plugin' must be false "
-            "during MCAP replay"
-        )
-
     start_plugin = (
         provider != HandTrackingProvider.NATIVE
         and session_mode == SessionMode.LIVE
@@ -439,7 +428,7 @@ def _load_hand_tracking_provider(
                 "ISAAC_TELEOP_PLUGIN_PATH"
             )
         node.get_logger().info(f"Managed hand-tracking plugin provider: {provider}")
-    elif use_external_plugin:
+    elif use_external_plugin and provider != HandTrackingProvider.NATIVE:
         node.get_logger().info(f"External hand-tracking provider: {provider}")
     return provider, use_external_plugin, search_paths
 
