@@ -99,6 +99,25 @@ FetchContent_MakeAvailable(flatbuffers)
 message(STATUS "FlatBuffers fetched and configured")
 
 # ==============================================================================
+# spdlog (C++ logging library)
+# ==============================================================================
+# Backs isaacteleop::Logger (src/core/log_bridge). Needed by standalone plugin
+# executables regardless of BUILD_PYTHON_BINDINGS, so fetched unconditionally
+# like FlatBuffers/MCAP rather than gated.
+message(STATUS "Fetching spdlog from GitHub...")
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        79524ddd08a4ec981b7fea76afd08ee05f83755d  # v1.17.0
+    GIT_SHALLOW    FALSE  # Need full history for this specific commit
+)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "Skip spdlog examples" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Skip spdlog tests" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "Skip spdlog install target" FORCE)
+FetchContent_MakeAvailable(spdlog)
+message(STATUS "spdlog v1.17.0 fetched")
+
+# ==============================================================================
 # Catch2 (Testing Framework)
 # ==============================================================================
 # Catch2 is a modern, C++-native, test framework for unit tests.
