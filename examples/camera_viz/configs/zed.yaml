@@ -25,6 +25,9 @@ cameras:
     height: 720
     fps: 60
     bus_type: usb               # usb | gmsl
+    # calib: calib/zed_fisheye.json   # per-eye K/D (+R_rect) calibration:
+    #                                 # undistorts on the GPU and derives the
+    #                                 # display geometry from the true FOV
     serial_number: 0            # 0 → first available
     stereo: true
     rtp:
