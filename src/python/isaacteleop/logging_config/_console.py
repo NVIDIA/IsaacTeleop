@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 
 from ._core import (
+    _LEVEL_NAME_BY_VALUE,
     DATE_FORMAT,
     LINE_FORMAT,
     ROOT_LOGGER_NAME,
@@ -42,4 +44,9 @@ def ensure_handler() -> logging.StreamHandler:
 
 def set_console_level(level: int | str) -> None:
     """Set the console handler's display threshold."""
-    ensure_handler().setLevel(resolve_level(level))
+    resolved = resolve_level(level)
+    ensure_handler().setLevel(resolved)
+    # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
+    # the in-process bridge; they read their own console threshold from this variable.
+    if resolved in _LEVEL_NAME_BY_VALUE:
+        os.environ["ISAACTELEOP_LOG_LEVEL"] = _LEVEL_NAME_BY_VALUE[resolved]
