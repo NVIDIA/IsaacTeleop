@@ -416,7 +416,8 @@ class CloudXRService:
             else:
                 parts.append("Process is still running but did not signal readiness.")
 
-        for log_path in self._gather_diagnostic_logs(logs_dir):
+        runtime_pid = proc.pid if proc is not None else None
+        for log_path in self._gather_diagnostic_logs(logs_dir, runtime_pid):
             try:
                 content = log_path.read_text(errors="replace").strip()
                 if not content:
@@ -431,7 +432,9 @@ class CloudXRService:
         return "  ".join(parts)
 
     @staticmethod
-    def _gather_diagnostic_logs(logs_dir: Path) -> list[Path]:
+    def _gather_diagnostic_logs(
+        logs_dir: Path, runtime_pid: int | None = None
+    ) -> list[Path]:
         """Return log files useful for diagnosing a startup failure."""
         result: list[Path] = []
 
@@ -440,12 +443,21 @@ class CloudXRService:
             result.append(worker_stderr)
 
         # The runtime process's own fd 1/2 (its Vulkan-loader/GPU-init
-        # diagnostics) land in isaacteleop.logging_config's native-fd capture
-        # files, not under `logs_dir` (CloudXR's own ~/.cloudxr/logs). Most
-        # recent first.
-        native_stderr_logs = sorted(log_dir().glob("*.isaacteleop.*.native-stderr.log"))
-        if native_stderr_logs:
-            result.append(native_stderr_logs[-1])
+        # diagnostics, and the startup banner on fd 1) land in
+        # isaacteleop.logging_config's native-fd capture files, not under
+        # `logs_dir` (CloudXR's own ~/.cloudxr/logs). Matched on the runtime's
+        # own pid: every isaacteleop process writes a pair of these into the
+        # same directory, so "the newest one" could just as easily be a plugin
+        # from this session, or a leftover from an unrelated one.
+        for stream in ("stderr", "stdout"):
+            pattern = (
+                f"*.isaacteleop.{runtime_pid}.native-{stream}.log"
+                if runtime_pid is not None
+                else f"*.isaacteleop.*.native-{stream}.log"
+            )
+            captures = sorted(log_dir().glob(pattern))
+            if captures:
+                result.append(captures[-1])
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:

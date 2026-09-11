@@ -186,7 +186,7 @@ void OakCamera::print_stats() const
 {
     for (const auto& [type, count] : m_frame_counts)
     {
-        m_logger->debug("  {}: {} frames", core::EnumNameStreamType(type), count);
+        m_logger->info("  {}: {} frames", core::EnumNameStreamType(type), count);
     }
 }
 
