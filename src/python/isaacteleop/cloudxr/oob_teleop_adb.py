@@ -44,7 +44,7 @@ from .oob_teleop_env import (
     web_client_base_override_from_env,
 )
 
-log = logging.getLogger("oob-teleop-adb")
+log = logging.getLogger("isaacteleop.cloudxr.oob_teleop_adb")
 
 
 class OobAdbError(Exception):
