@@ -302,6 +302,10 @@ void ManusTracker::initialize() noexcept(false)
         m_right_calibration_file = read_calibration_file(m_config.right_calibration_file);
     }
 
+    // Registered before CoreSdk_InitializeIntegrated() so SDK-internal messages emitted
+    // during init itself (not just the ones our own wrapper narrates below) are captured too.
+    CoreSdk_RegisterCallbackForOnLog(OnLog);
+
     m_logger->info("Initializing SDK...");
     const SDKReturnCode t_InitializeResult = CoreSdk_InitializeIntegrated();
     if (t_InitializeResult != SDKReturnCode::SDKReturnCode_Success)
@@ -549,8 +553,11 @@ void ManusTracker::shutdown_sdk()
     CoreSdk_RegisterCallbackForLandscapeStream(nullptr);
     CoreSdk_RegisterCallbackForErgonomicsStream(nullptr);
     CoreSdk_RegisterCallbackForRawDeviceDataStream(nullptr);
+    // Left registered through DisconnectFromGloves()/CoreSdk_ShutDown() so their own
+    // shutdown-sequence log messages are still captured; unregistered last.
     DisconnectFromGloves();
     CoreSdk_ShutDown();
+    CoreSdk_RegisterCallbackForOnLog(nullptr);
 }
 
 void ManusTracker::RegisterCallbacks()
@@ -818,6 +825,38 @@ void ManusTracker::OnLandscapeStream(const Landscape* landscape)
                 tracker.m_sensor_count[1] = 0;
             }
         }
+    }
+}
+
+void ManusTracker::OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_Length)
+{
+    // Deliberately does not go through instance(): this can fire synchronously from
+    // CoreSdk_InitializeIntegrated(), called mid-constructor, before the function-local
+    // static in instance() has finished constructing -- reentering that initialization
+    // from the same thread is undefined behavior. Look the logger up directly by name
+    // instead; isaacteleop::Logger::get() is memoized, so this is the same object m_logger
+    // holds once the tracker exists.
+    static const auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
+    const std::string message(p_Log, p_Length);
+
+    // Inherit the SDK's own severity rather than collapsing everything to one level.
+    switch (p_Severity)
+    {
+    case LogSeverity_Debug:
+        logger->debug("{}", message);
+        break;
+    case LogSeverity_Info:
+        logger->info("{}", message);
+        break;
+    case LogSeverity_Warn:
+        logger->warn("{}", message);
+        break;
+    case LogSeverity_Error:
+        logger->error("{}", message);
+        break;
+    default:
+        logger->info("{}", message);
+        break;
     }
 }
 
