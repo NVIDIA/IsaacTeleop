@@ -149,7 +149,13 @@ class RequestHandler(socketserver.StreamRequestHandler):
             if body is None:
                 return
             try:
-                payload = json.loads(body.decode("utf-8"))
+                # errors="replace", not strict: the C++ sender copies bytes >= 0x80
+                # through verbatim (socket_sink.cpp's append_json_escaped), and the
+                # vendor strings, strerror() text and paths it carries are not
+                # guaranteed UTF-8. Strict decoding raised here and the frame was
+                # dropped -- and a forwarding child has no local sink, so the record
+                # was gone. One mojibake character beats a lost log line.
+                payload = json.loads(body.decode("utf-8", errors="replace"))
                 record = logging.makeLogRecord(
                     {
                         "name": payload["name"],
