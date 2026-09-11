@@ -17,7 +17,7 @@ on its own configures nothing. Applications then narrow the console view::
 """
 
 from ._console import set_console_level
-from ._core import DATE_FORMAT, LINE_FORMAT, log_dir
+from ._core import DATE_FORMAT, LINE_FORMAT, TRACE, log_dir
 
 # Not in __all__: the bootstrap ``isaacteleop/__init__.py`` calls once. Importing it
 # here is what makes ``logging_config.install()`` resolve; nothing else should call it.
@@ -26,6 +26,7 @@ from ._setup import install as install
 __all__ = [
     "DATE_FORMAT",
     "LINE_FORMAT",
+    "TRACE",
     "log_dir",
     "set_console_level",
 ]

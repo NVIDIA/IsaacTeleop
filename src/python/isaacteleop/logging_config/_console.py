@@ -12,6 +12,7 @@ from ._core import (
     DATE_FORMAT,
     LINE_FORMAT,
     ROOT_LOGGER_NAME,
+    TRACE,
     resolve_level,
 )
 
@@ -32,8 +33,8 @@ def ensure_handler() -> logging.StreamHandler:
         handler.setLevel(logging.INFO)
         root = logging.getLogger(ROOT_LOGGER_NAME)
         root.setLevel(
-            logging.DEBUG
-        )  # handlers filter; the logger itself must stay permissive
+            TRACE
+        )  # handlers filter; the logger itself must stay maximally permissive
         root.addHandler(handler)
         _handler = handler
         return _handler
