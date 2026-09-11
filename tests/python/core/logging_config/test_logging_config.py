@@ -21,8 +21,16 @@ def _restore_console_state():
     """Snapshot/restore the module-global console handler state around each test."""
     handler = _console.ensure_handler()
     saved_level = handler.level
+    saved_filters = list(handler.filters)
+    saved_active_filter = _console._active_filter
     yield
     handler.setLevel(saved_level)
+    for f in list(handler.filters):
+        handler.removeFilter(f)
+    for f in saved_filters:
+        handler.addFilter(f)
+    _console._active_filter = saved_active_filter
+
 
 def test_console_handler_attaches_once():
     root = logging.getLogger(_core.ROOT_LOGGER_NAME)
@@ -40,6 +48,45 @@ def test_set_console_level_by_name_and_int():
 def test_set_console_level_rejects_unknown_name():
     with pytest.raises(ValueError):
         logging_config.set_console_level("nope")
+
+def test_set_console_level_does_not_touch_filter():
+    logging_config.set_console_filter("existing")
+    active = _console._active_filter
+    logging_config.set_console_level("warning")
+    assert _console.ensure_handler().level == logging.WARNING
+    assert _console._active_filter is active
+    assert active in _console.ensure_handler().filters
+
+def _record(name: str, message: str) -> logging.LogRecord:
+    return logging.LogRecord(name, logging.INFO, __file__, 1, message, None, None)
+
+def test_keyword_filter_matches_logger_name():
+    f = _console.KeywordFilter("manus", target="logger_name")
+    assert f.filter(_record("isaacteleop.plugins.manus", "hello"))
+    assert not f.filter(_record("isaacteleop.oxr", "hello"))
+
+def test_keyword_filter_matches_content():
+    f = _console.KeywordFilter("dongle", target="content")
+    assert f.filter(_record("isaacteleop.x", "Connected to dongle 0"))
+    assert not f.filter(_record("isaacteleop.x", "unrelated"))
+
+def test_keyword_filter_both_target_matches_either():
+    f = _console.KeywordFilter("manus", target="both")
+    assert f.filter(_record("isaacteleop.plugins.manus", "hello"))
+    assert f.filter(_record("isaacteleop.x", "manus glove connected"))
+    assert not f.filter(_record("isaacteleop.x", "hello"))
+
+def test_keyword_filter_rejects_unknown_target():
+    with pytest.raises(ValueError):
+        _console.KeywordFilter("manus", target="nope")
+
+def test_set_console_filter_applies_and_clears():
+    logging_config.set_console_filter("manus")
+    handler = _console.ensure_handler()
+    assert _console._active_filter in handler.filters
+    logging_config.set_console_filter(None)
+    assert _console._active_filter is None
+
 
 def test_console_handler_end_to_end_level_filtering():
     """A record below the console level must not reach the handler's stream."""
