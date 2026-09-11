@@ -404,7 +404,7 @@ def run() -> None:
     # unified capture: its pipe's write end lost its last reference the moment
     # this code repointed fd 2, so the drain thread saw EOF and handed fd 2
     # back to the real terminal shortly after -- undoing this block's own
-    # redirect. See logging_system's design doc, "known exceptions".
+    # redirect. See isaacteleop.logging_config._native_fd for that capture.
 
     lib = _load_libcloudxr(sdk_path)
     svc = ctypes.c_void_p()
