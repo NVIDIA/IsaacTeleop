@@ -28,12 +28,22 @@ def _write_all(fd: int, data: bytes) -> None:
         data = data[os.write(fd, data) :]
 
 
-def _pump(fd: int, read_fd: int, sink_fd: int) -> None:
-    """Drain *fd*'s pipe into its capture file, mirroring it while echo is on."""
+def _pump(fd: int, read_fd: int, sink_path: str) -> None:
+    """Drain *fd*'s pipe into its capture file, mirroring it while echo is on.
+
+    The file is opened on the first byte, not up front: most processes that
+    import isaacteleop never emit raw fd 1/2 output at all, and creating the
+    file eagerly left a pair of empty logs behind for every one of them.
+    """
+    sink_fd = -1
     try:
         with os.fdopen(read_fd, "rb", buffering=0) as pipe:
             while chunk := pipe.read(65536):
                 try:
+                    if sink_fd < 0:
+                        sink_fd = os.open(
+                            sink_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644
+                        )
                     _write_all(sink_fd, chunk)
                     saved = _saved.get(fd)
                     if _echo.get(fd) and saved is not None:
@@ -41,7 +51,8 @@ def _pump(fd: int, read_fd: int, sink_fd: int) -> None:
                 except OSError:
                     pass  # keep draining regardless: see the finally below
     finally:
-        os.close(sink_fd)
+        if sink_fd >= 0:
+            os.close(sink_fd)
         # Nothing else drains this pipe, so a writer would block for good once
         # it filled (64 KiB) -- the very failure cloudxr/service/_service.py
         # avoids by giving the runtime a file. Hand the fd back to the
@@ -100,10 +111,8 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     directory = log_dir()
     directory.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    sink_fd = os.open(
-        directory / f"{timestamp}.isaacteleop.{os.getpid()}.native-{label}.log",
-        os.O_WRONLY | os.O_CREAT | os.O_APPEND,
-        0o644,
+    sink_path = str(
+        directory / f"{timestamp}.isaacteleop.{os.getpid()}.native-{label}.log"
     )
     read_fd, write_fd = os.pipe()
     saved = os.fdopen(os.dup(fd), "w", buffering=1)
@@ -117,7 +126,7 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
         sys.stdout = saved
     pump = threading.Thread(
         target=_pump,
-        args=(fd, read_fd, sink_fd),
+        args=(fd, read_fd, sink_path),
         name=f"isaacteleop-native-{label}",
         daemon=True,
     )
