@@ -46,7 +46,9 @@ def __getattr__(name: str):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = [
+# PLE0604: _GENERATED_TRACKERS is _generated_tracker_exports.__all__, a list of str.
+# ruff cannot see across the module boundary to prove that.
+__all__ = [  # noqa: PLE0604
     "ControllerTracker",
     "MessageChannelStatus",
     "MessageChannelTracker",

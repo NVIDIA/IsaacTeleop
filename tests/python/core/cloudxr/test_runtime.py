@@ -168,7 +168,7 @@ class TestResolveCloudxrRuntimeModule:
             "isaacteleop.cloudxr.runtime._is_exp_available", lambda: False
         )
         with pytest.raises(
-            RuntimeError, match="cloudxr_exp|ENABLE_CLOUDXR_EXP"
+            RuntimeError, match=r"cloudxr_exp|ENABLE_CLOUDXR_EXP"
         ) as excinfo:
             resolve_cloudxr_runtime_module()
         # The message must blame the missing *artifact*: cloudxr_exp is authored
@@ -242,7 +242,7 @@ class TestResolveCloudxrRuntimeModule:
         monkeypatch.setattr(
             "isaacteleop.cloudxr.runtime._is_exp_available", lambda: False
         )
-        with pytest.raises(RuntimeError, match="cloudxr_exp|ENABLE_CLOUDXR_EXP"):
+        with pytest.raises(RuntimeError, match=r"cloudxr_exp|ENABLE_CLOUDXR_EXP"):
             resolve_cloudxr_runtime_module()
 
 
@@ -272,7 +272,7 @@ class TestGetSdkPath:
         self._select(monkeypatch, "isaacteleop.cloudxr")
         _patch_find_spec(monkeypatch, {"isaacteleop.cloudxr": roots})
 
-        with pytest.raises(RuntimeError, match="libcloudxr.so") as excinfo:
+        with pytest.raises(RuntimeError, match=r"libcloudxr\.so") as excinfo:
             get_sdk_path()
         for root in roots:
             assert root in str(excinfo.value)

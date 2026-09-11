@@ -116,7 +116,7 @@ class Se3Viz:
         server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
         self._frames = {}
         self._labels = {}
-        for i, cid in enumerate(collections):
+        for cid in collections:
             self._frames[cid] = server.scene.add_frame(
                 f"/trackers/{cid}", axes_length=0.15, axes_radius=0.006, visible=False
             )
@@ -138,7 +138,7 @@ class Se3Viz:
 
 def run_once(session, trackers, viz, rate_hz: float) -> tuple[int, dict]:
     frames = 0
-    samples = {cid: 0 for cid in trackers}
+    samples = dict.fromkeys(trackers, 0)
     none_streak = 0
     tick = 1.0 / rate_hz if rate_hz > 0 else 0.0
     # update() is void; per the replay contract tracker data goes null at

@@ -74,7 +74,7 @@ class TestSpawn:
         logs_dir = tmp_path / "logs"
 
         monkeypatch.setattr(background, "_MODULE", "this_module_does_not_exist")
-        pid, log = background.spawn([], run_dir, logs_dir)
+        _pid, log = background.spawn([], run_dir, logs_dir)
 
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline and not log.read_text():
