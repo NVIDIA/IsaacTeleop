@@ -4,9 +4,8 @@
 #pragma once
 
 #include <spdlog/details/log_msg.h>
+#include <spdlog/details/null_mutex.h>
 #include <spdlog/sinks/base_sink.h>
-
-#include <mutex>
 
 namespace isaacteleop
 {
@@ -21,7 +20,16 @@ namespace isaacteleop
 // after Py_Finalize() has already run -- a pybind11::object member would decref into a
 // torn-down interpreter there. Re-resolving logging.getLogger per record costs two dict
 // lookups on a path that already takes the GIL and builds two Python strings.
-class PythonBridgeSink : public spdlog::sinks::base_sink<std::mutex>
+//
+// null_mutex, not std::mutex, and that is a correctness requirement rather than an
+// optimization. base_sink<Mutex>::log() holds mutex_ across sink_it_(), so a std::mutex
+// here would be held while gil_scoped_acquire blocks -- and install_python_sink() gives
+// *every* logger in the process this one shared instance, so that mutex is global to all
+// C++ logging. A background C++ thread logging (holds the sink mutex, waits for the GIL)
+// against a Python thread calling a binding that logs (holds the GIL, waits for the sink
+// mutex) is then a deadlock. Nothing below needs the sink's own mutual exclusion anyway:
+// the GIL serializes the body, and Python's logging module is itself thread-safe.
+class PythonBridgeSink : public spdlog::sinks::base_sink<spdlog::details::null_mutex>
 {
 protected:
     void sink_it_(const spdlog::details::log_msg& msg) override;

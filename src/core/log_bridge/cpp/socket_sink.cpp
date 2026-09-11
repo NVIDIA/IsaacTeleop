@@ -14,6 +14,7 @@
 
 #ifndef _WIN32
 #    include <sys/socket.h>
+#    include <sys/time.h>
 #    include <sys/un.h>
 
 #    include <unistd.h>
@@ -25,6 +26,9 @@ namespace
 {
 
 #ifndef _WIN32
+// Matches the Python sender's socket timeout (logging_config/_forwarding.py).
+constexpr int kSendTimeoutSeconds = 1;
+
 int current_pid()
 {
     return static_cast<int>(::getpid());
@@ -105,6 +109,17 @@ bool SocketForwardSink::ensure_connected()
     {
         return false;
     }
+    // Bounds ::send() below. Without this it blocks indefinitely once the receiver's
+    // socket buffer fills (its drain thread wedged, or simply slower than a chatty
+    // producer) -- and base_sink holds this sink's mutex across sink_it_(), so every
+    // other thread logging in this process would pile up behind the stuck one. A record
+    // dropped on timeout is the documented best-effort contract; a hung tracking loop is
+    // not. (::connect() is not covered, but a Unix socket with no listener fails fast
+    // with ECONNREFUSED; only a full accept backlog can delay it, and transiently.)
+    timeval send_timeout{};
+    send_timeout.tv_sec = kSendTimeoutSeconds;
+    ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
+
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     std::strncpy(addr.sun_path, socket_path_.c_str(), sizeof(addr.sun_path) - 1);
