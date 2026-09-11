@@ -927,7 +927,16 @@ simple-log
         pass
 
     try:
-        with open(stdio_log_path, "w", encoding="utf-8") as stdio_file:
+        # O_NOFOLLOW, and owner-only: this is a predictable /tmp path, so another
+        # local user can pre-create it as a symlink and have coturn's output land
+        # wherever they point it. Refusing to follow one is enough to stop that.
+        # Truncating on open keeps the previous per-run behaviour.
+        stdio_fd = os.open(
+            stdio_log_path,
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+            0o600,
+        )
+        with os.fdopen(stdio_fd, "w", encoding="utf-8") as stdio_file:
             proc = subprocess.Popen(
                 [coturn_bin, "-c", conf_path],
                 stdout=stdio_file,
