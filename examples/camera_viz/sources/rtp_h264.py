@@ -24,7 +24,7 @@ from transports import RtpH264Receiver
 
 from ._nv_decode import NvH264Decoder
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.sources.rtp_h264")
 
 # How long to wait between failed receiver-start attempts (port busy,
 # missing GStreamer plugin, etc.).

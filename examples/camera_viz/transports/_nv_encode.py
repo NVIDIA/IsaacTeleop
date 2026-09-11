@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.transports._nv_encode")
 
 
 class NvH264Encoder:
