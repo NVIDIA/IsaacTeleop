@@ -631,8 +631,10 @@ async def run(
                     return hub.handle_connection(ws)
             return proxy_handler(ws, backend_host, backend_port)
 
+        # /client/ on this WSS port for --host-client and --usb-local (same
+        # files; USB-local reaches them via adb reverse of PROXY_PORT).
         _host_client_static_dir = None
-        if host_client:
+        if host_client or usb_local:
             from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
 
             _host_client_static_dir = require_web_client_static_dir()
@@ -659,54 +661,28 @@ async def run(
                 on_listening()
 
             # ------------------------------------------------------------------
-            # USB-local: separate HTTPS static client on 127.0.0.1:<usb_ui_port>
-            # (default 8080; override via ``USB_UI_PORT``) + adb reverse
-            # (WSS / backend / TURN) + coturn.
-            # --host-client: serves the web client at /client/ on the WSS proxy
-            # port; assets ensured by require_web_client_static_dir (called
-            # above and also from launcher).
+            # USB-local: adb reverse (WSS / backend / TURN) + coturn.
+            # Hosted client is /client/ on this proxy (above), not a second
+            # HTTPS server.
             # ------------------------------------------------------------------
             # The coturn handle lives in a 1-element list so the watchdog
             # (H7) can replace it after a mid-session restart while keeping
             # cleanup pointing at whatever's currently live.
             _usb_coturn_proc_box: list = [None]
             _usb_coturn_watch_task: asyncio.Task | None = None
-            _usb_https_thread = None
-            _usb_https_httpd = None
             _usb_turn_port_resolved: int | None = None
 
             oob_monitor_task: asyncio.Task | None = None
             wifi_monitor_task: asyncio.Task | None = None
             stream_watch_task: asyncio.Task | None = None
 
-            # USB-local setup is fail-fast: every step (HTTPS UI, adb reverse,
-            # coturn, adb reverse for TURN) is required for the headset to
-            # stream over loopback. A soft warn-and-continue would just delay
-            # the inevitable "screen stays black" failure by 30s. Any raise
-            # below propagates to the outer ``finally`` which tears down
-            # whatever we'd already started (cleanup helpers are None-safe).
+            # USB-local setup is fail-fast: every step (adb reverse, coturn,
+            # adb reverse for TURN) is required for the headset to stream over
+            # loopback. A soft warn-and-continue would just delay the inevitable
+            # "screen stays black" failure by 30s. Any raise below propagates
+            # to the outer ``finally`` which tears down whatever we'd already
+            # started (cleanup helpers are None-safe).
             try:
-                if usb_local:
-                    from .oob_teleop_env import (  # noqa: PLC0415
-                        require_web_client_static_dir as _req_static,
-                        start_usb_local_https_server,
-                        stop_usb_local_https_server,
-                        usb_ui_port,
-                    )
-
-                    _ui_port = usb_ui_port()
-                    oob_progress(
-                        "usb-local",
-                        f"HTTPS client on 127.0.0.1:{_ui_port} ...",
-                    )
-                    _usb_https_thread, _usb_https_httpd = start_usb_local_https_server(
-                        _req_static(),
-                        cert_file=cert_paths.cert_file,
-                        key_file=cert_paths.key_file,
-                        port=_ui_port,
-                        host="127.0.0.1",
-                    )
-
                 if usb_local:
                     from .oob_teleop_env import (  # noqa: PLC0415
                         USB_TURN_USER,
@@ -737,13 +713,12 @@ async def run(
                     # the device — the adb server holds them across our process
                     # life. ``--remove`` is a no-op if the rule doesn't exist,
                     # so this is safe to run unconditionally and only touches
-                    # the four ports we own.
+                    # the ports we own.
                     teardown_adb_reverse_ports()
                     teardown_adb_reverse_turn(_usb_turn_port_resolved)
 
-                    # 2. adb reverse for TCP ports (WebXR UI, WSS proxy, backend)
+                    # adb reverse for TCP ports (WSS proxy + /client/, backend)
                     _expected_tcp_ports = [
-                        usb_ui_port(),
                         wss_proxy_port(),
                         usb_backend_port(),
                     ]
@@ -918,8 +893,6 @@ async def run(
                         teardown_adb_reverse_turn(_usb_turn_port_resolved)
                     teardown_adb_reverse_ports()
                     log.info("USB-local: cleanup complete")
-                if usb_local:
-                    stop_usb_local_https_server(_usb_https_thread, _usb_https_httpd)
 
             log.info("Shutting down ...")
     except OSError as e:

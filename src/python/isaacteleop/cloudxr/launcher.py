@@ -45,6 +45,8 @@ _STARTED_SERVICE = """\
   It outlives this script.  Stop it with:
     \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m"""
 
+_STARTED_HOST_CLIENT_PREFIX = "  web client: "
+
 _ENV_CONFIG_IGNORED = """\
 \033[33m{path} is ignored: the CloudXR runtime already serving this host was \
 started with its own configuration.\033[0m
@@ -53,6 +55,12 @@ started with its own configuration.\033[0m
     \033[1;32mpython -m isaacteleop.cloudxr.service stop\033[0m
     \033[1;32mpython -m isaacteleop.cloudxr.service start --cloudxr-env-config \
 {path}\033[0m"""
+
+_HOST_CLIENT_IGNORED = """\
+\033[33m--{requested} is ignored: the CloudXR service already serving this \
+host was started {running}.\033[0m
+  Stop that service, then rerun this application with the same arguments:
+    \033[1;32m{stop}\033[0m"""
 
 # No colour: this one is raised, not printed, so it lands in logs and captured
 # output as often as on a terminal.
@@ -148,7 +156,8 @@ class CloudXRLauncher:
         accept_eula: bool = False,
         setup_oob: bool = False,
         usb_local: bool = False,
-        host_client: bool = False,
+        host_client: bool = True,
+        client_qr: bool = False,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> None:
@@ -166,7 +175,9 @@ class CloudXRLauncher:
         Every other argument is forwarded to :class:`CloudXRService` and only
         applies when this process owns it.  When attaching they describe a
         runtime that already exists, so a mismatch is reported rather than
-        applied.
+        applied.  ``host_client`` is recovered from the detached service's
+        command line when that is available.  ``client_qr`` only affects this
+        process's hosted-client URL print when starting a detached service.
 
         Raises:
             RuntimeError: If the runtime fails to start or come up, or if
@@ -193,7 +204,7 @@ class CloudXRLauncher:
             return
 
         if is_runtime_live(self._run_dir):
-            self._attach(device_profile, env_config)
+            self._attach(device_profile, env_config, host_client)
             return
 
         started = self._start_service(
@@ -204,21 +215,28 @@ class CloudXRLauncher:
             setup_oob,
             usb_local,
             host_client,
+            client_qr,
         )
-        # env_config=None once we started it: that service was given this
-        # configuration, so there is nothing it ignored to report -- and
-        # telling the caller to restart it would be advice to undo their own
-        # settings.  A runtime that beat us to it did not get the config, so
-        # that one is reported like any other attach.
-        self._attach(device_profile, None if started else env_config)
+        # Skip mismatch reports for settings this call just applied.  A
+        # runtime that beat us to it did not get them, so that one is reported
+        # like any other attach.
+        self._attach(
+            device_profile,
+            None if started else env_config,
+            None if started else host_client,
+        )
+        # After attach so wss_proxy_port() sees PROXY_PORT from cloudxr.env,
+        # not a stale caller environment.
+        if started and host_client:
+            self._announce_hosted_client(client_qr=client_qr)
 
     def _refuse_beside_live_runtime(self) -> None:
         """Reject ``run_embedded`` where a runtime is already serving.
 
         Attaching would answer a request to own with a runtime this process
-        cannot configure, and the WSS proxy options (``setup_oob``,
-        ``usb_local``, ``host_client``) never reach the env file, so the
-        mismatch could not even be reported.
+        cannot configure.  The WSS proxy options (``setup_oob``,
+        ``usb_local``, ``host_client``) belong to the service that started
+        the runtime; attaching can report a mismatch but cannot apply them.
 
         Raises:
             RuntimeError: If a runtime is already serving the run directory.
@@ -236,6 +254,7 @@ class CloudXRLauncher:
         setup_oob: bool,
         usb_local: bool,
         host_client: bool,
+        client_qr: bool = False,
     ) -> bool:
         """Start a detached service, then leave it running for the next caller.
 
@@ -258,6 +277,7 @@ class CloudXRLauncher:
             *(["--setup-oob"] if setup_oob else []),
             *(["--usb-local"] if usb_local else []),
             *(["--host-client"] if host_client else []),
+            *(["--client-qr"] if client_qr else []),
         ]
         # EnvConfig reads NV_DEVICE_PROFILE from the process environment, and
         # an env file still overrides it — so the profile needs no CLI flag.
@@ -277,11 +297,38 @@ class CloudXRLauncher:
         print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
         return True
 
-    def _attach(self, device_profile: str, env_config: str | Path | None) -> None:
+    def _announce_hosted_client(self, *, client_qr: bool = False) -> None:
+        """Print the hosted ``/client/`` URL using the attached service env.
+
+        Call only after :meth:`_attach` so :func:`wss_proxy_port` reads
+        ``PROXY_PORT`` from the service's ``cloudxr.env``.
+        """
+        from .oob_teleop_env import (  # noqa: PLC0415
+            TELEOP_CLIENT_QR_ENV,
+            guess_lan_ipv4,
+            print_hosted_client_line,
+            wss_proxy_port,
+        )
+
+        if client_qr:
+            os.environ[TELEOP_CLIENT_QR_ENV] = "1"
+        url = f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
+        print_hosted_client_line(
+            url, prefix=_STARTED_HOST_CLIENT_PREFIX, file=sys.stderr
+        )
+
+    def _attach(
+        self,
+        device_profile: str,
+        env_config: str | Path | None,
+        host_client: bool | None = None,
+    ) -> None:
         """Adopt the running runtime's environment and report any mismatch.
 
         The env file is applied, never re-resolved: resolving it would rewrite
-        the file out from under the service that owns it.
+        the file out from under the service that owns it.  ``host_client`` is
+        ``None`` when this call just started the service, so there is nothing
+        to compare.
         """
         env = read_exported_env(self.env_file)
         if not env:
@@ -306,6 +353,46 @@ class CloudXRLauncher:
             )
         if env_config is not None:
             self._warn_env_config_ignored(env_config, env)
+        if host_client is not None:
+            self._warn_host_client_mismatch(host_client)
+
+    def _warn_host_client_mismatch(self, host_client: bool) -> None:
+        """Report when the running service's hosted-client mode differs.
+
+        Recovered from the detached service command line.  ``--host-client``
+        and ``--usb-local`` both serve ``/client/`` on the WSS port, so either
+        counts as hosted.  Foreground services leave no pid file, so their
+        flags cannot be recovered here and the comparison stays quiet rather
+        than guessing.
+        """
+        if background.read_pid(self._run_dir) is None:
+            return
+        flags = background.read_run_flags(self._run_dir)
+        running = "--host-client" in flags or "--usb-local" in flags
+        if running == host_client:
+            return
+        if running:
+            running_desc = (
+                "with --usb-local" if "--usb-local" in flags else "with --host-client"
+            )
+        else:
+            running_desc = "without a hosted /client/"
+        print(
+            _HOST_CLIENT_IGNORED.format(
+                requested="host-client" if host_client else "no-host-client",
+                running=running_desc,
+                stop=self._service_stop_invocation(),
+            ).rstrip(),
+            file=sys.stderr,
+        )
+
+    def _service_stop_invocation(self) -> str:
+        """CLI that stops the service attached to this launcher's install dir."""
+        cmd = "python -m isaacteleop.cloudxr.service stop"
+        default_run = os.path.join(os.path.expanduser("~/.cloudxr"), "run")
+        if os.path.abspath(self._run_dir) == os.path.abspath(default_run):
+            return cmd
+        return f"{cmd} --cloudxr-install-dir {os.path.dirname(self._run_dir)}"
 
     @staticmethod
     def _warn_env_config_ignored(
@@ -519,6 +606,36 @@ class CloudXRLauncher:
         )
 
     @staticmethod
+    def add_host_client_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--host-client`` / ``--no-host-client`` on ``parser``."""
+        parser.add_argument(
+            "--host-client",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help=(
+                "Serve the web client at /client/ on the WSS proxy port "
+                "(default 48322) when this starts a CloudXR service. "
+                "Attaching to an existing service leaves its hosting unchanged. "
+                "Fetched once from the matching versioned release into "
+                "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client."
+            ),
+        )
+
+    @staticmethod
+    def add_client_qr_argument(parser: argparse.ArgumentParser) -> None:
+        """Register ``--client-qr`` on ``parser``."""
+        parser.add_argument(
+            "--client-qr",
+            action="store_true",
+            default=False,
+            help=(
+                "Print an ASCII QR of the hosted web-client URL under the "
+                "web client line when this starts a CloudXR service "
+                "(sets TELEOP_CLIENT_QR=1). Opt-in."
+            ),
+        )
+
+    @staticmethod
     def add_launch_wss_proxy_argument(parser: argparse.ArgumentParser) -> None:
         """Register the deprecated no-op ``--launch-wss-proxy`` on ``parser``.
 
@@ -542,6 +659,8 @@ class CloudXRLauncher:
         CloudXRLauncher.add_cloudxr_device_profile_argument(parser)
         CloudXRLauncher.add_cloudxr_env_config_argument(parser)
         CloudXRLauncher.add_accept_eula_argument(parser)
+        CloudXRLauncher.add_host_client_argument(parser)
+        CloudXRLauncher.add_client_qr_argument(parser)
         CloudXRLauncher.add_launch_cloudxr_runtime_argument(parser)
         CloudXRLauncher.add_launch_wss_proxy_argument(parser)
 
@@ -590,6 +709,26 @@ class CloudXRLauncher:
         return bool(getattr(args, "accept_eula", False))
 
     @staticmethod
+    def _resolve_host_client(
+        args: argparse.Namespace,
+        host_client: bool | None = None,
+    ) -> bool:
+        """Return ``host_client`` or ``args.host_client`` when registered."""
+        if host_client is not None:
+            return host_client
+        return bool(getattr(args, "host_client", True))
+
+    @staticmethod
+    def _resolve_client_qr(
+        args: argparse.Namespace,
+        client_qr: bool | None = None,
+    ) -> bool:
+        """Return ``client_qr`` or ``args.client_qr`` when registered."""
+        if client_qr is not None:
+            return client_qr
+        return bool(getattr(args, "client_qr", False))
+
+    @staticmethod
     def launch_context(
         args: argparse.Namespace,
         *,
@@ -599,7 +738,8 @@ class CloudXRLauncher:
         accept_eula: bool | None = None,
         setup_oob: bool = False,
         usb_local: bool = False,
-        host_client: bool = False,
+        host_client: bool | None = None,
+        client_qr: bool | None = None,
         run_embedded: bool = False,
         start_wss_proxy: bool | None = None,
     ) -> CloudXRLauncher | NoopContext:
@@ -608,11 +748,10 @@ class CloudXRLauncher:
         Returns :class:`NoopContext` when ``args.launch_cloudxr_runtime`` is
         false so callers can always ``with CloudXRLauncher.launch_context(args):``.
 
-        ``install_dir``, ``env_config``, ``device_profile``, and ``accept_eula``
-        default to the values registered by :meth:`add_launcher_arguments`
-        (``args.cloudxr_install_dir`` etc.); pass an explicit keyword only to
-        override what came in on the command line. For ``accept_eula``, pass
-        ``False`` to force-disable even when the CLI flag is set.
+        ``install_dir``, ``env_config``, ``device_profile``, ``accept_eula``,
+        ``host_client``, and ``client_qr`` default to the values registered by
+        :meth:`add_launcher_arguments` (``args.cloudxr_install_dir`` etc.); pass an
+        explicit keyword only to override what came in on the command line.
         ``run_embedded`` is forwarded to :class:`CloudXRLauncher`.
         ``start_wss_proxy`` is a deprecated no-op removed in 1.7.
         """
@@ -631,6 +770,8 @@ class CloudXRLauncher:
                 ignored.append("usb_local")
             if host_client:
                 ignored.append("host_client")
+            if client_qr:
+                ignored.append("client_qr")
             if ignored:
                 logger.warning(
                     "--no-launch-cloudxr-runtime: ignoring CloudXR launcher "
@@ -647,7 +788,8 @@ class CloudXRLauncher:
             accept_eula=CloudXRLauncher._resolve_accept_eula(args, accept_eula),
             setup_oob=setup_oob,
             usb_local=usb_local,
-            host_client=host_client,
+            host_client=CloudXRLauncher._resolve_host_client(args, host_client),
+            client_qr=CloudXRLauncher._resolve_client_qr(args, client_qr),
             run_embedded=run_embedded,
         )
 

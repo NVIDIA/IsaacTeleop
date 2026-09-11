@@ -21,6 +21,9 @@ namespace viz
 namespace
 {
 
+// Per creating thread; set by VizSession.create while wait_for_system runs.
+thread_local void (*g_wait_poll_hook)() = nullptr;
+
 void check_xr(XrResult r, const char* what)
 {
     if (XR_FAILED(r))
@@ -30,6 +33,13 @@ void check_xr(XrResult r, const char* what)
 }
 
 } // namespace
+
+void (*OpenXrSession::set_wait_poll_hook(void (*fn)()))()
+{
+    void (*prev)() = g_wait_poll_hook;
+    g_wait_poll_hook = fn;
+    return prev;
+}
 
 OpenXrSession::OpenXrSession(const std::string& app_name,
                              const std::vector<std::string>& extra_extensions,
@@ -207,6 +217,10 @@ void OpenXrSession::wait_for_system(int system_wait_seconds)
             std::fflush(stderr);
             announced = true;
             last_log = now;
+        }
+        if (g_wait_poll_hook != nullptr)
+        {
+            g_wait_poll_hook();
         }
         std::this_thread::sleep_for(kPollInterval);
     }

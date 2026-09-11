@@ -65,7 +65,8 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         help=(
             "Route teleop traffic over the USB cable on headset loopback "
             "(127.0.0.1) via adb reverse.  Requires --setup-oob.  Requires "
-            "`coturn` and `adb` on PATH.  Implies --host-client."
+            "`coturn` and `adb` on PATH.  Serves /client/ on the WSS proxy "
+            "port (same path as --host-client; does not set that flag)."
         ),
     )
     parser.add_argument(
@@ -76,6 +77,16 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
             "Serve the web client at /client/ on the WSS proxy port (default 48322), "
             "fetched once from the matching versioned release into "
             "TELEOP_WEB_CLIENT_STATIC_DIR or ~/.cloudxr/static-client."
+        ),
+    )
+    parser.add_argument(
+        "--client-qr",
+        action="store_true",
+        default=False,
+        help=(
+            "Print an ASCII QR of the hosted web-client URL under the "
+            "web client line on a TTY (sets TELEOP_CLIENT_QR=1). Opt-in: "
+            "some headsets cannot open a URL from a camera QR scan."
         ),
     )
 
@@ -92,7 +103,7 @@ def _run_flags(args: argparse.Namespace) -> list[str]:
         flags += ["--cloudxr-install-dir", args.cloudxr_install_dir]
     if args.cloudxr_env_config:
         flags += ["--cloudxr-env-config", args.cloudxr_env_config]
-    for name in ("setup_oob", "usb_local", "host_client"):
+    for name in ("setup_oob", "usb_local", "host_client", "client_qr"):
         if getattr(args, name):
             flags.append("--" + name.replace("_", "-"))
     return flags
@@ -136,7 +147,7 @@ def _oob_preflight(args: argparse.Namespace) -> str | None:
     ``--host-client``               client served at ``https://<lan>:<port>/client/``
     ``--setup-oob``                 OOB hub + CDP automation; GitHub Pages URL
     ``--setup-oob --host-client``   OOB hub + CDP; client on the WSS proxy
-    ``--setup-oob --usb-local``     OOB hub + CDP; adb-reverse + coturn + loopback HTTPS
+    ``--setup-oob --usb-local``     OOB hub + CDP; adb-reverse + coturn; /client/ on WSS
     ==============================  ==================================================
     """
     from ..oob_teleop_adb import (  # noqa: PLC0415
@@ -250,8 +261,8 @@ def _print_service_summary(
     from ..oob_teleop_env import (  # noqa: PLC0415
         USB_HOST,
         guess_lan_ipv4,
+        print_hosted_client_line,
         print_oob_hub_startup_banner,
-        usb_ui_port,
         versioned_web_client_url,
         wss_proxy_port,
     )
@@ -277,7 +288,8 @@ def _print_service_summary(
     )
 
     if args.usb_local:
-        hosted_client_url = f"https://127.0.0.1:{usb_ui_port()}/"
+        # Bookmark uses localhost; summary uses 127.0.0.1 (same listener).
+        hosted_client_url = f"https://127.0.0.1:{wss_proxy_port()}/client/"
     elif args.host_client:
         hosted_client_url = (
             f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
@@ -302,11 +314,7 @@ def _print_service_summary(
                 lan_host=oob_lan_host, web_client_base=hosted_client_url
             )
     elif hosted_client_url is not None:
-        label = "USB-local" if args.usb_local else "hosted locally"
-        _out(
-            f"web client:        \033[36m{hosted_client_url}\033[0m  "
-            f"\033[90m({label} — open on your headset or browser)\033[0m"
-        )
+        print_hosted_client_line(hosted_client_url)
     else:
         _out(
             f"web client:        \033[36m{versioned_web_client_url(isaacteleop_version)}\033[0m"
@@ -318,8 +326,17 @@ def _print_service_summary(
     )
 
 
+def _apply_client_qr_env(args: argparse.Namespace) -> None:
+    """Honor ``--client-qr`` by setting :envvar:`TELEOP_CLIENT_QR` for this process."""
+    if getattr(args, "client_qr", False):
+        from ..oob_teleop_env import TELEOP_CLIENT_QR_ENV  # noqa: PLC0415
+
+        os.environ[TELEOP_CLIENT_QR_ENV] = "1"
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     """Run the service in the foreground until interrupted."""
+    _apply_client_qr_env(args)
     if args.usb_local and not args.setup_oob:
         _fail("--usb-local requires --setup-oob.")
     if args.usb_local and os.getenv("TELEOP_OOB_HUB_ONLY"):
@@ -417,6 +434,7 @@ def _cmd_start(args: argparse.Namespace) -> int:
     from .. import background  # noqa: PLC0415
     from ..runtime import is_runtime_live  # noqa: PLC0415
 
+    _apply_client_qr_env(args)
     run_dir, logs_dir = _resolve_dirs(args)
 
     if is_runtime_live(run_dir):
@@ -484,6 +502,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
     except SystemExit:
         running = _build_parser().parse_args(["run"])
     running.cloudxr_install_dir = args.cloudxr_install_dir
+    _apply_client_qr_env(running)
     _print_summary_for(running, run_dir, logs_dir)
 
     if pid is not None:

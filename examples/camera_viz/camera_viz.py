@@ -306,7 +306,11 @@ def _build_rtp_entries(cfg: dict, is_xr: bool) -> List[SourceEntry]:
     return entries
 
 
-def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSession:
+def _make_session(
+    cfg: dict,
+    mode_override: Optional[str] = None,
+    system_wait_override: Optional[int] = None,
+) -> viz.VizSession:
     display = cfg.get("display", {})
     # --mode overrides display.mode when given.
     mode_str = (mode_override or display.get("mode", "xr")).lower()
@@ -321,6 +325,17 @@ def _make_session(cfg: dict, mode_override: Optional[str] = None) -> viz.VizSess
         x = display.get("xr", {})
         session_cfg.xr_near_z = float(x.get("near_z", 0.05))
         session_cfg.xr_far_z = float(x.get("far_z", 100.0))
+        # --xr-wait overrides YAML; else 180 (library is 0).
+        if system_wait_override is not None:
+            wait_s = int(system_wait_override)
+        else:
+            wait_s = int(x.get("system_wait_seconds", 180))
+        session_cfg.xr_system_wait_seconds = wait_s
+        if wait_s > 0:
+            print(
+                f"camera_viz: waiting up to {wait_s}s for headset CONNECT...",
+                flush=True,
+            )
     else:
         raise ValueError(
             f"camera_viz: display.mode must be window|xr, got {mode_str!r}"
@@ -391,6 +406,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Override display.mode from the config "
         "(default: the config's value, or xr when the config omits it).",
     )
+    parser.add_argument(
+        "--xr-wait",
+        type=int,
+        default=None,
+        metavar="SEC",
+        help="Override display.xr.system_wait_seconds "
+        "(default: the config's value, or 180 when omitted).",
+    )
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv)
 
@@ -442,7 +465,27 @@ def main(argv: Optional[list[str]] = None) -> int:
     launcher = launch_ctx.__enter__()
     stop_launcher = True
     try:
-        session = _make_session(cfg, mode_override=args.mode)
+        interrupt_signum = None
+
+        def _interrupt(signum, frame):
+            nonlocal interrupt_signum
+            interrupt_signum = signum
+            raise KeyboardInterrupt
+
+        # Before create(): native HMD wait only sees Ctrl-C if a Python handler is pending.
+        signal.signal(signal.SIGINT, _interrupt)
+        signal.signal(signal.SIGTERM, _interrupt)
+
+        try:
+            session = _make_session(
+                cfg,
+                mode_override=args.mode,
+                system_wait_override=args.xr_wait,
+            )
+        except KeyboardInterrupt:
+            n = signal.SIGINT if interrupt_signum is None else interrupt_signum
+            print(f"camera_viz: stopping (signal {n})...", flush=True)
+            return 0
         is_xr = session.is_xr_mode()
 
         if source_mode == "local":

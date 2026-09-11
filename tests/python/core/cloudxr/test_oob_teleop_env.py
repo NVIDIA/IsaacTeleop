@@ -12,25 +12,28 @@ import pytest
 
 from cloudxr_py_test_ns.oob_teleop_env import (
     FALLBACK_WEB_CLIENT_ORIGIN,
+    TELEOP_CLIENT_QR_ENV,
     TELEOP_WEB_CLIENT_BASE_ENV,
     TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
     USB_BACKEND_DEFAULT_PORT,
     USB_TURN_DEFAULT_PORT,
-    USB_UI_DEFAULT_PORT,
     WEB_CLIENT_BASE,
     WSS_PROXY_DEFAULT_PORT,
     build_headset_bookmark_url,
+    client_qr_enabled,
     client_ui_fields_from_env,
     default_initial_stream_config,
     default_web_client_origin,
     guess_lan_ipv4,
+    is_loopback_client_url,
     versioned_web_client_url,
+    print_hosted_client_line,
     print_oob_hub_startup_banner,
+    render_qr_ascii,
     require_web_client_static_dir,
     resolve_lan_host_for_oob,
     usb_backend_port,
     usb_turn_port,
-    usb_ui_port,
     web_client_base_override_from_env,
     wss_proxy_port,
 )
@@ -42,7 +45,6 @@ def clear_teleop_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove all teleop environment variables so tests start from a clean slate."""
     keys = (
         "PROXY_PORT",
-        "USB_UI_PORT",
         "USB_BACKEND_PORT",
         "USB_TURN_PORT",
         "TELEOP_STREAM_SERVER_IP",
@@ -53,6 +55,7 @@ def clear_teleop_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "TELEOP_WEB_CLIENT_BASE",
         "TELEOP_PROXY_HOST",
         "CONTROL_TOKEN",
+        TELEOP_CLIENT_QR_ENV,
         TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
     )
     for k in keys:
@@ -70,28 +73,6 @@ def test_wss_proxy_port_from_env(
     """PROXY_PORT env var overrides the default WSS proxy port."""
     monkeypatch.setenv("PROXY_PORT", "50000")
     assert wss_proxy_port() == 50000
-
-
-def test_usb_ui_port_default(clear_teleop_env: None) -> None:
-    """USB UI port returns the compile-time default when USB_UI_PORT is unset."""
-    assert usb_ui_port() == USB_UI_DEFAULT_PORT
-
-
-def test_usb_ui_port_from_env(
-    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """USB_UI_PORT env var overrides the default USB UI port."""
-    monkeypatch.setenv("USB_UI_PORT", "8081")
-    assert usb_ui_port() == 8081
-
-
-def test_usb_ui_port_invalid_env_raises(
-    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Non-integer USB_UI_PORT raises ValueError mentioning the variable name."""
-    monkeypatch.setenv("USB_UI_PORT", "not-a-port")
-    with pytest.raises(ValueError, match="USB_UI_PORT"):
-        usb_ui_port()
 
 
 def test_usb_backend_port_default(clear_teleop_env: None) -> None:
@@ -593,3 +574,100 @@ def test_print_host_preflight_warnings_busy_port_usb_local_raises(capsys) -> Non
         pytest.raises(RuntimeError, match="USB-local: required port"),
     ):
         print_host_preflight_warnings(usb_local=True)
+
+
+def test_client_qr_enabled_default_off(clear_teleop_env: None) -> None:
+    """QR printing is opt-in; unset TELEOP_CLIENT_QR means disabled."""
+    assert client_qr_enabled() is False
+
+
+def test_client_qr_enabled_truthy(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TELEOP_CLIENT_QR accepts common truthy spellings."""
+    for value in ("1", "true", "YES", "on"):
+        monkeypatch.setenv(TELEOP_CLIENT_QR_ENV, value)
+        assert client_qr_enabled() is True
+
+
+def test_print_hosted_client_line_skips_qr_when_not_opted_in(
+    clear_teleop_env: None,
+) -> None:
+    """Without TELEOP_CLIENT_QR, only the URL line is printed even on a TTY."""
+    from io import StringIO
+
+    class _Tty(StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    buf = _Tty()
+    url = "https://10.0.0.5:48322/client/"
+    assert print_hosted_client_line(url, file=buf) is False
+    assert url in buf.getvalue()
+    assert "web client:" in buf.getvalue()
+
+
+def test_is_loopback_client_url() -> None:
+    """Loopback hosts are detected; LAN IPs are not."""
+    assert is_loopback_client_url("https://127.0.0.1:48322/client/")
+    assert is_loopback_client_url("https://localhost:48322/client/")
+    assert not is_loopback_client_url("https://10.0.0.5:48322/client/")
+
+
+def test_render_qr_ascii_encodes_url() -> None:
+    """ASCII QR from qrcode is multi-line and non-empty."""
+    art = render_qr_ascii("https://10.0.0.5:48322/client/")
+    assert "\n" in art
+    assert len(art) > 40
+
+
+def test_print_hosted_client_line_skips_qr_for_loopback(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """USB-local loopback URLs print the line but no QR."""
+    from io import StringIO
+
+    class _Tty(StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setenv(TELEOP_CLIENT_QR_ENV, "1")
+    buf = _Tty()
+    url = "https://127.0.0.1:48322/client/"
+    assert print_hosted_client_line(url, file=buf) is False
+    assert url in buf.getvalue()
+    assert "\n" not in buf.getvalue().rstrip("\n")
+
+
+def test_print_hosted_client_line_skips_qr_on_non_tty(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-TTY streams get the URL only (no QR dump into service.log)."""
+    from io import StringIO
+
+    monkeypatch.setenv(TELEOP_CLIENT_QR_ENV, "1")
+    plain = StringIO()
+    url = "https://10.0.0.5:48322/client/"
+    assert print_hosted_client_line(url, file=plain) is False
+    assert url in plain.getvalue()
+    assert plain.getvalue().count("\n") == 1
+
+
+def test_print_hosted_client_line_qr_under_url(
+    clear_teleop_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Opted-in TTY: URL on the first line, ASCII QR below with a blank line."""
+    from io import StringIO
+
+    class _Tty(StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setenv(TELEOP_CLIENT_QR_ENV, "1")
+    buf = _Tty()
+    url = "https://10.0.0.5:48322/client/"
+    assert print_hosted_client_line(url, file=buf) is True
+    lines = buf.getvalue().splitlines()
+    assert url in lines[0]
+    assert lines[1] == ""
+    assert len(lines) > 2
