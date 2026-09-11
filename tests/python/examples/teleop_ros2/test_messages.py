@@ -222,7 +222,7 @@ def test_build_ee_output_from_controllers_preserves_manus_calibration() -> None:
         "world",
         "left_wrist",
         "right_wrist",
-        apply_manus_controller_to_hand_transform=True,
+        apply_manus_controller_mount_offset=True,
     )
 
     expected_position = [4.0103315472, 5.055536544, 5.9433523928]

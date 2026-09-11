@@ -60,7 +60,7 @@ class TeleopProfileSpec:
     mode: TeleopMode
     required_result_keys: frozenset[str]
     publish_types: frozenset[PublishType]
-    apply_manus_controller_to_hand_transform: bool = False
+    apply_manus_controller_mount_offset: bool = False
 
 
 _CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE_SPEC = TeleopProfileSpec(
@@ -118,7 +118,7 @@ TELEOP_PROFILE_SPECS = {
     ),
     TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_MANUS_EE: replace(
         _CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE_SPEC,
-        apply_manus_controller_to_hand_transform=True,
+        apply_manus_controller_mount_offset=True,
     ),
     TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE: TeleopProfileSpec(
         mode=TeleopMode.CONTROLLER_TELEOP,

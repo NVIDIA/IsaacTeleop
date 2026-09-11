@@ -92,7 +92,7 @@ def test_controller_profile_spec_is_resolved_for_selected_retargeter() -> None:
     assert PublishType.EE_FROM_HANDS not in wuji_spec.publish_types
     assert PublishType.EE_FROM_CONTROLLERS in manus_spec.publish_types
     assert PublishType.EE_FROM_HANDS not in manus_spec.publish_types
-    assert manus_spec.apply_manus_controller_to_hand_transform
+    assert manus_spec.apply_manus_controller_mount_offset
     assert (
         manus_spec
         is TELEOP_PROFILE_SPECS[TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_MANUS_EE]
@@ -160,7 +160,7 @@ def test_controller_manus_provider_uses_known_good_transform_for_every_retargete
         profile_spec
         is TELEOP_PROFILE_SPECS[TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_MANUS_EE]
     )
-    assert profile_spec.apply_manus_controller_to_hand_transform
+    assert profile_spec.apply_manus_controller_mount_offset
 
 
 @pytest.mark.parametrize("profile", list(TeleopProfile))
@@ -216,7 +216,7 @@ def test_hand_teleop_always_uses_hand_wrist(
     )
 
     assert profile_spec is TELEOP_PROFILE_SPECS[TeleopProfile.HAND_TELEOP]
-    assert not profile_spec.apply_manus_controller_to_hand_transform
+    assert not profile_spec.apply_manus_controller_mount_offset
 
 
 def test_managed_plugin_config_is_inferred_from_provider(tmp_path) -> None:

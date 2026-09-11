@@ -91,9 +91,9 @@ class TeleopRos2Node(Node):
             self._params.resolved_hand_retargeter,
             self._params.hand_tracking_provider,
         )
-        if self._profile_spec.apply_manus_controller_to_hand_transform:
+        if self._profile_spec.apply_manus_controller_mount_offset:
             self.get_logger().info(
-                "Applying MANUS controller-to-hand transform after pose transform."
+                "Applying MANUS controller mount offset after pose transform."
             )
         self._tf_broadcaster = TransformBroadcaster(self)
         self._create_publishers()
@@ -131,7 +131,7 @@ class TeleopRos2Node(Node):
             self._params.right_wrist_frame,
             self._params.transform_rotation,
             self._params.transform_translation,
-            self._profile_spec.apply_manus_controller_to_hand_transform,
+            self._profile_spec.apply_manus_controller_mount_offset,
         )
         self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:
