@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: spacemouse
+description: "Raw 3Dconnexion SpaceMouse axis/button state via Linux hidraw device"
+command: "./spacemouse_plugin"
+version: "1.0.0"
+devices:
+  - path: "/spacemouse"
+    type: "spacemouse"
+    description: "SpaceMouse axis/button state from /dev/hidraw*"
