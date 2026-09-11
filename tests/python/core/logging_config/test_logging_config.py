@@ -116,9 +116,9 @@ def test_console_handler_end_to_end_level_filtering():
     assert "should appear" in stream.getvalue()
 
 
-def test_log_dir_defaults_to_dot_isaacteleop(monkeypatch):
+def test_log_dir_defaults_to_tmp(monkeypatch):
     monkeypatch.delenv("ISAACTELEOP_LOG_DIR", raising=False)
-    assert logging_config.log_dir() == Path("~/.isaacteleop/logs").expanduser()
+    assert logging_config.log_dir() == Path("/tmp/isaacteleop/logs")
 
 
 def test_log_dir_honors_env_override(monkeypatch, tmp_path):
