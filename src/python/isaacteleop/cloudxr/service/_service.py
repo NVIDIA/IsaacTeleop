@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
+from ...logging_config import log_dir
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -50,8 +51,8 @@ drop the live session.
     python -m isaacteleop.cloudxr.service stop
   (Ctrl+C in its terminal if it is running in the foreground.)"""
 
-#: Runtime worker stderr, kept apart from runtime_stderr.log so the worker and
-#: :func:`~.runtime.run` never append to one file from two processes.
+#: Runtime worker stderr, kept apart from the runtime process's own -- see
+#: _gather_diagnostic_logs, which reads both.
 _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
 
 
@@ -434,10 +435,17 @@ class CloudXRService:
         """Return log files useful for diagnosing a startup failure."""
         result: list[Path] = []
 
-        for name in (_WORKER_STDERR_LOG, "runtime_stderr.log"):
-            log = logs_dir / name
-            if log.is_file():
-                result.append(log)
+        worker_stderr = logs_dir / _WORKER_STDERR_LOG
+        if worker_stderr.is_file():
+            result.append(worker_stderr)
+
+        # The runtime process's own fd 1/2 (its Vulkan-loader/GPU-init
+        # diagnostics) land in isaacteleop.logging_config's native-fd capture
+        # files, not under `logs_dir` (CloudXR's own ~/.cloudxr/logs). Most
+        # recent first.
+        native_stderr_logs = sorted(log_dir().glob("*.isaacteleop.*.native-stderr.log"))
+        if native_stderr_logs:
+            result.append(native_stderr_logs[-1])
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:

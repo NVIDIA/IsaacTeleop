@@ -394,27 +394,17 @@ def run() -> None:
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
 
-    # When file-logging is active the native library writes detailed logs to
-    # NV_CXR_OUTPUT_DIR.  Suppress the console banner on stdout but redirect
-    # stderr to a file so that Vulkan-loader diagnostics, GPU-init errors,
-    # and Python tracebacks are preserved for post-mortem analysis.
-    _file_logging = os.environ.get("NV_CXR_FILE_LOGGING", "yes")
-    if _file_logging and _file_logging.lower() not in (
-        "false",
-        "off",
-        "no",
-        "n",
-        "f",
-        "0",
-    ):
-        logs_dir = cfg.ensure_logs_dir()
-        stderr_log = os.path.join(str(logs_dir), "runtime_stderr.log")
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        stderr_fd = os.open(stderr_log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-        os.dup2(devnull_fd, sys.stdout.fileno())
-        os.dup2(stderr_fd, sys.stderr.fileno())
-        os.close(devnull_fd)
-        os.close(stderr_fd)
+    # fd 1/fd 2 (the native library's console banner and its Vulkan-loader /
+    # GPU-init diagnostics) are already captured by isaacteleop.logging_config's
+    # _gate_native_fds by the time this runs -- importing this module already
+    # imports the isaacteleop package, which sets that up at import time. This
+    # used to duplicate that here with its own dup2() calls (discarding fd 1
+    # outright, redirecting fd 2 to a separate runtime_stderr.log that never
+    # mirrored to the terminal), which raced with and then silently undid the
+    # unified capture: its pipe's write end lost its last reference the moment
+    # this code repointed fd 2, so the drain thread saw EOF and handed fd 2
+    # back to the real terminal shortly after -- undoing this block's own
+    # redirect. See logging_system's design doc, "known exceptions".
 
     lib = _load_libcloudxr(sdk_path)
     svc = ctypes.c_void_p()
