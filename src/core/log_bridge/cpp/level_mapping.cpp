@@ -6,9 +6,9 @@
 namespace isaacteleop::detail
 {
 
-// critical never fires from C++ (unused, kept out of the level set for parity with
-// the Python side) but is mapped for completeness in case spdlog::critical is ever
-// called directly.
+// critical never fires from C++ today (it is kept out of the level set for parity
+// with the Python side) but is mapped for the case where spdlog::critical is called
+// directly -- onto logging.CRITICAL, which is 50, not ERROR's 40.
 int to_python_level(spdlog::level::level_enum level)
 {
     switch (level)
@@ -24,7 +24,7 @@ int to_python_level(spdlog::level::level_enum level)
     case spdlog::level::err:
         return 40;
     case spdlog::level::critical:
-        return 40;
+        return 50;
     default:
         return 20;
     }

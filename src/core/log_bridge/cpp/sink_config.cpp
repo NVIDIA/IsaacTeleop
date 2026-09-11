@@ -8,6 +8,8 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
@@ -63,10 +65,44 @@ std::filesystem::path log_dir()
     return "/tmp/isaacteleop/logs";
 }
 
+// Mirrors isaacteleop.logging_config's _LEVEL_NAMES, which lowercases before
+// looking up and falls back to info. spdlog::level::from_str() is deliberately
+// not used here: it answers level::off for anything it does not recognise, so
+// the "DEBUG" a user naturally writes -- or any typo -- would silently mute the
+// console of every standalone plugin instead of falling back to the default.
 spdlog::level::level_enum console_level()
 {
     const char* level_str = std::getenv("ISAACTELEOP_LOG_LEVEL");
-    return level_str != nullptr ? spdlog::level::from_str(level_str) : spdlog::level::info;
+    if (level_str == nullptr)
+    {
+        return spdlog::level::info;
+    }
+
+    std::string name(level_str);
+    std::transform(
+        name.begin(), name.end(), name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    if (name == "trace")
+    {
+        return spdlog::level::trace;
+    }
+    if (name == "debug")
+    {
+        return spdlog::level::debug;
+    }
+    if (name == "info")
+    {
+        return spdlog::level::info;
+    }
+    if (name == "warning" || name == "warn")
+    {
+        return spdlog::level::warn;
+    }
+    if (name == "error" || name == "err")
+    {
+        return spdlog::level::err;
+    }
+    return spdlog::level::info;
 }
 
 } // namespace
