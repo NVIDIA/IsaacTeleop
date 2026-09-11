@@ -130,13 +130,17 @@ def set_console_level(level: int | str) -> None:
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
     """Set the console handler's keyword filter, or clear it if *pattern* is ``None``."""
     handler = ensure_handler()
+    # Built before anything is torn down. KeywordFilter validates *target* and
+    # compiles *pattern*, either of which can raise; clearing the active filter
+    # first would leave the console unfiltered on a rejected argument.
+    replacement = KeywordFilter(pattern, target=target) if pattern is not None else None
+
     global _active_filter
     if _active_filter is not None:
         handler.removeFilter(_active_filter)
-        _active_filter = None
-    if pattern is not None:
-        _active_filter = KeywordFilter(pattern, target=target)
-        handler.addFilter(_active_filter)
+    _active_filter = replacement
+    if replacement is not None:
+        handler.addFilter(replacement)
 
 
 def set_logger_colors(colors: dict[str, str | None]) -> None:
