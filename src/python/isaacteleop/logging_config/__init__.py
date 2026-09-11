@@ -21,6 +21,7 @@ from ._core import (
     DATE_FORMAT,
     LINE_FORMAT,
     ROOT_LOGGER_NAME,
+    TRACE,
     get_logger,
     log_dir,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "DATE_FORMAT",
     "LINE_FORMAT",
     "ROOT_LOGGER_NAME",
+    "TRACE",
     "get_logger",
     "install",
     "log_dir",

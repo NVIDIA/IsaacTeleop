@@ -16,7 +16,17 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 _DEFAULT_LOG_DIR = Path("/tmp/isaacteleop/logs")
 
+# Below DEBUG (10). Default level for loggers wrapping third-party/vendor
+# output, so vendor chatter is silent unless a handler/logger explicitly
+# lowers its threshold to TRACE. Registered as a name so `%(levelname)s`
+# renders it; there is deliberately no `Logger.trace()` method, which would
+# mean patching the stdlib class for every logger in the process -- use
+# `logger.log(TRACE, ...)`.
+TRACE = 5
+logging.addLevelName(TRACE, "TRACE")
+
 _LEVEL_NAMES = {
+    "trace": TRACE,
     "debug": logging.DEBUG,
     "info": logging.INFO,
     "warning": logging.WARNING,
