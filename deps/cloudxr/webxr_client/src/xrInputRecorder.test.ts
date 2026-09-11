@@ -60,8 +60,14 @@ function gamepad(axis: number): Gamepad {
 }
 
 function makeSession(inputSources: XRInputSource[] = []): XRSession {
-  return { inputSources } as unknown as XRSession;
+  return Object.assign(new EventTarget(), { inputSources }) as unknown as XRSession;
 }
+
+// Frames in a test share a session unless the test explicitly starts another.
+let defaultSession: XRSession;
+beforeEach(() => {
+  defaultSession = makeSession();
+});
 
 type PoseResolver = (space: XRSpace, baseSpace: XRSpace) => XRPose | null;
 type JointResolver = (joint: XRJointSpace, baseSpace: XRSpace) => XRJointPose | null;
@@ -72,8 +78,9 @@ function makeFrame(
   getJointPose: JointResolver = () => null,
   predictedDisplayTime = 0,
   viewerPose: XRPose | null = pose(0),
-  session: XRSession = makeSession(inputSources)
+  session: XRSession = defaultSession
 ): XRFrame {
+  Object.assign(session, { inputSources });
   return {
     session,
     predictedDisplayTime,
@@ -336,12 +343,14 @@ describe('canonical scene-space capture', () => {
 });
 
 describe('scoped CloudXR replay frame', () => {
-  test('does not alter global prototypes and returns real frames outside replay', () => {
+  test('preserves live tracking outside replay without changing browser frames', () => {
     const recorder = new XRInputRecorder();
     const frame = makeFrame();
     const originalGetPose = frame.getPose;
     recorder.startRecording();
-    expect(recorder.adaptTrackingFrame(frame)).toBe(frame);
+    const adapted = recorder.adaptTrackingFrame(frame);
+    expect(adapted.session.inputSources).toBe(frame.session.inputSources);
+    expect(adapted.getViewerPose(sceneSpace)).toEqual(frame.getViewerPose(sceneSpace));
     expect(frame.getPose).toBe(originalGetPose);
     recorder.stopRecording();
   });
@@ -438,6 +447,9 @@ describe('scoped CloudXR replay frame', () => {
     const recorder = new XRInputRecorder();
     recorder.startReplay(loaded, true, 'frame');
     recorder.beginFrame(frame, sceneSpace);
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    recorder.calibrateReplay();
+    recorder.beginFrame(frame, sceneSpace);
 
     const replayed = recorder.adaptTrackingFrame(frame).getPose(grip, sceneSpace);
     expect(replayed?.transform.position.x).toBeCloseTo(12);
@@ -467,6 +479,9 @@ describe('scoped CloudXR replay frame', () => {
     const recorder = new XRInputRecorder();
     recorder.startReplay(loaded, true, 'frame');
     recorder.beginFrame(frame, sceneSpace);
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    recorder.calibrateReplay();
+    recorder.beginFrame(frame, sceneSpace);
 
     const replayed = recorder.adaptTrackingFrame(frame).getPose(grip, sceneSpace);
     expect(replayed?.transform.position.x).toBeCloseTo(-1);
@@ -490,6 +505,9 @@ describe('scoped CloudXR replay frame', () => {
     const firstFrame = makeFrame([source], undefined, undefined, 0, pose(11), firstSession);
     recorder.startReplay(loaded, true, 'frame');
     recorder.beginFrame(firstFrame, sceneSpace);
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    recorder.calibrateReplay();
+    recorder.beginFrame(firstFrame, sceneSpace);
     expect(
       recorder.adaptTrackingFrame(firstFrame).getPose(grip, sceneSpace)?.transform.position.x
     ).toBeCloseTo(12);
@@ -505,6 +523,9 @@ describe('scoped CloudXR replay frame', () => {
 
     const newSessionFrame = makeFrame([source], undefined, undefined, 2, pose(21), secondSession);
     recorder.startReplay(loaded, true, 'frame');
+    recorder.beginFrame(newSessionFrame, sceneSpace);
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    recorder.calibrateReplay();
     recorder.beginFrame(newSessionFrame, sceneSpace);
     expect(
       recorder.adaptTrackingFrame(newSessionFrame).getPose(grip, sceneSpace)?.transform.position.x
@@ -539,6 +560,294 @@ describe('scoped CloudXR replay frame', () => {
 
     const replayed = recorder.adaptTrackingFrame(replayFrame).getPose(grip, sceneSpace);
     expect(replayed?.transform.position.x).toBeCloseTo(2);
+  });
+});
+
+describe('explicit replay calibration and reference-space resets', () => {
+  function setup(pacing: 'frame' | 'time' = 'frame') {
+    const grip = {} as XRSpace;
+    const wrist = {} as XRJointSpace;
+    const source = {
+      handedness: 'left',
+      gripSpace: grip,
+      targetRaySpace: {} as XRSpace,
+      gamepad: gamepad(1),
+      hand: new Map([['wrist', wrist]]),
+    } as unknown as XRInputSource;
+    const session = makeSession([source]);
+    const space = new EventTarget() as XRReferenceSpace;
+    const recorder = new XRInputRecorder();
+    const saved = calibratedRecording(0, timedFrame(0, 1), timedFrame(100, 3));
+    const frame = (viewerX: number, time = 0, viewer: XRPose | null = pose(viewerX)) =>
+      makeFrame(
+        [source],
+        () => pose(999),
+        () => jointPose(999),
+        time,
+        viewer,
+        session
+      );
+    const advance = (viewerX: number, time = 0) => {
+      const current = frame(viewerX, time);
+      recorder.beginFrame(current, space);
+      return recorder.adaptTrackingFrame(current);
+    };
+    const reset = (transform: XRRigidTransform | null) => {
+      space.dispatchEvent(Object.assign(new Event('reset'), { transform }));
+    };
+    recorder.startReplay(saved, false, pacing);
+    return { recorder, grip, wrist, source, session, space, saved, frame, advance, reset };
+  }
+
+  test('suppresses live input and waits for a deliberate calibration with a valid viewer pose', () => {
+    const { recorder, grip, wrist, space, frame, advance } = setup();
+    const waiting = advance(10);
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    expect(recorder.currentFrame).toBeNull();
+    expect(waiting.getPose(grip, space)).toBeUndefined();
+    expect(waiting.getJointPose?.(wrist, space)).toBeUndefined();
+    expect(waiting.session.inputSources).toHaveLength(0);
+
+    recorder.calibrateReplay();
+    recorder.beginFrame(frame(10, 0, null), space);
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    expect(recorder.replayFrameIndex).toBe(0);
+    expect(advance(10).getPose(grip, space)?.transform.position.x).toBeCloseTo(11);
+    expect(recorder.replayNeedsCalibration).toBe(false);
+  });
+
+  test.each(['frame', 'time'] as const)(
+    '%s replay preserves world placement after headset motion and repeated translation resets',
+    pacing => {
+      const { recorder, grip, wrist, space, advance, reset } = setup(pacing);
+      advance(10);
+      recorder.calibrateReplay();
+      expect(advance(10).getPose(grip, space)?.transform.position.x).toBeCloseTo(11);
+      reset(new XRRigidTransform({ x: -100 }));
+      const firstReset = advance(112, pacing === 'time' ? 50 : 1);
+      expect(recorder.replayNeedsCalibration).toBe(false);
+      expect(firstReset.getPose(grip, space)?.transform.position.x).toBeCloseTo(
+        pacing === 'time' ? 112 : 113
+      );
+      expect(firstReset.getJointPose?.(wrist, space)?.transform.position.x).toBeCloseTo(
+        pacing === 'time' ? 114 : 115
+      );
+      reset(new XRRigidTransform({ x: -20 }));
+      expect(advance(132, 100).getPose(grip, space)?.transform.position.x).toBeCloseTo(133);
+    }
+  );
+
+  test('uses the inverse reset rotation for position and orientation', () => {
+    const { recorder, grip, space, saved, advance, reset } = setup();
+    saved.frames = [saved.frames[0]];
+    recorder.stopReplay();
+    recorder.startReplay(saved, false, 'frame');
+    advance(10);
+    recorder.calibrateReplay();
+    advance(10);
+    const q = Math.sqrt(0.5);
+    reset(new XRRigidTransform({}, { x: 0, y: q, z: 0, w: q }));
+    const result = advance(999).getPose(grip, space)!;
+    expect(result.transform.position.x).toBeCloseTo(0);
+    expect(result.transform.position.z).toBeCloseTo(11);
+    expect(result.transform.orientation.y).toBeCloseTo(-q);
+    expect(result.transform.orientation.w).toBeCloseTo(q);
+  });
+
+  test('unknown reset pauses the replay clock and requires another explicit calibration', () => {
+    const { recorder, grip, space, advance, reset } = setup('time');
+    advance(10, 1000);
+    recorder.calibrateReplay();
+    advance(10, 1000);
+    expect(advance(12, 1050).getPose(grip, space)?.transform.position.x).toBeCloseTo(12);
+    reset(null);
+    expect(advance(112, 2000).getPose(grip, space)).toBeUndefined();
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    expect(recorder.currentFrame).toBeNull();
+    recorder.calibrateReplay();
+    expect(advance(110, 5000).getPose(grip, space)?.transform.position.x).toBeCloseTo(112);
+    expect(recorder.currentFrame?.timeMs).toBe(50);
+  });
+
+  test('preserves cached placement when a known reset occurs while replay is stopped', () => {
+    const { recorder, grip, space, saved, advance, reset } = setup();
+    advance(10);
+    recorder.calibrateReplay();
+    advance(10);
+    recorder.stopReplay();
+    reset(new XRRigidTransform({ x: -100 }));
+    recorder.startReplay(saved, false, 'frame');
+    expect(advance(112).getPose(grip, space)?.transform.position.x).toBeCloseTo(111);
+    expect(recorder.replayNeedsCalibration).toBe(false);
+  });
+
+  test('calibration after a reset is stored in the original reference frame', () => {
+    const { recorder, grip, space, saved, advance, reset } = setup();
+    advance(10);
+    reset(new XRRigidTransform({ x: -100 }));
+    recorder.calibrateReplay();
+    expect(advance(110).getPose(grip, space)?.transform.position.x).toBeCloseTo(111);
+    recorder.stopReplay();
+    recorder.startReplay(saved, false, 'frame');
+    expect(advance(115).getPose(grip, space)?.transform.position.x).toBeCloseTo(111);
+  });
+
+  test('reference-space replacement invalidates placement and pending calibration', () => {
+    const { recorder, grip, frame, advance } = setup();
+    advance(10);
+    recorder.calibrateReplay();
+    const replacement = new EventTarget() as XRReferenceSpace;
+    const current = frame(20);
+    recorder.beginFrame(current, replacement);
+    expect(recorder.replayNeedsCalibration).toBe(true);
+    expect(recorder.adaptTrackingFrame(current).getPose(grip, replacement)).toBeUndefined();
+    recorder.calibrateReplay();
+    recorder.beginFrame(current, replacement);
+    expect(
+      recorder.adaptTrackingFrame(current).getPose(grip, replacement)?.transform.position.x
+    ).toBeCloseTo(21);
+  });
+
+  test.each([true, false])('stops recording on reset (known transform: %s)', known => {
+    const { recorder, grip, space, frame, reset } = setup();
+    recorder.stopReplay();
+    recorder.startRecording();
+    recorder.beginFrame(frame(0), space);
+    reset(known ? new XRRigidTransform({ x: -100 }) : null);
+    expect(recorder.mode).toBe('idle');
+    expect(recorder.recordingInterrupted).toBe(true);
+    recorder.beginFrame(frame(100), space);
+    expect(recorder.getRecording().frames).toHaveLength(1);
+    const saved = recorder.getRecording();
+    recorder.startReplay(saved, false, 'frame');
+    recorder.beginFrame(frame(100), space);
+    expect(recorder.replayNeedsCalibration).toBe(!known);
+    if (known) {
+      expect(
+        recorder.adaptTrackingFrame(frame(100)).getPose(grip, space)?.transform.position.x
+      ).toBeCloseTo(1099);
+    }
+  });
+});
+
+describe('recorded hands without live tracking', () => {
+  function benchmark(pacing: 'frame' | 'time') {
+    const session = makeSession();
+    const recorder = new XRInputRecorder();
+    const frame = (sources: XRInputSource[] = [], time = 0) =>
+      makeFrame(
+        sources,
+        () => null,
+        () => null,
+        time,
+        pose(0),
+        session
+      );
+    // CloudXR initializes its active-hand set on the first tracking frame and
+    // subsequently refreshes it from inputsourceschange, not from joint poses.
+    const active = new Set<XRHandedness>();
+    const refresh = (current: XRSession) => {
+      active.clear();
+      for (const source of current.inputSources) {
+        if (source.hand) active.add(source.handedness);
+      }
+    };
+    const idle = recorder.adaptTrackingFrame(frame());
+    refresh(idle.session);
+    const changed = jest.fn((event: XRInputSourcesChangeEvent) => refresh(event.session));
+    idle.session.addEventListener('inputsourceschange', changed);
+    const read = (current: XRFrame) => {
+      recorder.beginFrame(current, sceneSpace);
+      const adapted = recorder.adaptTrackingFrame(current);
+      const source = Array.from(adapted.session.inputSources).find(s => s.handedness === 'left');
+      if (!source?.hand || !active.has(source.handedness)) return null;
+      return adapted.getJointPose?.(source.hand.get('wrist')!, sceneSpace)?.transform.position.x;
+    };
+    recorder.startReplay(recording(timedFrame(0, 1), timedFrame(100, 3)), false, pacing);
+    return { recorder, session, frame, active, changed, read, idle };
+  }
+
+  test.each(['frame', 'time'] as const)(
+    '%s replay advances when hands were never detected',
+    pacing => {
+      const { read, frame, active, changed, session } = benchmark(pacing);
+      expect(read(frame())).toBeCloseTo(3);
+      expect(active.has('left')).toBe(true);
+      expect(read(frame([], pacing === 'time' ? 50 : 1))).toBeCloseTo(pacing === 'time' ? 4 : 5);
+      expect(changed).toHaveBeenCalledTimes(1);
+      expect(session.inputSources).toHaveLength(0);
+    }
+  );
+
+  test('live hands appearing and disappearing do not gate or replace recorded hands', () => {
+    const { read, frame, changed, session, active, recorder } = benchmark('time');
+    expect(read(frame())).toBeCloseTo(3);
+    const live = {
+      handedness: 'left',
+      hand: new Map([['wrist', {}]]),
+      targetRaySpace: {},
+    } as unknown as XRInputSource;
+    const visible = frame([live], 25);
+    session.dispatchEvent(
+      Object.assign(new Event('inputsourceschange'), {
+        session,
+        added: [live],
+        removed: [],
+      })
+    );
+    expect(read(visible)).toBeCloseTo(3.5);
+    const absent = frame([], 50);
+    session.dispatchEvent(
+      Object.assign(new Event('inputsourceschange'), {
+        session,
+        added: [],
+        removed: [live],
+      })
+    );
+    expect(active.has('left')).toBe(true);
+    expect(read(absent)).toBeCloseTo(4);
+    expect(changed).toHaveBeenCalledTimes(1);
+    recorder.stopReplay();
+    recorder.adaptTrackingFrame(absent);
+    expect(active.size).toBe(0);
+    expect(changed).toHaveBeenCalledTimes(2);
+  });
+
+  test('recorded tracking loss removes the source, and recorded recovery restores it', () => {
+    const { recorder, read, frame, active } = benchmark('frame');
+    recorder.stopReplay();
+    const lost = timedFrame(50, 2);
+    lost.handJoints.left = { wrist: null };
+    recorder.startReplay(recording(timedFrame(0, 1), lost, timedFrame(100, 3)), false, 'frame');
+    expect(read(frame())).toBeCloseTo(3);
+    expect(read(frame())).toBeNull();
+    expect(active.size).toBe(0);
+    expect(read(frame())).toBeCloseTo(5);
+  });
+
+  test('forwards native events outside replay and supports listener cleanup', () => {
+    const { recorder, session, frame, changed, idle } = benchmark('frame');
+    recorder.stopReplay();
+    recorder.adaptTrackingFrame(frame());
+    session.dispatchEvent(
+      Object.assign(new Event('inputsourceschange'), {
+        session,
+        added: [],
+        removed: [],
+      })
+    );
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(changed.mock.calls[0][0].session).toBe(idle.session);
+    idle.session.removeEventListener('inputsourceschange', changed);
+    session.dispatchEvent(
+      Object.assign(new Event('inputsourceschange'), {
+        session,
+        added: [],
+        removed: [],
+      })
+    );
+    expect(changed).toHaveBeenCalledTimes(1);
+    recorder.dispose();
   });
 });
 
