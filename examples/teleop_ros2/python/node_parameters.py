@@ -625,11 +625,11 @@ def create_node_parameters(node: Node) -> NodeParameters:
     cloudxr_params = _load_cloudxr(node)
     pedal_collection_id = _load_pedal_collection_id(node)
     world_frame, right_wrist_frame, left_wrist_frame, head_frame = _load_frames(node)
+    ee_poses_frame = _load_ee_poses_frame(node)
     transform_translation = _load_transform_translation(node)
     transform_rotation = _load_transform_rotation(node)
     left_finger_joint_name_aliases = _load_finger_joint_name_aliases(node, "left")
     right_finger_joint_name_aliases = _load_finger_joint_name_aliases(node, "right")
-    ee_poses_frame = _load_ee_poses_frame(node)
 
     return NodeParameters(
         mode=mode,
