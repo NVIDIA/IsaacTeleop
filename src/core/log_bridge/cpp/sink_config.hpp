@@ -16,8 +16,9 @@ namespace isaacteleop::detail
 // never call it). Two mutually exclusive shapes:
 //   - ISAACTELEOP_LOG_SOCKET set: a single SocketForwardSink, shipping every
 //     record to the process that set that variable (see socket_sink.hpp).
-//   - unset: this process's own console sink, built from
-//     ISAACTELEOP_LOG_LEVEL (mirrors the Python side's default of info).
+//   - unset: this process's own console+rotating-file sinks, built from
+//     ISAACTELEOP_LOG_DIR / ISAACTELEOP_LOG_LEVEL (mirrors the Python side's
+//     defaults: console at info, file always debug+, /tmp/isaacteleop/logs/).
 const std::vector<spdlog::sink_ptr>& local_sinks();
 
 } // namespace isaacteleop::detail
