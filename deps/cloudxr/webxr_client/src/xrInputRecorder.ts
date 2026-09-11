@@ -22,6 +22,8 @@
  * UI pointers, and CloudXR rendering/reprojection.
  */
 
+import { XRReplaySession } from './xrReplaySession';
+
 type PoseData = {
   px: number;
   py: number;
@@ -72,7 +74,7 @@ export type Recording = {
 
 export type ReplayPacing = 'frame' | 'time';
 
-type Handedness = 'left' | 'right';
+const IDENTITY_POSE: PoseData = { px: 0, py: 0, pz: 0, ox: 0, oy: 0, oz: 0, ow: 1 };
 
 function emptyFrame(timeMs = 0): RecordedFrame {
   return {
@@ -85,7 +87,11 @@ function emptyFrame(timeMs = 0): RecordedFrame {
 
 function serializePose(pose: XRPose | null | undefined): SerializedPose {
   if (!pose) return null;
-  const { position: p, orientation: o } = pose.transform;
+  return serializeTransform(pose.transform);
+}
+
+function serializeTransform(transform: XRRigidTransform): PoseData {
+  const { position: p, orientation: o } = transform;
   return { px: p.x, py: p.y, pz: p.z, ox: o.x, oy: o.y, oz: o.z, ow: o.w };
 }
 
@@ -140,6 +146,7 @@ function captureFrame(frame: XRFrame, referenceSpace: XRReferenceSpace, timeMs =
 }
 
 function makePose(pose: PoseData): XRPose {
+  // WebXR permits null velocities; @types/webxr currently excludes null.
   return {
     transform: new XRRigidTransform(
       { x: pose.px, y: pose.py, z: pose.pz, w: 1 },
@@ -176,16 +183,6 @@ function makeGamepad(gamepad: SerializedGamepad): Gamepad {
 function bindWebXRMember(target: object, property: PropertyKey): unknown {
   const value = Reflect.get(target, property, target);
   return typeof value === 'function' ? value.bind(target) : value;
-}
-
-function proxyInputSource(source: XRInputSource, gamepad: SerializedGamepad | null): XRInputSource {
-  const replayGamepad = gamepad ? makeGamepad(gamepad) : null;
-  return new Proxy(source, {
-    get(target, property) {
-      if (property === 'gamepad') return replayGamepad;
-      return bindWebXRMember(target, property);
-    },
-  });
 }
 
 function lerp(from: number, to: number, alpha: number): number {
@@ -377,16 +374,7 @@ function transformByPose<T extends PoseData>(pose: T, baseFromScene: PoseData): 
 
 /** Apply the real baseSpace <- sceneSpace transform to a recorded pose. */
 function transformFromScene<T extends PoseData>(pose: T, baseFromScene: XRRigidTransform): T {
-  const { position: p, orientation: q } = baseFromScene;
-  return transformByPose(pose, {
-    px: p.x,
-    py: p.y,
-    pz: p.z,
-    ox: q.x,
-    oy: q.y,
-    oz: q.z,
-    ow: q.w,
-  });
+  return transformByPose(pose, serializeTransform(baseFromScene));
 }
 
 function inversePose(pose: PoseData): PoseData {
@@ -444,18 +432,6 @@ function sceneAlignment(recordedViewer: PoseData, currentViewer: PoseData): Pose
   return transformByPose(inversePose(recordedViewer), currentViewer);
 }
 
-type RecordingContext = {
-  session: XRSession;
-  referenceSpace: XRReferenceSpace;
-  referenceSpaceEpoch: number;
-};
-
-type CachedAlignment = {
-  referenceSpace: XRReferenceSpace;
-  referenceSpaceEpoch: number;
-  transform: PoseData | null;
-};
-
 /**
  * Monotonic frame clock in ms. Some runtimes (e.g. PICO) leave
  * XRFrame.predictedDisplayTime undefined; without a fallback that yields NaN,
@@ -482,16 +458,19 @@ export class XRInputRecorder {
   private _recordingStartTime: number | null = null;
   private _recordedAt: number | undefined;
   private _recordingCalibration: Recording['calibration'];
-  private _recordingContext: RecordingContext | null = null;
-  private _recordingContexts = new WeakMap<Recording, RecordingContext>();
-  private _alignmentCache = new WeakMap<Recording, WeakMap<XRSession, CachedAlignment>>();
+  private _recordingAlignment: PoseData | null = null;
+  private _alignmentCache = new WeakMap<Recording, PoseData>();
   private _replayRecording: Recording | null = null;
-  private _replaySourceContext: RecordingContext | null = null;
   private _replaySceneAlignment: PoseData | null = null;
-  private _replayAlignmentReady = false;
+  private _calibrationRequested = false;
   private _observedSession: XRSession | null = null;
   private _observedReferenceSpace: XRReferenceSpace | null = null;
-  private _referenceSpaceEpochs = new WeakMap<XRSession, number>();
+  // Cached alignments use the origin observed at session/reference-space entry.
+  private _currentFromInitial: PoseData = IDENTITY_POSE;
+  private _recordingInterrupted = false;
+  private _trackingSession: XRReplaySession | null = null;
+  private _recordedHandSources: XRInputSource[] = [];
+  private _sourceProxies = new WeakMap<XRInputSource, XRInputSource>();
 
   get mode() {
     return this._mode;
@@ -509,6 +488,25 @@ export class XRInputRecorder {
     return this._currentFrame;
   }
 
+  get replayNeedsCalibration(): boolean {
+    return (
+      this._mode === 'replaying' &&
+      !!this._replayRecording?.calibration &&
+      !this._alignmentCache.has(this._replayRecording)
+    );
+  }
+
+  get recordingInterrupted(): boolean {
+    return this._recordingInterrupted;
+  }
+
+  /** Call after the operator returns to the recording's physical starting pose. */
+  calibrateReplay(): void {
+    if (this.replayNeedsCalibration && this._observedReferenceSpace) {
+      this._calibrationRequested = true;
+    }
+  }
+
   startRecording(): void {
     this._assertIdle();
     this._frames = [];
@@ -516,7 +514,8 @@ export class XRInputRecorder {
     this._recordingStartTime = null;
     this._recordedAt = Date.now();
     this._recordingCalibration = undefined;
-    this._recordingContext = null;
+    this._recordingAlignment = null;
+    this._recordingInterrupted = false;
     this._mode = 'recording';
   }
 
@@ -529,6 +528,31 @@ export class XRInputRecorder {
   startReplay(recording: Recording, loop = true, pacing: ReplayPacing = 'time'): void {
     this._assertIdle();
     this._replayFrames = recording.frames;
+    this._recordedHandSources = (['left', 'right'] as const).flatMap(handedness => {
+      const names = new Set<string>();
+      for (const frame of recording.frames) {
+        for (const name of Object.keys(frame.handJoints[handedness])) names.add(name);
+      }
+      if (!names.size) return [];
+      const hand = new Map<XRHandJoint, XRJointSpace>();
+      for (const name of names) {
+        hand.set(
+          name as XRHandJoint,
+          Object.assign(new EventTarget(), { jointName: name as XRHandJoint })
+        );
+      }
+      return [
+        {
+          handedness,
+          // @types/webxr still requires obsolete numeric constants on XRHand.
+          hand: hand as XRHand,
+          targetRayMode: 'tracked-pointer' as const,
+          targetRaySpace: new EventTarget(),
+          gripSpace: new EventTarget(),
+          profiles: ['generic-hand-select'],
+        },
+      ];
+    });
     this._replayIndex = 0;
     this._loopReplay = loop;
     this._replayPacing = pacing;
@@ -536,9 +560,8 @@ export class XRInputRecorder {
     this._lastReplayDisplayTime = null;
     this._currentFrame = null;
     this._replayRecording = recording;
-    this._replaySourceContext = this._recordingContexts.get(recording) ?? null;
     this._replaySceneAlignment = null;
-    this._replayAlignmentReady = false;
+    this._calibrationRequested = false;
     this._mode = 'replaying';
   }
 
@@ -547,9 +570,9 @@ export class XRInputRecorder {
     this._currentFrame = null;
     this._lastReplayDisplayTime = null;
     this._replayRecording = null;
-    this._replaySourceContext = null;
+    this._recordedHandSources = [];
     this._replaySceneAlignment = null;
-    this._replayAlignmentReady = false;
+    this._calibrationRequested = false;
     this._mode = 'idle';
   }
 
@@ -582,11 +605,7 @@ export class XRInputRecorder {
       if (!this._recordingCalibration) {
         this._recordingCalibration = captureViewerCalibration(frame, sceneReferenceSpace);
         if (!this._recordingCalibration) return;
-        this._recordingContext = {
-          session: frame.session,
-          referenceSpace: sceneReferenceSpace,
-          referenceSpaceEpoch: this._referenceSpaceEpoch(frame.session),
-        };
+        this._recordingAlignment = inversePose(this._currentFromInitial);
       }
       const now = frameTimestampMs(frame);
       this._recordingStartTime ??= now;
@@ -602,6 +621,7 @@ export class XRInputRecorder {
     }
 
     if (!sceneReferenceSpace || !this._prepareReplayAlignment(frame, sceneReferenceSpace)) {
+      this._lastReplayDisplayTime = null;
       this._currentFrame = null;
       return;
     }
@@ -641,18 +661,26 @@ export class XRInputRecorder {
    * objects are modified, and callers retain the original frame for rendering.
    */
   adaptTrackingFrame = (frame: XRFrame): XRFrame => {
-    const replay = this._currentFrame;
-    if (this._mode !== 'replaying' || !replay) return frame;
+    if (this._trackingSession?.nativeSession !== frame.session) {
+      this._trackingSession?.dispose();
+      this._trackingSession = new XRReplaySession(frame.session);
+    }
+    const replaying = this._mode === 'replaying';
+    this._trackingSession.setInputSources(
+      replaying ? this._replayInputSources(frame.session) : null
+    );
+    const session = this._trackingSession.session;
+    // Waiting for calibration must not silently substitute live robot inputs.
+    const replay = this._currentFrame ?? emptyFrame(0);
 
-    const session = this._proxySession(frame.session, replay);
     return new Proxy(frame, {
       get: (target, property) => {
         if (property === 'session') return session;
-        if (property === 'getPose') {
+        if (replaying && property === 'getPose') {
           return (space: XRSpace, baseSpace: XRSpace) =>
             this._replayPose(target, replay, space, baseSpace);
         }
-        if (property === 'getJointPose') {
+        if (replaying && property === 'getJointPose') {
           return (joint: XRJointSpace, baseSpace: XRSpace) =>
             this._replayJoint(target, replay, joint, baseSpace);
         }
@@ -708,8 +736,8 @@ export class XRInputRecorder {
       calibration: this._recordingCalibration,
       frames: [...this._frames],
     };
-    if (this._recordingContext) {
-      this._recordingContexts.set(recording, this._recordingContext);
+    if (this._recordingAlignment) {
+      this._alignmentCache.set(recording, this._recordingAlignment);
     }
     return recording;
   }
@@ -718,10 +746,6 @@ export class XRInputRecorder {
     if (this._mode !== 'idle') {
       throw new Error('XRInputRecorder: already active');
     }
-  }
-
-  private _referenceSpaceEpoch(session: XRSession): number {
-    return this._referenceSpaceEpochs.get(session) ?? 0;
   }
 
   private _observeReferenceSpace(
@@ -733,81 +757,115 @@ export class XRInputRecorder {
     }
 
     this._observedReferenceSpace?.removeEventListener?.('reset', this._onReferenceSpaceReset);
-    if (session === this._observedSession && this._observedReferenceSpace !== null) {
-      this._referenceSpaceEpochs.set(session, this._referenceSpaceEpoch(session) + 1);
-    } else if (!this._referenceSpaceEpochs.has(session)) {
-      this._referenceSpaceEpochs.set(session, 0);
-    }
-
+    this._interruptRecording();
+    this._invalidateAlignments();
     this._observedSession = session;
     this._observedReferenceSpace = referenceSpace;
     this._sceneReferenceSpace = referenceSpace;
     referenceSpace?.addEventListener?.('reset', this._onReferenceSpaceReset);
-    this._replayAlignmentReady = false;
   }
 
-  private _onReferenceSpaceReset = (): void => {
-    if (!this._observedSession) return;
-    this._referenceSpaceEpochs.set(
-      this._observedSession,
-      this._referenceSpaceEpoch(this._observedSession) + 1
-    );
+  private _interruptRecording(): void {
+    if (this._mode === 'recording' && this._frames.length > 0) {
+      // One recording must not mix coordinates from different reference-space origins.
+      this.stopRecording();
+      this._recordingInterrupted = true;
+    }
+  }
+
+  private _invalidateAlignments(): void {
+    this._alignmentCache = new WeakMap<Recording, PoseData>();
+    this._recordingAlignment = null;
+    this._currentFromInitial = IDENTITY_POSE;
     this._replaySceneAlignment = null;
-    this._replayAlignmentReady = false;
+    this._calibrationRequested = false;
+    this._lastReplayDisplayTime = null;
+    this._currentFrame = null;
+  }
+
+  private _onReferenceSpaceReset = (event: XRReferenceSpaceEvent): void => {
+    this._interruptRecording();
+    if (!event.transform) {
+      this._invalidateAlignments();
+      return;
+    }
+
+    // The event gives oldScene <- newScene. Preserve world placement using its
+    // inverse; the current viewer pose includes operator motion, not just drift.
+    const oldFromNew = serializeTransform(event.transform);
+    this._currentFromInitial = transformByPose(this._currentFromInitial, inversePose(oldFromNew));
+    this._replaySceneAlignment = null;
+    this._calibrationRequested = false;
     this._currentFrame = null;
   };
 
   private _prepareReplayAlignment(frame: XRFrame, referenceSpace: XRReferenceSpace): boolean {
-    if (this._replayAlignmentReady) return true;
+    if (this._replaySceneAlignment) return true;
     const recording = this._replayRecording;
     if (!recording) return false;
 
-    const referenceSpaceEpoch = this._referenceSpaceEpoch(frame.session);
-    let sessionCache = this._alignmentCache.get(recording);
-    const cached = sessionCache?.get(frame.session);
-    if (
-      cached &&
-      cached.referenceSpace === referenceSpace &&
-      cached.referenceSpaceEpoch === referenceSpaceEpoch
-    ) {
-      this._replaySceneAlignment = cached.transform;
-      this._replayAlignmentReady = true;
-      return true;
+    let initialFromRecorded = this._alignmentCache.get(recording);
+    if (!initialFromRecorded) {
+      let currentFromRecorded = IDENTITY_POSE;
+      if (recording.calibration) {
+        if (!this._calibrationRequested) return false;
+        const currentCalibration = captureViewerCalibration(frame, referenceSpace);
+        if (!currentCalibration) return false;
+        currentFromRecorded = sceneAlignment(recording.calibration.pose, currentCalibration.pose);
+      }
+      initialFromRecorded = transformByPose(
+        currentFromRecorded,
+        inversePose(this._currentFromInitial)
+      );
+      this._alignmentCache.set(recording, initialFromRecorded);
+      this._calibrationRequested = false;
     }
 
-    let transform: PoseData | null = null;
-    const source = this._replaySourceContext;
-    const sameReferenceSpace =
-      source?.session === frame.session &&
-      source.referenceSpace === referenceSpace &&
-      source.referenceSpaceEpoch === referenceSpaceEpoch;
-    if (!sameReferenceSpace && recording.calibration) {
-      const currentCalibration = captureViewerCalibration(frame, referenceSpace);
-      if (!currentCalibration) return false;
-      transform = sceneAlignment(recording.calibration.pose, currentCalibration.pose);
-    }
-
-    sessionCache ??= new WeakMap<XRSession, CachedAlignment>();
-    sessionCache.set(frame.session, { referenceSpace, referenceSpaceEpoch, transform });
-    this._alignmentCache.set(recording, sessionCache);
-    this._replaySceneAlignment = transform;
-    this._replayAlignmentReady = true;
+    this._replaySceneAlignment = transformByPose(initialFromRecorded, this._currentFromInitial);
     return true;
   }
 
-  private _proxySession(session: XRSession, replay: RecordedFrame): XRSession {
-    const inputSources = Array.from(session.inputSources, source => {
-      const hand = source.handedness;
-      return hand === 'left' || hand === 'right'
-        ? proxyInputSource(source, replay.gamepads[hand])
-        : source;
-    });
+  dispose(): void {
+    this._trackingSession?.dispose();
+    this._trackingSession = null;
+    this._observedReferenceSpace?.removeEventListener?.('reset', this._onReferenceSpaceReset);
+    this._observedReferenceSpace = null;
+    this._observedSession = null;
+    this._invalidateAlignments();
+  }
 
-    return new Proxy(session, {
-      get(target, property) {
-        if (property === 'inputSources') return inputSources;
-        return bindWebXRMember(target, property);
-      },
+  private _replayInputSources(session: XRSession): XRInputSource[] {
+    const recordedHands = new Set(this._recordedHandSources.map(source => source.handedness));
+    const sources = [
+      ...this._recordedHandSources.filter(source => {
+        const hand = source.handedness as 'left' | 'right';
+        return Object.values(this._currentFrame?.handJoints[hand] ?? {}).some(Boolean);
+      }),
+      ...Array.from(session.inputSources).filter(source => !recordedHands.has(source.handedness)),
+    ];
+    return sources.map(source => {
+      let proxy = this._sourceProxies.get(source);
+      if (!proxy) {
+        let lastGamepad: SerializedGamepad | null | undefined;
+        let replayGamepad: Gamepad | null = null;
+        proxy = new Proxy(source, {
+          get: (target, property) => {
+            const hand = target.handedness;
+            if (property === 'gamepad' && (hand === 'left' || hand === 'right')) {
+              const gamepad = this._currentFrame?.gamepads[hand];
+              // WebXR gamepad identity is stable for repeated reads of one frame.
+              if (gamepad !== lastGamepad) {
+                replayGamepad = gamepad ? makeGamepad(gamepad) : null;
+                lastGamepad = gamepad;
+              }
+              return replayGamepad;
+            }
+            return bindWebXRMember(target, property);
+          },
+        });
+        this._sourceProxies.set(source, proxy);
+      }
+      return proxy;
     });
   }
 
@@ -817,7 +875,7 @@ export class XRInputRecorder {
     space: XRSpace,
     baseSpace: XRSpace
   ): XRPose | undefined {
-    for (const source of frame.session.inputSources) {
+    for (const source of [...this._recordedHandSources, ...frame.session.inputSources]) {
       const hand = source.handedness;
       if (hand !== 'left' && hand !== 'right') continue;
       if (space === source.gripSpace) {
@@ -836,7 +894,7 @@ export class XRInputRecorder {
     joint: XRJointSpace,
     baseSpace: XRSpace
   ): XRJointPose | undefined {
-    for (const source of frame.session.inputSources) {
+    for (const source of [...this._recordedHandSources, ...frame.session.inputSources]) {
       const hand = source.handedness;
       if ((hand !== 'left' && hand !== 'right') || !source.hand) continue;
       for (const [name, candidate] of source.hand.entries()) {
@@ -864,10 +922,8 @@ export class XRInputRecorder {
     baseSpace: XRSpace
   ): T | null {
     if (!pose || !this._sceneReferenceSpace) return null;
-    if (!this._replayAlignmentReady) return null;
-    const currentScenePose = this._replaySceneAlignment
-      ? transformByPose(pose, this._replaySceneAlignment)
-      : pose;
+    if (!this._replaySceneAlignment) return null;
+    const currentScenePose = transformByPose(pose, this._replaySceneAlignment);
     if (baseSpace === this._sceneReferenceSpace) return currentScenePose;
     const relation = frame.getPose(this._sceneReferenceSpace, baseSpace);
     return relation ? transformFromScene(currentScenePose, relation.transform) : null;
