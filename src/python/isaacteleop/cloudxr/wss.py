@@ -582,18 +582,25 @@ async def run(
     # Console output comes from propagation to the root `isaacteleop` logger's
     # own handler (isaacteleop.logging_config); this only adds an optional,
     # additional per-session file, on top of that, when the caller wants one.
+    _handler = None
+    _handler_loggers: list[logging.Logger] = []
     if log_file_path is not None:
         _handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
         _handler.setFormatter(
             logging.Formatter(logging_config.LINE_FORMAT, datefmt=logging_config.DATE_FORMAT)
         )
-        log.addHandler(_handler)
-        # Route oob-teleop-adb and oob-teleop-env logs to the same file
-        for _extra_log_name in (
-            "isaacteleop.cloudxr.oob_teleop_adb",
-            "isaacteleop.cloudxr.oob_teleop_env",
-        ):
-            logging.getLogger(_extra_log_name).addHandler(_handler)
+        # Tracked so the finally below can detach it from every logger it was
+        # attached to, not just this module's: a logger still holding a closed
+        # FileHandler reopens the file on its next record, and a second run()
+        # would stack another handler on top and duplicate every line.
+        _handler_loggers = [
+            log,
+            # Route oob-teleop-adb and oob-teleop-env logs to the same file
+            logging.getLogger("isaacteleop.cloudxr.oob_teleop_adb"),
+            logging.getLogger("isaacteleop.cloudxr.oob_teleop_env"),
+        ]
+        for _attached_log in _handler_loggers:
+            _attached_log.addHandler(_handler)
 
     try:
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
@@ -930,6 +937,7 @@ async def run(
             ) from e
         raise
     finally:
-        if log_file_path is not None:
-            log.removeHandler(_handler)
+        for _attached_log in _handler_loggers:
+            _attached_log.removeHandler(_handler)
+        if _handler is not None:
             _handler.close()
