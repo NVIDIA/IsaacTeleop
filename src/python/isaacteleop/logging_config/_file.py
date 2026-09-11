@@ -11,7 +11,7 @@ import threading
 import time
 from logging.handlers import RotatingFileHandler
 
-from ._core import DATE_FORMAT, LINE_FORMAT, ROOT_LOGGER_NAME, log_dir
+from ._core import DATE_FORMAT, LINE_FORMAT, ROOT_LOGGER_NAME, ensure_log_dir
 
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MiB
 _BACKUP_COUNT = 5
@@ -38,8 +38,7 @@ def ensure_handler() -> logging.Handler:
     with _lock:
         if _handler is not None:
             return _handler
-        directory = log_dir()
-        directory.mkdir(parents=True, exist_ok=True)
+        directory = ensure_log_dir()
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         handler = RotatingFileHandler(
             directory / f"{timestamp}.isaacteleop.{os.getpid()}.log",

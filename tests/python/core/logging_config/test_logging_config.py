@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import re
+import stat
 import threading
 import time
 from pathlib import Path
@@ -116,9 +117,27 @@ def test_console_handler_end_to_end_level_filtering():
     assert "should appear" in stream.getvalue()
 
 
-def test_log_dir_defaults_to_tmp(monkeypatch):
+def test_log_dir_defaults_to_per_user_tmp(monkeypatch):
     monkeypatch.delenv("ISAACTELEOP_LOG_DIR", raising=False)
-    assert logging_config.log_dir() == Path("/tmp/isaacteleop/logs")
+    assert logging_config.log_dir() == Path(f"/tmp/isaacteleop-{os.getuid()}/logs")
+
+
+def test_ensure_log_dir_is_owner_only(monkeypatch, tmp_path):
+    target = tmp_path / "nested" / "logs"
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(target))
+    created = _core.ensure_log_dir()
+    assert created == target
+    assert stat.S_IMODE(created.stat().st_mode) == 0o700
+
+
+def test_ensure_log_dir_refuses_a_directory_owned_by_someone_else(monkeypatch, tmp_path):
+    """A /tmp directory another user got to first is how a symlink gets planted."""
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
+    # Resolved before patching: the lambda must not call the name it replaces.
+    other_uid = os.getuid() + 1
+    monkeypatch.setattr(_core.os, "getuid", lambda: other_uid)
+    with pytest.raises(PermissionError):
+        _core.ensure_log_dir()
 
 
 def test_log_dir_honors_env_override(monkeypatch, tmp_path):

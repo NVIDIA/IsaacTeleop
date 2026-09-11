@@ -13,7 +13,7 @@ import threading
 import time
 from typing import TextIO
 
-from ._core import TRACE, log_dir
+from ._core import TRACE, ensure_log_dir
 
 _FD_LABELS = {1: "stdout", 2: "stderr"}
 
@@ -42,7 +42,9 @@ def _pump(fd: int, read_fd: int, sink_path: str) -> None:
                 try:
                     if sink_fd < 0:
                         sink_fd = os.open(
-                            sink_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644
+                            sink_path,
+                            os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW,
+                            0o600,
                         )
                     _write_all(sink_fd, chunk)
                     saved = _saved.get(fd)
@@ -108,8 +110,7 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
         return
     _reserve_std_fds()
     label = _FD_LABELS[fd]
-    directory = log_dir()
-    directory.mkdir(parents=True, exist_ok=True)
+    directory = ensure_log_dir()
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     sink_path = str(
         directory / f"{timestamp}.isaacteleop.{os.getpid()}.native-{label}.log"

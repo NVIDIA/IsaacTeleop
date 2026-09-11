@@ -29,7 +29,7 @@ import struct
 import threading
 import time
 
-from ._core import ROOT_LOGGER_NAME, log_dir
+from ._core import ROOT_LOGGER_NAME, ensure_log_dir
 
 _FRAME_HEADER = struct.Struct(">I")  # 4-byte big-endian payload length prefix
 
@@ -44,6 +44,8 @@ def _format_exception(record: logging.LogRecord) -> str | None:
     if record.exc_info:
         return _EXC_FORMATTER.formatException(record.exc_info)
     return None
+
+
 # A single log record has no business approaching this; caps how much a corrupted or
 # malicious length prefix can make the receiver thread try to buffer before giving up.
 _MAX_FRAME_SIZE = 1 * 1024 * 1024  # 1 MiB
@@ -219,13 +221,17 @@ def ensure_receiver() -> str:
     with _lock:
         if _receiver_socket is not None:
             return _receiver_socket
-        directory = log_dir()
-        directory.mkdir(parents=True, exist_ok=True)
+        directory = ensure_log_dir()
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         path = str(directory / f"isaacteleop.{timestamp}.{os.getpid()}.sock")
         if os.path.exists(path):
             os.unlink(path)
         server = ThreadingUnixStreamServer(path, RequestHandler)
+        # The 0700 directory above is what actually keeps other users out; this
+        # narrows the socket itself too, so the receiver -- which re-emits
+        # whatever it is handed, straight into this process's logger tree --
+        # cannot be fed forged records by anything running as another user.
+        os.chmod(path, 0o600)
         thread = threading.Thread(
             target=server.serve_forever, name="isaacteleop-log-receiver", daemon=True
         )
