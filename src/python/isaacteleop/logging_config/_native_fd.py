@@ -90,6 +90,20 @@ def _reserve_std_fds() -> None:
                 os.close(opened)
 
 
+def _follows(stream: TextIO | None, fd: int) -> bool:
+    """True when writes to *stream* go through *fd*, so rebinding *fd* moves them.
+
+    Everything else -- a ``StringIO`` installed by ``contextlib.redirect_stdout``,
+    a notebook's or test runner's own stream object, ``None`` on an interpreter
+    started without stdio -- writes past the descriptor and is out of reach of
+    the capture below, so it must stay exactly as the application set it.
+    """
+    try:
+        return stream.fileno() == fd
+    except (AttributeError, OSError, ValueError):
+        return False
+
+
 def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     """Point *fd* (1 or 2) at its own capture file; idempotent.
 
@@ -105,8 +119,9 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     none -- so the two deadlock. A write to a file needs nothing else to run.
 
     ``sys.stdout``/``sys.stderr`` are moved onto a duplicate of the real
-    descriptor instead of following it, so ``print()``, ``print(file=
-    sys.stderr)``, and uncaught tracebacks all stay on the terminal --
+    descriptor instead of following it -- as is the console handler's stream,
+    bound to whatever ``sys.stderr`` was when it was built -- so ``print()``,
+    ``print(file=sys.stderr)``, and uncaught tracebacks stay on the terminal --
     without this, ordinary ``print()`` calls (targeting fd 1 by default)
     would vanish into the capture file along with the native library's own
     fd 1 writes, since Python cannot tell the two apart at the fd level.
@@ -136,9 +151,11 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     _saved[fd] = saved
     _sink_paths[fd] = sink_path
     if fd == 2:
-        sys.stderr = saved
-        console_handler.setStream(saved)
-    else:
+        if _follows(sys.stderr, fd):
+            sys.stderr = saved
+        if _follows(console_handler.stream, fd):
+            console_handler.setStream(saved)
+    elif _follows(sys.stdout, fd):
         sys.stdout = saved
     atexit.register(_discard_if_empty, sink_path, os.getpid())
 
