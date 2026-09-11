@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from . import _console
+from . import _console, _native_fd
 
 _installed = False
 
@@ -21,4 +21,5 @@ def install() -> None:
         return
     _installed = True
 
-    _console.ensure_handler()
+    console = _console.ensure_handler()
+    _native_fd.gate(console.level, console)
