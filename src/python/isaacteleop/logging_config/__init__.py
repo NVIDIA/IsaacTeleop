@@ -3,12 +3,13 @@
 
 """Central ``logging`` configuration for the ``isaacteleop`` logger tree.
 
-One console handler on the root ``isaacteleop`` logger, so every
-``isaacteleop.<module>[.<ClassName>]`` logger -- in this package, in examples,
-from in-process C++ via :mod:`isaacteleop.log_bridge`, or from a worker
-process this session spawned -- shares one console format, instead of each
-entry point building its own handlers. Records from other processes and from
-standalone C++ arrive over a socket; see ``_forwarding.py`` for that design.
+One console handler and one file handler on the root ``isaacteleop`` logger,
+so every ``isaacteleop.<module>[.<ClassName>]`` logger -- in this package, in
+examples, from in-process C++ via :mod:`isaacteleop.log_bridge`, or from a
+worker process this session spawned -- shares one console format and lands in
+one file, instead of each entry point building its own handlers. Records from
+other processes and from standalone C++ arrive over a socket; see
+``_forwarding.py`` for that design.
 
 ``isaacteleop/__init__.py`` calls :func:`install` once; importing this package
 on its own configures nothing. Applications then narrow the console view::
@@ -17,6 +18,8 @@ on its own configures nothing. Applications then narrow the console view::
 
     logging_config.set_console_level("debug")
     logging_config.set_console_filter("manus", target="logger_name")
+
+The file handler always captures ``DEBUG`` and above regardless of that.
 """
 
 from ._console import (

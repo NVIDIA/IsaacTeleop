@@ -5,13 +5,15 @@
 
 import io
 import logging
+import os
+import re
 import threading
 import time
 from pathlib import Path
 
 import pytest
 from isaacteleop import logging_config
-from isaacteleop.logging_config import _console, _forwarding
+from isaacteleop.logging_config import _console, _file, _forwarding
 
 
 @pytest.fixture(autouse=True)
@@ -138,6 +140,44 @@ def test_log_dir_defaults_to_dot_isaacteleop(monkeypatch):
 def test_log_dir_honors_env_override(monkeypatch, tmp_path):
     monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
     assert logging_config.log_dir() == tmp_path
+
+
+def test_file_handler_attaches_once():
+    root = logging.getLogger(logging_config.ROOT_LOGGER_NAME)
+    handler = _file.ensure_handler()
+    assert handler in root.handlers
+    assert _file.ensure_handler() is handler
+    assert root.handlers.count(handler) == 1
+
+
+def test_file_handler_is_always_debug_level():
+    assert _file.ensure_handler().level == logging.DEBUG
+
+
+def test_file_handler_filename_includes_pid():
+    handler = _file.ensure_handler()
+    assert f".{os.getpid()}.log" in handler.baseFilename
+
+
+def test_file_handler_filename_includes_timestamp():
+    handler = _file.ensure_handler()
+    name = Path(handler.baseFilename).name
+    assert re.fullmatch(rf"\d{{8}}-\d{{6}}\.isaacteleop\.{os.getpid()}\.log", name), (
+        name
+    )
+
+
+def test_file_handler_captures_debug_regardless_of_console_level():
+    """The file is the full record even when the console is set well above DEBUG."""
+    logger = logging.getLogger("isaacteleop.test_file_handler_captures_debug")
+    logging_config.set_console_level("error")
+    handler = _file.ensure_handler()
+    marker = "unique-marker-for-file-debug-capture-test"
+
+    logger.debug(marker)
+    handler.flush()
+
+    assert marker in Path(handler.baseFilename).read_text(encoding="utf-8")
 
 
 def test_trace_level_value_and_name():

@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import os
 
-from . import _console, _forwarding, _native_fd
+from . import _console, _file, _forwarding, _native_fd
 from ._core import _LEVEL_NAMES
 
 _installed = False
@@ -51,4 +51,5 @@ def install() -> None:
 
     console = _console.ensure_handler()
     _native_fd.gate(console.level, console)
+    _file.ensure_handler()
     _forwarding.ensure_receiver()
