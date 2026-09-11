@@ -4,10 +4,10 @@
 #include "controller_se3_tracker_plugin.hpp"
 
 #include <deviceio_trackers/se3_tracker.hpp>
+#include <log_bridge/logger.hpp>
 
 #include <chrono>
 #include <cstddef>
-#include <iostream>
 #include <string>
 #include <thread>
 
@@ -16,6 +16,8 @@ using namespace plugins::controller_se3_tracker;
 int main(int argc, char** argv)
 try
 {
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.controller_se3_tracker.main");
+
     const std::string hand = (argc > 1) ? argv[1] : "right";
     // The default collection id deliberately matches the tensor identifier so plugin and
     // Se3Tracker rendezvous out of the box (see README).
@@ -23,11 +25,11 @@ try
 
     if (hand != "left" && hand != "right")
     {
-        std::cerr << "Usage: " << argv[0] << " [hand(left|right)] [collection_id]" << std::endl;
+        logger->error("Usage: {} [hand(left|right)] [collection_id]", argv[0]);
         return 1;
     }
 
-    std::cout << "Controller SE3 Tracker (hand: " << hand << ", collection: " << collection_id << ")" << std::endl;
+    logger->info("Controller SE3 Tracker (hand: {}, collection: {})", hand, collection_id);
 
     ControllerSe3TrackerPlugin plugin(hand == "left", collection_id);
 
@@ -47,11 +49,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.controller_se3_tracker.main");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error" << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.controller_se3_tracker.main");
+    logger->error("{}: Unknown error", argv[0]);
     return 1;
 }

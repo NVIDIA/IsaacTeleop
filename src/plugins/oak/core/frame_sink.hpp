@@ -6,6 +6,8 @@
 #include "oak_camera.hpp"
 #include "rawdata_writer.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <map>
 #include <memory>
 #include <string>
@@ -49,6 +51,7 @@ public:
 private:
     std::map<core::StreamType, std::unique_ptr<RawDataWriter>> m_writers;
     std::unique_ptr<IMetadataPusher> m_metadata_pusher;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.oak.FrameSink");
 };
 
 /**

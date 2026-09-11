@@ -22,6 +22,8 @@ target_link_libraries(pusherio
 
         # OpenXR extensions for push tensor and tensor data APIs
         Teleop::openxr_extensions
+
+        log_bridge::log_bridge_core
 )
 
 # pusherio does NOT link to OpenXR loader - it's completely standalone

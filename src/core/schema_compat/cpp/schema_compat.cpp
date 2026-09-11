@@ -6,9 +6,9 @@
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection_generated.h>
 #include <flatbuffers/verifier.h>
+#include <log_bridge/logger.hpp>
 
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -237,7 +237,7 @@ void enforce_schema_compat(const SchemaCompatResult& result, std::string_view co
 
     // Compatible: every recorded field still reads, so this is worth saying once and is not
     // worth refusing the recording over.
-    std::cerr << message << std::endl;
+    isaacteleop::Logger::get("isaacteleop.core.schema_compat")->warn("{}", message);
 }
 
 } // namespace core

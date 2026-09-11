@@ -13,7 +13,6 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
-#include <iostream>
 #include <optional>
 #include <stdexcept>
 
@@ -336,7 +335,7 @@ LiveControllerTrackerImpl::LiveControllerTrackerImpl(const OpenXRSessionHandles&
         throw std::runtime_error("Failed to attach action sets: " + std::to_string(result));
     }
 
-    std::cout << "ControllerTracker initialized (left + right) with action context" << std::endl;
+    logger_->info("ControllerTracker initialized (left + right) with action context");
 }
 
 void LiveControllerTrackerImpl::update(int64_t monotonic_time_ns)
@@ -502,9 +501,8 @@ void LiveControllerTrackerImpl::apply_haptic_feedback(Side side, float amplitude
             bool expected = false;
             if (stop_haptic_error_logged_[slot].compare_exchange_strong(expected, true))
             {
-                std::cerr << "[ControllerTracker] xrStopHapticFeedback(" << side_name
-                          << ") failed: " << static_cast<int>(stop_result)
-                          << "; further errors for this side will be silenced." << std::endl;
+                logger_->warn("xrStopHapticFeedback({}) failed: {}; further errors for this side will be silenced.",
+                              side_name, static_cast<int>(stop_result));
             }
         }
         return;
@@ -534,9 +532,8 @@ void LiveControllerTrackerImpl::apply_haptic_feedback(Side side, float amplitude
         bool expected = false;
         if (apply_haptic_error_logged_[slot].compare_exchange_strong(expected, true))
         {
-            std::cerr << "[ControllerTracker] xrApplyHapticFeedback(" << side_name
-                      << ") failed: " << static_cast<int>(apply_result)
-                      << "; further errors for this side will be silenced." << std::endl;
+            logger_->warn("xrApplyHapticFeedback({}) failed: {}; further errors for this side will be silenced.",
+                          side_name, static_cast<int>(apply_result));
         }
     }
 }

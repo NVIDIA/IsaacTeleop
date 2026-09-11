@@ -45,6 +45,10 @@ target_link_libraries(robot_twin_py
         CUDA::cudart_static
         # gl.cpp's and gl_context.cpp's loaders need dlopen/dlsym.
         ${CMAKE_DL_LIBS}
+        # mj_guard.cpp's isaacteleop::Logger. This module always loads in-process inside
+        # a Python interpreter (pybind11_add_module above), so install_python_sink()
+        # bridges it the same as every other in-process logger -- no separate wiring.
+        log_bridge::log_bridge_core
 )
 
 # MuJoCo's headers, libisaacteleop_mujoco.so staged beside the module for mj_api.cpp to

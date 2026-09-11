@@ -27,6 +27,7 @@ target_link_libraries(mcap_core
         mcap::mcap
         isaacteleop_schema
         schema::schema_compat
+        log_bridge::log_bridge_core
 )
 
 add_library(mcap::mcap_core ALIAS mcap_core)

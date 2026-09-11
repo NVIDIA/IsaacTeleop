@@ -93,7 +93,10 @@ void Plugin::start_process(const std::string& command,
 
     if (child_pid == 0)
     {
-        // Child process
+        // Child process, between fork() and execvp(): only async-signal-safe calls
+        // are allowed here (POSIX). Never add Logger/spdlog calls in this window --
+        // spdlog's registry and (in a Python process) GIL acquisition are both
+        // unsafe post-fork-pre-exec.
 
         // Change working directory
         if (!working_dir.empty())

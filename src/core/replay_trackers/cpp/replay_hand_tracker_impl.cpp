@@ -10,7 +10,6 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
 
 namespace core
 {
@@ -27,7 +26,8 @@ ReplayHandTrackerImpl::ReplayHandTrackerImpl(std::unique_ptr<mcap::McapReader> r
                                             base_name,
                                             std::vector<std::string>(HandRecordingTraits::replay_channels.begin(),
                                                                      HandRecordingTraits::replay_channels.end()),
-                                            recorded))
+                                            recorded)),
+      logger_(isaacteleop::Logger::get("isaacteleop.core.ReplayHandTrackerImpl"))
 {
 }
 
@@ -48,20 +48,30 @@ void ReplayHandTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     if (left_record)
     {
         left_tracked_ = left_record.narrow(left_record->data());
+        warned_no_left_data_ = false;
     }
     else
     {
-        std::cerr << "ReplayHandTrackerImpl: left hand data not found" << std::endl;
+        if (!warned_no_left_data_)
+        {
+            logger_->warn("left hand data not found");
+            warned_no_left_data_ = true;
+        }
         left_tracked_.reset();
     }
 
     if (right_record)
     {
         right_tracked_ = right_record.narrow(right_record->data());
+        warned_no_right_data_ = false;
     }
     else
     {
-        std::cerr << "ReplayHandTrackerImpl: right hand data not found" << std::endl;
+        if (!warned_no_right_data_)
+        {
+            logger_->warn("right hand data not found");
+            warned_no_right_data_ = true;
+        }
         right_tracked_.reset();
     }
 }

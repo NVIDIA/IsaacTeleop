@@ -53,6 +53,7 @@ target_link_libraries(viz_core
         glm::glm
         CUDA::cudart_static
         openxr_loader
+        log_bridge::log_bridge_core
 )
 
 # Aliased as viz::core (consumers say viz::core, not viz::viz_core).

@@ -18,6 +18,7 @@ target_include_directories(schema_compat
 target_link_libraries(schema_compat
     PRIVATE
         flatbuffers
+        log_bridge::log_bridge_core
 )
 
 add_library(schema::schema_compat ALIAS schema_compat)

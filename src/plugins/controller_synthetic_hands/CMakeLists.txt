@@ -22,6 +22,7 @@ target_link_libraries(controller_synthetic_hands PRIVATE
     oxr::oxr_utils
     OpenXR::openxr_loader
     Teleop::openxr_extensions
+    log_bridge::log_bridge_core
     ${CMAKE_DL_LIBS}      # For dlopen/dlsym
     Threads::Threads      # For pthread
 )
