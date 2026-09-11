@@ -11,35 +11,34 @@ to robot hand joint angles. It supports configuration via YAML files and URDFs.
 Based on IsaacLab's DexHandRetargeter, adapted for Isaac Teleop's retargeting framework.
 """
 
-import numpy as np
-import tempfile
-import os
 import logging
-from typing import Dict, Optional, List
+import os
+import tempfile
 from dataclasses import dataclass
+from typing import Dict, List, Optional
+
+import numpy as np
+import yaml
+from dex_retargeting.retargeting_config import RetargetingConfig  # type: ignore
+from scipy.spatial.transform import Rotation as R
 
 from isaacteleop.retargeting_engine.interface import (
     BaseRetargeter,
-    RetargeterIOType,
     ParameterState,
+    RetargeterIOType,
     VectorParameter,
 )
 from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
 from isaacteleop.retargeting_engine.interface.tensor_group_type import (
-    TensorGroupType,
     OptionalType,
+    TensorGroupType,
 )
 from isaacteleop.retargeting_engine.tensor_types import (
-    HandInput,
     FloatType,
+    HandInput,
     HandInputIndex,
     HandJointIndex,
 )
-
-import yaml
-from scipy.spatial.transform import Rotation as R
-from dex_retargeting.retargeting_config import RetargetingConfig  # type: ignore
-
 
 logger = logging.getLogger(__name__)
 
@@ -282,10 +281,10 @@ class DexHandRetargeter(BaseRetargeter):
         r = R.from_euler("xyz", value, degrees=True)
         self._handtracking2baselink = r.as_matrix()  # type: ignore
 
-        # Only print if value has changed significantly
+        # Only log if value has changed significantly
         if self._last_rpy is None or not np.allclose(self._last_rpy, value, atol=1e-3):
             name = getattr(self, "_name", "Initializing")
-            print(f"[{name}] Updated transform RPY: {value}")
+            logger.debug("[%s] Updated transform RPY: %s", name, value)
             self._last_rpy = np.copy(value)
 
     def _prepare_configs(self) -> None:
