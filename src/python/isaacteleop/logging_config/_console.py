@@ -78,8 +78,6 @@ class _LoggerNameColorFormatter(logging.Formatter):
 _lock = threading.Lock()
 _handler: logging.StreamHandler | None = None
 _active_filter: KeywordFilter | None = None
-_pattern: str | None = None
-_target: str = "both"
 
 
 def ensure_handler() -> logging.StreamHandler:
@@ -132,12 +130,10 @@ def set_console_level(level: int | str) -> None:
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
     """Set the console handler's keyword filter, or clear it if *pattern* is ``None``."""
     handler = ensure_handler()
-    global _active_filter, _pattern, _target
+    global _active_filter
     if _active_filter is not None:
         handler.removeFilter(_active_filter)
         _active_filter = None
-    _pattern = pattern
-    _target = target
     if pattern is not None:
         _active_filter = KeywordFilter(pattern, target=target)
         handler.addFilter(_active_filter)

@@ -23,8 +23,6 @@ def _restore_console_state():
     saved_level = handler.level
     saved_filters = list(handler.filters)
     saved_active_filter = _console._active_filter
-    saved_pattern = _console._pattern
-    saved_target = _console._target
     yield
     handler.setLevel(saved_level)
     for f in list(handler.filters):
@@ -32,8 +30,6 @@ def _restore_console_state():
     for f in saved_filters:
         handler.addFilter(f)
     _console._active_filter = saved_active_filter
-    _console._pattern = saved_pattern
-    _console._target = saved_target
 
 
 def test_console_handler_attaches_once():
@@ -58,9 +54,11 @@ def test_set_console_level_rejects_unknown_name():
 
 def test_set_console_level_does_not_touch_filter():
     logging_config.set_console_filter("existing")
+    active = _console._active_filter
     logging_config.set_console_level("warning")
     assert _console.ensure_handler().level == logging.WARNING
-    assert _console._pattern == "existing"
+    assert _console._active_filter is active
+    assert active in _console.ensure_handler().filters
 
 
 def _record(name: str, message: str) -> logging.LogRecord:
