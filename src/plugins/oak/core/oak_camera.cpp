@@ -6,8 +6,9 @@
 #include "frame_sink.hpp"
 #include "preview_stream.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <algorithm>
-#include <iostream>
 #include <stdexcept>
 
 namespace plugins
@@ -31,17 +32,17 @@ static bool has_stream(const std::vector<StreamConfig>& streams, core::StreamTyp
 OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& streams, std::unique_ptr<FrameSink> sink)
     : m_sink(std::move(sink))
 {
-    std::cout << "OAK Camera: " << config.fps << " fps, " << (config.bitrate / 1'000'000.0) << " Mbps" << std::endl;
+    m_logger->info("OAK Camera: {} fps, {} Mbps", config.fps, config.bitrate / 1e6);
 
     auto device_info = find_device(config.device_id);
 
     m_device = std::make_shared<dai::Device>(device_info);
-    std::cout << "Device connected: " << m_device->getDeviceInfo().getDeviceId() << std::endl;
+    m_logger->info("Device connected: {}", m_device->getDeviceInfo().getDeviceId());
 
     auto sensors = m_device->getCameraSensorNames();
-    std::cout << "Sensors found: " << sensors.size() << std::endl;
+    m_logger->info("Sensors found: {}", sensors.size());
     for (const auto& [socket, name] : sensors)
-        std::cout << "  Socket " << static_cast<int>(socket) << ": " << name << std::endl;
+        m_logger->info("  Socket {}: {}", static_cast<int>(socket), name);
 
     m_pipeline = create_pipeline(m_device, config, streams);
 
@@ -50,20 +51,24 @@ OakCamera::OakCamera(const OakConfig& config, const std::vector<StreamConfig>& s
 
     m_pipeline->start();
 
-    std::cout << "OAK camera pipeline started" << std::endl;
+    m_logger->info("OAK camera pipeline started");
 }
 
 OakCamera::~OakCamera() = default;
 
 dai::DeviceInfo OakCamera::find_device(const std::string& device_id)
 {
+    // static: no `this`, so this can't reuse the m_logger member -- resolve the
+    // same memoized logger by name instead (see LiveHandTrackerImpl for precedent).
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.oak.OakCamera");
+
     auto devices = dai::DeviceBootloader::getAllAvailableDevices();
     if (devices.empty())
         throw std::runtime_error("No OAK devices found. Check USB connection and udev rules.");
 
     if (device_id.empty())
     {
-        std::cout << "Found " << devices.size() << " OAK device(s), using: " << devices[0].getMxId() << std::endl;
+        logger->info("Found {} OAK device(s), using: {}", devices.size(), devices[0].getMxId());
         return devices[0];
     }
 
@@ -71,7 +76,7 @@ dai::DeviceInfo OakCamera::find_device(const std::string& device_id)
     {
         if (device.getDeviceId() == device_id)
         {
-            std::cout << "Found device with ID: " << device_id << std::endl;
+            logger->info("Found device with ID: {}", device_id);
             return device;
         }
     }
@@ -181,7 +186,7 @@ void OakCamera::print_stats() const
 {
     for (const auto& [type, count] : m_frame_counts)
     {
-        std::cout << "  " << core::EnumNameStreamType(type) << ": " << count << " frames" << std::endl;
+        m_logger->info("  {}: {} frames", core::EnumNameStreamType(type), count);
     }
 }
 

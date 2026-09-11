@@ -37,7 +37,7 @@ import numpy as np
 from pipeline import Frame, FrameSource, SourceSpec
 from ._helpers import alloc_pinned_host, notify, notify_verbose
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.sources.oakd")
 
 RECONNECT_DELAY_S = 5.0
 
