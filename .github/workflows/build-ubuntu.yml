@@ -1200,7 +1200,6 @@ jobs:
     runs-on: [self-hosted, linux]
     needs:
       - kitmaker
-    environment: release
     permissions:
       contents: read
     if: ${{ github.event_name != 'pull_request' && needs.kitmaker.result == 'success' }}
@@ -1210,7 +1209,6 @@ jobs:
       env:
         KITMAKER_API_ENDPOINT: ${{ secrets.KITMAKER_API_ENDPOINT }}
         KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
-        KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
         KITMAKER_RELEASE_UUID: ${{ needs.kitmaker.outputs.release_uuid }}
         ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
         ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
@@ -1225,11 +1223,6 @@ jobs:
         echo "::add-mask::${ARTIFACTORY_URL}"
         echo "::add-mask::${ARTIFACTORY_URL%/}"
         echo "::add-mask::${ARTIFACTORY_REPO}"
-
-        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_TOKEN}" ]]; then
-          echo "Missing required secrets: KITMAKER_API_ENDPOINT, KITMAKER_TOKEN"
-          exit 1
-        fi
 
         if [[ "${KITMAKER_API_ENDPOINT}" != https://* ]]; then
           echo "KITMAKER_API_ENDPOINT must use https://"
@@ -1261,7 +1254,6 @@ jobs:
           curl_status=0
           curl_output="$(curl --show-error --silent --location --connect-timeout 10 --max-time 60 \
             --write-out '\n%{http_code}' \
-            -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
             "${status_url}")" || curl_status=$?
           http_code="${curl_output##*$'\n'}"
           response_json="${curl_output%$'\n'*}"
