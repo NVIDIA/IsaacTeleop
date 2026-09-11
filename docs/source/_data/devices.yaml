@@ -65,6 +65,11 @@
 #
 # `planned` renders as one line under the table, not as a row. Its `tracking` url must
 # end in an issue or pull number, which the link label picks up: "Tracking #276".
+#
+# This header and the four section dividers are the only comments the file carries. Why a
+# row has no `since`, who cleared a contact, why a plugin is named generically -- none of
+# that annotates the row: state it in a field the page renders, put a rule that outlives
+# the row up here, and leave the rest to the commit message.
 
 devices:
   # ---------------------------------------------------------------------- xr --

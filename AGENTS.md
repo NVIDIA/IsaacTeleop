@@ -94,7 +94,7 @@ measurement, a trap someone already paid for. They are not a place to narrate.
   code, the test name, or an adjacent doc, do not restate it.
 
 This applies to `#`/`//` comments, docstrings, and comment blocks in
-`CMakeLists.txt`, `pyproject.toml` and scene XML.
+`CMakeLists.txt`, `pyproject.toml`, YAML data files and scene XML.
 
 ## Commits — DCO sign-off for AI-drafted commits
 
