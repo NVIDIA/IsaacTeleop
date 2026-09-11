@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: gamepad
+description: "Raw gamepad button/axis state via Linux joystick device"
+command: "./gamepad_plugin"
+version: "1.0.0"
+devices:
+  - path: "/gamepad"
+    type: "gamepad"
+    description: "Gamepad button/axis state from /dev/input/js*"
