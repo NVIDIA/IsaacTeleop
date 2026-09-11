@@ -80,3 +80,38 @@ def test_ensure_log_dir_refuses_a_directory_owned_by_someone_else(monkeypatch, t
 def test_log_dir_honors_env_override(monkeypatch, tmp_path):
     monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
     assert logging_config.log_dir() == tmp_path
+
+
+def test_trace_level_value_and_name():
+    assert logging_config.TRACE == 5
+    assert logging.getLevelName(5) == "TRACE"
+
+def test_trace_is_below_debug_and_filtered_by_default():
+    logger = logging.getLogger("isaacteleop.test_trace_filtering")
+    logging_config.set_console_level("debug")  # still above TRACE
+    handler = _console.ensure_handler()
+    stream = io.StringIO()
+    original_stream = handler.stream
+    handler.stream = stream
+    try:
+        logger.log(logging_config.TRACE, "should not appear")
+        logger.debug("should appear")
+    finally:
+        handler.stream = original_stream
+
+    assert "should not appear" not in stream.getvalue()
+    assert "should appear" in stream.getvalue()
+
+def test_trace_visible_once_console_level_lowered_to_trace():
+    logger = logging.getLogger("isaacteleop.test_trace_opt_in")
+    logging_config.set_console_level("trace")
+    handler = _console.ensure_handler()
+    stream = io.StringIO()
+    original_stream = handler.stream
+    handler.stream = stream
+    try:
+        logger.log(logging_config.TRACE, "now visible")
+    finally:
+        handler.stream = original_stream
+
+    assert "now visible" in stream.getvalue()
