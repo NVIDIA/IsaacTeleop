@@ -25,9 +25,11 @@ from constants import (
     TELEOP_MODES,
     TRACKED_HAND_RETARGETERS,
     WUJI_HAND_MODELS,
+    EE_POSE_FRAMES,
     HandRetargeter,
     HandTrackingPlugin,
     TeleopMode,
+    EePoseFrame,
     resolve_hand_retargeter,
 )
 from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
@@ -234,6 +236,31 @@ def _load_config_asset_root(node: Node) -> Path:
     return config_asset_root
 
 
+def _load_ee_poses_frame(node: Node) -> EePoseFrame:
+    node.declare_parameter(
+        "ee_poses_frame",
+        EePoseFrame.WORLD.value,
+        ParameterDescriptor(
+            description=(
+                "Reference frame of the published end effector poses. "
+                "'world' (default) publishes absolute poses in world_frame; "
+                "'head' publishes poses relative to head_frame and marks both "
+                "poses invalid while the head pose is unavailable."
+            )
+        ),
+    )
+    raw_frame = node.get_parameter("ee_poses_frame").get_parameter_value().string_value
+    try:
+        ee_poses_frame = EePoseFrame(raw_frame)
+    except ValueError as exc:
+        raise ValueError(
+            f"Parameter 'ee_poses_frame' must be one of {EE_POSE_FRAMES}, "
+            f"got {raw_frame!r}"
+        ) from exc
+    node.get_logger().info(f"EE poses frame: {ee_poses_frame}")
+    return ee_poses_frame
+
+
 def _load_finger_joint_name_aliases(node: Node, side: str) -> list[str] | None:
     # A bare [] default is inferred by rclpy as BYTE_ARRAY on Humble. Declare
     # by type first, then initialize the unset default to [] explicitly.
@@ -272,8 +299,9 @@ def _load_frames(node: Node) -> tuple[str, str, str, str]:
         "world",
         ParameterDescriptor(
             description=(
-                "World frame used as the header frame_id for all published messages "
-                "and as the parent frame for wrist TF transforms. Defaults to 'world'."
+                "World frame for absolute pose messages and the head TF. Also the "
+                "EE message frame and wrist TF parent when ee_poses_frame is 'world'. "
+                "Defaults to 'world'."
             )
         ),
     )
@@ -290,12 +318,16 @@ def _load_frames(node: Node) -> tuple[str, str, str, str]:
     node.declare_parameter(
         "head_frame",
         "head",
-        ParameterDescriptor(description="TF child frame name for the head."),
+        ParameterDescriptor(
+            description=(
+                "TF child frame name for the head. Also the EE message frame and "
+                "wrist TF parent when ee_poses_frame is 'head'."
+            )
+        ),
     )
 
-    # Every frame must be non-empty and distinct from the others: they become
-    # TF frame names that all share the same world parent, so any collision
-    # would publish ambiguous transforms.
+    # Every frame must be non-empty and distinct to avoid ambiguous transforms
+    # or cycles, regardless of the selected EE reference frame.
     frame_names = ("world_frame", "right_wrist_frame", "left_wrist_frame", "head_frame")
     frames = {
         name: node.get_parameter(name).get_parameter_value().string_value
@@ -454,30 +486,6 @@ def _load_mode(node: Node) -> TeleopMode:
         ) from exc
     node.get_logger().info(f"Mode: {mode}")
     return mode
-
-
-def _load_ee_poses_frame(node: Node) -> EePoseFrame:
-    node.declare_parameter(
-        "ee_poses_frame",
-        EePoseFrame.WORLD.value,
-        ParameterDescriptor(
-            description=(
-                "Reference frame of the published end effector poses. "
-                "'world' (default) publishes absolute poses in world_frame; "
-                "'head' publishes poses relative to head_frame."
-            )
-        ),
-    )
-    raw_frame = node.get_parameter("ee_poses_frame").get_parameter_value().string_value
-    try:
-        ee_poses_frame = EePoseFrame(raw_frame)
-    except ValueError as exc:
-        raise ValueError(
-            f"Parameter 'ee_poses_frame' must be one of {EE_POSE_FRAMES}, "
-            f"got {raw_frame!r}"
-        ) from exc
-    node.get_logger().info(f"EE poses frame: {ee_poses_frame}")
-    return ee_poses_frame
 
 
 def _load_pedal_collection_id(node: Node) -> str:

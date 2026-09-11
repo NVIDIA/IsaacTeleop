@@ -7,9 +7,7 @@
 import msgpack
 import numpy as np
 from builtin_interfaces.msg import Time
-from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import ByteMultiArray
-from teleop_ros2_interfaces.msg import NamedPoseArray
 
 from isaacteleop.retargeting_engine.interface import (
     OptionalTensorGroup,
@@ -33,8 +31,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     RobotHandJoints,
 )
 
-from constants import BODY_JOINT_NAMES, HAND_POSE_NAMES
-from geometry import to_pose
+from constants import BODY_JOINT_NAMES, HAND_POSE_NAMES, EePoseFrame
 from messages import (
     build_controller_msg,
     build_ee_output_from_controllers,
@@ -44,7 +41,6 @@ from messages import (
     build_hand_msg,
     build_head_output,
     build_root_command_output,
-    rebase_ee_poses_relative_to_head,
 )
 
 
@@ -116,6 +112,10 @@ def _active_head() -> TensorGroup:
 
 def _decode_payload(msg: ByteMultiArray) -> dict:
     return msgpack.unpackb(b"".join(msg.data), raw=False)
+
+
+def _position(pose) -> list[float]:
+    return [pose.position.x, pose.position.y, pose.position.z]
 
 
 def _root_command(values: list[float] | None) -> OptionalTensorGroup:
@@ -216,6 +216,64 @@ def test_build_ee_output_from_controllers_keeps_message_and_tfs_consistent() -> 
     assert transform.transform.translation.y == 5.0
     assert transform.transform.translation.z == 6.0
     assert transform.transform.rotation.w == 1.0
+
+
+def test_build_ee_output_from_controllers_in_the_head_frame() -> None:
+    right = _active_controller()
+    right[ControllerInputIndex.AIM_POSITION] = np.array(
+        [2.0, 4.0, 6.0], dtype=np.float32
+    )
+    msg, transforms = build_ee_output_from_controllers(
+        _active_controller(),
+        right,
+        Time(sec=12, nanosec=34),
+        "world",
+        "left_wrist",
+        "right_wrist",
+        head=_active_head(),
+        head_frame="headset",
+        ee_poses_frame=EePoseFrame.HEAD,
+    )
+
+    assert msg.header.frame_id == "headset"
+    assert msg.header.stamp.sec == 12
+    assert msg.header.stamp.nanosec == 34
+    assert list(msg.name) == ["left", "right"]
+    assert list(msg.is_valid) == [True, True]
+    np.testing.assert_allclose(_position(msg.pose[0]), [3.0, 3.0, 3.0])
+    np.testing.assert_allclose(_position(msg.pose[1]), [1.0, 2.0, 3.0])
+    assert [transform.header.frame_id for transform in transforms] == [
+        "headset",
+        "headset",
+    ]
+    assert [transform.child_frame_id for transform in transforms] == [
+        "left_wrist",
+        "right_wrist",
+    ]
+
+
+def test_build_ee_output_from_hands_in_head_frame_keeps_untracked_sides_invalid() -> (
+    None
+):
+    msg, transforms = build_ee_output_from_hands(
+        _active_hand(),
+        OptionalTensorGroup(HandInput()),
+        Time(),
+        "world",
+        "left_wrist",
+        "right_wrist",
+        head=_active_head(),
+        head_frame="headset",
+        ee_poses_frame=EePoseFrame.HEAD,
+    )
+
+    assert msg.header.frame_id == "headset"
+    assert list(msg.is_valid) == [True, False]
+    np.testing.assert_allclose(_position(msg.pose[1]), [0.0, 0.0, 0.0])
+    assert msg.pose[1].orientation.w == 1.0
+    assert len(transforms) == 1
+    assert transforms[0].header.frame_id == "headset"
+    assert transforms[0].child_frame_id == "left_wrist"
 
 
 def test_build_ee_output_from_hands_uses_valid_wrist_entries() -> None:
@@ -381,65 +439,3 @@ def test_build_root_command_output_maps_twist_and_height() -> None:
 
 def test_build_root_command_output_returns_none_when_input_is_absent() -> None:
     assert build_root_command_output(_root_command(None), Time(), "world") is None
-
-
-def _world_ee_msg(right_is_valid: bool = True) -> NamedPoseArray:
-    """Build a world-frame EE message with the left side always tracked."""
-    msg = NamedPoseArray()
-    msg.header.stamp = Time(sec=12, nanosec=34)
-    msg.header.frame_id = "world"
-    sides = (
-        ("left", [-0.20, 0.15, 1.20], True),
-        ("right", [0.20, 0.15, 1.20], right_is_valid),
-    )
-    for side, position, is_valid in sides:
-        msg.name.append(side)
-        msg.pose.append(to_pose(position if is_valid else [0.0, 0.0, 0.0]))
-        msg.is_valid.append(is_valid)
-    return msg
-
-
-def _head_msg() -> PoseStamped:
-    head = PoseStamped()
-    head.header.frame_id = "world"
-    head.pose = to_pose([0.0, 0.10, 1.60])
-    return head
-
-
-def _position(pose) -> list[float]:
-    return [pose.position.x, pose.position.y, pose.position.z]
-
-
-def test_rebase_ee_poses_expresses_message_and_tfs_in_the_head_frame() -> None:
-    rebased, transforms = rebase_ee_poses_relative_to_head(
-        _world_ee_msg(), _head_msg(), "left_wrist", "right_wrist"
-    )
-
-    assert rebased.header.frame_id == "head"
-    assert rebased.header.stamp.sec == 12
-    assert rebased.header.stamp.nanosec == 34
-    assert list(rebased.name) == ["left", "right"]
-    assert list(rebased.is_valid) == [True, True]
-    np.testing.assert_allclose(
-        _position(rebased.pose[0]), [-0.20, 0.05, -0.40], atol=1e-7
-    )
-    np.testing.assert_allclose(
-        _position(rebased.pose[1]), [0.20, 0.05, -0.40], atol=1e-7
-    )
-    assert [transform.header.frame_id for transform in transforms] == ["head", "head"]
-    assert [transform.child_frame_id for transform in transforms] == [
-        "left_wrist",
-        "right_wrist",
-    ]
-
-
-def test_rebase_ee_poses_keeps_untracked_sides_invalid() -> None:
-    rebased, transforms = rebase_ee_poses_relative_to_head(
-        _world_ee_msg(right_is_valid=False), _head_msg(), "left_wrist", "right_wrist"
-    )
-
-    assert list(rebased.is_valid) == [True, False]
-    np.testing.assert_allclose(_position(rebased.pose[1]), [0.0, 0.0, 0.0])
-    assert rebased.pose[1].orientation.w == 1.0
-    assert len(transforms) == 1
-    assert transforms[0].child_frame_id == "left_wrist"
