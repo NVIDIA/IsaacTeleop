@@ -356,8 +356,10 @@ def _load_hand_tracking_provider(
         HandTrackingProvider.NATIVE.value,
         ParameterDescriptor(
             description=(
-                "Hand-tracking data provider. Use 'native' for native OpenXR "
-                "hand tracking, or 'manus'/'wuji' for glove-provided OpenXR hands."
+                "Hand-tracking data provider. 'native' uses runtime-provided "
+                "OpenXR hands, starts no plugin, and has no effect when tracked "
+                "hands are not consumed. 'manus'/'wuji' use glove-provided "
+                "OpenXR hands."
             ),
             additional_constraints=f"Must be one of {HAND_TRACKING_PROVIDERS}.",
         ),
