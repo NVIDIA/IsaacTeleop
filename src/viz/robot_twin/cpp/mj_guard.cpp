@@ -41,6 +41,11 @@ void on_error(const char* message)
         // Outside a guarded call there is nowhere to land. A core dump beats continuing
         // on state MuJoCo has already declared invalid.
         logger()->error("unguarded MuJoCo error: {}", g_message);
+        // abort() runs no atexit handler and flushes no stdio, and spdlog's file
+        // sink buffers through a FILE*. The raw fprintf(stderr) this replaced was
+        // unbuffered and always landed; without an explicit flush the last thing
+        // MuJoCo said before the core dump can be missing from the log.
+        logger()->flush();
         std::abort();
     }
     g_armed = false;

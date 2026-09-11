@@ -36,7 +36,6 @@ Key points for integrators:
 from __future__ import annotations
 
 import argparse
-import logging
 import time
 
 import numpy as np
@@ -65,7 +64,6 @@ from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfi
 APP_NAME = "ControllerHapticFeedbackExample"
 FPS = 60.0  # demo loop rate; the retargeting pipeline runs once per frame
 
-logger = logging.getLogger("isaacteleop.haptic_feedback.controller")
 
 
 class TriggerToTactile(BaseRetargeter):
@@ -183,7 +181,7 @@ def main() -> None:
                     "   |   "
                     f"R trig {_bar(trig_r)} {trig_r:.2f} -> R rumble {_bar(hap_r)} {hap_r:.2f}"
                 )
-                logger.info(line)
+                print(f"\r{line:<96}", end="", flush=True)
                 time.sleep(frame_period_s)
 
 
