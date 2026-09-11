@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <memory>
@@ -42,6 +43,8 @@ private:
 
     std::shared_ptr<core::OpenXRSession> session_;
     core::SchemaPusher pusher_;
+    std::shared_ptr<spdlog::logger> logger_ =
+        isaacteleop::Logger::get("isaacteleop.plugins.generic_3axis_pedal.Generic3AxisPedalPlugin");
 };
 
 } // namespace generic_3axis_pedal

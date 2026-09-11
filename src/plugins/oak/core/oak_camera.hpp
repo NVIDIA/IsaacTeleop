@@ -4,6 +4,7 @@
 #pragma once
 
 #include <depthai/depthai.hpp>
+#include <log_bridge/logger.hpp>
 #include <schema/oak_generated.h>
 
 #include <cstdint>
@@ -104,6 +105,7 @@ private:
     std::map<core::StreamType, uint64_t> m_frame_counts;
 
     std::unique_ptr<PreviewStream> m_preview;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.oak.OakCamera");
 };
 
 } // namespace oak

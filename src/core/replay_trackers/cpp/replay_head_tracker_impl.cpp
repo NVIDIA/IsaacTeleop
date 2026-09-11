@@ -10,7 +10,6 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
 
 namespace core
 {
@@ -27,7 +26,8 @@ ReplayHeadTrackerImpl::ReplayHeadTrackerImpl(std::unique_ptr<mcap::McapReader> r
                                             base_name,
                                             std::vector<std::string>(HeadRecordingTraits::replay_channels.begin(),
                                                                      HeadRecordingTraits::replay_channels.end()),
-                                            recorded))
+                                            recorded)),
+      logger_(isaacteleop::Logger::get("isaacteleop.core.ReplayHeadTrackerImpl"))
 {
 }
 
@@ -42,10 +42,15 @@ void ReplayHeadTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     if (record)
     {
         tracked_ = record.narrow(record->data());
+        warned_no_data_ = false;
     }
     else
     {
-        std::cerr << "ReplayHeadTrackerImpl: head data not found" << std::endl;
+        if (!warned_no_data_)
+        {
+            logger_->warn("head data not found");
+            warned_no_data_ = true;
+        }
         tracked_.reset();
     }
 }

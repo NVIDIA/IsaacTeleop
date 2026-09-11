@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/controller_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/controller_generated.h>
 
@@ -43,6 +44,9 @@ private:
     Serialized<ControllerSnapshot> left_tracked_;
     Serialized<ControllerSnapshot> right_tracked_;
     std::unique_ptr<ControllerMcapViewers> mcap_viewers_;
+    std::shared_ptr<spdlog::logger> logger_;
+    bool warned_no_left_data_ = false;
+    bool warned_no_right_data_ = false;
 };
 
 } // namespace core

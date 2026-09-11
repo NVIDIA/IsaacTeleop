@@ -10,7 +10,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -149,8 +148,7 @@ void LiveMessageChannelTrackerImpl::drain_messages(MessageChannelMessagesTracked
             // Drain the oversized message to unblock the queue, but discard the data.
             // Read in bounded chunks using the pre-allocated receive_buffer_ to avoid
             // allocating a buffer sized by the untrusted remote-supplied count_out.
-            std::cerr << "[LiveMessageChannelTrackerImpl] Dropping oversized message (" << count_out << " bytes, max "
-                      << tracker_->max_message_size() << ")" << std::endl;
+            logger_->warn("Dropping oversized message ({} bytes, max {})", count_out, tracker_->max_message_size());
             uint32_t remaining = count_out;
             while (remaining > 0)
             {
@@ -316,8 +314,7 @@ void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
                 return;
             }
             if (result != XR_SUCCESS)
-                std::cerr << "[LiveMessageChannelTrackerImpl] xrShutdownOpaqueDataChannelNV failed, result=" << result
-                          << std::endl;
+                logger_->warn("xrShutdownOpaqueDataChannelNV failed, result={}", static_cast<int>(result));
         }
         if (destroy_channel_fn_)
         {
@@ -325,8 +322,7 @@ void LiveMessageChannelTrackerImpl::destroy_channel() noexcept
             if (result == XR_ERROR_INSTANCE_LOST || result == XR_ERROR_RUNTIME_FAILURE)
                 instance_lost_ = true;
             else if (result != XR_SUCCESS)
-                std::cerr << "[LiveMessageChannelTrackerImpl] xrDestroyOpaqueDataChannelNV failed, result=" << result
-                          << std::endl;
+                logger_->warn("xrDestroyOpaqueDataChannelNV failed, result={}", static_cast<int>(result));
         }
     }
     channel_ = XR_NULL_HANDLE;
@@ -344,7 +340,7 @@ bool LiveMessageChannelTrackerImpl::try_reopen_channel()
     }
     catch (const std::exception& e)
     {
-        std::cerr << "[LiveMessageChannelTrackerImpl] Failed to reopen message channel: " << e.what() << std::endl;
+        logger_->warn("Failed to reopen message channel: {}", e.what());
         return false;
     }
 }

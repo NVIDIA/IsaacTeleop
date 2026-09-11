@@ -9,7 +9,6 @@
 #include <oxr_utils/os_time.hpp>
 
 #include <cassert>
-#include <iostream>
 #include <stdexcept>
 
 namespace core
@@ -92,7 +91,7 @@ DeviceIOSession::DeviceIOSession(const std::vector<std::shared_ptr<ITracker>>& t
             throw std::runtime_error("DeviceIOSession: failed to open MCAP file '" + recording_config->filename +
                                      "': " + status.message);
         }
-        std::cout << "DeviceIOSession: recording to " << recording_config->filename << std::endl;
+        logger_->info("DeviceIOSession: recording to {}", recording_config->filename);
 
         tracker_names = std::move(recording_config->tracker_names);
     }
@@ -128,7 +127,8 @@ std::unique_ptr<DeviceIOSession> DeviceIOSession::run(const std::vector<std::sha
     assert(handles.session != XR_NULL_HANDLE && "OpenXR session handle cannot be null");
     assert(handles.space != XR_NULL_HANDLE && "OpenXR space handle cannot be null");
 
-    std::cout << "DeviceIOSession: Creating session with " << trackers.size() << " trackers" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.core.DeviceIOSession")
+        ->info("DeviceIOSession: Creating session with {} trackers", trackers.size());
 
     return std::unique_ptr<DeviceIOSession>(
         new DeviceIOSession(trackers, handles, std::move(recording_config), std::move(vendor_config)));
