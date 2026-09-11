@@ -46,6 +46,7 @@ from isaacteleop.retargeting_engine.deviceio_source_nodes import (
 from isaacteleop.retargeting_engine.interface import OutputCombiner
 from isaacteleop.teleop_session_manager import (
     PluginConfig,
+    SessionMode,
     TeleopSessionConfig,
 )
 from node_parameters import NodeParameters
@@ -110,7 +111,11 @@ def _maybe_gate_hand_joints_on_tracking(
 def _resolve_hand_tracking_plugin_configs(
     params: NodeParameters,
 ) -> list[PluginConfig]:
-    if not params.start_hand_tracking_plugin:
+    if (
+        params.session_mode == SessionMode.REPLAY
+        or params.hand_tracking_provider == HandTrackingProvider.NATIVE
+        or params.use_external_hand_tracking_plugin
+    ):
         return []
 
     if params.hand_tracking_provider == HandTrackingProvider.MANUS:

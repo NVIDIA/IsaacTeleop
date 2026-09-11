@@ -222,13 +222,13 @@ def test_hand_teleop_always_uses_hand_wrist(
 def test_managed_plugin_config_is_inferred_from_provider(tmp_path) -> None:
     manus_params = SimpleNamespace(
         hand_tracking_provider=HandTrackingProvider.MANUS,
-        start_hand_tracking_plugin=True,
+        use_external_hand_tracking_plugin=False,
         session_mode=SessionMode.LIVE,
         plugin_search_paths=(tmp_path,),
     )
     wuji_params = SimpleNamespace(
         hand_tracking_provider=HandTrackingProvider.WUJI,
-        start_hand_tracking_plugin=True,
+        use_external_hand_tracking_plugin=False,
         session_mode=SessionMode.LIVE,
         plugin_search_paths=(tmp_path,),
     )
@@ -242,15 +242,22 @@ def test_managed_plugin_config_is_inferred_from_provider(tmp_path) -> None:
     assert wuji_config.plugin_args == []
 
 
-def test_plugin_config_is_empty_when_start_is_false(tmp_path) -> None:
+def test_plugin_config_is_empty_for_external_provider_or_replay(tmp_path) -> None:
     external_params = SimpleNamespace(
         hand_tracking_provider=HandTrackingProvider.MANUS,
-        start_hand_tracking_plugin=False,
+        use_external_hand_tracking_plugin=True,
         session_mode=SessionMode.LIVE,
+        plugin_search_paths=(tmp_path,),
+    )
+    replay_params = SimpleNamespace(
+        hand_tracking_provider=HandTrackingProvider.WUJI,
+        use_external_hand_tracking_plugin=False,
+        session_mode=SessionMode.REPLAY,
         plugin_search_paths=(tmp_path,),
     )
 
     assert session_config._resolve_hand_tracking_plugin_configs(external_params) == []
+    assert session_config._resolve_hand_tracking_plugin_configs(replay_params) == []
 
 
 def test_joint_alias_count_validation() -> None:

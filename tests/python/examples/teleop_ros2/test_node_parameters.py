@@ -41,10 +41,10 @@ def test_external_provider_is_preserved_without_plugin_paths(monkeypatch) -> Non
     monkeypatch.delenv("ISAAC_TELEOP_PLUGIN_PATH", raising=False)
     node = _Node(
         hand_tracking_provider="manus",
-        start_hand_tracking_plugin=False,
+        use_external_hand_tracking_plugin=True,
     )
 
-    provider, start_plugin, search_paths = _load_hand_tracking_provider(
+    provider, use_external_plugin, search_paths = _load_hand_tracking_provider(
         node,
         TeleopMode.CONTROLLER_TELEOP,
         HandRetargeter.DEXPILOT,
@@ -52,17 +52,14 @@ def test_external_provider_is_preserved_without_plugin_paths(monkeypatch) -> Non
     )
 
     assert provider == HandTrackingProvider.MANUS
-    assert not start_plugin
+    assert use_external_plugin
     assert search_paths == ()
 
 
-def test_replay_preserves_provider_when_plugin_startup_is_disabled() -> None:
-    node = _Node(
-        hand_tracking_provider="wuji",
-        start_hand_tracking_plugin=False,
-    )
+def test_replay_preserves_provider_without_starting_plugin() -> None:
+    node = _Node(hand_tracking_provider="wuji")
 
-    provider, start_plugin, _search_paths = _load_hand_tracking_provider(
+    provider, use_external_plugin, _search_paths = _load_hand_tracking_provider(
         node,
         TeleopMode.CONTROLLER_TELEOP,
         HandRetargeter.WUJI,
@@ -70,13 +67,13 @@ def test_replay_preserves_provider_when_plugin_startup_is_disabled() -> None:
     )
 
     assert provider == HandTrackingProvider.WUJI
-    assert not start_plugin
+    assert not use_external_plugin
 
 
-def test_managed_plugin_requires_non_native_provider() -> None:
+def test_external_plugin_requires_non_native_provider() -> None:
     node = _Node(
         hand_tracking_provider="native",
-        start_hand_tracking_plugin=True,
+        use_external_hand_tracking_plugin=True,
     )
 
     with pytest.raises(
@@ -91,13 +88,13 @@ def test_managed_plugin_requires_non_native_provider() -> None:
         )
 
 
-def test_replay_rejects_managed_plugin_startup() -> None:
+def test_replay_rejects_external_plugin() -> None:
     node = _Node(
         hand_tracking_provider="wuji",
-        start_hand_tracking_plugin=True,
+        use_external_hand_tracking_plugin=True,
     )
 
-    with pytest.raises(ValueError, match="must be false during MCAP replay"):
+    with pytest.raises(ValueError, match="must be false.*during MCAP replay"):
         _load_hand_tracking_provider(
             node,
             TeleopMode.CONTROLLER_TELEOP,
@@ -109,7 +106,7 @@ def test_replay_rejects_managed_plugin_startup() -> None:
 def test_non_native_provider_requires_tracked_hand_mode() -> None:
     node = _Node(
         hand_tracking_provider="manus",
-        start_hand_tracking_plugin=False,
+        use_external_hand_tracking_plugin=True,
     )
 
     with pytest.raises(ValueError, match="requires a tracked-hand mode"):
@@ -127,10 +124,9 @@ def test_managed_provider_requires_and_returns_plugin_paths(
     monkeypatch.setenv("ISAAC_TELEOP_PLUGIN_PATH", str(tmp_path))
     node = _Node(
         hand_tracking_provider="wuji",
-        start_hand_tracking_plugin=True,
     )
 
-    provider, start_plugin, search_paths = _load_hand_tracking_provider(
+    provider, use_external_plugin, search_paths = _load_hand_tracking_provider(
         node,
         TeleopMode.HAND_TELEOP,
         HandRetargeter.DEXPILOT,
@@ -138,16 +134,13 @@ def test_managed_provider_requires_and_returns_plugin_paths(
     )
 
     assert provider == HandTrackingProvider.WUJI
-    assert start_plugin
+    assert not use_external_plugin
     assert search_paths == (tmp_path.resolve(),)
 
 
 def test_managed_provider_requires_plugin_path(monkeypatch) -> None:
     monkeypatch.delenv("ISAAC_TELEOP_PLUGIN_PATH", raising=False)
-    node = _Node(
-        hand_tracking_provider="manus",
-        start_hand_tracking_plugin=True,
-    )
+    node = _Node(hand_tracking_provider="manus")
 
     with pytest.raises(FileNotFoundError, match="ISAAC_TELEOP_PLUGIN_PATH"):
         _load_hand_tracking_provider(

@@ -67,7 +67,7 @@ class NodeParameters:
     hand_retargeter: HandRetargeter
     resolved_hand_retargeter: HandRetargeter
     hand_tracking_provider: HandTrackingProvider
-    start_hand_tracking_plugin: bool
+    use_external_hand_tracking_plugin: bool
     plugin_search_paths: tuple[Path, ...]
     wuji_hand_model: str
     config_asset_root: Path
@@ -363,12 +363,13 @@ def _load_hand_tracking_provider(
         ),
     )
     node.declare_parameter(
-        "start_hand_tracking_plugin",
+        "use_external_hand_tracking_plugin",
         False,
         ParameterDescriptor(
             description=(
-                "Start the selected MANUS or Wuji provider plugin with the session. "
-                "Leave false when the provider is native or externally managed."
+                "Use a MANUS or Wuji provider plugin started outside this node. "
+                "Leave false to start the selected provider plugin automatically "
+                "with a live session."
             )
         ),
     )
@@ -386,8 +387,8 @@ def _load_hand_tracking_provider(
             f"{HAND_TRACKING_PROVIDERS}, got {raw_provider!r}"
         ) from exc
 
-    start_plugin = (
-        node.get_parameter("start_hand_tracking_plugin")
+    use_external_plugin = (
+        node.get_parameter("use_external_hand_tracking_plugin")
         .get_parameter_value()
         .bool_value
     )
@@ -403,16 +404,22 @@ def _load_hand_tracking_provider(
             "does not consume OpenXR hand tracking"
         )
 
-    if start_plugin and provider == HandTrackingProvider.NATIVE:
+    if use_external_plugin and provider == HandTrackingProvider.NATIVE:
         raise ValueError(
-            "Parameter 'start_hand_tracking_plugin' requires "
+            "Parameter 'use_external_hand_tracking_plugin' requires "
             "hand_tracking_provider:=manus or hand_tracking_provider:=wuji"
         )
-    if start_plugin and session_mode == SessionMode.REPLAY:
+    if use_external_plugin and session_mode == SessionMode.REPLAY:
         raise ValueError(
-            "Parameter 'start_hand_tracking_plugin' must be false during MCAP replay"
+            "Parameter 'use_external_hand_tracking_plugin' must be false "
+            "during MCAP replay"
         )
 
+    start_plugin = (
+        provider != HandTrackingProvider.NATIVE
+        and session_mode == SessionMode.LIVE
+        and not use_external_plugin
+    )
     search_paths: tuple[Path, ...] = ()
     if start_plugin:
         search_paths = tuple(
@@ -430,9 +437,9 @@ def _load_hand_tracking_provider(
                 "ISAAC_TELEOP_PLUGIN_PATH"
             )
         node.get_logger().info(f"Managed hand-tracking plugin provider: {provider}")
-    elif provider != HandTrackingProvider.NATIVE:
+    elif use_external_plugin:
         node.get_logger().info(f"External hand-tracking provider: {provider}")
-    return provider, start_plugin, search_paths
+    return provider, use_external_plugin, search_paths
 
 
 def _load_mcap_replay(
@@ -607,7 +614,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
     session_mode, mcap_config = _load_mcap_replay(node)
     (
         hand_tracking_provider,
-        start_hand_tracking_plugin,
+        use_external_hand_tracking_plugin,
         plugin_search_paths,
     ) = _load_hand_tracking_provider(
         node,
@@ -629,7 +636,7 @@ def create_node_parameters(node: Node) -> NodeParameters:
         hand_retargeter=hand_retargeter,
         resolved_hand_retargeter=resolved_hand_retargeter,
         hand_tracking_provider=hand_tracking_provider,
-        start_hand_tracking_plugin=start_hand_tracking_plugin,
+        use_external_hand_tracking_plugin=use_external_hand_tracking_plugin,
         plugin_search_paths=plugin_search_paths,
         wuji_hand_model=wuji_hand_model,
         config_asset_root=config_asset_root,
