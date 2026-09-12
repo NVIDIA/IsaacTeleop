@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <deviceio_session/replay_session.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
+#include <deviceio_trackers/joint_se3_pose_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
@@ -15,6 +16,7 @@
 #include <mcap/recording_traits.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/hand_generated.h>
+#include <schema/joint_se3_pose_generated.h>
 #include <schema/head_generated.h>
 #include <schema/message_channel_generated.h>
 #include <schema/se3_tracker_generated.h>
@@ -90,6 +92,7 @@ using HeadChannels = core::McapTrackerChannels<core::HeadPoseRecord>;
 using HandChannels = core::McapTrackerChannels<core::HandPoseRecord>;
 using MessageChannelChannels = core::McapTrackerChannels<core::MessageChannelMessagesRecord>;
 using Se3TrackerChannels = core::McapTrackerChannels<core::Se3TrackerPoseRecord>;
+using JointSe3PoseChannels = core::McapTrackerChannels<core::JointSe3PoseOutputRecord>;
 
 // ============================================================================
 // Write helpers
@@ -122,6 +125,30 @@ void write_se3_tracker_frame(Se3TrackerChannels& ch, int64_t time_ns, float x, f
                     data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
     ch.write(1, core::pack_record<core::Se3TrackerPoseRecord>(
                     data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns)));
+}
+
+// Manus reports its flex sensors thumb->pinky; the plugin maps them to this block.
+constexpr std::array<core::JointName, 5> kTipJoints = {
+    core::JointName_HAND_RAW_THUMB_TIP, core::JointName_HAND_RAW_INDEX_TIP, core::JointName_HAND_RAW_MIDDLE_TIP,
+    core::JointName_HAND_RAW_RING_TIP, core::JointName_HAND_RAW_LITTLE_TIP,
+};
+
+// Mirror the manus plugin's push: five tips, keyed, with the ith at (offset + i, 0, 0) so a
+// joint's position identifies both which tip and which side it came from. Written to index 0
+// ("joint_se3_pose") and index 1 ("joint_se3_pose_tracked") as the live impl does; replay
+// reads only the tracked channel.
+void write_joint_se3_pose_frame(JointSe3PoseChannels& ch, int64_t time_ns, const std::string& device_id, float offset)
+{
+    auto data = std::make_shared<core::JointSe3PoseOutputT>();
+    data->device_id = device_id;
+    for (size_t i = 0; i < kTipJoints.size(); ++i)
+    {
+        data->joints.emplace_back(kTipJoints[i], make_pose(offset + static_cast<float>(i), 0.0f, 0.0f));
+    }
+    const auto record = core::pack_record<core::JointSe3PoseOutputRecord>(
+        data.get(), core::DeviceDataTimestamp(time_ns, time_ns, time_ns));
+    ch.write(0, record);
+    ch.write(1, record);
 }
 
 void write_message_record(MessageChannelChannels& ch, int64_t time_ns, const std::string& payload)
@@ -317,6 +344,75 @@ TEST_CASE("ReplaySession: hand tracker round-trip with left and right", "[replay
     session->update();
     CHECK_FALSE(hand_tracker.get_left_hand(*session));
     CHECK_FALSE(hand_tracker.get_right_hand(*session));
+}
+
+// =============================================================================
+// Single tracker — JointSe3PoseTracker
+// =============================================================================
+
+TEST_CASE("ReplaySession: joint SE3 pose round-trip keeps both hands distinct", "[replay][session][joint_se3_pose]")
+{
+    auto path = get_temp_mcap_path();
+    TempFileCleanup cleanup(path);
+    // One collection per hand, as the manus plugin pushes them: a message is always one hand,
+    // and which hand it is comes from the collection, not from the payload's shape.
+    const std::string left_name = "manus_sensors_left";
+    const std::string right_name = "manus_sensors_right";
+    constexpr float kRightOffset = 100.0f;
+
+    {
+        auto writer = open_writer(path);
+        auto channels = to_string_vec(core::JointSe3PoseRecordingTraits::recording_channels);
+        JointSe3PoseChannels left_ch(*writer, left_name, channels);
+        JointSe3PoseChannels right_ch(*writer, right_name, channels);
+
+        for (int i = 0; i < 3; ++i)
+        {
+            int64_t t = (i + 1) * 1000000;
+            write_joint_se3_pose_frame(left_ch, t, left_name, 0.0f);
+            write_joint_se3_pose_frame(right_ch, t, right_name, kRightOffset);
+        }
+        writer->close();
+    }
+
+    core::JointSe3PoseTracker left_tracker(left_name);
+    core::JointSe3PoseTracker right_tracker(right_name);
+    core::McapReplayConfig config;
+    config.filename = path;
+    config.tracker_names = { { &left_tracker, left_name }, { &right_tracker, right_name } };
+
+    auto session = core::ReplaySession::run(config);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        session->update();
+        const auto& left = left_tracker.get_data(*session);
+        const auto& right = right_tracker.get_data(*session);
+        REQUIRE(left);
+        REQUIRE(right);
+
+        CHECK(left->device_id()->str() == left_name);
+        CHECK(right->device_id()->str() == right_name);
+        REQUIRE(left->joints()->size() == kTipJoints.size());
+        REQUIRE(right->joints()->size() == kTipJoints.size());
+
+        // Every tip survives the round-trip reachable BY NAME, carrying its own pose --
+        // checking the position is what proves the lookup landed on the right entry, since
+        // LookupByKey on a mis-sorted vector returns a neighbour rather than failing.
+        for (size_t tip = 0; tip < kTipJoints.size(); ++tip)
+        {
+            const auto* left_tip = left->joints()->LookupByKey(kTipJoints[tip]);
+            const auto* right_tip = right->joints()->LookupByKey(kTipJoints[tip]);
+            REQUIRE(left_tip != nullptr);
+            REQUIRE(right_tip != nullptr);
+            CHECK(left_tip->pose().position().x() == static_cast<float>(tip));
+            CHECK(right_tip->pose().position().x() == kRightOffset + static_cast<float>(tip));
+        }
+    }
+
+    session->update();
+    CHECK_FALSE(left_tracker.get_data(*session));
+    CHECK_FALSE(right_tracker.get_data(*session));
 }
 
 // =============================================================================

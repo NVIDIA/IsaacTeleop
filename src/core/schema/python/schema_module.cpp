@@ -11,6 +11,7 @@
 #include "hand_bindings.h"
 #include "haptic_command_bindings.h"
 #include "head_bindings.h"
+#include "joint_se3_pose_bindings.h"
 #include "joint_state_bindings.h"
 #include "message_channel_bindings.h"
 #include "oak_bindings.h"
@@ -50,6 +51,10 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind joint-state types (JointState, JointStateOutput tables) for generic joint-space devices.
     core::bind_joint_state(m);
+
+    // Bind joint SE(3) pose types (JointName enum, JointSe3Pose struct, JointSe3PoseOutput table)
+    // for sparse tracked-joint sources.
+    core::bind_joint_se3_pose(m);
 
     // Bind SE3 tracker types (Se3TrackerPose table) for generic 6-DoF pose sources.
     core::bind_se3_tracker(m);

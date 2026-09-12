@@ -205,14 +205,15 @@ Sensors (flex tips via SchemaPusher)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When gloves report at least five RawDeviceData flex sensors, the plugin pushes
-a ``JointStateOutput`` (tensor id ``joint_state``) on:
+a ``JointSe3PoseOutput`` (tensor id ``joint_se3_pose``) on:
 
 - ``manus_sensors_left``
 - ``manus_sensors_right``
 
-Layout: 35 joints named ``j0``..``j34``. For sensor ``i`` in thumb→pinky order,
-``j[7*i : 7*i+7]`` is ``[x, y, z, qx, qy, qz, qw]`` (meters, quaternion xyzw)
-in the Manus SDK frame after the plugin's VUH coordinate setup. Poses are raw
+Each frame carries the five fingertips keyed by ``JointName``
+(``HAND_RAW_THUMB_TIP`` .. ``HAND_RAW_LITTLE_TIP``), position in meters and
+orientation as an xyzw quaternion, in the Manus SDK frame after the plugin's
+VUH coordinate setup. A joint absent from a frame is not tracked. Poses are raw
 Manus flex transforms; hosts that mask against a re-framed skeleton must apply
 their own sensor-pose processing.
 
@@ -224,15 +225,18 @@ Host-side consumption example:
 
 .. code-block:: python
 
-   from isaacteleop.retargeting_engine.deviceio_source_nodes import JointStateSource
+   from isaacteleop.deviceio_trackers import JointSe3PoseTracker
+   from isaacteleop.schema import JointName
 
-   SENSOR_JOINTS = [f"j{i}" for i in range(35)]
-   left = JointStateSource(
-       name="manus_sensors_left",
-       collection_id="manus_sensors_left",
-       joint_names=SENSOR_JOINTS,
-   )
-   # Decode thumb tip: joints j0..j6 -> [x, y, z, qx, qy, qz, qw]
+   left = JointSe3PoseTracker("manus_sensors_left")
+   # ... register with a DeviceIOSession, then each tick:
+   data = left.get_data(session).data
+   thumb = data.lookup(JointName.HAND_RAW_THUMB_TIP) if data else None
+   if thumb is not None:
+       position, orientation = thumb.pose.position, thumb.pose.orientation
+
+See :code-file:`examples/mcap_record_replay/python/record_joint_se3_pose.py` for a
+runnable recorder, and ``replay_joint_se3_pose.py`` to play one back without hardware.
 
 Haptic (inbound vibration)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

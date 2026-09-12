@@ -1,0 +1,80 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+include "pose.fbs";
+include "timestamp.fbs";
+
+namespace core;
+
+// Sparse, name-keyed SE(3) poses from a tracking device -- raw vendor fingertips, and (as the
+// reserved blocks fill) OpenXR hand and full-body skeletons.
+//
+// "Joint" means two different things in this tree; both senses are correct in their domain:
+//   - robotics (joint_state.fbs, URDF, sensor_msgs/JointState): a kinematic constraint between
+//     two links, whose state is scalar (rad or m). Robot / leader side.
+//   - XR (this file, hand.fbs, full_body.fbs, XrHandJointEXT, XrBodyJointBD): a labelled frame
+//     a tracker reports, carrying a 6-DoF pose. Nothing is actuated. Human side.
+// Use JointStateOutput for the first and JointSe3PoseOutput for the second. Retargeting is what
+// converts one into the other.
+//
+// Prefer HandPose / FullBodyPose when the producer fills a whole known skeleton: those are dense
+// fixed-size arrays and cost no per-joint key. This schema is for sparse sets, where which joints
+// arrive is decided by the vendor rather than by a spec.
+
+// Joint identifiers, allocated in blocks so a value never collides across tracker families.
+// Values are sparse and unordered by design: lookup is a binary search on the key, so gaps are
+// free. Keep new values inside their block.
+enum JointName : int {
+    UNKNOWN = 0,
+
+    // 1100-1199 hand (raw / vendor tips)
+    HAND_RAW_THUMB_TIP = 1100,
+    HAND_RAW_INDEX_TIP = 1101,
+    HAND_RAW_MIDDLE_TIP = 1102,
+    HAND_RAW_RING_TIP = 1103,
+    HAND_RAW_LITTLE_TIP = 1104,
+
+    // reserved
+    // 1000-1099 hand (OpenXR layout)
+    // 2000-2999 full body (SMPL)
+    // 3000-3999 full body (raw)
+}
+
+// One keyed joint pose. 32 bytes, 4-byte aligned, no internal padding.
+struct JointSe3Pose {
+    // Lookup key for the joints vector.
+    joint: JointName (key);
+
+    // Position [m], orientation quaternion [x, y, z, w], in the producer's frame -- which the
+    // producer MUST document, as for Se3TrackerPose.
+    pose: Pose;
+}
+
+// Per-frame output of one tracking device.
+// All fields are always present whenever this table itself is present.
+table JointSe3PoseOutput {
+    // The joints this device reports, SORTED ASCENDING by JointName and key-unique. Build it
+    // with flatbuffers::CreateVectorOfSortedStructs: FlatBuffers verifies neither, and an
+    // unsorted vector makes LookupByKey return the wrong joint rather than fail.
+    //
+    // Sparse: a joint absent from this vector is not tracked. There is no per-joint validity
+    // flag, so this is NOT Se3TrackerPose's two-level validity -- nothing here is ever present
+    // but meaningless.
+    joints: [JointSe3Pose] (id: 0);
+
+    // Stable device identity for routing / multi-device setups (e.g. "manus_sensors_left").
+    // Static per session.
+    device_id: string (id: 1);
+}
+
+// MCAP recording wrapper for JointSe3PoseOutput.
+//
+// Record types are the root types written to MCAP channels by the McapRecorder.
+// Trackers serialize into Record types via their serialize() method, but the
+// public query API returns the inner data type directly.
+table JointSe3PoseOutputRecord {
+    data: JointSe3PoseOutput (id: 0);
+    timestamp: DeviceDataTimestamp (id: 1);
+}
+
+root_type JointSe3PoseOutputRecord;
