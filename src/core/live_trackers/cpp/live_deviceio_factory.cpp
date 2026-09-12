@@ -5,6 +5,8 @@
 
 #include "generated_live_includes.inc"
 #include "live_controller_tracker_impl.hpp"
+#include "live_frame_metadata_tracker_oak_impl.hpp"
+#include "live_full_body_tracker_meta_impl.hpp"
 #include "live_full_body_tracker_noitom_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
@@ -92,6 +94,12 @@ std::unique_ptr<ITrackerImpl> try_create_full_body_noitom_impl(LiveDeviceIOFacto
     return typed ? factory.create_full_body_tracker_noitom_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_full_body_meta_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FullBodyTracker*>(&tracker);
+    return typed ? factory.create_full_body_tracker_meta_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const TensorPushTracker*>(&tracker);
@@ -142,6 +150,8 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<ControllerTracker, LiveControllerTrackerImpl>(&try_create_controller_impl),
     make_dispatch_entry<MessageChannelTracker, LiveMessageChannelTrackerImpl>(&try_create_message_channel_impl),
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerPicoImpl>(&try_create_full_body_pico_impl, "body.pico-xr"),
+    make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerMetaImpl>(
+        &try_create_full_body_meta_impl, "body.quest-cloudxr"),
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerNoitomImpl>(
         &try_create_full_body_noitom_impl, LiveFullBodyTrackerNoitomImpl::VENDOR_ID),
     make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
@@ -438,6 +448,16 @@ std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_trac
         channels = LiveFullBodyTrackerPicoImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveFullBodyTrackerPicoImpl>(handles_, std::move(channels));
+}
+
+std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_tracker_meta_impl(const FullBodyTracker* tracker)
+{
+    std::unique_ptr<FullBodyMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveFullBodyTrackerMetaImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveFullBodyTrackerMetaImpl>(handles_, std::move(channels));
 }
 
 std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_tracker_noitom_impl(const FullBodyTracker* tracker)
