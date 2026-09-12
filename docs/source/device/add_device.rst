@@ -221,7 +221,8 @@ the collection and prints samples. Pattern (see :code-file:`examples/schemaio/pe
 4. Loop: call ``session->update()``, then read ``tracker->get_data(*session)``. If the
    returned handle is non-empty, use the latest sample; otherwise sleep briefly and repeat.
 
-Use the same ``collection_id`` (and optionally ``tensor_identifier``) as the plugin. See
+Use the same ``collection_id`` (and optionally ``tensor_identifier``) as the plugin. A
+mismatch is not an error — the printer simply never receives a sample. See
 :ref:`Schema IO example: build and run <schema-io-example>` above for building and running
 ``pedal_pusher`` and ``pedal_printer``.
 

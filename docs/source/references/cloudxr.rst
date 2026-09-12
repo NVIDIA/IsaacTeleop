@@ -175,8 +175,8 @@ Open a new terminal and source the setup script:
    Make sure to run the rest of the commands in the same terminal. If you have
    to open a new terminal, source the CloudXR environment variables again.
 
-Applications that embed ``CloudXRLauncher`` — the teleop examples, the rig
-launcher — do this for themselves and need no sourcing.
+Applications that embed ``CloudXRLauncher`` — the teleop examples — do this
+for themselves and need no sourcing.
 
 Run teleop examples against the service
 ---------------------------------------
