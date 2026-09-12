@@ -56,6 +56,8 @@ export type RecordedFrame = {
     rightAim: SerializedPose;
   };
   gamepads: Hands<SerializedGamepad | null>;
+  /** Controller profiles select SDK button mappings; absent in legacy recordings. */
+  controllerProfiles?: Hands<string[] | null>;
   /** Joint poses keyed by XRHandJoint name, also in scene space. */
   handJoints: Hands<JointPoses>;
 };
@@ -122,12 +124,16 @@ function serializeGamepad(gamepad: Gamepad | null | undefined): SerializedGamepa
 
 function captureFrame(frame: XRFrame, referenceSpace: XRReferenceSpace, timeMs = 0): RecordedFrame {
   const captured = emptyFrame(timeMs);
+  captured.controllerProfiles = { left: null, right: null };
 
   for (const source of frame.session.inputSources) {
     const hand = source.handedness;
     if (hand !== 'left' && hand !== 'right') continue;
 
     captured.gamepads[hand] = serializeGamepad(source.gamepad);
+    if (!source.hand && source.gamepad) {
+      captured.controllerProfiles[hand] = Array.from(source.profiles ?? []);
+    }
     captured.poses[`${hand}Grip`] = source.gripSpace
       ? serializePose(frame.getPose(source.gripSpace, referenceSpace))
       : null;
@@ -288,24 +294,45 @@ function interpolateJoints(from: JointPoses, to: JointPoses, alpha: number): Joi
   return result;
 }
 
+function recordedControllerProfiles(frame: RecordedFrame, hand: 'left' | 'right'): string[] | null {
+  if (!frame.gamepads[hand]) return null;
+  if (frame.controllerProfiles !== undefined) return frame.controllerProfiles[hand];
+  // Hand sources can expose gamepads too. Even null joint samples identify a hand.
+  // Legacy controller recordings have no profile, so use the SDK's generic mapping.
+  return Object.keys(frame.handJoints[hand]).length ? null : ['generic-trigger-squeeze-thumbstick'];
+}
+
+function controllerKey(hand: string, profiles: string[]): string {
+  return JSON.stringify([hand, profiles]);
+}
+
 function interpolateFrame(from: RecordedFrame, to: RecordedFrame, timeMs: number): RecordedFrame {
   const interval = to.timeMs - from.timeMs;
   const alpha = interval > 0 ? (timeMs - from.timeMs) / interval : 0;
+  // Device switches are discrete even when two controllers have the same layout.
+  const sameDevice = (hand: 'left' | 'right') =>
+    JSON.stringify(recordedControllerProfiles(from, hand)) ===
+    JSON.stringify(recordedControllerProfiles(to, hand));
+  const leftTo = sameDevice('left') ? to : from;
+  const rightTo = sameDevice('right') ? to : from;
   return {
     timeMs,
+    ...(from.controllerProfiles !== undefined
+      ? { controllerProfiles: from.controllerProfiles }
+      : {}),
     poses: {
-      leftGrip: interpolateOptionalPose(from.poses.leftGrip, to.poses.leftGrip, alpha),
-      leftAim: interpolateOptionalPose(from.poses.leftAim, to.poses.leftAim, alpha),
-      rightGrip: interpolateOptionalPose(from.poses.rightGrip, to.poses.rightGrip, alpha),
-      rightAim: interpolateOptionalPose(from.poses.rightAim, to.poses.rightAim, alpha),
+      leftGrip: interpolateOptionalPose(from.poses.leftGrip, leftTo.poses.leftGrip, alpha),
+      leftAim: interpolateOptionalPose(from.poses.leftAim, leftTo.poses.leftAim, alpha),
+      rightGrip: interpolateOptionalPose(from.poses.rightGrip, rightTo.poses.rightGrip, alpha),
+      rightAim: interpolateOptionalPose(from.poses.rightAim, rightTo.poses.rightAim, alpha),
     },
     gamepads: {
-      left: interpolateGamepad(from.gamepads.left, to.gamepads.left, alpha),
-      right: interpolateGamepad(from.gamepads.right, to.gamepads.right, alpha),
+      left: interpolateGamepad(from.gamepads.left, leftTo.gamepads.left, alpha),
+      right: interpolateGamepad(from.gamepads.right, rightTo.gamepads.right, alpha),
     },
     handJoints: {
-      left: interpolateJoints(from.handJoints.left, to.handJoints.left, alpha),
-      right: interpolateJoints(from.handJoints.right, to.handJoints.right, alpha),
+      left: interpolateJoints(from.handJoints.left, leftTo.handJoints.left, alpha),
+      right: interpolateJoints(from.handJoints.right, rightTo.handJoints.right, alpha),
     },
   };
 }
@@ -470,6 +497,7 @@ export class XRInputRecorder {
   private _recordingInterrupted = false;
   private _trackingSession: XRReplaySession | null = null;
   private _recordedHandSources: XRInputSource[] = [];
+  private _recordedControllerSources = new Map<string, XRInputSource>();
   private _sourceProxies = new WeakMap<XRInputSource, XRInputSource>();
 
   get mode() {
@@ -528,6 +556,24 @@ export class XRInputRecorder {
   startReplay(recording: Recording, loop = true, pacing: ReplayPacing = 'time'): void {
     this._assertIdle();
     this._replayFrames = recording.frames;
+    this._recordedControllerSources.clear();
+    // Replay owns device presence as well as poses, for both hands and controllers.
+    for (const frame of recording.frames) {
+      for (const handedness of ['left', 'right'] as const) {
+        const profiles = recordedControllerProfiles(frame, handedness);
+        if (!profiles) continue;
+        const key = controllerKey(handedness, profiles);
+        if (!this._recordedControllerSources.has(key)) {
+          this._recordedControllerSources.set(key, {
+            handedness,
+            targetRayMode: 'tracked-pointer',
+            targetRaySpace: new EventTarget(),
+            gripSpace: new EventTarget(),
+            profiles: [...profiles],
+          });
+        }
+      }
+    }
     this._recordedHandSources = (['left', 'right'] as const).flatMap(handedness => {
       const names = new Set<string>();
       for (const frame of recording.frames) {
@@ -571,6 +617,7 @@ export class XRInputRecorder {
     this._lastReplayDisplayTime = null;
     this._replayRecording = null;
     this._recordedHandSources = [];
+    this._recordedControllerSources.clear();
     this._replaySceneAlignment = null;
     this._calibrationRequested = false;
     this._mode = 'idle';
@@ -724,6 +771,20 @@ export class XRInputRecorder {
       if (!Number.isFinite(frame?.timeMs) || frame.timeMs < 0 || frame.timeMs < previousTime) {
         throw new Error('Malformed recording: frame timeMs must be finite and monotonic');
       }
+      if (frame.controllerProfiles !== undefined) {
+        const profiles = frame.controllerProfiles;
+        if (
+          !profiles ||
+          !(['left', 'right'] as const).every(
+            hand =>
+              profiles[hand] === null ||
+              (Array.isArray(profiles[hand]) &&
+                profiles[hand]!.every(profile => typeof profile === 'string'))
+          )
+        ) {
+          throw new Error('Malformed recording: controllerProfiles is invalid');
+        }
+      }
       previousTime = frame.timeMs;
     }
     return recording;
@@ -835,13 +896,28 @@ export class XRInputRecorder {
   }
 
   private _replayInputSources(session: XRSession): XRInputSource[] {
-    const recordedHands = new Set(this._recordedHandSources.map(source => source.handedness));
+    const recordedSources = [
+      ...this._recordedHandSources,
+      ...this._recordedControllerSources.values(),
+    ];
+    const recordedSides = new Set(recordedSources.map(source => source.handedness));
+    const replay = this._currentFrame;
     const sources = [
       ...this._recordedHandSources.filter(source => {
         const hand = source.handedness as 'left' | 'right';
-        return Object.values(this._currentFrame?.handJoints[hand] ?? {}).some(Boolean);
+        return (
+          replay &&
+          !recordedControllerProfiles(replay, hand) &&
+          Object.values(replay.handJoints[hand]).some(Boolean)
+        );
       }),
-      ...Array.from(session.inputSources).filter(source => !recordedHands.has(source.handedness)),
+      ...(['left', 'right'] as const).flatMap(hand => {
+        const profiles = replay && recordedControllerProfiles(replay, hand);
+        const source =
+          profiles && this._recordedControllerSources.get(controllerKey(hand, profiles));
+        return source ? [source] : [];
+      }),
+      ...Array.from(session.inputSources).filter(source => !recordedSides.has(source.handedness)),
     ];
     return sources.map(source => {
       let proxy = this._sourceProxies.get(source);
@@ -875,7 +951,11 @@ export class XRInputRecorder {
     space: XRSpace,
     baseSpace: XRSpace
   ): XRPose | undefined {
-    for (const source of [...this._recordedHandSources, ...frame.session.inputSources]) {
+    for (const source of [
+      ...this._recordedHandSources,
+      ...this._recordedControllerSources.values(),
+      ...frame.session.inputSources,
+    ]) {
       const hand = source.handedness;
       if (hand !== 'left' && hand !== 'right') continue;
       if (space === source.gripSpace) {

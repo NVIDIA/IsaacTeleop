@@ -56,7 +56,7 @@ export class XRReplaySession {
   }
 
   private _onNativeSourcesChange = (event: XRInputSourcesChangeEvent): void => {
-    // Recorded sources do not disappear when the browser loses sight of a hand.
+    // Recorded device presence is independent of live tracking and controller disconnects.
     if (this._sources === null) this._dispatch(Array.from(event.added), Array.from(event.removed));
   };
 
