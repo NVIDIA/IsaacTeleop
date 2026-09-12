@@ -10,7 +10,7 @@ machine can reach it at http://<this-host>:8080) to see
 both hands rendered as joint clouds + bone segments, updating live as you move.
 
 Usage:
-    python live_hand.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.live_hand [--port 8080] [--host 127.0.0.1] [--accept-eula]
 
 Press Ctrl+C to stop.
 
