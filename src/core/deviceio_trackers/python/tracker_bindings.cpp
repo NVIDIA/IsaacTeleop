@@ -4,6 +4,7 @@
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
+#include <deviceio_trackers/gamepad_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
@@ -153,6 +154,16 @@ PYBIND11_MODULE(_deviceio_trackers, m)
                const core::ITrackerSession& session) -> core::Generic3AxisPedalOutputTrackedT
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
+
+    py::class_<core::GamepadTracker, core::ITracker, std::shared_ptr<core::GamepadTracker>>(m, "GamepadTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::GamepadTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a GamepadTracker for the given tensor collection ID")
+        .def(
+            "get_gamepad_data",
+            [](const core::GamepadTracker& self, const core::ITrackerSession& session) -> core::GamepadOutputTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current gamepad tracked state (data is None when no data available)");
 
     py::class_<core::OgloTactileTracker, core::ITracker, std::shared_ptr<core::OgloTactileTracker>>(
         m, "OgloTactileTracker")

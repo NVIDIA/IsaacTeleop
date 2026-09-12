@@ -6,6 +6,7 @@
 #include "live_controller_tracker_impl.hpp"
 #include "live_frame_metadata_tracker_oak_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
+#include "live_gamepad_tracker_impl.hpp"
 #include "live_generic_3axis_pedal_tracker_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
 #include "live_haptic_command_reader_tracker_impl.hpp"
@@ -19,6 +20,7 @@
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/frame_metadata_tracker_oak.hpp>
 #include <deviceio_trackers/full_body_tracker.hpp>
+#include <deviceio_trackers/gamepad_tracker.hpp>
 #include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
@@ -100,6 +102,12 @@ std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory&
     return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_gamepad_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const GamepadTracker*>(&tracker);
+    return typed ? factory.create_gamepad_tracker_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const TensorPushTracker*>(&tracker);
@@ -173,6 +181,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<MessageChannelTracker, LiveMessageChannelTrackerImpl>(&try_create_message_channel_impl),
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerPicoImpl>(&try_create_full_body_pico_impl, "body.pico-xr"),
     make_dispatch_entry<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>(&try_create_generic_pedal_impl),
+    make_dispatch_entry<GamepadTracker, LiveGamepadTrackerImpl>(&try_create_gamepad_impl),
     make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
     make_dispatch_entry<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>(
         &try_create_haptic_command_reader_impl),
@@ -479,6 +488,16 @@ std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_gener
         channels = LiveGeneric3AxisPedalTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveGeneric3AxisPedalTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<IGamepadTrackerImpl> LiveDeviceIOFactory::create_gamepad_tracker_impl(const GamepadTracker* tracker)
+{
+    std::unique_ptr<GamepadMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveGamepadTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveGamepadTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 std::unique_ptr<IOgloTactileTrackerImpl> LiveDeviceIOFactory::create_oglo_tactile_tracker_impl(
