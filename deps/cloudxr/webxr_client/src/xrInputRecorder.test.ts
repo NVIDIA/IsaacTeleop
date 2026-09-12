@@ -814,6 +814,20 @@ describe('recorded hands without live tracking', () => {
     expect(changed).toHaveBeenCalledTimes(2);
   });
 
+  test('does not expose an unrecorded live hand to the SDK during replay', () => {
+    const { recorder, read, frame, active } = benchmark('frame');
+    const liveRight = {
+      handedness: 'right',
+      hand: new Map([['wrist', {}]]),
+      targetRaySpace: {},
+    } as unknown as XRInputSource;
+    const current = frame([liveRight]);
+    expect(read(current)).toBeCloseTo(3);
+    expect([...active]).toEqual(['left']);
+    expect(recorder.adaptTrackingFrame(current).session.inputSources).toHaveLength(1);
+    expect(current.session.inputSources).toEqual([liveRight]);
+  });
+
   test('recorded tracking loss removes the source, and recorded recovery restores it', () => {
     const { recorder, read, frame, active } = benchmark('frame');
     recorder.stopReplay();
