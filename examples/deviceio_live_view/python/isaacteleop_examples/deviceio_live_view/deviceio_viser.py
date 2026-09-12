@@ -42,6 +42,9 @@ INVALID_COLOR: tuple[float, float, float] = (1.0, 0.0, 0.0)
 TRACKED_COLOR: tuple[float, float, float] = (0.25, 0.85, 0.35)
 
 
+# Duplicated verbatim in mcap_record_replay/common.py: each example package
+# is self-contained (see examples/README.md), so this stays a copy rather
+# than a cross-example dependency. Keep the two in sync by hand.
 class GroundGrid:
     """The ground plane and the default camera, anchored to what is tracked.
 

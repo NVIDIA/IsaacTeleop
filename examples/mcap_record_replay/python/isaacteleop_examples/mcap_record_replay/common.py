@@ -48,6 +48,9 @@ from isaacteleop.retargeting_engine.tensor_types.ndarray_types import (
 )
 
 
+# Duplicated verbatim in deviceio_live_view/deviceio_viser.py: each example
+# package is self-contained (see examples/README.md), so this stays a copy
+# rather than a cross-example dependency. Keep the two in sync by hand.
 class GroundGrid:
     """The ground plane and the default camera, anchored to what is tracked.
 
