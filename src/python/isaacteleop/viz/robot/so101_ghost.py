@@ -20,26 +20,26 @@ import math
 import numpy as np
 
 from . import frames
+from .ghost import GhostHinge, GhostSpec
 from .quaternion import conjugate, from_axis_angle, multiply, rotate, to_matrix
 
 # The two mocap bodies leader_gripper.xml declares.
 GHOST_BODY = "leader_ghost"
 GHOST_JAW_BODY = "leader_ghost_jaw"
 
-# The twin's name for the four ghost geoms, hidden as a set whenever the follower
-# is the tool on show.
-GHOST_GROUP = "ghost"
-GHOST_GEOMS = (
-    "leader_ghost_wrist_roll",
-    "leader_ghost_motor",
-    "leader_ghost_handle",
-    "leader_ghost_trigger",
-)
 
-# Where the ghost sits on the hand. Euler degrees, intrinsic XYZ, i.e. MuJoCo's `euler=`.
-# Solve it from Q_HOME -- the gripper's xquat at Q_HOME and base yaw 0, carried into XR by
-# _xr_from_mj_quat -- and re-solve when Q_HOME moves. Do not port a grip-measured value,
-# which demands a wrist pitch nobody chose.
+# Where the ghost sits on the hand, for an arm that names no calibration of its own. Euler
+# degrees, intrinsic XYZ, i.e. MuJoCo's `euler=`. It pairs with one q_home and no other: it
+# is what turns that pose's gripper orientation into the hand the gate demands, so moving
+# q_home without re-solving this rotates that demand by the same amount. Each preview arm
+# carries its own (PreviewArmProfile.euler_hand_from_ghost_deg); this is the SO-101's, kept
+# as the default so the functions below can still be called bare.
+#
+# Re-solve it against the arm's own q_home, never by eye, and compare in the OPERATOR's
+# frame (log_grip_posture's second number) -- the absolute demanded quaternion moves with
+# any roll about the tool axis while the wrist the operator must actually hold does not,
+# so matching the absolute one "preserves" a quantity nobody feels. Do not port a
+# grip-measured value, which demands a wrist pitch nobody chose.
 EULER_HAND_FROM_GHOST_DEG = (270, 0, 90)
 # Measured on a headset: a claim about a hand holding a CONTROLLER, so do not re-derive
 # it from the mesh. Relative to HAND_POSE; `_log_hand_frames` prints the replacement
@@ -77,11 +77,23 @@ def _quat_from_euler_deg(angles_deg) -> np.ndarray:
 _QUAT_HAND_FROM_GHOST = _quat_from_euler_deg(EULER_HAND_FROM_GHOST_DEG)
 
 
-def ghost_body_from_pose(pose: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def quat_hand_from_ghost(euler_deg) -> np.ndarray:
+    """One arm's calibration as a quaternion, from its ``euler_deg``."""
+    return _quat_from_euler_deg(euler_deg)
+
+
+def _resolve(hand_from_ghost: np.ndarray | None) -> np.ndarray:
+    return _QUAT_HAND_FROM_GHOST if hand_from_ghost is None else hand_from_ghost
+
+
+def ghost_body_from_pose(
+    pose: np.ndarray, hand_from_ghost: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
     """A 7-D XR hand pose -> where the leader ghost body goes in MuJoCo world.
 
-    _QUAT_HAND_FROM_GHOST right-multiplies because it is fixed in the gripper's frame;
-    left-multiplying swings the ghost around the room as the operator turns.
+    ``hand_from_ghost`` is the arm's own calibration, defaulting to the SO-101's. It
+    right-multiplies because it is fixed in the gripper's frame; left-multiplying swings the
+    ghost around the room as the operator turns.
     """
     p_xr = [float(pose[0]), float(pose[1]), float(pose[2])]
     q_xyzw = [float(pose[3]), float(pose[4]), float(pose[5]), float(pose[6])]
@@ -89,34 +101,40 @@ def ghost_body_from_pose(pose: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     q_grip = np.array(frames.mj_from_xr_quat(q_xyzw), dtype=float)
     p_grip = np.array(frames.mj_from_xr_pos(p_xr), dtype=float)
 
-    q_body = multiply(q_grip, _QUAT_HAND_FROM_GHOST)
+    q_body = multiply(q_grip, _resolve(hand_from_ghost))
     p_offset = rotate(POS_HAND_FROM_GHOST, q_grip)
     return p_grip + p_offset, q_body
 
 
-def _grip_quat_mj(q_body: np.ndarray) -> np.ndarray:
+def _grip_quat_mj(
+    q_body: np.ndarray, hand_from_ghost: np.ndarray | None = None
+) -> np.ndarray:
     """The MuJoCo grip orientation (wxyz) whose ghost body lands at ``q_body``."""
-    inverse = conjugate(_QUAT_HAND_FROM_GHOST)
+    inverse = conjugate(_resolve(hand_from_ghost))
     q_grip = multiply(np.asarray(q_body, dtype=float), inverse)
     return q_grip
 
 
-def grip_quat_from_ghost_body(q_body: np.ndarray) -> np.ndarray:
+def grip_quat_from_ghost_body(
+    q_body: np.ndarray, hand_from_ghost: np.ndarray | None = None
+) -> np.ndarray:
     """The XR hand orientation (xyzw) that would put the ghost body at ``q_body``.
 
     The engage gate's second operand. Both operands are xyzw in XR, which is what makes a
     geodesic angle meaningful.
     """
-    return frames.xr_from_mj_quat(_grip_quat_mj(q_body))
+    return frames.xr_from_mj_quat(_grip_quat_mj(q_body, hand_from_ghost))
 
 
-def pose_from_ghost_body(p_body: np.ndarray, q_body: np.ndarray) -> np.ndarray:
+def pose_from_ghost_body(
+    p_body: np.ndarray, q_body: np.ndarray, hand_from_ghost: np.ndarray | None = None
+) -> np.ndarray:
     """The exact inverse of :func:`ghost_body_from_pose`, as a 4x4 in the XR frame.
 
     4x4 for ``SO101ClutchRetargeter.set_home_base_T_ee``, and XR because the app does no
     rebase, so "base" is the XR anchor.
     """
-    q_grip = _grip_quat_mj(q_body)
+    q_grip = _grip_quat_mj(q_body, hand_from_ghost)
     p_offset = rotate(POS_HAND_FROM_GHOST, q_grip)
 
     transform = np.eye(4)
@@ -128,34 +146,28 @@ def pose_from_ghost_body(p_body: np.ndarray, q_body: np.ndarray) -> np.ndarray:
     return transform
 
 
-def ghost_bodies(pose: np.ndarray, closedness: float) -> dict:
-    """Where the leader gripper's two mocap bodies go, by name.
-
-    `pose` is the harness output, not the controller. Both arguments must be held frozen by
-    the caller on an untracked frame: (0, 0, 0) is the scene origin, and a jaw articulating
-    on a frozen body reads as an actuated gripper.
-    """
-    p_body, q_body = ghost_body_from_pose(pose)
-
-    # Rotated ABOUT the hinge, not placed at it: the jaw's XML rest pose equals the
-    # ghost's, so the pivot lives in exactly one place.
-    angle = TRIGGER_RELEASED_RAD + closedness * (
-        TRIGGER_SQUEEZED_RAD - TRIGGER_RELEASED_RAD
-    )
-    q_hinge = from_axis_angle(_TRIGGER_HINGE_AXIS, angle)
-    q_jaw = multiply(q_body, q_hinge)
-
-    # Rotating the ghost frame about the hinge maps 0 to (pivot - R_hinge.pivot).
-    swung = rotate(_TRIGGER_HINGE_POS, q_hinge)
-    offset = rotate(_TRIGGER_HINGE_POS - swung, q_body)
-
-    return {
-        GHOST_BODY: (p_body, q_body),
-        GHOST_JAW_BODY: (p_body + offset, q_jaw),
-    }
-
-
 # Handle centroid to wrist-roll centroid in the ghost body frame, measured on the fetched
 # meshes: (-56.9, -0.5, -63.2) mm -> (-4.3, -1.4, -13.2) mm. Rotated by the follower
 # `gripper` quaternion, since the handoff puts the ghost body on its orientation exactly.
 GHOST_POINTING_AXIS = np.array((0.7228, -0.0124, 0.6910))
+
+
+#: The SO-101's: its LEADER's gripper, whose trigger shares the follower's moving-jaw slot.
+SO101_GHOST = GhostSpec(
+    body=GHOST_BODY,
+    geoms=(
+        "leader_ghost_wrist_roll",
+        "leader_ghost_motor",
+        "leader_ghost_handle",
+        "leader_ghost_trigger",
+    ),
+    jaw=(
+        GhostHinge(
+            body=GHOST_JAW_BODY,
+            pivot=_TRIGGER_HINGE_POS,
+            axis=_TRIGGER_HINGE_AXIS,
+            released_rad=TRIGGER_RELEASED_RAD,
+            squeezed_rad=TRIGGER_SQUEEZED_RAD,
+        ),
+    ),
+)

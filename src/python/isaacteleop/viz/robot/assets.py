@@ -1,39 +1,44 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The SO-101 scene the preview arm and the leader ghost are drawn from.
+"""The scenes each preview arm and its ghost gripper are drawn from, one per arm.
 
-The three MJCF files are tracked package data; the 18 MB of upstream mesh and MJCF they
-name is fetched, not vendored. :func:`ensure_so101_scene` assembles both halves into one
-cache directory and returns the scene path.
+The MJCF wrappers are tracked package data; the upstream mesh and MJCF they name is
+fetched, not vendored. Each ``ensure_*_scene`` assembles both halves into its own cache
+directory and returns the scene path, gripper the ghost draws included.
 
-Downloads are checksum-verified against a pinned commit: a raw.githubusercontent path is
-not immutable in practice, and a substituted mesh renders as a broken arm rather than an
-error. Everything lands flat, because MuJoCo drops an included file's own ``meshdir``; the
-leader's servo is fetched under its own name so it cannot collide with the follower's copy.
+Downloads are verified against a pinned commit: a raw.githubusercontent path is not
+immutable in practice, and a substituted mesh renders as a broken arm rather than an error.
+Everything lands flat, because MuJoCo drops an included file's own ``meshdir``; where a
+ghost and its follower share a mesh, one of the two is named apart so the flat directory and
+MuJoCo's global asset names can both hold them.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
+import re
 import shutil
 import urllib.request
 from pathlib import Path
+
+LOG = logging.getLogger(__name__)
 
 #: Bump this and the checksums together, or the download is refused.
 SO_ARM_REPO = "TheRobotStudio/SO-ARM100"
 SO_ARM_COMMIT = "fda892cba81032c46c40976a48c9ceadbf40a9ca"
 
-#: ``(upstream path, destination name, sha256)``. The destination is per entry because
-#: ``sts3215_03a_v1.stl`` is fetched twice -- the leader fragment names its copy
-#: ``STS3215_03a.stl`` -- and a flat directory cannot alias the two.
+#: The SO-101 leader gripper, as ``(upstream path, destination name, sha256)``: the ghost
+#: its own scene draws, and no other's -- the reBot has no leader, so it puts its own
+#: follower gripper on the hand from meshes it already fetches. The destination is per entry
+#: because ``sts3215_03a_v1.stl`` is fetched twice (the leader fragment names its copy
+#: ``STS3215_03a.stl``) and a flat directory cannot alias the two.
 #:
 #: ``so101_new_calib.urdf`` is not drawn; it is on disk to check :mod:`.so101_ghost`'s
-#: trigger hinge and travel against. ``joints_properties.xml`` is deliberately absent:
-#: upstream inlines its ``<default>`` block, so the file is never read.
-SO_ARM_ASSETS: tuple[tuple[str, str, str], ...] = (
-    # The leader gripper ghost.
+#: trigger hinge and travel against.
+GHOST_ASSETS: tuple[tuple[str, str, str], ...] = (
     (
         "STL/SO101/Individual/Wrist_Roll_SO101.stl",
         "Wrist_Roll_SO101.stl",
@@ -64,7 +69,11 @@ SO_ARM_ASSETS: tuple[tuple[str, str, str], ...] = (
         "LICENSE",
         "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
     ),
-    # The follower arm.
+)
+
+#: The SO-101 follower arm. ``joints_properties.xml`` is deliberately absent: upstream
+#: inlines its ``<default>`` block, so the file is never read.
+SO101_ARM_ASSETS: tuple[tuple[str, str, str], ...] = (
     (
         "Simulation/SO101/so101_new_calib.xml",
         "so101_new_calib.xml",
@@ -137,6 +146,8 @@ SO_ARM_ASSETS: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
+SO_ARM_ASSETS: tuple[tuple[str, str, str], ...] = GHOST_ASSETS + SO101_ARM_ASSETS
+
 #: The tracked wrappers. Re-copied on every call rather than gated on the completeness
 #: marker, so editing one takes effect on the next run with no cache to clear.
 SCENE_FILE = "scene.xml"
@@ -146,6 +157,26 @@ _WRAPPERS = (SCENE_FILE, "follower_arm.xml", "leader_gripper.xml")
 #: with no route to GitHub.
 CACHE_ENV_VAR = "ISAACTELEOP_SO101_ASSETS"
 
+#: The reBot DevArm, RobStride build, from MuJoCo Menagerie. Upstream derives it from the
+#: same Seeed URDF LeRobot's IK solves against and validates against it link by link, and
+#: builds it around RS-06/RS-00 actuators -- so it is the RS arm, not the Damiao one, whose
+#: geometry differs.
+MENAGERIE_REPO = "google-deepmind/mujoco_menagerie"
+MENAGERIE_COMMIT = "8161bba264d7fa7c99ca301e91e7fb44737676ad"
+REBOT_MODEL_DIR = "seeed_rebot_devarm"
+REBOT_SCENE_FILE = "scene_rebot.xml"
+_REBOT_WRAPPERS = (REBOT_SCENE_FILE, "rebot_arm.xml", "rebot_gripper.xml")
+REBOT_CACHE_ENV_VAR = "ISAACTELEOP_REBOT_ASSETS"
+
+#: sha256 over the sorted ``"<name> <sha256>\n"`` lines of everything fetched from
+#: Menagerie -- 117 files, so one constant rather than a table nobody reads. Content, not
+#: archive framing: a repo tarball is 400 MB for 15 MB of arm, and its bytes are not
+#: promised to be stable. Bump it and MENAGERIE_COMMIT together, or the download is
+#: refused.
+REBOT_MANIFEST_SHA256 = (
+    "5164271c8fc098add8c1905e52198c759239dda73831231112d70359a78874ba"
+)
+
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -153,6 +184,48 @@ def _sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1 << 20), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _cache_dir(env_var: str, name: str) -> Path:
+    override = os.environ.get(env_var, "").strip()
+    if override:
+        dest = Path(override)
+    else:
+        root = os.environ.get("XDG_CACHE_HOME", "").strip() or str(
+            Path.home() / ".cache"
+        )
+        dest = Path(root) / "isaacteleop" / name
+    dest.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
+def _copy_wrappers(dest: Path, wrappers: tuple[str, ...]) -> None:
+    source = Path(__file__).parent / "assets"
+    for wrapper in wrappers:
+        shutil.copyfile(source / wrapper, dest / wrapper)
+
+
+def _fetch(url: str) -> bytes:
+    with urllib.request.urlopen(url, timeout=120) as response:  # nosec B310
+        return response.read()
+
+
+def _fetch_checksummed(dest: Path, entries: tuple[tuple[str, str, str], ...]) -> None:
+    """Fetch ``(remote, name, sha256)`` entries from SO-ARM100 that are not already
+    cached under their own hash."""
+    for remote, name, sha in entries:
+        target = dest / name
+        if target.is_file() and _sha256(target) == sha:
+            continue
+        payload = _fetch(
+            f"https://raw.githubusercontent.com/{SO_ARM_REPO}/{SO_ARM_COMMIT}/{remote}"
+        )
+        if hashlib.sha256(payload).hexdigest() != sha:
+            raise RuntimeError(
+                f"robot twin: checksum mismatch for {remote}. Upstream changed, or "
+                "SO_ARM_COMMIT and the hashes in SO_ARM_ASSETS disagree."
+            )
+        target.write_bytes(payload)
 
 
 def ensure_so101_scene() -> Path:
@@ -166,37 +239,100 @@ def ensure_so101_scene() -> Path:
         RuntimeError: If a download's checksum does not match :data:`SO_ARM_ASSETS`.
         OSError: If the files cannot be fetched or written.
     """
-    override = os.environ.get(CACHE_ENV_VAR, "").strip()
-    if override:
-        dest = Path(override)
-    else:
-        root = os.environ.get("XDG_CACHE_HOME", "").strip() or str(
-            Path.home() / ".cache"
-        )
-        dest = Path(root) / "isaacteleop" / "so101-assets"
-    dest.mkdir(parents=True, exist_ok=True)
-
-    source = Path(__file__).parent / "assets"
-    for wrapper in _WRAPPERS:
-        shutil.copyfile(source / wrapper, dest / wrapper)
+    dest = _cache_dir(CACHE_ENV_VAR, "so101-assets")
+    _copy_wrappers(dest, _WRAPPERS)
 
     marker = dest / ".fetch_complete"
     if not marker.exists():
-        for remote, name, sha in SO_ARM_ASSETS:
-            target = dest / name
-            if target.is_file() and _sha256(target) == sha:
-                continue
-            url = f"https://raw.githubusercontent.com/{SO_ARM_REPO}/{SO_ARM_COMMIT}/{remote}"
-            with urllib.request.urlopen(url, timeout=120) as response:  # nosec B310
-                payload = response.read()
-            if hashlib.sha256(payload).hexdigest() != sha:
-                raise RuntimeError(
-                    f"robot twin: checksum mismatch for {remote}. Upstream changed, or "
-                    "SO_ARM_COMMIT and the hashes in SO_ARM_ASSETS disagree."
-                )
-            target.write_bytes(payload)
+        _fetch_checksummed(dest, SO_ARM_ASSETS)
         marker.touch()
 
     # Absolute: on mujoco 3.11 a relative model path mis-composes an <include>d file's
     # path and fails naming a file that exists.
     return (dest / SCENE_FILE).resolve()
+
+
+def _menagerie_rebot_files() -> tuple[str, ...]:
+    """The model file, its licence, and every mesh it names. Read out of the MJCF rather
+    than listed, so a mesh added upstream cannot be silently left behind -- the manifest
+    digest is what pins the set."""
+    model = _fetch(
+        f"https://raw.githubusercontent.com/{MENAGERIE_REPO}/{MENAGERIE_COMMIT}/"
+        f"{REBOT_MODEL_DIR}/{REBOT_MODEL_DIR}.xml"
+    ).decode()
+    meshes = sorted(set(re.findall(r'file="([^"]+)"', model)))
+    return (f"{REBOT_MODEL_DIR}.xml", "LICENSE", *meshes)
+
+
+def _rebot_cached_digest(dest: Path) -> str | None:
+    """The manifest digest of what is already in ``dest``, or ``None`` if it cannot be read.
+
+    Derived from the directory and never from the network: REBOT_CACHE_ENV_VAR exists so a
+    host with no route to GitHub can be pointed at a pre-populated cache, and that cache has
+    to be checkable there. The tracked wrappers are excluded because they are package data,
+    not fetched, and so are not in the manifest.
+    """
+    wrappers = set(_REBOT_WRAPPERS)
+    lines = []
+    try:
+        for path in sorted(dest.iterdir()):
+            if not path.is_file() or path.name.startswith(".") or path.name in wrappers:
+                continue
+            lines.append(f"{path.name} {_sha256(path)}\n")
+    except OSError:
+        return None
+    return hashlib.sha256("".join(sorted(lines)).encode()).hexdigest()
+
+
+def ensure_rebot_devarm_rs_scene() -> Path:
+    """Assemble the reBot DevArm (RobStride) scene into its cache directory and return its path.
+
+    Same completeness-marker rule as :func:`ensure_so101_scene`. Nothing from SO-ARM100 is
+    fetched: this arm's ghost is its own gripper, drawn from the meshes below.
+
+    Raises:
+        RuntimeError: If the fetched set does not hash to :data:`REBOT_MANIFEST_SHA256`.
+        OSError: If the files cannot be fetched or written.
+    """
+    dest = _cache_dir(REBOT_CACHE_ENV_VAR, "rebot-devarm-rs-assets")
+    _copy_wrappers(dest, _REBOT_WRAPPERS)
+
+    marker = dest / ".fetch_complete"
+    if marker.exists() and _rebot_cached_digest(dest) != REBOT_MANIFEST_SHA256:
+        # The marker claims a verified fetch; the bytes on disk say otherwise. Re-fetch
+        # rather than compile them -- a truncated or substituted mesh draws as a broken arm
+        # instead of raising, which is the failure the digest exists to catch.
+        LOG.warning(
+            "Robot twin: the cached reBot assets in %s do not match "
+            "REBOT_MANIFEST_SHA256; re-fetching them.",
+            dest,
+        )
+        marker.unlink(missing_ok=True)
+    if not marker.exists():
+        base = (
+            f"https://raw.githubusercontent.com/{MENAGERIE_REPO}/{MENAGERIE_COMMIT}/"
+            f"{REBOT_MODEL_DIR}"
+        )
+        manifest = []
+        for name in _menagerie_rebot_files():
+            # Everything lands flat: MuJoCo drops an included file's own meshdir, so
+            # upstream's meshdir="assets" is inert once rebot_arm.xml includes it.
+            flat = Path(name).name
+            remote = (
+                f"{base}/assets/{flat}"
+                if flat.lower().endswith(".stl")
+                else f"{base}/{flat}"
+            )
+            payload = _fetch(remote)
+            (dest / flat).write_bytes(payload)
+            manifest.append(f"{flat} {hashlib.sha256(payload).hexdigest()}\n")
+        digest = hashlib.sha256("".join(sorted(manifest)).encode()).hexdigest()
+        if digest != REBOT_MANIFEST_SHA256:
+            raise RuntimeError(
+                f"robot twin: reBot manifest is {digest}, expected "
+                f"{REBOT_MANIFEST_SHA256}. Upstream changed, or MENAGERIE_COMMIT and "
+                "REBOT_MANIFEST_SHA256 disagree."
+            )
+        marker.touch()
+
+    return (dest / REBOT_SCENE_FILE).resolve()

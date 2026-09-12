@@ -39,12 +39,10 @@ from .engage_gate import KEY_ENGAGED, GateVerdict
 from .harness import HarnessBand
 from .preview_arm import deflection
 from .quaternion import conjugate, from_axis_angle, multiply, rotate, to_matrix
+from .ghost import GHOST_GROUP, ghost_bodies
 from .so101_ghost import (
     GHOST_POINTING_AXIS,
     POS_HAND_FROM_GHOST,
-    GHOST_GEOMS,
-    GHOST_GROUP,
-    ghost_bodies,
     ghost_body_from_pose,
     grip_quat_from_ghost_body,
     pose_from_ghost_body,
@@ -234,7 +232,8 @@ def log_grip_posture(arm) -> tuple[float, float]:
         frames.xr_from_mj_pos(p_body + ghost_axis) - frames.xr_from_mj_pos(p_body)
     )
     hand_axis = in_operator_frame(
-        pose_from_ghost_body(p_body, q_body)[:3, :3] @ _HAND_REPORT_AXIS
+        pose_from_ghost_body(p_body, q_body, arm.hand_from_ghost)[:3, :3]
+        @ _HAND_REPORT_AXIS
     )
 
     def ahead(direction):
@@ -310,7 +309,7 @@ class ClutchPreview:
         self._recentered = False
         self._ghost_pose_key = str(ghost_pose_key)
         # Named rather than discovered, so a renamed geom is an error.
-        twin.declare_group(GHOST_GROUP, geoms=GHOST_GEOMS)
+        twin.declare_group(GHOST_GROUP, geoms=arm.ghost.geoms)
         self.phases = PhaseMachine()
         # The gate's own pre-first-step verdict, which reports that nothing has been
         # judged rather than reading as engageable.
@@ -369,7 +368,11 @@ class ClutchPreview:
             and self._hand_body_mj is not None
         ):
             self._clutch.set_home_base_T_ee(
-                pose_from_ghost_body(self._hand_body_mj, self._arm.gripper_pose_mj()[1])
+                pose_from_ghost_body(
+                    self._hand_body_mj,
+                    self._arm.gripper_pose_mj()[1],
+                    self._arm.hand_from_ghost,
+                )
             )
         # The reset pulse re-seeds the limiter's baseline on the first frame after a
         # disengage; without it the limiter rejects for ~30 frames (0.92 s). execution_state
@@ -437,7 +440,9 @@ class ClutchPreview:
             self._closedness = float(result[GRIPPER_COMMAND_KEY][0])
             # Taken from the hand rather than read back off the arm, so the grip offset
             # cannot leak into an engagement the clutch composes as a delta.
-            self._hand_body_mj = ghost_body_from_pose(hand)[0]
+            self._hand_body_mj = ghost_body_from_pose(hand, self._arm.hand_from_ghost)[
+                0
+            ]
 
         if not self._frames_logged:
             self._frames_logged = _log_hand_frames(result)
@@ -469,7 +474,13 @@ class ClutchPreview:
         if drawn is not None:
             # The body needs no tracking-loss gate: the clutch emits its held pose on
             # every disarm path. The jaw does, hence the latch above.
-            self._twin.publish(bodies=ghost_bodies(drawn, self._closedness))
+            self._twin.publish(
+                bodies=ghost_bodies(
+                    self._arm.ghost,
+                    *ghost_body_from_pose(drawn, self._arm.hand_from_ghost),
+                    self._closedness,
+                )
+            )
         if commanded is not None and governed is not None:
             # Classified on every governed frame, painted only while the ghost is the
             # tool on show: the band needs an unbroken baseline to tell a refused frame
@@ -498,7 +509,9 @@ class ClutchPreview:
         """
         reference = None
         if q_gripper_wxyz is not None:
-            q_xyzw = grip_quat_from_ghost_body(q_gripper_wxyz)
+            q_xyzw = grip_quat_from_ghost_body(
+                q_gripper_wxyz, self._arm.hand_from_ghost
+            )
             reference = to_matrix(np.array([q_xyzw[3], *q_xyzw[:3]]))
         return self._gate.update(
             None if hand is None else hand[3:7],

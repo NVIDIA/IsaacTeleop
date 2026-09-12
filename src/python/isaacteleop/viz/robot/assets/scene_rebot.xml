@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+scene.xml's reBot counterpart: the reBot DevArm follower and, on the operator's
+hand, that same arm's own gripper. The SO-101 pairs a follower with its LEADER's
+gripper; the reBot has no leader hardware, so the hand holds the follower's.
+
+See scene.xml for the headlight rationale and the no-ground-plane rule; this
+file differs from it only in which two fragments it includes.
+-->
+<mujoco model="robot_viz_scene_rebot">
+  <visual>
+    <headlight ambient="0.4 0.4 0.4" diffuse="0.4 0.4 0.4" specular="0.3 0.3 0.3"/>
+  </visual>
+
+  <include file="rebot_arm.xml"/>
+  <include file="rebot_gripper.xml"/>
+</mujoco>
