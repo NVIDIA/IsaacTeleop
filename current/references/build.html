@@ -516,12 +516,12 @@ two build paths therefore never share a directory:</p>
 <li><p><strong>classic CMake</strong> → whatever you pass to <code class="docutils literal notranslate"><span class="pre">-B</span></code>, <code class="docutils literal notranslate"><span class="pre">build/</span></code> by convention.
 <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> selects the interpreter (default <code class="docutils literal notranslate"><span class="pre">3.11</span></code>), and
 changing it on an existing tree is rejected with an error rather than silently
-reusing the old one — give each version its own directory.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build
+reusing the old one — delete the tree to switch versions.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w">                                            </span><span class="c1"># default 3.11</span>
 cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--parallel
 cmake<span class="w"> </span>--install<span class="w"> </span>build
 
-cmake<span class="w"> </span>-B<span class="w"> </span>build-py3.12<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12<span class="w">   </span><span class="c1"># a second version</span>
+cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12<span class="w">         </span><span class="c1"># after rm -rf build</span>
 </pre></div>
 </div>
 </li>
@@ -740,7 +740,7 @@ in <a class="reference internal" href="../getting_started/build_from_source/inde
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 11, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 12, 2026.
       <br/>
     
   </p>

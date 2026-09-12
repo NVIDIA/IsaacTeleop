@@ -623,10 +623,10 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build<span class="
 <p class="admonition-title">Important</p>
 <p>The Python version is baked into a build directory’s CMake cache and its build
 venv, so <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> cannot be changed on an existing tree —
-configuring again with a different value fails with an explanatory error. Give
-each version its own directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build-py3.12<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
-cmake<span class="w"> </span>--build<span class="w"> </span>build-py3.12<span class="w"> </span>--parallel
+configuring again with a different value fails with an explanatory error. Select
+it on the first configure, and delete the tree to switch later:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--parallel
 </pre></div>
 </div>
 </div>
@@ -759,10 +759,10 @@ See <a class="reference internal" href="../../device/oak.html"><span class="doc"
 </section>
 <section id="examples">
 <h3>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h3>
-<p>Build for a different Python version — each needs its own build directory
-(<code class="docutils literal notranslate"><span class="pre">3.11</span></code>, <code class="docutils literal notranslate"><span class="pre">3.12</span></code>, <code class="docutils literal notranslate"><span class="pre">3.13</span></code> are supported):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build-py3.12<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
-cmake<span class="w"> </span>--build<span class="w"> </span>build-py3.12<span class="w"> </span>--parallel
+<p>Build for a different Python version (<code class="docutils literal notranslate"><span class="pre">3.11</span></code>, <code class="docutils literal notranslate"><span class="pre">3.12</span></code>, <code class="docutils literal notranslate"><span class="pre">3.13</span></code> are supported;
+delete <code class="docutils literal notranslate"><span class="pre">build/</span></code> first if it is already configured for another one):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--parallel
 </pre></div>
 </div>
 <p>Debug build:</p>
@@ -1052,7 +1052,7 @@ targets, install the <code class="docutils literal notranslate"><span class="pre
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 11, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 12, 2026.
       <br/>
     
   </p>
