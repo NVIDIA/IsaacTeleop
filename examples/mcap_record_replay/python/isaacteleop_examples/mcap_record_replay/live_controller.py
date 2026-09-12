@@ -11,7 +11,7 @@ aim / grip points for both controllers, a ray between them, and a live HUD
 showing thumbstick, trigger, squeeze, and button state.
 
 Usage:
-    python live_controller.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.live_controller [--port 8080] [--host 127.0.0.1] [--accept-eula]
 
 Press Ctrl+C to stop.
 
