@@ -7,6 +7,13 @@ table = "JointStateOutput"
 max_flatbuffer_size = 4096
 
 [[tracker]]
+name = "joint_se3_pose"
+table = "JointSe3PoseOutput"
+# 5 raw tips are ~300 B; sized so a 26-joint OpenXR hand (~900 B) also fits, because the
+# tensor collection size is fixed at creation and raising it later breaks paired producers.
+max_flatbuffer_size = 1024
+
+[[tracker]]
 name = "plugin_device_status"
 table = "PluginDeviceStatusSnapshot"
 class = "PluginDeviceStatusTracker"
