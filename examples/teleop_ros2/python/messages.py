@@ -25,9 +25,15 @@ from isaacteleop.retargeting_engine.tensor_types.indices import (
     HeadInputIndex,
 )
 
-from constants import BODY_JOINT_NAMES, HAND_POSE_JOINT_INDICES, HAND_POSE_NAMES
+from constants import (
+    BODY_JOINT_NAMES,
+    HAND_POSE_JOINT_INDICES,
+    HAND_POSE_NAMES,
+    EePoseFrame,
+)
 from geometry import (
     apply_manus_controller_to_hand_pose,
+    apply_relative_pose,
     apply_transform_to_pose,
     make_transform,
     to_pose,
@@ -102,6 +108,52 @@ def _compute_ee_pose_from_hand(
     if transform_rot is not None or transform_trans is not None:
         pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
     return pose
+
+
+def _compute_head_pose(
+    head: OptionalTensorGroup | None,
+    transform_rot: Rotation | None,
+    transform_trans: Sequence[float] | None,
+) -> Pose | None:
+    if head is None or not head_is_valid(head):
+        return None
+
+    position = [float(x) for x in head[HeadInputIndex.POSITION]]
+    orientation = [float(x) for x in head[HeadInputIndex.ORIENTATION]]
+    pose = to_pose(position, orientation)
+    if transform_rot is not None or transform_trans is not None:
+        pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
+    return pose
+
+
+def _finalize_ee_output(
+    left_pose: Pose | None,
+    right_pose: Pose | None,
+    now,
+    frame_id: str,
+    left_wrist_frame: str,
+    right_wrist_frame: str,
+    *,
+    head: OptionalTensorGroup | None,
+    head_frame: str,
+    ee_poses_frame: EePoseFrame,
+    transform_rot: Rotation | None,
+    transform_trans: Sequence[float] | None,
+) -> tuple[NamedPoseArray, list[TransformStamped]]:
+    if ee_poses_frame == EePoseFrame.HEAD:
+        frame_id = head_frame
+        head_pose = _compute_head_pose(head, transform_rot, transform_trans)
+        if head_pose is None:
+            # Tracking loss must not change coordinates or reparent wrist TFs.
+            left_pose = right_pose = None
+        else:
+            if left_pose is not None:
+                left_pose = apply_relative_pose(head_pose, left_pose)
+            if right_pose is not None:
+                right_pose = apply_relative_pose(head_pose, right_pose)
+
+    ee_msg = _compose_ee_msg(left_pose, right_pose, now, frame_id)
+    return ee_msg, _wrist_tfs_from_ee_msg(ee_msg, left_wrist_frame, right_wrist_frame)
 
 
 def _to_msgpack_byte_multi_array(payload: Dict) -> ByteMultiArray:
@@ -245,6 +297,10 @@ def build_ee_output_from_controllers(
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
     apply_manus_controller_to_hand_transform: bool = False,
+    *,
+    head: OptionalTensorGroup | None = None,
+    head_frame: str = "head",
+    ee_poses_frame: EePoseFrame = EePoseFrame.WORLD,
 ) -> tuple[NamedPoseArray, list[TransformStamped]]:
     """Build the controller-derived EE message and its valid wrist TFs."""
     left_pose = _compute_ee_pose_from_controller(
@@ -261,11 +317,18 @@ def build_ee_output_from_controllers(
         transform_trans,
         apply_manus_controller_to_hand_transform,
     )
-    ee_msg = _compose_ee_msg(left_pose, right_pose, now, frame_id)
-    return ee_msg, _wrist_tfs_from_ee_msg(
-        ee_msg,
+    return _finalize_ee_output(
+        left_pose,
+        right_pose,
+        now,
+        frame_id,
         left_wrist_frame,
         right_wrist_frame,
+        head=head,
+        head_frame=head_frame,
+        ee_poses_frame=ee_poses_frame,
+        transform_rot=transform_rot,
+        transform_trans=transform_trans,
     )
 
 
@@ -278,6 +341,10 @@ def build_ee_output_from_hands(
     right_wrist_frame: str,
     transform_rot: Rotation | None = None,
     transform_trans: Sequence[float] | None = None,
+    *,
+    head: OptionalTensorGroup | None = None,
+    head_frame: str = "head",
+    ee_poses_frame: EePoseFrame = EePoseFrame.WORLD,
 ) -> tuple[NamedPoseArray, list[TransformStamped]]:
     """Build the hand-derived EE message and its valid wrist TFs."""
     left_pose = _compute_ee_pose_from_hand(
@@ -290,11 +357,18 @@ def build_ee_output_from_hands(
         transform_rot,
         transform_trans,
     )
-    ee_msg = _compose_ee_msg(left_pose, right_pose, now, frame_id)
-    return ee_msg, _wrist_tfs_from_ee_msg(
-        ee_msg,
+    return _finalize_ee_output(
+        left_pose,
+        right_pose,
+        now,
+        frame_id,
         left_wrist_frame,
         right_wrist_frame,
+        head=head,
+        head_frame=head_frame,
+        ee_poses_frame=ee_poses_frame,
+        transform_rot=transform_rot,
+        transform_trans=transform_trans,
     )
 
 
@@ -400,14 +474,9 @@ def build_head_output(
     transform_trans: Sequence[float] | None = None,
 ) -> tuple[PoseStamped, TransformStamped] | None:
     """Build the head pose message and matching TF, or None when invalid."""
-    if not head_is_valid(head):
+    pose = _compute_head_pose(head, transform_rot, transform_trans)
+    if pose is None:
         return None
-
-    position = [float(x) for x in head[HeadInputIndex.POSITION]]
-    orientation = [float(x) for x in head[HeadInputIndex.ORIENTATION]]
-    pose = to_pose(position, orientation)
-    if transform_rot is not None or transform_trans is not None:
-        pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
 
     head_msg = PoseStamped()
     head_msg.header.stamp = now
