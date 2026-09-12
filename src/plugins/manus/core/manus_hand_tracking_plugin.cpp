@@ -11,7 +11,7 @@
 //   human   - cached joints are anchored to a wrist pose from the OpenXR xdev
 //             hand trackers, or a controller aim pose when xdev is unavailable,
 //             and injected as XR_EXT_hand_tracking joints.
-//   sensors - cached sensor transforms are pushed as JointState flatbuffers.
+//   sensors - cached sensor transforms are pushed as JointSe3PoseOutput flatbuffers.
 //   haptic  - inbound HapticCommands are forwarded to the glove finger motors.
 //
 // ManusTracker is a singleton because the SDK's C callbacks carry no user
@@ -29,7 +29,7 @@
 #include <plugin_utils/hand_injector.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/haptic_command_generated.h>
-#include <schema/joint_state_generated.h>
+#include <schema/joint_se3_pose_generated.h>
 
 #include <ManusSDK.h>
 #include <ManusSDKTypeInitializers.h>
@@ -81,8 +81,9 @@ SDKReturnCode get_raw_skeleton_node_count(uint32_t glove_id, uint32_t& node_coun
     return CoreSdk_GetRawSkeletonNodeCount(glove_id, &node_count);
 }
 
-// Must agree with JointStateTracker::DEFAULT_MAX_FLATBUFFER_SIZE on the consumer side.
-constexpr size_t kSensorFlatbufferSize = 4096;
+// Must agree with JointSe3PoseTracker::DEFAULT_MAX_FLATBUFFER_SIZE on the consumer side
+// (src/core/deviceio_trackers/trackers.toml).
+constexpr size_t kSensorFlatbufferSize = 1024;
 constexpr auto kSkeletonStaleThreshold = std::chrono::milliseconds(200);
 // MANUS supplies 25 nodes. Injection expands them to OpenXR's 26 joints by
 // deriving the palm from the final MANUS node.
@@ -463,13 +464,13 @@ void ManusTracker::initialize() noexcept(false)
             m_left_sensor_pusher = std::make_unique<core::SchemaPusher>(
                 m_handles, core::SchemaPusherConfig{ .collection_id = MANUS_SENSORS_LEFT_COLLECTION_ID,
                                                      .max_flatbuffer_size = kSensorFlatbufferSize,
-                                                     .tensor_identifier = "joint_state",
+                                                     .tensor_identifier = "joint_se3_pose",
                                                      .localized_name = "Manus Sensors Left",
                                                      .app_name = m_config.app_name });
             m_right_sensor_pusher = std::make_unique<core::SchemaPusher>(
                 m_handles, core::SchemaPusherConfig{ .collection_id = MANUS_SENSORS_RIGHT_COLLECTION_ID,
                                                      .max_flatbuffer_size = kSensorFlatbufferSize,
-                                                     .tensor_identifier = "joint_state",
+                                                     .tensor_identifier = "joint_se3_pose",
                                                      .localized_name = "Manus Sensors Right",
                                                      .app_name = m_config.app_name });
         }
@@ -973,34 +974,25 @@ void ManusTracker::push_sensor_side(bool is_left, core::SchemaPusher& pusher)
         std::cout << "[Manus] " << (is_left ? "left" : "right") << " sensors=on" << std::endl;
     }
 
-    core::JointStateOutputT out;
-    out.device_id = is_left ? MANUS_SENSORS_LEFT_COLLECTION_ID : MANUS_SENSORS_RIGHT_COLLECTION_ID;
-    out.has_velocity = false;
-    out.has_effort = false;
-    out.ee_pose_valid = false;
-    out.joints.reserve(static_cast<size_t>(kManusSensorJointCount));
-
+    std::vector<core::JointSe3Pose> joints;
+    joints.reserve(static_cast<size_t>(kManusSensorCount));
     for (int sensor = 0; sensor < kManusSensorCount; ++sensor)
     {
         const ManusTransform& t = transforms[static_cast<size_t>(sensor)];
-        // Manus SDK quaternions are wxyz; JointState / Pose wire contract is xyzw.
-        const float pose[kManusSensorPoseFloats] = {
-            t.position.x, t.position.y, t.position.z, t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w,
-        };
-        for (int k = 0; k < kManusSensorPoseFloats; ++k)
-        {
-            auto joint = std::make_shared<core::JointStateT>();
-            joint->name = "j" + std::to_string(sensor * kManusSensorPoseFloats + k);
-            joint->position = pose[k];
-            joint->valid = true;
-            out.joints.push_back(std::move(joint));
-        }
+        joints.emplace_back(kManusSensorJoints[static_cast<size_t>(sensor)],
+                            core::Pose(core::Point(t.position.x, t.position.y, t.position.z),
+                                       core::Quaternion(t.rotation.x, t.rotation.y, t.rotation.z, t.rotation.w)));
     }
 
     const auto sample_time_ns = core::os_monotonic_now_ns();
     flatbuffers::FlatBufferBuilder builder(kSensorFlatbufferSize);
-    auto offset = core::JointStateOutput::Pack(builder, &out);
-    builder.Finish(offset);
+    const auto device_id =
+        builder.CreateString(is_left ? MANUS_SENSORS_LEFT_COLLECTION_ID : MANUS_SENSORS_RIGHT_COLLECTION_ID);
+    // Sort through the builder, not the object API: JointSe3PoseOutput::Pack() emits a keyed
+    // struct vector with CreateVectorOfStructs and does NOT sort it, which would leave the
+    // reader's LookupByKey searching an unsorted vector.
+    const auto joints_offset = builder.CreateVectorOfSortedStructs(&joints);
+    builder.Finish(core::CreateJointSe3PoseOutput(builder, joints_offset, device_id));
     pusher.push_buffer(builder.GetBufferPointer(), builder.GetSize(), sample_time_ns, sample_time_ns);
 }
 

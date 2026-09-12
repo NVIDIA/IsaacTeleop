@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include <schema/joint_se3_pose_generated.h>
+
+#include <array>
+
 namespace plugins
 {
 namespace manus
@@ -22,15 +26,13 @@ namespace manus
 // rejects a collection whose sample size exceeds its buffer).
 inline constexpr const char* MANUS_GLOVE_COLLECTION_ID = "manus_glove_haptic";
 
-// Outbound flex-sensor (Manus RawDeviceData) collections pushed as JointStateOutput
-// with tensor identifier "joint_state". Hosts discover them via JointStateSource.
+// Outbound flex-sensor (Manus RawDeviceData) collections pushed as JointSe3PoseOutput
+// with tensor identifier "joint_se3_pose". Hosts read them with a JointSe3PoseTracker and
+// look tips up by JointName.
 //
-// Packing (35 positional joints j0..j34): for sensor i in thumb→pinky order
-// (i = 0..4), joints j[7*i .. 7*i+6] hold one SE(3) tip as
-//   [x, y, z, qx, qy, qz, qw]
-// in meters / xyzw, in the Manus SDK frame after the plugin's VUH coordinate
-// setup. All 35 joints are valid=true only when sensorCount >= 5; otherwise the
-// plugin skips the push so the host sees "no sensors".
+// Poses are in meters / xyzw quaternion, in the Manus SDK frame after the plugin's VUH
+// coordinate setup. The plugin pushes only a complete five-tip set (sensorCount >= 5);
+// otherwise it skips the push so the host sees "no sensors".
 //
 // These are raw Manus flex transforms (same source as SharpaManusClient's
 // RawDeviceData callback).
@@ -39,8 +41,12 @@ inline constexpr const char* MANUS_SENSORS_LEFT_COLLECTION_ID = "manus_sensors_l
 inline constexpr const char* MANUS_SENSORS_RIGHT_COLLECTION_ID = "manus_sensors_right";
 
 inline constexpr int kManusSensorCount = 5;
-inline constexpr int kManusSensorPoseFloats = 7; // xyz + quat xyzw
-inline constexpr int kManusSensorJointCount = kManusSensorCount * kManusSensorPoseFloats; // 35
+
+// Manus reports its flex sensors thumb→pinky; this is that order as JointNames.
+inline constexpr std::array<core::JointName, kManusSensorCount> kManusSensorJoints = {
+    core::JointName_HAND_RAW_THUMB_TIP, core::JointName_HAND_RAW_INDEX_TIP,  core::JointName_HAND_RAW_MIDDLE_TIP,
+    core::JointName_HAND_RAW_RING_TIP,  core::JointName_HAND_RAW_LITTLE_TIP,
+};
 
 } // namespace manus
 } // namespace plugins
