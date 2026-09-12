@@ -11,6 +11,7 @@
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/oglo_tactile_tracker.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
+#include <deviceio_trackers/spacemouse_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -153,6 +154,16 @@ PYBIND11_MODULE(_deviceio_trackers, m)
                const core::ITrackerSession& session) -> core::Generic3AxisPedalOutputTrackedT
             { return self.get_data(session); },
             py::arg("session"), "Get the current foot pedal tracked state (data is None when no data available)");
+
+    py::class_<core::SpaceMouseTracker, core::ITracker, std::shared_ptr<core::SpaceMouseTracker>>(m, "SpaceMouseTracker")
+        .def(py::init<const std::string&, size_t>(), py::arg("collection_id"),
+             py::arg("max_flatbuffer_size") = core::SpaceMouseTracker::DEFAULT_MAX_FLATBUFFER_SIZE,
+             "Construct a SpaceMouseTracker for the given tensor collection ID")
+        .def(
+            "get_spacemouse_data",
+            [](const core::SpaceMouseTracker& self, const core::ITrackerSession& session) -> core::SpaceMouseOutputTrackedT
+            { return self.get_data(session); },
+            py::arg("session"), "Get the current spacemouse tracked state (data is None when no data available)");
 
     py::class_<core::OgloTactileTracker, core::ITracker, std::shared_ptr<core::OgloTactileTracker>>(
         m, "OgloTactileTracker")

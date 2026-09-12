@@ -15,6 +15,9 @@ Available Retargeters:
     - LocomotionFixedRootCmdRetargeter: Fixed root command (standing still)
     - LocomotionRootCmdRetargeter: Locomotion from controller inputs
     - FootPedalRootCmdRetargeter: Root command from 3-axis foot pedal (horizontal/vertical + rudder)
+    - SpaceMouseToSe3RelRetargeter: SpaceMouse translation/rotation state -> relative EE delta control
+    - SpaceMouseGripperRetargeter: SpaceMouse left-button toggle -> gripper open/closed
+    - SpaceMouseToSe2Retargeter: SpaceMouse translation/rotation state -> base velocity command (v_x, v_y, omega_z)
     - GripperRetargeter: Pinch-based gripper control
     - SO101ClutchRetargeter: Clutch-rebased absolute EE pose for the SO-101 5-DOF arm
     - SO101GripperRetargeter: Proportional (analog) jaw closedness for the SO-101 gripper
@@ -96,6 +99,33 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "FootPedalRootCmdRetargeterConfig": (
         ".foot_pedal_retargeter",
         "FootPedalRootCmdRetargeterConfig",
+        None,
+    ),
+    # .spacemouse_se3_retargeter  (requires retargeters-lite extra: scipy)
+    "SpaceMouseToSe3RelRetargeter": (
+        ".spacemouse_se3_retargeter",
+        "SpaceMouseToSe3RelRetargeter",
+        "retargeters-lite",
+    ),
+    "SpaceMouseToSe3RelRetargeterConfig": (
+        ".spacemouse_se3_retargeter",
+        "SpaceMouseToSe3RelRetargeterConfig",
+        "retargeters-lite",
+    ),
+    "SpaceMouseGripperRetargeter": (
+        ".spacemouse_se3_retargeter",
+        "SpaceMouseGripperRetargeter",
+        "retargeters-lite",
+    ),
+    # .spacemouse_se2_retargeter
+    "SpaceMouseToSe2Retargeter": (
+        ".spacemouse_se2_retargeter",
+        "SpaceMouseToSe2Retargeter",
+        None,
+    ),
+    "SpaceMouseToSe2RetargeterConfig": (
+        ".spacemouse_se2_retargeter",
+        "SpaceMouseToSe2RetargeterConfig",
         None,
     ),
     # .gripper_retargeter
@@ -206,6 +236,11 @@ __all__ = [
     "TriHandMotionControllerConfig",
     "FootPedalRootCmdRetargeter",
     "FootPedalRootCmdRetargeterConfig",
+    "SpaceMouseToSe3RelRetargeter",
+    "SpaceMouseToSe3RelRetargeterConfig",
+    "SpaceMouseGripperRetargeter",
+    "SpaceMouseToSe2Retargeter",
+    "SpaceMouseToSe2RetargeterConfig",
     # Locomotion retargeters
     "LocomotionFixedRootCmdRetargeter",
     "LocomotionFixedRootCmdRetargeterConfig",

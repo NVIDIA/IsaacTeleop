@@ -14,6 +14,7 @@
 #include "live_message_channel_tracker_impl.hpp"
 #include "live_oglo_tactile_tracker_impl.hpp"
 #include "live_se3_tracker_impl.hpp"
+#include "live_spacemouse_tracker_impl.hpp"
 #include "live_tensor_push_tracker_impl.hpp"
 
 #include <deviceio_trackers/controller_tracker.hpp>
@@ -27,6 +28,7 @@
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/oglo_tactile_tracker.hpp>
 #include <deviceio_trackers/se3_tracker.hpp>
+#include <deviceio_trackers/spacemouse_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
@@ -98,6 +100,12 @@ std::unique_ptr<ITrackerImpl> try_create_generic_pedal_impl(LiveDeviceIOFactory&
 {
     auto* typed = dynamic_cast<const Generic3AxisPedalTracker*>(&tracker);
     return typed ? factory.create_generic_3axis_pedal_tracker_impl(typed) : nullptr;
+}
+
+std::unique_ptr<ITrackerImpl> try_create_spacemouse_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const SpaceMouseTracker*>(&tracker);
+    return typed ? factory.create_spacemouse_tracker_impl(typed) : nullptr;
 }
 
 std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
@@ -173,6 +181,7 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<MessageChannelTracker, LiveMessageChannelTrackerImpl>(&try_create_message_channel_impl),
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerPicoImpl>(&try_create_full_body_pico_impl, "body.pico-xr"),
     make_dispatch_entry<Generic3AxisPedalTracker, LiveGeneric3AxisPedalTrackerImpl>(&try_create_generic_pedal_impl),
+    make_dispatch_entry<SpaceMouseTracker, LiveSpaceMouseTrackerImpl>(&try_create_spacemouse_impl),
     make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
     make_dispatch_entry<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>(
         &try_create_haptic_command_reader_impl),
@@ -479,6 +488,16 @@ std::unique_ptr<IGeneric3AxisPedalTrackerImpl> LiveDeviceIOFactory::create_gener
         channels = LiveGeneric3AxisPedalTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
     }
     return std::make_unique<LiveGeneric3AxisPedalTrackerImpl>(handles_, tracker, std::move(channels));
+}
+
+std::unique_ptr<ISpaceMouseTrackerImpl> LiveDeviceIOFactory::create_spacemouse_tracker_impl(const SpaceMouseTracker* tracker)
+{
+    std::unique_ptr<SpaceMouseMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveSpaceMouseTrackerImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+    return std::make_unique<LiveSpaceMouseTrackerImpl>(handles_, tracker, std::move(channels));
 }
 
 std::unique_ptr<IOgloTactileTrackerImpl> LiveDeviceIOFactory::create_oglo_tactile_tracker_impl(

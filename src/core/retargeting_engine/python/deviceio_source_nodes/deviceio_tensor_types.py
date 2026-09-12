@@ -19,6 +19,7 @@ from isaacteleop.schema import (
     HandPoseTrackedT,
     ControllerSnapshotTrackedT,
     Generic3AxisPedalOutputTrackedT,
+    SpaceMouseOutputTrackedT,
     JointStateOutputTrackedT,
     FullBodyPoseTrackedT,
     MessageChannelMessagesTrackedT,
@@ -98,6 +99,26 @@ class Generic3AxisPedalOutputTrackedType(TensorType):
         if not isinstance(value, Generic3AxisPedalOutputTrackedT):
             raise TypeError(
                 f"Expected Generic3AxisPedalOutputTrackedT for '{self.name}', got {type(value).__name__}"
+            )
+
+
+class SpaceMouseOutputTrackedType(TensorType):
+    """SpaceMouseOutputTrackedT wrapper type from DeviceIO SpaceMouseTracker."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+
+    def _check_instance_compatibility(self, other: TensorType) -> bool:
+        if not isinstance(other, SpaceMouseOutputTrackedType):
+            raise TypeError(
+                f"Expected SpaceMouseOutputTrackedType, got {type(other).__name__}"
+            )
+        return True
+
+    def validate_value(self, value: Any) -> None:
+        if not isinstance(value, SpaceMouseOutputTrackedT):
+            raise TypeError(
+                f"Expected SpaceMouseOutputTrackedT for '{self.name}', got {type(value).__name__}"
             )
 
 
@@ -234,6 +255,18 @@ def DeviceIOGeneric3AxisPedalOutputTracked() -> TensorGroupType:
     return TensorGroupType(
         "deviceio_generic_3axis_pedal_output",
         [Generic3AxisPedalOutputTrackedType("pedal_tracked")],
+    )
+
+
+def DeviceIOSpaceMouseOutputTracked() -> TensorGroupType:
+    """Tracked spacemouse data from DeviceIO SpaceMouseTracker.
+
+    Contains:
+        spacemouse_tracked: SpaceMouseOutputTrackedT wrapper (always set; .data is None when inactive)
+    """
+    return TensorGroupType(
+        "deviceio_spacemouse_output",
+        [SpaceMouseOutputTrackedType("spacemouse_tracked")],
     )
 
 
