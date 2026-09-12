@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+The reBot DevArm follower, RobStride build: what the operator drags before the
+clutch engages. The Damiao build of the same arm has different geometry and is
+not this model.
+
+A wrapper around upstream's own MJCF, which is fetched verbatim and NEVER
+edited -- assets.py hashes the whole fetched set, so an edit is a fetch failure
+on the next run.
+
+Provenance: google-deepmind/mujoco_menagerie at commit
+8161bba264d7fa7c99ca301e91e7fb44737676ad, MIT. Upstream derives it from
+Seeed-Projects/reBot-Isaacsim's URDF -- the same URDF LeRobot's IK solves
+against. The 115 meshes land FLAT beside this file: MuJoCo drops an included
+file's own `meshdir`, so upstream's `meshdir="assets"` is inert here.
+
+Upstream's own scene.xml is deliberately NOT used: it carries a ground plane,
+skybox and haze, and this is an AR scene where passthrough is the background.
+
+preview_arm.py repoints EVERY arm geom's `geom_matid` at this material at
+startup, replacing upstream's three (alum/lime/black). One material is what lets
+the whole arm change colour in one write.
+
+The gripper's two fingers are `slide` joints coupled by an <equality>. The twin
+addresses hinges only, so they are held at their authored pose -- the preview
+jaw does not articulate on either arm.
+
+Translucent and grey to match follower_arm.xml; see there for why.
+-->
+<mujoco model="rebot devarm follower arm">
+  <asset>
+    <material name="follower_arm" rgba="0.45 0.45 0.45 0.6"/>
+  </asset>
+
+  <include file="seeed_rebot_devarm.xml"/>
+</mujoco>

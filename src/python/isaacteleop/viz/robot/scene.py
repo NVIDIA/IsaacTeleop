@@ -16,6 +16,7 @@ thread. The thread boundary is :meth:`SceneTwin.publish` -- after
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -24,6 +25,8 @@ import numpy as np
 
 from . import _robot_twin, quaternion
 from .joint_map import JointMap
+
+LOG = logging.getLogger(__name__)
 
 #: ``geom_group`` values a scene is expected to use. Robot MJCFs number their visual geoms
 #: 2 and their collision geoms 3, and only 2 is in the visualiser's default geomgroup mask,
@@ -351,15 +354,19 @@ class SceneTwin:
     def _read_joint_map(self) -> JointMap:
         """Every hinge in the scene, by name, mapped to its position address.
 
-        Hinges only: a ball or free joint occupies four or seven slots, which a snapshot
-        with one value per name could not fill.
+        Slide joints are left out rather than addressed: a snapshot is one value per name
+        in radians, and a slide's position is metres, so the same array would pose it
+        plausibly and wrongly. Out of the map nothing writes them and they hold their
+        authored pose. A ball or free joint still raises -- it occupies four or seven
+        slots, so no per-name snapshot could fill it either way.
 
         Raises:
-            RuntimeError: If the scene carries a joint that is not a hinge, or one with
-                no name -- an unnamed joint cannot be published or asserted.
+            RuntimeError: If the scene carries a ball or free joint, or one with no name
+                -- an unnamed joint cannot be published or asserted.
         """
         names: list[str] = []
         addresses: list[int] = []
+        skipped: list[str] = []
         types = self._scene.jnt_type
         for joint in range(self._scene.njnt):
             name = self._scene.name(_robot_twin.ObjType.JOINT, joint)
@@ -367,15 +374,23 @@ class SceneTwin:
                 raise RuntimeError(
                     f"robot twin: joint {joint} has no name, so nothing can address it."
                 )
+            if types[joint] == int(_robot_twin.JointType.SLIDE):
+                skipped.append(name)
+                continue
             if types[joint] != int(_robot_twin.JointType.HINGE):
-                # Also what licenses reading angles in radians: a slide joint's position
-                # is metres, and the same array would pose it plausibly and wrongly.
                 raise RuntimeError(
-                    f"robot twin: joint `{name}` is not a hinge; the twin poses hinges only."
+                    f"robot twin: joint `{name}` is neither a hinge nor a slide; the twin "
+                    "poses hinges and holds slides."
                 )
             names.append(name)
             addresses.append(int(self._scene.jnt_qposadr[joint]))
-        return JointMap(names, addresses, width=int(self._scene.nq))
+        if skipped:
+            LOG.info(
+                "robot twin: holding %d slide joint(s) at their authored pose: %s",
+                len(skipped),
+                ", ".join(skipped),
+            )
+        return JointMap(names, addresses, width=int(self._scene.nq), skipped=skipped)
 
     def _subtree_geoms(self, root: int) -> np.ndarray:
         """Every geom on ``root`` and its descendants, by geom id. ``body_rootid`` is the

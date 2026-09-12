@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # Robot Viz
 
-A robot twin rendered stereoscopically into an Isaac Teleop Televiz XR session: an SO-101 follower arm the operator drags around by hand, and an SO-101 leader gripper that replaces it once the clutch engages. One process, one OpenXR session, two threads — `TeleopSession` creates the session the trackers and the compositor share and runs the twin's frame loop on a thread of its own.
+A robot twin rendered stereoscopically into an Isaac Teleop Televiz XR session: a follower arm the operator drags around by hand (`--arm`, SO-101 by default), and a gripper ghost that replaces it once the clutch engages. One process, one OpenXR session, two threads — `TeleopSession` creates the session the trackers and the compositor share and runs the twin's frame loop on a thread of its own.
 
 `isaacteleop.viz.robot` holds no `mjModel` and no `mjData`: it addresses the scene by name and publishes what moved, and `twin.py` applies the lot on the render thread. That bound is what lets the backend link against a MuJoCo the user's environment knows nothing about, and is why this example is pure Python — no compiled extension, no ABI tag, no `mujoco` pin.
 
@@ -32,9 +32,9 @@ The XR half — everything downstream of the readback — has never executed any
 
 ## Scope
 
-Renderer + MuJoCo + rig, and one scene: `src/python/isaacteleop/viz/robot/assets/scene.xml`, an SO-101 follower arm and an SO-101 leader gripper ghost, exactly one drawn at a time. No table, no blocks, no ground plane: this is an AR scene and passthrough is the background.
+Renderer + MuJoCo + rig, and two scenes — one per follower in `viz.robot.PREVIEW_ARMS`, selected with `--arm`: `assets/scene.xml` (SO-101, the default) and `assets/scene_rebot.xml` (reBot DevArm, RobStride build). Each pairs its follower arm with a gripper ghost on the operator's hand, exactly one drawn at a time: the SO-101 shows its LEADER's gripper, and the reBot — which has no leader hardware — its own follower gripper. No table, no blocks, no ground plane: this is an AR scene and passthrough is the background.
 
-The ghost is a real mesh assembly (4 fetched STLs, so it exercises the `mjGEOM_MESH` path). Its trigger is driven by the shipped `SO101GripperRetargeter` as a graph edge — a `BaseRetargeter` node inside `_build_pipeline()`, whose closedness output reaches `mjData` and therefore the screen. Its pose is the safety harness's output, not the controller's.
+Each ghost is a real mesh assembly of fetched STLs, so it exercises the `mjGEOM_MESH` path — the SO-101's is four with a hinged trigger, the reBot's seven with two rack-and-pinion fingers (`viz.robot.ghost` holds both specs). Closedness is driven by the shipped `SO101GripperRetargeter` as a graph edge — a `BaseRetargeter` node inside `_build_pipeline()`, whose closedness output reaches `mjData` and therefore the screen. Its pose is the safety harness's output, not the controller's.
 
 Two calibrations, different in kind. `src/viz/robot_twin/cpp/frames.hpp` is a convention fixed by two specs and cannot be wrong at runtime. `EULER_HAND_FROM_GHOST_DEG` / `POS_HAND_FROM_GHOST` in `viz.robot.so101_ghost` are a measurement of how a hand holds a tool, taken on a headset and checkable nowhere else.
 
@@ -83,7 +83,7 @@ python -m isaacteleop_examples.robot_viz --no-launch-cloudxr-runtime           #
 
 Omitting `--no-launch-cloudxr-runtime` makes the app start its own runtime, which is right when nothing else has and fatal when something has (the runtime is a host singleton on WSS port 48322). Pass it with no runtime running and the failure comes out of `VizSession.create` as an OpenXR error before any of this example's code runs — no `[robot_viz]` lines at all is the tell.
 
-There is one scene and no flag to change it; `assets/scene.xml` is package data beside the module. There is no desktop or headless display mode.
+`--arm` picks the scene, from the profiles in `viz.robot.PREVIEW_ARMS`; each scene's MJCF wrappers are package data beside the module. There is no desktop or headless display mode.
 
 ## The harness the ghost renders
 
@@ -232,6 +232,10 @@ Visibility is `model.geom_group`, from Python. Group 2 draws and group 3 does no
 Pass MuJoCo an absolute scene path. Measured on mujoco 3.11.0, a relative model path mis-composes an `<include>`d file's paths and fails with `Error opening file '<a path that exists>'`; with the follower's nested include it composes the directory onto itself and opens `<dir>/<dir>/so101_new_calib.xml`. `assets.ensure_so101_scene()` returns an absolute path for this reason.
 
 The 17 STLs are fetched, not vendored: `viz.robot.assets.ensure_so101_scene()` fetches them on the first run into `~/.cache/isaacteleop/so101-assets/`, checksum-verified against a pinned commit, and `ISAACTELEOP_SO101_ASSETS` overrides the destination for a host with no route to GitHub. Nothing fetches at build time — an isolated PEP-517 wheel build must not reach the network. Everything lands flat in one directory, because MuJoCo drops an included file's own `meshdir`; `sts3215_03a_v1.stl` is fetched twice rather than aliased, because the leader fragment names its copy `STS3215_03a.stl`. The three MJCF wrappers (`follower_arm.xml`, `leader_gripper.xml`, `scene.xml`) are tracked package data re-copied into the cache on every call, so editing one takes effect on the next launch. `joints_properties.xml` is deliberately not fetched: upstream inlines its `<default>` block rather than `<include>`ing it.
+
+The reBot's scene works the same way, in its own cache directory (`~/.cache/isaacteleop/rebot-devarm-assets/`, `ISAACTELEOP_REBOT_ASSETS` to move it): `ensure_rebot_devarm_scene()` fetches MuJoCo Menagerie's `seeed_rebot_devarm` — 115 meshes and its MJCF, ~15 MB — plus the same ghost meshes, since every scene draws the ghost. The set is pinned by one `REBOT_MANIFEST_SHA256` over the sorted per-file digests rather than a 117-row table or a hash of the repo tarball: content, not archive framing, and 15 MB instead of the 400 MB a tarball costs. Which meshes to fetch is read out of the MJCF, so one added upstream cannot be silently left behind — the manifest digest is what pins the set. Menagerie's own `scene.xml` is not used; it has a ground plane, skybox and haze.
+
+The reBot's 92 collision meshes are fetched and compiled although the twin never draws them: MuJoCo must resolve every mesh the MJCF names, and the file is not edited.
 
 `follower_arm.xml` wraps upstream's `so101_new_calib.xml`, fetched verbatim and never edited. `so101_new_calib.urdf` is pulled too, as the source of the trigger's hinge and its 0..100° travel. Three of the leader's four meshes are leader-specific print parts; the fourth is the STS3215 servo, shared with the follower and not decoration — `wrist_roll` is a C-shaped bracket that wraps it.
 
