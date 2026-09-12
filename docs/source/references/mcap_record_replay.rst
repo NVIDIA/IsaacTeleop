@@ -130,7 +130,7 @@ Runnable Example
 ----------------
 
 A complete record / replay example lives at
-``examples/mcap_record_replay/python/``:
+``examples/mcap_record_replay/python/isaacteleop_examples/mcap_record_replay/``:
 
 - ``common.py`` — pipeline builders (``build_hand_pipeline()``,
   ``build_controller_pipeline()``, ``build_full_body_pipeline()``) plus the
@@ -178,10 +178,9 @@ From the example directory:
 
 .. code-block:: bash
 
-   cd examples/mcap_record_replay/python
-   uv sync
-   uv run python live_full_body.py --accept-eula
-   uv run python live_full_body.py --port 8090 --accept-eula  # change viser port
+   uv pip install -e ./examples/mcap_record_replay
+   python -m isaacteleop_examples.mcap_record_replay.live_full_body --accept-eula
+   python -m isaacteleop_examples.mcap_record_replay.live_full_body --port 8090 --accept-eula
 
 Open the printed URL (default ``http://localhost:8080``) in a browser.  The
 viewers bind every interface, since they run where the headset is and get
@@ -194,19 +193,21 @@ From the example directory:
 
 .. code-block:: bash
 
-   cd examples/mcap_record_replay/python
-   uv sync
-   uv run python record_hand.py            # 5 s → ../recordings/hands_<timestamp>.mcap
-   uv run python record_hand.py 10         # record for 10 seconds
-   uv run python record_hand.py 10 out.mcap  # custom output path
+   uv pip install -e ./examples/mcap_record_replay
+   R="python -m isaacteleop_examples.mcap_record_replay.record_hand"
+   $R              # 5 s → ./recordings/hands_<timestamp>.mcap
+   $R 10           # record for 10 seconds
+   $R 10 out.mcap  # custom output path
+
+Recordings are written to ``./recordings/`` relative to where you run the
+command, and the replay scripts look there when given no path.
 
 The example never downloads a published wheel — it runs against the
-``isaacteleop`` next to it.  Above, ``uv sync`` builds it from this checkout; the
-first sync compiles the extension modules and takes a few minutes, later ones
-reuse the cached build, and the install is editable, so edits under
-``src/python/`` need no rebuild.  From
-``install/examples/mcap_record_replay/python`` (after ``cmake --install``) it
-picks up the wheel you just built instead — see
+``isaacteleop`` next to it, built from this checkout.  The first install
+compiles the extension modules and takes a few minutes; later ones reuse the
+cached build, and the install is editable, so edits under ``src/python/`` need
+no rebuild.  From ``install/examples/mcap_record_replay`` (after ``cmake
+--install``) it picks up the wheel you just built instead — see
 :doc:`/getting_started/build_from_source/index`.
 
 An active OpenXR runtime / headset must be connected, just like any other
@@ -222,19 +223,23 @@ Replay runs headless — no headset required:
 
 .. code-block:: bash
 
-   uv run python replay_hand.py                       # newest file in ../recordings/
-   uv run python replay_hand.py path/to/file.mcap     # explicit file
-   uv run python replay_hand.py --loop                # repeat until Ctrl+C
-   uv run python replay_hand.py --port 8090           # change viser port
+   R="python -m isaacteleop_examples.mcap_record_replay.replay_hand"
+   $R                    # newest hands_*.mcap under ./recordings/
+   $R path/to/file.mcap  # explicit file
+   $R --loop             # repeat until Ctrl+C
+   $R --port 8090        # change viser port
 
 Open the printed URL (default ``http://localhost:8080``) in a browser to see the
 left (green) and right (blue) hand skeletons update each frame.
 
-The ``record_controller.py`` / ``replay_controller.py`` and
-``record_full_body.py`` / ``replay_full_body.py`` pairs use the same CLI
-(positional MCAP path, ``--host``, ``--port``, ``--loop``).
-``live_full_body.py`` accepts ``--host``, ``--port``, and the CloudXR launcher
-flags (including ``--accept-eula``).
+The ``record_controller`` / ``replay_controller`` and ``record_full_body`` /
+``replay_full_body`` module pairs use the same CLI (positional MCAP path,
+``--host``, ``--port``, ``--loop``). ``live_full_body`` accepts ``--host``,
+``--port``, and the CloudXR launcher flags (including ``--accept-eula``).
+
+``uv run`` (instead of an activated venv) needs an explicit ``--python 3.11``
+— without it, ``uv`` may resolve against the system Python and fail to match
+the lockfile.
 
 API Reference
 -------------

@@ -9,9 +9,10 @@ headless on any machine. Open the URL viser prints (default
 http://localhost:8080) in a browser to see the body skeleton.
 
 Usage:
-    python replay_full_body.py [path/to/file.mcap] [--port 8080] [--loop]
+    python -m isaacteleop_examples.mcap_record_replay.replay_full_body [path/to/file.mcap] [--port 8080] [--loop]
 
-If no path is given, the newest file under ``../recordings/`` is used.
+If no path is given, the newest ``full_body_*.mcap`` under ``./recordings/`` is
+used, falling back to the newest ``.mcap`` of any kind if none match.
 ``--loop`` keeps replaying the file end-to-end until the process is killed.
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
@@ -34,7 +35,7 @@ from isaacteleop.teleop_session_manager import (
     TeleopSessionConfig,
 )
 
-from common import BODY_JOINT_NAMES, FullBodyViz, build_full_body_pipeline
+from .common import BODY_JOINT_NAMES, FullBodyViz, build_full_body_pipeline, setup_scene
 
 
 def mcap_duration_s(path: Path) -> float:
@@ -62,13 +63,21 @@ def resolve_mcap(path_arg: str | None) -> Path:
             sys.exit(f"[replay] error: {path} does not exist")
         return path
 
-    recordings = Path(__file__).resolve().parent.parent / "recordings"
-    candidates = list(recordings.glob("*.mcap"))
+    recordings = Path.cwd() / "recordings"
+    candidates = list(recordings.glob("full_body_*.mcap"))
     if not candidates:
-        sys.exit(
-            f"[replay] error: no .mcap files in {recordings}. "
-            "Run record_full_body.py first or pass a path."
-        )
+        candidates = list(recordings.glob("*.mcap"))
+        if candidates:
+            print(
+                f"[replay] warning: no full_body_*.mcap in {recordings}, "
+                "falling back to the newest .mcap of any kind -- it may not "
+                "match this replay's channels."
+            )
+        else:
+            sys.exit(
+                f"[replay] error: no .mcap files in {recordings}. "
+                "Run record_full_body first or pass a path."
+            )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
@@ -137,9 +146,8 @@ def main(argv: list[str]) -> int:
     duration_s = mcap_duration_s(mcap_path)
 
     server = viser.ViserServer(host=args.host, port=args.port)
-    server.scene.set_up_direction("+y")
-    server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
-    viz = FullBodyViz(server)
+    ground = setup_scene(server)
+    viz = FullBodyViz(server, ground)
 
     print(
         f"[replay] viser listening on {args.host}:{args.port} "

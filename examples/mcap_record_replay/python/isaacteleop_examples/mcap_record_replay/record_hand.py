@@ -10,9 +10,9 @@ no separate terminal or pre-running headset daemon is needed. The pipeline in
 the ``hands`` channel — no head, no controllers.
 
 Usage:
-    python record_hand.py [duration_seconds] [output.mcap] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.record_hand [duration_seconds] [output.mcap] [--accept-eula]
 
-Defaults: 5 seconds → ../recordings/hands_<timestamp>.mcap
+Defaults: 5 seconds → ./recordings/hands_<timestamp>.mcap
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
 """
@@ -27,7 +27,7 @@ from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import build_hand_pipeline
+from .common import build_hand_pipeline
 
 
 def main(argv: list[str]) -> int:
@@ -45,7 +45,7 @@ def main(argv: list[str]) -> int:
         mcap_path = Path(args.output)
         mcap_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        out_dir = Path(__file__).resolve().parent.parent / "recordings"
+        out_dir = Path.cwd() / "recordings"
         out_dir.mkdir(exist_ok=True)
         mcap_path = out_dir / f"hands_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 
