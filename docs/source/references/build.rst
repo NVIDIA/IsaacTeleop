@@ -95,15 +95,15 @@ two build paths therefore never share a directory:
 - **classic CMake** → whatever you pass to ``-B``, ``build/`` by convention.
   ``ISAAC_TELEOP_PYTHON_VERSION`` selects the interpreter (default ``3.11``), and
   changing it on an existing tree is rejected with an error rather than silently
-  reusing the old one — give each version its own directory.
+  reusing the old one — delete the tree to switch versions.
 
   .. code-block:: bash
 
-     cmake -B build
+     cmake -B build                                            # default 3.11
      cmake --build build --parallel
      cmake --install build
 
-     cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12   # a second version
+     cmake -B build -DISAAC_TELEOP_PYTHON_VERSION=3.12         # after rm -rf build
 
 - **pip / scikit-build-core** → ``build-wheel/<cache-tag>/`` (e.g.
   ``build-wheel/cpython-312/``), set by ``build-dir`` in
