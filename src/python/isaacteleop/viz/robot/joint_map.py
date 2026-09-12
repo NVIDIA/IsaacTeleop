@@ -20,7 +20,12 @@ class JointMap:
     """
 
     def __init__(
-        self, names: Sequence[str], addresses: Sequence[int], *, width: int
+        self,
+        names: Sequence[str],
+        addresses: Sequence[int],
+        *,
+        width: int,
+        skipped: Sequence[str] = (),
     ) -> None:
         """Bind names to addresses and reject a mapping nothing could scatter through.
 
@@ -28,6 +33,8 @@ class JointMap:
             names: Motor names, in the order a published snapshot carries them.
             addresses: Where each name's position sits, parallel to ``names``.
             width: Total length of the state vector the addresses index into.
+            skipped: Joints the scene carries that this map deliberately does not
+                address, so :meth:`require`'s error can tell "absent" from "held".
 
         Raises:
             ValueError: If the two sequences disagree in length, either carries a
@@ -36,6 +43,7 @@ class JointMap:
         self._names = tuple(names)
         self._addresses = np.asarray(addresses, dtype=np.int32)
         self._width = int(width)
+        self._skipped = tuple(skipped)
 
         if len(self._names) != self._addresses.size:
             raise ValueError(
@@ -64,6 +72,11 @@ class JointMap:
         """The motor names, in the order a published snapshot carries them."""
         return self._names
 
+    @property
+    def skipped(self) -> tuple[str, ...]:
+        """Joints the scene carries that nothing writes; they hold their authored pose."""
+        return self._skipped
+
     def require(self, expected: Sequence[str]) -> None:
         """Fail unless the scene declares exactly ``expected``, in that order.
 
@@ -80,6 +93,8 @@ class JointMap:
             if missing or extra
             else f"same joints in a different order: {self._names}"
         )
+        if missing and self._skipped:
+            detail += f" (held, not addressed: {list(self._skipped)})"
         raise RuntimeError(
             f"the scene's joints are not the {len(expected)} this was authored "
             f"against ({detail}); a snapshot would pose the wrong joints. Expected "

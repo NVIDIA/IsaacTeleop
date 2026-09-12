@@ -1,66 +1,208 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The SO-101 arm the operator drags by hand before the clutch engages.
+"""The arm the operator drags by hand before the clutch engages.
 
-The joints are written once, to :data:`Q_HOME`, and the arm is moved as a rigid body:
-:meth:`PreviewArm._place` is the one place its base pose is published, and every other
-frame on the arm is that pose composed with a constant measured at :data:`Q_HOME`. This
+The joints are written once, to the profile's ``q_home``, and the arm is moved as a rigid
+body: :meth:`PreviewArm._place` is the one place its base pose is published, and every
+other frame on the arm is that pose composed with a constant measured at that pose. This
 module must not learn the leader ghost's grip calibration, which is a claim about a hand
 holding a controller; :mod:`.so101_ghost` converts between the two.
+
+Which arm is profile data -- see :data:`PREVIEW_ARMS`. Each arm previews the pose its real
+follower parks at, and carries both the gripper it puts on the operator's hand and the
+calibration that places it, solved against that pose.
 """
 
 from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
 from . import frames
 from .anchor import anchor_from_head, yaw_of_direction
 from .quaternion import conjugate, multiply, rotate
+from .ghost import REBOT_GHOST, GhostSpec
 from .scene import WORLD_BODY
+from .so101_ghost import SO101_GHOST, quat_hand_from_ghost
 
 LOG = logging.getLogger(__name__)
 
-# Declared by assets/follower_arm.xml and repointed onto every follower geom
-# at startup, so the arm recolours in one write.
+# Declared by each profile's scene wrapper and repointed onto every follower geom at
+# startup, so the arm recolours in one write.
 FOLLOWER_MATERIAL = "follower_arm"
 
-BASE_BODY = "base"
-GRIPPER_BODY = "gripper"
+# Each arm previews the pose its real follower parks at on declutch, so the operator sees
+# the arm hold what the hardware will hold. These are LeRobot's RobotProfile.reset_pose for
+# the same arm, in that arm's own joint order; keep the two in step.
+#
+# The pose does NOT set the wrist the engage gate demands -- the arm's
+# euler_hand_from_ghost_deg does, and the two are solved together. Move a pose and the gate
+# follows it unless the calibration is re-solved with it (so101_ghost has the closed form).
 
-# Upstream's own tool frame, declared on the `gripper` body 98.4 mm out from its origin
-# and 3.8 mm off the closed jaw surface. The arm is placed by this point, so it is also the
-# axis the yaw turns about; placing by the gripper body instead swings the jaw on a 15.8 mm
-# arc across +-90 degrees of yaw.
-GRIPPER_SITE = "gripperframe"
-
-# Upstream's joint order, which is also the qpos order Q_HOME is written in. Asserted by
-# name at startup: a reordered upstream file would land Q_HOME's angles on the wrong
-# joints and still look like an arm.
-ARM_JOINTS = (
-    "shoulder_pan",
-    "shoulder_lift",
-    "elbow_flex",
-    "wrist_flex",
-    "wrist_roll",
-)
-GRIPPER_JOINT = "gripper"
-
-# The configuration the arm holds for the whole session, written to qpos once at
-# construction. This pose is the wrist posture the engage gate demands, so re-solve
-# _EULER_HAND_FROM_GHOST_DEG whenever it changes. J4 stops at +-95 degrees.
+# SO-101, in motor order -- here the URDF joint names, the motor names and the qpos order
+# all coincide. J4 stops at +-95 degrees.
+#
+# wrist_roll is the one joint whose zero the arm's calibration does not pin: LeRobot forces
+# its range to a full turn, so normalized 0 is wherever the wrist sat at the homing prompt
+# rather than a mechanical feature. Measured across two calibrations of one arm: every other
+# joint's zero reproduced within 2 deg, wrist_roll moved 90. So if the preview's gripper
+# looks rolled against the hardware, recalibrate holding the wrist where this pose puts it
+# -- do not "fix" the number below, which is right for a correctly homed arm and wrong for
+# the next one.
 Q_HOME_DEG = (
     0.00,  # J1 shoulder_pan  -- base yaw
     -45.00,  # J2 shoulder_lift -- first segment elevation
     45.00,  # J3 elbow_flex    -- second segment elevation
     90.00,  # J4 wrist_flex    -- wrist up/down
-    -90.00,  # J5 wrist_roll    -- spin about the tool axis
-    00.00,  # J6 gripper       -- jaw opening, 0 is the authored pose
+    0.00,  # J5 wrist_roll    -- spin about the tool axis
+    0.00,  # J6 gripper       -- jaw opening, 0 is the authored pose
 )
 Q_HOME = np.radians(Q_HOME_DEG)
+
+# reBot DevArm. jointN is the MJCF/URDF name; the motor it drives is named beside it, in
+# the positional order LeRobot's IK already maps by. The gripper is a pair of slides this
+# does not address.
+Q_HOME_REBOT_DEG = (
+    0.00,  # joint1 -- shoulder_pan
+    -5.00,  # joint2 -- shoulder_lift, 5 deg off the endpoint it calibrates at
+    -10.00,  # joint3 -- elbow_flex, 10 deg off its endpoint
+    0.00,  # joint4 -- wrist_flex
+    0.00,  # joint5 -- wrist_yaw
+    0.00,  # joint6 -- wrist_roll
+)
+Q_HOME_REBOT = np.radians(Q_HOME_REBOT_DEG)
+
+
+@dataclass(frozen=True)
+class PreviewArmProfile:
+    """One follower's scene and the names :class:`PreviewArm` addresses it by.
+
+    Adding an arm is an entry in :data:`PREVIEW_ARMS`, not a code change. Everything here
+    is read off the compiled model or authored in its scene; nothing is tuned by eye.
+    """
+
+    name: str
+    """The key this profile is selected by on a command line."""
+
+    label: str
+    """What the startup log calls the arm."""
+
+    scene: Callable[[], Path]
+    """Returns the scene path, fetching and caching it on first use."""
+
+    joints: tuple[str, ...]
+    """Every hinge the scene declares, in qpos order -- asserted by name at startup, since
+    a reordered upstream file would land ``q_home`` on the wrong joints and still look like
+    an arm. Slide joints are not addressed and so are not named here."""
+
+    q_home: np.ndarray
+    """Radians, parallel to :attr:`joints`. The one and only joint write."""
+
+    base_body: str
+    """The body the whole arm is moved by."""
+
+    gripper_body: str
+    """The gripper body, whose pose the ghost handoff is taken from."""
+
+    ghost: GhostSpec
+    """The gripper this arm puts on the operator's hand once the clutch engages."""
+
+    euler_hand_from_ghost_deg: tuple[float, float, float]
+    """Where the leader ghost sits on the hand, for this arm. Paired with :attr:`q_home`:
+    it turns that pose's gripper orientation into the hand the engage gate demands, so the
+    two move together. See :mod:`.so101_ghost` for the closed form."""
+
+    tool: str | tuple[str, np.ndarray, np.ndarray]
+    """The point the arm is placed by, and so the axis its yaw turns about: a site name, or
+    a ``(body, pos, quat)`` frame in that body's own frame for a scene that declares no
+    site. Placing by the gripper body instead swings the jaw on an arc across the yaw
+    range. The frame's +Z is the direction the jaw faces."""
+
+
+def _so101_scene() -> Path:
+    from . import assets
+
+    return assets.ensure_so101_scene()
+
+
+def _rebot_devarm_rs_scene() -> Path:
+    from . import assets
+
+    return assets.ensure_rebot_devarm_rs_scene()
+
+
+_PROFILES = (
+    PreviewArmProfile(
+        name="so101",
+        label="SO-101",
+        scene=_so101_scene,
+        joints=(
+            "shoulder_pan",
+            "shoulder_lift",
+            "elbow_flex",
+            "wrist_flex",
+            "wrist_roll",
+            "gripper",
+        ),
+        q_home=Q_HOME,
+        base_body="base",
+        gripper_body="gripper",
+        ghost=SO101_GHOST,
+        # Unchanged by the move to a park-pose Q_HOME: wrist_roll rolls about the tool
+        # axis, and the clutch measures that bias at every engage, so the wrist the gate
+        # demands is the same at 0 as it was at -90.
+        euler_hand_from_ghost_deg=(270.0, 0.0, 90.0),
+        # Upstream's own tool frame, declared on the `gripper` body 98.4 mm out from its
+        # origin and 3.8 mm off the closed jaw surface.
+        tool="gripperframe",
+    ),
+    PreviewArmProfile(
+        # The build is in the name because it has to be: the B601 ships as a Damiao and a
+        # RobStride arm with the same joint topology and DIFFERENT geometry, and this model
+        # is the RobStride one. A Damiao arm has no profile here rather than a near-fit.
+        name="rebot_devarm_rs",
+        label="reBot DevArm (RobStride)",
+        scene=_rebot_devarm_rs_scene,
+        # The two gripper slides (joint_left/joint_right, one rack and pinion) are held at
+        # their authored pose, not addressed -- see SceneTwin._read_joint_map.
+        joints=("joint1", "joint2", "joint3", "joint4", "joint5", "joint6"),
+        q_home=Q_HOME_REBOT,
+        base_body="base_link",
+        gripper_body="gripper_end",
+        # This arm's own gripper, not the SO-101 leader's: the reBot has no leader, so
+        # showing one put a different robot's tool in the operator's hand.
+        ghost=REBOT_GHOST,
+        # Solved against Q_HOME_REBOT so this arm demands the wrist the SO-101 does, to
+        # 1e-6 deg. Five degrees off the SO-101's, absorbing the pitch this arm's park
+        # pose puts on its gripper.
+        euler_hand_from_ghost_deg=(-85.0, 0.0, 90.0),
+        # Menagerie's model declares no sites, so the frame is given here.
+        #
+        # The point is this arm's own: measured off the compiled finger meshes, the jaws
+        # run out to -88.6 mm along gripper_end's -X.
+        #
+        # The turn is gripperframe's own rotation off the SO-101's gripper body, reused
+        # rather than rederived from these meshes. Its only consumer is the facing (+Z)
+        # that sets the base-yaw bias, which the clutch measures at every engage, so what
+        # matters is that it is a fixed, non-vertical direction on the tool -- deriving one
+        # from these meshes puts it near vertical, where the yaw it feeds is degenerate.
+        tool=(
+            "gripper_end",
+            np.array([-0.0886, 0.0, 0.0]),
+            np.array([0.70710678, 0.0, 0.70710678, 0.0]),
+        ),
+    ),
+)
+
+#: The arms a session can preview. ``robot_viz --arm`` and LeRobot's ``RobotProfile`` both
+#: select by these keys.
+PREVIEW_ARMS: dict[str, PreviewArmProfile] = {p.name: p for p in _PROFILES}
 
 # Where the home gripper sits relative to the operator's head, in XR axes: 0.30 m below eye
 # level and 0.60 m ahead on the head's yaw-projected facing (anchor_from_head). Measured
@@ -78,13 +220,13 @@ GRIP_FROM_CONTROLLER_XR = np.array([0.0, -0.10, -0.25])
 # What the thumbstick does to the two horizontal terms above. Deflection is a rate, so the
 # offset holds where the stick left it: metres per second at full deflection, scaled by the
 # frame dt -- not per frame, or its feel would track the frame rate.
-_TUNE_RATE_M_S = 0.20
+_TUNE_RATE_M_S = 0.50
 # Sticks drift and the offset is latched, so a resting controller would walk the arm
 # away over a session.
 _STICK_DEADZONE = 0.15
 # Each tuned term, absolutely: a stuck stick must not push the arm out of sight. The
 # vertical term is not tuned, so it is not bounded.
-_TUNE_LIMIT_M = 0.60
+_TUNE_LIMIT_M = 1.00
 
 #: The twin's name for every geom on the arm, declared at construction.
 FOLLOWER_GROUP = "follower"
@@ -96,55 +238,55 @@ _ENGAGEABLE_RGB = (0.20, 0.85, 0.35)
 
 
 class PreviewArm:
-    """The SO-101 in one scene: posed once, drawn, and driven rigidly by the hand.
+    """One arm in one scene: posed once, drawn, and driven rigidly by the hand.
 
     :meth:`drive` moves it two independent ways: position from the controller plus a
-    thumbstick-trimmed offset, yaw from the wrist. Placed by :data:`GRIPPER_SITE`, so the
-    yaw turns about the jaw; the gripper body sits 98.4 mm short of it.
+    thumbstick-trimmed offset, yaw from the wrist. Placed by the profile's tool frame, so
+    the yaw turns about the jaw, not the gripper body behind it.
     """
 
-    def __init__(self, twin) -> None:
-        """Resolve the arm in ``twin``, pose it at :data:`Q_HOME`, and hide it. Every
-        geometric constant is measured here; the arm is rigid below Q_HOME.
+    def __init__(self, twin, profile: PreviewArmProfile | None = None) -> None:
+        """Resolve the arm in ``twin``, pose it at the profile's ``q_home``, and hide it.
+        Every geometric constant is measured here; the arm is rigid below ``q_home``.
         """
         self._twin = twin
+        self._profile = profile if profile is not None else PREVIEW_ARMS["so101"]
+        profile = self._profile
+        self._hand_from_ghost = quat_hand_from_ghost(profile.euler_hand_from_ghost_deg)
 
         included = (
-            "It must <include> assets/follower_arm.xml rather than "
+            "It must <include> the profile's own arm wrapper rather than "
             "upstream's MJCF directly."
         )
         # The follower must be the scene's only jointed body, in upstream's order, so a
-        # second one fails here rather than landing Q_HOME on somebody else's joints.
-        twin.joints.require(ARM_JOINTS + (GRIPPER_JOINT,))
+        # second one fails here rather than landing q_home on somebody else's joints.
+        twin.joints.require(profile.joints)
 
         # Upstream numbers its visual geoms 2 and its collision geoms 3; declare_group
         # raises on an empty set, so a renumbering is an error, not an invisible arm.
-        twin.declare_group(FOLLOWER_GROUP, body=BASE_BODY, drawn_only=True)
-        # One material for thirteen upstream ones, so the arm recolours in one write.
+        twin.declare_group(FOLLOWER_GROUP, body=profile.base_body, drawn_only=True)
+        # One material for every upstream one, so the arm recolours in one write.
         self._blocked_rgba = twin.declare_material(FOLLOWER_MATERIAL, hint=included)
         twin.repaint(FOLLOWER_GROUP, FOLLOWER_MATERIAL)
 
         # The one and only joint write. Everything after this moves the base.
-        twin.home(Q_HOME)
+        twin.home(profile.q_home)
 
         # The anchor composes its yaw onto the authored base quat rather than replacing
         # it, so a scene that authors a base tilt keeps it.
         self._base_pos, self._authored_base_quat = twin.body_offset(
-            BASE_BODY, relative_to=WORLD_BODY
+            profile.base_body, relative_to=WORLD_BODY
         )
         self._base_quat = self._authored_base_quat.copy()
 
-        # The two constants Q_HOME freezes, both in the base's own frame. Composing the
+        # The two constants q_home freezes, both in the base's own frame. Composing the
         # base's pose with them replaces every per-frame forward-kinematics read.
-        jaw_pos, jaw_quat = twin.site_offset(
-            GRIPPER_SITE,
-            relative_to=BASE_BODY,
-        )
+        jaw_pos, jaw_quat = self._tool_offset()
         self._jaw_from_base_local = jaw_pos
-        # The site's +Z is the direction the jaw faces; its +X is the tool axis.
+        # The tool frame's +Z is the direction the jaw faces; its +X is the tool axis.
         self._jaw_facing_local = rotate(np.array([0.0, 0.0, 1.0]), jaw_quat)
         self._gripper_from_base_local = twin.body_offset(
-            GRIPPER_BODY, relative_to=BASE_BODY
+            profile.gripper_body, relative_to=profile.base_body
         )
 
         # The live grip offset. This class is its only definition; app.py passes two raw
@@ -159,7 +301,32 @@ class PreviewArm:
         self._base_yaw_xr = np.array([1.0, 0.0, 0.0, 0.0])
         self.set_visible(False)
 
+    def _tool_offset(self) -> tuple[np.ndarray, np.ndarray]:
+        """The tool frame in the base's own frame, from a site or a body-plus-offset."""
+        tool = self._profile.tool
+        base = self._profile.base_body
+        if isinstance(tool, str):
+            return self._twin.site_offset(tool, relative_to=base)
+        body, offset, turn = tool
+        pos, quat = self._twin.body_offset(body, relative_to=base)
+        return pos + rotate(np.asarray(offset, dtype=float), quat), multiply(quat, turn)
+
     # ---------------------------------------------------------------- geometry
+
+    @property
+    def name(self) -> str:
+        """Which arm this is previewing, by profile key."""
+        return self._profile.name
+
+    @property
+    def ghost(self) -> GhostSpec:
+        """The gripper this arm puts on the hand."""
+        return self._profile.ghost
+
+    @property
+    def hand_from_ghost(self) -> np.ndarray:
+        """This arm's ghost calibration, for :mod:`.so101_ghost`'s conversions."""
+        return self._hand_from_ghost
 
     @property
     def anchored(self) -> bool:
@@ -217,7 +384,9 @@ class PreviewArm:
             np.array(frames.mj_from_xr_pos(list(grip_xr)), dtype=float)
             - self.jaw_from_base
         )
-        self._twin.publish(bodies={BASE_BODY: (self._base_pos, self._base_quat)})
+        self._twin.publish(
+            bodies={self._profile.base_body: (self._base_pos, self._base_quat)}
+        )
 
     @property
     def jaw_from_base(self) -> np.ndarray:
@@ -228,7 +397,7 @@ class PreviewArm:
 
     @property
     def jaw_yaw_xr(self) -> np.ndarray:
-        """The XR yaw (wxyz) the jaw faces along: :data:`GRIPPER_SITE`'s +Z. Not the
+        """The XR yaw (wxyz) the jaw faces along: the tool frame's +Z. Not the
         links' reach -- J5 rolls the jaw about the tool axis without moving them.
         """
         facing = rotate(self._jaw_facing_local, self._base_quat)
@@ -318,11 +487,12 @@ class PreviewArm:
     def log_placement(self) -> None:
         """One line naming the placement rule, before any head pose exists."""
         LOG.info(
-            "preview arm: SO-101 home grip %.2f m below and %.2f m in front of the HEAD, "
+            "preview arm: %s home grip %.2f m below and %.2f m in front of the HEAD, "
             "turned onto its facing, on the first frame carrying one. Hidden until then. "
             "After it: the JAW dragged rigidly by the controller at (%.2f, %.2f, %.2f) "
             "off it, turning about itself on the wrist's own yaw, with the right "
             "thumbstick trimming the horizontal pair to +-%.2f m.",
+            self._profile.label,
             -HOME_GRIP_FROM_HEAD_XR[1],
             -HOME_GRIP_FROM_HEAD_XR[2],
             *GRIP_FROM_CONTROLLER_XR,
