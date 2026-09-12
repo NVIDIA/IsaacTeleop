@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=ec4b8e38" />
+    <link rel="stylesheet" type="text/css" href="../../_static/css/ecosystem.css?v=aad37187" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -46,7 +46,7 @@
 
 
 
-    <script src="../../_static/documentation_options.js?v=04dcff72"></script>
+    <script src="../../_static/documentation_options.js?v=96a32199"></script>
     <script src="../../_static/doctools.js?v=9bcbadda"></script>
     <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -65,7 +65,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.5.x" />
+  <meta name="docsearch:version" content="1.6.x" />
   
     
     <script src="../../_static/searchtools.js"></script>
@@ -374,6 +374,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../references/build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/retargeting/index.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references/device_provider_monitoring.html">Device provider monitoring</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../references/cloudxr.html">CloudXR Service</a></li>
@@ -578,10 +579,10 @@ cmake<span class="w"> </span>--install<span class="w"> </span>build<span class="
 <p class="admonition-title">Important</p>
 <p>The Python version is baked into a build directory’s CMake cache and its build
 venv, so <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_PYTHON_VERSION</span></code> cannot be changed on an existing tree —
-configuring again with a different value fails with an explanatory error. Give
-each version its own directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build-py3.12<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
-cmake<span class="w"> </span>--build<span class="w"> </span>build-py3.12<span class="w"> </span>--parallel
+configuring again with a different value fails with an explanatory error. Select
+it on the first configure, and delete the tree to switch later:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--parallel
 </pre></div>
 </div>
 </div>
@@ -714,10 +715,10 @@ See <a class="reference internal" href="../../device/oak.html"><span class="doc"
 </section>
 <section id="examples">
 <h3>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h3>
-<p>Build for a different Python version — each needs its own build directory
-(<code class="docutils literal notranslate"><span class="pre">3.11</span></code>, <code class="docutils literal notranslate"><span class="pre">3.12</span></code>, <code class="docutils literal notranslate"><span class="pre">3.13</span></code> are supported):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build-py3.12<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
-cmake<span class="w"> </span>--build<span class="w"> </span>build-py3.12<span class="w"> </span>--parallel
+<p>Build for a different Python version (<code class="docutils literal notranslate"><span class="pre">3.11</span></code>, <code class="docutils literal notranslate"><span class="pre">3.12</span></code>, <code class="docutils literal notranslate"><span class="pre">3.13</span></code> are supported;
+delete <code class="docutils literal notranslate"><span class="pre">build/</span></code> first if it is already configured for another one):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>-B<span class="w"> </span>build<span class="w"> </span>-DISAAC_TELEOP_PYTHON_VERSION<span class="o">=</span><span class="m">3</span>.12
+cmake<span class="w"> </span>--build<span class="w"> </span>build<span class="w"> </span>--parallel
 </pre></div>
 </div>
 <p>Debug build:</p>
@@ -1007,7 +1008,7 @@ targets, install the <code class="docutils literal notranslate"><span class="pre
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 08, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 12, 2026.
       <br/>
     
   </p>
