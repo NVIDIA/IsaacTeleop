@@ -10,7 +10,7 @@ no separate terminal or pre-running headset daemon is needed. The pipeline in
 ``TeleopSession`` records the ``full_body`` and ``controllers`` channels.
 
 Usage:
-    python record_full_body.py [duration_seconds] [output.mcap] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.record_full_body [duration_seconds] [output.mcap] [--accept-eula]
 
 Defaults: 5 seconds → ./recordings/full_body_<timestamp>.mcap
 

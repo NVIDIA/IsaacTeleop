@@ -9,9 +9,10 @@ headless on any machine. Open the URL viser prints (default
 http://localhost:8080) in a browser to see the hands move.
 
 Usage:
-    python replay_hand.py [path/to/file.mcap] [--port 8080] [--loop]
+    python -m isaacteleop_examples.mcap_record_replay.replay_hand [path/to/file.mcap] [--port 8080] [--loop]
 
-If no path is given, the newest file under ``./recordings/`` is used.
+If no path is given, the newest ``hands_*.mcap`` under ``./recordings/`` is
+used, falling back to the newest ``.mcap`` of any kind if none match.
 ``--loop`` keeps replaying the file end-to-end until the process is killed.
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
@@ -62,14 +63,20 @@ def resolve_mcap(path_arg: str | None) -> Path:
         return path
 
     recordings = Path.cwd() / "recordings"
-    candidates = list(recordings.glob("hands_*.mcap")) or list(
-        recordings.glob("*.mcap")
-    )
+    candidates = list(recordings.glob("hands_*.mcap"))
     if not candidates:
-        sys.exit(
-            f"[replay] error: no .mcap files in {recordings}. "
-            "Run record_hand.py first or pass a path."
-        )
+        candidates = list(recordings.glob("*.mcap"))
+        if candidates:
+            print(
+                f"[replay] warning: no hands_*.mcap in {recordings}, "
+                "falling back to the newest .mcap of any kind -- it may not "
+                "match this replay's channels."
+            )
+        else:
+            sys.exit(
+                f"[replay] error: no .mcap files in {recordings}. "
+                "Run record_hand first or pass a path."
+            )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 

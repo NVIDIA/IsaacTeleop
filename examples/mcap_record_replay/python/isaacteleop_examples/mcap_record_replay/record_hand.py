@@ -10,7 +10,7 @@ no separate terminal or pre-running headset daemon is needed. The pipeline in
 the ``hands`` channel — no head, no controllers.
 
 Usage:
-    python record_hand.py [duration_seconds] [output.mcap] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.record_hand [duration_seconds] [output.mcap] [--accept-eula]
 
 Defaults: 5 seconds → ./recordings/hands_<timestamp>.mcap
 

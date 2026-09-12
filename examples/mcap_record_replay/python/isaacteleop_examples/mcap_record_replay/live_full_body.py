@@ -11,7 +11,7 @@ the full PICO body skeleton â€” joints colored green when valid, red when lost â
 updating live as you move.
 
 Usage:
-    python live_full_body.py [--port 8080] [--host 127.0.0.1] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.live_full_body [--port 8080] [--host 127.0.0.1] [--accept-eula]
 
 Press Ctrl+C to stop.
 

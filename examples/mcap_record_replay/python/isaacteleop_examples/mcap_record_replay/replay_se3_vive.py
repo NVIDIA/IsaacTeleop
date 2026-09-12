@@ -4,7 +4,7 @@
 """
 Replay VIVE Ultimate Tracker SE3 pose streams from an MCAP file — no runtime needed.
 
-Opens a recording made by record_se3_vive.py, replays each per-tracker channel
+Opens a recording made by record_se3_vive, replays each per-tracker channel
 through ReplaySession + core.Se3Tracker (ReplaySe3TrackerImpl), and shows every
 tracker as a coordinate frame in a viser 3D view (browser). Replay needs no
 OpenXR runtime and no hardware.
@@ -14,7 +14,7 @@ auto-discovers its collections, and plays back at the recording's own capture
 rate. Open the printed viser URL to see the trackers in 3D.
 
 Usage:
-    uv run replay_se3_vive.py [recording.mcap] [--loop] [--rate N] [--no-viz] \
+    python -m isaacteleop_examples.mcap_record_replay.replay_se3_vive [recording.mcap] [--loop] [--rate N] [--no-viz] \
         [--collections a,b,c]
 """
 
@@ -48,7 +48,7 @@ def resolve_mcap(path_arg: str | None) -> Path:
     )
     if not candidates:
         sys.exit(
-            f"[replay-se3] no .mcap files in {recordings}. Run record_se3_vive.py first."
+            f"[replay-se3] no .mcap files in {recordings}. Run record_se3_vive first."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 

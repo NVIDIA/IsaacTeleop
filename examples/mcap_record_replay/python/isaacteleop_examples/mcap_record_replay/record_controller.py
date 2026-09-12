@@ -10,7 +10,7 @@ no separate terminal or pre-running headset daemon is needed. The pipeline in
 exactly the ``controllers`` channel — no head, no hands.
 
 Usage:
-    python record_controller.py [duration_seconds] [output.mcap] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.record_controller [duration_seconds] [output.mcap] [--accept-eula]
 
 Defaults: 5 seconds → ./recordings/controllers_<timestamp>.mcap
 
