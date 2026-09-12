@@ -9,8 +9,6 @@
  * 24-joint body skeleton through DeviceIOSession. Requires a runtime with body tracking support
  * (e.g. CloudXR streaming from a PICO 4 Ultra Enterprise with Motion Trackers); when the system
  * does not support body tracking the tracker runs in limp mode and no samples are printed.
- * The full_body rig (rigs/full_body.yaml) launches this printer together with the CloudXR
- * runtime and the MCAP recorder in one tmux session.
  *
  * To record a full-body session to MCAP from C++, see
  * examples/mcap_record_replay/cpp/record_full_body.cpp.

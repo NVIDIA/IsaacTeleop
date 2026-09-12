@@ -65,10 +65,9 @@ Running additionally needs a GPU with EGL + CUDA, and a headset. On a multi-GPU 
 
 ```bash
 python -m isaacteleop_examples.robot_viz --help   # includes CloudXRLauncher's flags
-python -m isaacteleop.rig rigs/robot_viz.yaml     # via the rig, from the repo root
 ```
 
-`{python}` in the rig expands to the interpreter you launch it with, so the `isaacteleop` wheel has to be installed there, not in the build venv. Picking up the wrong venv is silent, so check first — this import also fails, and says so, on an `isaacteleop` built without the twin:
+The `isaacteleop` wheel has to be installed in the interpreter you launch with, not in the build venv. Picking up the wrong venv is silent, so check first — this import also fails, and says so, on an `isaacteleop` built without the twin:
 
 ```bash
 python -c "import sys, isaacteleop; from isaacteleop.viz.robot import SceneTwin; print(sys.executable, isaacteleop.__file__)"

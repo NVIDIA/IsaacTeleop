@@ -363,7 +363,6 @@ jobs:
         # even though the smoke env installs no extras.
         expected = [
             "isaacteleop.mcap",
-            "isaacteleop.rig",
             "isaacteleop.cloudxr",
             "isaacteleop.teleop_session_manager",
             "isaacteleop.retargeters",
