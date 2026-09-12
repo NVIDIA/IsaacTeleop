@@ -142,7 +142,7 @@ class HeadLocked(PlacementStrategy):
             head_pos[1] + forward[1] * d + right[1] * ox + up[1] * oy,
             head_pos[2] + forward[2] * d + right[2] * ox + up[2] * oy,
         )
-        orientation = quat_mul(head_orientation, _ROT_Y_180)
+        orientation = head_orientation
         # Anchor = the head itself (plus the configured offsets, already
         # baked into ``position``): pull the plane back by ``distance``.
         # Orientation is the UNflipped head pose so the anchor's local −z
