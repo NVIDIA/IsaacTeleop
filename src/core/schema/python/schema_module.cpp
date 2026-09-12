@@ -12,6 +12,7 @@
 #include "haptic_command_bindings.h"
 #include "head_bindings.h"
 #include "joint_state_bindings.h"
+#include "keyboard_bindings.h"
 #include "message_channel_bindings.h"
 #include "oak_bindings.h"
 #include "oglo_tactile_bindings.h"
@@ -52,6 +53,9 @@ PYBIND11_MODULE(_schema, m)
 
     // Bind SE3 tracker types (Se3TrackerPoseT table) for generic 6-DoF pose sources.
     core::bind_se3_tracker(m);
+
+    // Bind keyboard types (KeyboardOutputT table) for raw keyboard press state.
+    core::bind_keyboard(m);
 
     // Bind message channel types (MessageChannelMessages table).
     core::bind_message_channel(m);
