@@ -26,14 +26,16 @@ from .twin import RobotTwinPublisher
 if TYPE_CHECKING:
     from . import assets, clutch_preview, frames, so101_ghost
     from .clutch_preview import ClutchPreview
-    from .preview_arm import PreviewArm
+    from .preview_arm import PREVIEW_ARMS, PreviewArm, PreviewArmProfile
     from .scene import SceneTwin
 
 # Resolved on first access: everything below reaches `frames` or `scene`, and those need
 # the compiled `_robot_twin` a Windows Televiz build has no copy of.
 _LAZY = {
     "ClutchPreview": ".clutch_preview",
+    "PREVIEW_ARMS": ".preview_arm",
     "PreviewArm": ".preview_arm",
+    "PreviewArmProfile": ".preview_arm",
     "SceneTwin": ".scene",
     "assets": ".assets",
     "clutch_preview": ".clutch_preview",
@@ -84,7 +86,9 @@ __all__ = [
     "GateVerdict",
     "InterventionMonitor",
     "OperatorFrame",
+    "PREVIEW_ARMS",
     "PreviewArm",
+    "PreviewArmProfile",
     "RobotTwinPublisher",
     "SceneTwin",
     "XrTwinSession",
