@@ -273,6 +273,7 @@ describe('lifecycle and frame advancement', () => {
     recorder.beginFrame(makeFrame(), sceneSpace, true, true);
     expect(recorder.currentFrame).toEqual({
       timeMs: 0,
+      controllerProfiles: { left: null, right: null },
       poses: { leftGrip: null, leftAim: null, rightGrip: null, rightAim: null },
       gamepads: { left: null, right: null },
       handJoints: { left: {}, right: {} },
@@ -849,6 +850,200 @@ describe('recorded hands without live tracking', () => {
     expect(changed).toHaveBeenCalledTimes(1);
     recorder.dispose();
   });
+});
+
+describe('controller replay without live hardware', () => {
+  function controllerFrame(timeMs: number, x: number, profiles?: string[]): RecordedFrame {
+    const sample = timedFrame(timeMs, x);
+    sample.handJoints.left = {};
+    if (profiles) sample.controllerProfiles = { left: profiles, right: null };
+    return sample;
+  }
+
+  test.each(['time', 'frame'] as const)(
+    'replays poses and controls without live sources (%s)',
+    pacing => {
+      const recorder = new XRInputRecorder();
+      const session = makeSession();
+      const frame = (time: number) => makeFrame([], undefined, undefined, time, pose(0), session);
+      const scoped = recorder.adaptTrackingFrame(frame(0)).session;
+      const active = new Set<XRHandedness>();
+      const changed = jest.fn((event: XRInputSourcesChangeEvent) => {
+        active.clear();
+        for (const source of event.session.inputSources) {
+          if (source.gamepad && !source.hand) active.add(source.handedness);
+        }
+      });
+      scoped.addEventListener('inputsourceschange', changed);
+      recorder.startReplay(
+        recording(controllerFrame(0, 0), controllerFrame(100, 1)),
+        false,
+        pacing
+      );
+      let firstSource: XRInputSource | undefined;
+      for (const [time, expected] of [
+        [0, 0],
+        [50, pacing === 'time' ? 0.5 : 1],
+        [100, 1],
+      ]) {
+        const current = frame(time);
+        recorder.beginFrame(current, sceneSpace);
+        const adapted = recorder.adaptTrackingFrame(current);
+        const source = adapted.session.inputSources[0];
+        firstSource ??= source;
+        expect(source).toBe(firstSource);
+        expect(active.has('left')).toBe(true);
+        expect(source.hand).toBeUndefined();
+        expect(source.profiles).toEqual(['generic-trigger-squeeze-thumbstick']);
+        expect(adapted.getPose(source.gripSpace!, sceneSpace)?.transform.position.x).toBe(expected);
+        expect(adapted.getPose(source.targetRaySpace, sceneSpace)?.transform.position.x).toBe(
+          expected + 1
+        );
+        expect(source.gamepad?.axes).toEqual([expected]);
+        expect(source.gamepad?.buttons[0]).toEqual({
+          value: expected,
+          pressed: true,
+          touched: true,
+        });
+        expect(source.gamepad).toBe(source.gamepad);
+        expect(session.inputSources).toHaveLength(0);
+      }
+      expect(changed).toHaveBeenCalledTimes(1);
+      recorder.stopReplay();
+      recorder.adaptTrackingFrame(frame(100));
+      expect(active.size).toBe(0);
+      expect(changed).toHaveBeenCalledTimes(2);
+      recorder.dispose();
+    }
+  );
+
+  test('keeps recorded profiles and controls through live controller connection changes', () => {
+    const recorder = new XRInputRecorder();
+    const session = makeSession();
+    const changed = jest.fn();
+    const initial = makeFrame([], undefined, undefined, 0, pose(0), session);
+    recorder.adaptTrackingFrame(initial).session.addEventListener('inputsourceschange', changed);
+    const profiles = ['meta-quest-touch-plus', 'oculus-touch-v3'];
+    recorder.startReplay(
+      recording(controllerFrame(0, 1, profiles), controllerFrame(100, 3, profiles)),
+      false
+    );
+    recorder.beginFrame(initial, sceneSpace);
+    const source = recorder.adaptTrackingFrame(initial).session.inputSources[0];
+    const live = {
+      handedness: 'left',
+      profiles: ['pico-4u'],
+      gamepad: gamepad(99),
+    } as XRInputSource;
+    for (const [time, inputs] of [
+      [50, [live]],
+      [100, []],
+    ] as const) {
+      const frame = makeFrame([...inputs], undefined, undefined, time, pose(0), session);
+      session.dispatchEvent(
+        Object.assign(new Event('inputsourceschange'), { session, added: inputs, removed: [] })
+      );
+      recorder.beginFrame(frame, sceneSpace);
+      expect(recorder.adaptTrackingFrame(frame).session.inputSources).toEqual([source]);
+      expect(source.profiles).toEqual(profiles);
+      expect(source.gamepad?.axes[0]).toBe(time === 50 ? 2 : 3);
+    }
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
+
+  test('round-trips profiles and replays a controller alongside a recorded hand', () => {
+    const recorder = new XRInputRecorder();
+    const profiles = ['pico-4u', 'oculus-touch-v2'];
+    const controller = {
+      handedness: 'left',
+      profiles,
+      gamepad: gamepad(0.75),
+      gripSpace: {},
+      targetRaySpace: {},
+    } as XRInputSource;
+    const hand = {
+      handedness: 'right',
+      hand: new Map([['wrist', {}]]),
+      targetRaySpace: {},
+    } as unknown as XRInputSource;
+    recorder.startRecording();
+    recorder.beginFrame(
+      makeFrame(
+        [controller, hand],
+        () => pose(2),
+        () => jointPose(3)
+      ),
+      sceneSpace
+    );
+    recorder.stopRecording();
+    const saved = XRInputRecorder.importJSON(recorder.exportJSON());
+    expect(saved.frames[0].controllerProfiles).toEqual({ left: profiles, right: null });
+    delete saved.calibration;
+    recorder.startReplay(saved);
+    const frame = makeFrame();
+    recorder.beginFrame(frame, sceneSpace);
+    const sources = Array.from(recorder.adaptTrackingFrame(frame).session.inputSources);
+    expect(sources.find(source => source.handedness === 'left')?.profiles).toEqual(profiles);
+    expect(sources.find(source => source.handedness === 'right')?.hand).toBeDefined();
+  });
+
+  test('preserves gaps and device switches at recorded timestamps', () => {
+    const recorder = new XRInputRecorder();
+    const first = controllerFrame(0, 1, ['meta-quest-touch-plus']);
+    const other = controllerFrame(100, 9, ['pico-4u']);
+    const lost = controllerFrame(200, 10);
+    lost.gamepads.left = null;
+    lost.poses.leftGrip = lost.poses.leftAim = null;
+    recorder.startReplay(
+      recording(first, other, lost, timedFrame(300, 20), controllerFrame(400, 30)),
+      false
+    );
+    const sources: XRInputSource[] = [];
+    for (const time of [0, 50, 100, 200, 300, 400]) {
+      const frame = makeFrame([], undefined, undefined, time);
+      recorder.beginFrame(frame, sceneSpace);
+      const adapted = recorder.adaptTrackingFrame(frame);
+      const source = adapted.session.inputSources[0];
+      if (time === 200) {
+        expect(adapted.session.inputSources).toHaveLength(0);
+      } else {
+        sources.push(source);
+        expect(adapted.session.inputSources).toHaveLength(1);
+        expect(!!source.hand).toBe(time === 300);
+        expect(source.gamepad?.axes[0]).toBe(
+          time < 100 ? 1 : time === 100 ? 9 : time === 300 ? 20 : 30
+        );
+      }
+    }
+    expect(sources[0]).toBe(sources[1]);
+    expect(sources[2]).not.toBe(sources[0]);
+    expect(sources[2].profiles).toEqual(['pico-4u']);
+  });
+
+  test('waits for calibration and restores the live controller on stop', () => {
+    const recorder = new XRInputRecorder();
+    const live = { handedness: 'left', gamepad: gamepad(99) } as XRInputSource;
+    const frame = makeFrame([live]);
+    recorder.startReplay(calibratedRecording(0, controllerFrame(0, 1)));
+    recorder.beginFrame(frame, sceneSpace);
+    expect(recorder.adaptTrackingFrame(frame).session.inputSources).toHaveLength(0);
+    recorder.calibrateReplay();
+    recorder.beginFrame(frame, sceneSpace);
+    expect(recorder.adaptTrackingFrame(frame).session.inputSources[0].gamepad?.axes).toEqual([1]);
+    recorder.stopReplay();
+    expect(recorder.adaptTrackingFrame(frame).session.inputSources[0]).toBe(live);
+  });
+
+  test.each([null, {}, { left: 'quest', right: null }, { left: [42], right: null }])(
+    'rejects malformed controller profiles (%j)',
+    controllerProfiles => {
+      expect(() =>
+        XRInputRecorder.importJSON(
+          JSON.stringify({ version: 1, frames: [{ ...frameData(), controllerProfiles }] })
+        )
+      ).toThrow('controllerProfiles is invalid');
+    }
+  );
 });
 
 describe('serialization', () => {
