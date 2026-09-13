@@ -141,7 +141,11 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     )
     try:
         sink_fd = os.open(
-            sink_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600
+            sink_path,
+            # O_NOFOLLOW guards a shared /tmp against a planted symlink; it does
+            # not exist on Windows, whose temp directory is per-user anyway.
+            os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
         )
     except OSError:
         return  # leave the fd on the terminal rather than fail the import

@@ -31,6 +31,11 @@ import time
 
 from ._core import ROOT_LOGGER_NAME, ensure_log_dir
 
+# Forwarding is built on Unix domain sockets, which Windows does not provide.
+# Without them every process keeps its own console and file handlers, which is
+# the pre-forwarding behaviour and a correct degradation.
+_HAS_UNIX_SOCKETS = hasattr(socket, "AF_UNIX")
+
 _FRAME_HEADER = struct.Struct(">I")  # 4-byte big-endian payload length prefix
 
 # Only ever used for its formatException(); the leader applies the real format.
@@ -56,7 +61,13 @@ _lock = threading.Lock()
 def socket_path() -> str | None:
     """Path this process forwards every record to, or ``None`` if it is the
     session leader and owns the real console+file handlers.
+
+    Always ``None`` where Unix sockets are unavailable, so every process takes
+    the leader branch and keeps local handlers rather than forwarding into a
+    transport that cannot exist.
     """
+    if not _HAS_UNIX_SOCKETS:
+        return None
     return os.environ.get("ISAACTELEOP_LOG_SOCKET") or None
 
 
@@ -193,10 +204,17 @@ class RequestHandler(socketserver.StreamRequestHandler):
         return bytes(buf)
 
 
-class ThreadingUnixStreamServer(
-    socketserver.ThreadingMixIn, socketserver.UnixStreamServer
-):
-    daemon_threads = True
+# Guarded, not just skipped at call time: CPython defines UnixStreamServer
+# inside `if hasattr(socket, "AF_UNIX")`, and a class statement evaluates its
+# bases at import. Leaving this unconditional makes `import isaacteleop` raise
+# AttributeError on Windows, which also breaks the import-based stub generation
+# the Windows build runs.
+if _HAS_UNIX_SOCKETS:
+
+    class ThreadingUnixStreamServer(
+        socketserver.ThreadingMixIn, socketserver.UnixStreamServer
+    ):
+        daemon_threads = True
 
 
 _receiver_socket: str | None = None
@@ -214,8 +232,14 @@ def ensure_receiver() -> str:
     one spawns afterwards -- fork+exec'd (inherits the full environ) or
     ``subprocess.Popen``'d with an ``os.environ``-derived ``env=`` (as every
     site in this tree already does) -- finds it automatically.
+
+    Returns the empty string, and publishes nothing, where Unix sockets are
+    unavailable: with no receiver to name there is no address to hand on, and
+    every child then takes the leader branch exactly as this process did.
     """
     global _receiver_socket
+    if not _HAS_UNIX_SOCKETS:
+        return ""
     if _receiver_socket is not None:
         return _receiver_socket
     with _lock:

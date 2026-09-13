@@ -7,19 +7,31 @@ from __future__ import annotations
 
 import logging
 import os
+import tempfile
 from pathlib import Path
+
+# Unix domain sockets, uids and O_NOFOLLOW are all POSIX-only, and this package
+# is imported by isaacteleop/__init__.py -- so on Windows the alternative to
+# branching here is an AttributeError out of `import isaacteleop`.
+_POSIX = os.name == "posix"
 
 ROOT_LOGGER_NAME = "isaacteleop"
 
 LINE_FORMAT = "[%(asctime)s.%(msecs)03d] [%(levelname)-5s] [%(name)s] [pid:%(process)d] %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-# Per-uid, not a single shared /tmp/isaacteleop: a fixed path is created by
-# whichever user gets there first, with that user's umask, and every other user
-# on the machine then fails to create anything inside it -- which surfaces as
-# PermissionError out of `import isaacteleop`. The uid also keeps one user's
-# records, native-fd captures and log socket out of everyone else's reach.
-_DEFAULT_LOG_DIR = Path(f"/tmp/isaacteleop-{os.getuid()}/logs")
+# Per-uid on POSIX, not a single shared /tmp/isaacteleop: a fixed path is
+# created by whichever user gets there first, with that user's umask, and every
+# other user on the machine then fails to create anything inside it -- which
+# surfaces as PermissionError out of `import isaacteleop`. The uid also keeps
+# one user's records, native-fd captures and log socket out of everyone else's
+# reach. Windows needs no such suffix: GetTempPath() is already per-user
+# (%LOCALAPPDATA%\Temp), and it has no uid to name the directory after.
+_DEFAULT_LOG_DIR = (
+    Path(f"/tmp/isaacteleop-{os.getuid()}/logs")
+    if _POSIX
+    else Path(tempfile.gettempdir()) / "isaacteleop" / "logs"
+)
 
 # Below DEBUG (10). Default level for loggers wrapping third-party/vendor
 # output, so vendor chatter is silent unless a handler/logger explicitly
@@ -58,7 +70,8 @@ def resolve_level(level: int | str) -> int:
 def log_dir() -> Path:
     """Directory every log file of this session lands in.
 
-    ``/tmp/isaacteleop-<uid>/logs`` unless ``ISAACTELEOP_LOG_DIR`` overrides it;
+    ``/tmp/isaacteleop-<uid>/logs`` (a per-user temp directory on Windows)
+    unless ``ISAACTELEOP_LOG_DIR`` overrides it;
     the C++ side resolves the same pair (``log_bridge/cpp/sink_config.cpp``).
     Use :func:`ensure_log_dir` when the directory has to exist.
     """
@@ -77,7 +90,9 @@ def ensure_log_dir() -> Path:
 
     The ownership check refuses a directory some other user got to first, which
     under /tmp is the classic way to have another process write through a
-    symlink on your behalf.
+    symlink on your behalf. Both steps are POSIX-only: chmod moves nothing but
+    the read-only bit on Windows, st_uid is always 0 there, and the shared-
+    directory threat they answer does not arise under a per-user temp path.
     """
     directory = log_dir()
     created = False
@@ -86,6 +101,9 @@ def ensure_log_dir() -> Path:
         created = True
     except FileExistsError:
         pass
+    if not _POSIX:
+        return directory
+
     if created:
         directory.chmod(0o700)
 

@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import stat
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -15,6 +16,23 @@ from pathlib import Path
 import pytest
 from isaacteleop import logging_config
 from isaacteleop.logging_config import _console, _core, _file, _forwarding
+
+# logging_config deliberately degrades where the POSIX facilities it is built on
+# are missing: no uid in the default log directory, no 0700 chmod, no ownership
+# check, and no Unix-socket forwarding at all. Assertions that only hold on POSIX
+# carry this marker; the degraded behaviour is asserted separately below rather
+# than left unchecked, so the platform the Windows CI job builds for is covered
+# in both directions.
+#
+# The condition is re-derived from os.name rather than read off _core._POSIX: a
+# test that reuses the constant under test can only ever agree with it.
+_POSIX = os.name == "posix"
+_posix_only = pytest.mark.skipif(
+    not _POSIX, reason="POSIX-only: uids, mode bits and Unix domain sockets"
+)
+_non_posix_only = pytest.mark.skipif(
+    _POSIX, reason="Covers the fallback taken where POSIX facilities are absent"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -117,11 +135,24 @@ def test_console_handler_end_to_end_level_filtering():
     assert "should appear" in stream.getvalue()
 
 
+@_posix_only
 def test_log_dir_defaults_to_per_user_tmp(monkeypatch):
     monkeypatch.delenv("ISAACTELEOP_LOG_DIR", raising=False)
     assert logging_config.log_dir() == Path(f"/tmp/isaacteleop-{os.getuid()}/logs")
 
 
+@_non_posix_only
+def test_log_dir_defaults_to_the_platform_temp_dir(monkeypatch):
+    """No uid to name a directory after, and none needed: the platform's own
+    temp directory is already per-user, which is what the uid suffix buys
+    on POSIX.
+    """
+    monkeypatch.delenv("ISAACTELEOP_LOG_DIR", raising=False)
+    default = logging_config.log_dir()
+    assert default == Path(tempfile.gettempdir()) / "isaacteleop" / "logs"
+
+
+@_posix_only
 def test_ensure_log_dir_is_owner_only(monkeypatch, tmp_path):
     target = tmp_path / "nested" / "logs"
     monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(target))
@@ -130,7 +161,22 @@ def test_ensure_log_dir_is_owner_only(monkeypatch, tmp_path):
     assert stat.S_IMODE(created.stat().st_mode) == 0o700
 
 
-def test_ensure_log_dir_refuses_a_directory_owned_by_someone_else(monkeypatch, tmp_path):
+@_non_posix_only
+def test_ensure_log_dir_creates_the_directory_without_mode_bits(monkeypatch, tmp_path):
+    """Still created, just without the chmod and ownership check: neither has
+    meaning where mode bits are advisory and st_uid is always 0.
+    """
+    target = tmp_path / "nested" / "logs"
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(target))
+    created = _core.ensure_log_dir()
+    assert created == target
+    assert created.is_dir()
+
+
+@_posix_only
+def test_ensure_log_dir_refuses_a_directory_owned_by_someone_else(
+    monkeypatch, tmp_path
+):
     """A /tmp directory another user got to first is how a symlink gets planted."""
     monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
     # Resolved before patching: the lambda must not call the name it replaces.
@@ -220,6 +266,7 @@ def test_trace_visible_once_console_level_lowered_to_trace():
     assert "now visible" in stream.getvalue()
 
 
+@_posix_only
 def test_forwarding_socket_path_reads_env_var(monkeypatch):
     monkeypatch.delenv("ISAACTELEOP_LOG_SOCKET", raising=False)
     assert _forwarding.socket_path() is None
@@ -227,6 +274,20 @@ def test_forwarding_socket_path_reads_env_var(monkeypatch):
     assert _forwarding.socket_path() == "/tmp/does-not-need-to-exist.sock"
 
 
+@_non_posix_only
+def test_forwarding_is_disabled_without_unix_sockets(monkeypatch):
+    """The variable is ignored rather than honoured, and no receiver is
+    published. Both matter: a process that took the child branch here would
+    hold a forwarding handler *and nothing else*, so its records would go
+    nowhere at all instead of to its own console and file.
+    """
+    monkeypatch.setenv("ISAACTELEOP_LOG_SOCKET", "ignored-there-is-no-transport")
+    assert _forwarding.socket_path() is None
+    assert _forwarding.ensure_receiver() == ""
+    assert not hasattr(_forwarding, "ThreadingUnixStreamServer")
+
+
+@_posix_only
 def test_forwarding_round_trip(tmp_path):
     """A record sent through ForwardingHandler reaches the receiving logger
     with the same name, level, and rendered message -- the exact contract
@@ -282,8 +343,15 @@ def test_forwarding_round_trip(tmp_path):
     assert got.getMessage() == "hello world"
 
 
+@_posix_only
 def test_forwarding_handler_drops_record_when_leader_unreachable(tmp_path):
-    """No listener at the socket path -- emit() must not raise."""
+    """No listener at the socket path -- emit() must not raise.
+
+    POSIX-only because the handler itself is: _connect() names socket.AF_UNIX,
+    and install() only ever builds one when socket_path() returns non-None,
+    which cannot happen without that constant. Catching the AttributeError
+    would be defending a path no caller can reach.
+    """
     handler = _forwarding.ForwardingHandler(str(tmp_path / "nobody-listening.sock"))
     record = logging.LogRecord(
         "isaacteleop.x", logging.INFO, __file__, 1, "msg", None, None
