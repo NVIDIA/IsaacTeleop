@@ -142,9 +142,21 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
     try:
         sink_fd = os.open(
             sink_path,
-            # O_NOFOLLOW guards a shared /tmp against a planted symlink; it does
-            # not exist on Windows, whose temp directory is per-user anyway.
-            os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0),
+            # O_NOFOLLOW guards a shared directory against a planted symlink; it
+            # does not exist on Windows, whose temp directory is per-user anyway.
+            # O_EXCL covers what it does not: a plain file someone else created
+            # and still owns would be appended to, handing them this process's
+            # captured stdout/stderr. ensure_log_dir() already makes that
+            # unreachable for the default 0700 per-uid path, but an operator's
+            # ISAACTELEOP_LOG_DIR keeps whatever permissions it came with and
+            # only has to be *owned* by us, so a world-writable one passes.
+            # Nothing legitimately collides: the name carries the timestamp and
+            # the pid, and _capture() runs once per fd per process.
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | os.O_APPEND
+            | getattr(os, "O_NOFOLLOW", 0),
             0o600,
         )
     except OSError:
