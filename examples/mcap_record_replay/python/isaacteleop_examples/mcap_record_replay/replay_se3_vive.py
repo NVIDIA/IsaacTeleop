@@ -4,17 +4,17 @@
 """
 Replay VIVE Ultimate Tracker SE3 pose streams from an MCAP file — no runtime needed.
 
-Opens a recording made by record_se3_vive.py, replays each per-tracker channel
+Opens a recording made by record_se3_vive, replays each per-tracker channel
 through ReplaySession + core.Se3Tracker (ReplaySe3TrackerImpl), and shows every
 tracker as a coordinate frame in a viser 3D view (browser). Replay needs no
 OpenXR runtime and no hardware.
 
-With no arguments it replays the most recent recording under ../recordings/,
+With no arguments it replays the most recent recording under ./recordings/,
 auto-discovers its collections, and plays back at the recording's own capture
 rate. Open the printed viser URL to see the trackers in 3D.
 
 Usage:
-    uv run replay_se3_vive.py [recording.mcap] [--loop] [--rate N] [--no-viz] \
+    python -m isaacteleop_examples.mcap_record_replay.replay_se3_vive [recording.mcap] [--loop] [--rate N] [--no-viz] \
         [--collections a,b,c]
 """
 
@@ -39,16 +39,16 @@ def _summary(mcap_path: Path):
 
 
 def resolve_mcap(path_arg: str | None) -> Path:
-    """Use the given path, or the newest .mcap under ../recordings/."""
+    """Use the given path, or the newest .mcap under ./recordings/."""
     if path_arg:
         return Path(path_arg)
-    recordings = Path(__file__).resolve().parent.parent / "recordings"
+    recordings = Path.cwd() / "recordings"
     candidates = list(recordings.glob("se3_vive_*.mcap")) or list(
         recordings.glob("*.mcap")
     )
     if not candidates:
         sys.exit(
-            f"[replay-se3] no .mcap files in {recordings}. Run record_se3_vive.py first."
+            f"[replay-se3] no .mcap files in {recordings}. Run record_se3_vive first."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
@@ -112,8 +112,11 @@ class Se3Viz:
     def __init__(self, server, collections: list[str]):
         import viser  # noqa: F401  (import here so --no-viz runs without viser)
 
-        server.scene.set_up_direction("+y")
-        server.scene.add_grid(name="/grid", width=2.0, height=2.0, cell_size=0.1)
+        # Also deferred: common imports viser at module level, so a top-level
+        # import here would defeat --no-viz.
+        from .common import setup_scene
+
+        setup_scene(server)
         self._frames = {}
         self._labels = {}
         for i, cid in enumerate(collections):
@@ -178,7 +181,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "mcap",
         nargs="?",
-        help="Recording to replay (default: newest under ../recordings/)",
+        help="Recording to replay (default: newest under ./recordings/)",
     )
     parser.add_argument(
         "--collections",

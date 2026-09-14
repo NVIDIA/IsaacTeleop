@@ -10,9 +10,9 @@ no separate terminal or pre-running headset daemon is needed. The pipeline in
 exactly the ``controllers`` channel — no head, no hands.
 
 Usage:
-    python record_controller.py [duration_seconds] [output.mcap] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.record_controller [duration_seconds] [output.mcap] [--accept-eula]
 
-Defaults: 5 seconds → ../recordings/controllers_<timestamp>.mcap
+Defaults: 5 seconds → ./recordings/controllers_<timestamp>.mcap
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
 """
@@ -28,7 +28,7 @@ from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.retargeting_engine.tensor_types.indices import ControllerInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import build_controller_pipeline
+from .common import build_controller_pipeline
 
 
 def main(argv: list[str]) -> int:
@@ -46,7 +46,7 @@ def main(argv: list[str]) -> int:
         mcap_path = Path(args.output)
         mcap_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        out_dir = Path(__file__).resolve().parent.parent / "recordings"
+        out_dir = Path.cwd() / "recordings"
         out_dir.mkdir(exist_ok=True)
         mcap_path = out_dir / f"controllers_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 

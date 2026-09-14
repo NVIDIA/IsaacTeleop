@@ -10,9 +10,9 @@ no separate terminal or pre-running headset daemon is needed. The pipeline in
 ``TeleopSession`` records the ``full_body`` and ``controllers`` channels.
 
 Usage:
-    python record_full_body.py [duration_seconds] [output.mcap] [--accept-eula]
+    python -m isaacteleop_examples.mcap_record_replay.record_full_body [duration_seconds] [output.mcap] [--accept-eula]
 
-Defaults: 5 seconds → ../recordings/full_body_<timestamp>.mcap
+Defaults: 5 seconds → ./recordings/full_body_<timestamp>.mcap
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
 """
@@ -30,7 +30,7 @@ from isaacteleop.deviceio import McapRecordingConfig
 from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
-from common import BODY_JOINT_NAMES, build_full_body_pipeline
+from .common import BODY_JOINT_NAMES, build_full_body_pipeline
 
 
 def main(argv: list[str]) -> int:
@@ -48,7 +48,7 @@ def main(argv: list[str]) -> int:
         mcap_path = Path(args.output)
         mcap_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        out_dir = Path(__file__).resolve().parent.parent / "recordings"
+        out_dir = Path.cwd() / "recordings"
         out_dir.mkdir(exist_ok=True)
         mcap_path = out_dir / f"full_body_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 

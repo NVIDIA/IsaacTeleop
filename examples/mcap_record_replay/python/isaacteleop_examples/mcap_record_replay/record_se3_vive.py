@@ -7,7 +7,7 @@ Record live VIVE Ultimate Tracker SE3 pose streams to an MCAP file — headset-f
 Reads the per-tracker "vive_tracker_<serial>" tensor collections pushed by the
 vive_se3_tracker plugin (one core.Se3Tracker per collection) and records each
 one to its own MCAP channel pair (<cid> / <cid>_tracked) via the standard
-Se3TrackerRecordingTraits. Replay with replay_se3_vive.py.
+Se3TrackerRecordingTraits. Replay with replay_se3_vive.
 
 Prerequisites (separate terminals):
   1. CloudXR runtime:  python -m isaacteleop.cloudxr
@@ -15,11 +15,11 @@ Prerequisites (separate terminals):
      (VIVEHub tracker_server running, or VIVE_SE3_SYNTHETIC=1 for a smoke test)
 
 With no arguments it records 10 s of every collection the pusher currently
-advertises (see --collections), to a timestamped file under ../recordings/.
+advertises (see --collections), to a timestamped file under ./recordings/.
 
 Usage:
     source ~/.cloudxr/run/cloudxr.env
-    uv run record_se3_vive.py [duration_s] [output.mcap] [--collections a,b,c]
+    python -m isaacteleop_examples.mcap_record_replay.record_se3_vive [duration_s] [output.mcap] [--collections a,b,c]
 """
 
 import argparse
@@ -85,7 +85,7 @@ def main(argv: list[str]) -> int:
         mcap_path = Path(args.output)
         mcap_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        out_dir = Path(__file__).resolve().parent.parent / "recordings"
+        out_dir = Path.cwd() / "recordings"
         out_dir.mkdir(exist_ok=True)
         mcap_path = out_dir / f"se3_vive_{datetime.now():%Y%m%d_%H%M%S}.mcap"
 

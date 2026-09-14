@@ -1,8 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "mcap-record-replay-example"
+# The dist name mirrors the import path, so an installed example claims no bare
+# top-level name in site-packages.
+name = "isaacteleop-examples-mcap-record-replay"
 version = "0.0.0"  # Internal example - not versioned
 description = "Isaac Teleop MCAP record / replay example with viser visualization"
 requires-python = ">=3.11,<3.14"
@@ -15,8 +21,16 @@ dependencies = [
     "viser>=0.2.0",
 ]
 
+# `isaacteleop_examples` is a PEP 420 namespace shared by every example dist and
+# must stay without an __init__.py. `only-include` + `sources`, not `packages`:
+# the latter keeps only the last path component and would root the wheel at a
+# bare top-level `mcap_record_replay/`.
+[tool.hatch.build.targets.wheel]
+only-include = ["python/isaacteleop_examples/mcap_record_replay"]
+sources = ["python"]
+
 [tool.uv.sources]
 # Editable, so edits under src/python/ need no rebuild. Dropped from the
 # installed copy, which has no repo above it.
 # TODO(#880): nothing runs this example in CI; neither path is covered.
-isaacteleop = { path = "../../..", editable = true }
+isaacteleop = { path = "../..", editable = true }
