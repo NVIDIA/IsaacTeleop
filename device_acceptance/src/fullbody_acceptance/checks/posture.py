@@ -325,19 +325,38 @@ class ArmRaiseRangeOfMotion(_PostureCheck):
     # clinical limit; real subjects will move it.
     MIN_ELEVATION_DEG = 60.0
 
-    SIDE = {"left_arm_raise": "LEFT_SHOULDER", "right_arm_raise": "RIGHT_SHOULDER"}
+    SIDE = {"left_arm_raise": "LEFT", "right_arm_raise": "RIGHT"}
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.reached: dict[str, float] = {}
 
     def _observe(self, step: Step, frame: Frame) -> None:
-        sign = -1.0 if step.label == "right_arm_raise" else 1.0
-        angle = self._angle(frame, self.SIDE[step.label], FRONTAL, sign=sign)
-        if angle is None:
+        """Elevation of the shoulder-to-hand line, not the shoulder joint's angle.
+
+        On a rig with no elbow or shoulder tracking the solver leaves the upper arm
+        near its rest pose and stretches the forearm to reach the controller, so the
+        shoulder angle is fabricated. Measured on a real overhead raise it read -2.8
+        deg while the hand was 30 cm above the shoulder, and the shoulder-to-elbow
+        vector agreed with it at 2.6 deg, which is how it is known to be the rig and
+        not the arithmetic. The hand is the tracked endpoint, so it is what can be
+        measured; the saturating fixture still reads 25 deg here against 89 for a
+        clean one, because forward kinematics drives the hand from the joint it clips.
+        """
+        side = self.SIDE[step.label]
+        joints = frame.joints
+        if joints is None:
             return
-        # Positive is below horizontal, so elevation is the negated minimum.
-        self.reached[step.label] = max(self.reached.get(step.label, -180.0), -angle)
+        shoulder = joints[self.profile.index(f"{side}_SHOULDER")]
+        hand = joints[self.profile.index(f"{side}_HAND")]
+        if not (shoulder.is_valid and hand.is_valid):
+            return
+        reach = [hand.position[i] - shoulder.position[i] for i in range(3)]
+        length = math.sqrt(sum(component * component for component in reach))
+        if length <= 0.0:
+            return
+        elevation = math.degrees(math.asin(max(-1.0, min(1.0, reach[1] / length))))
+        self.reached[step.label] = max(self.reached.get(step.label, -180.0), elevation)
 
     def _measure(self) -> Outcome:
         if not self.reached:
@@ -354,12 +373,13 @@ class ArmRaiseRangeOfMotion(_PostureCheck):
         if worst >= self.MIN_ELEVATION_DEG:
             return Outcome(
                 Status.PASS,
-                f"both arms clear {worst:.0f} deg above horizontal",
+                f"both hands reach {worst:.0f} deg above the shoulder",
                 measurements,
             )
         return Outcome(
             Status.FAIL,
-            f"{worst_label} stops {worst:.0f} deg above horizontal, short of "
+            f"the hand in {worst_label} reaches {worst:.0f} deg above the "
+            f"shoulder, short of "
             f"{self.MIN_ELEVATION_DEG:.0f}; record again reaching fully overhead, and "
             f"if it still stops short the device is clipping the arm",
             measurements,
