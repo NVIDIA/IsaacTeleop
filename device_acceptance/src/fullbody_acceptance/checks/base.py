@@ -60,6 +60,12 @@ class Check(ABC):
     summary: ClassVar[str] = ""
     min_frames: ClassVar[int] = 1
 
+    # False when the question depends on what the subject did, not on the recording
+    # being adequate. A held T-pose cannot reveal a frame mismatch however long it runs,
+    # so such a check returning "insufficient data" must not drag the whole recording
+    # into limbo; an unanswered required check must.
+    required: ClassVar[bool] = True
+
     def __init__(self) -> None:
         self.frames_seen = 0
 

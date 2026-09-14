@@ -38,6 +38,7 @@ class CheckResult:
     status: Status
     detail: str
     measurements: dict[str, Any]
+    required: bool = True
 
     @property
     def counts_toward_verdict(self) -> bool:
@@ -60,6 +61,10 @@ class Report:
             for r in self.results
             if not r.counts_toward_verdict and r.status is Status.FAIL
         )
+
+    @property
+    def unanswered(self) -> tuple[CheckResult, ...]:
+        return tuple(r for r in self.results if r.status is Status.INSUFFICIENT_DATA)
 
     @property
     def failures(self) -> tuple[CheckResult, ...]:
@@ -95,6 +100,7 @@ class Report:
                     "severity": str(r.severity),
                     "attribution": str(r.attribution),
                     "status": str(r.status),
+                    "required": r.required,
                     "detail": r.detail,
                     "measurements": r.measurements,
                 }
@@ -124,6 +130,11 @@ class Report:
             if r.status is Status.FAIL and not r.counts_toward_verdict:
                 mark = "note"
             lines.append(f"  [{mark}] {r.name:<45} {r.detail}")
+        unanswered = self.unanswered
+        if unanswered:
+            lines.append("")
+            lines.append(f"  {len(unanswered)} checks could not be answered:")
+            lines.extend(f"    {r.name}: {r.detail}" for r in unanswered)
         if self.notes:
             lines.append("")
             lines.extend(f"  note: {note}" for note in self.notes)
@@ -141,7 +152,12 @@ def aggregate(results: Iterable[CheckResult]) -> Verdict:
         for r in counted
     ):
         return Verdict.RETAKE
-    if any(r.status is Status.INSUFFICIENT_DATA for r in counted):
+    # Only a *required* check left unanswered means the recording itself was not good
+    # enough to judge. A conditional one simply had nothing to work with, which the
+    # report says out loud rather than hiding behind a verdict.
+    if any(r.status is Status.INSUFFICIENT_DATA and r.required for r in counted):
+        return Verdict.INSUFFICIENT_DATA
+    if not any(r.status in (Status.PASS, Status.FAIL) for r in counted):
         return Verdict.INSUFFICIENT_DATA
     return Verdict.PASS
 
@@ -168,6 +184,7 @@ def run(source: FrameSource, checks: Sequence[Check] | None = None) -> Report:
                 status=outcome.status,
                 detail=outcome.detail,
                 measurements=dict(outcome.measurements),
+                required=check.required,
             )
         )
 

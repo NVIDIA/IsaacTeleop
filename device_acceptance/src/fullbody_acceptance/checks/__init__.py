@@ -19,6 +19,7 @@ from .geometry import (
     PositionScaleMetres,
     UpAxis,
 )
+from .orientation import ComponentOrder, PositionOrientationSameFrame
 from .quaternion import UnitNormOnValidJoints
 from .rate import FrameGaps, IntervalRegularity
 from .schema import JointsFieldPresent
@@ -43,6 +44,8 @@ CHECKS: tuple[type[Check], ...] = (
     PositionScaleMetres,
     BoneLengthConstancy,
     AnthropometricPlausibility,
+    PositionOrientationSameFrame,
+    ComponentOrder,
 )
 
 

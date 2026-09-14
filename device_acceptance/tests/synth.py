@@ -260,3 +260,65 @@ def unit_quaternion(angle_rad: float, axis: tuple[float, float, float]) -> tuple
     half = angle_rad / 2.0
     scale = math.sin(half)
     return (axis[0] * scale, axis[1] * scale, axis[2] * scale, math.cos(half))
+
+
+def qmul(a: tuple, b: tuple) -> tuple:
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+        aw * bw - ax * bx - ay * by - az * bz,
+    )
+
+
+def qrot(q: tuple, v: tuple) -> tuple:
+    x, y, z, w = q
+    cross1 = (y * v[2] - z * v[1], z * v[0] - x * v[2], x * v[1] - y * v[0])
+    cross2 = (
+        y * cross1[2] - z * cross1[1],
+        z * cross1[0] - x * cross1[2],
+        x * cross1[1] - y * cross1[0],
+    )
+    return tuple(v[i] + 2.0 * w * cross1[i] + 2.0 * cross2[i] for i in range(3))
+
+
+def posed_skeleton(
+    local_rotations: dict[str, tuple] | None = None,
+) -> tuple[JointPose, ...]:
+    """Forward kinematics, so positions and orientations describe the same frame.
+
+    Without this a test cannot tell a genuine frame mismatch from the fact that the
+    rest pose happens to use identity rotations everywhere.
+    """
+    local_rotations = local_rotations or {}
+    world_q: list[tuple] = [IDENTITY] * NUM_JOINTS
+    world_p: list[tuple] = [(0.0, 0.0, 0.0)] * NUM_JOINTS
+    for index, name in enumerate(FULL_BODY.joint_names):
+        parent = FULL_BODY.parents[index]
+        local = local_rotations.get(name, IDENTITY)
+        offset = REST_OFFSETS[name]
+        if parent < 0:
+            world_q[index] = local
+            world_p[index] = offset
+        else:
+            world_q[index] = qmul(world_q[parent], local)
+            world_p[index] = tuple(
+                world_p[parent][axis] + qrot(world_q[parent], offset)[axis]
+                for axis in range(3)
+            )
+    return tuple(
+        joint(position=world_p[i], orientation=world_q[i], is_valid=True)
+        for i in range(NUM_JOINTS)
+    )
+
+
+def waving_frames(count: int = 300, joint_name: str = "LEFT_SHOULDER") -> list[Frame]:
+    """One joint swings through 80 degrees, which is what the frame checks need."""
+    out = []
+    for i in range(count):
+        angle = math.radians(80.0) * math.sin(2.0 * math.pi * i / 120.0)
+        pose = posed_skeleton({joint_name: unit_quaternion(angle, (0.0, 0.0, 1.0))})
+        out.append(frame(i, joints=pose))
+    return out

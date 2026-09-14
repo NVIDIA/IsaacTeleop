@@ -517,3 +517,110 @@ def test_a_plausible_synthetic_skeleton_reads_as_human():
     outcome = drive(AnthropometricPlausibility(), synth.frames(60))
     assert outcome.status is Status.PASS
     assert all(0.6 < r < 1.15 for r in outcome.measurements["forearm_over_upper_arm"])
+
+
+# --- orientation vs position -------------------------------------------------------
+
+
+def test_a_consistent_moving_skeleton_passes_both_frame_checks():
+    from fullbody_acceptance.checks.orientation import (
+        ComponentOrder,
+        PositionOrientationSameFrame,
+    )
+
+    waving = synth.waving_frames()
+    assert status_of(PositionOrientationSameFrame, waving) is Status.PASS
+    assert status_of(ComponentOrder, waving) is Status.PASS
+
+
+def test_rotating_positions_without_orientations_breaks_the_frame_check():
+    from fullbody_acceptance.checks.orientation import PositionOrientationSameFrame
+
+    turn = synth.unit_quaternion(math.radians(90), (0.0, 1.0, 0.0))
+    half_converted = [
+        synth.replace(
+            item,
+            joints=tuple(
+                synth.joint(synth.qrot(turn, j.position), j.orientation, j.is_valid)
+                for j in item.joints
+            ),
+        )
+        for item in synth.waving_frames()
+    ]
+    outcome = drive(PositionOrientationSameFrame(), half_converted)
+    assert outcome.status is Status.FAIL
+    assert outcome.measurements["median_relative_spread"] > 0.1
+
+
+def test_components_written_wxyz_are_identified_as_such():
+    from fullbody_acceptance.checks.orientation import (
+        ComponentOrder,
+        PositionOrientationSameFrame,
+    )
+
+    def to_wxyz(q):
+        x, y, z, w = q
+        return (w, x, y, z)
+
+    misordered = [
+        synth.replace(
+            item,
+            joints=tuple(
+                synth.joint(j.position, to_wxyz(j.orientation), j.is_valid)
+                for j in item.joints
+            ),
+        )
+        for item in synth.waving_frames()
+    ]
+    outcome = drive(ComponentOrder(), misordered)
+    assert outcome.status is Status.FAIL
+    assert (
+        outcome.measurements["median_relative_spread_if_wxyz"]
+        < outcome.measurements["median_relative_spread"]
+    )
+
+    # The same symptom must be claimed once, by the check that explains it.
+    assert status_of(PositionOrientationSameFrame, misordered) is Status.PASS
+
+
+def test_a_held_pose_cannot_answer_the_frame_questions():
+    """The fixture set's own principle: a T-pose alone reveals nothing about frames."""
+    from fullbody_acceptance.checks.orientation import (
+        ComponentOrder,
+        PositionOrientationSameFrame,
+    )
+
+    still = synth.frames(300)
+    assert status_of(PositionOrientationSameFrame, still) is Status.INSUFFICIENT_DATA
+    assert status_of(ComponentOrder, still) is Status.INSUFFICIENT_DATA
+
+
+def test_an_unanswerable_conditional_check_does_not_block_the_verdict():
+    report = run(synth.StubSource(synth.frames(300)))
+    assert report.verdict is Verdict.PASS
+    assert {r.name for r in report.unanswered} == {
+        "consistency.position_orientation_same_frame",
+        "quaternion.component_order",
+    }
+
+
+def test_a_whole_rig_expressed_z_up_is_still_internally_consistent():
+    """Z-up rotates positions and orientations together; coordinate_frame owns it."""
+    from fullbody_acceptance.checks.orientation import PositionOrientationSameFrame
+
+    turn = synth.unit_quaternion(math.radians(90), (1.0, 0.0, 0.0))
+    tipped = [
+        synth.replace(
+            item,
+            joints=tuple(
+                synth.joint(
+                    synth.qrot(turn, j.position),
+                    synth.qmul(turn, j.orientation),
+                    j.is_valid,
+                )
+                for j in item.joints
+            ),
+        )
+        for item in synth.waving_frames()
+    ]
+    assert status_of(PositionOrientationSameFrame, tipped) is Status.PASS
