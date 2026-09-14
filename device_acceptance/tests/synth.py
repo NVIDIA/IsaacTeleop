@@ -20,6 +20,7 @@ from mcap.writer import CompressionType, Writer
 import fullbody_acceptance._schema  # noqa: F401  puts generated/ on sys.path
 from core import BodyJoints, DeviceDataTimestamp, FullBodyPose, FullBodyPoseRecord
 from fullbody_acceptance.frames import NUM_JOINTS, Frame, JointPose
+from fullbody_acceptance.profile import FULL_BODY
 
 SCHEMA_NAME = "core.FullBodyPoseRecord"
 TOPIC = "full_body/full_body"
@@ -29,6 +30,59 @@ CLOCK_BASE_NS = 1_000_000_000_000
 DEVICE_EPOCH_NS = 55_000_000_000_000
 
 IDENTITY = (0.0, 0.0, 0.0, 1.0)
+
+# Child position in the parent's frame, metres, for a ~1.75 m adult in a T-pose. Same
+# figure the shared fixture set uses, so unit tests and the oracle layer agree on what a
+# plausible human is. Forward is -Z.
+REST_OFFSETS = {
+    "PELVIS": (0.000, 0.980, 0.000),
+    "LEFT_HIP": (-0.090, -0.020, 0.000),
+    "RIGHT_HIP": (0.090, -0.020, 0.000),
+    "SPINE1": (0.000, 0.100, 0.000),
+    "LEFT_KNEE": (0.000, -0.420, 0.000),
+    "RIGHT_KNEE": (0.000, -0.420, 0.000),
+    "SPINE2": (0.000, 0.120, 0.000),
+    "LEFT_ANKLE": (0.000, -0.410, 0.000),
+    "RIGHT_ANKLE": (0.000, -0.410, 0.000),
+    "SPINE3": (0.000, 0.130, 0.000),
+    "LEFT_FOOT": (0.000, -0.070, -0.120),
+    "RIGHT_FOOT": (0.000, -0.070, -0.120),
+    "NECK": (0.000, 0.180, 0.000),
+    "LEFT_COLLAR": (-0.040, 0.140, 0.000),
+    "RIGHT_COLLAR": (0.040, 0.140, 0.000),
+    "HEAD": (0.000, 0.120, 0.000),
+    "LEFT_SHOULDER": (-0.130, 0.020, 0.000),
+    "RIGHT_SHOULDER": (0.130, 0.020, 0.000),
+    "LEFT_ELBOW": (-0.285, 0.000, 0.000),
+    "RIGHT_ELBOW": (0.285, 0.000, 0.000),
+    "LEFT_WRIST": (-0.255, 0.000, 0.000),
+    "RIGHT_WRIST": (0.255, 0.000, 0.000),
+    "LEFT_HAND": (-0.090, 0.000, 0.000),
+    "RIGHT_HAND": (0.090, 0.000, 0.000),
+}
+
+
+def rest_positions(
+    offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
+) -> list[tuple[float, float, float]]:
+    """World positions of the T-pose, all rotations identity."""
+    world: list[tuple[float, float, float]] = [(0.0, 0.0, 0.0)] * NUM_JOINTS
+    for index, name in enumerate(FULL_BODY.joint_names):
+        local = REST_OFFSETS[name]
+        parent = FULL_BODY.parents[index]
+        base = world[parent] if parent >= 0 else offset
+        world[index] = tuple(base[axis] + local[axis] for axis in range(3))
+    return world
+
+
+def rest_skeleton(
+    offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    valid_joints: int = NUM_JOINTS,
+) -> tuple[JointPose, ...]:
+    return tuple(
+        joint(position=position, orientation=IDENTITY, is_valid=index < valid_joints)
+        for index, position in enumerate(rest_positions(offset))
+    )
 
 
 def joint(
@@ -56,13 +110,7 @@ def frame(
     available = sample + 2_000_000 if available_ns is None else available_ns
     device = DEVICE_EPOCH_NS + sequence * PERIOD_NS if device_ns is None else device_ns
     if joints is None and has_payload and include_joints:
-        joints = tuple(
-            joint(
-                position=(0.05 * i, 0.5 + 0.03 * i, 0.01 * i),
-                is_valid=i < valid_joints,
-            )
-            for i in range(NUM_JOINTS)
-        )
+        joints = rest_skeleton(valid_joints=valid_joints)
     if not include_joints:
         joints = None
     return Frame(
@@ -85,17 +133,12 @@ def moving_frames(
     step = speed_mps * period_ns / 1e9
     out = []
     for i in range(count):
-        base = frame(i, sample_ns=CLOCK_BASE_NS + i * period_ns)
-        assert base.joints is not None
-        shifted = tuple(
-            joint(
-                position=(j.position[0] + step * i, j.position[1], j.position[2]),
-                orientation=j.orientation,
-                is_valid=j.is_valid,
-            )
-            for j in base.joints
+        base = frame(
+            i,
+            joints=rest_skeleton(offset=(step * i, 0.0, 0.0)),
+            sample_ns=CLOCK_BASE_NS + i * period_ns,
         )
-        out.append(replace(base, joints=shifted))
+        out.append(base)
     return out
 
 

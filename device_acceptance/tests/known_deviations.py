@@ -57,6 +57,19 @@ BY_FIXTURE = {d.fixture: d for d in DEVIATIONS}
 # primary cause. Listing the extra failures keeps the oracle exact, so a check that
 # starts firing where it should not still shows up as a test failure.
 EXPECTED_COLLATERAL: dict[str, set[str]] = {
-    # Positions scaled by 100 really do move at 168 m/s.
-    "defect_centimetre_units.mcap": {"continuity.max_joint_velocity"},
+    # Positions scaled by 100 really do move at 168 m/s and really do describe a 157 m
+    # skeleton, so both readings are correct rather than spurious.
+    "defect_centimetre_units.mcap": {
+        "continuity.max_joint_velocity",
+        "skeleton.anthropometric_plausibility",
+    },
+    # Six joints pinned at the origin while their parents move: the bones touching them
+    # genuinely change length.
+    "defect_zero_positions_on_valid_joints.mcap": {"skeleton.bone_length_constancy"},
+    # Swapping SPINE1/SPINE2, NECK/HEAD and LEFT_KNEE/LEFT_ANKLE relocates joints
+    # between chains, so the affected bones stretch and the proportions stop being human.
+    "defect_joint_index_permutation.mcap": {
+        "skeleton.bone_length_constancy",
+        "skeleton.anthropometric_plausibility",
+    },
 }

@@ -13,6 +13,12 @@ from .base import Attribution, Check, Outcome, Severity, Status
 from .consistency import AllJointPosesTracked
 from .continuity import MaxJointVelocity
 from .coverage import PayloadPresenceRate, ValidityTrend
+from .geometry import (
+    AnthropometricPlausibility,
+    BoneLengthConstancy,
+    PositionScaleMetres,
+    UpAxis,
+)
 from .quaternion import UnitNormOnValidJoints
 from .rate import FrameGaps, IntervalRegularity
 from .schema import JointsFieldPresent
@@ -33,6 +39,10 @@ CHECKS: tuple[type[Check], ...] = (
     IntervalRegularity,
     FrameGaps,
     MaxJointVelocity,
+    UpAxis,
+    PositionScaleMetres,
+    BoneLengthConstancy,
+    AnthropometricPlausibility,
 )
 
 

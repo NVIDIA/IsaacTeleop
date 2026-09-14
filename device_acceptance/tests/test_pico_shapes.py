@@ -38,11 +38,14 @@ def test_invalid_joints_may_carry_arbitrary_values(tmp_path):
             position=(1e9, -1e9, 7.0), orientation=(0.0, 0.0, 0.0, 12.0), is_valid=False
         ),
     ]
+    # LEFT_FOOT, RIGHT_FOOT and LEFT_HAND: endpoints a vendor may not provide, and
+    # outside the chain the stature measurements need.
+    targets = (10, 11, 22)
     frame_list = []
     for i in range(300):
         item = synth.frame(i)
-        for offset, bad in enumerate(garbage):
-            item = synth.with_joint(item, 10 + offset, bad)
+        for target, bad in zip(targets, garbage):
+            item = synth.with_joint(item, target, bad)
         frame_list.append(item)
 
     path = synth.write_recording(tmp_path / "pico_invalid_garbage.mcap", frame_list)

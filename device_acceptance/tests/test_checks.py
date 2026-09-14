@@ -414,3 +414,106 @@ def test_velocity_over_an_implausibly_short_interval_is_discarded():
 def test_a_short_recording_cannot_conclude_overall():
     report = run(synth.StubSource(synth.frames(5)))
     assert report.verdict is Verdict.INSUFFICIENT_DATA
+
+
+# --- geometry ----------------------------------------------------------------------
+
+
+def test_up_axis_accepts_y_up_and_rejects_z_up():
+
+    from fullbody_acceptance.checks.geometry import UpAxis
+
+    upright = synth.frames(60)
+    assert status_of(UpAxis, upright) is Status.PASS
+
+    def rotate_x90(position):
+        x, y, z = position
+        return (x, -z, y)
+
+    tipped = []
+    for item in upright:
+        assert item.joints is not None
+        tipped.append(
+            synth.replace(
+                item,
+                joints=tuple(
+                    synth.joint(rotate_x90(j.position), j.orientation, j.is_valid)
+                    for j in item.joints
+                ),
+            )
+        )
+    outcome = drive(UpAxis(), tipped)
+    assert outcome.status is Status.FAIL
+    assert outcome.measurements["dominant_axis"] == "Z"
+    assert outcome.measurements["torso_length_m"] == pytest.approx(0.65, abs=0.02)
+
+
+def test_up_axis_will_not_guess_from_a_degenerate_torso():
+    flattened = [
+        synth.replace(
+            item,
+            joints=tuple(
+                synth.joint(
+                    (j.position[0], 1.0, j.position[2]), j.orientation, j.is_valid
+                )
+                for j in item.joints
+            ),
+        )
+        for item in synth.frames(60)
+    ]
+    from fullbody_acceptance.checks.geometry import UpAxis
+
+    assert status_of(UpAxis, flattened) is Status.INSUFFICIENT_DATA
+
+
+def test_a_zero_length_bone_is_reported_as_derived_not_broken():
+    """Back-filled hands and feet keep a constant zero length; that is not a fault."""
+    from fullbody_acceptance.checks.geometry import BoneLengthConstancy
+    from fullbody_acceptance.profile import FULL_BODY
+
+    wrist = FULL_BODY.index("LEFT_WRIST")
+    hand = FULL_BODY.index("LEFT_HAND")
+    frame_list = []
+    for item in synth.frames(60):
+        assert item.joints is not None
+        joints = list(item.joints)
+        joints[hand] = synth.joint(
+            joints[wrist].position, joints[wrist].orientation, True
+        )
+        frame_list.append(synth.replace(item, joints=tuple(joints)))
+
+    outcome = drive(BoneLengthConstancy(), frame_list)
+    assert outcome.status is Status.PASS
+    assert "LEFT_WRIST->LEFT_HAND" in outcome.measurements["derived_bones"]
+
+
+def test_stature_declines_rather_than_guessing_when_a_chain_joint_is_never_valid():
+    """A vendor that never reports the neck leaves the size unknowable, not wrong."""
+    from fullbody_acceptance.checks.geometry import (
+        AnthropometricPlausibility,
+        PositionScaleMetres,
+    )
+    from fullbody_acceptance.profile import FULL_BODY
+
+    neck = FULL_BODY.index("NECK")
+    frame_list = [
+        synth.with_joint(item, neck, synth.joint(is_valid=False))
+        for item in synth.frames(60)
+    ]
+    assert status_of(PositionScaleMetres, frame_list) is Status.INSUFFICIENT_DATA
+    assert status_of(AnthropometricPlausibility, frame_list) is Status.INSUFFICIENT_DATA
+
+
+def test_a_plausible_synthetic_skeleton_reads_as_human():
+    from fullbody_acceptance.checks.geometry import (
+        AnthropometricPlausibility,
+        PositionScaleMetres,
+    )
+
+    outcome = drive(PositionScaleMetres(), synth.frames(60))
+    assert outcome.status is Status.PASS
+    assert 1.2 < outcome.measurements["skeletal_height"] < 2.2
+
+    outcome = drive(AnthropometricPlausibility(), synth.frames(60))
+    assert outcome.status is Status.PASS
+    assert all(0.6 < r < 1.15 for r in outcome.measurements["forearm_over_upper_arm"])
