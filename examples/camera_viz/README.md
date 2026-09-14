@@ -116,6 +116,8 @@ cameras:
       bitrate_mbps: 15
       # gop: 150              # default fps*5
       # gpu_id: 0             # multi-GPU pin
+      # calib: calib.json      # lens calibration (per-eye K/D fisheye|brown);
+                               # enables GPU undistortion + auto layer geometry
 
 display:                      # camera_viz only
   mode: xr | window           # default: xr
