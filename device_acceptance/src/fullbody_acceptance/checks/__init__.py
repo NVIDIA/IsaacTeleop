@@ -16,6 +16,9 @@ from .coverage import PayloadPresenceRate, ValidityTrend
 from .geometry import (
     AnthropometricPlausibility,
     BoneLengthConstancy,
+    Handedness,
+    JointIndexAssignment,
+    LeftRightLabelling,
     PositionScaleMetres,
     UpAxis,
 )
@@ -46,6 +49,9 @@ CHECKS: tuple[type[Check], ...] = (
     AnthropometricPlausibility,
     PositionOrientationSameFrame,
     ComponentOrder,
+    Handedness,
+    LeftRightLabelling,
+    JointIndexAssignment,
 )
 
 

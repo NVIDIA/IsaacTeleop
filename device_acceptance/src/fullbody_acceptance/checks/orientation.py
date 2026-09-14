@@ -20,32 +20,8 @@ import math
 
 from ..frames import Frame
 from ..profile import FULL_BODY, SkeletonProfile
+from ..vectors import Quaternion, Vector, as_wxyz, rotate_by_inverse
 from .base import Check, Outcome, Severity, Status
-
-Vector = tuple[float, float, float]
-Quaternion = tuple[float, float, float, float]
-
-
-def rotate_by_inverse(q: Quaternion, v: Vector) -> Vector:
-    """Expresses world-frame vector ``v`` in the local frame of orientation ``q``."""
-    x, y, z, w = q
-    # The inverse of a unit quaternion is its conjugate.
-    ux, uy, uz = -x, -y, -z
-    cross1 = (uy * v[2] - uz * v[1], uz * v[0] - ux * v[2], ux * v[1] - uy * v[0])
-    cross2 = (
-        uy * cross1[2] - uz * cross1[1],
-        uz * cross1[0] - ux * cross1[2],
-        ux * cross1[1] - uy * cross1[0],
-    )
-    return tuple(
-        v[axis] + 2.0 * w * cross1[axis] + 2.0 * cross2[axis] for axis in range(3)
-    )
-
-
-def as_wxyz(stored: Quaternion) -> Quaternion:
-    """Reinterprets fields written w,x,y,z into the x,y,z,w slots."""
-    a, b, c, d = stored
-    return (b, c, d, a)
 
 
 class _OffsetSpread:

@@ -121,7 +121,8 @@ CI can only ever run the unit layer: the fixtures are not in git and the largest
 2. The rest of the envelope and payload checks.
 3. Geometry, behind a swappable skeleton profile — topology, symmetry pairs, proportion
    priors, speed ceiling, and which checks apply. `full_body` is the only profile;
-   `hand` is the known next one. Gravity direction is body-only.
+   `hand` is the known next one. Gravity direction is body-only. Done: all nine geometry
+   checks land, with the chirality findings below.
 4. G4 measurement, validated against the graded series by accuracy and monotonicity
    rather than pass/fail.
 
@@ -138,6 +139,34 @@ Slice 5 (capture script, prompter, live panel, G5) needs hardware and is out of 
 - `examples/CMakeLists.txt` registers subdirectories explicitly, but
   `src/python/CMakeLists.txt` globs `.py` recursively — adding a file there would change
   the wheel without editing anything, which is why this lives at the top level.
+
+## What the chirality checks can and cannot separate
+
+`coordinate_frame.handedness` and `skeleton.left_right_labelling` need a facing
+direction, and the obvious source — the pelvis quaternion — is the wrong one: it makes
+both checks fail on any recording whose orientations are wrong for an unrelated reason,
+sending the submitter after the wrong defect. Both therefore derive forward from the mean
+of the two ankle-to-foot vectors, which is position-only and, being a mean over the pair,
+unchanged by either a mirror or a left/right swap. The feet are trusted only when both
+are present, of plausible length against the torso, and pointing within 60° of each
+other; a foot zeroed to the world origin otherwise passes a length test, because its
+ankle is itself near the origin. Recordings without usable feet — back-filled endpoints,
+and Pico, which does not report feet at all — fall back to the pelvis orientation, and
+the outcome records which reference it used.
+
+On a bilaterally symmetric skeleton, mirroring the rig and swapping the left/right labels
+are the same transform, so `defect_mirrored_handedness` and `defect_left_right_swapped`
+trip both checks identically and the collateral is declared in `known_deviations.py`.
+Separating them needs an asymmetric subject, so it waits for a real recording.
+
+`skeleton.joint_index_assignment` measures how much of a bone's length is spent moving
+back toward the pelvis. Raw distance-to-root ordering does not work: an A-pose puts every
+elbow nearer the pelvis than its shoulder, so a session spent in one is indistinguishable
+from a permuted skeleton, which is what made the check fire on
+`defect_validity_degradation`, where the surviving frames are all in the opening A-pose.
+A reversed bone points straight at the root for a ratio of +1, while nothing correctly
+indexed in the corpus exceeds −0.47, so the 0.8 threshold sits in an empty gap rather
+than being tuned.
 
 ## Deferred
 

@@ -322,3 +322,65 @@ def waving_frames(count: int = 300, joint_name: str = "LEFT_SHOULDER") -> list[F
         pose = posed_skeleton({joint_name: unit_quaternion(angle, (0.0, 0.0, 1.0))})
         out.append(frame(i, joints=pose))
     return out
+
+
+def mirrored(frames_: list[Frame]) -> list[Frame]:
+    """Negates x on positions and conjugates the matching quaternion components.
+
+    This is the whole-rig mirror a vendor produces by feeding a left-handed frame
+    through unchanged, as distinct from swap_left_right below.
+    """
+    out = []
+    for item in frames_:
+        out.append(
+            replace(
+                item,
+                joints=tuple(
+                    joint(
+                        (-j.position[0], j.position[1], j.position[2]),
+                        (
+                            j.orientation[0],
+                            -j.orientation[1],
+                            -j.orientation[2],
+                            j.orientation[3],
+                        ),
+                        j.is_valid,
+                    )
+                    for j in item.joints
+                ),
+            )
+        )
+    return out
+
+
+def swap_left_right(frames_: list[Frame]) -> list[Frame]:
+    """Writes each LEFT joint's pose into its RIGHT index and vice versa."""
+    out = []
+    for item in frames_:
+        joints = list(item.joints)
+        for left, right in FULL_BODY.lateral_pairs():
+            joints[left], joints[right] = joints[right], joints[left]
+        out.append(replace(item, joints=tuple(joints)))
+    return out
+
+
+def swap_indices(frames_: list[Frame], first: str, second: str) -> list[Frame]:
+    a, b = FULL_BODY.index(first), FULL_BODY.index(second)
+    out = []
+    for item in frames_:
+        joints = list(item.joints)
+        joints[a], joints[b] = joints[b], joints[a]
+        out.append(replace(item, joints=tuple(joints)))
+    return out
+
+
+def arms_down_frames(count: int = 300) -> list[Frame]:
+    """An A-pose held for the whole session, elbows hanging toward the pelvis.
+
+    The posture a root-distance test mistakes for a swapped index, so any check of
+    joint ordering has to stay quiet here.
+    """
+    down_left = unit_quaternion(math.radians(-75.0), (0.0, 0.0, 1.0))
+    down_right = unit_quaternion(math.radians(75.0), (0.0, 0.0, 1.0))
+    pose = posed_skeleton({"LEFT_SHOULDER": down_left, "RIGHT_SHOULDER": down_right})
+    return [frame(i, joints=pose) for i in range(count)]

@@ -119,6 +119,22 @@ class SkeletonProfile:
     # Fraction of its own mean that a bone's length may vary over a session.
     max_bone_length_cv: float
 
+    # Facing direction in the joint's own frame. -Z forward with +Y up is the OpenXR
+    # convention the rest offsets in the fixture generator also use.
+    forward_axis: tuple[float, float, float]
+
+    # Sign of dot(right x up, forward) for a correctly handed recording. With right=+X,
+    # up=+Y and forward=-Z that triple product is -1, and a mirrored rig flips it.
+    expected_chirality: float
+
+    def lateral_pairs(self) -> tuple[tuple[int, int], ...]:
+        """(left, right) index pairs, taken from the mirror table."""
+        return tuple(
+            (index, partner)
+            for index, partner in enumerate(self.mirror)
+            if partner != index and self.joint_names[index].startswith("LEFT_")
+        )
+
     def index(self, name: str) -> int:
         return self.joint_names.index(name)
 
@@ -169,4 +185,6 @@ FULL_BODY = SkeletonProfile(
     stature_range_m=(1.20, 2.20),
     forearm_over_upper_arm=(0.60, 1.15),
     max_bone_length_cv=0.03,
+    forward_axis=(0.0, 0.0, -1.0),
+    expected_chirality=-1.0,
 )

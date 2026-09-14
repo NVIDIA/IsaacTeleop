@@ -624,3 +624,117 @@ def test_a_whole_rig_expressed_z_up_is_still_internally_consistent():
         for item in synth.waving_frames()
     ]
     assert status_of(PositionOrientationSameFrame, tipped) is Status.PASS
+
+
+def test_a_clean_rig_is_right_handed_and_correctly_labelled():
+    from fullbody_acceptance.checks.geometry import (
+        Handedness,
+        JointIndexAssignment,
+        LeftRightLabelling,
+    )
+
+    clean = synth.waving_frames()
+    assert status_of(Handedness, clean) is Status.PASS
+    assert status_of(LeftRightLabelling, clean) is Status.PASS
+    assert status_of(JointIndexAssignment, clean) is Status.PASS
+
+
+def test_a_mirrored_rig_is_left_handed():
+    from fullbody_acceptance.checks.geometry import Handedness
+
+    assert status_of(Handedness, synth.mirrored(synth.waving_frames())) is Status.FAIL
+
+
+def test_labels_on_the_wrong_side_of_the_body_are_caught():
+    from fullbody_acceptance.checks.geometry import LeftRightLabelling
+
+    swapped = synth.swap_left_right(synth.waving_frames())
+    assert status_of(LeftRightLabelling, swapped) is Status.FAIL
+
+
+def test_the_labelling_check_ignores_orientation_faults():
+    """Its facing reference is the feet, so a quaternion bug cannot implicate labels.
+
+    Without this the check blames the labels on every recording whose orientations are
+    wrong for an unrelated reason, and the submitter chases the wrong defect.
+    """
+    from fullbody_acceptance.checks.geometry import LeftRightLabelling
+
+    def to_wxyz(q):
+        x, y, z, w = q
+        return (w, x, y, z)
+
+    garbled = [
+        synth.replace(
+            item,
+            joints=tuple(
+                synth.joint(j.position, to_wxyz(j.orientation), j.is_valid)
+                for j in item.joints
+            ),
+        )
+        for item in synth.waving_frames()
+    ]
+    assert status_of(LeftRightLabelling, garbled) is Status.PASS
+
+
+def test_feet_pinned_to_the_origin_do_not_become_the_facing_reference():
+    """Two feet at the world origin point at each other, not forward."""
+    from fullbody_acceptance.checks.geometry import LeftRightLabelling
+
+    feet = (synth.FULL_BODY.index("LEFT_FOOT"), synth.FULL_BODY.index("RIGHT_FOOT"))
+    pinned = []
+    for item in synth.waving_frames():
+        joints = list(item.joints)
+        for index in feet:
+            joints[index] = synth.joint(
+                (0.0, 0.0, 0.0), joints[index].orientation, True
+            )
+        pinned.append(synth.replace(item, joints=tuple(joints)))
+
+    result = LeftRightLabelling()
+    for item in pinned:
+        result.update(item)
+    outcome = result.result()
+    assert outcome.status is Status.PASS
+    assert outcome.measurements["forward_from"] == ["pelvis_orientation"]
+
+
+def test_two_joints_in_each_others_indices_are_caught():
+    from fullbody_acceptance.checks.geometry import JointIndexAssignment
+
+    permuted = synth.swap_indices(synth.waving_frames(), "SPINE1", "SPINE2")
+    assert status_of(JointIndexAssignment, permuted) is Status.FAIL
+
+
+def test_a_limb_folded_for_the_whole_session_is_not_a_swapped_index():
+    """An A-pose puts every elbow nearer the pelvis than its shoulder, legitimately.
+
+    Judging joint order by distance to the root alone reads this as a permanent
+    inversion, so the check measures the bone's own direction instead.
+    """
+    from fullbody_acceptance.checks.geometry import JointIndexAssignment
+
+    assert status_of(JointIndexAssignment, synth.arms_down_frames()) is Status.PASS
+
+
+def test_a_bone_seen_only_briefly_is_not_judged():
+    """A short burst of validity cannot separate a reversal from a held posture.
+
+    Guards the whole-session case: validity that decays away leaves some bones with a
+    handful of samples, all drawn from whatever pose the subject happened to hold.
+    """
+    from fullbody_acceptance.checks.geometry import JointIndexAssignment
+
+    spine2 = synth.FULL_BODY.index("SPINE2")
+    permuted = synth.swap_indices(synth.waving_frames(300), "SPINE1", "SPINE2")
+    briefly_valid = []
+    for position, item in enumerate(permuted):
+        joints = list(item.joints)
+        joints[spine2] = synth.joint(
+            joints[spine2].position, joints[spine2].orientation, is_valid=position < 100
+        )
+        briefly_valid.append(synth.replace(item, joints=tuple(joints)))
+
+    outcome = drive(JointIndexAssignment(), briefly_valid)
+    assert outcome.status is Status.PASS
+    assert "SPINE1->SPINE2" not in outcome.measurements["reversed_bones"]

@@ -72,4 +72,11 @@ EXPECTED_COLLATERAL: dict[str, set[str]] = {
         "skeleton.bone_length_constancy",
         "skeleton.anthropometric_plausibility",
     },
+    # Mirroring the skeleton and swapping the left and right labels are the same
+    # transform on a bilaterally symmetric body, so no geometric test can separate them
+    # here and each fixture trips both checks. The two readings are not redundant on a
+    # real subject, who is never perfectly symmetric, but this corpus cannot show the
+    # difference; re-examine once a real asymmetric recording exists.
+    "defect_mirrored_handedness.mcap": {"skeleton.left_right_labelling"},
+    "defect_left_right_swapped.mcap": {"coordinate_frame.handedness"},
 }
