@@ -6,9 +6,9 @@
 #include <flatbuffers/idl.h>
 #include <flatbuffers/reflection_generated.h>
 #include <flatbuffers/verifier.h>
-#include <log_bridge/logger.hpp>
 
 #include <cstring>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -237,7 +237,14 @@ void enforce_schema_compat(const SchemaCompatResult& result, std::string_view co
 
     // Compatible: every recorded field still reads, so this is worth saying once and is not
     // worth refusing the recording over.
-    isaacteleop::Logger::get("isaacteleop.core.schema_compat")->warn("{}", message);
+    //
+    // std::cerr on purpose, and the one place in this tree that stays off
+    // isaacteleop::Logger. tests/cpp/core/mcap/test_schema_compat.cpp asserts on how many
+    // times this fires by swapping std::cerr's streambuf, which is the only channel a
+    // Catch2 test can observe without linking the logging stack into the test binary.
+    // A Logger call writes through spdlog's own stdout handle instead, so the assertions
+    // see nothing and three test cases fail. Do not "finish the migration" here.
+    std::cerr << message << std::endl;
 }
 
 } // namespace core
