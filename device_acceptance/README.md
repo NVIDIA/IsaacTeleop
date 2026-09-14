@@ -1,0 +1,147 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Full-body device acceptance checker
+
+Decides whether a third-party full-body motion-capture integration works, from one MCAP
+recording of a prescribed motion script and nothing else. It runs 38 checks over the
+recording and returns one verdict:
+
+| Verdict | Exit status | Meaning |
+|---|---|---|
+| `pass` | 0 | Nothing in the recording argues against the integration. |
+| `fail` | 1 | An acceptance failure attributable to the device or its plugin. |
+| `retake` | 2 | The capture is unusable because of how it was performed. The device is not implicated. |
+| `insufficient_data` | 3 | The recording cannot answer the question — too short, no skeleton in it, or a prerequisite check failed. |
+
+`fail` and `retake` are deliberately separate. Telling a vendor their device is broken
+when the operator simply squatted too shallow is the specific mistake this process exists
+to avoid.
+
+The checker is a pure addition to the repository: it imports no `isaacteleop` package and
+the only thing it takes from the tree is the FlatBuffers schema text under
+`src/core/schema/fbs/`. Design rationale, the measurements behind every threshold, and
+the open questions live in [`AGENTS.md`](AGENTS.md).
+
+## Set up
+
+```bash
+cd device_acceptance
+./setup_env.sh
+```
+
+Needs `uv`, `curl` and `unzip` on a Linux or macOS host. The script builds `.venv`,
+fetches **flatc v24.3.25** into `toolchain/`, generates the Python bindings into
+`generated/`, and verifies that the `.bfbs` it produces is byte-identical to
+`src/core/schema/golden/full_body.bfbs` — the schema bytes a real recording embeds. Run
+it again after the schema changes; it is idempotent and writes nothing outside this
+directory.
+
+## Record a take
+
+```bash
+design_agent-testing/record_g4.sh pico4u
+```
+
+One continuous take of the eleven-step motion script (~40 s), spoken cues in the
+foreground and the recorder in the background. It writes
+
+```text
+~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
+                                      /<time>-g4.labels.json   motion-step windows
+                                      /<time>-g4.log
+                                      /<time>-g4.json          what produced it
+~/isaacteleop-captures/latest.mcap -> the newest take
+```
+
+Nothing is ever overwritten, so run it again for another take. The repo has to be built
+first (`.venv-runtime` plus `examples/mcap_record_replay`), and `design_agent-testing/`
+is local-only — it is excluded from git, not shipped.
+
+The label sidecar carries the motion windows the G4 checks read, and it is written for
+you by `g4_make_labels.py` at the end of the recording. Windows are anchored to the clap
+at the start of the script and re-derived from independent signals; they are marked
+provisional, and the report says so.
+
+If the client reports `body_tracking: false`, every joint arrives invalid and only the
+container and envelope checks can run. On PICO that is a browser limitation, not a
+hardware or licensing one — see `AGENTS.md`.
+
+## Run the checks
+
+```bash
+.venv/bin/python -m fullbody_acceptance.cli ~/isaacteleop-captures/latest.mcap
+```
+
+| Option | Effect |
+|---|---|
+| `--json` | Machine-readable report: per-check status, severity, attribution, and every measurement. |
+| `--check NAME` | Run only this check. Repeatable. |
+| `--labels SIDECAR` | Use these motion labels instead of `RECORDING.labels.json` beside the file. |
+| `--list-checks` | Print the check names with their severities and one-line summaries. |
+
+Labels are optional. Without them the G4 window measurements report that they could not
+be answered, and the envelope and geometry checks still run.
+
+## Read the report
+
+```text
+verdict  RETAKE
+
+  [pass] rate.interval_regularity                 56.1 Hz, jitter 0.14 ms
+  [meas] posture.tpose_arm_droop                  arms -3.8 deg below horizontal ...
+  [FAIL] posture.squat_knee_symmetry              the knees differ by 21.4 deg ...
+  [n/a ] posture.march_ankle_antiphase            not judged: ... failed, so this ...
+```
+
+| Mark | What it means |
+|---|---|
+| `pass` | The check was answered and the answer is acceptable. |
+| `FAIL` | The check was answered and the answer is not. Whether that makes the verdict `fail` or `retake` depends on whom the check blames. |
+| `meas` | A number was measured and **nobody judged it.** These checks have no threshold yet, because the threshold has to come from real subjects rather than from test fixtures. Read the value; do not read it as approval. |
+| `n/a ` | Not answered. Either there was not enough data, or a check this one depends on failed, which makes the measurement describe the wrong frames. A suppressed check never becomes a pass. |
+| `note` | An advisory check failed. Reported, but it does not move the verdict — these are cases where a hard failure would reject legitimate hardware. |
+
+## The seven gates
+
+The acceptance process has seven gates. The checks in this directory carry the gate
+label they belong to, which `--json` reports and `--list-checks` prints.
+
+| Gate | Tests | Here |
+|---|---|---|
+| G0 | Build & skip — the plugin builds, and skips cleanly when its SDK is absent. | Attested by the submitter; not checked from a recording. |
+| G1 | Schema & channel conformance — the right schema, channel, timestamps, finite values, unit quaternions, a pose on every record. | Implemented, `gate: G1`. |
+| G2 | Skeleton geometry — up axis, metres, handedness, bone-length constancy, human proportions, left/right labelling, joint indexing, quaternion component order, position/orientation agreement. | Implemented, `gate: G2`. |
+| G3 | Signal quality — frame rate and its jitter, dropouts, validity trend, plausible joint speed. | Implemented; those checks report under `gate: G1`. |
+| G4 | Posture semantics — over the reviewer's motion windows: was each step performed, in order, and does each joint angle read what the pose implies. | Implemented, `gate: G4`. |
+| G5 | Replay through retargeting — the recording drives a robot end to end. | Not implemented; needs the live/replay slice. |
+| G6 | Human review — a reviewer watches the video of the same session. | Not automated by design. |
+
+## Tests
+
+```bash
+.venv/bin/python -m pytest
+```
+
+Two layers. The unit layer feeds accumulators frames built in memory and runs from a
+fresh clone. The oracle layer is parametrised over the synthetic fixture set's
+`fixtures_index.json` and skips when that set is not present; point `FULLBODY_FIXTURES`
+at it if it lives somewhere other than `design_agent-testing/synthetic-fixtures`.
+
+## Layout
+
+```text
+src/fullbody_acceptance/
+  frames.py        Frame / JointPose / SourceMetadata, and the FrameSource protocol
+  mcap_source.py   reads an MCAP in file order, never in log-time order
+  labels.py        the motion-window sidecar
+  profile.py       skeleton profile: topology, symmetry, priors, which checks apply
+  checks/          one module per check group; base.py holds the accumulator contract
+  report.py        verdict aggregation, dependency suppression, JSON and text renderers
+  cli.py           python -m fullbody_acceptance.cli
+tests/
+  synth.py               builds MCAPs in memory
+  known_deviations.py    where this checker knowingly disagrees with the fixture index
+```

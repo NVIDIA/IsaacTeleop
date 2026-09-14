@@ -1,0 +1,349 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Agent notes — `device_acceptance/`
+
+**CRITICAL:** complete the mandatory `AGENTS.md` preflight in [`../AGENTS.md`](../AGENTS.md)
+before editing here. Read [`../design_agent-testing/synthetic-fixtures/AGENTS.md`](../design_agent-testing/synthetic-fixtures/AGENTS.md)
+too if you touch anything the fixture set is the oracle for.
+
+This is the design record for the checker: the reasoning, the measurements behind every
+threshold, and the questions still open. [`README.md`](README.md) is the operator's guide
+and this file does not repeat it.
+
+## The one thing to take away
+
+One real PICO 4 Ultra capture exposed five defects in this checker. Eighty-three
+synthetic fixtures had found none of them.
+
+They share a single cause: **a property that the generated fixtures happen to satisfy was
+being treated as a property of recordings in general.** Four instances of that mistake,
+each of which looked like a reasonable assumption until a person performed the script:
+
+- the recording is the performance (it is not: it starts before and ends after),
+- the performer can reach the textbook pose (a generated one always does),
+- every bone length is measured (on a three-tracker rig the arms are solved),
+- a squat is symmetric (a person favours a leg).
+
+So when you add or change a check, ask: **is this criterion resting on a property of the
+device, or on a property the generator happens to produce?** Synthetic fixtures prove a
+measurement is correct. They cannot tell you what a recording looks like.
+
+## The five defects, and the evidence
+
+### 1. `segmentation.label_alignment` requires containment, not coincidence
+
+It used to require the labelled span and the recorded span to agree end to end within
+250 ms. Real captures do not: one carries 20.8 s of lead-in and 15.2 s of tail, another
+16.6 s and 12.4 s. It now requires that every window be backed by frames and lie inside
+the recording (`MAX_UNCOVERED_FRACTION = 0.02` of a window's own length may stick out),
+and it reports the unlabelled ends rather than judging them.
+
+This is a dependency of thirteen G4 checks, so the old form suppressed every G4
+measurement on a perfectly good recording.
+
+It **deliberately no longer detects** a sidecar shifted wholesale but still inside the
+recorded span. The evidence for that case belongs to
+`segmentation.labelled_step_actually_performed` and `segmentation.step_order_matches_labels`,
+which read what the windows contain instead of where they sit.
+
+### 2. `posture.arm_raise_range_of_motion` attributes to PERFORMANCE, not DEVICE
+
+One recording cannot separate "the device clipped the arm" from "the arm never went up."
+The plateau-shape idea that would have separated them is dead, measured: the share of
+samples within one degree of the peak is 24% on the saturating fixture, 23% on the clean
+one — the generated performer holds the pose — and 5% for a real performer. That statistic
+separates synthetic from human, not fault from performance.
+
+So the peak angle is the only signal, it is the same number in both cases, and asking for
+a retake is the honest verdict. A device that truly clips fails every retake, which is
+where that evidence accumulates.
+
+### 3. Four graded measurements never judge, and say so
+
+`posture.tpose_arm_droop`, `posture.tpose_left_right_asymmetry`,
+`posture.cumulative_drift_between_tpose_windows` and
+`posture.contralateral_crosstalk_single_leg_raise` report a number and no verdict, because
+their thresholds have to come from real subjects rather than from the fixtures used to
+prove the measurement correct.
+
+They return `PASS` only because there is no other way to say "measured", which reads as an
+approval nobody gave: a real capture printed 70.9 deg of contralateral crosstalk beside
+the word `pass`. Hence the `judged` class flag, rendered `[meas]`.
+
+### 4. A bone that varies on an otherwise rigid skeleton is solved, not broken
+
+With three trackers (both ankles and the waist) the arms are IK-solved to the controllers,
+and the solver puts its reach error in the last segment. On a real capture the two
+forearms varied 68% and 46% of their length while the other 21 bones held to within
+float32 storage precision.
+
+The discriminating signal is **the contrast, not the variation.** A genuinely rubber
+skeleton has no fixed bones to contrast against: `defect_bone_length_drift` varies all 23
+of them and holds none. So `skeleton.bone_length_constancy` reports a varying bone as
+solved/derived only on a rig where at least `MIN_RIGID_FRACTION = 0.6` of the measured
+bones are fixed (`RIGID_CV = 0.002`), and `skeleton.anthropometric_plausibility` drops a
+solved forearm from its proportion prior rather than judging a length the solver invented.
+
+Constantly-zero bones are the mirror case: Noitom back-fills hands from wrists and feet
+from ankles and marks them valid. Derived, never a fault.
+
+### 5. The arm raise is measured at the tracked endpoint
+
+The measurement is the elevation of the shoulder-to-hand line, not the shoulder joint
+angle. On a rig with no shoulder or elbow tracking the shoulder angle is something the
+solver made up: on a real overhead raise it read **−2.8 deg while the hand was 30 cm above
+the shoulder**, and the shoulder-to-elbow geometric vector agreed at 2.6 deg. Two
+independent algorithms reading the same wrong thing is how it is known to be the rig and
+not the quaternion arithmetic.
+
+`MIN_ELEVATION_DEG = 60.0` did not move, because the fixtures are driven by forward
+kinematics and the new metric still separates them: 25.4 deg on the saturating fixture
+against 89.4 deg on a clean one. This was not a loosening — it corrected a wrong reading.
+The real capture raised to 72.5 and 79.8 deg; the old metric read 16 and 38 deg and
+reported a device fault.
+
+## `squat_knee_symmetry` has a real attribution signal
+
+This is the one place where one recording genuinely separates device from performer, so it
+is worth stating the mechanism: a person favouring a leg bends that **whole leg chain**
+differently, while a device that mis-estimates the knees leaves the joints it actually
+tracks alone.
+
+`g4_device_squat_knee_asymmetry` holds hips and ankles at exactly 0.0 deg beside 22 deg of
+knee difference — its own description says the performer squatted evenly. A real uneven
+squat measured 21.4 deg of knee difference beside 12.9 deg at the hips and 6.6 deg at the
+ankles. `CHAIN_ASYMMETRY_DEG = 5.0` sits in that gap.
+
+The consequence for the model: `Outcome` carries an optional `attribution` that overrides
+the class default. A check whose evidence can name the culprit must say which one it saw
+rather than declaring one for both cases.
+
+## The model
+
+A check is an incremental accumulator (`update(frame)` / `result()`), so one implementation
+serves an MCAP file, a live session and a replay session. `result()` can return
+`INSUFFICIENT_DATA` at any time: that is the grey state in a live panel and the correct
+offline answer for a recording too short to conclude anything.
+
+Measurement and policy are separate. The accumulator reports a status plus its
+measurements; the class declares the policy:
+
+- **`severity`** — `HARD`, `SOFT`, `ADVISORY`. Advisory results never move the verdict;
+  they exist for cases where a hard failure would reject legitimate hardware.
+- **`attribution`** — `DEVICE` or `PERFORMANCE`, overridable per result by `Outcome`.
+- **`judged`** — `False` for a check that measures and never judges. Renders `[meas]`.
+- **`required`** — `False` when the question is about what the subject did rather than
+  about the recording being adequate. A held T-pose cannot reveal a frame mismatch however
+  long it runs, so such a check left unanswered must not drag the whole recording into
+  limbo; an unanswered *required* check must.
+- **`depends_on`** — names of checks whose failure makes this measurement meaningless.
+  `suppress_dependents` iterates to a fixed point, so suppression propagates along a chain.
+  **Suppression turns a result into "cannot conclude", never into a pass.**
+
+Verdict aggregation is a pure function over the results: any counted DEVICE failure gives
+`fail`; otherwise any counted PERFORMANCE failure gives `retake`; otherwise an unanswered
+required check gives `insufficient_data`; otherwise `pass`. Keeping `fail` and `retake`
+apart is the whole point of the attribution field — do not collapse them.
+
+Thresholds live on the check class as named constants, so a number can be filled in later
+without touching a measurement.
+
+## Architecture
+
+The modules are organised by **what input they need**, which deliberately does not mirror
+the G-numbering. The G-numbers are the narrative for the submitter; these are the layers:
+
+| Layer | Needs | Per-device cost |
+|---|---|---|
+| Envelope — the Record wrapper only | nothing | none |
+| Payload — field roles | one descriptor | a descriptor |
+| Geometry — a skeleton profile | `profile.py` | a profile |
+| Window — the reviewer's motion labels | a label sidecar | a script table |
+
+Other structural decisions that are settled:
+
+- **Check names come from `fixtures_index.json`.** Each defect fixture carries an
+  `expected_failing_check`, so the vocabulary is specified rather than invented. Do not
+  rename a check without the index.
+- **Locate the channel by declared schema name** (`core.FullBodyPoseRecord`), not by topic.
+  The topic prefix is whatever `name=` the recording script passed. Same for the profile
+  string and compression: unverified container details are informational.
+- **Read in file order.** `mcap.reader.make_reader()` re-sorts by log time, which silently
+  repairs the non-monotonic-timestamp fixture; use
+  `NonSeekingReader(path).iter_messages(log_time_order=False)`, as the C++
+  `LinearMessageView` does.
+- **`full_body` is one profile, `hand` is the known next one.** The geometry checks read
+  topology, symmetry pairs, proportion priors and *which checks apply* from the profile —
+  gravity alignment is body-only.
+- **This directory sits at the repo top level** because `src/python/CMakeLists.txt` globs
+  `.py` recursively: a file placed under it would change the wheel with no edit to any
+  build file.
+
+## Hard constraints
+
+1. **Pure addition.** Nothing under `src/`, `examples/` or `docs/` is modified and nothing
+   imports `isaacteleop`; `tests/test_no_core_changes.py` asserts it mechanically. This is
+   why the work needs no schema review and competes for no merge window. Preserve it.
+2. **`fixtures_index.json` is the oracle and is never edited to make a test pass.** A
+   disagreement is declared in `tests/known_deviations.py` with its reason.
+3. **New test data belongs here.** The fixture generator rewrites the index as a side
+   effect of adding a fixture, so cases this checker needs are built by `tests/synth.py`
+   into a temp directory.
+4. **Thresholds do not come from fixtures.** Synthetic motion is smooth by construction and
+   injected faults are caricatures. Use the fixtures to prove a measurement; use real
+   subjects to choose a number.
+
+### The three declared deviations
+
+All in `tests/known_deviations.py`:
+
+- **`defect_all_tracked_flag_inconsistent`** — `all_joint_poses_tracked` comes from the
+  OpenXR runtime's `locations.allJointPosesTracked` while `is_valid` comes independently
+  from each joint's `XR_SPACE_LOCATION_*_VALID_BIT`. The two can legitimately disagree, so
+  `consistency.all_joint_poses_tracked` is advisory and the fixture reports `pass`.
+- **`defect_device_clock_copies_common`** — Pico derives
+  `sample_time_raw_device_clock` from `xrConvertTimespecTimeToTimeKHR`, so a runtime
+  representing `XrTime` as `CLOCK_MONOTONIC` nanoseconds makes the device clock equal the
+  common clock on a good recording. Advisory, unverified without more hardware.
+- **`g4_device_arm_raise_saturates`** — `retake` where the index says `fail`, for the
+  reason in defect 2 above.
+
+`EXPECTED_COLLATERAL` in the same file records where one injected defect legitimately trips
+more than one check — centimetre units really do imply 168 m/s and a 157 m skeleton, and on
+a bilaterally symmetric body mirroring the rig and swapping the left/right labels are the
+same transform, so those two fixtures each trip both chirality checks.
+
+## Established constraints — do not re-derive these
+
+Each cost real time to establish and is asserted somewhere in the tests.
+
+- **Chirality and left/right labelling derive forward from the ankle-to-foot vectors, not
+  from the pelvis quaternion.** A pelvis-derived facing makes both checks fail on any
+  recording whose orientations are wrong for an unrelated reason, sending the submitter
+  after the wrong defect. The mean over the pair is unchanged by either a mirror or a
+  left/right swap. Feet are trusted only when both are present, plausibly long against the
+  torso, and pointing within 60° of each other — a foot zeroed to the world origin passes a
+  bare length test because its ankle is near the origin too. Recordings without usable feet
+  (back-filled endpoints, and Pico, which reports no feet) fall back to the pelvis, and the
+  outcome records which reference it used.
+- **`skeleton.joint_index_assignment` measures how much of a bone's length is spent moving
+  back toward the pelvis.** Raw distance-to-root ordering does not work: an A-pose puts
+  every elbow nearer the pelvis than its shoulder, which is what made the check fire on
+  `defect_validity_degradation`, whose surviving frames are all in the opening A-pose. A
+  reversed bone points straight at the root for a ratio of +1 while nothing correctly
+  indexed in the corpus exceeds −0.47, so the 0.8 threshold sits in an empty gap rather
+  than being tuned.
+- **Range of motion is measured torso-relative, never in world coordinates.** An operator
+  who leans while raising an arm reads −83° of shoulder ROM in world coordinates, against
+  −95° clean and −25° for a device whose tracking saturates: the leaning operator looks like
+  a mildly broken device. Torso-relative they read −95.5°, i.e. intact. A world-frame
+  measurement converts a `retake` into a `fail`.
+- **"Stature" here is the head *joint* above the lowest joint, about 1.57 m**, not
+  anatomical stature (~1.72 m). A proportion prior must state which it tests or it sits
+  systematically ~15 cm low. `stature_chain` sums bone lengths along one leg and the spine,
+  so no posture can move it — unlike a bounding box.
+- **Use peak joint angle, not path length, to decide whether a step was performed.**
+  Position noise of 0.3 mm/frame random-walks to roughly 0.33 m over a window, about 12% of
+  the real signal, so motion-energy and path-length statistics are noise-dominated at this
+  scale. Peak angle is not.
+- **Held poses are measured over the trailing 60% of their window** (`SETTLE_FRACTION`),
+  because the script blends into each pose over 0.55 s and the window mean otherwise reports
+  the transition.
+- **flatc v24.3.25 with the `GenerateFlatBuffers.cmake` flag set produces a `.bfbs`
+  byte-identical to `src/core/schema/golden/full_body.bfbs`.** That check in `setup_env.sh`
+  is what ties this checker to the schema the C++ writer actually embeds. A distro package
+  or Homebrew ships 25.x, whose output does not match.
+- **The Python `flatbuffers` package has no reflection module.** Payloads cannot be walked
+  from the embedded `.bfbs`; decode with the flatc-generated bindings and use the `.bfbs`
+  only for byte comparison. Consequence: payload checks are per-schema, one mechanical
+  flatc step, not runtime-generic.
+
+## Real hardware, established facts
+
+The captures are PICO 4 Ultra through the CloudXR web client, ~56 Hz, three trackers (both
+ankles and the waist) with a controller in each hand. Real recordings are human motion data:
+they stay out of git and out of the fixture folder, and live under `$HOME`.
+
+- **`body_tracking: false` came from the browser** — not from the hardware and not from
+  licensing. The browser PICO ships granted the WebXR `body-tracking` feature on the same
+  consumer 4 Ultra with no enterprise activation. Earlier notes claimed a consumer headset
+  never grants it; that claim is wrong, do not write it back.
+- **Invalid joints carry arbitrary values, not zeros.** One held a quaternion component of
+  −16363.96. The fixture set records zeros here, so gating on the validity flag is
+  load-bearing for a wider reason than that set can show: an ungated finite or unit-norm
+  check fails a working device on data it was never meant to read.
+- **The two clocks are a rigid offset.** `sample_time_raw_device_clock` runs 1291.369356 s
+  ahead of the common clock with zero variance over 3373 frames, and
+  `available_time_local_common_clock` equals the sample time exactly, so
+  `timestamps.available_not_before_sample` cannot fail on this device.
+- **Three trackers means the upper body is inferred** from the headset and controllers.
+  Shoulder, elbow and spine angles on such a rig are solver output; see defects 4 and 5.
+
+## Derived data
+
+`~/isaacteleop-captures/derived/145511-g4-passing.mcap`, built from the real 145511 capture
+by `design_agent-testing/g4_amplify_arm_raise.py`. Only the two arm-raise windows are
+edited, and inside them only the three joints below each shoulder: positions and
+orientations rotate together about the shoulder so the relative geometry
+`consistency.position_orientation_same_frame` reads is preserved. Every other frame and
+joint is the original capture. It reaches `pass` with all 38 checks answered, and the solved
+bones are still exactly the two forearms.
+
+**Its limits matter as much as its result.** It proves that no check misfires on the shape
+of real data — the failure mode that produced five defects in one afternoon and that 83
+generated fixtures never showed. It does **not** prove a person can reach the gate: that one
+reading is synthetic. It is not a substitute for one real qualifying capture.
+
+Building it also found a ceiling: targeting 85 deg of elevation drives a joint to 25 m/s,
+past the 20 m/s `continuity.max_joint_velocity` limit. On a real performer's own timing the
+arm cannot be raised much higher without making the speed implausible. The file ships at
+70 deg, which peaks at 17.4 m/s.
+
+## Open
+
+- **`consistency.all_joint_poses_tracked` is still undecided.** Both real captures have
+  every joint valid, so the flag and the per-joint flags agree trivially. Settling it needs
+  a capture with partial occlusion or a tracker dropping out.
+- **Contralateral crosstalk of 70.9 and 77.6 deg on the standing hip is unexplained.** The
+  hip angle is pelvis-relative, so pelvis tilt is the suspicion, unverified.
+- **Peak joint speeds of 10–11 m/s are unexplained.** Below the 20 m/s limit, so nothing
+  fails, but nothing accounts for them either.
+- **No purely real capture has reached `pass`.** 145511 squats evenly (4.0 deg) but the
+  hands reach only 36 deg; the earlier take reaches 72 deg but squats unevenly (21.4 deg).
+  This is the most concrete gap in the evidence.
+- **G5 and G6 are not built** (replay through retargeting, and the live preflight panel).
+- **Labels are a sidecar outside the recording**, marked provisional, because MCAP carries
+  no annotation channel yet. Moving them in would need a core change, which is why they are
+  not in there now.
+- **An idea, not scheduled:** apply the fixture set's defect transformations to a real
+  capture. That would give a real noise floor and exact ground truth at once — the defect
+  transformations apply to any source.
+
+## Tests
+
+Two layers, split by whether a test needs the fixture set, which lives outside git.
+
+- **Unit** — accumulators fed frames built in memory by `tests/synth.py`. No MCAP, no
+  external data, runs from a fresh clone. `tests/test_pico_shapes.py` covers shapes the
+  fixture set (modelled on Noitom) does not: garbage on invalid joints, a registered channel
+  with no messages, a file whose schema is something else, a renamed topic.
+- **Oracle** — parametrised over `fixtures_index.json`, asserting `expected_verdict` and
+  `expected_failing_check`. Skips when the set is absent; `FULLBODY_FIXTURES` overrides its
+  location.
+
+CI can only ever run the unit layer: the fixtures are not in git and the largest is 1.8 MB
+against pre-commit's 2000 KiB ceiling.
+
+Graded fixtures are asserted by accuracy and monotonicity against the injected magnitude,
+plus a zero rung reading zero — never by pass/fail.
+
+## Working here
+
+- Run `SKIP=check-copyright-year pre-commit run --all-files` from the repo root and fix
+  every failure before treating a change as done; that is the hook set CI uses.
+- Commit with `git commit -s` (DCO).
+- New documents need the SPDX header pair, as an HTML comment block in Markdown, or the
+  REUSE hook fails.
