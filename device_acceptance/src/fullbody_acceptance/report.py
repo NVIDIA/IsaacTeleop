@@ -13,12 +13,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any, Iterable, Sequence
 
 from .checks import Attribution, Check, Severity, Status, build_all
 from .frames import FrameSource, SourceMetadata
+from .labels import StepTimeline
 
 
 class Verdict(StrEnum):
@@ -141,6 +142,49 @@ class Report:
         return "\n".join(lines)
 
 
+def suppress_dependents(
+    results: Sequence[CheckResult], checks: Sequence[Check]
+) -> list[CheckResult]:
+    """Turns results whose preconditions failed into "cannot conclude".
+
+    Iterates to a fixed point so suppression propagates along a chain: broken label
+    windows make the step-order test unanswerable, which in turn makes every device
+    measurement read through those windows unanswerable.
+    """
+    by_name = {result.name: result for result in results}
+    blocked: dict[str, str] = {}
+    dependencies = {check.name: check.depends_on for check in checks}
+
+    changed = True
+    while changed:
+        changed = False
+        for name, needs in dependencies.items():
+            if name in blocked:
+                continue
+            for required_name in needs:
+                upstream = by_name.get(required_name)
+                if upstream is None:
+                    continue
+                if upstream.status is Status.FAIL or required_name in blocked:
+                    blocked[name] = required_name
+                    changed = True
+                    break
+
+    return [
+        replace(
+            result,
+            status=Status.INSUFFICIENT_DATA,
+            detail=(
+                f"not judged: {blocked[result.name]} failed, so this measurement would "
+                f"describe the wrong frames"
+            ),
+        )
+        if result.name in blocked and result.status is not Status.INSUFFICIENT_DATA
+        else result
+        for result in results
+    ]
+
+
 def aggregate(results: Iterable[CheckResult]) -> Verdict:
     counted = [r for r in results if r.counts_toward_verdict]
     if any(
@@ -162,8 +206,15 @@ def aggregate(results: Iterable[CheckResult]) -> Verdict:
     return Verdict.PASS
 
 
-def run(source: FrameSource, checks: Sequence[Check] | None = None) -> Report:
-    active = list(checks) if checks is not None else build_all()
+def run(
+    source: FrameSource,
+    checks: Sequence[Check] | None = None,
+    timeline: StepTimeline | None = None,
+) -> Report:
+    path = getattr(source, "path", None)
+    if timeline is None and path is not None:
+        timeline = StepTimeline.beside(path)
+    active = list(checks) if checks is not None else build_all(timeline)
 
     frames = 0
     for frame in source:
@@ -188,8 +239,17 @@ def run(source: FrameSource, checks: Sequence[Check] | None = None) -> Report:
             )
         )
 
+    results = suppress_dependents(results, active)
+
     metadata = source.metadata
     notes: list[str] = []
+    if timeline is None:
+        notes.append(
+            "no motion-step labels beside the recording, so the G4 window measurements "
+            "are reported as unanswered rather than guessed"
+        )
+    elif timeline.provisional:
+        notes.append(f"motion labels read from {timeline.source}, marked provisional")
     if not metadata.channel_found:
         notes.append(
             "no channel declares schema core.FullBodyPoseRecord; nothing to check"

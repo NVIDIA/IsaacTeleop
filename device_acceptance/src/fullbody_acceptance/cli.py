@@ -16,6 +16,7 @@ import argparse
 import sys
 
 from .checks import build, build_all
+from .labels import StepTimeline
 from .mcap_source import McapFrameSource
 from .report import Verdict, run
 
@@ -41,6 +42,11 @@ def main(argv: list[str] | None = None) -> int:
         help="run only this check; repeatable",
     )
     parser.add_argument(
+        "--labels",
+        metavar="SIDECAR",
+        help="motion-step labels; defaults to RECORDING.labels.json beside the file",
+    )
+    parser.add_argument(
         "--list-checks", action="store_true", help="print the check names and exit"
     )
     args = parser.parse_args(argv)
@@ -50,8 +56,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{check.name:<45} {check.severity:<9} {check.summary}")
         return 0
 
-    checks = build(args.checks) if args.checks else build_all()
-    report = run(McapFrameSource(args.recording), checks)
+    source = McapFrameSource(args.recording)
+    timeline = (
+        StepTimeline.load(args.labels)
+        if args.labels
+        else StepTimeline.beside(args.recording)
+    )
+    checks = build(args.checks, timeline) if args.checks else build_all(timeline)
+    report = run(source, checks, timeline)
     print(report.to_json() if args.json else report.to_text())
     return EXIT_STATUS[report.verdict]
 

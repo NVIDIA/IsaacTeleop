@@ -124,7 +124,7 @@ CI can only ever run the unit layer: the fixtures are not in git and the largest
    `hand` is the known next one. Gravity direction is body-only. Done: all nine geometry
    checks land, with the chirality findings below.
 4. G4 measurement, validated against the graded series by accuracy and monotonicity
-   rather than pass/fail.
+   rather than pass/fail. Done: 16 windowed checks, see below.
 
 Slice 5 (capture script, prompter, live panel, G5) needs hardware and is out of scope.
 
@@ -167,6 +167,32 @@ from a permuted skeleton, which is what made the check fire on
 A reversed bone points straight at the root for a ratio of +1, while nothing correctly
 indexed in the corpus exceeds −0.47, so the 0.8 threshold sits in an empty gap rather
 than being tuned.
+
+## G4 measures local joint angles, and only through labels it has checked
+
+Every G4 measurement recovers a *local* joint angle, as `conj(q_parent) * q_child`
+projected onto the body axis the motion turns about. That is what a vendor's integration
+gets wrong, and it does not move when the subject stands somewhere else in the room —
+a world-frame measurement would turn a retake into a fail. Projecting onto the axis also
+keeps the sign that `2*acos(w)` would throw away. Held poses are measured over the
+trailing 60% of their window, because the script blends into each pose over 0.55 s and
+the window mean otherwise reports the transition.
+
+The recovery is exact: droop, asymmetry, crosstalk, knee asymmetry, lean, squat depth,
+arm elevation and cadence all come back at the injected value, and drift comes back in
+radians to four decimals. The graded checks are nonetheless **advisory**. Where their
+threshold belongs is a calibration question that no synthetic fixture answers, which is
+why the index marks those recordings "graded" rather than pass or fail, so the tests
+assert accuracy, monotonicity and a zero rung reading zero instead of a verdict.
+
+Checks now declare `depends_on`, and a result whose precondition failed becomes "cannot
+conclude" rather than a pass. This is not bookkeeping: in `g4_perf_steps_out_of_order`
+the window labelled "right arm raise" holds a leg raise, so the arm never leaves the
+subject's side and a naive reading blames the device for clipping its range — a
+performance fault reported as a device fault, the one confusion G4 exists to prevent.
+Device-attributed posture checks therefore also require that the labelled step was
+performed and in order, while performance-attributed ones require only that the windows
+are well formed, since suppressing those would discard the actual diagnosis.
 
 ## Deferred
 

@@ -596,12 +596,16 @@ def test_a_held_pose_cannot_answer_the_frame_questions():
 
 
 def test_an_unanswerable_conditional_check_does_not_block_the_verdict():
+    """A held pose without motion labels leaves the frame and G4 questions open."""
     report = run(synth.StubSource(synth.frames(300)))
     assert report.verdict is Verdict.PASS
-    assert {r.name for r in report.unanswered} == {
+    unanswered = {r.name for r in report.unanswered}
+    assert {
         "consistency.position_orientation_same_frame",
         "quaternion.component_order",
-    }
+    } <= unanswered
+    # The verdict only survives because none of them is a required check.
+    assert not [r for r in report.unanswered if r.required]
 
 
 def test_a_whole_rig_expressed_z_up_is_still_internally_consistent():

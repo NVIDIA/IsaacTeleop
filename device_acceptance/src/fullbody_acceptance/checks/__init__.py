@@ -9,6 +9,7 @@ the specification for this vocabulary, so nothing here invents a name.
 
 from __future__ import annotations
 
+from ..labels import StepTimeline
 from .base import Attribution, Check, Outcome, Severity, Status
 from .consistency import AllJointPosesTracked
 from .continuity import MaxJointVelocity
@@ -23,9 +24,29 @@ from .geometry import (
     UpAxis,
 )
 from .orientation import ComponentOrder, PositionOrientationSameFrame
+from .posture import (
+    ArmRaiseRangeOfMotion,
+    ArmRaiseTorsoStability,
+    ContralateralCrosstalkSingleLegRaise,
+    CumulativeDriftBetweenTposeWindows,
+    MarchAnkleAntiphase,
+    MarchCadenceSteady,
+    SquatDepthSufficient,
+    SquatKneeSymmetry,
+    SquatRepRepeatability,
+    TposeArmDroop,
+    TposeLeftRightAsymmetry,
+)
 from .quaternion import UnitNormOnValidJoints
 from .rate import FrameGaps, IntervalRegularity
 from .schema import JointsFieldPresent
+from .segmentation import (
+    FallbackWithoutLabels,
+    LabelAlignment,
+    LabelledStepActuallyPerformed,
+    LabelWindowsWellformed,
+    StepOrderMatchesLabels,
+)
 from .timestamps import AvailableNotBeforeSample, DeviceClockDistinct, Monotonic
 from .values import Finite, ZeroPoseOnValidJoint
 
@@ -52,19 +73,41 @@ CHECKS: tuple[type[Check], ...] = (
     Handedness,
     LeftRightLabelling,
     JointIndexAssignment,
+    # G4: everything below reads the recording through the reviewer's motion windows.
+    LabelWindowsWellformed,
+    LabelAlignment,
+    FallbackWithoutLabels,
+    LabelledStepActuallyPerformed,
+    StepOrderMatchesLabels,
+    TposeArmDroop,
+    TposeLeftRightAsymmetry,
+    CumulativeDriftBetweenTposeWindows,
+    ContralateralCrosstalkSingleLegRaise,
+    ArmRaiseRangeOfMotion,
+    MarchAnkleAntiphase,
+    SquatKneeSymmetry,
+    SquatRepRepeatability,
+    SquatDepthSufficient,
+    MarchCadenceSteady,
+    ArmRaiseTorsoStability,
 )
 
 
-def build_all() -> list[Check]:
-    return [cls() for cls in CHECKS]
+def _construct(cls: type[Check], timeline: StepTimeline | None) -> Check:
+    # G4 checks need the reviewer's windows; the rest must not have to know they exist.
+    return cls(timeline) if getattr(cls, "needs_timeline", False) else cls()
 
 
-def build(names: list[str]) -> list[Check]:
+def build_all(timeline: StepTimeline | None = None) -> list[Check]:
+    return [_construct(cls, timeline) for cls in CHECKS]
+
+
+def build(names: list[str], timeline: StepTimeline | None = None) -> list[Check]:
     by_name = {cls.name: cls for cls in CHECKS}
     unknown = [name for name in names if name not in by_name]
     if unknown:
         raise KeyError(f"unknown checks: {unknown}")
-    return [by_name[name]() for name in names]
+    return [_construct(by_name[name], timeline) for name in names]
 
 
 __all__ = [

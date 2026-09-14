@@ -66,6 +66,14 @@ class Check(ABC):
     # into limbo; an unanswered required check must.
     required: ClassVar[bool] = True
 
+    # Names of checks whose failure makes this one's measurement meaningless. A device
+    # measurement read through motion windows cannot be trusted once those windows are
+    # known to be wrong: the arm-raise window of a session performed out of order holds
+    # a leg raise, and reporting that as a clipped arm is the device-versus-performance
+    # confusion this whole process exists to prevent. Suppression turns such a result
+    # into "cannot conclude", never into a pass.
+    depends_on: ClassVar[tuple[str, ...]] = ()
+
     def __init__(self) -> None:
         self.frames_seen = 0
 

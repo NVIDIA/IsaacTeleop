@@ -74,3 +74,37 @@ def as_wxyz(stored: Quaternion) -> Quaternion:
     """Reinterprets fields written w,x,y,z into the x,y,z,w slots."""
     a, b, c, d = stored
     return (b, c, d, a)
+
+
+def conjugate(q: Quaternion) -> Quaternion:
+    return (-q[0], -q[1], -q[2], q[3])
+
+
+def multiply(a: Quaternion, b: Quaternion) -> Quaternion:
+    ax, ay, az, aw = a
+    bx, by, bz, bw = b
+    return (
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+        aw * bw - ax * bx - ay * by - az * bz,
+    )
+
+
+def relative(parent: Quaternion, child: Quaternion) -> Quaternion:
+    """The child's rotation expressed in the parent's frame."""
+    return multiply(conjugate(parent), child)
+
+
+def signed_angle_about(q: Quaternion, axis: Vector) -> float:
+    """Radians of ``q`` about ``axis``, signed by the right-hand rule.
+
+    The G4 script builds every limb pose as a single rotation about one body axis, so
+    projecting onto that axis recovers the injected angle in its own units instead of
+    the magnitude that ``2*acos(w)`` would give.
+    """
+    unit = normalised(axis)
+    if unit is None:
+        return 0.0
+    along = dot((q[0], q[1], q[2]), unit)
+    return 2.0 * math.atan2(along, q[3])
