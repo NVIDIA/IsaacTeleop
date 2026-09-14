@@ -217,6 +217,157 @@ TEST_CASE("CylinderLayer acquire promotes the mailbox and carries shape params",
     CHECK_THROWS_AS(layer.acquire_native_layer(0), std::logic_error);
 }
 
+// The value that matters is the one the backend reads, so assert through
+// acquire_native_layer() rather than the getter: a setter that updated only
+// Config would pass a round-trip check and still never reach the runtime.
+// Curved surfaces converge by rotating, not translating: a translation gives
+// full disparity dead ahead and less toward the arc edges, and none at all at
+// the infinite radius an equirect sphere defaults to.
+TEST_CASE("Shaped layers carry a live stereo convergence into the native view",
+          "[gpu][cylinder_layer][equirect_layer][native][stereo]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto& ctx = shared_vk_context();
+
+    void* left = alloc_device_pixels(64, 32);
+    CudaFree guard_l{ left };
+    void* right = alloc_device_pixels(64, 32);
+    CudaFree guard_r{ right };
+
+    SECTION("CylinderLayer")
+    {
+        CylinderLayer::Config cfg;
+        cfg.resolution = { 64, 32 };
+        cfg.stereo = true;
+        cfg.stereo_convergence_deg = 1.5f;
+        CylinderLayer layer(ctx, cfg);
+        CHECK(layer.stereo_convergence_deg() == 1.5f);
+
+        layer.set_stereo_convergence_deg(-0.75f);
+        layer.submit(device_buffer(left, 64, 32), device_buffer(right, 64, 32));
+        const auto view = layer.acquire_native_layer(0);
+        REQUIRE(view.has_value());
+        CHECK(view->stereo_convergence_deg == -0.75f);
+
+        CHECK_THROWS_AS(layer.set_stereo_convergence_deg(std::numeric_limits<float>::infinity()), std::invalid_argument);
+        CHECK(layer.stereo_convergence_deg() == -0.75f);
+    }
+
+    SECTION("EquirectLayer")
+    {
+        EquirectLayer::Config cfg;
+        cfg.resolution = { 64, 32 };
+        cfg.stereo = true;
+        EquirectLayer layer(ctx, cfg);
+
+        layer.set_stereo_convergence_deg(2.0f);
+        layer.submit(device_buffer(left, 64, 32), device_buffer(right, 64, 32));
+        const auto view = layer.acquire_native_layer(0);
+        REQUIRE(view.has_value());
+        CHECK(view->stereo_convergence_deg == 2.0f);
+    }
+
+    SECTION("mono stays inert")
+    {
+        CylinderLayer::Config cfg;
+        cfg.resolution = { 64, 32 };
+        cfg.stereo = false;
+        CylinderLayer layer(ctx, cfg);
+
+        layer.set_stereo_convergence_deg(2.0f);
+        layer.submit(device_buffer(left, 64, 32));
+        const auto view = layer.acquire_native_layer(0);
+        REQUIRE(view.has_value());
+        CHECK(view->stereo_convergence_deg == 0.0f);
+    }
+}
+
+TEST_CASE("Shaped layer ctors reject a non-finite stereo convergence", "[gpu][cylinder_layer][equirect_layer][stereo]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto& ctx = shared_vk_context();
+
+    CylinderLayer::Config cyl;
+    cyl.resolution = { 64, 32 };
+    cyl.stereo_convergence_deg = std::numeric_limits<float>::quiet_NaN();
+    CHECK_THROWS_AS(CylinderLayer(ctx, cyl), std::invalid_argument);
+
+    EquirectLayer::Config eq;
+    eq.resolution = { 64, 32 };
+    eq.stereo_convergence_deg = std::numeric_limits<float>::infinity();
+    CHECK_THROWS_AS(EquirectLayer(ctx, eq), std::invalid_argument);
+}
+
+TEST_CASE("Shaped layers carry a live stereo baseline into the native view",
+          "[gpu][cylinder_layer][equirect_layer][native][stereo]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto& ctx = shared_vk_context();
+
+    void* left = alloc_device_pixels(64, 32);
+    CudaFree guard_l{ left };
+    void* right = alloc_device_pixels(64, 32);
+    CudaFree guard_r{ right };
+
+    SECTION("CylinderLayer")
+    {
+        CylinderLayer::Config cfg;
+        cfg.resolution = { 64, 32 };
+        cfg.stereo = true;
+        cfg.stereo_baseline_mm = 63.0f;
+        CylinderLayer layer(ctx, cfg);
+
+        layer.set_stereo_baseline_mm(30.0f);
+        layer.submit(device_buffer(left, 64, 32), device_buffer(right, 64, 32));
+        const auto view = layer.acquire_native_layer(0);
+        REQUIRE(view.has_value());
+        CHECK(view->stereo_baseline_mm == 30.0f);
+
+        CHECK_THROWS_AS(layer.set_stereo_baseline_mm(std::numeric_limits<float>::quiet_NaN()), std::invalid_argument);
+        CHECK(layer.stereo_baseline_mm() == 30.0f);
+    }
+
+    SECTION("EquirectLayer")
+    {
+        EquirectLayer::Config cfg;
+        cfg.resolution = { 64, 32 };
+        cfg.stereo = true;
+        cfg.stereo_baseline_mm = 63.0f;
+        EquirectLayer layer(ctx, cfg);
+
+        layer.set_stereo_baseline_mm(-12.5f);
+        layer.submit(device_buffer(left, 64, 32), device_buffer(right, 64, 32));
+        const auto view = layer.acquire_native_layer(0);
+        REQUIRE(view.has_value());
+        CHECK(view->stereo_baseline_mm == -12.5f);
+    }
+
+    // Mono keeps the native view at zero however the setter is driven --
+    // the gate is Config::stereo, which construction fixes.
+    SECTION("mono stays inert")
+    {
+        CylinderLayer::Config cfg;
+        cfg.resolution = { 64, 32 };
+        cfg.stereo = false;
+        CylinderLayer layer(ctx, cfg);
+
+        layer.set_stereo_baseline_mm(65.0f);
+        layer.submit(device_buffer(left, 64, 32));
+        const auto view = layer.acquire_native_layer(0);
+        REQUIRE(view.has_value());
+        CHECK(view->stereo_baseline_mm == 0.0f);
+    }
+}
+
 TEST_CASE("EquirectLayer stereo acquire pairs both eyes on one sphere", "[gpu][equirect_layer][native]")
 {
     if (!is_gpu_available())
