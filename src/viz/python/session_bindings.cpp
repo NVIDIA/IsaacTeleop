@@ -38,6 +38,7 @@ void bind_session(py::module_& m)
         .def_readonly("predicted_display_time", &viz::FrameInfo::predicted_display_time)
         .def_readonly("delta_time", &viz::FrameInfo::delta_time)
         .def_readonly("should_render", &viz::FrameInfo::should_render)
+        .def_readonly("reference_space_changed", &viz::FrameInfo::reference_space_changed)
         .def_readonly("resolution", &viz::FrameInfo::resolution)
         .def_readonly("views", &viz::FrameInfo::views,
                       "Per-eye render target metadata. 2 entries in XR stereo, 1 in window/offscreen. "

@@ -35,7 +35,9 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 set(JSON_BuildTests OFF CACHE INTERNAL "")
+isaac_teleop_third_party_scope_begin()
 FetchContent_MakeAvailable(nlohmann_json)
+isaac_teleop_third_party_scope_end()
 
 # ------------------------------------------------------------------------------
 # BLE backend: BlueZ over the system libdbus (AFL-2.1, permissive).

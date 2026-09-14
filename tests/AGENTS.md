@@ -35,7 +35,7 @@ Shared C++ fixtures (not executables) live under `tests/cpp/viz/support/`
 - **Catch2 executable names** stay stable: `schema_tests`, `viz_core_tests`,
   `viz_layers_tests`, … CI globs `viz_*_tests` for GPU packaging.
 - **CTest name prefixes** stay stable: `schema_*`, `retargeting_*`,
-  `viz_python_*`, `mujoco_xr_*`, etc.
+  `viz_python_*`, etc.
 - **Catch2 tags** → CTest labels via `ADD_TAGS_AS_LABELS` (`unit`, `gpu`, `xr`).
 
 ## Python conventions

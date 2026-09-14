@@ -84,9 +84,9 @@ _INSTALL_DIR_HINT = (
 _CMAKE_CACHE = "CMakeCache.txt"
 
 #: Directories that hold build trees: a hand-made ``cmake -B build``, and the
-#: managed preset/wheel trees, which are one level down (``build-cmake/
-#: cpython-311``). Only used to sharpen an error message, so an unknown
-#: layout costs nothing but a less specific remedy.
+#: managed wheel trees, which are one level down (``build-wheel/cpython-311``).
+#: Only used to sharpen an error message, so an unknown layout costs nothing
+#: but a less specific remedy.
 _BUILD_DIRS = ("build", "build-cmake", "build-wheel")
 
 

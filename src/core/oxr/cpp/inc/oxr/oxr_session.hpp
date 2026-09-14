@@ -6,13 +6,45 @@
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_session_handles.hpp>
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 namespace core
 {
+
+enum class OpenXRProviderState
+{
+    AVAILABLE,
+    FAILED,
+};
+
+enum class OpenXRHeadsetState
+{
+    CONNECTED,
+    DISCONNECTED,
+};
+
+enum class OpenXRProviderReason
+{
+    NONE,
+    FORM_FACTOR_UNAVAILABLE,
+    SESSION_LOST,
+    INSTANCE_LOST,
+    POLL_ERROR,
+};
+
+struct OpenXRProviderSnapshot
+{
+    OpenXRProviderState state = OpenXRProviderState::AVAILABLE;
+    OpenXRHeadsetState headset_state = OpenXRHeadsetState::CONNECTED;
+    OpenXRProviderReason reason = OpenXRProviderReason::NONE;
+    std::optional<std::int32_t> result_code;
+    std::string error;
+};
 
 // OpenXR session management - creates and manages a headless OpenXR session
 class OpenXRSession
@@ -22,6 +54,9 @@ public:
 
     // Get session handles for use with trackers
     OpenXRSessionHandles get_handles() const;
+
+    // Poll the owned OpenXR event queue and return the cached provider state.
+    OpenXRProviderSnapshot get_provider_snapshot();
 
 private:
     // PFN_* deleter types work when OpenXR was already included with XR_NO_PROTOTYPES (no xrDestroy* declarations).
@@ -41,6 +76,7 @@ private:
     SessionHandle session_;
     SpaceHandle space_;
     bool wait_for_system_;
+    OpenXRProviderSnapshot provider_snapshot_;
 };
 
 } // namespace core

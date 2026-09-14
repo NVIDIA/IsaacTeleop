@@ -31,6 +31,13 @@ cmake_minimum_required(VERSION 3.20)
 # Core: Vulkan/CUDA infrastructure and foundational types.
 add_subdirectory(core)
 
+# Robot twin: MuJoCo's renderer read back into CUDA, over a private MuJoCo. The whole
+# sub-module is one pybind11 extension and no viz:: target links it, so it goes with the
+# bindings rather than with Televiz.
+if(BUILD_PYTHON_BINDINGS)
+    add_subdirectory(robot_twin/cpp)
+endif()
+
 # XR: OpenXR-bound graphics session + XrBackend.
 add_subdirectory(xr)
 

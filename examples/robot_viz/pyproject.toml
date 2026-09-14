@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Pure Python -- nothing here is compiled. The scene backend lives in
+# isaacteleop.viz.robot, which ships with Televiz on Linux.
+#
+#     uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/
+#     uv pip install -e ./examples/robot_viz
+#     python -m isaacteleop_examples.robot_viz          # needs a headset; fetches its
+#                                                       # scene on the first run
+#
+# `-e` is supported and is the way to iterate; there is no extension to go stale.
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaacteleop-examples-robot-viz"
+version = "0.0.0"  # Internal example - not versioned
+description = "A robot's digital twin rendered into an Isaac Teleop Televiz XR session"
+# Bounds match ISAAC_TELEOP_PYTHON_VERSION_MIN / _MAX_EXCLUSIVE in the root CMakeLists.
+requires-python = ">=3.11,<3.14"
+
+dependencies = [
+    # Unversioned, and a live hazard: a published isaacteleop exists on PyPI, so this
+    # resolves happily against a release that is not this checkout's viz -- and against
+    # one with no robot twin at all. Install the locally built wheel first.
+    "isaacteleop",
+    # app.py imports numpy directly.
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "numpy"]
+
+# `namespaces = true` is load-bearing: isaacteleop_examples is a PEP 420 namespace with
+# no __init__.py, shared with every other example. Do not add one to make a discovery
+# problem go away -- it would stop a second example sharing the namespace.
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["isaacteleop_examples*"]
+namespaces = true
+
+# No package-data: the scene and its meshes belong to isaacteleop.viz.robot, which fetches
+# them into a cache on first use. This example ships nothing but Python.
+
+[tool.pytest.ini_options]
+pythonpath = ["python"]

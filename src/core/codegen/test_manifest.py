@@ -64,6 +64,17 @@ class ManifestResolverTest(unittest.TestCase):
         self.assertEqual(entry["class"], "Se3Tracker")
         self.assertEqual(entry["tensor_identifier"], "se3_tracker")
 
+    def test_plugin_device_status_contract(self) -> None:
+        entries = load_manifest(
+            CORE_ROOT / "deviceio_trackers" / "trackers.toml", DEFAULTS_PATH
+        )
+        entry = next(item for item in entries if item["name"] == "plugin_device_status")
+        self.assertEqual(entry["table"], "PluginDeviceStatusSnapshot")
+        self.assertEqual(entry["class"], "PluginDeviceStatusTracker")
+        self.assertEqual(entry["max_flatbuffer_size"], 4096)
+        self.assertTrue(entry["facade_tensor_constant"])
+        self.assertEqual(entry["python_accessor"], "get_device_status_snapshot")
+
     def test_pedal_schema_and_traits_override(self) -> None:
         entry = resolve_tracker_entry(
             {

@@ -7,6 +7,14 @@ table = "JointStateOutput"
 max_flatbuffer_size = 4096
 
 [[tracker]]
+name = "plugin_device_status"
+table = "PluginDeviceStatusSnapshot"
+class = "PluginDeviceStatusTracker"
+max_flatbuffer_size = 4096
+facade_tensor_constant = true
+python_accessor = "get_device_status_snapshot"
+
+[[tracker]]
 name = "se3_tracker"
 table = "Se3TrackerPose"
 class = "Se3Tracker"

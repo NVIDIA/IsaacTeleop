@@ -52,6 +52,12 @@ from ._schema import (
     MessageChannelMessages,
     MessageChannelMessagesTracked,
     MessageChannelMessagesRecord,
+    # Plugin device monitoring types.
+    PluginDeviceReason,
+    PluginDeviceState,
+    PluginDeviceStatus,
+    PluginDeviceStatusSnapshot,
+    PluginDeviceStatusSnapshotRecord,
     # Haptic command types (vendor-neutral cross-process device output).
     HapticCommand,
     # Camera-related types.
@@ -137,6 +143,12 @@ __all__ = [
     "MessageChannelMessages",
     "MessageChannelMessagesTracked",
     "MessageChannelMessagesRecord",
+    # Plugin device monitoring types.
+    "PluginDeviceReason",
+    "PluginDeviceState",
+    "PluginDeviceStatus",
+    "PluginDeviceStatusSnapshot",
+    "PluginDeviceStatusSnapshotRecord",
     # Haptic command types.
     "HapticCommand",
     # Camera types.

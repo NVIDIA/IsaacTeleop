@@ -172,6 +172,17 @@ public:
         return exit_requested_;
     }
 
+    // True once since the last call if the runtime moved the reference space's
+    // origin (recenter, guardian rebound). Consume-once: a pose LATCHED in the
+    // old space is silently wrong afterwards and its owner must re-anchor, so
+    // this must not be missed by a caller that polls it every frame.
+    bool take_reference_space_changed() noexcept
+    {
+        const bool changed = reference_space_changed_;
+        reference_space_changed_ = false;
+        return changed;
+    }
+
     // Throws on hard XR failures. XR_FRAME_DISCARDED on begin_frame is
     // non-fatal — pair with end_frame to keep the protocol balanced.
     bool wait_frame(XrFrameState* out_state);
@@ -228,6 +239,7 @@ private:
     XrSessionState state_ = XR_SESSION_STATE_UNKNOWN;
     bool session_running_ = false;
     bool exit_requested_ = false;
+    bool reference_space_changed_ = false;
 };
 
 } // namespace viz
