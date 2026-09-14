@@ -26,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-from isaacteleop import viz
+from isaacteleop import logging_config, viz
 from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
@@ -71,7 +71,7 @@ from isaacteleop.viz.robot.so101_ghost import (
     pose_from_ghost_body,
 )
 
-LOG = logging.getLogger("robot_viz")
+LOG = logging.getLogger("isaacteleop.robot_viz")
 
 # The app's only clip planes. TwinRenderConfig hands the same pair to the compositor and to
 # the twin's projection, or world-locked geometry swims under head motion -- and only a
@@ -298,10 +298,7 @@ def main(argv: list[str]) -> int:
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="[robot_viz] %(message)s",
-    )
+    logging_config.set_console_level("debug" if args.verbose else "info")
 
     with contextlib.ExitStack() as stack:
         launcher = stack.enter_context(CloudXRLauncher.launch_context(args))
