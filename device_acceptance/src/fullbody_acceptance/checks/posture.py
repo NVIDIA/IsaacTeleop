@@ -445,7 +445,21 @@ class _SquatCheck(_PostureCheck):
         knee_right = self._angle(frame, "RIGHT_KNEE", SAGITTAL)
         if None in (hip_left, hip_right, knee_left, knee_right):
             return
-        self.samples.append(((hip_left + hip_right) / 2.0, knee_left, knee_right))
+        # Ankles are carried for the symmetry comparison only, so a device that leaves
+        # them invalid must not cost the depth and knee readings.
+        ankle_left = self._angle(frame, "LEFT_ANKLE", SAGITTAL)
+        ankle_right = self._angle(frame, "RIGHT_ANKLE", SAGITTAL)
+        self.samples.append(
+            (
+                (hip_left + hip_right) / 2.0,
+                knee_left,
+                knee_right,
+                hip_left,
+                hip_right,
+                ankle_left,
+                ankle_right,
+            )
+        )
 
     def _reps(self) -> list[list[tuple[float, float, float]]]:
         """Splits the window into runs of frames that are below standing."""
@@ -482,6 +496,13 @@ class SquatKneeSymmetry(_SquatCheck):
     # this precondition a squat that is simply too shallow looks symmetric.
     MIN_DEPTH_DEG = 20.0
 
+    # Asymmetry in the hips and ankles above which the performer, not the device, is
+    # the asymmetric one: a person favouring a leg bends that whole leg differently,
+    # while a device that mis-estimates knees leaves the joints it tracks alone.
+    # g4_device_squat_knee_asymmetry holds hips and ankles at 0.0 deg beside 22 deg of
+    # knee difference; a real uneven squat measured 12.9 and 13.2 beside 21.4.
+    CHAIN_ASYMMETRY_DEG = 5.0
+
     def _measure(self) -> Outcome:
         reps = self._reps()
         if not reps:
@@ -494,12 +515,18 @@ class SquatKneeSymmetry(_SquatCheck):
                 f"to read knee symmetry",
                 {"depth_deg": depth},
             )
-        worst = 0.0
+        worst = hips = ankles = 0.0
         for rep in reps:
             bottom = max(rep, key=lambda sample: sample[0])
             worst = max(worst, abs(abs(bottom[2]) - abs(bottom[1])))
+            hips = max(hips, abs(abs(bottom[4]) - abs(bottom[3])))
+            if bottom[5] is not None and bottom[6] is not None:
+                ankles = max(ankles, abs(abs(bottom[6]) - abs(bottom[5])))
+        chain = max(hips, ankles)
         measurements = {
             "knee_asymmetry_deg": worst,
+            "hip_asymmetry_deg": hips,
+            "ankle_asymmetry_deg": ankles,
             "depth_deg": depth,
             "reps": len(reps),
         }
@@ -507,10 +534,20 @@ class SquatKneeSymmetry(_SquatCheck):
             return Outcome(
                 Status.PASS, f"knees differ by {worst:.1f} deg at depth", measurements
             )
+        if chain > self.CHAIN_ASYMMETRY_DEG:
+            return Outcome(
+                Status.FAIL,
+                f"the knees differ by {worst:.1f} deg at the bottom of a squat, but so "
+                f"do the hips ({hips:.1f} deg) and ankles ({ankles:.1f} deg), so the "
+                f"squat itself was uneven; record again loading both legs equally",
+                measurements,
+                attribution=Attribution.PERFORMANCE,
+            )
         return Outcome(
             Status.FAIL,
             f"the knees differ by {worst:.1f} deg at the bottom of a squat, more than "
-            f"{self.MAX_ASYMMETRY_DEG:.0f}, on a motion that loads both legs equally",
+            f"{self.MAX_ASYMMETRY_DEG:.0f}, while the hips ({hips:.1f} deg) and ankles "
+            f"({ankles:.1f} deg) stay symmetric, so the knee estimate is at fault",
             measurements,
         )
 

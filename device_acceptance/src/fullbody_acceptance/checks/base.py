@@ -7,7 +7,7 @@ Checks are incremental (``update(frame)`` / ``result()``) so one implementation 
 live session, an MCAP file and a replay session.
 
 Measurement and policy are separate: an accumulator reports a status and its
-measurements, while ``severity`` and ``attribution`` are declared on the class and
+measurements, while ``severity`` is declared on the class and ``attribution`` defaults there
 consumed by verdict aggregation. A threshold can then be filled in without touching a
 measurement.
 """
@@ -44,6 +44,11 @@ class Outcome:
     status: Status
     detail: str = ""
     measurements: Mapping[str, Any] = field(default_factory=dict)
+
+    # Set only when the recording itself says who is at fault, overriding the class's
+    # default. A check whose evidence can separate a device fault from a sloppy
+    # performance should say which it saw rather than declare one for both.
+    attribution: "Attribution | None" = None
 
 
 class Check(ABC):

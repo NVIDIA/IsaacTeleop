@@ -98,6 +98,35 @@ class _BoneLengthCheck(_ProfileCheck):
             if stats.maximum > 0.0
         }
 
+    # A bone this steady is fixed; what is left is float32 storage in the payload.
+    RIGID_CV = 0.002
+
+    # Below this share of fixed bones the skeleton is not a rig with solved endpoints,
+    # it is simply not rigid, and nothing here should be excused.
+    MIN_RIGID_FRACTION = 0.6
+
+    def solved_bones(self) -> dict[tuple[int, int], _Welford]:
+        """Bones that vary on a rig whose other bones are fixed.
+
+        An IK solver reaching a tracked endpoint puts the reach error in the last
+        segment, so the forearm stretches while everything else holds. This is the
+        mirror of the back-filled case above: derived, not broken. A genuinely rubber
+        skeleton has no fixed bones to contrast against -- defect_bone_length_drift
+        varies all 23 of them, where a three-tracker PICO 4 Ultra varies 2 and holds
+        21 to within float32.
+        """
+        bones = self.substantive()
+        if not bones:
+            return {}
+        rigid = sum(1 for stats in bones.values() if stats.cv <= self.RIGID_CV)
+        if rigid / len(bones) < self.MIN_RIGID_FRACTION:
+            return {}
+        return {
+            bone: stats
+            for bone, stats in bones.items()
+            if stats.cv > self.profile.max_bone_length_cv
+        }
+
 
 class BoneLengthConstancy(_BoneLengthCheck):
     name = "skeleton.bone_length_constancy"
@@ -110,7 +139,11 @@ class BoneLengthConstancy(_BoneLengthCheck):
         if not bones:
             return Outcome(Status.INSUFFICIENT_DATA, "no bone had two valid endpoints")
 
-        worst_bone, worst = max(bones.items(), key=lambda item: item[1].cv)
+        solved = self.solved_bones()
+        judged = {b: s for b, s in bones.items() if b not in solved} or bones
+        solved_names = sorted(self.profile.bone_name(*b) for b in solved)
+
+        worst_bone, worst = max(judged.items(), key=lambda item: item[1].cv)
         measurements = {
             "bones_measured": len(bones),
             "worst_bone": self.profile.bone_name(*worst_bone),
@@ -120,13 +153,17 @@ class BoneLengthConstancy(_BoneLengthCheck):
                 round(worst.maximum * 100, 2),
             ],
             "derived_bones": self.derived_bones(),
+            "solved_bones": solved_names,
         }
         if worst.cv <= self.profile.max_bone_length_cv:
-            return Outcome(
-                Status.PASS,
-                f"worst bone varies {worst.cv:.2%} of its length",
-                measurements,
-            )
+            detail = f"worst fixed bone varies {worst.cv:.2%} of its length"
+            if solved_names:
+                detail += (
+                    f"; {', '.join(solved_names)} vary on an otherwise fixed "
+                    f"skeleton, so they are solved to a tracked endpoint and their "
+                    f"lengths are derived rather than measured"
+                )
+            return Outcome(Status.PASS, detail, measurements)
         return Outcome(
             Status.FAIL,
             f"{self.profile.bone_name(*worst_bone)} varies {worst.cv:.1%} of its "
@@ -187,22 +224,28 @@ class AnthropometricPlausibility(_StatureCheck):
         if stature is None:
             return Outcome(Status.INSUFFICIENT_DATA, "stature chain incomplete")
 
-        ratios = []
+        # A solved forearm has no length of its own -- the solver sets it to whatever
+        # reaches the controller -- so its ratio to the upper arm says nothing about
+        # the subject's proportions and must not be judged as if it did.
+        solved = set(self.solved_bones())
+        ratios: dict[str, float] = {}
+        derived: list[str] = []
         for side in ("LEFT", "RIGHT"):
-            upper = self.bones.get(
-                (
-                    self.profile.index(f"{side}_SHOULDER"),
-                    self.profile.index(f"{side}_ELBOW"),
-                )
+            arm = (
+                self.profile.index(f"{side}_SHOULDER"),
+                self.profile.index(f"{side}_ELBOW"),
             )
-            fore = self.bones.get(
-                (
-                    self.profile.index(f"{side}_ELBOW"),
-                    self.profile.index(f"{side}_WRIST"),
-                )
+            forearm = (
+                self.profile.index(f"{side}_ELBOW"),
+                self.profile.index(f"{side}_WRIST"),
             )
-            if upper and fore and upper.count and fore.count and upper.mean > 0:
-                ratios.append(fore.mean / upper.mean)
+            upper, fore = self.bones.get(arm), self.bones.get(forearm)
+            if not (upper and fore and upper.count and fore.count and upper.mean > 0):
+                continue
+            if arm in solved or forearm in solved:
+                derived.append(side.lower())
+                continue
+            ratios[side.lower()] = fore.mean / upper.mean
 
         low, high = self.profile.stature_range_m
         ratio_low, ratio_high = self.profile.forearm_over_upper_arm
@@ -210,6 +253,7 @@ class AnthropometricPlausibility(_StatureCheck):
             "skeletal_height": stature,
             "stature_range": [low, high],
             "forearm_over_upper_arm": ratios,
+            "derived_arms": derived,
             "ratio_range": [ratio_low, ratio_high],
         }
 
@@ -219,21 +263,25 @@ class AnthropometricPlausibility(_StatureCheck):
                 f"summed ankle-to-head length {stature:.2f} m is outside "
                 f"{low:.2f}-{high:.2f} m"
             )
-        for ratio in ratios:
+        for side, ratio in ratios.items():
             if not ratio_low <= ratio <= ratio_high:
                 problems.append(
-                    f"forearm is {ratio:.2f} of the upper arm, outside "
+                    f"the {side} forearm is {ratio:.2f} of its upper arm, outside "
                     f"{ratio_low:.2f}-{ratio_high:.2f}"
                 )
 
-        if not problems:
-            return Outcome(
-                Status.PASS,
-                f"{stature:.2f} m, forearm/upper-arm "
-                f"{'/'.join(f'{r:.2f}' for r in ratios)}",
-                measurements,
+        if problems:
+            return Outcome(Status.FAIL, "; ".join(problems), measurements)
+
+        shape = ", ".join(f"{side} {ratio:.2f}" for side, ratio in ratios.items())
+        detail = f"{stature:.2f} m" + (f", forearm/upper-arm {shape}" if shape else "")
+        if derived:
+            detail += (
+                f"; the {' and '.join(derived)} forearm"
+                f"{'s are' if len(derived) > 1 else ' is'} solved to a tracked "
+                f"endpoint, so that proportion is not the subject's"
             )
-        return Outcome(Status.FAIL, "; ".join(problems), measurements)
+        return Outcome(Status.PASS, detail, measurements)
 
 
 class UpAxis(_ProfileCheck):

@@ -516,7 +516,9 @@ def test_a_plausible_synthetic_skeleton_reads_as_human():
 
     outcome = drive(AnthropometricPlausibility(), synth.frames(60))
     assert outcome.status is Status.PASS
-    assert all(0.6 < r < 1.15 for r in outcome.measurements["forearm_over_upper_arm"])
+    ratios = outcome.measurements["forearm_over_upper_arm"]
+    assert set(ratios) == {"left", "right"}
+    assert all(0.6 < r < 1.15 for r in ratios.values())
 
 
 # --- orientation vs position -------------------------------------------------------
@@ -742,3 +744,53 @@ def test_a_bone_seen_only_briefly_is_not_judged():
     outcome = drive(JointIndexAssignment(), briefly_valid)
     assert outcome.status is Status.PASS
     assert "SPINE1->SPINE2" not in outcome.measurements["reversed_bones"]
+
+
+# --- solved endpoints on an otherwise rigid rig ------------------------------------
+
+
+def _stretch_forearm(frames_, joint="LEFT_WRIST"):
+    """Lengthens one bone progressively, leaving every other bone alone.
+
+    This is what a three-tracker PICO does to the forearm: the solver has to reach the
+    controller, so the reach error lands in the last segment.
+    """
+    from fullbody_acceptance.profile import FULL_BODY
+
+    index = FULL_BODY.index(joint)
+    out = []
+    for step, base in enumerate(frames_):
+        assert base.joints is not None
+        pose = base.joints[index]
+        moved = synth.joint(
+            position=(
+                pose.position[0],
+                pose.position[1] - 0.004 * step,
+                pose.position[2],
+            ),
+            orientation=pose.orientation,
+        )
+        out.append(synth.with_joint(base, index, moved))
+    return out
+
+
+def test_a_bone_that_stretches_on_a_rigid_rig_is_reported_as_derived():
+    from fullbody_acceptance.checks.geometry import BoneLengthConstancy
+
+    outcome = drive(BoneLengthConstancy(), _stretch_forearm(synth.frames(60)))
+    assert outcome.status is Status.PASS
+    # Moving the wrist moves the hand hanging off it, so both bones read as solved.
+    assert outcome.measurements["solved_bones"] == [
+        "LEFT_ELBOW->LEFT_WRIST",
+        "LEFT_WRIST->LEFT_HAND",
+    ]
+    assert "derived rather than measured" in outcome.detail
+
+
+def test_a_solved_forearm_is_not_judged_for_its_proportions():
+    from fullbody_acceptance.checks.geometry import AnthropometricPlausibility
+
+    outcome = drive(AnthropometricPlausibility(), _stretch_forearm(synth.frames(60)))
+    assert outcome.status is Status.PASS
+    assert outcome.measurements["derived_arms"] == ["left"]
+    assert "right" in outcome.measurements["forearm_over_upper_arm"]

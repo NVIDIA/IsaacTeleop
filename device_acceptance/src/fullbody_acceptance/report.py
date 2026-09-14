@@ -234,7 +234,7 @@ def run(
                 name=check.name,
                 gate=check.gate,
                 severity=check.severity,
-                attribution=check.attribution,
+                attribution=outcome.attribution or check.attribution,
                 judged=check.judged,
                 summary=check.summary,
                 status=outcome.status,
