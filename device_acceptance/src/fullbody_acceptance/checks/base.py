@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""The accumulator contract.
+
+Checks are incremental (``update(frame)`` / ``result()``) so one implementation serves a
+live session, an MCAP file and a replay session.
+
+Measurement and policy are separate: an accumulator reports a status and its
+measurements, while ``severity`` and ``attribution`` are declared on the class and
+consumed by verdict aggregation. A threshold can then be filled in without touching a
+measurement.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import Any, ClassVar, Mapping
+
+from ..frames import Frame
+
+
+class Status(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    INSUFFICIENT_DATA = "insufficient_data"
+
+
+class Severity(StrEnum):
+    HARD = "hard"
+    SOFT = "soft"
+    ADVISORY = "advisory"
+
+
+class Attribution(StrEnum):
+    DEVICE = "device"
+    PERFORMANCE = "performance"
+
+
+@dataclass(frozen=True, slots=True)
+class Outcome:
+    status: Status
+    detail: str = ""
+    measurements: Mapping[str, Any] = field(default_factory=dict)
+
+
+class Check(ABC):
+    """Subclasses set the class-level fields and implement ``update`` / ``_result``.
+
+    ``name`` must match the ``expected_failing_check`` string the fixture index uses for
+    the defect this check is meant to catch.
+    """
+
+    name: ClassVar[str]
+    gate: ClassVar[str]
+    severity: ClassVar[Severity] = Severity.HARD
+    attribution: ClassVar[Attribution] = Attribution.DEVICE
+    summary: ClassVar[str] = ""
+    min_frames: ClassVar[int] = 1
+
+    def __init__(self) -> None:
+        self.frames_seen = 0
+
+    def update(self, frame: Frame) -> None:
+        self.frames_seen += 1
+        self._update(frame)
+
+    def result(self) -> Outcome:
+        if self.frames_seen < self.min_frames:
+            return Outcome(
+                Status.INSUFFICIENT_DATA,
+                f"{self.frames_seen} frames, needs at least {self.min_frames}",
+            )
+        return self._result()
+
+    @abstractmethod
+    def _update(self, frame: Frame) -> None: ...
+
+    @abstractmethod
+    def _result(self) -> Outcome: ...

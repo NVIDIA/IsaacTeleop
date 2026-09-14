@@ -1,0 +1,194 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Running checks over a frame source, and the report that comes out.
+
+Verdict aggregation is a pure function of the results plus each check's declared
+severity and attribution. ``fail`` and ``retake`` are kept apart deliberately: telling a
+vendor their device is broken when the operator simply squatted too shallow is the
+specific failure the acceptance process exists to avoid.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any, Iterable, Sequence
+
+from .checks import Attribution, Check, Severity, Status, build_all
+from .frames import FrameSource, SourceMetadata
+
+
+class Verdict(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    RETAKE = "retake"
+    INSUFFICIENT_DATA = "insufficient_data"
+
+
+@dataclass(frozen=True, slots=True)
+class CheckResult:
+    name: str
+    gate: str
+    severity: Severity
+    attribution: Attribution
+    summary: str
+    status: Status
+    detail: str
+    measurements: dict[str, Any]
+
+    @property
+    def counts_toward_verdict(self) -> bool:
+        return self.severity is not Severity.ADVISORY
+
+
+@dataclass(frozen=True, slots=True)
+class Report:
+    source: str
+    frames: int
+    metadata: SourceMetadata
+    results: tuple[CheckResult, ...]
+    verdict: Verdict
+    notes: tuple[str, ...] = ()
+
+    @property
+    def advisories(self) -> tuple[CheckResult, ...]:
+        return tuple(
+            r
+            for r in self.results
+            if not r.counts_toward_verdict and r.status is Status.FAIL
+        )
+
+    @property
+    def failures(self) -> tuple[CheckResult, ...]:
+        return tuple(
+            r
+            for r in self.results
+            if r.counts_toward_verdict and r.status is Status.FAIL
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        schema_data = self.metadata.schema_data
+        return {
+            "source": self.source,
+            "verdict": str(self.verdict),
+            "frames": self.frames,
+            "container": {
+                "schema_name": self.metadata.schema_name,
+                "schema_encoding": self.metadata.schema_encoding,
+                "schema_sha256": (
+                    hashlib.sha256(schema_data).hexdigest() if schema_data else None
+                ),
+                "schema_bytes": len(schema_data) if schema_data else None,
+                "message_encoding": self.metadata.message_encoding,
+                "topic": self.metadata.topic,
+                "profile": self.metadata.profile,
+                "channel_found": self.metadata.channel_found,
+            },
+            "notes": list(self.notes),
+            "checks": [
+                {
+                    "name": r.name,
+                    "gate": r.gate,
+                    "severity": str(r.severity),
+                    "attribution": str(r.attribution),
+                    "status": str(r.status),
+                    "detail": r.detail,
+                    "measurements": r.measurements,
+                }
+                for r in self.results
+            ],
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), indent=indent, sort_keys=False)
+
+    def to_text(self) -> str:
+        lines = [
+            f"source   {self.source}",
+            f"frames   {self.frames}",
+            f"topic    {self.metadata.topic or '-'}  "
+            f"schema {self.metadata.schema_name or '-'}",
+            f"verdict  {str(self.verdict).upper()}",
+            "",
+        ]
+        marks = {
+            Status.PASS: "pass",
+            Status.FAIL: "FAIL",
+            Status.INSUFFICIENT_DATA: "n/a ",
+        }
+        for r in self.results:
+            mark = marks[r.status]
+            if r.status is Status.FAIL and not r.counts_toward_verdict:
+                mark = "note"
+            lines.append(f"  [{mark}] {r.name:<45} {r.detail}")
+        if self.notes:
+            lines.append("")
+            lines.extend(f"  note: {note}" for note in self.notes)
+        return "\n".join(lines)
+
+
+def aggregate(results: Iterable[CheckResult]) -> Verdict:
+    counted = [r for r in results if r.counts_toward_verdict]
+    if any(
+        r.status is Status.FAIL and r.attribution is Attribution.DEVICE for r in counted
+    ):
+        return Verdict.FAIL
+    if any(
+        r.status is Status.FAIL and r.attribution is Attribution.PERFORMANCE
+        for r in counted
+    ):
+        return Verdict.RETAKE
+    if any(r.status is Status.INSUFFICIENT_DATA for r in counted):
+        return Verdict.INSUFFICIENT_DATA
+    return Verdict.PASS
+
+
+def run(source: FrameSource, checks: Sequence[Check] | None = None) -> Report:
+    active = list(checks) if checks is not None else build_all()
+
+    frames = 0
+    for frame in source:
+        frames += 1
+        for check in active:
+            check.update(frame)
+
+    results = []
+    for check in active:
+        outcome = check.result()
+        results.append(
+            CheckResult(
+                name=check.name,
+                gate=check.gate,
+                severity=check.severity,
+                attribution=check.attribution,
+                summary=check.summary,
+                status=outcome.status,
+                detail=outcome.detail,
+                measurements=dict(outcome.measurements),
+            )
+        )
+
+    metadata = source.metadata
+    notes: list[str] = []
+    if not metadata.channel_found:
+        notes.append(
+            "no channel declares schema core.FullBodyPoseRecord; nothing to check"
+        )
+    elif frames == 0:
+        notes.append(
+            "the full-body channel is registered but carries no messages, which is what "
+            "a tracker in limp mode produces"
+        )
+
+    source_name = str(getattr(source, "path", source.__class__.__name__))
+    return Report(
+        source=source_name,
+        frames=frames,
+        metadata=metadata,
+        results=tuple(results),
+        verdict=aggregate(results),
+        notes=tuple(notes),
+    )
