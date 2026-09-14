@@ -229,6 +229,14 @@ class ContralateralCrosstalkSingleLegRaise(_PostureCheck):
 
     wanted = frozenset({"left_leg_raise", "right_leg_raise"})
 
+    # Alone among the graded measurements this one reads the single-limb windows, so it
+    # needs them to hold the motion they name. The T-pose measurements do not: a held
+    # pose is not a step whose order can be got wrong.
+    depends_on = _PostureCheck.depends_on + (
+        "segmentation.labelled_step_actually_performed",
+        "segmentation.step_order_matches_labels",
+    )
+
     OTHER_HIP = {"left_leg_raise": "RIGHT_HIP", "right_leg_raise": "LEFT_HIP"}
 
     def __init__(self, *args, **kwargs) -> None:
