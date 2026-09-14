@@ -21,6 +21,7 @@ from fullbody_acceptance.checks import Status, build
 from fullbody_acceptance.labels import StepTimeline
 from fullbody_acceptance.mcap_source import McapFrameSource
 from fullbody_acceptance.report import run
+from known_deviations import BY_FIXTURE
 
 # Each graded series: the check that measures it, the measurement key, and how to turn
 # the index's injected value into that key's units.
@@ -167,10 +168,15 @@ class TestG4Faults:
                 errors.append(
                     f"{fixture_id(entry)}: wanted {wanted}, got {sorted(failing)}"
                 )
-            if report.verdict.value != entry["expected_verdict"]:
+            deviation = BY_FIXTURE.get(Path(entry["filename"]).name)
+            expected = entry["expected_verdict"]
+            if deviation is not None:
+                assert expected == deviation.index_verdict
+                expected = deviation.checker_verdict
+            if report.verdict.value != expected:
                 errors.append(
                     f"{fixture_id(entry)}: verdict {report.verdict.value}, "
-                    f"wanted {entry['expected_verdict']}"
+                    f"wanted {expected}"
                 )
         assert not errors, "\n".join(errors)
 

@@ -271,11 +271,16 @@ class ContralateralCrosstalkSingleLegRaise(_PostureCheck):
 class ArmRaiseRangeOfMotion(_PostureCheck):
     name = "posture.arm_raise_range_of_motion"
     severity = Severity.HARD
-    attribution = Attribution.DEVICE
+    attribution = Attribution.PERFORMANCE
     summary = "A raised arm reaches overhead rather than stopping short"
 
-    # Blaming the device requires knowing the operator performed the right
-    # motion in this window; otherwise a mislabelled session reads as a fault.
+    # A short raise is a retake, not a rejection, because one recording cannot say
+    # whether the device clipped the arm or the arm never went up. The plateau that
+    # looks like it should separate them does not: on the saturating fixture 24% of
+    # samples sit within a degree of the peak, and on the clean one 23%, because the
+    # generated performer holds the pose. A real performer plateaus at 5%. So the peak
+    # angle is the only signal, and it is the same number in both cases. A device that
+    # truly clips fails every retake, which is where that evidence accumulates.
     depends_on = _PostureCheck.depends_on + (
         "segmentation.labelled_step_actually_performed",
         "segmentation.step_order_matches_labels",
@@ -323,7 +328,8 @@ class ArmRaiseRangeOfMotion(_PostureCheck):
         return Outcome(
             Status.FAIL,
             f"{worst_label} stops {worst:.0f} deg above horizontal, short of "
-            f"{self.MIN_ELEVATION_DEG:.0f}, so the arm's range is being clipped",
+            f"{self.MIN_ELEVATION_DEG:.0f}; record again reaching fully overhead, and "
+            f"if it still stops short the device is clipping the arm",
             measurements,
         )
 

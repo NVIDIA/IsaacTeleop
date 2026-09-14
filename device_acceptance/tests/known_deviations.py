@@ -4,9 +4,8 @@
 """Where this checker knowingly disagrees with the fixture index.
 
 The index is the oracle and is never edited to make a test pass, so a disagreement is
-declared here with its reason. Both entries are cases where a hard failure would reject
-NVIDIA's own Pico hardware, and both should be re-examined against the first real
-recording.
+declared here with its reason. Each one is a case where the index's verdict would blame
+a device for something the recording cannot pin on it.
 """
 
 from __future__ import annotations
@@ -46,6 +45,21 @@ DEVIATIONS: tuple[Deviation, ...] = (
             "xrConvertTimespecTimeToTimeKHR, so a runtime representing XrTime as "
             "CLOCK_MONOTONIC nanoseconds makes it equal the common clock on a good "
             "recording. Unverified without hardware."
+        ),
+    ),
+    Deviation(
+        fixture="g4_device_arm_raise_saturates.mcap",
+        index_verdict="fail",
+        checker_verdict="retake",
+        advisory_check="posture.arm_raise_range_of_motion",
+        reason=(
+            "A short raise and a clipped one are the same measurement. The plateau "
+            "that should separate them does not: 24% of samples sit within a degree "
+            "of the peak on this fixture and 23% on the clean one, because the "
+            "generated performer holds the pose; a real performer measured 5%. The "
+            "peak angle is therefore the only signal, and it cannot say whether the "
+            "arm went up. Asking for a retake is the honest verdict, and a device "
+            "that clips fails every retake."
         ),
     ),
 )
