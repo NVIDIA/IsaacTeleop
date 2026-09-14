@@ -14,10 +14,11 @@ from constants import (
     TELEOP_MODES,
     WUJI_HAND_JOINT_COUNT,
     HandRetargeter,
-    HandTrackingPlugin,
+    HandTrackingProvider,
     TeleopMode,
     resolve_hand_retargeter,
 )
+from isaacteleop.teleop_session_manager import SessionMode
 from teleop_profiles import (
     TELEOP_PROFILE_SPECS,
     PublishType,
@@ -73,6 +74,11 @@ def test_controller_profile_spec_is_resolved_for_selected_retargeter() -> None:
     wuji_spec = resolve_teleop_profile_spec(
         TeleopMode.CONTROLLER_TELEOP, HandRetargeter.WUJI
     )
+    manus_spec = resolve_teleop_profile_spec(
+        TeleopMode.CONTROLLER_TELEOP,
+        HandRetargeter.WUJI,
+        HandTrackingProvider.MANUS,
+    )
 
     assert "hand_left" not in controller_spec.required_result_keys
     assert "hand_right" not in controller_spec.required_result_keys
@@ -80,9 +86,17 @@ def test_controller_profile_spec_is_resolved_for_selected_retargeter() -> None:
 
     assert {"hand_left", "hand_right"} <= hands_spec.required_result_keys
     assert PublishType.HAND_POSES in hands_spec.publish_types
+    assert PublishType.EE_FROM_CONTROLLERS in hands_spec.publish_types
     assert {"hand_left", "hand_right"} <= wuji_spec.required_result_keys
-    assert PublishType.EE_FROM_HANDS in wuji_spec.publish_types
-    assert PublishType.EE_FROM_CONTROLLERS not in wuji_spec.publish_types
+    assert PublishType.EE_FROM_CONTROLLERS in wuji_spec.publish_types
+    assert PublishType.EE_FROM_HANDS not in wuji_spec.publish_types
+    assert PublishType.EE_FROM_CONTROLLERS in manus_spec.publish_types
+    assert PublishType.EE_FROM_HANDS not in manus_spec.publish_types
+    assert manus_spec.apply_manus_controller_mount_offset
+    assert (
+        manus_spec
+        is TELEOP_PROFILE_SPECS[TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_MANUS_EE]
+    )
 
 
 @pytest.mark.parametrize(
@@ -99,7 +113,7 @@ def test_controller_profile_spec_is_resolved_for_selected_retargeter() -> None:
         ),
         (
             HandRetargeter.WUJI,
-            TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE,
+            TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_CONTROLLER_EE,
         ),
     ),
 )
@@ -108,6 +122,45 @@ def test_controller_profile_spec_resolution(
 ) -> None:
     profile_spec = resolve_teleop_profile_spec(TeleopMode.CONTROLLER_TELEOP, retargeter)
     assert profile_spec is TELEOP_PROFILE_SPECS[expected_profile]
+
+
+@pytest.mark.parametrize(
+    "retargeter",
+    (HandRetargeter.DEXPILOT, HandRetargeter.PINK_IK, HandRetargeter.WUJI),
+)
+def test_controller_wuji_provider_uses_provider_wrist_for_every_retargeter(
+    retargeter: HandRetargeter,
+) -> None:
+    profile_spec = resolve_teleop_profile_spec(
+        TeleopMode.CONTROLLER_TELEOP,
+        retargeter,
+        HandTrackingProvider.WUJI,
+    )
+
+    assert (
+        profile_spec
+        is TELEOP_PROFILE_SPECS[TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_WRIST_EE]
+    )
+
+
+@pytest.mark.parametrize(
+    "retargeter",
+    (HandRetargeter.DEXPILOT, HandRetargeter.PINK_IK, HandRetargeter.WUJI),
+)
+def test_controller_manus_provider_uses_known_good_transform_for_every_retargeter(
+    retargeter: HandRetargeter,
+) -> None:
+    profile_spec = resolve_teleop_profile_spec(
+        TeleopMode.CONTROLLER_TELEOP,
+        retargeter,
+        HandTrackingProvider.MANUS,
+    )
+
+    assert (
+        profile_spec
+        is TELEOP_PROFILE_SPECS[TeleopProfile.CONTROLLER_TELEOP_WITH_HAND_MANUS_EE]
+    )
+    assert profile_spec.apply_manus_controller_mount_offset
 
 
 @pytest.mark.parametrize("profile", list(TeleopProfile))
@@ -149,26 +202,62 @@ def test_trihand_is_rejected_for_hand_teleop() -> None:
         resolve_hand_retargeter(TeleopMode.HAND_TELEOP, HandRetargeter.TRIHAND)
 
 
-def test_manus_transform_is_resolved_with_controller_ee_profile() -> None:
-    dexpilot_spec = resolve_teleop_profile_spec(
-        TeleopMode.CONTROLLER_TELEOP, HandRetargeter.DEXPILOT
-    )
-    pink_ik_spec = resolve_teleop_profile_spec(
-        TeleopMode.CONTROLLER_TELEOP, HandRetargeter.PINK_IK
-    )
-    wuji_spec = resolve_teleop_profile_spec(
-        TeleopMode.CONTROLLER_TELEOP, HandRetargeter.WUJI
-    )
-    wuji_input_spec = resolve_teleop_profile_spec(
-        TeleopMode.CONTROLLER_TELEOP,
+@pytest.mark.parametrize(
+    "provider",
+    list(HandTrackingProvider),
+)
+def test_hand_teleop_always_uses_hand_wrist(
+    provider: HandTrackingProvider,
+) -> None:
+    profile_spec = resolve_teleop_profile_spec(
+        TeleopMode.HAND_TELEOP,
         HandRetargeter.DEXPILOT,
-        HandTrackingPlugin.WUJI,
+        provider,
     )
 
-    assert dexpilot_spec.apply_manus_controller_to_hand_transform
-    assert pink_ik_spec.apply_manus_controller_to_hand_transform
-    assert not wuji_spec.apply_manus_controller_to_hand_transform
-    assert not wuji_input_spec.apply_manus_controller_to_hand_transform
+    assert profile_spec is TELEOP_PROFILE_SPECS[TeleopProfile.HAND_TELEOP]
+    assert not profile_spec.apply_manus_controller_mount_offset
+
+
+def test_managed_plugin_config_is_inferred_from_provider(tmp_path) -> None:
+    manus_params = SimpleNamespace(
+        hand_tracking_provider=HandTrackingProvider.MANUS,
+        use_external_hand_tracking_plugin=False,
+        session_mode=SessionMode.LIVE,
+        plugin_search_paths=(tmp_path,),
+    )
+    wuji_params = SimpleNamespace(
+        hand_tracking_provider=HandTrackingProvider.WUJI,
+        use_external_hand_tracking_plugin=False,
+        session_mode=SessionMode.LIVE,
+        plugin_search_paths=(tmp_path,),
+    )
+
+    manus_config = session_config._resolve_hand_tracking_plugin_configs(manus_params)[0]
+    wuji_config = session_config._resolve_hand_tracking_plugin_configs(wuji_params)[0]
+
+    assert manus_config.plugin_name == "manus_hand_plugin"
+    assert manus_config.plugin_args == ["--datasets=human"]
+    assert wuji_config.plugin_name == "wuji_glove_plugin"
+    assert wuji_config.plugin_args == []
+
+
+def test_plugin_config_is_empty_for_external_provider_or_replay(tmp_path) -> None:
+    external_params = SimpleNamespace(
+        hand_tracking_provider=HandTrackingProvider.MANUS,
+        use_external_hand_tracking_plugin=True,
+        session_mode=SessionMode.LIVE,
+        plugin_search_paths=(tmp_path,),
+    )
+    replay_params = SimpleNamespace(
+        hand_tracking_provider=HandTrackingProvider.WUJI,
+        use_external_hand_tracking_plugin=False,
+        session_mode=SessionMode.REPLAY,
+        plugin_search_paths=(tmp_path,),
+    )
+
+    assert session_config._resolve_hand_tracking_plugin_configs(external_params) == []
+    assert session_config._resolve_hand_tracking_plugin_configs(replay_params) == []
 
 
 def test_joint_alias_count_validation() -> None:
