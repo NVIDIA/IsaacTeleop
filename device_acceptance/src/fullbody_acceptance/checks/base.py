@@ -66,6 +66,13 @@ class Check(ABC):
     # into limbo; an unanswered required check must.
     required: ClassVar[bool] = True
 
+    # False for a check that reports a number and never judges it, which the graded G4
+    # measurements deliberately do: their thresholds are meant to come from real
+    # subjects, not from the fixtures used to prove the measurement correct. Such a
+    # check returns PASS because there is no other way to say "measured", so without
+    # this flag a reader cannot tell a value that was approved from one nobody judged.
+    judged: ClassVar[bool] = True
+
     # Names of checks whose failure makes this one's measurement meaningless. A device
     # measurement read through motion windows cannot be trusted once those windows are
     # known to be wrong: the arm-raise window of a session performed out of order holds

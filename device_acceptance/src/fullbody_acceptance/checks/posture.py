@@ -152,6 +152,7 @@ class _ShoulderCheck(_PostureCheck):
 class TposeArmDroop(_ShoulderCheck):
     name = "posture.tpose_arm_droop"
     severity = Severity.ADVISORY
+    judged = False
     summary = "How far below horizontal the arms sit in the opening T-pose"
 
     def _measure(self) -> Outcome:
@@ -174,6 +175,7 @@ class TposeArmDroop(_ShoulderCheck):
 class TposeLeftRightAsymmetry(_ShoulderCheck):
     name = "posture.tpose_left_right_asymmetry"
     severity = Severity.ADVISORY
+    judged = False
     summary = "How differently the two arms are held in the T-pose"
 
     def _measure(self) -> Outcome:
@@ -193,6 +195,7 @@ class TposeLeftRightAsymmetry(_ShoulderCheck):
 class CumulativeDriftBetweenTposeWindows(_ShoulderCheck):
     name = "posture.cumulative_drift_between_tpose_windows"
     severity = Severity.ADVISORY
+    judged = False
     summary = "How far the same held pose has moved by the end of the session"
 
     def _measure(self) -> Outcome:
@@ -225,9 +228,14 @@ class CumulativeDriftBetweenTposeWindows(_ShoulderCheck):
 class ContralateralCrosstalkSingleLegRaise(_PostureCheck):
     name = "posture.contralateral_crosstalk_single_leg_raise"
     severity = Severity.ADVISORY
+    judged = False
     summary = "How much the still leg moves while the other one is raised"
 
-    wanted = frozenset({"left_leg_raise", "right_leg_raise"})
+    # neutral_stance is read for the baseline, not for crosstalk: the quantity is how
+    # far the still hip departs from where that hip rests on this device, so a device
+    # whose neutral hip is not at zero does not report its own rest pose as crosstalk.
+    BASELINE_WINDOW = "neutral_stance"
+    wanted = frozenset({"left_leg_raise", "right_leg_raise", BASELINE_WINDOW})
 
     # Alone among the graded measurements this one reads the single-limb windows, so it
     # needs them to hold the motion they name. The T-pose measurements do not: a held
@@ -241,29 +249,53 @@ class ContralateralCrosstalkSingleLegRaise(_PostureCheck):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.peak: dict[str, float] = {}
+        self.extremes: dict[str, tuple[float, float]] = {}
+        self.resting: dict[str, list[float]] = {}
 
     def _observe(self, step: Step, frame: Frame) -> None:
+        if step.label == self.BASELINE_WINDOW:
+            if frame.sample_time_ns is None or not self._settled(
+                step, frame.sample_time_ns
+            ):
+                return
+            for hip in self.OTHER_HIP.values():
+                angle = self._angle(frame, hip, SAGITTAL)
+                if angle is not None:
+                    self.resting.setdefault(hip, []).append(angle)
+            return
         angle = self._angle(frame, self.OTHER_HIP[step.label], SAGITTAL)
         if angle is None:
             return
-        self.peak[step.label] = max(self.peak.get(step.label, 0.0), abs(angle))
+        low, high = self.extremes.get(step.label, (angle, angle))
+        self.extremes[step.label] = (min(low, angle), max(high, angle))
+
+    def _baseline(self, hip: str) -> float:
+        samples = self.resting.get(hip)
+        return statistics.median(samples) if samples else 0.0
 
     def _measure(self) -> Outcome:
-        if not self.peak:
+        if not self.extremes:
             return Outcome(
                 Status.INSUFFICIENT_DATA,
                 "neither single-leg raise window was measurable",
             )
-        worst_label = max(self.peak, key=self.peak.__getitem__)
-        worst = self.peak[worst_label]
+        peak = {}
+        for label, (low, high) in self.extremes.items():
+            rest = self._baseline(self.OTHER_HIP[label])
+            peak[label] = max(abs(high - rest), abs(low - rest))
+        worst_label = max(peak, key=peak.__getitem__)
+        worst = peak[worst_label]
         return Outcome(
             Status.PASS,
-            f"the still hip moves up to {worst:.1f} deg during {worst_label}",
+            f"the still hip moves up to {worst:.1f} deg from its resting angle "
+            f"during {worst_label}",
             {
                 "crosstalk_deg": worst,
                 "worst_window": worst_label,
-                "per_window_deg": dict(self.peak),
+                "per_window_deg": dict(peak),
+                "resting_deg": {
+                    hip: self._baseline(hip) for hip in self.OTHER_HIP.values()
+                },
             },
         )
 

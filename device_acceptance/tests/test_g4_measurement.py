@@ -348,3 +348,46 @@ class TestLabelAlignmentAgainstRealCaptures:
         outcome = self.align(20.0, start_s=400.0, durations=[5.0, 5.0])
         assert outcome.status is Status.FAIL
         assert len(outcome.measurements["windows_without_frames"]) == 2
+
+
+class TestMeasurementsAreNotApprovals:
+    """The graded G4 checks report a number and never judge it.
+
+    Their thresholds are meant to come from real subjects, so they return PASS for want
+    of a way to say "measured". Rendering that as a pass invites the opposite reading:
+    a real capture showed 70.9 deg of contralateral crosstalk beside the word "pass",
+    which no one had approved.
+    """
+
+    GRADED = {
+        "posture.tpose_arm_droop",
+        "posture.tpose_left_right_asymmetry",
+        "posture.cumulative_drift_between_tpose_windows",
+        "posture.contralateral_crosstalk_single_leg_raise",
+    }
+
+    def test_the_graded_measurements_declare_themselves_unjudged(
+        self, fixture_dir: Path, index: dict
+    ):
+        entry = next(
+            f for f in index["fixtures"] if fixture_id(f) == "g4_graded_droop_00deg"
+        )
+        report = run(McapFrameSource(fixture_dir / entry["filename"]))
+        by_name = {r.name: r for r in report.results}
+        assert self.GRADED <= set(by_name)
+        for name in self.GRADED:
+            assert by_name[name].judged is False, name
+        judged = [r for r in report.results if r.name not in self.GRADED]
+        assert judged and all(r.judged for r in judged)
+
+    def test_an_unjudged_measurement_does_not_read_as_a_pass(
+        self, fixture_dir: Path, index: dict
+    ):
+        entry = next(
+            f for f in index["fixtures"] if fixture_id(f) == "g4_graded_droop_00deg"
+        )
+        report = run(McapFrameSource(fixture_dir / entry["filename"]))
+        for line in report.to_text().splitlines():
+            for name in self.GRADED:
+                if f" {name} " in line:
+                    assert line.strip().startswith("[meas]"), line

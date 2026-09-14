@@ -40,6 +40,7 @@ class CheckResult:
     detail: str
     measurements: dict[str, Any]
     required: bool = True
+    judged: bool = True
 
     @property
     def counts_toward_verdict(self) -> bool:
@@ -100,6 +101,7 @@ class Report:
                     "gate": r.gate,
                     "severity": str(r.severity),
                     "attribution": str(r.attribution),
+                    "judged": r.judged,
                     "status": str(r.status),
                     "required": r.required,
                     "detail": r.detail,
@@ -130,6 +132,8 @@ class Report:
             mark = marks[r.status]
             if r.status is Status.FAIL and not r.counts_toward_verdict:
                 mark = "note"
+            elif r.status is Status.PASS and not r.judged:
+                mark = "meas"
             lines.append(f"  [{mark}] {r.name:<45} {r.detail}")
         unanswered = self.unanswered
         if unanswered:
@@ -231,6 +235,7 @@ def run(
                 gate=check.gate,
                 severity=check.severity,
                 attribution=check.attribution,
+                judged=check.judged,
                 summary=check.summary,
                 status=outcome.status,
                 detail=outcome.detail,
