@@ -38,6 +38,12 @@ protected:
 
 // Installs the bridge: swaps every logger's sinks (existing and future) to
 // a shared PythonBridgeSink. Exposed to Python as install_python_sink().
+//
+// Takes effect on the first call only. The swap rewrites logger->sinks() on
+// every registered logger, which spdlog does not synchronize against a
+// concurrent emit, so it is safe exactly where isaacteleop/__init__.py does it
+// -- on the importing thread, before anything has logged -- and not from a
+// running application. A later call is a no-op rather than a second swap.
 void install_python_sink();
 
 } // namespace isaacteleop

@@ -6,6 +6,7 @@
 #include <log_bridge/logger.hpp>
 #include <pybind11/pybind11.h>
 
+#include <mutex>
 #include <string>
 
 namespace isaacteleop
@@ -26,7 +27,17 @@ void PythonBridgeSink::flush_()
 
 void install_python_sink()
 {
-    detail::set_bridge_sink(std::make_shared<PythonBridgeSink>());
+    // Once per process, and the guard is load-bearing rather than tidiness.
+    // set_bridge_sink() re-points every registered logger by assigning
+    // logger->sinks(), and spdlog does not synchronize that vector against the
+    // logging path -- a logger emitting a record on another thread is reading
+    // the same vector. The bootstrap call from isaacteleop/__init__.py runs on
+    // the importing thread before anything here has started logging, so it is
+    // safe; a second call from a running application would not be, and this
+    // function is public API. A repeat call has nothing to do anyway: it would
+    // install an equivalent sink over the one already in place.
+    static std::once_flag installed;
+    std::call_once(installed, [] { detail::set_bridge_sink(std::make_shared<PythonBridgeSink>()); });
 }
 
 } // namespace isaacteleop
