@@ -95,8 +95,8 @@ to treat unverified container details as informational.
 
 `defect_all_tracked_flag_inconsistent` and `defect_device_clock_copies_common` therefore
 report `pass` with an advisory where the index expects `fail`. Both are listed in
-`tests/known_deviations.py` with this reasoning, and both should be revisited against the
-first real recording.
+`tests/known_deviations.py` with this reasoning. The first real recording settles one of
+the two; see *The first real recording* below.
 
 ## Test layers
 
@@ -139,6 +139,72 @@ Slice 5 (capture script, prompter, live panel, G5) needs hardware and is out of 
 - `examples/CMakeLists.txt` registers subdirectories explicitly, but
   `src/python/CMakeLists.txt` globs `.py` recursively — adding a file there would change
   the wheel without editing anything, which is why this lives at the top level.
+
+## The first real recording
+
+A 60 s PICO 4 Ultra capture through the CloudXR web client — 3373 frames at 56.2 Hz — is
+the first non-synthetic input this checker has read. Real captures stay out of the repo
+and out of the fixture folder; this one lives in `$HOME`.
+
+It confirms the wire format against the C++ writer rather than against the generator:
+topic `full_body/full_body`, both encodings `flatbuffer`, profile `teleop`, and 3456
+schema bytes byte-identical to `src/core/schema/golden/full_body.bfbs`. Every envelope
+check passes — 56.1 Hz at 0.13 ms jitter, no gaps, a pose on every record.
+
+That first client reported `body_tracking: false`, so every joint arrived invalid. **The
+blocker was the browser, not the hardware or an entitlement.** Re-running the same
+capture through the browser PICO ships granted the WebXR `body-tracking` feature on the
+same consumer headset, with no enterprise activation. Do not read a `body_tracking:
+false` as a device limitation before trying PICO's own browser.
+
+**Invalid joints carry arbitrary values, not zeros.** One held a quaternion component of
+−16363.96. The fixture set records zeros here, so gating on the validity flag is
+load-bearing for a wider reason than that set can show: an ungated finite or unit-norm
+check fails a working device on data it was never meant to read.
+
+**The two clocks differ by a rigid offset.** `sample_time_raw_device_clock` runs
+1291.369356 s ahead of the common clock with zero variance over 3373 frames, and the two
+are never equal. `available_time_local_common_clock` equals the sample time exactly, so
+`timestamps.available_not_before_sample` cannot fail on this device.
+
+Of the two advisories, that settles `timestamps.device_clock_distinct` only weakly: it
+passes, but against a rigid offset, so the device never had to expose an independent
+clock for it to. `consistency.all_joint_poses_tracked` stays unsettled — with no valid
+joints, the flag and the per-joint flags agree trivially.
+
+## What the first labelled capture found in the checker
+
+A 60 s labelled session on the same headset — three trackers on both ankles and the
+waist, a controller in each hand — exercised the geometry and G4 layers for the first
+time. Every fault it surfaced was in the checker, not the device. The four fixed here
+share one cause: **a property held by every generated fixture was being treated as a
+property of recordings in general.**
+
+- **The recording is not the performance.** `segmentation.label_alignment` required the
+  labelled span to coincide with the recording's; this session carried 16.6 s of lead-in
+  and 12.4 s of tail. It now requires containment, and unlabelled ends are reported.
+  Being a dependency, it had suppressed all thirteen G4 measurements.
+- **The generated performer is stronger than a real one.** A peak below the arm-raise
+  gate now asks for a retake instead of rejecting the device, because nothing in one
+  recording separates a clipped arm from one that did not go up. Plateau shape looked
+  like it should and does not: samples within a degree of the peak are 24% on the
+  saturating fixture and 23% on the clean one, against 5% for a real performer.
+- **Three trackers means the arms are solved, not measured.** The forearms varied 68%
+  and 46% of their length while the other 21 bones held to within float32. A bone that
+  varies on an otherwise fixed rig is now reported as derived; a rubber skeleton has no
+  fixed bones to contrast against, which is how the defect fixture still fails.
+- **A person squats unevenly.** The device knee-asymmetry fixture holds hips and ankles
+  at 0.0 deg beside 22 deg of knee difference; this capture measured 12.9 and 6.6 beside
+  21.4. The check reads the rest of the leg chain and attributes accordingly.
+
+The capture also showed that a graded measurement returning `pass` reads as an approval:
+70.9 deg of contralateral crosstalk appeared beside the word, with no threshold behind
+it. Unjudged measurements now render `[meas]`.
+
+The session ends at `retake`, naming a fuller arm raise and an even squat. Two readings
+are left for a second capture to explain: 70.9 deg of crosstalk on the standing hip
+(the hip angle is pelvis-relative, so pelvis tilt is the likely cause) and 11.0 m/s of
+peak joint speed.
 
 ## What the chirality checks can and cannot separate
 

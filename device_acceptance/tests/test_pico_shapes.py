@@ -24,6 +24,9 @@ def test_invalid_joints_may_carry_arbitrary_values(tmp_path):
     ``XR_SPACE_LOCATION_POSITION_VALID_BIT`` and its orientation counterpart, so an
     invalid joint holds whatever the runtime left there. Noitom zeroes it instead, and a
     checker built only against that behaviour fails Pico.
+
+    Confirmed on a real PICO 4 Ultra capture, not just inferred from the source: see
+    *The first real recording* in ``PLAN.md``.
     """
     garbage = [
         synth.joint(
