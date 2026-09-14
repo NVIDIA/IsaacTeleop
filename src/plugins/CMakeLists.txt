@@ -35,7 +35,7 @@ endif()
 if(BUILD_PLUGIN_WUJI_GLOVE)
     add_subdirectory(wuji_glove)
 endif()
-# Gated: Jetson only -- the Tegra CUDA and NVENC entry points are L4T-only.
+# Gated: Jetson only -- SIPL and the Tegra NVENC entry point are L4T-only.
 if(BUILD_PLUGIN_SENSING)
     add_subdirectory(sensing)
 endif()
