@@ -10,12 +10,17 @@ the specification for this vocabulary, so nothing here invents a name.
 from __future__ import annotations
 
 from .base import Attribution, Check, Outcome, Severity, Status
-from .coverage import PayloadPresenceRate
+from .consistency import AllJointPosesTracked
+from .continuity import MaxJointVelocity
+from .coverage import PayloadPresenceRate, ValidityTrend
 from .quaternion import UnitNormOnValidJoints
+from .rate import FrameGaps, IntervalRegularity
+from .schema import JointsFieldPresent
 from .timestamps import AvailableNotBeforeSample, DeviceClockDistinct, Monotonic
 from .values import Finite, ZeroPoseOnValidJoint
 
 CHECKS: tuple[type[Check], ...] = (
+    JointsFieldPresent,
     Finite,
     ZeroPoseOnValidJoint,
     UnitNormOnValidJoints,
@@ -23,6 +28,11 @@ CHECKS: tuple[type[Check], ...] = (
     AvailableNotBeforeSample,
     DeviceClockDistinct,
     PayloadPresenceRate,
+    ValidityTrend,
+    AllJointPosesTracked,
+    IntervalRegularity,
+    FrameGaps,
+    MaxJointVelocity,
 )
 
 

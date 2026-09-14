@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 from conftest import fixtures_root
-from known_deviations import BY_FIXTURE
+from known_deviations import BY_FIXTURE, EXPECTED_COLLATERAL
 
 from fullbody_acceptance import McapFrameSource, run
 from fullbody_acceptance.checks import CHECKS
@@ -64,7 +64,8 @@ def test_envelope_fixture_matches_the_index(entry: dict, fixture_dir: Path):
     if expected_check not in IMPLEMENTED:
         pytest.skip(f"{expected_check} not implemented yet")
 
-    assert failures == [expected_check], report.to_text()
+    collateral = {c for c in EXPECTED_COLLATERAL.get(name, set()) if c in IMPLEMENTED}
+    assert set(failures) == {expected_check} | collateral, report.to_text()
     assert report.verdict is Verdict.FAIL
 
 

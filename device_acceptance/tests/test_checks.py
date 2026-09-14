@@ -200,7 +200,7 @@ def test_payload_presence_rate():
 
 
 def test_a_clean_run_passes_end_to_end():
-    report = run(synth.StubSource(synth.frames(30)))
+    report = run(synth.StubSource(synth.frames(300)))
     assert report.verdict is Verdict.PASS
     assert report.failures == ()
     assert report.advisories == ()
@@ -209,7 +209,7 @@ def test_a_clean_run_passes_end_to_end():
 def test_advisory_failure_does_not_change_the_verdict():
     frame_list = [
         synth.frame(i, device_ns=synth.CLOCK_BASE_NS + i * synth.PERIOD_NS)
-        for i in range(30)
+        for i in range(300)
     ]
     report = run(synth.StubSource(frame_list))
     assert report.verdict is Verdict.PASS
@@ -248,3 +248,169 @@ def test_performance_attribution_yields_retake_not_fail():
         aggregate([result("a", Status.INSUFFICIENT_DATA, Attribution.DEVICE)])
         is Verdict.INSUFFICIENT_DATA
     )
+
+
+# --- schema ------------------------------------------------------------------------
+
+
+def test_joints_field_absence_is_a_schema_violation_not_a_rate():
+    from fullbody_acceptance.checks.schema import JointsFieldPresent
+
+    assert status_of(JointsFieldPresent, synth.frames(50)) is Status.PASS
+
+    one_bad = synth.frames(50)
+    one_bad[20] = synth.frame(20, include_joints=False)
+    outcome = drive(JointsFieldPresent(), one_bad)
+    assert outcome.status is Status.FAIL
+    assert outcome.measurements["missing_joints"] == 1
+
+
+def test_a_null_payload_is_not_a_missing_joints_field():
+    """The data table being absent is coverage.payload_presence_rate's business."""
+    from fullbody_acceptance.checks.schema import JointsFieldPresent
+
+    frame_list = [synth.frame(i, has_payload=i % 2 == 0) for i in range(50)]
+    outcome = drive(JointsFieldPresent(), frame_list)
+    assert outcome.status is Status.PASS
+    assert outcome.measurements["records_with_payload"] == 25
+
+
+# --- consistency -------------------------------------------------------------------
+
+
+def test_all_tracked_flag_disagreement_is_advisory():
+    from fullbody_acceptance.checks.consistency import AllJointPosesTracked
+
+    assert AllJointPosesTracked.severity is Severity.ADVISORY
+
+    lying = [synth.frame(i, valid_joints=20, all_tracked=True) for i in range(50)]
+    outcome = drive(AllJointPosesTracked(), lying)
+    assert outcome.status is Status.FAIL
+    assert outcome.measurements["flag_true_but_joints_invalid"] == 50
+
+
+def test_a_transient_dropout_whose_flag_follows_is_consistent():
+    from fullbody_acceptance.checks.consistency import AllJointPosesTracked
+
+    frame_list = [
+        synth.frame(
+            i, valid_joints=20 if 20 <= i < 30 else 24, all_tracked=not (20 <= i < 30)
+        )
+        for i in range(60)
+    ]
+    assert status_of(AllJointPosesTracked, frame_list) is Status.PASS
+
+
+# --- validity trend ----------------------------------------------------------------
+
+
+def test_validity_trend_separates_decay_from_a_transient_dropout():
+    from fullbody_acceptance.checks.coverage import ValidityTrend
+
+    decaying = [
+        synth.frame(i, valid_joints=24 - round(17 * i / 499)) for i in range(500)
+    ]
+    outcome = drive(ValidityTrend(), decaying)
+    assert outcome.status is Status.FAIL
+    assert outcome.measurements["drop"] > 0.25
+
+    transient = [
+        synth.frame(i, valid_joints=20 if 240 <= i < 300 else 24) for i in range(500)
+    ]
+    assert status_of(ValidityTrend, transient) is Status.PASS
+
+
+def test_validity_trend_will_not_conclude_from_a_short_recording():
+    from fullbody_acceptance.checks.coverage import ValidityTrend
+
+    assert status_of(ValidityTrend, synth.frames(100)) is Status.INSUFFICIENT_DATA
+
+
+def test_permanently_invalid_joints_are_not_a_decaying_trend():
+    """A vendor that never provides four joints has constant, not falling, coverage."""
+    from fullbody_acceptance.checks.coverage import ValidityTrend
+
+    assert status_of(ValidityTrend, synth.frames(400, valid_joints=20)) is Status.PASS
+
+
+# --- rate --------------------------------------------------------------------------
+
+
+def test_interval_regularity_accepts_a_steady_stream_and_rejects_jitter():
+    import random
+
+    from fullbody_acceptance.checks.rate import IntervalRegularity
+
+    assert status_of(IntervalRegularity, synth.frames(300)) is Status.PASS
+
+    rng = random.Random(7)
+    jittered = []
+    time_ns = synth.CLOCK_BASE_NS
+    for i in range(300):
+        time_ns += synth.PERIOD_NS + rng.randint(-9_000_000, 9_000_000)
+        jittered.append(synth.frame(i, sample_ns=time_ns))
+    jittered.sort(key=lambda f: f.sample_time_ns)
+    assert status_of(IntervalRegularity, jittered) is Status.FAIL
+
+
+def test_a_few_dropped_blocks_do_not_read_as_jitter():
+    """Median absolute deviation is chosen precisely so these two stay separable."""
+    from fullbody_acceptance.checks.rate import FrameGaps, IntervalRegularity
+
+    kept = [i for i in range(300) if not (100 <= i < 120 or 200 <= i < 225)]
+    frame_list = [
+        synth.frame(i, sample_ns=synth.CLOCK_BASE_NS + i * synth.PERIOD_NS)
+        for i in kept
+    ]
+
+    assert status_of(IntervalRegularity, frame_list) is Status.PASS
+    outcome = drive(FrameGaps(), frame_list)
+    assert outcome.status is Status.FAIL
+    assert outcome.measurements["gaps"] == 2
+
+
+# --- continuity --------------------------------------------------------------------
+
+
+def test_human_speed_passes_and_a_teleport_fails():
+    from fullbody_acceptance.checks.continuity import MaxJointVelocity
+
+    assert (
+        status_of(MaxJointVelocity, synth.moving_frames(60, speed_mps=1.7))
+        is Status.PASS
+    )
+
+    teleporting = synth.moving_frames(60, speed_mps=1.0)
+    jumped = synth.with_joint(
+        teleporting[30], 0, synth.joint(position=(50.0, 1.0, 0.0))
+    )
+    teleporting[30] = jumped
+    outcome = drive(MaxJointVelocity(), teleporting)
+    assert outcome.status is Status.FAIL
+    assert outcome.measurements["peak_speed_mps"] > 20.0
+
+
+def test_velocity_over_an_implausibly_short_interval_is_discarded():
+    """A sub-4 ms interval describes a broken clock, which rate.interval_regularity owns."""
+    from fullbody_acceptance.checks.continuity import MaxJointVelocity
+
+    frame_list = synth.moving_frames(20, speed_mps=1.0)
+    squeezed = (
+        frame_list[:10]
+        + [
+            synth.frame(
+                10,
+                joints=frame_list[10].joints,
+                sample_ns=frame_list[9].sample_time_ns + 200_000,
+            )
+        ]
+        + frame_list[11:]
+    )
+    outcome = drive(MaxJointVelocity(), squeezed)
+    assert outcome.status is Status.PASS
+    assert outcome.measurements["discarded_short_intervals"] == 1
+
+
+def test_a_short_recording_cannot_conclude_overall():
+    report = run(synth.StubSource(synth.frames(5)))
+    assert report.verdict is Verdict.INSUFFICIENT_DATA

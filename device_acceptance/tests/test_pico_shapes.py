@@ -39,7 +39,7 @@ def test_invalid_joints_may_carry_arbitrary_values(tmp_path):
         ),
     ]
     frame_list = []
-    for i in range(40):
+    for i in range(300):
         item = synth.frame(i)
         for offset, bad in enumerate(garbage):
             item = synth.with_joint(item, 10 + offset, bad)
@@ -89,11 +89,11 @@ def test_channel_is_located_by_schema_name_not_topic(tmp_path):
     """The topic prefix is whatever ``name=`` the recording script passed."""
     path = synth.write_recording(
         tmp_path / "renamed_topic.mcap",
-        synth.frames(30),
+        synth.frames(300),
         topic="vendor_xyz_body/full_body",
     )
     report = run(McapFrameSource(path))
 
     assert report.metadata.topic == "vendor_xyz_body/full_body"
-    assert report.frames == 30
+    assert report.frames == 300
     assert report.verdict is Verdict.PASS

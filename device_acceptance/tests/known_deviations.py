@@ -51,3 +51,12 @@ DEVIATIONS: tuple[Deviation, ...] = (
 )
 
 BY_FIXTURE = {d.fixture: d for d in DEVIATIONS}
+
+
+# A defect fixture may genuinely violate more than one property; the index names the
+# primary cause. Listing the extra failures keeps the oracle exact, so a check that
+# starts firing where it should not still shows up as a test failure.
+EXPECTED_COLLATERAL: dict[str, set[str]] = {
+    # Positions scaled by 100 really do move at 168 m/s.
+    "defect_centimetre_units.mcap": {"continuity.max_joint_velocity"},
+}

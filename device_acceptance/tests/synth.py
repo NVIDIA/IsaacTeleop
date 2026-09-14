@@ -44,6 +44,8 @@ def frame(
     *,
     joints: tuple[JointPose, ...] | None = None,
     has_payload: bool = True,
+    include_joints: bool = True,
+    valid_joints: int = NUM_JOINTS,
     sample_ns: int | None = None,
     available_ns: int | None = None,
     device_ns: int | None = None,
@@ -53,11 +55,16 @@ def frame(
     sample = CLOCK_BASE_NS + sequence * PERIOD_NS if sample_ns is None else sample_ns
     available = sample + 2_000_000 if available_ns is None else available_ns
     device = DEVICE_EPOCH_NS + sequence * PERIOD_NS if device_ns is None else device_ns
-    if joints is None and has_payload:
+    if joints is None and has_payload and include_joints:
         joints = tuple(
-            joint(position=(0.05 * i, 0.5 + 0.03 * i, 0.01 * i))
+            joint(
+                position=(0.05 * i, 0.5 + 0.03 * i, 0.01 * i),
+                is_valid=i < valid_joints,
+            )
             for i in range(NUM_JOINTS)
         )
+    if not include_joints:
+        joints = None
     return Frame(
         sequence=sequence,
         log_time_ns=available,
@@ -69,6 +76,27 @@ def frame(
         all_joint_poses_tracked=all_tracked if has_payload else None,
         joints=joints if has_payload else None,
     )
+
+
+def moving_frames(
+    count: int, speed_mps: float = 1.0, period_ns: int = PERIOD_NS
+) -> list[Frame]:
+    """Frames whose joints translate at a steady speed, for the continuity check."""
+    step = speed_mps * period_ns / 1e9
+    out = []
+    for i in range(count):
+        base = frame(i, sample_ns=CLOCK_BASE_NS + i * period_ns)
+        assert base.joints is not None
+        shifted = tuple(
+            joint(
+                position=(j.position[0] + step * i, j.position[1], j.position[2]),
+                orientation=j.orientation,
+                is_valid=j.is_valid,
+            )
+            for j in base.joints
+        )
+        out.append(replace(base, joints=shifted))
+    return out
 
 
 def frames(count: int, **kwargs) -> list[Frame]:
