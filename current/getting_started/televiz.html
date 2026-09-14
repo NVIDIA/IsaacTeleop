@@ -1174,7 +1174,15 @@ wiring Televiz into a foreign Vulkan app. Most users won’t touch these.</p></l
 <h3><a class="toc-backref" href="#id21" role="doc-backlink">QuadLayer / CylinderLayer / EquirectLayer</a><a class="headerlink" href="#quadlayer-cylinderlayer-equirectlayer" title="Link to this heading">#</a></h3>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">submit(left,</span> <span class="pre">right=None,</span> <span class="pre">stream=0)</span></code> — submit a frame (mono: <code class="docutils literal notranslate"><span class="pre">left</span></code> only; stereo: both).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">set_placement(placement)</span></code> / <code class="docutils literal notranslate"><span class="pre">placement()</span></code> — placement swap, thread-safe vs the frame loop.
+<li><p><code class="docutils literal notranslate"><span class="pre">set_placement(placement)</span></code> / <code class="docutils literal notranslate"><span class="pre">placement()</span></code> — placement swap, thread-safe vs the frame loop.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_stereo_baseline_mm(mm)</span></code> / <code class="docutils literal notranslate"><span class="pre">stereo_baseline_mm</span></code> — live per-eye offset, thread-safe vs
+the frame loop; applies on the next frame. Inert while the layer is mono, since <code class="docutils literal notranslate"><span class="pre">stereo</span></code> is
+fixed at construction. Raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> on a non-finite value.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">set_stereo_convergence_deg(deg)</span></code> / <code class="docutils literal notranslate"><span class="pre">stereo_convergence_deg</span></code> (<code class="docutils literal notranslate"><span class="pre">CylinderLayer</span></code> /
+<code class="docutils literal notranslate"><span class="pre">EquirectLayer</span></code>) — the same idea as a per-eye yaw instead of a translation. Prefer it on a
+curved surface: translating one gives full disparity dead ahead and less toward the edges, and
+none at all at infinite radius, while a rotation is uniform across the arc and works at any
+radius.
 <code class="docutils literal notranslate"><span class="pre">QuadLayer</span></code> accepts <code class="docutils literal notranslate"><span class="pre">None</span></code> (fullscreen, window mode); the shaped layers validate and raise
 <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> on bad shape parameters.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">set_visible(visible)</span></code> / <code class="docutils literal notranslate"><span class="pre">is_visible()</span></code>.</p></li>
