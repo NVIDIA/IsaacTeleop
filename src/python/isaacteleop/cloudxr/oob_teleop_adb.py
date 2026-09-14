@@ -858,6 +858,28 @@ def require_turn_port_free(port: int) -> None:
     )
 
 
+def _open_private(path: str) -> int:
+    """Create *path* fresh and owner-only, reusing nothing that is already there.
+
+    These are predictable ``/tmp`` names, so another local user can get there
+    first. ``O_NOFOLLOW`` alone only refuses a symlink; a plain file they created
+    and still own would be written through -- which for the config file means
+    handing them the TURN credential it carries. Unlinking first is what makes the
+    ``O_EXCL`` create meaningful, and under ``/tmp``'s sticky bit that unlink
+    fails on a file owned by someone else, so a planted path is refused rather
+    than reused. A caller that loses the race between the two syscalls gets
+    ``EEXIST`` and fails closed.
+
+    Raises:
+        OSError: if the path cannot be cleared or created safely.
+    """
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+
+
 def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen | None:
     """Start a coturn TURN server for USB-local ICE relay.
 
@@ -888,6 +910,9 @@ def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen
 
     # Write a config file — easier to maintain than a long arg list and avoids
     # shell quoting issues with special characters in credentials.
+    # Paths stay predictable on purpose: the watchdog below and the operator-facing
+    # messages recompute them from turn_port alone. _open_private() is what makes
+    # that safe.
     conf_path = f"/tmp/turnserver-cloudxr-{turn_port}.conf"
     log_path = f"/tmp/coturn-cloudxr-{turn_port}.log"
     # coturn's own log-file= below only opens once it has parsed *conf_path*
@@ -914,7 +939,7 @@ log-file={log_path}
 simple-log
 """
     try:
-        with open(conf_path, "w") as f:
+        with os.fdopen(_open_private(conf_path), "w", encoding="utf-8") as f:
             f.write(conf_content)
     except OSError as exc:
         log.warning("coturn: failed to write config file %s: %s", conf_path, exc)
@@ -922,21 +947,14 @@ simple-log
 
     # Truncate the log so operators only see lines from this run.
     try:
-        open(log_path, "w").close()
+        os.close(_open_private(log_path))
     except OSError:
         pass
 
     try:
-        # O_NOFOLLOW, and owner-only: this is a predictable /tmp path, so another
-        # local user can pre-create it as a symlink and have coturn's output land
-        # wherever they point it. Refusing to follow one is enough to stop that.
-        # Truncating on open keeps the previous per-run behaviour.
-        stdio_fd = os.open(
-            stdio_log_path,
-            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
-            0o600,
-        )
-        with os.fdopen(stdio_fd, "w", encoding="utf-8") as stdio_file:
+        with os.fdopen(
+            _open_private(stdio_log_path), "w", encoding="utf-8"
+        ) as stdio_file:
             proc = subprocess.Popen(
                 [coturn_bin, "-c", conf_path],
                 stdout=stdio_file,
