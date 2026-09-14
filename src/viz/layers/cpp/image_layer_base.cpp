@@ -221,6 +221,11 @@ void ImageLayerBase::submit(const VizBuffer& src, cudaStream_t stream)
     // mailbox and overwrite src.data while our async memcpy is still
     // reading from it. Cost is ~0.5 ms per 1080p submit on the caller's
     // thread; the render path is unaffected.
+    //
+    // This sync is load-bearing for borrowed-frame sources, which map producer
+    // memory rather than owning it: see the Frame docstring in
+    // examples/camera_viz/pipeline/interface.py and sources/cuda_ipc.py.
+    // Removing it corrupts those sources only, and only on device.
     check_cuda(cudaStreamSynchronize(stream), layer_type_.c_str(), "cudaStreamSynchronize(submit)");
 
     // memory_order_release pairs with the renderer's acquire load.
