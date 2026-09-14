@@ -10,15 +10,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cloudxr_py_test_ns.oob_teleop_env import redact_control_token
-from cloudxr_py_test_ns.webclient import (
+from isaacteleop_py_test_ns.cloudxr.oob_teleop_env import redact_control_token
+from isaacteleop_py_test_ns.cloudxr.webclient import (
     _parse_args,
     main,
     print_summary,
     resolve_client_url,
 )
 
-_LAN = "cloudxr_py_test_ns.oob_teleop_adb.resolve_lan_host_for_oob"
+_LAN = "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.resolve_lan_host_for_oob"
 
 
 @pytest.fixture(autouse=True)
@@ -161,7 +161,9 @@ def test_summary_reports_verbatim_urls_own_target() -> None:
 def test_summary_skips_adb_when_not_probing(_mock_lan: MagicMock) -> None:
     """--print-only must not shell out to adb."""
     buf = io.StringIO()
-    with patch("cloudxr_py_test_ns.webclient.headset_browser_package") as probe:
+    with patch(
+        "isaacteleop_py_test_ns.cloudxr.webclient.headset_browser_package"
+    ) as probe:
         url, source = resolve_client_url(None)
         print_summary(
             url=url,
@@ -193,8 +195,8 @@ def test_parse_args_positional_and_flag() -> None:
 @patch(_LAN, return_value="10.0.0.1")
 def test_main_print_only_skips_adb(_mock_lan: MagicMock, capsys) -> None:
     with (
-        patch("cloudxr_py_test_ns.webclient.require_adb_on_path") as req,
-        patch("cloudxr_py_test_ns.webclient.open_url_on_headset") as opener,
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.require_adb_on_path") as req,
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.open_url_on_headset") as opener,
     ):
         rc = main(["--print-only"])
     assert rc == 0
@@ -206,15 +208,16 @@ def test_main_print_only_skips_adb(_mock_lan: MagicMock, capsys) -> None:
 @patch(_LAN, return_value="10.0.0.1")
 def test_main_opens_resolved_url(_mock_lan: MagicMock, capsys) -> None:
     with (
-        patch("cloudxr_py_test_ns.webclient.require_adb_on_path"),
-        patch("cloudxr_py_test_ns.webclient.assert_exactly_one_adb_device"),
-        patch("cloudxr_py_test_ns.webclient.assert_headset_awake"),
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.require_adb_on_path"),
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.assert_exactly_one_adb_device"),
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.assert_headset_awake"),
         patch(
-            "cloudxr_py_test_ns.webclient.headset_browser_package",
+            "isaacteleop_py_test_ns.cloudxr.webclient.headset_browser_package",
             return_value="com.pico.browser",
         ),
         patch(
-            "cloudxr_py_test_ns.webclient.open_url_on_headset", return_value=(0, "")
+            "isaacteleop_py_test_ns.cloudxr.webclient.open_url_on_headset",
+            return_value=(0, ""),
         ) as opener,
     ):
         rc = main([])
@@ -230,14 +233,15 @@ def test_main_opens_resolved_url(_mock_lan: MagicMock, capsys) -> None:
 @patch(_LAN, return_value="10.0.0.1")
 def test_main_reports_adb_failure_with_hint(_mock_lan: MagicMock, capsys) -> None:
     with (
-        patch("cloudxr_py_test_ns.webclient.require_adb_on_path"),
-        patch("cloudxr_py_test_ns.webclient.assert_exactly_one_adb_device"),
-        patch("cloudxr_py_test_ns.webclient.assert_headset_awake"),
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.require_adb_on_path"),
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.assert_exactly_one_adb_device"),
+        patch("isaacteleop_py_test_ns.cloudxr.webclient.assert_headset_awake"),
         patch(
-            "cloudxr_py_test_ns.webclient.headset_browser_package", return_value=None
+            "isaacteleop_py_test_ns.cloudxr.webclient.headset_browser_package",
+            return_value=None,
         ),
         patch(
-            "cloudxr_py_test_ns.webclient.open_url_on_headset",
+            "isaacteleop_py_test_ns.cloudxr.webclient.open_url_on_headset",
             return_value=(1, "no devices/emulators found"),
         ),
     ):
@@ -250,10 +254,10 @@ def test_main_reports_adb_failure_with_hint(_mock_lan: MagicMock, capsys) -> Non
 
 def test_main_reports_preflight_failure_without_traceback() -> None:
     """An adb preflight failure is a clean exit code, not an escaping OobAdbError."""
-    from cloudxr_py_test_ns.oob_teleop_adb import OobAdbError as _Err
+    from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import OobAdbError as _Err
 
     with patch(
-        "cloudxr_py_test_ns.webclient.require_adb_on_path",
+        "isaacteleop_py_test_ns.cloudxr.webclient.require_adb_on_path",
         side_effect=_Err("no adb"),
     ):
         rc = main([])
@@ -262,7 +266,9 @@ def test_main_reports_preflight_failure_without_traceback() -> None:
 
 def test_main_preflight_hint_does_not_mention_setup_oob(capsys) -> None:
     """Shared adb advice must name no CLI flag — this tool has no --setup-oob."""
-    with patch("cloudxr_py_test_ns.oob_teleop_adb.shutil.which", return_value=None):
+    with patch(
+        "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.shutil.which", return_value=None
+    ):
         rc = main([])
     assert rc == 1
     err = capsys.readouterr().err

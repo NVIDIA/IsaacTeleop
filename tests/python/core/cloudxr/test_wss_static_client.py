@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from cloudxr_py_test_ns.wss import _make_http_handler
+from isaacteleop_py_test_ns.cloudxr.wss import _make_http_handler
 
 
 class FakeRequest:
