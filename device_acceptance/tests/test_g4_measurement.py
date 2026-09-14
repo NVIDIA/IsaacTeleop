@@ -277,3 +277,68 @@ class TestSignedAngles:
             signed_angle_about(relative(parent, child), (0.0, 0.0, 1.0))
         )
         assert recovered == pytest.approx(-40.0, abs=1e-6)
+
+
+class TestLabelAlignmentAgainstRealCaptures:
+    """A real capture is longer than the script; a generated one is exactly the script.
+
+    The fixtures cannot show the difference because their recording *is* the performance,
+    so these build the timeline by hand. A first PICO capture had 16.6 s of lead-in and
+    12.4 s of tail -- the performer getting into position and the operator stopping the
+    recorder -- which is the normal shape of a capture, not a fault in the labels.
+    """
+
+    PERIOD_NS = 16_666_667
+    BASE_NS = 1_000_000_000_000
+
+    def frames_for(self, seconds: float):
+        from tests import synth
+
+        count = int(seconds * 1e9 / self.PERIOD_NS)
+        return [
+            synth.frame(i, sample_ns=self.BASE_NS + i * self.PERIOD_NS)
+            for i in range(count)
+        ]
+
+    def timeline_over(self, start_s: float, durations: list[float]) -> StepTimeline:
+        from fullbody_acceptance.labels import Step
+
+        steps, at = [], start_s
+        for index, duration in enumerate(durations):
+            steps.append(
+                Step(
+                    index=index,
+                    label=f"step_{index}",
+                    start_ns=self.BASE_NS + round(at * 1e9),
+                    end_ns=self.BASE_NS + round((at + duration) * 1e9),
+                    is_still_window=False,
+                )
+            )
+            at += duration
+        return StepTimeline(steps=tuple(steps))
+
+    def align(self, recording_s: float, start_s: float, durations: list[float]):
+        (check,) = build(
+            ["segmentation.label_alignment"], self.timeline_over(start_s, durations)
+        )
+        for frame in self.frames_for(recording_s):
+            check.update(frame)
+        return check.result()
+
+    def test_unlabelled_lead_in_and_tail_are_normal(self):
+        outcome = self.align(70.0, start_s=16.6, durations=[5.0] * 6)
+        assert outcome.status is Status.PASS
+        assert outcome.measurements["lead_in_s"] == pytest.approx(16.6, abs=0.05)
+        assert outcome.measurements["tail_s"] == pytest.approx(23.4, abs=0.05)
+
+    def test_a_window_the_recording_ran_out_under_is_a_failure(self):
+        # The second window straddles the end of the recording: measuring it would
+        # describe a fragment while reading as a complete step.
+        outcome = self.align(20.0, start_s=10.0, durations=[5.0, 7.0])
+        assert outcome.status is Status.FAIL
+        assert outcome.measurements["windows_partly_outside"]
+
+    def test_labels_belonging_to_another_recording_are_a_failure(self):
+        outcome = self.align(20.0, start_s=400.0, durations=[5.0, 5.0])
+        assert outcome.status is Status.FAIL
+        assert len(outcome.measurements["windows_without_frames"]) == 2

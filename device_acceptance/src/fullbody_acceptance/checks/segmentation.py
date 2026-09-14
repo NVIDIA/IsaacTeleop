@@ -111,20 +111,21 @@ class LabelAlignment(_LabelCheck):
     gate = "G4"
     severity = Severity.HARD
     attribution = Attribution.DEVICE
-    summary = "The labelled windows line up with the frames they describe"
+    summary = "Every labelled window is backed by the frames it describes"
 
-    # A whole window may sit outside the recording only by this much of its own span.
+    # Containment only. A real capture starts before the performer does and stops after
+    # they finish, so unlabelled frames at either end are normal and say nothing about
+    # the labels. A sidecar shifted but still inside the recording passes here and is
+    # caught by the two motion checks below, which is where the evidence for it is.
+    #
+    # A window may stick out past the recorded span by this much of its own length.
     MAX_UNCOVERED_FRACTION = 0.02
-
-    # How far the labelled span may sit from the recording's own span, as a fraction of
-    # a nominal step. An offset sidecar shifts every window by the same amount, which
-    # shows up as the two spans disagreeing at both ends.
-    MAX_SPAN_OFFSET_S = 0.25
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.first_ns: int | None = None
         self.last_ns: int | None = None
+        self.per_window: dict[int, int] = {}
         self.unlabelled = 0
         self.labelled = 0
 
@@ -136,10 +137,20 @@ class LabelAlignment(_LabelCheck):
         self.last_ns = frame.sample_time_ns
         if self.timeline is None:
             return
-        if self.timeline.step_at(frame.sample_time_ns) is None:
+        step = self.timeline.step_at(frame.sample_time_ns)
+        if step is None:
             self.unlabelled += 1
-        else:
-            self.labelled += 1
+            return
+        self.labelled += 1
+        self.per_window[step.index] = self.per_window.get(step.index, 0) + 1
+
+    def _covered(self, step) -> float:
+        """Fraction of a window's own span that the recording actually spans."""
+        length = step.end_ns - step.start_ns
+        if length <= 0:
+            return 0.0
+        overlap = min(step.end_ns, self.last_ns) - max(step.start_ns, self.first_ns)
+        return max(0.0, min(1.0, overlap / length))
 
     def _result(self) -> Outcome:
         if self.timeline is None:
@@ -150,27 +161,44 @@ class LabelAlignment(_LabelCheck):
                 Status.INSUFFICIENT_DATA,
                 "no timestamped frames to align labels against",
             )
-        start_offset = (span[0] - self.first_ns) / 1e9
-        end_offset = (span[1] - self.last_ns) / 1e9
-        uncovered = self.unlabelled / max(1, self.labelled + self.unlabelled)
+
+        lead_in_s = (span[0] - self.first_ns) / 1e9
+        tail_s = (self.last_ns - span[1]) / 1e9
+        starved, clipped = [], []
+        for step in self.timeline.steps:
+            if not self.per_window.get(step.index):
+                starved.append(step.label)
+            elif self._covered(step) < 1.0 - self.MAX_UNCOVERED_FRACTION:
+                clipped.append(f"{step.label} ({self._covered(step):.0%} covered)")
+
         measurements = {
-            "start_offset_s": start_offset,
-            "end_offset_s": end_offset,
-            "unlabelled_fraction": uncovered,
+            "lead_in_s": lead_in_s,
+            "tail_s": tail_s,
+            "unlabelled_fraction": self.unlabelled
+            / max(1, self.labelled + self.unlabelled),
             "unlabelled_frames": self.unlabelled,
+            "windows_without_frames": starved,
+            "windows_partly_outside": clipped,
         }
-        worst = max(abs(start_offset), abs(end_offset))
-        if worst <= self.MAX_SPAN_OFFSET_S and uncovered <= self.MAX_UNCOVERED_FRACTION:
+
+        if starved:
             return Outcome(
-                Status.PASS,
-                f"labels cover the recording to within {worst * 1000:.0f} ms",
+                Status.FAIL,
+                f"no frames fall inside {', '.join(starved)}, so the labels do not "
+                f"belong to this recording",
+                measurements,
+            )
+        if clipped:
+            return Outcome(
+                Status.FAIL,
+                f"the recording ran out part way through {', '.join(clipped)}, so "
+                f"those windows would be measured from a fragment",
                 measurements,
             )
         return Outcome(
-            Status.FAIL,
-            f"the labelled span sits {start_offset:+.2f} s from the first frame and "
-            f"{end_offset:+.2f} s from the last, leaving {uncovered:.0%} of frames "
-            f"unlabelled, so every window names the wrong motion",
+            Status.PASS,
+            f"all {len(self.timeline.steps)} windows are backed by frames, with "
+            f"{lead_in_s:.1f} s of lead-in and {tail_s:.1f} s of tail unlabelled",
             measurements,
         )
 
