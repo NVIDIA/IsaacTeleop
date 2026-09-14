@@ -52,6 +52,17 @@ def yaw_quat(yaw: float) -> Quat:
     return _rot_to_wxyz(Rotation.from_euler("y", yaw))
 
 
+def heading_deg(q: Quat) -> float:
+    """Which way ``q`` faces about +Y, in degrees.
+
+    0 looks down -Z (the reference space's forward), +90 down +X's opposite,
+    i.e. positive is a turn to the left. Inverse of :func:`yaw_quat` up to
+    the projection, so ``heading_deg(yaw_quat(t)) == degrees(t)``.
+    """
+    fx, _fy, fz = project_forward_xz(q)
+    return math.degrees(math.atan2(-fx, -fz))
+
+
 def project_forward_xz(q: Quat) -> Vec3:
     """OpenXR head forward (-Z in head local) projected onto XZ, normalized.
 
