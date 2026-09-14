@@ -115,7 +115,10 @@ class ParameterState:
                 )
             except Exception as e:
                 logger.warning(
-                    "[%s] Failed to apply config for %s: %s", self._name, parameter.name, e
+                    "[%s] Failed to apply config for %s: %s",
+                    self._name,
+                    parameter.name,
+                    e,
                 )
                 self._values[parameter.name] = parameter.get_default_value()
         else:

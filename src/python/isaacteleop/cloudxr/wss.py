@@ -587,7 +587,9 @@ async def run(
     if log_file_path is not None:
         _handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
         _handler.setFormatter(
-            logging.Formatter(logging_config.LINE_FORMAT, datefmt=logging_config.DATE_FORMAT)
+            logging.Formatter(
+                logging_config.LINE_FORMAT, datefmt=logging_config.DATE_FORMAT
+            )
         )
         # Tracked so the finally below can detach it from every logger it was
         # attached to, not just this module's: a logger still holding a closed
