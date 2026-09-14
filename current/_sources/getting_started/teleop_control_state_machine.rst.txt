@@ -69,7 +69,7 @@ Connecting Inputs
 -----------------
 
 Use one debounced selector per signal (simple wiring, no multi-input lambdas):
-see :code-file:`teleop_controls_simple_example.py <examples/teleop_session_manager/python/teleop_controls_simple_example.py>`
+see :code-file:`teleop_controls_simple_example.py <examples/teleop_session_manager/python/isaacteleop_examples/teleop_session_manager/teleop_controls_simple_example.py>`
 for the full runnable setup.
 
 .. code-block:: python

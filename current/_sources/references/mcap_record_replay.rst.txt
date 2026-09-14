@@ -104,6 +104,28 @@ to add extra trackers that aren't part of the pipeline:
    ``mcap_config`` is **required** when ``mode`` is ``SessionMode.REPLAY``.
    Omitting it raises ``ValueError``.
 
+Schema compatibility
+^^^^^^^^^^^^^^^^^^^^
+
+Every recording embeds the FlatBuffer schema it was written under. Opening a replay
+session compares every schema the recording carries against the schema the running
+build was compiled from, and raises ``RuntimeError`` when the recorded bytes would be
+misread — a recording made before a breaking schema change, for instance. The whole
+recording is graded before the first frame is read, so replay never stops part-way
+through for a schema reason.
+
+That needs the list of schemas up front. It normally comes from the summary section at
+the end of the file; a recording whose writer never got to flush one, which is what a
+run cut short leaves behind, is scanned for its schema records instead. A recording so
+damaged that neither route works is refused.
+
+A difference that leaves every recorded field readable — a table field appended
+since, or one marked ``(deprecated)`` — is reported on stderr and replayed instead.
+There is no way to override the raise: a recording the running build would misread
+is not replayable, and reading it anyway would hand back records whose field values
+are quietly wrong. ``src/core/schema/README.md`` has the evolution rules that keep a
+schema change from getting there.
+
 Runnable Example
 ----------------
 
@@ -133,7 +155,13 @@ additional source nodes (``HeadSource``, ``ControllersSource``, …) in
 ``common.py``.
 
 For a live browser view of **all** human DeviceIO trackers at once (hands, head,
-controllers, and full body), see ``examples/deviceio_live_view/python/``.
+controllers, and full body), see ``examples/deviceio_live_view/`` and its
+``README.md``:
+
+.. code-block:: bash
+
+   uv pip install -e ./examples/deviceio_live_view
+   python -m isaacteleop_examples.deviceio_live_view --accept-eula
 
 A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
 
@@ -141,8 +169,7 @@ A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
   ``core::McapRecordingConfig`` to ``DeviceIOSession::run()``. It uses the
   same channel base name as ``FullBodySource``, so the resulting file replays
   with ``replay_full_body.py``. ``python -m isaacteleop.rig rigs/full_body.yaml``
-  runs it together with the CloudXR runtime and the full-body printer (see
-  :ref:`rig-launcher`).
+  runs it together with the full-body printer (see :ref:`rig-launcher`).
 
 Live preview
 ^^^^^^^^^^^^
@@ -156,12 +183,14 @@ From the example directory:
    uv run python live_full_body.py --accept-eula
    uv run python live_full_body.py --port 8090 --accept-eula  # change viser port
 
-Open the printed URL (default ``http://localhost:8080``) in a browser.
+Open the printed URL (default ``http://localhost:8080``) in a browser.  The
+viewers bind every interface, since they run where the headset is and get
+opened from another machine; pass ``--host 127.0.0.1`` to keep one local.
 
 Recording
 ^^^^^^^^^
 
-From the installed example directory:
+From the example directory:
 
 .. code-block:: bash
 
@@ -171,8 +200,20 @@ From the installed example directory:
    uv run python record_hand.py 10         # record for 10 seconds
    uv run python record_hand.py 10 out.mcap  # custom output path
 
+The example never downloads a published wheel — it runs against the
+``isaacteleop`` next to it.  Above, ``uv sync`` builds it from this checkout; the
+first sync compiles the extension modules and takes a few minutes, later ones
+reuse the cached build, and the install is editable, so edits under
+``src/python/`` need no rebuild.  From
+``install/examples/mcap_record_replay/python`` (after ``cmake --install``) it
+picks up the wheel you just built instead — see
+:doc:`/getting_started/build_from_source/index`.
+
 An active OpenXR runtime / headset must be connected, just like any other
-live ``TeleopSession``.
+live ``TeleopSession``.  Recording also needs the CloudXR runtime natives, which
+a from-source build bundles only when the CloudXR SDK tarball is available —
+CMake fetches it automatically, and warns rather than fails if it cannot.  Replay
+has no such requirement.
 
 Replaying
 ^^^^^^^^^

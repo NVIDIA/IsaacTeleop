@@ -55,12 +55,12 @@ Follow the necessary one-time steps to set up your environment and hardware:
 
       hf auth login
 
-#. Accept the CloudXR EULA once. The runtime auto-launches on connect and prompts for the EULA on
-   stdin, which would hang a headless run, so accept it ahead of time:
+#. Accept the CloudXR EULA once and start the runtime. The EULA prompts on stdin, which would hang
+   a headless run, so do both ahead of time; the service outlives each script you run below:
 
    .. code-block:: bash
 
-      python -m isaacteleop.cloudxr --accept-eula
+      python -m isaacteleop.cloudxr.service start --accept-eula
 
 Teleop and data recording
 -------------------------

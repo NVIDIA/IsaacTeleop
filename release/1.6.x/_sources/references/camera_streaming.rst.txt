@@ -265,7 +265,8 @@ CloudXR stream them efficiently (see
 :ref:`OpenXR composition layers <openxr-composition-layers>`). For flat planes only,
 ``compositor: televiz`` opts a camera back into Televiz's built-in compositor. On Jetson Orin
 (CloudXR experimental runtime), set ``compositor: televiz`` so the plane is not left black; see
-Troubleshooting below.
+Troubleshooting below. On the Televiz 2D API the same switch is
+``openxr_composition = False`` (see :ref:`Jetson Orin, XR <orin-openxr-composition>`).
 
 CloudXR runtime flags
 ---------------------
