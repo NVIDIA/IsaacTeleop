@@ -741,7 +741,8 @@ CloudXR stream them efficiently (see
 <a class="reference internal" href="../getting_started/televiz.html#openxr-composition-layers"><span class="std std-ref">OpenXR composition layers</span></a>). For flat planes only,
 <code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> opts a camera back into Televiz’s built-in compositor. On Jetson Orin
 (CloudXR experimental runtime), set <code class="docutils literal notranslate"><span class="pre">compositor:</span> <span class="pre">televiz</span></code> so the plane is not left black; see
-Troubleshooting below.</p>
+Troubleshooting below. On the Televiz 2D API the same switch is
+<code class="docutils literal notranslate"><span class="pre">openxr_composition</span> <span class="pre">=</span> <span class="pre">False</span></code> (see <a class="reference internal" href="../getting_started/televiz.html#orin-openxr-composition"><span class="std std-ref">Jetson Orin, XR</span></a>).</p>
 </section>
 <section id="cloudxr-runtime-flags">
 <h2><a class="toc-backref" href="#id10" role="doc-backlink">CloudXR runtime flags</a><a class="headerlink" href="#cloudxr-runtime-flags" title="Link to this heading">#</a></h2>
@@ -1076,7 +1077,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 12, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 14, 2026.
       <br/>
     
   </p>

@@ -577,12 +577,12 @@ python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.dev
 <li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.cpp</span></code> — records the <code class="docutils literal notranslate"><span class="pre">full_body</span></code> channel by passing a
 <code class="docutils literal notranslate"><span class="pre">core::McapRecordingConfig</span></code> to <code class="docutils literal notranslate"><span class="pre">DeviceIOSession::run()</span></code>. It uses the
 same channel base name as <code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code>, so the resulting file replays
-with <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code>. <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">rigs/full_body.yaml</span></code>
+with <code class="docutils literal notranslate"><span class="pre">replay_full_body</span></code>. <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">rigs/full_body.yaml</span></code>
 runs it together with the full-body printer (see <a class="reference internal" href="rig.html#rig-launcher"><span class="std std-ref">Rig Launcher</span></a>).</p></li>
 </ul>
 <section id="live-preview">
 <h3>Live preview<a class="headerlink" href="#live-preview" title="Link to this heading">#</a></h3>
-<p>From the example directory:</p>
+<p>From the repo root:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/mcap_record_replay
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.mcap_record_replay.live_full_body<span class="w"> </span>--accept-eula
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.mcap_record_replay.live_full_body<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w"> </span>--accept-eula
@@ -594,7 +594,7 @@ opened from another machine; pass <code class="docutils literal notranslate"><sp
 </section>
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
-<p>From the example directory:</p>
+<p>From the repo root:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/mcap_record_replay
 <span class="nv">R</span><span class="o">=</span><span class="s2">"python -m isaacteleop_examples.mcap_record_replay.record_hand"</span>
 <span class="nv">$R</span><span class="w">              </span><span class="c1"># 5 s → ./recordings/hands_&lt;timestamp&gt;.mcap</span>
@@ -826,7 +826,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 12, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 14, 2026.
       <br/>
     
   </p>
