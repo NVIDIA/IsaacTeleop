@@ -168,12 +168,12 @@ A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
 - ``record_full_body.cpp`` — records the ``full_body`` channel by passing a
   ``core::McapRecordingConfig`` to ``DeviceIOSession::run()``. It uses the
   same channel base name as ``FullBodySource``, so the resulting file replays
-  with ``replay_full_body.py``.
+  with ``replay_full_body``.
 
 Live preview
 ^^^^^^^^^^^^
 
-From the example directory:
+From the repo root:
 
 .. code-block:: bash
 
@@ -188,7 +188,7 @@ opened from another machine; pass ``--host 127.0.0.1`` to keep one local.
 Recording
 ^^^^^^^^^
 
-From the example directory:
+From the repo root:
 
 .. code-block:: bash
 
