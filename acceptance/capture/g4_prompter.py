@@ -3,10 +3,11 @@
 
 """Speaks the G4 motion script to a performer who is wearing the headset.
 
-Cues are rendered to WAV once and cached; synthesising during the run would put a
-variable delay in front of every window. Each cue is scheduled to *finish* as its
-window opens, so the performer moves during the leading part of the window that the
-posture checks discard anyway (SETTLE_FRACTION = 0.40).
+The cues are WAV files in `cues/`, rendered once by piper and committed. Nothing is
+synthesised at run time, and the synthesiser is not a dependency of recording a take.
+Each cue is scheduled to *finish* as its window opens, so the performer moves during
+the leading part of the window that the posture checks discard anyway
+(SETTLE_FRACTION = 0.40).
 
 Two tones carry the timing the speech cannot. A beep marks every window boundary, and
 a held pose gets a soft tick meaning "still holding" -- never a release, since the
@@ -21,9 +22,8 @@ found in the recording, not to this process's clock.
 from __future__ import annotations
 
 import argparse
-import array
 import hashlib
-import math
+import json
 import subprocess
 import sys
 import time
@@ -33,69 +33,34 @@ from pathlib import Path
 from g4_session import BRIEFING, LEAD_IN_S, STEPS, STILL_LABELS, total_duration_s
 
 HERE = Path(__file__).resolve().parent
-VOICE = HERE / "tts_voices" / "en_GB-alba-medium.onnx"
-PIPER = HERE / ".venv-tts" / "bin" / "piper"
-CACHE = HERE / "tts_cache"
+CUES = HERE / "cues"
 
-LENGTH_SCALE = "1.25"
 GAP_S = 0.15  # silence between a cue ending and its window opening
 HOLD_WARNING_S = 1.0  # how long before a held window ends the tick sounds
 
 CLOSING = "Done. You can stop now."
 
 
-def tone(path: Path, hz: float, seconds: float, volume: float) -> Path:
-    """Writes a short sine beep with a raised-cosine envelope, so it does not click."""
-    if path.is_file():
-        return path
-    rate = 22050
-    total = int(rate * seconds)
-    edge = max(1, int(rate * 0.008))
-    samples = array.array("h")
-    for n in range(total):
-        gain = 1.0
-        if n < edge:
-            gain = 0.5 - 0.5 * math.cos(math.pi * n / edge)
-        elif n > total - edge:
-            gain = 0.5 - 0.5 * math.cos(math.pi * (total - n) / edge)
-        samples.append(
-            int(32767 * volume * gain * math.sin(2 * math.pi * hz * n / rate))
-        )
-    with wave.open(str(path), "w") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(rate)
-        handle.writeframes(samples.tobytes())
-    return path
+def cue(label: str, text: str) -> Path:
+    """The recorded WAV for one cue, refusing a file that says something else.
 
-
-def render(text: str) -> Path:
-    """Returns a cached WAV of `text`, synthesising it on first use.
-
-    Synthesis happens before the run starts, so a cold cache is a silent minute with
-    nothing on stdout unless it says so -- which reads as a dead script.
+    `cues/index.json` holds the hash of the text each WAV was rendered from, so
+    rewording a cue in g4_session.py stops the run here instead of playing the old
+    wording at a performer who cannot tell.
     """
-    CACHE.mkdir(exist_ok=True)
-    key = hashlib.sha1(f"{VOICE.stem}:{LENGTH_SCALE}:{text}".encode()).hexdigest()[:16]
-    wav = CACHE / f"{key}.wav"
-    if not wav.is_file():
-        print(f"  synthesising: {text[:56]}", flush=True)
-        subprocess.run(
-            [
-                str(PIPER),
-                "-m",
-                str(VOICE),
-                "--length-scale",
-                LENGTH_SCALE,
-                "-f",
-                str(wav),
-            ],
-            input=text.encode(),
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+    index = json.loads((CUES / "index.json").read_text())
+    recorded = index["text_sha1"].get(label)
+    current = hashlib.sha1(text.encode()).hexdigest()[:16]
+    if recorded is None:
+        raise SystemExit(f"{CUES}/index.json has no cue named {label!r}")
+    if recorded != current:
+        raise SystemExit(
+            f"the wording of cue {label!r} changed, so {label}.wav no longer says it:\n"
+            f"  now: {text!r}\n"
+            f"re-render it with piper at voice {index['voice']} and length scale "
+            f"{index['length_scale']}, then update index.json"
         )
-    return wav
+    return CUES / f"{label}.wav"
 
 
 def duration_of(wav: Path) -> float:
@@ -111,20 +76,19 @@ def play(wav: Path) -> None:
 
 def build_schedule() -> list[tuple[float, Path, str]]:
     """Returns (when_s, wav, log line) for every sound, in time order."""
-    CACHE.mkdir(exist_ok=True)
-    beep = tone(CACHE / "beep.wav", 880.0, 0.12, 0.45)
-    tick = tone(CACHE / "tick.wav", 440.0, 0.08, 0.22)
+    beep = CUES / "beep.wav"
+    tick = CUES / "tick.wav"
 
     # Window bounds and the cue that opens each one, laid out first so the hold
     # ticks can be placed in the gaps rather than on top of the next instruction.
     opens, at = [], LEAD_IN_S
-    for index, (label, duration, cue) in enumerate(STEPS):
-        wav = render(cue)
+    for index, (label, duration, text) in enumerate(STEPS):
+        wav = cue(label, text)
         opens.append(
             {
                 "index": index,
                 "label": label,
-                "cue": cue,
+                "cue": text,
                 "wav": wav,
                 "start": at,
                 "end": at + duration,
@@ -135,7 +99,7 @@ def build_schedule() -> list[tuple[float, Path, str]]:
     script_end = at
 
     events: list[tuple[float, Path, str]] = [
-        (0.0, render(BRIEFING), "briefing"),
+        (0.0, cue("briefing", BRIEFING), "briefing"),
     ]
     for position, window in enumerate(opens):
         events.append(
@@ -157,7 +121,7 @@ def build_schedule() -> list[tuple[float, Path, str]]:
             events.append((when, tick, "   (keep holding)"))
 
     events.append((script_end, beep, "   -> script ends"))
-    events.append((script_end + 0.3, render(CLOSING), "done"))
+    events.append((script_end + 0.3, cue("closing", CLOSING), "done"))
     return sorted(events, key=lambda event: event[0])
 
 
@@ -170,11 +134,6 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not VOICE.is_file() or not PIPER.is_file():
-        print(f"missing piper or the voice model under {HERE}", file=sys.stderr)
-        return 1
-
-    print("preparing cues", flush=True)
     schedule = build_schedule()
     print(
         f"lead-in {LEAD_IN_S:.0f} s, script {total_duration_s() - LEAD_IN_S:.0f} s, "

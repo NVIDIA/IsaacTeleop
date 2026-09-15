@@ -57,9 +57,9 @@ foreground and the recorder in the background. It writes
 ```
 
 Nothing is ever overwritten, so run it again for another take. The repo has to be built
-first (`.venv-runtime` plus `examples/mcap_record_replay`), and the spoken cues need
-`piper` and a voice model under `acceptance/capture/`, which are not in git — the
-prompter names what is missing and exits if they are absent.
+first (`.venv-runtime` plus `examples/mcap_record_replay`); the spoken cues are WAV
+files in `acceptance/capture/cues/` and need no synthesiser, so `aplay` is the only
+other thing the prompter wants.
 
 The label sidecar carries the motion windows the G4 checks read, and it is written for
 you by `g4_make_labels.py` at the end of the recording. Windows are anchored to the clap
