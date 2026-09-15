@@ -120,7 +120,7 @@ things a list of 38 lines cannot:
 | **Skeleton, coloured per joint** | A live joint is green. A joint whose `is_valid` went false is drawn **red at the position it was last seen**, and named in the scene — its recorded position is arbitrary, so it is not drawn where the file says. This is the view in which a hand dropping out as the subject turns is obvious. |
 | **Frame rate, scrolling** | A dropped block is a spike here. In the text report it is a slightly lower mean. |
 | **Valid joints over the whole take** | A decay is one glance, rather than a start-and-end pair of percentages. |
-| **The gates** | Each carries its own verdict before you expand it, worst result first, with the few checks that decide the take pulled out above them. G5 and G6 are left out: neither is answerable from a recording. |
+| **Three groups of checks** | Named after what they read — the envelope and signal, the skeleton's geometry, the posture over the labelled windows. Each carries its own answer before you expand it, worst result first, with the few checks that decide the take pulled out above them. The gate numbering below is the submitter's narrative and the panel does not show it. |
 
 `play` runs the take at its own rate; `speed` and the `frame` scrubber move the
 playhead. The list always shows the **final** result of every check: three of them need

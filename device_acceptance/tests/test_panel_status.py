@@ -79,32 +79,35 @@ def test_an_unanswered_check_is_never_drawn_blank():
     assert "n/a" in rendered
 
 
-def test_a_gate_reports_its_worst_result_before_anyone_expands_it():
+def test_a_group_reports_its_worst_result_before_anyone_expands_it():
     report = report_of(
         result("one"),
         result("two", status_=Status.FAIL),
         result("three", judged=False),
     )
-    first = status.gates(report)[1]
-    assert first.code == "G1"
-    assert first.mark is Mark.FAIL
-    assert first.tally == "1 FAIL, 1 meas, 1 pass"
-    assert [r.mark for r in first.results] == [Mark.FAIL, Mark.MEAS, Mark.PASS]
+    (group,) = status.gates(report)
+    assert group.mark is Mark.FAIL
+    assert group.tally == "1 FAIL, 1 meas, 1 pass"
+    assert [r.mark for r in group.results] == [Mark.FAIL, Mark.MEAS, Mark.PASS]
 
 
-def test_a_gate_with_no_checks_says_where_its_checks_went():
-    gates = status.gates(report_of(result("one")))
-    assert [gate.code for gate in gates] == [code for code, _, _ in GATE_TITLES]
-    empty = next(gate for gate in gates if gate.code == "G3")
-    assert empty.mark is None
-    assert empty.absent in render.gate_heading(empty)
-    assert empty.absent in render.gate_body(empty)
+def test_a_heading_names_what_was_read_and_not_a_gate_number():
+    """The numbering is the submitter's narrative; it means nothing to a reviewer."""
+    (group,) = status.gates(report_of(result("one")))
+    heading = render.gate_heading(group)
+    assert heading == "Schema, envelope and signal quality — 1 pass"
+    assert group.code not in heading
+
+
+def test_a_group_with_no_checks_is_not_shown():
+    shown = status.gates(report_of(result("one", gate="G4")))
+    assert [group.code for group in shown] == ["G4"]
 
 
 def test_every_gate_the_checks_use_is_displayed():
-    """The panel shows the gates by name, so an unlisted one would drop its results."""
+    """The panel shows groups by name, so an unlisted gate would drop its results."""
     used = {check.gate for check in build_all()}
-    assert used <= {code for code, _, _ in GATE_TITLES}
+    assert used <= {code for code, _ in GATE_TITLES}
 
 
 def test_the_decisive_results_keep_their_own_order():

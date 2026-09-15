@@ -213,7 +213,7 @@ class Panel:
         for gate in status.gates(report):
             with gui.add_folder(
                 render.gate_heading(gate),
-                expand_by_default=gate.mark not in (None, Mark.PASS),
+                expand_by_default=gate.mark is not Mark.PASS,
             ):
                 gui.add_html(render.gate_body(gate))
 

@@ -67,18 +67,11 @@ def result_rows(results: Sequence[CheckResult]) -> str:
 
 
 def gate_heading(gate: Gate) -> str:
-    """The folder label: the gate's own verdict, before anyone expands it."""
-    if gate.mark is None:
-        return f"{gate.code} {gate.title} — {gate.absent or 'no checks'}"
-    return f"{gate.code} {gate.title} — {gate.tally}"
+    """The folder label: the group's own answer, before anyone expands it."""
+    return f"{gate.title} — {gate.tally}"
 
 
 def gate_body(gate: Gate) -> str:
-    if not gate.results:
-        return (
-            f'<div style="font-size:11px;opacity:0.75;padding:2px 0">'
-            f"{escape(gate.absent or 'no checks in this directory')}</div>"
-        )
     return result_rows(gate.results)
 
 

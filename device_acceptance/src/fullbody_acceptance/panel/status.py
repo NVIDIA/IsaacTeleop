@@ -36,15 +36,15 @@ DECISIVE = (
     "skeleton.bone_length_constancy",
 )
 
-# G5 (replay through retargeting) and G6 (human review) are left out: neither is
-# answerable from a recording, so a row for each said only "not implemented". G0 and G3
-# stay because their notes say where their checks went.
-GATE_TITLES: tuple[tuple[str, str, str], ...] = (
-    ("G0", "Build and skip", "attested by the submitter"),
-    ("G1", "Schema, envelope and signal quality", ""),
-    ("G2", "Skeleton geometry", ""),
-    ("G3", "Signal quality", "its checks report under G1"),
-    ("G4", "Posture over the labelled windows", ""),
+# The gate numbering is the narrative for the submitter, not for whoever is looking at a
+# take, so the panel groups by what the checks read and names the group after that. G1
+# carries G3's signal-quality checks, which is why its title says both. A gate with no
+# checks of its own is not shown at all: G0 is the submitter's attestation, and G5 and
+# G6 are not answerable from a recording.
+GATE_TITLES: tuple[tuple[str, str], ...] = (
+    ("G1", "Schema, envelope and signal quality"),
+    ("G2", "Skeleton geometry"),
+    ("G4", "Posture over the labelled windows"),
 )
 
 
@@ -52,13 +52,12 @@ GATE_TITLES: tuple[tuple[str, str, str], ...] = (
 class Gate:
     code: str
     title: str
-    absent: str
     results: tuple[CheckResult, ...]
 
     @property
-    def mark(self) -> Mark | None:
-        """The worst mark in the gate, or None when no check here answers to it."""
-        return min((r.mark for r in self.results), key=WORST_FIRST.index, default=None)
+    def mark(self) -> Mark:
+        """The worst mark in the group."""
+        return min((r.mark for r in self.results), key=WORST_FIRST.index)
 
     @property
     def tally(self) -> str:
@@ -74,12 +73,14 @@ def worst_first(results: tuple[CheckResult, ...]) -> tuple[CheckResult, ...]:
 
 
 def gates(report: Report) -> tuple[Gate, ...]:
+    """Groups with checks in them, in the declared order. An empty group is not shown."""
     grouped: dict[str, list[CheckResult]] = {}
     for result in report.results:
         grouped.setdefault(result.gate, []).append(result)
     return tuple(
-        Gate(code, title, absent, worst_first(tuple(grouped.get(code, ()))))
-        for code, title, absent in GATE_TITLES
+        Gate(code, title, worst_first(tuple(grouped[code])))
+        for code, title in GATE_TITLES
+        if code in grouped
     )
 
 
