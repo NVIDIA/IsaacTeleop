@@ -363,7 +363,6 @@ jobs:
         # even though the smoke env installs no extras.
         expected = [
             "isaacteleop.mcap",
-            "isaacteleop.rig",
             "isaacteleop.cloudxr",
             "isaacteleop.teleop_session_manager",
             "isaacteleop.retargeters",
@@ -1216,6 +1215,11 @@ jobs:
         ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
       run: |
         set -euo pipefail
+
+        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_PROJECT_ID}" || -z "${ARTIFACTORY_URL}" || -z "${ARTIFACTORY_REPO}" ]]; then
+          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, KITMAKER_PROJECT_ID, ARTIFACTORY_URL, ARTIFACTORY_REPO"
+          exit 1
+        fi
 
         # Redact sensitive values that may appear in API responses.
         echo "::add-mask::${KITMAKER_API_ENDPOINT}"

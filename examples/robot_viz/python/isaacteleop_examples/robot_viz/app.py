@@ -44,13 +44,14 @@ from isaacteleop.retargeters.SO101.gripper_retargeter import (
 from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
 from isaacteleop.teleop_session_manager.config import TwinRenderConfig
 from isaacteleop.viz.robot import (
+    PREVIEW_ARMS,
     VIEW_COUNT,
     ClutchPreview,
     EngageGate,
     InterventionMonitor,
     PreviewArm,
+    PreviewArmProfile,
     SceneTwin,
-    assets,
     frames,
 )
 from isaacteleop.viz.robot.clutch_preview import (
@@ -140,7 +141,7 @@ def _build_pipeline(  # noqa: N803
     )
 
 
-def _log_startup(scene_path, resolution, backend: str, gl_device: int) -> None:
+def _log_startup(arm, scene_path, resolution, backend: str, gl_device: int) -> None:
     """One block naming every assumption that is invisible at runtime."""
     try:
         version = importlib.metadata.version("isaacteleop")
@@ -148,6 +149,7 @@ def _log_startup(scene_path, resolution, backend: str, gl_device: int) -> None:
         version = "<not installed as a distribution>"
     trans = frames.TRANS_MJ_FROM_XR
 
+    LOG.info("arm:        %s", arm)
     LOG.info("scene:      %s", scene_path)
     # Several examples ship their own .venv, and picking up the wrong isaacteleop is
     # invisible without this line.
@@ -178,17 +180,19 @@ def _log_startup(scene_path, resolution, backend: str, gl_device: int) -> None:
 EXIT_TWIN_STUCK = 1
 
 
-def run() -> int:
-    scene_path = assets.ensure_so101_scene()
+def run(profile: PreviewArmProfile) -> int:
+    scene_path = profile.scene()
     twin = SceneTwin(scene_path)
     # Before the Renderer, which uploads geometry once: the follower repoints geom
     # materials and poses its joints here. Not placed until the first head pose.
-    arm = PreviewArm(twin)
+    arm = PreviewArm(twin, profile)
     monitor = InterventionMonitor(twin)
 
     # The clutch's home is pushed every non-ENGAGED frame, so this constructor value
     # only has to be well-formed -- nothing can latch before the anchor exists.
-    pipeline, clutch = _build_pipeline(pose_from_ghost_body(*arm.gripper_pose_mj()))
+    pipeline, clutch = _build_pipeline(
+        pose_from_ghost_body(*arm.gripper_pose_mj(), arm.hand_from_ghost)
+    )
     gate = EngageGate(app_conjunct=("limiter", "still catching up"))
     preview = ClutchPreview(twin, monitor, arm, clutch, gate)
 
@@ -203,6 +207,7 @@ def run() -> int:
     )
     with TeleopSession(teleop_config) as teleop_session:
         _log_startup(
+            profile.label,
             scene_path,
             teleop_session.twin_resolution,
             twin.backend_version,
@@ -284,6 +289,12 @@ def main(argv: list[str]) -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--verbose", action="store_true", help="Debug-level logging.")
+    parser.add_argument(
+        "--arm",
+        choices=sorted(PREVIEW_ARMS),
+        default="so101",
+        help="Which follower to preview. Each fetches its own scene on first use.",
+    )
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
@@ -297,7 +308,7 @@ def main(argv: list[str]) -> int:
         if launcher.owns_runtime:
             LOG.info("CloudXR runtime started (WSS log: %s)", launcher.wss_log_path)
         try:
-            code = run()
+            code = run(PREVIEW_ARMS[args.arm])
         except KeyboardInterrupt:
             LOG.info("interrupted")
             return 0
