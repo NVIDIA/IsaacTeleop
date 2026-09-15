@@ -29,6 +29,21 @@ class Verdict(StrEnum):
     INSUFFICIENT_DATA = "insufficient_data"
 
 
+class Mark(StrEnum):
+    """How one result is shown, in any renderer.
+
+    Five states, not three. A number nobody judged and a question nobody could answer
+    are both weaker claims than a pass, and drawing either one like a pass reads as an
+    approval that was never given.
+    """
+
+    PASS = "pass"
+    FAIL = "FAIL"
+    MEAS = "meas"
+    UNANSWERED = "n/a"
+    NOTE = "note"
+
+
 @dataclass(frozen=True, slots=True)
 class CheckResult:
     name: str
@@ -45,6 +60,14 @@ class CheckResult:
     @property
     def counts_toward_verdict(self) -> bool:
         return self.severity is not Severity.ADVISORY
+
+    @property
+    def mark(self) -> Mark:
+        if self.status is Status.INSUFFICIENT_DATA:
+            return Mark.UNANSWERED
+        if self.status is Status.FAIL:
+            return Mark.FAIL if self.counts_toward_verdict else Mark.NOTE
+        return Mark.PASS if self.judged else Mark.MEAS
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,18 +146,8 @@ class Report:
             f"verdict  {str(self.verdict).upper()}",
             "",
         ]
-        marks = {
-            Status.PASS: "pass",
-            Status.FAIL: "FAIL",
-            Status.INSUFFICIENT_DATA: "n/a ",
-        }
         for r in self.results:
-            mark = marks[r.status]
-            if r.status is Status.FAIL and not r.counts_toward_verdict:
-                mark = "note"
-            elif r.status is Status.PASS and not r.judged:
-                mark = "meas"
-            lines.append(f"  [{mark}] {r.name:<45} {r.detail}")
+            lines.append(f"  [{r.mark:<4}] {r.name:<45} {r.detail}")
         unanswered = self.unanswered
         if unanswered:
             lines.append("")
