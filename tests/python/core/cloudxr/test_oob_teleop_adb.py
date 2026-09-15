@@ -334,45 +334,77 @@ def test_run_adb_headset_bookmark_offline_returns_clean_diag(
 # Reverse-setup wraps subprocess errors as OobAdbError --------------------------
 
 
-def test_build_teleop_url_usb_local_uses_proxy_client_path(
+def test_build_teleop_url_usb_local_uses_resolved_proxy_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """USB-local bookmark origin is /client on PROXY_PORT, not a separate UI port."""
+    """USB-local routing follows the port where the WSS proxy is listening."""
     from cloudxr_py_test_ns.oob_teleop_adb import build_teleop_url
-    from cloudxr_py_test_ns.oob_teleop_env import WSS_PROXY_DEFAULT_PORT
 
     monkeypatch.delenv("TELEOP_WEB_CLIENT_BASE", raising=False)
-    monkeypatch.delenv("PROXY_PORT", raising=False)
-    url = build_teleop_url(resolved_port=WSS_PROXY_DEFAULT_PORT, usb_local=True)
-    assert f"https://localhost:{WSS_PROXY_DEFAULT_PORT}/client" in url
+    monkeypatch.setenv("PROXY_PORT", "48322")
+    url = build_teleop_url(resolved_port=49322, usb_local=True)
+    assert "https://localhost:49322/client" in url
     assert "8080" not in url
     assert "serverIP=127.0.0.1" in url
-    assert f"port={WSS_PROXY_DEFAULT_PORT}" in url
+    assert "port=49322" in url
+
+
+def test_build_teleop_url_host_client_uses_resolved_proxy_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cloudxr_py_test_ns.oob_teleop_adb import build_teleop_url
+
+    monkeypatch.delenv("TELEOP_WEB_CLIENT_BASE", raising=False)
+    monkeypatch.setenv("PROXY_PORT", "48322")
+    monkeypatch.setattr(
+        "cloudxr_py_test_ns.oob_teleop_adb.resolve_lan_host_for_oob",
+        lambda: "10.0.0.1",
+    )
+    monkeypatch.setattr(
+        "cloudxr_py_test_ns.oob_teleop_env.guess_lan_ipv4",
+        lambda: "10.0.0.1",
+    )
+    url = build_teleop_url(resolved_port=49322, host_client=True)
+    assert "https://10.0.0.1:49322/client" in url
+    assert "port=49322" in url
 
 
 @patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
 @patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
-def test_setup_adb_reverse_ports_omits_ui_port(
+def test_setup_adb_reverse_ports_uses_resolved_proxy_port(
     mock_run: MagicMock, _mock_state: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """adb reverse covers WSS + backend only (no separate USB UI port)."""
+    """adb reverse uses the listener port, not a conflicting environment value."""
     from cloudxr_py_test_ns.oob_teleop_adb import setup_adb_reverse_ports
-    from cloudxr_py_test_ns.oob_teleop_env import (
-        USB_BACKEND_DEFAULT_PORT,
-        WSS_PROXY_DEFAULT_PORT,
-    )
+    from cloudxr_py_test_ns.oob_teleop_env import USB_BACKEND_DEFAULT_PORT
 
-    monkeypatch.delenv("PROXY_PORT", raising=False)
+    monkeypatch.setenv("PROXY_PORT", "48322")
     monkeypatch.delenv("USB_BACKEND_PORT", raising=False)
     mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-    setup_adb_reverse_ports()
+    setup_adb_reverse_ports(49322)
     ports = [
         call.args[0][2].removeprefix("tcp:")
         for call in mock_run.call_args_list
         if call.args and call.args[0][:2] == ["adb", "reverse"]
     ]
-    assert ports == [str(WSS_PROXY_DEFAULT_PORT), str(USB_BACKEND_DEFAULT_PORT)]
+    assert ports == ["49322", str(USB_BACKEND_DEFAULT_PORT)]
     assert "8080" not in ports
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+def test_teardown_adb_reverse_ports_uses_resolved_proxy_port(
+    mock_run: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cloudxr_py_test_ns.oob_teleop_adb import teardown_adb_reverse_ports
+    from cloudxr_py_test_ns.oob_teleop_env import USB_BACKEND_DEFAULT_PORT
+
+    monkeypatch.setenv("PROXY_PORT", "48322")
+    monkeypatch.delenv("USB_BACKEND_PORT", raising=False)
+    teardown_adb_reverse_ports(49322)
+    assert [call.args[0] for call in mock_run.call_args_list] == [
+        ["adb", "reverse", "--remove", "tcp:49322"],
+        ["adb", "reverse", "--remove", f"tcp:{USB_BACKEND_DEFAULT_PORT}"],
+    ]
 
 
 @patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
