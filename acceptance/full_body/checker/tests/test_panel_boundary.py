@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parents[1] / "src" / "fullbody_acceptance"
+PACKAGE = Path(__file__).resolve().parents[1] / "src" / "full_body_acceptance"
 
 # The single module allowed to import viser.
 RENDERER = PACKAGE / "panel" / "app.py"
@@ -36,10 +36,10 @@ def test_the_checker_and_the_panel_arithmetic_import_without_viser():
     """Blocking the module is the only honest test: it may well be installed here."""
     probe = (
         "import sys; sys.modules['viser'] = None;"
-        "import fullbody_acceptance.cli;"
-        "import fullbody_acceptance.panel.track;"
-        "import fullbody_acceptance.panel.status;"
-        "import fullbody_acceptance.panel.render"
+        "import full_body_acceptance.cli;"
+        "import full_body_acceptance.panel.track;"
+        "import full_body_acceptance.panel.status;"
+        "import full_body_acceptance.panel.render"
     )
     done = subprocess.run(
         [sys.executable, "-c", probe],

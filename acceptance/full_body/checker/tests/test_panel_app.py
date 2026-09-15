@@ -17,14 +17,14 @@ from typing import Iterator
 
 import pytest
 import synth
-from fullbody_acceptance.frames import NUM_JOINTS
-from fullbody_acceptance.panel.track import TeeSource
-from fullbody_acceptance.report import run
+from full_body_acceptance.frames import NUM_JOINTS
+from full_body_acceptance.panel.track import TeeSource
+from full_body_acceptance.report import run
 
 viser = pytest.importorskip("viser")
 
-from fullbody_acceptance.panel import app as panel_app  # noqa: E402  needs viser
-from fullbody_acceptance.panel.app import Panel  # noqa: E402  needs viser
+from full_body_acceptance.panel import app as panel_app  # noqa: E402  needs viser
+from full_body_acceptance.panel.app import Panel  # noqa: E402  needs viser
 
 
 def free_port() -> int:

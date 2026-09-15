@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from fullbody_acceptance.checks import Attribution, Severity, Status, build_all
-from fullbody_acceptance.panel import render, status
-from fullbody_acceptance.panel.status import GATE_TITLES
-from fullbody_acceptance.report import CheckResult, Mark, Report, Verdict
-from fullbody_acceptance.frames import SourceMetadata
+from full_body_acceptance.checks import Attribution, Severity, Status, build_all
+from full_body_acceptance.panel import render, status
+from full_body_acceptance.panel.status import GATE_TITLES
+from full_body_acceptance.report import CheckResult, Mark, Report, Verdict
+from full_body_acceptance.frames import SourceMetadata
 
 METADATA = SourceMetadata(
     schema_name="core.FullBodyPoseRecord",

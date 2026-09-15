@@ -17,10 +17,10 @@ from pathlib import Path
 import flatbuffers
 from mcap.writer import CompressionType, Writer
 
-import fullbody_acceptance._schema  # noqa: F401  puts generated/ on sys.path
+import full_body_acceptance._schema  # noqa: F401  puts generated/ on sys.path
 from core import BodyJoints, DeviceDataTimestamp, FullBodyPose, FullBodyPoseRecord
-from fullbody_acceptance.frames import NUM_JOINTS, Frame, JointPose
-from fullbody_acceptance.profile import FULL_BODY
+from full_body_acceptance.frames import NUM_JOINTS, Frame, JointPose
+from full_body_acceptance.profile import FULL_BODY
 
 SCHEMA_NAME = "core.FullBodyPoseRecord"
 TOPIC = "full_body/full_body"
@@ -162,7 +162,7 @@ class StubSource:
 
     @property
     def metadata(self):
-        from fullbody_acceptance.frames import SourceMetadata
+        from full_body_acceptance.frames import SourceMetadata
 
         return SourceMetadata(
             schema_name=SCHEMA_NAME if self.channel_found else None,
@@ -237,7 +237,7 @@ def write_recording(
     """
     with path.open("wb") as handle:
         writer = Writer(handle, compression=CompressionType.NONE)
-        writer.start(profile=PROFILE, library="fullbody-acceptance-tests")
+        writer.start(profile=PROFILE, library="full-body-acceptance-tests")
         schema_id = writer.register_schema(
             name=schema_name, encoding="flatbuffer", data=bfbs_bytes()
         )

@@ -5,7 +5,7 @@
 # Records one take of the G4 motion script, speaking the cues and labelling the result.
 # Run it again for another take; nothing is ever overwritten.
 #
-#   ./record_g4.sh [device]
+#   ./record.sh [device]
 #
 #   ~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
 #                                         /<time>-g4.labels.json
@@ -15,13 +15,13 @@
 #
 # The recorder runs in the background and the prompter in the foreground. The two need
 # no common clock: the labels are anchored to the clap in the recording's own frames,
-# and g4_make_labels.py re-derives every window from independent signals before it
+# and make_labels.py re-derives every window from independent signals before it
 # trusts that anchor.
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO="$(cd "$HERE/../.." && pwd)"
+REPO="$(cd "$HERE/../../.." && pwd)"
 CAPTURES="$HOME/isaacteleop-captures"
 
 DEVICE="${1:-pico4u}"
@@ -35,7 +35,7 @@ if [[ ! -x .venv-runtime/bin/python ]]; then
 fi
 
 SCRIPT_S=$(python3 -c "import sys; sys.path.insert(0,'$HERE'); \
-import g4_session; print(g4_session.total_duration_s())")
+import session; print(session.total_duration_s())")
 DURATION=$(python3 -c "print(int($SCRIPT_S + 20))")
 
 day="$CAPTURES/$DEVICE/$(date +%Y-%m-%d)"
@@ -75,12 +75,12 @@ if ! kill -0 "$recorder" 2>/dev/null; then
     exit 1
 fi
 
-python3 "$HERE/g4_prompter.py"
+python3 "$HERE/prompter.py"
 wait "$recorder"
 
 echo
-"$REPO/acceptance/fullbody/.venv/bin/python" \
-    "$HERE/g4_make_labels.py" "$stem.mcap" --write || true
+"$REPO/acceptance/full_body/checker/.venv/bin/python" \
+    "$HERE/make_labels.py" "$stem.mcap" --write || true
 
 ln -sfn "$stem.mcap" "$CAPTURES/latest.mcap"
 echo

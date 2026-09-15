@@ -43,12 +43,12 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "fullbody" / "src"))
-sys.path.insert(0, str(HERE.parent / "fullbody"))
+sys.path.insert(0, str(HERE.parent / "checker" / "src"))
+sys.path.insert(0, str(HERE.parent / "checker"))
 
-from fullbody_acceptance.labels import StepTimeline  # noqa: E402
-from fullbody_acceptance.mcap_source import McapFrameSource  # noqa: E402
-from fullbody_acceptance.profile import FULL_BODY  # noqa: E402
+from full_body_acceptance.labels import StepTimeline  # noqa: E402
+from full_body_acceptance.mcap_source import McapFrameSource  # noqa: E402
+from full_body_acceptance.profile import FULL_BODY  # noqa: E402
 from tests import synth  # noqa: E402
 
 # The chain hanging off the shoulder. The shoulder itself stays: it is where the

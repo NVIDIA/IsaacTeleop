@@ -13,10 +13,10 @@ from pathlib import Path
 
 import pytest
 import synth
-from fullbody_acceptance.labels import StepTimeline
-from fullbody_acceptance.panel import bundle
-from fullbody_acceptance.panel.track import TeeSource
-from fullbody_acceptance.report import run
+from full_body_acceptance.labels import StepTimeline
+from full_body_acceptance.panel import bundle
+from full_body_acceptance.panel.track import TeeSource
+from full_body_acceptance.report import run
 
 LABELS = {
     "provisional": True,
@@ -47,7 +47,7 @@ STEM = "pico4u_2026-09-14_145511-g4"
 
 @pytest.fixture
 def take(tmp_path: Path) -> Path:
-    """A recording laid out and companioned the way `record_g4.sh` leaves one."""
+    """A recording laid out and companioned the way `record.sh` leaves one."""
     folder = tmp_path / "pico4u" / "2026-09-14"
     folder.mkdir(parents=True)
     recording = synth.write_recording(folder / "145511-g4.mcap", synth.frames(120))

@@ -9,16 +9,16 @@ import math
 from dataclasses import replace
 
 import synth
-from fullbody_acceptance.frames import NUM_JOINTS
-from fullbody_acceptance.labels import StepTimeline, Step
-from fullbody_acceptance.panel.track import (
+from full_body_acceptance.frames import NUM_JOINTS
+from full_body_acceptance.labels import StepTimeline, Step
+from full_body_acceptance.panel.track import (
     LOG_CLOCK,
     SAMPLE_CLOCK,
     TeeSource,
     TrackBuilder,
 )
-from fullbody_acceptance.profile import FULL_BODY
-from fullbody_acceptance.report import Verdict, run
+from full_body_acceptance.profile import FULL_BODY
+from full_body_acceptance.report import Verdict, run
 
 
 def build(frames: list) -> "object":

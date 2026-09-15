@@ -30,7 +30,7 @@ import time
 import wave
 from pathlib import Path
 
-from g4_session import BRIEFING, LEAD_IN_S, STEPS, STILL_LABELS, total_duration_s
+from session import BRIEFING, LEAD_IN_S, STEPS, STILL_LABELS, total_duration_s
 
 HERE = Path(__file__).resolve().parent
 CUES = HERE / "cues"
@@ -45,7 +45,7 @@ def cue(label: str, text: str) -> Path:
     """The recorded WAV for one cue, refusing a file that says something else.
 
     `cues/index.json` holds the hash of the text each WAV was rendered from, so
-    rewording a cue in g4_session.py stops the run here instead of playing the old
+    rewording a cue in session.py stops the run here instead of playing the old
     wording at a performer who cannot tell.
     """
     index = json.loads((CUES / "index.json").read_text())

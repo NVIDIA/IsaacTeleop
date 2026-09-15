@@ -3,10 +3,10 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Agent notes — `acceptance/fullbody/`
+# Agent notes — `acceptance/full_body/checker/`
 
-**CRITICAL:** complete the mandatory `AGENTS.md` preflight in [`../../AGENTS.md`](../../AGENTS.md)
-before editing here. Read [`../../design_agent-testing/synthetic-fixtures/AGENTS.md`](../../design_agent-testing/synthetic-fixtures/AGENTS.md)
+**CRITICAL:** complete the mandatory `AGENTS.md` preflight in [`../../../AGENTS.md`](../../../AGENTS.md)
+before editing here. Read [`../../../design_agent-testing/synthetic-fixtures/AGENTS.md`](../../../design_agent-testing/synthetic-fixtures/AGENTS.md)
 too if you touch anything the fixture set is the oracle for.
 
 This is the design record for the checker: the reasoning, the measurements behind every
@@ -238,17 +238,17 @@ Other structural decisions that are settled:
   gravity alignment is body-only.
 - **This directory sits outside `src/`** because `src/python/CMakeLists.txt` globs `.py`
   recursively: a file placed under it would change the wheel with no edit to any build
-  file. `acceptance/fullbody/` is one of two halves; the other is `acceptance/capture/`,
-  and the boundary between them is stated under Hard constraints.
+  file. `acceptance/` holds one directory per recordable `.fbs`, and each splits into
+  `capture/` and `checker/`; the boundary between the two is under Hard constraints.
 
 ## Hard constraints
 
 1. **Pure addition, and the checker imports no `isaacteleop`.** Nothing under `src/`,
-   `examples/` or `docs/` is modified, and nothing under `fullbody/` names the package —
+   `examples/` or `docs/` is modified, and nothing under `checker/` names the package —
    `mcap` and `flatbuffers` are the whole dependency, which is why the work needs no
    schema review and competes for no merge window.
 
-   The ban stops at `fullbody/`. `acceptance/capture/` records through `TeleopSession`
+   The ban stops at `checker/`. `../capture/` records through `TeleopSession`
    and therefore **has to** import the built package, so the dependency runs one way:
    capture reads the checker's `Frame`, `TrackBuilder` and profile, never the reverse.
    `tests/test_boundaries.py` asserts all of it mechanically, diffing against the commit
@@ -351,7 +351,7 @@ they stay out of git and out of the fixture folder, and live under `$HOME`.
 ## Derived data
 
 `~/isaacteleop-captures/derived/145511-g4-passing.mcap`, built from the real 145511 capture
-by `../capture/g4_amplify_arm_raise.py`. Only the two arm-raise windows are
+by `../capture/amplify_arm_raise.py`. Only the two arm-raise windows are
 edited, and inside them only the three joints below each shoulder: positions and
 orientations rotate together about the shoulder so the relative geometry
 `consistency.position_orientation_same_frame` reads is preserved. Every other frame and

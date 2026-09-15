@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import synth
 
-from fullbody_acceptance import McapFrameSource, run
-from fullbody_acceptance.report import Verdict
+from full_body_acceptance import McapFrameSource, run
+from full_body_acceptance.report import Verdict
 
 
 def test_invalid_joints_may_carry_arbitrary_values(tmp_path):

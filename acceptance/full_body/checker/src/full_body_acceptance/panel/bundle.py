@@ -157,7 +157,7 @@ def archive_stem(report_recording: Path, report: Report) -> str:
 def capture_identity(recording: Path) -> tuple[str, str]:
     """Device and date, from the capture sidecar and then from the layout.
 
-    ``record_g4.sh`` writes both by construction — ``<device>/<date>/<time>-g4.mcap``
+    ``record.sh`` writes both by construction — ``<device>/<date>/<time>-g4.mcap``
     on disk, and the same two strings into ``<take>.json`` — so they agree wherever
     both exist. The sidecar is the one that says which is which, so it answers first;
     the path covers a take whose sidecar never arrived or that was copied elsewhere.

@@ -16,9 +16,9 @@ import pytest
 from conftest import fixtures_root
 from known_deviations import BY_FIXTURE, EXPECTED_COLLATERAL
 
-from fullbody_acceptance import McapFrameSource, run
-from fullbody_acceptance.checks import CHECKS
-from fullbody_acceptance.report import Verdict
+from full_body_acceptance import McapFrameSource, run
+from full_body_acceptance.checks import CHECKS
+from full_body_acceptance.report import Verdict
 
 IMPLEMENTED = {cls.name for cls in CHECKS}
 
@@ -90,7 +90,7 @@ def test_schema_bytes_match_the_repo_golden(fixture_dir: Path):
     of it, so it is asserted here and not only in setup_env.sh.
     """
     golden = (
-        Path(__file__).resolve().parents[3]
+        Path(__file__).resolve().parents[4]
         / "src"
         / "core"
         / "schema"

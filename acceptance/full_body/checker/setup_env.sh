@@ -6,7 +6,7 @@
 # Nothing is installed system-wide and no file outside this directory is written.
 set -euo pipefail
 cd "$(dirname "$0")"
-REPO="${REPO:-$(cd ../.. && pwd)}"
+REPO="${REPO:-$(cd ../../.. && pwd)}"
 FBS="$REPO/src/core/schema/fbs"
 
 WITH_PANEL=0
@@ -42,9 +42,9 @@ if [[ "$WITH_PANEL" == 1 ]]; then
 fi
 
 # The package is read out of src/ rather than installed, so `python -m
-# fullbody_acceptance.cli` needs src/ on the path to work from any directory.
+# full_body_acceptance.cli` needs src/ on the path to work from any directory.
 SITE_PACKAGES=$(.venv/bin/python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
-printf '%s\n' "$PWD/src" > "$SITE_PACKAGES/fullbody_acceptance.pth"
+printf '%s\n' "$PWD/src" > "$SITE_PACKAGES/full_body_acceptance.pth"
 
 # The .bfbs is not used for decoding -- the Python flatbuffers package has no reflection
 # module. It is the schema-match oracle: byte-identical to the repo golden means the flag

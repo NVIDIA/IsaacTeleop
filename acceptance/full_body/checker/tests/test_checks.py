@@ -10,7 +10,7 @@ import math
 import pytest
 import synth
 
-from fullbody_acceptance.checks import (
+from full_body_acceptance.checks import (
     CHECKS,
     Attribution,
     Severity,
@@ -18,15 +18,15 @@ from fullbody_acceptance.checks import (
     build,
     build_all,
 )
-from fullbody_acceptance.checks.coverage import PayloadPresenceRate
-from fullbody_acceptance.checks.quaternion import UnitNormOnValidJoints
-from fullbody_acceptance.checks.timestamps import (
+from full_body_acceptance.checks.coverage import PayloadPresenceRate
+from full_body_acceptance.checks.quaternion import UnitNormOnValidJoints
+from full_body_acceptance.checks.timestamps import (
     AvailableNotBeforeSample,
     DeviceClockDistinct,
     Monotonic,
 )
-from fullbody_acceptance.checks.values import Finite, ZeroPoseOnValidJoint
-from fullbody_acceptance.report import Verdict, aggregate, run
+from full_body_acceptance.checks.values import Finite, ZeroPoseOnValidJoint
+from full_body_acceptance.report import Verdict, aggregate, run
 
 
 def drive(check, frame_list):
@@ -217,7 +217,7 @@ def test_advisory_failure_does_not_change_the_verdict():
 
 
 def test_performance_attribution_yields_retake_not_fail():
-    from fullbody_acceptance.report import CheckResult
+    from full_body_acceptance.report import CheckResult
 
     def result(name, status, attribution):
         return CheckResult(
@@ -254,7 +254,7 @@ def test_performance_attribution_yields_retake_not_fail():
 
 
 def test_joints_field_absence_is_a_schema_violation_not_a_rate():
-    from fullbody_acceptance.checks.schema import JointsFieldPresent
+    from full_body_acceptance.checks.schema import JointsFieldPresent
 
     assert status_of(JointsFieldPresent, synth.frames(50)) is Status.PASS
 
@@ -267,7 +267,7 @@ def test_joints_field_absence_is_a_schema_violation_not_a_rate():
 
 def test_a_null_payload_is_not_a_missing_joints_field():
     """The data table being absent is coverage.payload_presence_rate's business."""
-    from fullbody_acceptance.checks.schema import JointsFieldPresent
+    from full_body_acceptance.checks.schema import JointsFieldPresent
 
     frame_list = [synth.frame(i, has_payload=i % 2 == 0) for i in range(50)]
     outcome = drive(JointsFieldPresent(), frame_list)
@@ -279,7 +279,7 @@ def test_a_null_payload_is_not_a_missing_joints_field():
 
 
 def test_all_tracked_flag_disagreement_is_advisory():
-    from fullbody_acceptance.checks.consistency import AllJointPosesTracked
+    from full_body_acceptance.checks.consistency import AllJointPosesTracked
 
     assert AllJointPosesTracked.severity is Severity.ADVISORY
 
@@ -290,7 +290,7 @@ def test_all_tracked_flag_disagreement_is_advisory():
 
 
 def test_a_transient_dropout_whose_flag_follows_is_consistent():
-    from fullbody_acceptance.checks.consistency import AllJointPosesTracked
+    from full_body_acceptance.checks.consistency import AllJointPosesTracked
 
     frame_list = [
         synth.frame(
@@ -305,7 +305,7 @@ def test_a_transient_dropout_whose_flag_follows_is_consistent():
 
 
 def test_validity_trend_separates_decay_from_a_transient_dropout():
-    from fullbody_acceptance.checks.coverage import ValidityTrend
+    from full_body_acceptance.checks.coverage import ValidityTrend
 
     decaying = [
         synth.frame(i, valid_joints=24 - round(17 * i / 499)) for i in range(500)
@@ -321,14 +321,14 @@ def test_validity_trend_separates_decay_from_a_transient_dropout():
 
 
 def test_validity_trend_will_not_conclude_from_a_short_recording():
-    from fullbody_acceptance.checks.coverage import ValidityTrend
+    from full_body_acceptance.checks.coverage import ValidityTrend
 
     assert status_of(ValidityTrend, synth.frames(100)) is Status.INSUFFICIENT_DATA
 
 
 def test_permanently_invalid_joints_are_not_a_decaying_trend():
     """A vendor that never provides four joints has constant, not falling, coverage."""
-    from fullbody_acceptance.checks.coverage import ValidityTrend
+    from full_body_acceptance.checks.coverage import ValidityTrend
 
     assert status_of(ValidityTrend, synth.frames(400, valid_joints=20)) is Status.PASS
 
@@ -339,7 +339,7 @@ def test_permanently_invalid_joints_are_not_a_decaying_trend():
 def test_interval_regularity_accepts_a_steady_stream_and_rejects_jitter():
     import random
 
-    from fullbody_acceptance.checks.rate import IntervalRegularity
+    from full_body_acceptance.checks.rate import IntervalRegularity
 
     assert status_of(IntervalRegularity, synth.frames(300)) is Status.PASS
 
@@ -355,7 +355,7 @@ def test_interval_regularity_accepts_a_steady_stream_and_rejects_jitter():
 
 def test_a_few_dropped_blocks_do_not_read_as_jitter():
     """Median absolute deviation is chosen precisely so these two stay separable."""
-    from fullbody_acceptance.checks.rate import FrameGaps, IntervalRegularity
+    from full_body_acceptance.checks.rate import FrameGaps, IntervalRegularity
 
     kept = [i for i in range(300) if not (100 <= i < 120 or 200 <= i < 225)]
     frame_list = [
@@ -373,7 +373,7 @@ def test_a_few_dropped_blocks_do_not_read_as_jitter():
 
 
 def test_human_speed_passes_and_a_teleport_fails():
-    from fullbody_acceptance.checks.continuity import MaxJointVelocity
+    from full_body_acceptance.checks.continuity import MaxJointVelocity
 
     assert (
         status_of(MaxJointVelocity, synth.moving_frames(60, speed_mps=1.7))
@@ -392,7 +392,7 @@ def test_human_speed_passes_and_a_teleport_fails():
 
 def test_velocity_over_an_implausibly_short_interval_is_discarded():
     """A sub-4 ms interval describes a broken clock, which rate.interval_regularity owns."""
-    from fullbody_acceptance.checks.continuity import MaxJointVelocity
+    from full_body_acceptance.checks.continuity import MaxJointVelocity
 
     frame_list = synth.moving_frames(20, speed_mps=1.0)
     squeezed = (
@@ -421,7 +421,7 @@ def test_a_short_recording_cannot_conclude_overall():
 
 def test_up_axis_accepts_y_up_and_rejects_z_up():
 
-    from fullbody_acceptance.checks.geometry import UpAxis
+    from full_body_acceptance.checks.geometry import UpAxis
 
     upright = synth.frames(60)
     assert status_of(UpAxis, upright) is Status.PASS
@@ -461,15 +461,15 @@ def test_up_axis_will_not_guess_from_a_degenerate_torso():
         )
         for item in synth.frames(60)
     ]
-    from fullbody_acceptance.checks.geometry import UpAxis
+    from full_body_acceptance.checks.geometry import UpAxis
 
     assert status_of(UpAxis, flattened) is Status.INSUFFICIENT_DATA
 
 
 def test_a_zero_length_bone_is_reported_as_derived_not_broken():
     """Back-filled hands and feet keep a constant zero length; that is not a fault."""
-    from fullbody_acceptance.checks.geometry import BoneLengthConstancy
-    from fullbody_acceptance.profile import FULL_BODY
+    from full_body_acceptance.checks.geometry import BoneLengthConstancy
+    from full_body_acceptance.profile import FULL_BODY
 
     wrist = FULL_BODY.index("LEFT_WRIST")
     hand = FULL_BODY.index("LEFT_HAND")
@@ -489,11 +489,11 @@ def test_a_zero_length_bone_is_reported_as_derived_not_broken():
 
 def test_stature_declines_rather_than_guessing_when_a_chain_joint_is_never_valid():
     """A vendor that never reports the neck leaves the size unknowable, not wrong."""
-    from fullbody_acceptance.checks.geometry import (
+    from full_body_acceptance.checks.geometry import (
         AnthropometricPlausibility,
         PositionScaleMetres,
     )
-    from fullbody_acceptance.profile import FULL_BODY
+    from full_body_acceptance.profile import FULL_BODY
 
     neck = FULL_BODY.index("NECK")
     frame_list = [
@@ -505,7 +505,7 @@ def test_stature_declines_rather_than_guessing_when_a_chain_joint_is_never_valid
 
 
 def test_a_plausible_synthetic_skeleton_reads_as_human():
-    from fullbody_acceptance.checks.geometry import (
+    from full_body_acceptance.checks.geometry import (
         AnthropometricPlausibility,
         PositionScaleMetres,
     )
@@ -525,7 +525,7 @@ def test_a_plausible_synthetic_skeleton_reads_as_human():
 
 
 def test_a_consistent_moving_skeleton_passes_both_frame_checks():
-    from fullbody_acceptance.checks.orientation import (
+    from full_body_acceptance.checks.orientation import (
         ComponentOrder,
         PositionOrientationSameFrame,
     )
@@ -536,7 +536,7 @@ def test_a_consistent_moving_skeleton_passes_both_frame_checks():
 
 
 def test_rotating_positions_without_orientations_breaks_the_frame_check():
-    from fullbody_acceptance.checks.orientation import PositionOrientationSameFrame
+    from full_body_acceptance.checks.orientation import PositionOrientationSameFrame
 
     turn = synth.unit_quaternion(math.radians(90), (0.0, 1.0, 0.0))
     half_converted = [
@@ -555,7 +555,7 @@ def test_rotating_positions_without_orientations_breaks_the_frame_check():
 
 
 def test_components_written_wxyz_are_identified_as_such():
-    from fullbody_acceptance.checks.orientation import (
+    from full_body_acceptance.checks.orientation import (
         ComponentOrder,
         PositionOrientationSameFrame,
     )
@@ -587,7 +587,7 @@ def test_components_written_wxyz_are_identified_as_such():
 
 def test_a_held_pose_cannot_answer_the_frame_questions():
     """The fixture set's own principle: a T-pose alone reveals nothing about frames."""
-    from fullbody_acceptance.checks.orientation import (
+    from full_body_acceptance.checks.orientation import (
         ComponentOrder,
         PositionOrientationSameFrame,
     )
@@ -612,7 +612,7 @@ def test_an_unanswerable_conditional_check_does_not_block_the_verdict():
 
 def test_a_whole_rig_expressed_z_up_is_still_internally_consistent():
     """Z-up rotates positions and orientations together; coordinate_frame owns it."""
-    from fullbody_acceptance.checks.orientation import PositionOrientationSameFrame
+    from full_body_acceptance.checks.orientation import PositionOrientationSameFrame
 
     turn = synth.unit_quaternion(math.radians(90), (1.0, 0.0, 0.0))
     tipped = [
@@ -633,7 +633,7 @@ def test_a_whole_rig_expressed_z_up_is_still_internally_consistent():
 
 
 def test_a_clean_rig_is_right_handed_and_correctly_labelled():
-    from fullbody_acceptance.checks.geometry import (
+    from full_body_acceptance.checks.geometry import (
         Handedness,
         JointIndexAssignment,
         LeftRightLabelling,
@@ -646,13 +646,13 @@ def test_a_clean_rig_is_right_handed_and_correctly_labelled():
 
 
 def test_a_mirrored_rig_is_left_handed():
-    from fullbody_acceptance.checks.geometry import Handedness
+    from full_body_acceptance.checks.geometry import Handedness
 
     assert status_of(Handedness, synth.mirrored(synth.waving_frames())) is Status.FAIL
 
 
 def test_labels_on_the_wrong_side_of_the_body_are_caught():
-    from fullbody_acceptance.checks.geometry import LeftRightLabelling
+    from full_body_acceptance.checks.geometry import LeftRightLabelling
 
     swapped = synth.swap_left_right(synth.waving_frames())
     assert status_of(LeftRightLabelling, swapped) is Status.FAIL
@@ -664,7 +664,7 @@ def test_the_labelling_check_ignores_orientation_faults():
     Without this the check blames the labels on every recording whose orientations are
     wrong for an unrelated reason, and the submitter chases the wrong defect.
     """
-    from fullbody_acceptance.checks.geometry import LeftRightLabelling
+    from full_body_acceptance.checks.geometry import LeftRightLabelling
 
     def to_wxyz(q):
         x, y, z, w = q
@@ -685,7 +685,7 @@ def test_the_labelling_check_ignores_orientation_faults():
 
 def test_feet_pinned_to_the_origin_do_not_become_the_facing_reference():
     """Two feet at the world origin point at each other, not forward."""
-    from fullbody_acceptance.checks.geometry import LeftRightLabelling
+    from full_body_acceptance.checks.geometry import LeftRightLabelling
 
     feet = (synth.FULL_BODY.index("LEFT_FOOT"), synth.FULL_BODY.index("RIGHT_FOOT"))
     pinned = []
@@ -706,7 +706,7 @@ def test_feet_pinned_to_the_origin_do_not_become_the_facing_reference():
 
 
 def test_two_joints_in_each_others_indices_are_caught():
-    from fullbody_acceptance.checks.geometry import JointIndexAssignment
+    from full_body_acceptance.checks.geometry import JointIndexAssignment
 
     permuted = synth.swap_indices(synth.waving_frames(), "SPINE1", "SPINE2")
     assert status_of(JointIndexAssignment, permuted) is Status.FAIL
@@ -718,7 +718,7 @@ def test_a_limb_folded_for_the_whole_session_is_not_a_swapped_index():
     Judging joint order by distance to the root alone reads this as a permanent
     inversion, so the check measures the bone's own direction instead.
     """
-    from fullbody_acceptance.checks.geometry import JointIndexAssignment
+    from full_body_acceptance.checks.geometry import JointIndexAssignment
 
     assert status_of(JointIndexAssignment, synth.arms_down_frames()) is Status.PASS
 
@@ -729,7 +729,7 @@ def test_a_bone_seen_only_briefly_is_not_judged():
     Guards the whole-session case: validity that decays away leaves some bones with a
     handful of samples, all drawn from whatever pose the subject happened to hold.
     """
-    from fullbody_acceptance.checks.geometry import JointIndexAssignment
+    from full_body_acceptance.checks.geometry import JointIndexAssignment
 
     spine2 = synth.FULL_BODY.index("SPINE2")
     permuted = synth.swap_indices(synth.waving_frames(300), "SPINE1", "SPINE2")
@@ -755,7 +755,7 @@ def _stretch_forearm(frames_, joint="LEFT_WRIST"):
     This is what a three-tracker PICO does to the forearm: the solver has to reach the
     controller, so the reach error lands in the last segment.
     """
-    from fullbody_acceptance.profile import FULL_BODY
+    from full_body_acceptance.profile import FULL_BODY
 
     index = FULL_BODY.index(joint)
     out = []
@@ -775,7 +775,7 @@ def _stretch_forearm(frames_, joint="LEFT_WRIST"):
 
 
 def test_a_bone_that_stretches_on_a_rigid_rig_is_reported_as_derived():
-    from fullbody_acceptance.checks.geometry import BoneLengthConstancy
+    from full_body_acceptance.checks.geometry import BoneLengthConstancy
 
     outcome = drive(BoneLengthConstancy(), _stretch_forearm(synth.frames(60)))
     assert outcome.status is Status.PASS
@@ -788,7 +788,7 @@ def test_a_bone_that_stretches_on_a_rigid_rig_is_reported_as_derived():
 
 
 def test_a_solved_forearm_is_not_judged_for_its_proportions():
-    from fullbody_acceptance.checks.geometry import AnthropometricPlausibility
+    from full_body_acceptance.checks.geometry import AnthropometricPlausibility
 
     outcome = drive(AnthropometricPlausibility(), _stretch_forearm(synth.frames(60)))
     assert outcome.status is Status.PASS

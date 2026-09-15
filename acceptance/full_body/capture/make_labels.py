@@ -24,12 +24,12 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "fullbody" / "src"))
+sys.path.insert(0, str(HERE.parent / "checker" / "src"))
 
-from fullbody_acceptance.checks.geometry import FULL_BODY  # noqa: E402
-from fullbody_acceptance.mcap_source import McapFrameSource  # noqa: E402
+from full_body_acceptance.checks.geometry import FULL_BODY  # noqa: E402
+from full_body_acceptance.mcap_source import McapFrameSource  # noqa: E402
 
-from g4_session import (  # noqa: E402
+from session import (  # noqa: E402
     CLAP_SEPARATION_M,
     STEPS,
     STILL_LABELS,

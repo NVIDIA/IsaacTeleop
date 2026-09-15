@@ -28,7 +28,7 @@ the open questions live in [`AGENTS.md`](AGENTS.md).
 ## Set up
 
 ```bash
-cd acceptance/fullbody
+cd acceptance/full_body/checker
 ./setup_env.sh
 ```
 
@@ -42,7 +42,7 @@ directory.
 ## Record a take
 
 ```bash
-acceptance/capture/record_g4.sh pico4u
+acceptance/full_body/capture/record.sh pico4u
 ```
 
 One continuous take of the eleven-step motion script (~40 s), spoken cues in the
@@ -58,11 +58,11 @@ foreground and the recorder in the background. It writes
 
 Nothing is ever overwritten, so run it again for another take. The repo has to be built
 first (`.venv-runtime` plus `examples/mcap_record_replay`); the spoken cues are WAV
-files in `acceptance/capture/cues/` and need no synthesiser, so `aplay` is the only
+files in `acceptance/full_body/capture/cues/` and need no synthesiser, so `aplay` is the only
 other thing the prompter wants.
 
 The label sidecar carries the motion windows the G4 checks read, and it is written for
-you by `g4_make_labels.py` at the end of the recording. Windows are anchored to the clap
+you by `make_labels.py` at the end of the recording. Windows are anchored to the clap
 at the start of the script and re-derived from independent signals; they are marked
 provisional, and the report says so.
 
@@ -73,7 +73,7 @@ hardware or licensing one — see `AGENTS.md`.
 ## Run the checks
 
 ```bash
-.venv/bin/python -m fullbody_acceptance.cli ~/isaacteleop-captures/latest.mcap
+.venv/bin/python -m full_body_acceptance.cli ~/isaacteleop-captures/latest.mcap
 ```
 
 | Option | Effect |
@@ -109,7 +109,7 @@ verdict  RETAKE
 
 ```bash
 ./setup_env.sh --panel     # once; installs viser, the panel's renderer
-.venv/bin/python -m fullbody_acceptance.panel ~/isaacteleop-captures/latest.mcap
+.venv/bin/python -m full_body_acceptance.panel ~/isaacteleop-captures/latest.mcap
 ```
 
 Prints the same report, then serves a panel on `http://127.0.0.1:8080`. It takes
@@ -195,14 +195,14 @@ at it if it lives somewhere other than `design_agent-testing/synthetic-fixtures`
 ## Layout
 
 ```text
-src/fullbody_acceptance/
+src/full_body_acceptance/
   frames.py        Frame / JointPose / SourceMetadata, and the FrameSource protocol
   mcap_source.py   reads an MCAP in file order, never in log-time order
   labels.py        the motion-window sidecar
   profile.py       skeleton profile: topology, symmetry, priors, which checks apply
   checks/          one module per check group; base.py holds the accumulator contract
   report.py        verdict aggregation, dependency suppression, JSON and text renderers
-  cli.py           python -m fullbody_acceptance.cli
+  cli.py           python -m full_body_acceptance.cli
   panel/           the viewer; app.py is the only module that imports viser
 tests/
   synth.py               builds MCAPs in memory

@@ -3,10 +3,9 @@
 
 """The lines this work must not cross. Asserted mechanically, not by good intentions.
 
-Two of them run between the halves of ``acceptance/`` rather than around the whole
-directory: ``fullbody/`` is the checker and must stay runnable on ``mcap`` and
-``flatbuffers`` alone, while ``capture/`` drives a real session and therefore has to
-import the built package.
+Two of them run between the halves of ``acceptance/full_body/`` rather than around the
+whole directory: ``checker/`` must stay runnable on ``mcap`` and ``flatbuffers`` alone,
+while ``capture/`` drives a real session and therefore has to import the built package.
 """
 
 from __future__ import annotations
@@ -17,16 +16,17 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-FULLBODY_SOURCES = (
-    REPO_ROOT / "acceptance" / "fullbody" / "src",
-    REPO_ROOT / "acceptance" / "fullbody" / "tests",
-)
+REPO_ROOT = Path(__file__).resolve().parents[4]
+CHECKER = REPO_ROOT / "acceptance" / "full_body" / "checker"
+CHECKER_SOURCES = (CHECKER / "src", CHECKER / "tests")
+CAPTURE_MODULES = ("session", "prompter", "make_labels", "amplify_arm_raise")
 UPSTREAM = "origin/main"
 
-# `from g4_session import ...` rather than the bare name: the checker names
-# `record_g4.sh` in prose, which is not a dependency on it.
-CAPTURE_IMPORT = re.compile(r"^\s*(?:from|import)\s+(?:g4_\w+|capture)\b", re.MULTILINE)
+# Matched as an import statement, not as a bare name: the checker names `record.sh` and
+# the capture layout in prose, and neither is a dependency on them.
+CAPTURE_IMPORT = re.compile(
+    rf"^\s*(?:from|import)\s+(?:{'|'.join(CAPTURE_MODULES)})\b", re.MULTILINE
+)
 
 
 def _git(*args: str) -> str:
@@ -60,7 +60,7 @@ requires_git = pytest.mark.skipif(
 
 
 def _python_files() -> list[Path]:
-    """Every hand-written module under ``fullbody/``, less this file.
+    """Every hand-written module under ``checker/``, less this file.
 
     The two scans below look for a name, so the file that spells the name out in order
     to ban it would report itself.
@@ -68,7 +68,7 @@ def _python_files() -> list[Path]:
     this_file = Path(__file__).resolve()
     return [
         path
-        for root in FULLBODY_SOURCES
+        for root in CHECKER_SOURCES
         for path in sorted(root.rglob("*.py"))
         if path.resolve() != this_file
     ]
@@ -94,7 +94,7 @@ def test_the_checker_does_not_import_isaacteleop():
     """The checker takes only the .fbs text from the repo; flatc does the rest.
 
     Keeping this true is what lets acceptance work proceed without building the project
-    and without competing for a schema review. It is asserted over ``fullbody/`` only:
+    and without competing for a schema review. It is asserted over ``checker/`` only:
     ``capture/`` records through ``TeleopSession`` and needs the built wheel.
     """
     offenders = [

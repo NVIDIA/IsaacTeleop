@@ -17,10 +17,10 @@ from pathlib import Path
 
 import pytest
 
-from fullbody_acceptance.checks import Status, build
-from fullbody_acceptance.labels import StepTimeline
-from fullbody_acceptance.mcap_source import McapFrameSource
-from fullbody_acceptance.report import run
+from full_body_acceptance.checks import Status, build
+from full_body_acceptance.labels import StepTimeline
+from full_body_acceptance.mcap_source import McapFrameSource
+from full_body_acceptance.report import run
 from known_deviations import BY_FIXTURE
 
 # Each graded series: the check that measures it, the measurement key, and how to turn
@@ -264,7 +264,7 @@ class TestLabelTimeline:
 class TestSignedAngles:
     def test_the_axis_projection_keeps_the_sign(self):
         """``2*acos(w)`` would return a magnitude, losing which way a joint turned."""
-        from fullbody_acceptance.vectors import signed_angle_about
+        from full_body_acceptance.vectors import signed_angle_about
         from tests import synth
 
         for degrees in (-80.0, -12.5, 0.0, 7.0, 95.0):
@@ -273,7 +273,7 @@ class TestSignedAngles:
             assert measured == pytest.approx(degrees, abs=1e-6)
 
     def test_a_child_rotation_is_read_relative_to_its_parent(self):
-        from fullbody_acceptance.vectors import multiply, relative, signed_angle_about
+        from full_body_acceptance.vectors import multiply, relative, signed_angle_about
         from tests import synth
 
         parent = synth.unit_quaternion(math.radians(30.0), (0.0, 1.0, 0.0))
@@ -307,7 +307,7 @@ class TestLabelAlignmentAgainstRealCaptures:
         ]
 
     def timeline_over(self, start_s: float, durations: list[float]) -> StepTimeline:
-        from fullbody_acceptance.labels import Step
+        from full_body_acceptance.labels import Step
 
         steps, at = [], start_s
         for index, duration in enumerate(durations):

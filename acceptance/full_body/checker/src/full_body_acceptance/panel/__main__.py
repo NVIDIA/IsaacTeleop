@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""``python -m fullbody_acceptance.panel RECORDING.mcap`` — the acceptance panel.
+"""``python -m full_body_acceptance.panel RECORDING.mcap`` — the acceptance panel.
 
 Runs every check over the recording in one pass, prints the same text report the CLI
 prints, then serves the skeleton and the result list until interrupted.
@@ -30,7 +30,7 @@ except ModuleNotFoundError as missing:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="fullbody-panel", description=__doc__)
+    parser = argparse.ArgumentParser(prog="full-body-panel", description=__doc__)
     parser.add_argument("recording", help="MCAP file to view")
     parser.add_argument(
         "--labels",
