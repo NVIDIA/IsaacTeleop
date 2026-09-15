@@ -224,8 +224,8 @@ class CloudXRLauncher:
         )
         # After attach so wss_proxy_port() sees PROXY_PORT from cloudxr.env,
         # not a stale caller environment.
-        if started and host_client:
-            self._announce_hosted_client()
+        if started and (host_client or usb_local):
+            self._announce_hosted_client(usb_local=usb_local)
 
     def _refuse_beside_live_runtime(self) -> None:
         """Reject ``run_embedded`` where a runtime is already serving.
@@ -292,11 +292,12 @@ class CloudXRLauncher:
         print(_STARTED_SERVICE.format(pid=pid, log=log), file=sys.stderr)
         return True
 
-    def _announce_hosted_client(self) -> None:
+    def _announce_hosted_client(self, *, usb_local: bool = False) -> None:
         """Print the hosted ``/client/`` URL using the attached service env.
 
         Call only after :meth:`_attach` so :func:`wss_proxy_port` reads
-        ``PROXY_PORT`` from the service's ``cloudxr.env``.
+        ``PROXY_PORT`` from the service's ``cloudxr.env``. USB-local clients
+        reach the proxy through headset loopback via ``adb reverse``.
         """
         from .oob_teleop_env import (  # noqa: PLC0415
             guess_lan_ipv4,
@@ -304,7 +305,8 @@ class CloudXRLauncher:
             wss_proxy_port,
         )
 
-        url = f"https://{guess_lan_ipv4() or 'localhost'}:{wss_proxy_port()}/client/"
+        host = "127.0.0.1" if usb_local else guess_lan_ipv4() or "localhost"
+        url = f"https://{host}:{wss_proxy_port()}/client/"
         print_hosted_client_line(
             url, prefix=_STARTED_HOST_CLIENT_PREFIX, file=sys.stderr
         )

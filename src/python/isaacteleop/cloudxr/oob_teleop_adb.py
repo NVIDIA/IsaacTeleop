@@ -497,17 +497,15 @@ def build_teleop_url(
         ovr = web_client_base or web_client_base_override_from_env()
         web_base = ovr if ovr else f"https://localhost:{resolved_port}/client"
     else:
+        lan_host = resolve_lan_host_for_oob()
         stream_cfg = {
-            "serverIP": resolve_lan_host_for_oob(),
+            "serverIP": lan_host,
             "port": signaling_port,
             **client_ui_fields_from_env(),
         }
         ovr = web_client_base or web_client_base_override_from_env()
         if host_client:
-            from .oob_teleop_env import guess_lan_ipv4  # noqa: PLC0415
-
-            _lan = guess_lan_ipv4() or "localhost"
-            default_base = f"https://{_lan}:{resolved_port}/client"
+            default_base = f"https://{lan_host}:{resolved_port}/client"
         else:
             default_base = default_web_client_origin()
         web_base = ovr if ovr else default_base

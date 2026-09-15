@@ -445,6 +445,40 @@ class TestNothingRunning:
 
         assert "/client/" not in capsys.readouterr().err
 
+    @pytest.mark.parametrize("host_client", [False, True])
+    def test_usb_local_announces_loopback_client_url(
+        self, tmp_path, capsys, host_client
+    ):
+        install = _env_file(
+            tmp_path, XR_RUNTIME_JSON="/x/openxr.json", PROXY_PORT=49322
+        )
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaacteleop.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ),
+            patch(
+                "isaacteleop.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+        ):
+            CloudXRLauncher(
+                install_dir=install,
+                setup_oob=True,
+                usb_local=True,
+                host_client=host_client,
+            )
+
+        err = capsys.readouterr().err
+        assert "https://127.0.0.1:49322/client/" in err
+        assert "https://10.0.0.5:49322/client/" not in err
+
     def test_default_profile_adds_no_environment(self, tmp_path):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
         (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
