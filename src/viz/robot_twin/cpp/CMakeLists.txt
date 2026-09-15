@@ -45,9 +45,11 @@ target_link_libraries(robot_twin_py
         CUDA::cudart_static
         # gl.cpp's and gl_context.cpp's loaders need dlopen/dlsym.
         ${CMAKE_DL_LIBS}
-        # mj_guard.cpp's isaacteleop::Logger. This module always loads in-process inside
-        # a Python interpreter (pybind11_add_module above), so install_python_sink()
-        # bridges it the same as every other in-process logger -- no separate wiring.
+        # mj_guard.cpp's isaacteleop::Logger. Note that install_python_sink() does
+        # NOT reach these loggers: log_bridge_core is static, so this module carries
+        # its own copy of the bridge pointer and of spdlog's registry, and the call
+        # made through _log_bridge configures only that module's copy. What reaches
+        # Python is the socket forward sink -- see log_bridge/AGENTS.md.
         log_bridge::log_bridge_core
 )
 
