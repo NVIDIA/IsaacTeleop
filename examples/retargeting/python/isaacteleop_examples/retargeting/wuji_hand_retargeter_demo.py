@@ -54,6 +54,7 @@ import pickle
 import signal
 import sys
 import time
+from typing import ClassVar
 
 import numpy as np
 
@@ -147,7 +148,7 @@ class _ReplayUnpickler(pickle.Unpickler):
     recording may have been produced elsewhere or shared.
     """
 
-    _ALLOWED = {
+    _ALLOWED: ClassVar[set[tuple[str, str]]] = {
         ("numpy", "ndarray"),
         ("numpy", "dtype"),
         ("numpy.core.multiarray", "_reconstruct"),  # numpy < 2

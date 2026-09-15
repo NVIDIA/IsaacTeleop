@@ -111,7 +111,6 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         Returns:
             Dict[str, TensorGroupType] - Input specification
         """
-        pass
 
     @abstractmethod
     def output_spec(self) -> RetargeterIOType:
@@ -121,7 +120,6 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
         Returns:
             Dict[str, TensorGroupType] - Output specification
         """
-        pass
 
     @abstractmethod
     def _compute_fn(
@@ -153,7 +151,6 @@ class BaseRetargeter(BaseExecutable, GraphExecutable):
             outputs: Output tensor groups to populate (Dict[str, TensorGroup])
             context: Compute context containing graph time and future metadata
         """
-        pass
 
     # ========================================================================
     # Public convenience API — not part of any abstract contract
