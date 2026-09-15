@@ -435,7 +435,7 @@
 into the Isaac Teleop framework. It provides full hand-joint tracking via the
 Manus SDK and injects the resulting poses into the OpenXR hand-tracking layer so
 any downstream retargeter can consume them transparently. Optionally it also
-publishes Manus flex-sensor (RawDeviceData) tip poses as <code class="docutils literal notranslate"><span class="pre">JointStateOutput</span></code>
+publishes Manus flex-sensor (RawDeviceData) tip poses as <code class="docutils literal notranslate"><span class="pre">JointSe3PoseOutput</span></code>
 tensors and consumes inbound haptic commands for vibration gloves.</p>
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
@@ -632,31 +632,36 @@ hosts consume hands via <code class="docutils literal notranslate"><span class="
 <section id="sensors-flex-tips-via-schemapusher">
 <h3><a class="toc-backref" href="#id13" role="doc-backlink">Sensors (flex tips via SchemaPusher)</a><a class="headerlink" href="#sensors-flex-tips-via-schemapusher" title="Link to this heading">#</a></h3>
 <p>When gloves report at least five RawDeviceData flex sensors, the plugin pushes
-a <code class="docutils literal notranslate"><span class="pre">JointStateOutput</span></code> (tensor id <code class="docutils literal notranslate"><span class="pre">joint_state</span></code>) on:</p>
+a <code class="docutils literal notranslate"><span class="pre">JointSe3PoseOutput</span></code> (tensor id <code class="docutils literal notranslate"><span class="pre">joint_se3_pose</span></code>) on:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">manus_sensors_left</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">manus_sensors_right</span></code></p></li>
 </ul>
-<p>Layout: 35 joints named <code class="docutils literal notranslate"><span class="pre">j0</span></code>..``j34``. For sensor <code class="docutils literal notranslate"><span class="pre">i</span></code> in thumb→pinky order,
-<code class="docutils literal notranslate"><span class="pre">j[7*i</span> <span class="pre">:</span> <span class="pre">7*i+7]</span></code> is <code class="docutils literal notranslate"><span class="pre">[x,</span> <span class="pre">y,</span> <span class="pre">z,</span> <span class="pre">qx,</span> <span class="pre">qy,</span> <span class="pre">qz,</span> <span class="pre">qw]</span></code> (meters, quaternion xyzw)
-in the Manus SDK frame after the plugin’s VUH coordinate setup. Poses are raw
+<p>Each frame is stamped <code class="docutils literal notranslate"><span class="pre">type</span> <span class="pre">=</span> <span class="pre">JointType.HAND_RAW</span></code> and carries the five
+fingertips keyed by <code class="docutils literal notranslate"><span class="pre">JointName</span></code>
+(<code class="docutils literal notranslate"><span class="pre">HAND_RAW_THUMB_TIP</span></code> .. <code class="docutils literal notranslate"><span class="pre">HAND_RAW_LITTLE_TIP</span></code>), position in meters and
+orientation as an xyzw quaternion, in the Manus SDK frame after the plugin’s
+VUH coordinate setup. A joint absent from a frame is not tracked. Poses are raw
 Manus flex transforms; hosts that mask against a re-framed skeleton must apply
 their own sensor-pose processing.</p>
 <p>This path requires CloudXR tensor <strong>push</strong> extensions
 (<code class="docutils literal notranslate"><span class="pre">XR_NVX1_push_tensor</span></code> and <code class="docutils literal notranslate"><span class="pre">XR_NVX1_tensor_data</span></code>). When sensors first become
 available the plugin logs <code class="docutils literal notranslate"><span class="pre">sensors=on</span></code> once per side.</p>
 <p>Host-side consumption example:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.retargeting_engine.deviceio_source_nodes</span><span class="w"> </span><span class="kn">import</span> <span class="n">JointStateSource</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.deviceio_trackers</span><span class="w"> </span><span class="kn">import</span> <span class="n">JointSe3PoseTracker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">isaacteleop.schema</span><span class="w"> </span><span class="kn">import</span> <span class="n">JointName</span><span class="p">,</span> <span class="n">JointType</span>
 
-<span class="n">SENSOR_JOINTS</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"j</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">35</span><span class="p">)]</span>
-<span class="n">left</span> <span class="o">=</span> <span class="n">JointStateSource</span><span class="p">(</span>
-    <span class="n">name</span><span class="o">=</span><span class="s2">"manus_sensors_left"</span><span class="p">,</span>
-    <span class="n">collection_id</span><span class="o">=</span><span class="s2">"manus_sensors_left"</span><span class="p">,</span>
-    <span class="n">joint_names</span><span class="o">=</span><span class="n">SENSOR_JOINTS</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="c1"># Decode thumb tip: joints j0..j6 -&gt; [x, y, z, qx, qy, qz, qw]</span>
+<span class="n">left</span> <span class="o">=</span> <span class="n">JointSe3PoseTracker</span><span class="p">(</span><span class="s2">"manus_sensors_left"</span><span class="p">)</span>
+<span class="c1"># ... register with a DeviceIOSession, then each tick:</span>
+<span class="n">data</span> <span class="o">=</span> <span class="n">left</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">session</span><span class="p">)</span><span class="o">.</span><span class="n">data</span>
+<span class="k">assert</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">data</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="n">JointType</span><span class="o">.</span><span class="n">HAND_RAW</span>
+<span class="n">thumb</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">lookup</span><span class="p">(</span><span class="n">JointName</span><span class="o">.</span><span class="n">HAND_RAW_THUMB_TIP</span><span class="p">)</span> <span class="k">if</span> <span class="n">data</span> <span class="k">else</span> <span class="kc">None</span>
+<span class="k">if</span> <span class="n">thumb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">position</span><span class="p">,</span> <span class="n">orientation</span> <span class="o">=</span> <span class="n">thumb</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">position</span><span class="p">,</span> <span class="n">thumb</span><span class="o">.</span><span class="n">pose</span><span class="o">.</span><span class="n">orientation</span>
 </pre></div>
 </div>
+<p>See <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/examples/mcap_record_replay/python/record_joint_se3_pose.py" rel="noopener noreferrer" target="_blank">examples/mcap_record_replay/python/record_joint_se3_pose.py</a> for a
+runnable recorder, and <code class="docutils literal notranslate"><span class="pre">replay_joint_se3_pose.py</span></code> to play one back without hardware.</p>
 </section>
 <section id="haptic-inbound-vibration">
 <h3><a class="toc-backref" href="#id14" role="doc-backlink">Haptic (inbound vibration)</a><a class="headerlink" href="#haptic-inbound-vibration" title="Link to this heading">#</a></h3>
@@ -913,7 +918,7 @@ by this project.</p>
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 14, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 15, 2026.
       <br/>
     
   </p>
