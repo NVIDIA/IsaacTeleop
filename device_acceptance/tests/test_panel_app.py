@@ -9,7 +9,10 @@ extra and the checker's own suite must not start needing it.
 
 from __future__ import annotations
 
+import io
 import socket
+import zipfile
+from pathlib import Path
 from typing import Iterator
 
 import pytest
@@ -20,6 +23,7 @@ from fullbody_acceptance.report import run
 
 viser = pytest.importorskip("viser")
 
+from fullbody_acceptance.panel import app as panel_app  # noqa: E402  needs viser
 from fullbody_acceptance.panel.app import Panel  # noqa: E402  needs viser
 
 
@@ -36,10 +40,24 @@ def server() -> Iterator["viser.ViserServer"]:
     running.stop()
 
 
-def panel_over(frames: list, server) -> Panel:
+def panel_over(frames: list, server, recording: Path | None = None) -> Panel:
     source = TeeSource(synth.StubSource(frames))
     report = run(source)
-    return Panel(server, report, source.track())
+    return Panel(server, report, source.track(), recording)
+
+
+class FakeClient:
+    """Stands in for the browser: records the transfer instead of performing it."""
+
+    def __init__(self, panel: Panel | None = None) -> None:
+        self.sent: list[tuple[str, bytes]] = []
+        self.disabled_mid_transfer: bool | None = None
+        self._panel = panel
+
+    def send_file_download(self, filename: str, content: bytes) -> None:
+        self.sent.append((filename, content))
+        if self._panel is not None:
+            self.disabled_mid_transfer = self._panel._package_button.disabled
 
 
 def test_a_take_plays_from_end_to_end(server):
@@ -67,3 +85,30 @@ def test_seeking_by_hand_moves_the_playhead(server):
     panel = panel_over(synth.frames(200), server)
     panel._scrub.value = 150
     assert panel._index == 150
+
+
+def test_packaging_sends_one_archive_and_locks_the_button_until_it_is_done(
+    server, tmp_path, monkeypatch
+):
+    monkeypatch.setattr(panel_app, "REENABLE_DELAY_S", 0.0)
+    recording = tmp_path / "take.mcap"
+    recording.write_bytes(b"the bundle moves bytes and does not parse them")
+    panel = panel_over(synth.frames(60), server, recording)
+
+    client = FakeClient(panel)
+    panel.package(client)
+
+    [(name, data)] = client.sent
+    assert name.startswith("take.") and name.endswith(".zip")
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        assert f"{name[:-4]}/report.json" in archive.namelist()
+    # The guard the operator asked for: dead while working, live again afterwards.
+    assert client.disabled_mid_transfer is True
+    assert panel._package_button.disabled is False
+
+
+def test_a_panel_with_no_recording_has_no_package_button(server):
+    """Nothing to package, so the control is absent rather than present and broken."""
+    panel = panel_over(synth.frames(60), server)
+    assert not hasattr(panel, "_package_button")
+    panel.package(FakeClient())  # and asking anyway is a no-op

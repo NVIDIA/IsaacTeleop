@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from ..labels import StepTimeline
 from ..mcap_source import McapFrameSource
@@ -52,7 +53,14 @@ def main(argv: list[str] | None = None) -> int:
     source = TeeSource(McapFrameSource(args.recording), timeline)
     report = run(source, None, timeline)
     print(report.to_text())
-    serve(report, source.track(), host=args.host, port=args.port)
+    serve(
+        report,
+        source.track(),
+        Path(args.recording),
+        timeline,
+        host=args.host,
+        port=args.port,
+    )
     return 0
 
 

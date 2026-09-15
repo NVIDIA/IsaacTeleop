@@ -12,15 +12,18 @@ the labels), so a ``result()`` taken mid-playback would be a number with no mean
 
 from __future__ import annotations
 
+import hashlib
 import time
+from pathlib import Path
 
 import numpy as np
 import viser
 from viser import uplot
 
 from ..frames import NUM_JOINTS
+from ..labels import StepTimeline
 from ..report import Mark, Report
-from . import render, status
+from . import bundle, render, status
 from .track import Sample, Track
 
 LIVE_JOINT_COLOUR = (86, 196, 138)
@@ -31,6 +34,11 @@ RATE_WINDOW_S = 8.0
 PLOT_PERIOD_S = 0.2
 TICK_S = 1.0 / 60.0
 SPEEDS = {"0.25x": 0.25, "0.5x": 0.5, "1x": 1.0, "2x": 2.0, "4x": 4.0}
+
+# How long the package button stays dead after the transfer call returns.
+# ``send_file_download`` flushes after each chunk, so returning means the last chunk
+# reached the socket, not that the browser has written the file.
+REENABLE_DELAY_S = 3.0
 
 
 class Skeleton:
@@ -113,10 +121,20 @@ class Skeleton:
 
 
 class Panel:
-    def __init__(self, server: viser.ViserServer, report: Report, track: Track) -> None:
+    def __init__(
+        self,
+        server: viser.ViserServer,
+        report: Report,
+        track: Track,
+        recording: Path | None = None,
+        timeline: StepTimeline | None = None,
+    ) -> None:
         self._server = server
         self._report = report
         self._track = track
+        # No recording on disk means nothing to package, so that control is not built.
+        self._recording = recording
+        self._timeline = timeline
         self._playhead_s = 0.0
         self._index = 0
 
@@ -171,6 +189,9 @@ class Panel:
             def _(_: viser.GuiEvent) -> None:
                 self._seek(int(self._scrub.value))
 
+        if self._recording is not None:
+            self._build_submission(gui)
+
         with gui.add_folder("Decides the take"):
             gui.add_html(render.result_rows(status.decisive(report)))
             low, high = track.rate_extent() or (0.0, 1.0)
@@ -216,6 +237,58 @@ class Panel:
                 expand_by_default=gate.mark is not Mark.PASS,
             ):
                 gui.add_html(render.gate_body(gate))
+
+    def _build_submission(self, gui: viser.GuiApi) -> None:
+        with gui.add_folder("Submission"):
+            self._package_button = gui.add_button(
+                "package for submission",
+                hint="zip the recording, its sidecars and this report, then download",
+            )
+            self._package_bar = gui.add_progress_bar(0.0, visible=False)
+            self._package_note = gui.add_html("")
+
+            @self._package_button.on_click
+            def _(event: viser.GuiEvent) -> None:
+                self.package(event.client)
+
+    def package(self, client: viser.ClientHandle | None) -> None:
+        """Build the bundle and hand it to the client that asked for it.
+
+        viser dispatches synchronous callbacks on a thread pool, so blocking and
+        sleeping here is confined to one worker and needs no timer. The button stays
+        dead until ``REENABLE_DELAY_S`` after the transfer returns, which is what
+        swallows a double-click.
+        """
+        if client is None or self._recording is None:
+            return
+        self._package_button.disabled = True
+        self._package_bar.value = 0.0
+        self._package_bar.visible = True
+        try:
+            name, data = bundle.build(
+                self._report,
+                self._track,
+                self._recording,
+                self._timeline,
+                on_progress=self._package_progress,
+            )
+            self._package_bar.animated = True
+            client.send_file_download(name, data)
+            self._package_note.content = render.packaged(
+                name, len(data), hashlib.sha256(data).hexdigest()
+            )
+        except OSError as unreadable:
+            # A take moved or unreadable since the panel started. The submitter has
+            # to see which file, or the button just appears to do nothing.
+            self._package_note.content = render.package_failed(unreadable)
+        finally:
+            time.sleep(REENABLE_DELAY_S)
+            self._package_bar.animated = False
+            self._package_bar.visible = False
+            self._package_button.disabled = False
+
+    def _package_progress(self, fraction: float) -> None:
+        self._package_bar.value = 100.0 * fraction
 
     def _seek(self, index: int) -> None:
         samples = self._track.samples
@@ -280,10 +353,15 @@ class Panel:
 
 
 def serve(
-    report: Report, track: Track, host: str = "127.0.0.1", port: int = 8080
+    report: Report,
+    track: Track,
+    recording: Path | None = None,
+    timeline: StepTimeline | None = None,
+    host: str = "127.0.0.1",
+    port: int = 8080,
 ) -> None:
     server = viser.ViserServer(host=host, port=port)
-    panel = Panel(server, report, track)
+    panel = Panel(server, report, track, recording, timeline)
     print(f"[panel] http://{host}:{port} — Ctrl+C to stop")
     try:
         panel.run()

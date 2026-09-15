@@ -15,6 +15,7 @@ import hashlib
 import json
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from math import isfinite
 from typing import Any, Iterable, Sequence
 
 from .checks import Attribution, Check, Severity, Status, build_all
@@ -122,20 +123,27 @@ class Report:
                 {
                     "name": r.name,
                     "gate": r.gate,
+                    # Derived, and carried anyway: a reader who recomputes it from
+                    # status, severity and judged reimplements Mark and drifts.
+                    "mark": str(r.mark),
                     "severity": str(r.severity),
                     "attribution": str(r.attribution),
                     "judged": r.judged,
                     "status": str(r.status),
                     "required": r.required,
                     "detail": r.detail,
-                    "measurements": r.measurements,
+                    "measurements": json_safe(r.measurements),
                 }
                 for r in self.results
             ],
         }
 
     def to_json(self, indent: int = 2) -> str:
-        return json.dumps(self.to_dict(), indent=indent, sort_keys=False)
+        # allow_nan=False so a value this dict cannot represent fails here rather than
+        # reaching a strict reader as a bare NaN.
+        return json.dumps(
+            self.to_dict(), indent=indent, sort_keys=False, allow_nan=False
+        )
 
     def to_text(self) -> str:
         lines = [
@@ -157,6 +165,23 @@ class Report:
             lines.append("")
             lines.extend(f"  note: {note}" for note in self.notes)
         return "\n".join(lines)
+
+
+def json_safe(value: Any) -> Any:
+    """Recursively replaces non-finite floats with None.
+
+    Python's ``json`` writes a bare ``NaN`` or ``Infinity``, which every strict reader
+    rejects — ``JSON.parse`` included. This is reachable, not defensive:
+    ``coordinate_frame.up_axis`` divides by the second-largest axis component and
+    reports an infinite dominance whenever that is exactly zero.
+    """
+    if isinstance(value, float) and not isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    return value
 
 
 def suppress_dependents(

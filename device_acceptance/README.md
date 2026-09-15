@@ -130,6 +130,37 @@ with no meaning.
 viser is an optional extra, and only the panel's renderer uses it. Without `--panel` the
 checker runs exactly as before, on `mcap` and `flatbuffers` alone.
 
+## Send a take
+
+**`package for submission`** in the panel builds one archive and downloads it through the
+browser — so it lands on the machine you will send it from, even when the panel is being
+viewed over `--host`. Right-click the link it offers for *Save as…* to choose where.
+
+```text
+145511-g4.retake.zip                 the verdict is in the name, so a mailbox
+└── 145511-g4.retake/                of these can be triaged unopened
+    ├── report.json                  verdict, checks, groups, per-frame series,
+    │                                input hashes, the checker's commit
+    ├── report.txt                   the same report, for reading
+    ├── 145511-g4.mcap               the recording, byte for byte
+    ├── 145511-g4.labels.json        motion-step windows
+    ├── 145511-g4.json               capture provenance
+    └── 145511-g4.log                recorder log
+```
+
+4.5 MB and a fifth of a second for a 102 s take. `report.json` is a superset of `--json`
+and reads out of the archive without decompressing the recording, so a dashboard needs
+only that member. Each check in it carries its **`mark`** and its group, so nothing
+reading the file has to reimplement how a result is displayed or how the verdict is
+reached.
+
+The recording and its sidecars are the evidence; the packed report is a convenience. The
+checker is deterministic, so re-running it on the archive reproduces the verdict exactly
+— at the same commit, which is why `tool.commit` is in there. **The labels sidecar cannot
+be regenerated** from the recording: without it every G4 check reports unanswered and the
+verdict changes, which is why the archive holds more than one file. A companion that was
+never there is not an error; `inputs.missing` names it.
+
 ## The seven gates
 
 The acceptance process has seven gates. The checks in this directory carry the gate

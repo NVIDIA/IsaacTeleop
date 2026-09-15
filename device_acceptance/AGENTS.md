@@ -153,9 +153,17 @@ without touching a measurement.
 
 `Mark` in `report.py` is the single definition of how one result is shown — `pass`,
 `FAIL`, `meas`, `n/a`, `note` — and `CheckResult.mark` derives it from status, severity
-and `judged`. Both the text report and the panel read it. A sixth state, or a change to
-an existing one, goes there and nowhere else; a renderer that recomputes this drifts,
+and `judged`. The text report, the panel and `to_dict` all read it, so it travels with
+every result we emit rather than being recomputed downstream. A sixth state, or a change
+to an existing one, goes there and nowhere else; a renderer that recomputes this drifts,
 and the drift is silent.
+
+**Every JSON this package writes must survive a strict parser.** Measurements can be
+non-finite — `coordinate_frame.up_axis` divides by the second-largest axis component and
+reports `inf` when that is exactly zero — and Python's `json` writes a bare `NaN` that
+`JSON.parse` rejects. `report.json_safe` nulls them and `allow_nan=False` makes a leak
+loud. A new measurement that can divide needs no new code, but a new writer does need
+the flag.
 
 ## The panel
 
@@ -186,10 +194,19 @@ subject turns, a dropped block that is a spike rather than a slightly lower mean
   construction (`coverage.validity_trend` compares a head window against a tail window,
   `posture.cumulative_drift_between_tpose_windows` needs both T-poses, and all of G4
   needs the labels), so a `result()` taken mid-playback has no meaning.
+- **`panel/bundle.py` packages a submission, and holds no viser.** The archive's job is
+  to carry the **inputs that cannot be regenerated** — above all the labels sidecar,
+  without which every G4 check reports unanswered and the verdict changes. The packed
+  report is a cache: the checker is deterministic, so a re-run at the same commit
+  reproduces it, and where the two disagree the recording wins. That is why `inputs`
+  (file hashes, labels, `tool.commit`) is kept apart from the outputs, and why a missing
+  companion is stated in `inputs.missing` rather than treated as an error. zip rather
+  than tar.gz for the central directory: `report.json` reads out in 0.4 ms without
+  touching the recording, against 17.4 ms to merely list a tar.gz.
 - **Deliberately absent from this version**, each waiting on something undecided:
-  jumping to where a check failed (checks cannot report a time range yet), report
-  generation (the report/recording binding is not settled), capture orchestration, and
-  live (needs `LiveFrameSource`). Mixing any of them in would have stalled the panel on
+  jumping to where a check failed (checks cannot report a time range yet), capture
+  orchestration, a submitter attestation form (the G0 fields are not settled), and live
+  (needs `LiveFrameSource`). Mixing any of them in would have stalled the panel on
   someone else's design question.
 
 ## Architecture
@@ -381,7 +398,9 @@ against pre-commit's 2000 KiB ceiling.
 
 `tests/test_panel_app.py` is a third, smaller layer: it drives the renderer against a
 real `ViserServer` and skips wherever viser is absent, which includes CI. Keep it that
-way — the checker's suite must not start needing the extra.
+way — the checker's suite must not start needing the extra. Everything about the panel
+that is arithmetic rather than rendering — the track, the grouping, the bundle — is
+tested in the unit layer instead, and that is the reason those modules hold no viser.
 
 Graded fixtures are asserted by accuracy and monotonicity against the injected magnitude,
 plus a zero rung reading zero — never by pass/fail.
