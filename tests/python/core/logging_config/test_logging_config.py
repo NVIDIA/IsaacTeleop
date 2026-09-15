@@ -288,6 +288,44 @@ def test_forwarding_is_disabled_without_unix_sockets(monkeypatch):
 
 
 @_posix_only
+def test_socket_lives_outside_the_log_directory(monkeypatch, tmp_path):
+    """sun_path caps at 108 bytes, far below any filesystem limit, so a long but
+    perfectly valid ISAACTELEOP_LOG_DIR must not decide whether a receiver can
+    bind -- and receiver start-up runs during ``import isaacteleop``.
+    """
+    deep = tmp_path / ("/".join(f"segment{i:02d}" for i in range(8)))
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(deep))
+    assert len(str(deep)) > _forwarding._MAX_SOCKET_PATH
+
+    runtime = _forwarding._runtime_dir()
+    assert runtime != _core.log_dir()
+    assert runtime not in _core.log_dir().parents
+
+
+@_posix_only
+def test_runtime_dir_prefers_xdg_runtime_dir(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    assert _forwarding._runtime_dir() == tmp_path / "isaacteleop"
+    monkeypatch.delenv("XDG_RUNTIME_DIR")
+    assert _forwarding._runtime_dir() == Path(f"/tmp/isaacteleop-{os.getuid()}")
+
+
+@_posix_only
+def test_receiver_degrades_instead_of_raising(monkeypatch, tmp_path):
+    """A path that cannot be bound costs forwarding and nothing else: install()
+    runs from ``import isaacteleop``, so raising here would make a long
+    XDG_RUNTIME_DIR unimportable.
+    """
+    too_deep = tmp_path / ("/".join(f"rt{i:02d}" for i in range(40)))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(too_deep))
+    monkeypatch.setattr(_forwarding, "_receiver_socket", None)
+    monkeypatch.delenv("ISAACTELEOP_LOG_SOCKET", raising=False)
+
+    assert _forwarding.ensure_receiver() == ""
+    assert "ISAACTELEOP_LOG_SOCKET" not in os.environ
+
+
+@_posix_only
 def test_forwarding_round_trip(tmp_path):
     """A record sent through ForwardingHandler reaches the receiving logger
     with the same name, level, and rendered message -- the exact contract

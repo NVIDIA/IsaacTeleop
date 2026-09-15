@@ -27,14 +27,35 @@ import socket
 import socketserver
 import struct
 import threading
-import time
+from pathlib import Path
 
-from ._core import ROOT_LOGGER_NAME, ensure_log_dir
+from ._core import ROOT_LOGGER_NAME, ensure_private_dir
 
 # Forwarding is built on Unix domain sockets, which Windows does not provide.
 # Without them every process keeps its own console and file handlers, which is
 # the pre-forwarding behaviour and a correct degradation.
 _HAS_UNIX_SOCKETS = hasattr(socket, "AF_UNIX")
+
+# sun_path caps at 108 bytes including the terminator -- two orders of magnitude
+# below any filesystem path limit. The socket therefore cannot live beside the log
+# files: ISAACTELEOP_LOG_DIR is free to point somewhere deep, and where an operator
+# keeps logs must not decide whether `import isaacteleop` succeeds.
+_MAX_SOCKET_PATH = 107
+
+
+def _runtime_dir() -> Path:
+    """Shortest private directory this session can bind a socket in.
+
+    XDG_RUNTIME_DIR is the per-user, per-session location a Linux desktop
+    already provides (``/run/user/<uid>``); the fallback is the parent of the
+    default log directory, which is per-uid and equally short. Neither is
+    affected by ISAACTELEOP_LOG_DIR.
+    """
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg:
+        return Path(xdg) / "isaacteleop"
+    return Path(f"/tmp/isaacteleop-{os.getuid()}")
+
 
 _FRAME_HEADER = struct.Struct(">I")  # 4-byte big-endian payload length prefix
 
@@ -220,6 +241,23 @@ if _HAS_UNIX_SOCKETS:
 _receiver_socket: str | None = None
 
 
+def _no_receiver(reason: str) -> str:
+    """Report that forwarding is off and return the "no address" sentinel.
+
+    A warning rather than silence: the console and file handlers are already
+    attached by the time this runs, so the operator sees it, and the difference
+    it describes -- each process logging for itself instead of into one
+    session-wide file -- is otherwise invisible until someone goes looking for
+    a child's records.
+    """
+    logging.getLogger(ROOT_LOGGER_NAME).warning(
+        "Log forwarding disabled: %s. Each process will keep its own console "
+        "and log file.",
+        reason,
+    )
+    return ""
+
+
 def ensure_receiver() -> str:
     """Start this process's log receiver if it hasn't already, and return its
     socket path. Idempotent. Runs in a background thread -- not a forked
@@ -233,9 +271,12 @@ def ensure_receiver() -> str:
     ``subprocess.Popen``'d with an ``os.environ``-derived ``env=`` (as every
     site in this tree already does) -- finds it automatically.
 
-    Returns the empty string, and publishes nothing, where Unix sockets are
-    unavailable: with no receiver to name there is no address to hand on, and
-    every child then takes the leader branch exactly as this process did.
+    Returns the empty string, and publishes nothing, whenever a receiver cannot
+    be started -- no Unix sockets, no writable runtime directory, a sun_path
+    that will not fit. Never raises: this runs from ``install()``, which runs
+    from ``import isaacteleop``, so a failure here must cost forwarding and
+    nothing else. With no address to hand on, every child takes the leader
+    branch exactly as this process did, which is the pre-forwarding behaviour.
     """
     global _receiver_socket
     if not _HAS_UNIX_SOCKETS:
@@ -245,12 +286,24 @@ def ensure_receiver() -> str:
     with _lock:
         if _receiver_socket is not None:
             return _receiver_socket
-        directory = ensure_log_dir()
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
-        path = str(directory / f"isaacteleop.{timestamp}.{os.getpid()}.sock")
-        if os.path.exists(path):
-            os.unlink(path)
-        server = ThreadingUnixStreamServer(path, RequestHandler)
+        try:
+            directory = ensure_private_dir(_runtime_dir())
+        except OSError as exc:
+            return _no_receiver(f"cannot use the runtime directory ({exc})")
+        # No timestamp in the name, unlike the log files: the pid alone is
+        # unique among live processes, and every byte counts against sun_path.
+        path = str(directory / f"isaacteleop.{os.getpid()}.sock")
+        if len(path) > _MAX_SOCKET_PATH:
+            return _no_receiver(
+                f"socket path is {len(path)} bytes, over the {_MAX_SOCKET_PATH} "
+                f"a Unix domain socket allows ({path})"
+            )
+        try:
+            if os.path.exists(path):
+                os.unlink(path)
+            server = ThreadingUnixStreamServer(path, RequestHandler)
+        except OSError as exc:
+            return _no_receiver(f"cannot bind {path} ({exc})")
         # The 0700 directory above is what actually keeps other users out; this
         # narrows the socket itself too, so the receiver -- which re-emits
         # whatever it is handed, straight into this process's logger tree --

@@ -79,22 +79,29 @@ def log_dir() -> Path:
     return Path(override).expanduser() if override else _DEFAULT_LOG_DIR
 
 
-def ensure_log_dir() -> Path:
-    """:func:`log_dir`, created if needed and confirmed to belong to us.
+def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
+    """*directory*, created if needed and confirmed to belong to us.
 
     Created 0700 so the records, the raw fd captures beside them and the log
     socket are not readable -- or plantable -- by other users of the machine.
     mkdir()'s mode is masked by the umask, so the bits are set explicitly, and
-    only on a directory this call created: a path the operator chose through
-    ISAACTELEOP_LOG_DIR keeps whatever permissions the operator gave it.
+    only on a directory this call created: a path the operator chose keeps
+    whatever permissions the operator gave it.
 
     The ownership check refuses a directory some other user got to first, which
     under /tmp is the classic way to have another process write through a
     symlink on your behalf. Both steps are POSIX-only: chmod moves nothing but
     the read-only bit on Windows, st_uid is always 0 there, and the shared-
     directory threat they answer does not arise under a per-user temp path.
+
+    Args:
+        directory: the path to create and vet.
+        remedy: appended to the refusal message, to name the setting a caller
+            can change.
+
+    Raises:
+        PermissionError: if *directory* exists and another user owns it.
     """
-    directory = log_dir()
     created = False
     try:
         directory.mkdir(parents=True, exist_ok=False)
@@ -110,7 +117,14 @@ def ensure_log_dir() -> Path:
     info = directory.stat()
     if info.st_uid != os.getuid():
         raise PermissionError(
-            f"Refusing to log into {directory}: owned by uid {info.st_uid}, "
-            f"not {os.getuid()}. Set ISAACTELEOP_LOG_DIR to a directory you own."
+            f"Refusing to use {directory}: owned by uid {info.st_uid}, "
+            f"not {os.getuid()}.{remedy}"
         )
     return directory
+
+
+def ensure_log_dir() -> Path:
+    """:func:`log_dir`, created if needed and confirmed to belong to us."""
+    return ensure_private_dir(
+        log_dir(), remedy=" Set ISAACTELEOP_LOG_DIR to a directory you own."
+    )
