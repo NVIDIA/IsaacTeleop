@@ -69,27 +69,17 @@ def test_apply_transform_returns_a_new_pose_without_mutating_input() -> None:
     (
         (
             "left",
-            [0.0103315472, 0.055536544, -0.0566476072],
-            [
-                -0.1315856570103413,
-                -0.3586609382547703,
-                0.9111816820492541,
-                -0.15425786377769118,
-            ],
+            [0.07, -0.045, -0.04],
+            [-0.3375082150, -0.9049220261, -0.1575038337, 0.2059050118],
         ),
         (
             "right",
-            [0.0103315472, -0.055536544, -0.0566476072],
-            [
-                -0.1315856570103413,
-                0.3586609382547703,
-                0.9111816820492541,
-                0.15425786377769118,
-            ],
+            [-0.07, -0.045, -0.04],
+            [0.2458089107, -0.9423341602, -0.1851067102, -0.1316047708],
         ),
     ),
 )
-def test_manus_controller_calibration_matches_known_good_transform(
+def test_manus_controller_calibration_matches_static_mount(
     side: str,
     expected_position: list[float],
     expected_orientation: list[float],
@@ -100,6 +90,19 @@ def test_manus_controller_calibration_matches_known_good_transform(
 
     np.testing.assert_allclose(_position(calibrated_pose), expected_position)
     np.testing.assert_allclose(_orientation(calibrated_pose), expected_orientation)
+
+
+def test_manus_controller_calibration_rotates_controller_local_translation() -> None:
+    left_pose = to_pose([-0.2, 1.2, -0.15], [0.0, 0.0, 0.0, 1.0])
+
+    rotated_orientation = Rotation.from_euler("y", 180.0, degrees=True).as_quat()
+    left_pose.orientation.x = rotated_orientation[0]
+    left_pose.orientation.y = rotated_orientation[1]
+    left_pose.orientation.z = rotated_orientation[2]
+    left_pose.orientation.w = rotated_orientation[3]
+    left_calibrated = apply_manus_controller_to_hand_pose(left_pose, "left")
+
+    np.testing.assert_allclose(_position(left_calibrated), [-0.27, 1.155, -0.11])
 
 
 def test_manus_controller_calibration_rejects_unknown_side() -> None:

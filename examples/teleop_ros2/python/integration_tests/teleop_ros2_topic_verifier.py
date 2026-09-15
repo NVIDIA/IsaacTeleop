@@ -150,8 +150,8 @@ def _assert_ee_poses_array(
         expected_xy = ((-0.25, 1.10), (0.25, 1.10))
     elif hand_tracking_provider == "manus":
         expected_xy = (
-            (-0.1896684528, 1.255536544),
-            (0.2103315472, 1.144463456),
+            (-0.13, 1.155),
+            (0.13, 1.155),
         )
     else:
         expected_xy = ((-0.20, 1.20), (0.20, 1.20))

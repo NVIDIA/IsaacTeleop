@@ -76,11 +76,11 @@ def _compute_ee_pose_from_controller(
     ori = [float(x) for x in ctrl[ControllerInputIndex.AIM_ORIENTATION]]
     pose = to_pose(pos, ori)
 
-    if transform_rot is not None or transform_trans is not None:
-        pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
-
     if apply_manus_controller_mount_offset:
         pose = apply_manus_controller_to_hand_pose(pose, side)
+
+    if transform_rot is not None or transform_trans is not None:
+        pose = apply_transform_to_pose(pose, transform_rot, transform_trans)
 
     return pose
 

@@ -93,7 +93,7 @@ class TeleopRos2Node(Node):
         )
         if self._profile_spec.apply_manus_controller_mount_offset:
             self.get_logger().info(
-                "Applying MANUS controller mount offset after pose transform."
+                "Applying static MANUS/Pico mount calibration before pose transform."
             )
         self._tf_broadcaster = TransformBroadcaster(self)
         self._create_publishers()

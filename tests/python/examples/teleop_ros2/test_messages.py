@@ -225,12 +225,12 @@ def test_build_ee_output_from_controllers_preserves_manus_calibration() -> None:
         apply_manus_controller_mount_offset=True,
     )
 
-    expected_position = [4.0103315472, 5.055536544, 5.9433523928]
+    expected_position = [4.07, 4.955, 5.96]
     expected_orientation = [
-        -0.1315856570103413,
-        -0.3586609382547703,
-        0.9111816820492541,
-        -0.15425786377769118,
+        -0.3375082150,
+        -0.9049220261,
+        -0.1575038337,
+        0.2059050118,
     ]
     actual_pose = msg.pose[0]
     actual_transform = transforms[0].transform
@@ -243,6 +243,8 @@ def test_build_ee_output_from_controllers_preserves_manus_calibration() -> None:
         ],
         expected_position,
     )
+    assert list(msg.is_valid) == [True, False]
+    assert len(transforms) == 1
     np.testing.assert_allclose(
         [
             actual_pose.orientation.x,
