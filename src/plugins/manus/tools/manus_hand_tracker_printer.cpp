@@ -3,12 +3,11 @@
 
 #include "manus_hand_visualizer.hpp"
 
+#include <log_bridge/logger.hpp>
 #include <manus/manus_hand_tracking_plugin.hpp>
 
 #include <algorithm>
 #include <chrono>
-#include <iomanip>
-#include <iostream>
 #include <thread>
 #include <vector>
 
@@ -18,7 +17,8 @@ try
     (void)argc;
     (void)argv;
 
-    std::cout << "[Manus] Initializing Manus Tracker..." << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.manus_hand_tracker_printer");
+    logger->info("Initializing Manus Tracker...");
 
     plugins::manus::ManusPluginConfig config;
     config.app_name = "ManusHandPrinter";
@@ -30,7 +30,7 @@ try
     // std::jthread automatically requests stop and joins on destruction,
     // preventing the thread from outliving the tracker singleton.
     std::jthread vis_thread(
-        [&tracker](std::stop_token st)
+        [&tracker, logger](std::stop_token st)
         {
             try
             {
@@ -39,11 +39,11 @@ try
             }
             catch (const std::exception& e)
             {
-                std::cerr << "[Vis] " << e.what() << " — running without visualizer" << std::endl;
+                logger->warn("Visualizer failed: {} — running without visualizer", e.what());
             }
         });
 
-    std::cout << "[Manus] Press Ctrl+C to stop. Printing joint data..." << std::endl;
+    logger->info("Press Ctrl+C to stop. Printing joint data...");
 
     int frame = 0;
     bool waiting_printed = false;
@@ -57,7 +57,7 @@ try
         {
             if (!waiting_printed)
             {
-                std::cout << "[Manus] Waiting for gloves..." << std::endl;
+                logger->info("Waiting for gloves...");
                 waiting_printed = true;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -65,39 +65,35 @@ try
         }
         waiting_printed = false;
 
-        std::cout << "\n[Manus] === Frame " << frame << " ===" << std::endl;
+        logger->info("=== Frame {} ===", frame);
 
         // Helper lambda to print hand data
-        auto print_hand = [](const std::string& side, const std::vector<SkeletonNode>& nodes)
+        auto print_hand = [logger](const std::string& side, const std::vector<SkeletonNode>& nodes)
         {
             if (nodes.empty())
             {
                 return;
             }
 
-            std::cout << "[Manus] " << side << " hand (" << nodes.size() << " joints):" << std::endl;
+            logger->info("{} hand ({} joints):", side, nodes.size());
 
             for (size_t i = 0; i < std::min(nodes.size(), static_cast<size_t>(5)); ++i)
             {
                 const auto& pos = nodes[i].transform.position;
                 const auto& ori = nodes[i].transform.rotation;
 
-                std::cout << "[Manus]   Joint " << i << ": "
-                          << "pos=[" << std::fixed << std::setprecision(3) << pos.x << ", " << pos.y << ", " << pos.z
-                          << "] "
-                          << "ori=[" << ori.x << ", " << ori.y << ", " << ori.z << ", " << ori.w << "]" << std::endl;
+                logger->info("  Joint {}: pos=[{:.3f}, {:.3f}, {:.3f}] ori=[{:.3f}, {:.3f}, {:.3f}, {:.3f}]", i, pos.x,
+                             pos.y, pos.z, ori.x, ori.y, ori.z, ori.w);
             }
 
             if (nodes.size() > 5)
             {
-                std::cout << "[Manus]   ... (" << (nodes.size() - 5) << " more joints)" << std::endl;
+                logger->info("  ... ({} more joints)", nodes.size() - 5);
             }
         };
 
         print_hand("left", left_nodes);
         print_hand("right", right_nodes);
-
-        std::cout << std::flush;
 
         frame++;
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -107,11 +103,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.manus_hand_tracker_printer");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.manus_hand_tracker_printer");
+    logger->error("{}: Unknown error occurred", argv[0]);
     return 1;
 }

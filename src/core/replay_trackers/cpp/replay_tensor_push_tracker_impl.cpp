@@ -3,8 +3,6 @@
 
 #include "replay_tensor_push_tracker_impl.hpp"
 
-#include <iostream>
-
 namespace core
 {
 
@@ -17,9 +15,7 @@ void ReplayTensorPushTrackerImpl::push(const std::vector<uint8_t>& /*payload*/) 
     bool expected = false;
     if (m_drop_logged.compare_exchange_strong(expected, true))
     {
-        std::cerr << "ReplayTensorPushTrackerImpl::push: no peer in replay mode; "
-                     "pushes are dropped (silenced after this message)."
-                  << std::endl;
+        logger_->warn("push: no peer in replay mode; pushes are dropped (silenced after this message).");
     }
 }
 

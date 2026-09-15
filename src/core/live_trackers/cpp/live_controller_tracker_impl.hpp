@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/controller_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
@@ -59,6 +60,7 @@ private:
 
     const OpenXRCoreFunctions core_funcs_;
     XrTimeConverter time_converter_;
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.LiveControllerTrackerImpl");
 
     XrSession session_;
     XrSpace base_space_;

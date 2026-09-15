@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
-#include <iostream>
 #include <stdexcept>
 #include <utility>
 
@@ -46,8 +45,8 @@ bool is_display_device_xdev(const XrXDevPropertiesMNDX& properties)
     const std::string name = bounded_string(properties.name);
     const std::string serial = bounded_string(properties.serial);
 
-    std::cout << "name: " << name << std::endl;
-    std::cout << "serial: " << serial << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.core.LiveHandTrackerImpl");
+    logger->debug("candidate XDev name: {}, serial: {}", name, serial);
 
     return contains_case_insensitive(name, "displaydevice") || contains_case_insensitive(name, "display device") ||
            contains_case_insensitive(serial, "displaydevice") || contains_case_insensitive(serial, "display device") ||
@@ -160,8 +159,8 @@ LiveHandTrackerImpl::LiveHandTrackerImpl(const OpenXRSessionHandles& handles,
         throw;
     }
 
-    std::cout << "HandTracker initialized (left candidates: " << left_hand_trackers_.size()
-              << ", right candidates: " << right_hand_trackers_.size() << ")" << std::endl;
+    logger_->info("HandTracker initialized (left candidates: {}, right candidates: {})", left_hand_trackers_.size(),
+                  right_hand_trackers_.size());
 }
 
 LiveHandTrackerImpl::~LiveHandTrackerImpl()

@@ -4,6 +4,7 @@
 // Hand tracking data injection via push devices
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
@@ -48,6 +49,8 @@ private:
     PFN_xrPushDevicePushHandTrackingNV pfn_push_ = nullptr;
 
     core::XrTimeConverter time_converter_;
+
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.plugins.plugin_utils.HandInjector");
 };
 
 } // namespace plugin_utils

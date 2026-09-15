@@ -71,6 +71,46 @@ only point here — edit the rules in the doc, not the shims.
   must keep `[ ... ]`. Check the shebang (and, for sourced files, who sources
   them) first.
 
+## Logging — one tree, one place to configure it
+
+Every process in this repo, Python and C++, feeds a single logger tree rooted
+at `isaacteleop`. These rules apply wherever you emit output, not only inside
+the logging packages.
+
+- **Name every logger under `isaacteleop.`** In Python that means
+  `logging.getLogger(__name__)` inside `src/python/isaacteleop/` (where
+  `__name__` already starts with `isaacteleop.`) and an explicit
+  `logging.getLogger("isaacteleop.<area>.<module>")` anywhere else, including
+  `examples/`. In C++ it means
+  `isaacteleop::Logger::get("isaacteleop.<module>.<ClassName>")`. Dotted names
+  **are** the hierarchy: a bare name like `"robot_viz"` is a sibling of
+  `isaacteleop`, not a descendant, so the console and file handlers attached to
+  the root of this tree can never see its records.
+- **Never call `logging.basicConfig()`**, and never attach your own handler to
+  the `isaacteleop` logger or to the Python root logger. `basicConfig()`
+  installs a handler on the *root* logger, and nothing here sets
+  `propagate = False`, so from that call onward every `isaacteleop` record is
+  emitted twice — once in the shared line format and once in yours.
+- **Configure through the public API instead:** `logging_config.set_console_level()`,
+  `set_console_filter()`, `set_logger_colors()`. A `--verbose` flag should call
+  `set_console_level("debug")`, not build a handler.
+- **`print()` / `std::cout` are for deliberate terminal UX only** — CLI usage
+  text, interactive prompts, operator banners, progress lines a log file would
+  ruin. Diagnostics go to a logger. Existing raw-output sites that survive in
+  `src/plugins/*/main.cpp`, `cloudxr/oob_teleop_*.py` and similar are that
+  deliberate kind; do not "migrate" them, and do not add new ones for
+  diagnostics.
+- **Three environment variables are the whole external contract**, read
+  identically by both halves: `ISAACTELEOP_LOG_DIR` (where log files land),
+  `ISAACTELEOP_LOG_LEVEL` (console threshold for out-of-process code), and
+  `ISAACTELEOP_LOG_SOCKET` (set by the session leader; its presence is what
+  makes a process forward instead of owning handlers). Do not invent a fourth.
+
+Subsystem-internal rules live with the code:
+[`src/python/isaacteleop/logging_config/AGENTS.md`](src/python/isaacteleop/logging_config/AGENTS.md)
+and [`src/core/log_bridge/AGENTS.md`](src/core/log_bridge/AGENTS.md). Read the
+relevant one before changing either half.
+
 ## Comments and docstrings — say it once, briefly
 
 Comments earn their place by recording what the code cannot: a constraint, a

@@ -12,6 +12,7 @@ target_link_libraries(rebot_devarm_leader_plugin PRIVATE
     pusherio::pusherio
     oxr::oxr_core
     isaacteleop_schema
+    log_bridge::log_bridge_core
 )
 
 # The CAN bus implementations are SocketCAN, so their bodies live behind

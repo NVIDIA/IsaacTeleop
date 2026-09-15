@@ -6,7 +6,6 @@
 #include <oxr_utils/os_time.hpp>
 #include <replay_trackers/replay_deviceio_factory.hpp>
 
-#include <iostream>
 #include <stdexcept>
 
 namespace core
@@ -14,7 +13,7 @@ namespace core
 
 ReplaySession::ReplaySession(const McapReplayConfig& config)
 {
-    std::cout << "ReplaySession: reading from " << config.filename << std::endl;
+    logger_->info("ReplaySession: reading from {}", config.filename);
 
     ReplayDeviceIOFactory factory(config.filename, config.tracker_names);
     for (const auto& [tracker_ptr, name] : config.tracker_names)
@@ -29,8 +28,8 @@ ReplaySession::ReplaySession(const McapReplayConfig& config)
 
 std::unique_ptr<ReplaySession> ReplaySession::run(const McapReplayConfig& config)
 {
-    std::cout << "ReplaySession: Creating replay session with " << config.tracker_names.size() << " trackers"
-              << std::endl;
+    isaacteleop::Logger::get("isaacteleop.core.ReplaySession")
+        ->info("ReplaySession: Creating replay session with {} trackers", config.tracker_names.size());
 
     return std::unique_ptr<ReplaySession>(new ReplaySession(config));
 }

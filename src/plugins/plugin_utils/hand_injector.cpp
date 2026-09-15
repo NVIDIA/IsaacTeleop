@@ -112,7 +112,7 @@ void HandInjector::cleanup()
             }
             catch (const std::exception& e)
             {
-                std::cerr << "[HandInjector] cleanup: skipping inactive push, clock failed: " << e.what() << std::endl;
+                logger_->warn("cleanup: skipping inactive push, clock failed: {}", e.what());
             }
         }
         pfn_destroy_(device_);

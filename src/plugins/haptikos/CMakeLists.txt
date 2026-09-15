@@ -23,6 +23,7 @@ if (TARGET Haptikos::HaptikosAPI)
         oxr::oxr_utils
         OpenXR::openxr_loader
         Teleop::openxr_extensions
+        log_bridge::log_bridge_core
     )
 
     set_target_properties(haptikos_hands_plugin PROPERTIES

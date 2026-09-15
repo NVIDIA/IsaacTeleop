@@ -9,6 +9,7 @@
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr_platform.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
@@ -100,6 +101,11 @@ private:
     static void OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_info);
     static void OnLandscapeStream(const Landscape* landscape);
     static void OnRawDeviceDataStream(const RawDeviceDataInfo* raw_device_data_info);
+    // Registered before CoreSdk_InitializeIntegrated() (see initialize()), so it may fire
+    // synchronously from within that call, on the calling thread, before the ManusTracker
+    // singleton (a function-local static in instance()) has finished constructing. Must
+    // therefore never call instance() -- see the definition for how it gets its logger.
+    static void OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_Length) noexcept;
 
     void push_sensor_states();
     void push_sensor_side(bool is_left, core::SchemaPusher& pusher);
@@ -119,6 +125,7 @@ private:
     // -- Member Variables --
 
     ManusPluginConfig m_config;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
 
     // Lifecycle
     std::mutex m_lifecycle_mutex;

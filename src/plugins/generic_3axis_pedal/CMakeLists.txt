@@ -17,6 +17,7 @@ target_link_libraries(generic_3axis_pedal_plugin PRIVATE
     pusherio::pusherio
     oxr::oxr_core
     isaacteleop_schema
+    log_bridge::log_bridge_core
 )
 
 install(TARGETS generic_3axis_pedal_plugin RUNTIME DESTINATION plugins/generic_3axis_pedal)

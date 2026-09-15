@@ -51,7 +51,7 @@ add_custom_target(python_package ALL
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-retargeters-lite.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-grounding.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
     COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_SOURCE_DIR}/requirements-wuji.txt" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/"
-    DEPENDS deviceio_trackers_py deviceio_session_py oxr_py plugin_manager_py schema_py isaacteleop_python cloudxr_python stage_generated_tracker_exports
+    DEPENDS deviceio_trackers_py deviceio_session_py log_bridge_py oxr_py plugin_manager_py schema_py isaacteleop_python cloudxr_python stage_generated_tracker_exports
     COMMENT "Preparing Python package structure"
 )
 
@@ -75,6 +75,7 @@ set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/isaacteleop/py.typed")
 set(STUBGEN_MODULES
     isaacteleop.deviceio_trackers._deviceio_trackers
     isaacteleop.deviceio_session._deviceio_session
+    isaacteleop.log_bridge._log_bridge
     isaacteleop.oxr._oxr
     isaacteleop.plugin_manager._plugin_manager
     isaacteleop.schema._schema
@@ -121,6 +122,7 @@ add_custom_command(
     DEPENDS python_package "${STUBGEN_SCRIPT}" "${STUBGEN_PYPROJECT}"
             $<TARGET_FILE:deviceio_trackers_py>
             $<TARGET_FILE:deviceio_session_py>
+            $<TARGET_FILE:log_bridge_py>
             $<TARGET_FILE:oxr_py>
             $<TARGET_FILE:plugin_manager_py>
             $<TARGET_FILE:schema_py>

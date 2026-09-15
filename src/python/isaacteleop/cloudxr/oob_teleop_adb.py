@@ -44,7 +44,7 @@ from .oob_teleop_env import (
     web_client_base_override_from_env,
 )
 
-log = logging.getLogger("oob-teleop-adb")
+log = logging.getLogger("isaacteleop.cloudxr.oob_teleop_adb")
 
 
 class OobAdbError(Exception):
@@ -858,6 +858,28 @@ def require_turn_port_free(port: int) -> None:
     )
 
 
+def _open_private(path: str) -> int:
+    """Create *path* fresh and owner-only, reusing nothing that is already there.
+
+    These are predictable ``/tmp`` names, so another local user can get there
+    first. ``O_NOFOLLOW`` alone only refuses a symlink; a plain file they created
+    and still own would be written through -- which for the config file means
+    handing them the TURN credential it carries. Unlinking first is what makes the
+    ``O_EXCL`` create meaningful, and under ``/tmp``'s sticky bit that unlink
+    fails on a file owned by someone else, so a planted path is refused rather
+    than reused. A caller that loses the race between the two syscalls gets
+    ``EEXIST`` and fails closed.
+
+    Raises:
+        OSError: if the path cannot be cleared or created safely.
+    """
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+
+
 def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen | None:
     """Start a coturn TURN server for USB-local ICE relay.
 
@@ -888,8 +910,16 @@ def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen
 
     # Write a config file — easier to maintain than a long arg list and avoids
     # shell quoting issues with special characters in credentials.
+    # Paths stay predictable on purpose: the watchdog below and the operator-facing
+    # messages recompute them from turn_port alone. _open_private() is what makes
+    # that safe.
     conf_path = f"/tmp/turnserver-cloudxr-{turn_port}.conf"
     log_path = f"/tmp/coturn-cloudxr-{turn_port}.log"
+    # coturn's own log-file= below only opens once it has parsed *conf_path*
+    # successfully; a bad config (or coturn itself failing before that point)
+    # would otherwise print to stdout/stderr and go nowhere. Separate file, not
+    # log_path itself: coturn truncates and owns that one via its own config.
+    stdio_log_path = f"/tmp/coturn-cloudxr-{turn_port}.stdio.log"
     conf_content = f"""\
 listening-port={turn_port}
 listening-ip=127.0.0.1
@@ -909,7 +939,7 @@ log-file={log_path}
 simple-log
 """
     try:
-        with open(conf_path, "w") as f:
+        with os.fdopen(_open_private(conf_path), "w", encoding="utf-8") as f:
             f.write(conf_content)
     except OSError as exc:
         log.warning("coturn: failed to write config file %s: %s", conf_path, exc)
@@ -917,16 +947,19 @@ simple-log
 
     # Truncate the log so operators only see lines from this run.
     try:
-        open(log_path, "w").close()
+        os.close(_open_private(log_path))
     except OSError:
         pass
 
     try:
-        proc = subprocess.Popen(
-            [coturn_bin, "-c", conf_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        with os.fdopen(
+            _open_private(stdio_log_path), "w", encoding="utf-8"
+        ) as stdio_file:
+            proc = subprocess.Popen(
+                [coturn_bin, "-c", conf_path],
+                stdout=stdio_file,
+                stderr=subprocess.STDOUT,
+            )
     except OSError as exc:
         log.warning("coturn failed to start (%s): %s", coturn_bin, exc)
         return None
@@ -934,11 +967,20 @@ simple-log
     # Give coturn a moment to start (or exit with a config error)
     time.sleep(0.5)
     if proc.poll() is not None:
+        # A config-parse failure exits before coturn ever opens log_path (its
+        # own log-file= target stays empty), so this reads whichever of the
+        # two actually has content -- most likely stdio_log_path in that case.
+        stdio_detail = _tail_file(stdio_log_path, 10)
+        detail_path, detail = (
+            (stdio_log_path, stdio_detail)
+            if stdio_detail
+            else (log_path, _tail_file(log_path, 10))
+        )
         log.warning(
             "coturn exited immediately (exit code %d). Tail of %s:\n%s",
             proc.returncode,
-            log_path,
-            _tail_file(log_path, 10),
+            detail_path,
+            detail,
         )
         return None
 
