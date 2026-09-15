@@ -380,8 +380,41 @@ arm cannot be raised much higher without making the speed implausible. The file 
 - **No purely real capture has reached `pass`.** 145511 squats evenly (4.0 deg) but the
   hands reach only 36 deg; the earlier take reaches 72 deg but squats unevenly (21.4 deg).
   This is the most concrete gap in the evidence.
-- **G5 and G6 are not built** (replay through retargeting, and the live preflight panel).
-  The offline panel is built; live still needs a `LiveFrameSource`.
+- **G5 is not a slice away — the thing it would test does not exist.** No retargeter in
+  this repository consumes `full_body`. Everything under
+  `src/python/isaacteleop/retargeters/` takes `ControllerInput`, `HandInput`,
+  `AxisPedalInput`, `JointState` or `ValueInput`; the G1 humanoid retargeter is
+  controller-driven like the rest. Every `FullBodyInputIndex` consumer in the tree is a
+  source node, a tensor-type definition, or a record/replay/live/viz/ROS 2 example —
+  recording and visualisation, not retargeting. **The mapping from a 24-joint human
+  skeleton onto a robot has not been written.** Estimate G5 as that mapping, not as a
+  wrapper around replay.
+
+  Where G5 should end up — attested by the submitter, redefined, or dropped — is
+  undecided, and this entry does not decide it.
+- **G6 is not automated by design** (a reviewer watches the video of the same session).
+- **The offline panel is built; live still needs a `LiveFrameSource`. When it arrives it
+  will show geometry but not timing.** `core.FullBodyPoseRecord` is two layers,
+  `data: FullBodyPose` beside `timestamp: DeviceDataTimestamp`, and
+  `FullBodyTracker::get_body_pose` returns `Serialized<FullBodyPose>` — the inner payload,
+  carrying only `joints` and `all_joint_poses_tracked`. The comment at the top of
+  `src/core/schema/python/schema_serialized.h` says why: trackers publish their payload
+  table directly and the `Record` wrapper is bound for MCAP, so the three device
+  timestamps only exist once a recorder has serialized a `Record`. Nor is there a
+  container time to fall back on: the panel's `Frame.log_time_ns` is a required field
+  with no live value to put in it.
+
+  So under live every time-dependent check is unavailable, not merely unanswered:
+  `rate.interval_regularity` and its jitter, `timestamps.monotonic`,
+  `timestamps.available_not_before_sample`, and `continuity.max_joint_velocity`, which
+  needs a `dt`. A live panel shows the skeleton, per-joint validity and the valid-joint
+  count; it does **not** show frame rate or jitter.
+
+  **Do not substitute a local clock.** The reason is on `panel/track._stamp()`: that
+  measures when Python received the sample, across the whole CloudXR path and the GIL, so
+  the jitter it reports is the network's rather than the device's. Getting a live frame
+  rate means exposing `DeviceDataTimestamp` through the C++ bindings, which is a `src/`
+  change and is ruled out by Hard constraint 1.
 - **Labels are a sidecar outside the recording**, marked provisional, because MCAP carries
   no annotation channel yet. Moving them in would need a core change, which is why they are
   not in there now.

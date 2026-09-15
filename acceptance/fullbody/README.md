@@ -178,7 +178,7 @@ label they belong to, which `--json` reports and `--list-checks` prints.
 | G2 | Skeleton geometry — up axis, metres, handedness, bone-length constancy, human proportions, left/right labelling, joint indexing, quaternion component order, position/orientation agreement. | Implemented, `gate: G2`. |
 | G3 | Signal quality — frame rate and its jitter, dropouts, validity trend, plausible joint speed. | Implemented; those checks report under `gate: G1`. |
 | G4 | Posture semantics — over the reviewer's motion windows: was each step performed, in order, and does each joint angle read what the pose implies. | Implemented, `gate: G4`. |
-| G5 | Replay through retargeting — the recording drives a robot end to end. | Not implemented; needs the live/replay slice. |
+| G5 | Replay through retargeting — the recording drives a robot end to end. | Not implemented, and further off than it reads: no retargeter in this repository consumes `full_body`, so the human-skeleton-to-robot mapping this gate would exercise does not exist yet. See `AGENTS.md`. |
 | G6 | Human review — a reviewer watches the video of the same session. | Not automated by design. |
 
 ## Tests
