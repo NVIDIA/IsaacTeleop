@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 from isaacteleop import logging_config
-from isaacteleop.logging_config import _console, _core, _file, _forwarding
+from isaacteleop.logging_config import _console, _core, _file, _forwarding, _native_fd
 
 # logging_config deliberately degrades where the POSIX facilities it is built on
 # are missing: no uid in the default log directory, no 0700 chmod, no ownership
@@ -285,6 +285,36 @@ def test_forwarding_is_disabled_without_unix_sockets(monkeypatch):
     assert _forwarding.socket_path() is None
     assert _forwarding.ensure_receiver() == ""
     assert not hasattr(_forwarding, "ThreadingUnixStreamServer")
+
+
+@_posix_only
+def test_native_capture_is_one_file_carrying_both_descriptors(monkeypatch, tmp_path):
+    """fd 1 and fd 2 are indistinguishable on a terminal, so they share a file
+    here. Splitting them would cost the interleaving without buying a
+    distinction the operator ever had.
+    """
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
+    monkeypatch.setattr(_native_fd, "_sink_path", None)
+    monkeypatch.setattr(_native_fd, "_saved", {})
+    saved_out, saved_err = os.dup(1), os.dup(2)
+    try:
+        _native_fd.gate(logging.INFO, _console.ensure_handler())
+        os.write(1, b"from-stdout\n")
+        os.write(2, b"from-stderr\n")
+        os.write(1, b"stdout-again\n")
+    finally:
+        os.dup2(saved_out, 1)
+        os.dup2(saved_err, 2)
+        os.close(saved_out)
+        os.close(saved_err)
+
+    captures = list(tmp_path.glob("*.native.log"))
+    assert len(captures) == 1, captures
+    assert captures[0].read_text().splitlines() == [
+        "from-stdout",
+        "from-stderr",
+        "stdout-again",
+    ]
 
 
 def test_propagation_is_on_by_default_and_can_be_turned_off():
