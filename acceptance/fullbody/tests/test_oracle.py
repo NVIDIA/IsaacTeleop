@@ -90,7 +90,7 @@ def test_schema_bytes_match_the_repo_golden(fixture_dir: Path):
     of it, so it is asserted here and not only in setup_env.sh.
     """
     golden = (
-        Path(__file__).resolve().parents[2]
+        Path(__file__).resolve().parents[3]
         / "src"
         / "core"
         / "schema"

@@ -3,10 +3,10 @@ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All 
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Agent notes — `device_acceptance/`
+# Agent notes — `acceptance/fullbody/`
 
-**CRITICAL:** complete the mandatory `AGENTS.md` preflight in [`../AGENTS.md`](../AGENTS.md)
-before editing here. Read [`../design_agent-testing/synthetic-fixtures/AGENTS.md`](../design_agent-testing/synthetic-fixtures/AGENTS.md)
+**CRITICAL:** complete the mandatory `AGENTS.md` preflight in [`../../AGENTS.md`](../../AGENTS.md)
+before editing here. Read [`../../design_agent-testing/synthetic-fixtures/AGENTS.md`](../../design_agent-testing/synthetic-fixtures/AGENTS.md)
 too if you touch anything the fixture set is the oracle for.
 
 This is the design record for the checker: the reasoning, the measurements behind every
@@ -236,15 +236,23 @@ Other structural decisions that are settled:
 - **`full_body` is one profile, `hand` is the known next one.** The geometry checks read
   topology, symmetry pairs, proportion priors and *which checks apply* from the profile —
   gravity alignment is body-only.
-- **This directory sits at the repo top level** because `src/python/CMakeLists.txt` globs
-  `.py` recursively: a file placed under it would change the wheel with no edit to any
-  build file.
+- **This directory sits outside `src/`** because `src/python/CMakeLists.txt` globs `.py`
+  recursively: a file placed under it would change the wheel with no edit to any build
+  file. `acceptance/fullbody/` is one of two halves; the other is `acceptance/capture/`,
+  and the boundary between them is stated under Hard constraints.
 
 ## Hard constraints
 
-1. **Pure addition.** Nothing under `src/`, `examples/` or `docs/` is modified and nothing
-   imports `isaacteleop`; `tests/test_no_core_changes.py` asserts it mechanically. This is
-   why the work needs no schema review and competes for no merge window. Preserve it.
+1. **Pure addition, and the checker imports no `isaacteleop`.** Nothing under `src/`,
+   `examples/` or `docs/` is modified, and nothing under `fullbody/` names the package —
+   `mcap` and `flatbuffers` are the whole dependency, which is why the work needs no
+   schema review and competes for no merge window.
+
+   The ban stops at `fullbody/`. `acceptance/capture/` records through `TeleopSession`
+   and therefore **has to** import the built package, so the dependency runs one way:
+   capture reads the checker's `Frame`, `TrackBuilder` and profile, never the reverse.
+   `tests/test_boundaries.py` asserts all of it mechanically, diffing against the commit
+   this branch grew from rather than against wherever `origin/main` has since moved to.
 2. **`fixtures_index.json` is the oracle and is never edited to make a test pass.** A
    disagreement is declared in `tests/known_deviations.py` with its reason.
 3. **New test data belongs here.** The fixture generator rewrites the index as a side
@@ -343,7 +351,7 @@ they stay out of git and out of the fixture folder, and live under `$HOME`.
 ## Derived data
 
 `~/isaacteleop-captures/derived/145511-g4-passing.mcap`, built from the real 145511 capture
-by `design_agent-testing/g4_amplify_arm_raise.py`. Only the two arm-raise windows are
+by `../capture/g4_amplify_arm_raise.py`. Only the two arm-raise windows are
 edited, and inside them only the three joints below each shoulder: positions and
 orientations rotate together about the shoulder so the relative geometry
 `consistency.position_orientation_same_frame` reads is preserved. Every other frame and

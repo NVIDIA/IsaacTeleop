@@ -6,7 +6,7 @@
 # Nothing is installed system-wide and no file outside this directory is written.
 set -euo pipefail
 cd "$(dirname "$0")"
-REPO="${REPO:-$(cd .. && pwd)}"
+REPO="${REPO:-$(cd ../.. && pwd)}"
 FBS="$REPO/src/core/schema/fbs"
 
 WITH_PANEL=0

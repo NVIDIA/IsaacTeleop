@@ -28,7 +28,7 @@ the open questions live in [`AGENTS.md`](AGENTS.md).
 ## Set up
 
 ```bash
-cd device_acceptance
+cd acceptance/fullbody
 ./setup_env.sh
 ```
 
@@ -42,7 +42,7 @@ directory.
 ## Record a take
 
 ```bash
-design_agent-testing/record_g4.sh pico4u
+acceptance/capture/record_g4.sh pico4u
 ```
 
 One continuous take of the eleven-step motion script (~40 s), spoken cues in the
@@ -57,8 +57,9 @@ foreground and the recorder in the background. It writes
 ```
 
 Nothing is ever overwritten, so run it again for another take. The repo has to be built
-first (`.venv-runtime` plus `examples/mcap_record_replay`), and `design_agent-testing/`
-is local-only — it is excluded from git, not shipped.
+first (`.venv-runtime` plus `examples/mcap_record_replay`), and the spoken cues need
+`piper` and a voice model under `acceptance/capture/`, which are not in git — the
+prompter names what is missing and exits if they are absent.
 
 The label sidecar carries the motion windows the G4 checks read, and it is written for
 you by `g4_make_labels.py` at the end of the recording. Windows are anchored to the clap
