@@ -151,6 +151,47 @@ apart is the whole point of the attribution field — do not collapse them.
 Thresholds live on the check class as named constants, so a number can be filled in later
 without touching a measurement.
 
+`Mark` in `report.py` is the single definition of how one result is shown — `pass`,
+`FAIL`, `meas`, `n/a`, `note` — and `CheckResult.mark` derives it from status, severity
+and `judged`. Both the text report and the panel read it. A sixth state, or a change to
+an existing one, goes there and nowhere else; a renderer that recomputes this drifts,
+and the drift is silent.
+
+## The panel
+
+`panel/` serves one recording as a skeleton plus the result list. It exists for what the
+text cannot express: **which joint, and when.** Moving 38 lines onto a web page would
+buy nothing, so what it adds is spatial and temporal — a hand that drops out as the
+subject turns, a dropped block that is a spike rather than a slightly lower mean.
+
+- **viser stays in `panel/app.py`.** It is an optional extra
+  (`requirements-panel.txt`, `./setup_env.sh --panel`), and the checker keeps running on
+  `mcap` and `flatbuffers` alone. `tests/test_panel_boundary.py` asserts both halves:
+  that no other module imports it, and that the checker and the panel's own arithmetic
+  import with the module blocked. One convenience import is all it would take to lose a
+  property that currently lets acceptance work proceed without building the repository.
+  For the same reason the skeleton topology comes from `profile.FULL_BODY.bones()`, not
+  from `examples/mcap_record_replay`'s `BODY_BONES`, which would drag the whole
+  `TeleopSession` pipeline in.
+- **It is written to `FrameSource`, not to MCAP.** `panel/track.TeeSource` wraps any
+  source and accumulates the playback track while the checks consume the same pass.
+  Adding a live panel is then a `LiveFrameSource` and no change here — that is the whole
+  reason for the shape.
+- **An invalid joint is drawn where it was last valid, in red, never where the record
+  says.** Invalid joints carry arbitrary values, and one of those in a point cloud puts
+  the camera far enough away that nothing else is visible. `Sample.positions` drops the
+  recorded value and holds the last valid one; `Sample.valid` is what says which it is.
+  Nothing downstream of the panel should read a garbage position, so it is not kept.
+- **Only final results are shown.** Three checks need the whole recording by
+  construction (`coverage.validity_trend` compares a head window against a tail window,
+  `posture.cumulative_drift_between_tpose_windows` needs both T-poses, and all of G4
+  needs the labels), so a `result()` taken mid-playback has no meaning.
+- **Deliberately absent from this version**, each waiting on something undecided:
+  jumping to where a check failed (checks cannot report a time range yet), report
+  generation (the report/recording binding is not settled), capture orchestration, and
+  live (needs `LiveFrameSource`). Mixing any of them in would have stalled the panel on
+  someone else's design question.
+
 ## Architecture
 
 The modules are organised by **what input they need**, which deliberately does not mirror
@@ -315,6 +356,7 @@ arm cannot be raised much higher without making the speed implausible. The file 
   hands reach only 36 deg; the earlier take reaches 72 deg but squats unevenly (21.4 deg).
   This is the most concrete gap in the evidence.
 - **G5 and G6 are not built** (replay through retargeting, and the live preflight panel).
+  The offline panel is built; live still needs a `LiveFrameSource`.
 - **Labels are a sidecar outside the recording**, marked provisional, because MCAP carries
   no annotation channel yet. Moving them in would need a core change, which is why they are
   not in there now.
@@ -336,6 +378,10 @@ Two layers, split by whether a test needs the fixture set, which lives outside g
 
 CI can only ever run the unit layer: the fixtures are not in git and the largest is 1.8 MB
 against pre-commit's 2000 KiB ceiling.
+
+`tests/test_panel_app.py` is a third, smaller layer: it drives the renderer against a
+real `ViserServer` and skips wherever viser is absent, which includes CI. Keep it that
+way — the checker's suite must not start needing the extra.
 
 Graded fixtures are asserted by accuracy and monotonicity against the injected magnitude,
 plus a zero rung reading zero — never by pass/fail.

@@ -9,6 +9,14 @@ cd "$(dirname "$0")"
 REPO="${REPO:-$(cd .. && pwd)}"
 FBS="$REPO/src/core/schema/fbs"
 
+WITH_PANEL=0
+for arg in "$@"; do
+  case "$arg" in
+    --panel) WITH_PANEL=1 ;;
+    *) echo "usage: $0 [--panel]" >&2; exit 2 ;;
+  esac
+done
+
 # flatc v24.3.25 -- the tag deps/third_party/CMakeLists.txt pins. A distro package or
 # `brew install flatbuffers` ships 25.x, whose .bfbs does not match the repo golden.
 case "$(uname -s)" in
@@ -29,6 +37,9 @@ if [[ ! -x .venv/bin/python ]]; then
   uv venv --python 3.12 .venv
 fi
 uv pip install --python .venv/bin/python -r requirements.txt -r requirements-dev.txt
+if [[ "$WITH_PANEL" == 1 ]]; then
+  uv pip install --python .venv/bin/python -r requirements-panel.txt
+fi
 
 # The .bfbs is not used for decoding -- the Python flatbuffers package has no reflection
 # module. It is the schema-match oracle: byte-identical to the repo golden means the flag

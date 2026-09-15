@@ -104,6 +104,32 @@ verdict  RETAKE
 | `n/a ` | Not answered. Either there was not enough data, or a check this one depends on failed, which makes the measurement describe the wrong frames. A suppressed check never becomes a pass. |
 | `note` | An advisory check failed. Reported, but it does not move the verdict — these are cases where a hard failure would reject legitimate hardware. |
 
+## View a take
+
+```bash
+./setup_env.sh --panel     # once; installs viser, the panel's renderer
+.venv/bin/python -m fullbody_acceptance.panel ~/isaacteleop-captures/latest.mcap
+```
+
+Prints the same report, then serves a panel on `http://127.0.0.1:8080`. It takes
+`--labels`, and `--host` / `--port` for reaching it from another machine. It shows the
+things a list of 38 lines cannot:
+
+| | |
+|---|---|
+| **Skeleton, coloured per joint** | A live joint is green. A joint whose `is_valid` went false is drawn **red at the position it was last seen**, and named in the scene — its recorded position is arbitrary, so it is not drawn where the file says. This is the view in which a hand dropping out as the subject turns is obvious. |
+| **Frame rate, scrolling** | A dropped block is a spike here. In the text report it is a slightly lower mean. |
+| **Valid joints over the whole take** | A decay is one glance, rather than a start-and-end pair of percentages. |
+| **The seven gates** | Each carries its own verdict before you expand it, worst result first, with the few checks that decide the take pulled out above them. |
+
+`play` runs the take at its own rate; `speed` and the `frame` scrubber move the
+playhead. The list always shows the **final** result of every check: three of them need
+the whole recording by construction, so a result taken mid-playback would be a number
+with no meaning.
+
+viser is an optional extra, and only the panel's renderer uses it. Without `--panel` the
+checker runs exactly as before, on `mcap` and `flatbuffers` alone.
+
 ## The seven gates
 
 The acceptance process has seven gates. The checks in this directory carry the gate
@@ -141,6 +167,7 @@ src/fullbody_acceptance/
   checks/          one module per check group; base.py holds the accumulator contract
   report.py        verdict aggregation, dependency suppression, JSON and text renderers
   cli.py           python -m fullbody_acceptance.cli
+  panel/           the viewer; app.py is the only module that imports viser
 tests/
   synth.py               builds MCAPs in memory
   known_deviations.py    where this checker knowingly disagrees with the fixture index
