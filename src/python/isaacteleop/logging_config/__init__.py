@@ -28,6 +28,7 @@ from ._core import DATE_FORMAT, LINE_FORMAT, TRACE, log_dir
 # Not in __all__: the bootstrap ``isaacteleop/__init__.py`` calls once. Importing it
 # here is what makes ``logging_config.install()`` resolve; nothing else should call it.
 from ._setup import install as install
+from ._setup import set_propagate_to_root
 
 __all__ = [
     "DATE_FORMAT",
@@ -37,4 +38,5 @@ __all__ = [
     "set_console_filter",
     "set_console_level",
     "set_logger_colors",
+    "set_propagate_to_root",
 ]
