@@ -714,19 +714,19 @@ async def run(
                     # life. ``--remove`` is a no-op if the rule doesn't exist,
                     # so this is safe to run unconditionally and only touches
                     # the ports we own.
-                    teardown_adb_reverse_ports()
+                    teardown_adb_reverse_ports(resolved_port)
                     teardown_adb_reverse_turn(_usb_turn_port_resolved)
 
                     # adb reverse for TCP ports (WSS proxy + /client/, backend)
                     _expected_tcp_ports = [
-                        wss_proxy_port(),
+                        resolved_port,
                         usb_backend_port(),
                     ]
                     oob_progress(
                         "usb-local", f"adb reverse: TCP {_expected_tcp_ports} ..."
                     )
                     try:
-                        setup_adb_reverse_ports()
+                        setup_adb_reverse_ports(resolved_port)
                     except (OobAdbError, subprocess.CalledProcessError) as exc:
                         raise RuntimeError(
                             f"USB-local: adb reverse TCP setup failed: {exc}\n"
@@ -891,7 +891,7 @@ async def run(
                     stop_coturn(_usb_coturn_proc_box[0])
                     if _usb_turn_port_resolved is not None:
                         teardown_adb_reverse_turn(_usb_turn_port_resolved)
-                    teardown_adb_reverse_ports()
+                    teardown_adb_reverse_ports(resolved_port)
                     log.info("USB-local: cleanup complete")
 
             log.info("Shutting down ...")
