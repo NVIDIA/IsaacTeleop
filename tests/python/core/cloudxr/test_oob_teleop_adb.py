@@ -349,23 +349,22 @@ def test_build_teleop_url_usb_local_uses_resolved_proxy_port(
     assert "port=49322" in url
 
 
-def test_build_teleop_url_host_client_uses_resolved_proxy_port(
+def test_build_teleop_url_host_client_uses_resolved_proxy_host_and_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from cloudxr_py_test_ns.oob_teleop_adb import build_teleop_url
 
     monkeypatch.delenv("TELEOP_WEB_CLIENT_BASE", raising=False)
     monkeypatch.setenv("PROXY_PORT", "48322")
-    monkeypatch.setattr(
-        "cloudxr_py_test_ns.oob_teleop_adb.resolve_lan_host_for_oob",
-        lambda: "10.0.0.1",
-    )
+    monkeypatch.setenv("TELEOP_PROXY_HOST", "proxy.example.test")
     monkeypatch.setattr(
         "cloudxr_py_test_ns.oob_teleop_env.guess_lan_ipv4",
-        lambda: "10.0.0.1",
+        lambda: "10.0.0.2",
     )
     url = build_teleop_url(resolved_port=49322, host_client=True)
-    assert "https://10.0.0.1:49322/client" in url
+    assert "https://proxy.example.test:49322/client" in url
+    assert "serverIP=proxy.example.test" in url
+    assert "10.0.0.2" not in url
     assert "port=49322" in url
 
 
