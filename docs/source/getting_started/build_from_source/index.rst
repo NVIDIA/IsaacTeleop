@@ -122,7 +122,7 @@ tarballs such as:
   those platforms.
 - ``nvidia-cloudxr-<version-for-web-sdk>.tgz`` (CloudXR Web SDK)
 
-You can place them in the :code-file:`deps/cloudxr/` directory and update the ``deps/cloudxr/.env``
+You can place them in the :code-dir:`deps/cloudxr/` directory and update the ``deps/cloudxr/.env``
 file to locally override the default version defined in :code-file:`deps/cloudxr/.env.default`,
 like this:
 
