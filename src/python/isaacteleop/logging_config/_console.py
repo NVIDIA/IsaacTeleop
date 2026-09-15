@@ -57,22 +57,74 @@ _SGR_ESCAPE = re.compile(r"(?:\x1b\[[0-9;]*m)+")
 _logger_colors: dict[str, str] = {}
 
 
+#: Yellow for WARNING, red for ERROR and above. Only these two: the point is that
+#: they stand out from the INFO lines around them, which they cannot do if
+#: everything is coloured. Compared with ``>=`` rather than looked up by value, so a
+#: level between the stdlib's -- and TRACE, below them all -- lands on the right side.
+_LEVEL_WARNING_COLOR = "\033[33m"
+_LEVEL_ERROR_COLOR = "\033[31m"
+
+
+def _level_color(levelno: int) -> str | None:
+    """The whole-line emphasis for *levelno*, or ``None`` to leave it plain."""
+    if levelno >= logging.ERROR:
+        return _LEVEL_ERROR_COLOR
+    if levelno >= logging.WARNING:
+        return _LEVEL_WARNING_COLOR
+    return None
+
+
 class _LoggerNameColorFormatter(logging.Formatter):
-    """Renders ``[%(name)s]`` in the logger's registered emphasis colour."""
+    """Colours the line by level, and ``[%(name)s]`` by its registered emphasis.
+
+    A warning is yellow and an error red, end to end, so the eye finds it without
+    reading. A logger that has an emphasis colour keeps it inside that line, and
+    the level colour **resumes** after the name rather than resetting to the
+    terminal default -- the pid and the message belong to the same record and
+    should keep reading as one::
+
+        <yellow>[ts] [WARNING] [<emphasis>name<yellow>] [pid:N] message<reset>
+
+    Escapes are emitted only when the handler's stream is a terminal. Everywhere
+    else -- a pipe, a CI log, a file an operator redirected into -- they would be
+    noise in text nobody can see colour in, and they would corrupt anything that
+    parses the output.
+    """
+
+    def __init__(self, *args, handler: logging.StreamHandler, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Read at format time, not captured now: _native_fd's capture moves this
+        # handler onto a duplicate of the real descriptor after the formatter is
+        # built, and the answer has to follow the stream it ends up on.
+        self._handler = handler
+
+    def _is_terminal(self) -> bool:
+        stream = getattr(self._handler, "stream", None)
+        try:
+            return bool(stream.isatty())
+        except (AttributeError, OSError, ValueError):
+            return False
 
     def format(self, record: logging.LogRecord) -> str:
-        escape = _logger_colors.get(record.name)
-        if escape is None:
+        if not self._is_terminal():
             return super().format(record)
+
+        level = _level_color(record.levelno)
+        emphasis = _logger_colors.get(record.name)
+        if level is None and emphasis is None:
+            return super().format(record)
+
         # The record is shared with the file handler, which must stay escape-free:
         # callHandlers formats handlers one at a time on the emitting thread, so
         # restoring the name here keeps the substitution local to this call.
         original = record.name
-        record.name = f"{escape}{original}{_ANSI_RESET}"
+        if emphasis is not None:
+            record.name = f"{emphasis}{original}{level or _ANSI_RESET}"
         try:
-            return super().format(record)
+            line = super().format(record)
         finally:
             record.name = original
+        return f"{level}{line}{_ANSI_RESET}" if level is not None else line
 
 
 _lock = threading.Lock()
@@ -98,7 +150,7 @@ def ensure_handler() -> logging.StreamHandler:
             return _handler
         handler = logging.StreamHandler()
         handler.setFormatter(
-            _LoggerNameColorFormatter(LINE_FORMAT, datefmt=DATE_FORMAT)
+            _LoggerNameColorFormatter(LINE_FORMAT, datefmt=DATE_FORMAT, handler=handler)
         )
         handler.setLevel(logging.INFO)
         root = logging.getLogger(ROOT_LOGGER_NAME)
@@ -150,7 +202,12 @@ def set_logger_colors(colors: dict[str, str | None]) -> None:
     ``"\\033[38;2;255;136;0m"`` and the like, emitted as given -- or to ``None``
     to drop a colour set earlier. Names left out keep whatever they already
     have, and an unregistered logger renders in the terminal's default colour.
-    Only the console handler is affected; the log file never receives escapes.
+    Only the console handler is affected; the log file never receives escapes,
+    and neither does a console stream that is not a terminal.
+
+    Independent of the level colouring, and composes with it: on a warning or an
+    error line the name is drawn in this colour and the level colour resumes
+    after it, so the record still reads as one line.
 
     Raises:
         ValueError: if a value is not composed solely of SGR escapes.

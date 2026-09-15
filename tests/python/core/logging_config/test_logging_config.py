@@ -135,6 +135,80 @@ def test_console_handler_end_to_end_level_filtering():
     assert "should appear" in stream.getvalue()
 
 
+class _Tty(io.StringIO):
+    """A stream that claims to be a terminal, which is what gates the colouring."""
+
+    def isatty(self) -> bool:
+        return True
+
+
+def _render(level: int, name: str, *, tty: bool = True) -> str:
+    handler = _console.ensure_handler()
+    original = handler.stream
+    handler.stream = _Tty() if tty else io.StringIO()
+    try:
+        logging.getLogger(name).log(level, "message")
+        return handler.stream.getvalue()
+    finally:
+        handler.stream = original
+
+
+def test_warning_is_yellow_and_error_is_red():
+    assert _render(logging.WARNING, "isaacteleop.t.warn").startswith("\033[33m")
+    assert _render(logging.ERROR, "isaacteleop.t.err").startswith("\033[31m")
+    # Above ERROR too: compared with >=, so a level between the stdlib's lands
+    # on the right side rather than falling through uncoloured.
+    assert _render(logging.CRITICAL, "isaacteleop.t.crit").startswith("\033[31m")
+
+
+def test_levels_below_warning_are_left_plain():
+    """Colour only helps if the ordinary case is not coloured."""
+    for level in (logging_config.TRACE, logging.DEBUG, logging.INFO):
+        assert "\033[" not in _render(level, "isaacteleop.t.quiet")
+
+
+def test_logger_emphasis_resumes_the_level_colour():
+    """The pid and the message belong to the same record as the name, so the
+    name's colour must hand back to the level's rather than to the default.
+    """
+    name = "isaacteleop.t.emphasis"
+    logging_config.set_logger_colors({name: "\033[36m"})
+    try:
+        line = _render(logging.ERROR, name)
+    finally:
+        logging_config.set_logger_colors({name: None})
+
+    assert line.startswith("\033[31m")
+    assert f"\033[36m{name}\033[31m" in line
+    assert line.rstrip("\n").endswith("\033[0m")
+
+
+def test_nothing_is_coloured_when_the_stream_is_not_a_terminal():
+    """A pipe, a CI log or a redirected file would only get escape noise -- and
+    anything parsing the output would get it too.
+    """
+    name = "isaacteleop.t.pipe"
+    logging_config.set_logger_colors({name: "\033[36m"})
+    try:
+        assert "\033[" not in _render(logging.ERROR, name, tty=False)
+    finally:
+        logging_config.set_logger_colors({name: None})
+
+
+def test_the_file_handler_never_sees_an_escape():
+    """The record is shared: a name rewritten for the console must be put back
+    before the next handler formats it.
+    """
+    name = "isaacteleop.t.shared"
+    logging_config.set_logger_colors({name: "\033[36m"})
+    record = logging.LogRecord(name, logging.ERROR, __file__, 1, "message", None, None)
+    try:
+        _console.ensure_handler().format(record)
+    finally:
+        logging_config.set_logger_colors({name: None})
+    assert record.name == name
+
+
 @_posix_only
 def test_log_dir_defaults_to_per_user_tmp(monkeypatch):
     monkeypatch.delenv("ISAACTELEOP_LOG_DIR", raising=False)
