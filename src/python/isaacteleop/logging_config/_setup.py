@@ -9,7 +9,7 @@ import logging
 import os
 
 from . import _console, _file, _forwarding, _native_fd
-from ._core import _LEVEL_NAMES
+from ._core import ROOT_LOGGER_NAME, _LEVEL_NAMES
 
 _installed = False
 
@@ -53,3 +53,31 @@ def install() -> None:
     _native_fd.gate(console.level, console)
     _file.ensure_handler()
     _forwarding.ensure_receiver()
+
+
+def set_propagate_to_root(enabled: bool) -> None:
+    """Whether ``isaacteleop`` records also travel on to Python's root logger.
+
+    On by default, which is the stdlib default and what lets an embedding
+    application see these records without knowing this package exists. It is
+    the wrong default for an application that configures the root logger
+    itself: this tree already owns a console handler and a file handler, so
+    every record is emitted twice, and the second copy goes out through the
+    application's handlers -- past ``set_console_level`` and
+    ``set_console_filter``, which only govern the handler installed here.
+
+    Turning it off makes this tree the sole route for its own records. An
+    application that still wants them attaches its handler to the
+    ``isaacteleop`` logger rather than to the root::
+
+        from isaacteleop import logging_config
+
+        logging_config.set_propagate_to_root(False)
+        logging.getLogger("isaacteleop").addHandler(my_handler)
+
+    The default is deliberately not flipped: pytest's ``caplog`` captures
+    through a handler on the root logger, so several suites in this repository
+    -- and, more to the point, in any project testing against this one -- stop
+    seeing ``isaacteleop`` records the moment propagation is off.
+    """
+    logging.getLogger(ROOT_LOGGER_NAME).propagate = bool(enabled)

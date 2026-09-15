@@ -287,6 +287,32 @@ def test_forwarding_is_disabled_without_unix_sockets(monkeypatch):
     assert not hasattr(_forwarding, "ThreadingUnixStreamServer")
 
 
+def test_propagation_is_on_by_default_and_can_be_turned_off():
+    """The exact sequence from the review: an application root handler still
+    sees an isaacteleop INFO record after set_console_level("error"), because
+    the console level governs this tree's handler and not the application's.
+    """
+    root = logging.getLogger()
+    app_handler = logging.StreamHandler(io.StringIO())
+    saved_root_level = root.level
+    root.addHandler(app_handler)
+    root.setLevel(logging.DEBUG)
+    logger = logging.getLogger("isaacteleop.test_propagation")
+    try:
+        logging_config.set_console_level("error")
+
+        logger.info("leaks to the application")
+        assert "leaks to the application" in app_handler.stream.getvalue()
+
+        logging_config.set_propagate_to_root(False)
+        logger.info("stays inside the tree")
+        assert "stays inside the tree" not in app_handler.stream.getvalue()
+    finally:
+        logging_config.set_propagate_to_root(True)
+        root.removeHandler(app_handler)
+        root.setLevel(saved_root_level)
+
+
 @_posix_only
 def test_socket_lives_outside_the_log_directory(monkeypatch, tmp_path):
     """sun_path caps at 108 bytes, far below any filesystem limit, so a long but
