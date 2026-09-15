@@ -39,6 +39,17 @@ protected:
 // Installs the bridge: swaps every logger's sinks (existing and future) to
 // a shared PythonBridgeSink. Exposed to Python as install_python_sink().
 //
+// Scope is this shared object only. log_bridge_core is a static library, so
+// every extension module that links it -- _oxr, _deviceio_session, _viz,
+// _robot_twin -- carries its own copy of bridge_sink_storage() and of spdlog's
+// registry, and Python loads each module RTLD_LOCAL, so nothing unifies them.
+// A call made through _log_bridge therefore configures _log_bridge's copy and
+// no other. Those modules' loggers reach Python by a different route: their
+// own local_sinks() picks a SocketForwardSink whenever ISAACTELEOP_LOG_SOCKET
+// is set, and the leader's receiver re-emits into this interpreter. Where the
+// transport does not exist -- Windows -- they keep independent console and
+// file sinks instead. See log_bridge/AGENTS.md.
+//
 // Takes effect on the first call only. The swap rewrites logger->sinks() on
 // every registered logger, which spdlog does not synchronize against a
 // concurrent emit, so it is safe exactly where isaacteleop/__init__.py does it

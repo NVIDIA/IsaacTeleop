@@ -30,6 +30,37 @@ calls are cheap and always yield the same instance.
 to trace and is for loggers that wrap vendor/SDK output, so vendor chatter stays
 silent unless someone explicitly lowers the threshold to TRACE.
 
+## `install_python_sink()` reaches one shared object, not the process
+
+`log_bridge_core` is a static library, and roughly twenty targets link it --
+including every pybind11 extension: `_oxr`, `_deviceio_session`, `_viz`,
+`_robot_twin`, `_log_bridge`. Each of those shared objects therefore carries
+its **own** copy of `logger.cpp`'s `bridge_sink_storage()`, its own
+`creation_mutex()`, its own `sink_config.cpp`'s `local_sinks()`, and its own
+spdlog registry, since spdlog is static here too. Python loads extension
+modules `RTLD_LOCAL`, so the dynamic linker never unifies them.
+
+The consequence is easy to state wrongly, so state it precisely:
+`install_python_sink()`, called through `_log_bridge`, mutates `_log_bridge`'s
+copy of the bridge pointer and runs `spdlog::apply_all` over `_log_bridge`'s
+registry. Loggers created inside `_oxr` or `_robot_twin` are in a different
+registry and are unaffected.
+
+Those loggers still reach Python, by a different route: their module's own
+`local_sinks()` picks a `SocketForwardSink` whenever `ISAACTELEOP_LOG_SOCKET`
+is set, and the leader's receiver -- in this same process -- re-emits the
+record into the Python tree. That round trip is why the split is invisible on
+Linux. Where the transport does not exist, on Windows, those modules fall back
+to their own console and file sinks and their records never enter the Python
+tree at all.
+
+Do not write, or leave standing, a comment claiming that loading in-process
+under a Python interpreter is sufficient for the bridge to apply. Closing the
+split for real means giving the extensions shared logging state -- a shared
+`log_bridge` library, or an explicit per-module install -- and an integration
+test that emits from a second compiled extension and asserts a Python handler
+received it. Neither is in place.
+
 ## The env-var contract is shared with Python, not parallel to it
 
 `sink_config.cpp` and `socket_sink.cpp` read `ISAACTELEOP_LOG_DIR`,
