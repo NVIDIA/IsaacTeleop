@@ -17,10 +17,12 @@ from ._core import TRACE, ensure_log_dir
 
 _FD_LABELS = {1: "stdout", 2: "stderr"}
 
+# Duplicates of the real fd 1 / fd 2, kept so Python's own output still reaches
+# the terminal after both descriptors are pointed at the capture file.
 _saved: dict[int, TextIO] = {}
-_sink_paths: dict[int, str] = {}
-_mirrors: dict[int, threading.Thread] = {}
-_echo: dict[int, bool] = {}
+_sink_path: str | None = None
+_mirror_thread: threading.Thread | None = None
+_echo = False
 
 
 def _write_all(fd: int, data: bytes) -> None:
@@ -29,8 +31,12 @@ def _write_all(fd: int, data: bytes) -> None:
         data = data[os.write(fd, data) :]
 
 
-def _mirror(fd: int, sink_path: str) -> None:
-    """Tail *fd*'s capture file onto the terminal while echo is on.
+def _mirror(sink_path: str) -> None:
+    """Tail the capture file onto the terminal while echo is on.
+
+    Onto fd 2's duplicate, which is where the console handler writes too, so
+    mirrored vendor text and formatted records share one stream exactly as they
+    would have on an unredirected terminal.
 
     A convenience, never a step a writer waits on: the bytes reach the file
     without this thread, so falling behind loses nothing. The tail starts at
@@ -45,8 +51,8 @@ def _mirror(fd: int, sink_path: str) -> None:
                 if not chunk:
                     time.sleep(0.05)
                     continue
-                saved = _saved.get(fd)
-                if _echo.get(fd) and saved is not None:
+                saved = _saved.get(2)
+                if _echo and saved is not None:
                     _write_all(saved.fileno(), chunk)
     except OSError:
         pass
@@ -104,41 +110,48 @@ def _follows(stream: TextIO | None, fd: int) -> bool:
         return False
 
 
-def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
-    """Point *fd* (1 or 2) at its own capture file; idempotent.
+def _capture(console_handler: logging.StreamHandler) -> None:
+    """Point fd 1 and fd 2 at one capture file; idempotent.
 
     Native code -- the CloudXR/Monado OpenXR runtime above all -- writes its
     diagnostics straight to fd 1/2 and cannot be routed into this logger tree:
     it exports no log hook and does not implement ``XR_EXT_debug_utils``, so
     the descriptor is the only seam. What comes out is raw text rather than
-    records, hence a separate file per fd from the handler-formatted one.
+    records, hence a file separate from the handler-formatted one.
+
+    One file for both descriptors, not one each. A terminal shows no difference
+    between them -- the tty has no idea which descriptor a byte came from -- so
+    splitting them buys a distinction the operator never had, at the cost of
+    two files per process and, worse, of the interleaving: with separate files
+    the order of a vendor's stdout line relative to its stderr line is lost,
+    which is exactly the ordering a reader needs to follow a failure. Merging
+    keeps the byte stream a terminal would have shown. The price is that a
+    reader can no longer tell which descriptor a line arrived on, and a shell
+    redirect can no longer separate them after the fact.
 
     A file, never a pipe. A pipe refuses writes past 64 KiB until a reader
     empties it, and a reader in this process needs the GIL between reads while
     the native call doing the writing holds it -- ``oxr_bindings.cpp`` releases
     none -- so the two deadlock. A write to a file needs nothing else to run.
 
-    ``sys.stdout``/``sys.stderr`` are moved onto a duplicate of the real
-    descriptor instead of following it -- as is the console handler's stream,
-    bound to whatever ``sys.stderr`` was when it was built -- so ``print()``,
-    ``print(file=sys.stderr)``, and uncaught tracebacks stay on the terminal --
-    without this, ordinary ``print()`` calls (targeting fd 1 by default)
-    would vanish into the capture file along with the native library's own
-    fd 1 writes, since Python cannot tell the two apart at the fd level.
-    Processes forked afterwards inherit the redirection; the C++ console
-    sink writes through its own fd 1 handle taken before this runs, and
-    the file rotation handler writes through a plain file object, so
-    neither is affected by fd 1 being repointed here.
+    ``sys.stdout``/``sys.stderr`` are moved onto duplicates of the real
+    descriptors instead of following them -- as is the console handler's
+    stream, bound to whatever ``sys.stderr`` was when it was built -- so
+    ``print()``, ``print(file=sys.stderr)``, and uncaught tracebacks stay on the
+    terminal. Without this, ordinary ``print()`` calls would vanish into the
+    capture file along with the native library's own writes, since Python
+    cannot tell the two apart at the fd level. Processes forked afterwards
+    inherit the redirection; the C++ console sink writes through its own fd 1
+    handle taken before this runs, and the file rotation handler writes through
+    a plain file object, so neither is affected.
     """
-    if fd in _saved:
+    global _sink_path
+    if _sink_path is not None:
         return
     _reserve_std_fds()
-    label = _FD_LABELS[fd]
     directory = ensure_log_dir()
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    sink_path = str(
-        directory / f"{timestamp}.isaacteleop.{os.getpid()}.native-{label}.log"
-    )
+    sink_path = str(directory / f"{timestamp}.isaacteleop.{os.getpid()}.native.log")
     try:
         sink_fd = os.open(
             sink_path,
@@ -146,12 +159,12 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
             # does not exist on Windows, whose temp directory is per-user anyway.
             # O_EXCL covers what it does not: a plain file someone else created
             # and still owns would be appended to, handing them this process's
-            # captured stdout/stderr. ensure_log_dir() already makes that
-            # unreachable for the default 0700 per-uid path, but an operator's
+            # captured output. ensure_log_dir() already makes that unreachable
+            # for the default 0700 per-uid path, but an operator's
             # ISAACTELEOP_LOG_DIR keeps whatever permissions it came with and
             # only has to be *owned* by us, so a world-writable one passes.
             # Nothing legitimately collides: the name carries the timestamp and
-            # the pid, and _capture() runs once per fd per process.
+            # the pid, and this runs once per process.
             os.O_WRONLY
             | os.O_CREAT
             | os.O_EXCL
@@ -160,43 +173,47 @@ def _capture(fd: int, console_handler: logging.StreamHandler) -> None:
             0o600,
         )
     except OSError:
-        return  # leave the fd on the terminal rather than fail the import
-    saved = os.fdopen(os.dup(fd), "w", buffering=1)
-    os.dup2(sink_fd, fd)
+        return  # leave the descriptors on the terminal rather than fail the import
+
+    # Both duplicates taken before either dup2, or the second save would
+    # duplicate the capture file instead of the terminal.
+    for fd in _FD_LABELS:
+        _saved[fd] = os.fdopen(os.dup(fd), "w", buffering=1)
+    for fd in _FD_LABELS:
+        os.dup2(sink_fd, fd)
     os.close(sink_fd)
-    _saved[fd] = saved
-    _sink_paths[fd] = sink_path
-    if fd == 2:
-        if _follows(sys.stderr, fd):
-            sys.stderr = saved
-        if _follows(console_handler.stream, fd):
-            console_handler.setStream(saved)
-    elif _follows(sys.stdout, fd):
-        sys.stdout = saved
+    _sink_path = sink_path
+
+    if _follows(sys.stdout, 1):
+        sys.stdout = _saved[1]
+    if _follows(sys.stderr, 2):
+        sys.stderr = _saved[2]
+    if _follows(console_handler.stream, 2):
+        console_handler.setStream(_saved[2])
     atexit.register(_discard_if_empty, sink_path, os.getpid())
 
 
-def _start_mirror(fd: int) -> None:
-    """Start *fd*'s tail thread once, on the first gate that asks for echo.
+def _start_mirror() -> None:
+    """Start the tail thread once, on the first gate that asks for echo.
 
     Not started alongside the capture: ``set_console_level`` can drop to
     ``TRACE`` at any point, and a session that never does should not carry the
     thread.
     """
-    if fd in _mirrors or fd not in _sink_paths:
+    global _mirror_thread
+    if _mirror_thread is not None or _sink_path is None:
         return
-    mirror = threading.Thread(
+    _mirror_thread = threading.Thread(
         target=_mirror,
-        args=(fd, _sink_paths[fd]),
-        name=f"isaacteleop-native-{_FD_LABELS[fd]}",
+        args=(_sink_path,),
+        name="isaacteleop-native-capture",
         daemon=True,
     )
-    mirror.start()
-    _mirrors[fd] = mirror
+    _mirror_thread.start()
 
 
 def gate(level: int, console_handler: logging.StreamHandler) -> None:
-    """Always capture fd 1 + fd 2 to file; mirror them to the terminal only at ``TRACE``.
+    """Always capture fd 1 + fd 2 to file; mirror to the terminal only at ``TRACE``.
 
     Both descriptors, not just fd 2: the CloudXR runtime worker used to
     ``dup2`` fd 1 to ``/dev/null`` and fd 2 to its own separate,
@@ -205,9 +222,8 @@ def gate(level: int, console_handler: logging.StreamHandler) -> None:
     race it created (two independent redirects of the same descriptor in one
     process).
     """
-    echo = level <= TRACE
-    for fd in _FD_LABELS:
-        _capture(fd, console_handler)
-        _echo[fd] = echo
-        if echo:
-            _start_mirror(fd)
+    global _echo
+    _capture(console_handler)
+    _echo = level <= TRACE
+    if _echo:
+        _start_mirror()

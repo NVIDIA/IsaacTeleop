@@ -444,20 +444,20 @@ class CloudXRService:
 
         # The runtime process's own fd 1/2 (its Vulkan-loader/GPU-init
         # diagnostics, and the startup banner on fd 1) land in
-        # isaacteleop.logging_config's native-fd capture files, not under
-        # `logs_dir` (CloudXR's own ~/.cloudxr/logs). Matched on the runtime's
-        # own pid: every isaacteleop process writes a pair of these into the
-        # same directory, so "the newest one" could just as easily be a plugin
-        # from this session, or a leftover from an unrelated one.
-        for stream in ("stderr", "stdout"):
-            pattern = (
-                f"*.isaacteleop.{runtime_pid}.native-{stream}.log"
-                if runtime_pid is not None
-                else f"*.isaacteleop.*.native-{stream}.log"
-            )
-            captures = sorted(log_dir().glob(pattern))
-            if captures:
-                result.append(captures[-1])
+        # isaacteleop.logging_config's native-fd capture file, not under
+        # `logs_dir` (CloudXR's own ~/.cloudxr/logs). One file carries both
+        # descriptors. Matched on the runtime's own pid: every isaacteleop
+        # process writes one of these into the same directory, so "the newest
+        # one" could just as easily be a plugin from this session, or a
+        # leftover from an unrelated one.
+        pattern = (
+            f"*.isaacteleop.{runtime_pid}.native.log"
+            if runtime_pid is not None
+            else "*.isaacteleop.*.native.log"
+        )
+        captures = sorted(log_dir().glob(pattern))
+        if captures:
+            result.append(captures[-1])
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:
