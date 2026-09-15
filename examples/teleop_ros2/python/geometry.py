@@ -23,23 +23,28 @@ def apply_manus_controller_to_hand_pose(pose: Pose, side: str) -> Pose:
         raise ValueError(f"side must be 'left' or 'right', got {side!r}")
 
     # All MANUS calibration data is intentionally kept in this one function.
-    hand_left_pico_rotation = np.array(
-        [
-            [-0.91777945, -0.18672461, -0.35044942],
-            [0.37550315, -0.69513369, -0.61301431],
-            [-0.12914434, -0.6942068, 0.70809509],
-        ],
-        dtype=float,
-    )
-    hand_pico_translation = np.array([0.0, 0.0, 0.08], dtype=float)
-
     if side == "left":
-        controller_to_hand_rot_mat = hand_left_pico_rotation.T
+        hand_pico_rotation = np.array(
+            [
+                [-0.77547325, -0.05435024, -0.62903682],
+                [0.37583521, -0.84028682, -0.39072494],
+                [-0.50733536, -0.53941091, 0.67204667],
+            ],
+            dtype=float,
+        )
+        hand_pico_translation = np.array([0.0, 0.05, 0.08], dtype=float)
     else:
-        mirror_y = np.diag([1.0, -1.0, 1.0])
-        hand_right_pico_rotation = mirror_y @ hand_left_pico_rotation @ mirror_y
-        controller_to_hand_rot_mat = hand_right_pico_rotation.T
+        hand_pico_rotation = np.array(
+            [
+                [-0.74373259, 0.16943947, -0.64664683],
+                [-0.40890614, -0.88057072, 0.23956413],
+                [-0.52882664, 0.44258951, 0.72419398],
+            ],
+            dtype=float,
+        )
+        hand_pico_translation = np.array([0.0, -0.05, 0.08], dtype=float)
 
+    controller_to_hand_rot_mat = hand_pico_rotation.T
     controller_to_hand_trans = -controller_to_hand_rot_mat @ hand_pico_translation
 
     world_controller_pos = np.array(
