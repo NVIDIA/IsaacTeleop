@@ -480,7 +480,6 @@ def build_teleop_url(
             USB_TURN_USER,
             USB_TURN_CREDENTIAL,
             usb_turn_port,
-            wss_proxy_port,
         )
 
         stream_cfg: dict = {
@@ -496,7 +495,7 @@ def build_teleop_url(
             **client_ui_fields_from_env(),
         }
         ovr = web_client_base or web_client_base_override_from_env()
-        web_base = ovr if ovr else f"https://localhost:{wss_proxy_port()}/client"
+        web_base = ovr if ovr else f"https://localhost:{resolved_port}/client"
     else:
         stream_cfg = {
             "serverIP": resolve_lan_host_for_oob(),
@@ -505,10 +504,10 @@ def build_teleop_url(
         }
         ovr = web_client_base or web_client_base_override_from_env()
         if host_client:
-            from .oob_teleop_env import guess_lan_ipv4, wss_proxy_port  # noqa: PLC0415
+            from .oob_teleop_env import guess_lan_ipv4  # noqa: PLC0415
 
             _lan = guess_lan_ipv4() or "localhost"
-            default_base = f"https://{_lan}:{wss_proxy_port()}/client"
+            default_base = f"https://{_lan}:{resolved_port}/client"
         else:
             default_base = default_web_client_origin()
         web_base = ovr if ovr else default_base
@@ -697,16 +696,16 @@ def verify_adb_reverse_rules(expected_ports: list[int]) -> list[int]:
     return [p for p in expected_ports if p not in listed]
 
 
-def setup_adb_reverse_ports() -> None:
+def setup_adb_reverse_ports(proxy_port: int | None = None) -> None:
     """Set up ``adb reverse`` for the USB-local TCP ports.
 
     Reverse-maps headset loopback ports to the PC so the headset can reach
     the WSS proxy (including ``/client/``) and CloudXR backend over USB.
 
-    Ports reversed: the WSS proxy port (resolved via
-    :func:`~.oob_teleop_env.wss_proxy_port`) and the CloudXR backend port
-    (resolved via :func:`~.oob_teleop_env.usb_backend_port`, default 49100;
-    override via the ``USB_BACKEND_PORT`` env var).
+    Ports reversed: *proxy_port* (or :func:`~.oob_teleop_env.wss_proxy_port`
+    when omitted) and the CloudXR backend port (resolved via
+    :func:`~.oob_teleop_env.usb_backend_port`, default 49100; override via
+    the ``USB_BACKEND_PORT`` env var).
 
     Raises:
         OobAdbError: device offline / unauthorized, or an ``adb reverse`` call failed.
@@ -714,7 +713,8 @@ def setup_adb_reverse_ports() -> None:
     from .oob_teleop_env import usb_backend_port, wss_proxy_port  # noqa: PLC0415
 
     assert_adb_device_online()
-    ports = [wss_proxy_port(), usb_backend_port()]
+    resolved_proxy_port = wss_proxy_port() if proxy_port is None else proxy_port
+    ports = [resolved_proxy_port, usb_backend_port()]
     for port in ports:
         try:
             subprocess.run(
@@ -733,11 +733,12 @@ def setup_adb_reverse_ports() -> None:
         log.info("adb reverse tcp:%d -> tcp:%d (PC)", port, port)
 
 
-def teardown_adb_reverse_ports() -> None:
+def teardown_adb_reverse_ports(proxy_port: int | None = None) -> None:
     """Remove the ``adb reverse`` rules set by :func:`setup_adb_reverse_ports`."""
     from .oob_teleop_env import usb_backend_port, wss_proxy_port  # noqa: PLC0415
 
-    ports = [wss_proxy_port(), usb_backend_port()]
+    resolved_proxy_port = wss_proxy_port() if proxy_port is None else proxy_port
+    ports = [resolved_proxy_port, usb_backend_port()]
     for port in ports:
         subprocess.run(
             ["adb", "reverse", "--remove", f"tcp:{port}"],
