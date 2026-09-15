@@ -45,15 +45,14 @@ def build(
 ) -> tuple[str, bytes]:
     """The archive's filename and its bytes. ``on_progress`` is called with 0.0–1.0.
 
-    The verdict is in the filename so a mailbox of submissions can be triaged without
-    opening any of them, and everything sits under one directory so unzipping cannot
-    spray files into the reader's working directory.
+    Everything sits under one directory, so unzipping cannot spray files into the
+    reader's working directory.
     """
     recording = Path(recording)
     present, missing = companions(recording, timeline)
     packed = [recording, *present]
     total = sum(path.stat().st_size for path in packed) or 1
-    root = f"{recording.stem}.{report.verdict}"
+    root = archive_stem(recording, report)
 
     buffer = io.BytesIO()
     done = 0
@@ -143,6 +142,41 @@ def series(track: Track) -> dict[str, list[Any]]:
     }
 
 
+def archive_stem(report_recording: Path, report: Report) -> str:
+    """``<device>_<date>_<take>.<verdict>``.
+
+    The take name is a time of day, so it repeats every day and collides outright
+    between two devices recording at once. The verdict is in there so a mailbox of
+    submissions can be triaged without opening any of them.
+    """
+    device, date = capture_identity(report_recording)
+    named = "_".join(part for part in (device, date, report_recording.stem) if part)
+    return f"{named}.{report.verdict}"
+
+
+def capture_identity(recording: Path) -> tuple[str, str]:
+    """Device and date, from the capture sidecar and then from the layout.
+
+    ``record_g4.sh`` writes both by construction — ``<device>/<date>/<time>-g4.mcap``
+    on disk, and the same two strings into ``<take>.json`` — so they agree wherever
+    both exist. The sidecar is the one that says which is which, so it answers first;
+    the path covers a take whose sidecar never arrived or that was copied elsewhere.
+    """
+    device = date = ""
+    try:
+        payload = json.loads(recording.with_name(recording.stem + ".json").read_text())
+    except (OSError, ValueError):
+        payload = {}
+    if isinstance(payload, dict):
+        device = str(payload.get("device") or "")
+        date = str(payload.get("recorded_at") or "")[:10]
+    if not (device and date):
+        holder = recording.resolve().parent
+        device = device or holder.parent.name
+        date = date or holder.name
+    return (_filename_safe(device), _filename_safe(date))
+
+
 def companions(
     recording: Path, timeline: StepTimeline | None = None
 ) -> tuple[list[Path], list[str]]:
@@ -183,6 +217,11 @@ def tool(checks: int) -> dict[str, Any]:
         "dirty": None if changed is None else bool(changed),
         "checks": checks,
     }
+
+
+def _filename_safe(text: str) -> str:
+    """The device name reaches here from a shell argument and becomes a filename."""
+    return "".join(c if c.isalnum() or c in "-." else "_" for c in text).strip("_.")
 
 
 def _labels(timeline: StepTimeline | None) -> dict[str, Any]:

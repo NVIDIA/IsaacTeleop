@@ -99,7 +99,7 @@ def test_packaging_sends_one_archive_and_locks_the_button_until_it_is_done(
     panel.package(client)
 
     [(name, data)] = client.sent
-    assert name.startswith("take.") and name.endswith(".zip")
+    assert "take" in name and name.endswith(".zip")
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         assert f"{name[:-4]}/report.json" in archive.namelist()
     # The guard the operator asked for: dead while working, live again afterwards.

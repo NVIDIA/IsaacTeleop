@@ -137,8 +137,8 @@ browser — so it lands on the machine you will send it from, even when the pane
 viewed over `--host`. Right-click the link it offers for *Save as…* to choose where.
 
 ```text
-145511-g4.retake.zip                 the verdict is in the name, so a mailbox
-└── 145511-g4.retake/                of these can be triaged unopened
+pico4u_2026-09-14_145511-g4.retake.zip        device, date, take and verdict, so a
+└── pico4u_2026-09-14_145511-g4.retake/       mailbox of these can be triaged unopened
     ├── report.json                  verdict, checks, groups, per-frame series,
     │                                input hashes, the checker's commit
     ├── report.txt                   the same report, for reading
@@ -147,6 +147,10 @@ viewed over `--host`. Right-click the link it offers for *Save as…* to choose 
     ├── 145511-g4.json               capture provenance
     └── 145511-g4.log                recorder log
 ```
+
+The take name alone is a time of day, which repeats every day and collides outright
+between two devices recording at once, so the device and date come from the capture
+sidecar — or from the `<device>/<date>/` layout when that sidecar is missing.
 
 4.5 MB and a fifth of a second for a 102 s take. `report.json` is a superset of `--json`
 and reads out of the archive without decompressing the recording, so a dashboard needs
