@@ -155,7 +155,6 @@ class Panel:
             gui.add_html(f'<div style="font-size:11px;opacity:0.7">note: {note}</div>')
 
         with gui.add_folder("Playback"):
-            self._readout = gui.add_html("")
             self._scrub = gui.add_slider(
                 "frame",
                 min=0,
@@ -166,6 +165,7 @@ class Panel:
             self._playing = gui.add_checkbox("play", initial_value=False)
             self._speed = gui.add_dropdown("speed", tuple(SPEEDS), initial_value="1x")
             self._name_held = gui.add_checkbox("name held joints", initial_value=True)
+            self._readout = gui.add_html("")
 
             @self._scrub.on_update
             def _(_: viser.GuiEvent) -> None:

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from fullbody_acceptance.checks import Attribution, Severity, Status
+from fullbody_acceptance.checks import Attribution, Severity, Status, build_all
 from fullbody_acceptance.panel import render, status
 from fullbody_acceptance.panel.status import GATE_TITLES
 from fullbody_acceptance.report import CheckResult, Mark, Report, Verdict
@@ -92,13 +92,19 @@ def test_a_gate_reports_its_worst_result_before_anyone_expands_it():
     assert [r.mark for r in first.results] == [Mark.FAIL, Mark.MEAS, Mark.PASS]
 
 
-def test_all_seven_gates_are_shown_even_where_nothing_is_checked():
+def test_a_gate_with_no_checks_says_where_its_checks_went():
     gates = status.gates(report_of(result("one")))
     assert [gate.code for gate in gates] == [code for code, _, _ in GATE_TITLES]
-    empty = next(gate for gate in gates if gate.code == "G5")
+    empty = next(gate for gate in gates if gate.code == "G3")
     assert empty.mark is None
     assert empty.absent in render.gate_heading(empty)
     assert empty.absent in render.gate_body(empty)
+
+
+def test_every_gate_the_checks_use_is_displayed():
+    """The panel shows the gates by name, so an unlisted one would drop its results."""
+    used = {check.gate for check in build_all()}
+    assert used <= {code for code, _, _ in GATE_TITLES}
 
 
 def test_the_decisive_results_keep_their_own_order():

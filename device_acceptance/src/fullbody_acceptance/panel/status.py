@@ -36,14 +36,15 @@ DECISIVE = (
     "skeleton.bone_length_constancy",
 )
 
+# G5 (replay through retargeting) and G6 (human review) are left out: neither is
+# answerable from a recording, so a row for each said only "not implemented". G0 and G3
+# stay because their notes say where their checks went.
 GATE_TITLES: tuple[tuple[str, str, str], ...] = (
     ("G0", "Build and skip", "attested by the submitter"),
     ("G1", "Schema, envelope and signal quality", ""),
     ("G2", "Skeleton geometry", ""),
     ("G3", "Signal quality", "its checks report under G1"),
     ("G4", "Posture over the labelled windows", ""),
-    ("G5", "Replay through retargeting", "not implemented"),
-    ("G6", "Human review", "not automated, by design"),
 )
 
 

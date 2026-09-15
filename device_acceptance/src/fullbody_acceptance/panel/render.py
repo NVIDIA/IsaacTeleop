@@ -59,7 +59,11 @@ def result_rows(results: Sequence[CheckResult]) -> str:
         f'<span style="opacity:0.75">{escape(r.detail)}</span></td></tr>'
         for r in results
     )
-    return f'<table style="width:100%;border-collapse:collapse">{rows}</table>'
+    # The top row sits under the folder's own edge and gets clipped without the padding.
+    return (
+        f'<div style="padding:7px 0 3px">'
+        f'<table style="width:100%;border-collapse:collapse">{rows}</table></div>'
+    )
 
 
 def gate_heading(gate: Gate) -> str:
