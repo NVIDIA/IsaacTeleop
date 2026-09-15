@@ -161,6 +161,30 @@ def test_ensure_log_dir_is_owner_only(monkeypatch, tmp_path):
     assert stat.S_IMODE(created.stat().st_mode) == 0o700
 
 
+@_posix_only
+def test_every_created_component_is_owner_only(monkeypatch, tmp_path):
+    """Not just the leaf. The default log directory is <runtime dir>/logs, so a
+    parents=True create that only chmods the leaf leaves the directory the log
+    socket lives in at whatever the umask gave it.
+    """
+    target = tmp_path / "outer" / "inner" / "logs"
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(target))
+    _core.ensure_log_dir()
+    for created in (target, target.parent, target.parent.parent):
+        assert stat.S_IMODE(created.stat().st_mode) == 0o700, created
+
+
+@_posix_only
+def test_a_directory_we_did_not_create_keeps_its_permissions(monkeypatch, tmp_path):
+    """An operator who points ISAACTELEOP_LOG_DIR at a directory they set up
+    keeps the permissions they chose.
+    """
+    tmp_path.chmod(0o755)
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
+    _core.ensure_log_dir()
+    assert stat.S_IMODE(tmp_path.stat().st_mode) == 0o755
+
+
 @_non_posix_only
 def test_ensure_log_dir_creates_the_directory_without_mode_bits(monkeypatch, tmp_path):
     """Still created, just without the chmod and ownership check: neither has

@@ -102,17 +102,26 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
     Raises:
         PermissionError: if *directory* exists and another user owns it.
     """
-    created = False
+    # Every component this call is about to create, shallowest last. mkdir()'s
+    # mode is masked by the umask, so each one needs the bits set explicitly --
+    # and each one, not just the leaf: the default log directory is
+    # <runtime dir>/logs, so creating it with parents=True was leaving the
+    # runtime directory the log socket lives in at whatever the umask gave it.
+    missing = []
+    probe = directory
+    while not probe.exists() and probe != probe.parent:
+        missing.append(probe)
+        probe = probe.parent
+
     try:
         directory.mkdir(parents=True, exist_ok=False)
-        created = True
     except FileExistsError:
-        pass
+        missing = []
     if not _POSIX:
         return directory
 
-    if created:
-        directory.chmod(0o700)
+    for component in missing:
+        component.chmod(0o700)
 
     info = directory.stat()
     if info.st_uid != os.getuid():
