@@ -45,6 +45,12 @@ from ._schema import (
     JointState,
     JointStateOutput,
     JointStateOutputRecord,
+    # Joint SE(3) pose types (sparse tracked joints: raw glove tips, skeletons, ...).
+    JointType,
+    JointName,
+    JointSe3Pose,
+    JointSe3PoseOutput,
+    JointSe3PoseOutputRecord,
     # SE3 tracker types (generic 6-DoF pose sources: tracker pucks, mocap rigid bodies, ...).
     Se3TrackerPose,
     Se3TrackerPoseRecord,
@@ -136,6 +142,12 @@ __all__ = [
     "JointState",
     "JointStateOutput",
     "JointStateOutputRecord",
+    # Joint SE(3) pose types (sparse tracked joints).
+    "JointType",
+    "JointName",
+    "JointSe3Pose",
+    "JointSe3PoseOutput",
+    "JointSe3PoseOutputRecord",
     # SE3 tracker types (generic 6-DoF pose sources).
     "Se3TrackerPose",
     "Se3TrackerPoseRecord",
