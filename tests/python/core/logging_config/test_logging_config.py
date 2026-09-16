@@ -8,6 +8,8 @@ import logging
 import os
 import re
 import stat
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -32,6 +34,17 @@ _posix_only = pytest.mark.skipif(
 )
 _non_posix_only = pytest.mark.skipif(
     _POSIX, reason="Covers the fallback taken where POSIX facilities are absent"
+)
+
+# log_bridge_emit_record, built by tests/cpp/core/log_bridge/CMakeLists.txt and
+# handed over by this leaf's own CMakeLists.txt. It logs one record through
+# isaacteleop::Logger and exits, which is the only way to put a real C++ sender
+# at the other end of the socket. Absent when this file is run straight from a
+# source checkout with no build directory, hence a skip rather than a failure.
+_CPP_EMITTER = os.environ.get("ISAACTELEOP_LOG_EMITTER")
+_needs_cpp_emitter = pytest.mark.skipif(
+    not _CPP_EMITTER,
+    reason="needs the CMake-built log_bridge_emit_record (ISAACTELEOP_LOG_EMITTER)",
 )
 
 
@@ -550,3 +563,345 @@ def test_forwarding_handler_drops_record_when_leader_unreachable(tmp_path):
     )
     handler.emit(record)  # must not raise
     handler.close()
+
+
+# ---------------------------------------------------------------------------
+# The C++ end of the same wire
+# ---------------------------------------------------------------------------
+
+
+@_posix_only
+@_needs_cpp_emitter
+def test_cpp_logger_reaches_the_python_receiver(tmp_path):
+    """A record logged from C++ arrives here as a LogRecord, not as text.
+
+    This is the one route neither suite can check on its own. The sender is
+    src/core/log_bridge/cpp/socket_sink.cpp, which builds the frame by hand with
+    no JSON library, and the receiver is _forwarding.RequestHandler above.
+    test_forwarding_round_trip exercises the same wire format with a Python
+    sender at both ends, so by construction it cannot notice the two halves
+    drifting apart; only running the real C++ emitter against a real receiver
+    can.
+
+    Every field the frame carries is asserted -- name, levelno, msg, created,
+    process -- because a field the receiver silently defaults is a field the
+    sender can stop sending without anything failing.
+    """
+    socket_path = str(tmp_path / "cpp.sock")
+    logger_name = "isaacteleop.log_bridge.test.cpp_forwarding"
+
+    # A quote, a backslash and a newline together: everything socket_sink.cpp's
+    # append_json_escaped() has to escape for the receiver's json.loads() to
+    # accept the frame at all. Miss one and the record is dropped whole, not
+    # corrupted, so nothing downstream would report it.
+    message = 'from C++: "quoted", back\\slash, and a\nnewline'
+
+    # One process per level -- which sinks a process gets is decided once, by a
+    # function-local static in local_sinks(). TRACE is included because it is
+    # the level that exists only by this project's convention: nothing in the
+    # stdlib would define 5 for the receiver if the mapping were dropped.
+    levels = {"trace": _core.TRACE, "info": logging.INFO, "error": logging.ERROR}
+
+    server = _forwarding.ThreadingUnixStreamServer(
+        socket_path, _forwarding.RequestHandler
+    )
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    receiver = logging.getLogger(logger_name)
+    receiver.setLevel(_core.TRACE)
+    received: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            received.append(record)
+
+    capture = _Capture()
+    receiver.addHandler(capture)
+
+    pids: dict[str, int] = {}
+    try:
+        for level_name in levels:
+            emitter = subprocess.Popen(
+                [_CPP_EMITTER, logger_name, level_name, message],
+                env={
+                    **os.environ,
+                    "ISAACTELEOP_LOG_SOCKET": socket_path,
+                    # Only so that a local file, were one wrongly written,
+                    # lands here instead of in the real log directory.
+                    "ISAACTELEOP_LOG_DIR": str(tmp_path / "logs"),
+                },
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+            output = emitter.communicate(timeout=60)[0]
+            assert emitter.returncode == 0, output
+            pids[level_name] = emitter.pid
+
+        deadline = time.monotonic() + 5.0
+        while len(received) < len(levels) and time.monotonic() < deadline:
+            time.sleep(0.01)
+    finally:
+        receiver.removeHandler(capture)
+        server.shutdown()
+        server.server_close()
+
+    assert len(received) == len(levels), [r.getMessage() for r in received]
+    by_level = {record.levelno: record for record in received}
+    assert sorted(by_level) == sorted(levels.values())
+    for level_name, levelno in levels.items():
+        record = by_level[levelno]
+        assert record.name == logger_name
+        assert record.getMessage() == message
+        assert record.process == pids[level_name]
+        # Seconds since the epoch as a float, the same unit record.created has
+        # here. A sender switching to milliseconds or to a steady clock would
+        # still produce a number, and only the magnitude gives it away.
+        assert abs(record.created - time.time()) < 60
+
+
+# ---------------------------------------------------------------------------
+# Output-routing matrix
+# ---------------------------------------------------------------------------
+#
+# Where a line ends up is decided by what it travels through, not by who wrote
+# it: a Python stream object goes to what *this* process believes is the
+# terminal, a file descriptor goes to what this process's fd 1/2 currently
+# point at. The capture only protects its own process, so the two answers
+# diverge for a child -- whose inherited "terminal" is its parent's capture
+# file. That is the part nobody guesses correctly, so it is pinned here as a
+# table rather than described in prose.
+
+#: Written to tmp_path and run as all three roles. Each emission carries a
+#: ``ROLE|method`` token, which is how the sinks are attributed afterwards.
+_MATRIX_SCRIPT = '''
+import ctypes
+import logging
+import os
+import subprocess
+import sys
+import time
+import types
+import warnings
+
+ROLE, PKG_PARENT, TMP = sys.argv[1], sys.argv[2], sys.argv[3]
+
+
+def _logging_config():
+    """The same logging_config the test process imported.
+
+    The fallback exists so the matrix can be measured without a built package:
+    it exposes the pure-Python subpackage without running isaacteleop/__init__,
+    which needs the compiled extensions. Nothing in this matrix depends on that
+    difference -- install() is what does the routing.
+    """
+    try:
+        from isaacteleop import logging_config
+    except Exception:
+        pkg = types.ModuleType("isaacteleop")
+        pkg.__path__ = [os.path.join(PKG_PARENT, "isaacteleop")]
+        sys.modules["isaacteleop"] = pkg
+        from isaacteleop import logging_config
+    return logging_config
+
+
+if os.environ.get("MATRIX_IMPORT_IT") == "1":
+    _logging_config().install()
+
+print(f"{ROLE}|print", flush=True)
+sys.stderr.write(f"{ROLE}|stderr_write\\n")
+sys.stderr.flush()
+os.write(1, f"{ROLE}|os_write1\\n".encode())
+os.write(2, f"{ROLE}|os_write2\\n".encode())
+sys.__stderr__.write(f"{ROLE}|dunder_stderr\\n")
+sys.__stderr__.flush()
+libc = ctypes.CDLL(None)
+libc.printf(f"{ROLE}|c_printf\\n".encode())
+libc.fflush(None)
+logging.getLogger("isaacteleop.matrix").warning(f"{ROLE}|it_logger")
+logging.getLogger("appown.matrix").warning(f"{ROLE}|bare_logger")
+warnings.warn(f"{ROLE}|warnings")
+
+if ROLE == "MAIN":
+    with open(os.path.join(TMP, "leader_pid"), "w") as handle:
+        handle.write(str(os.getpid()))
+    for role, imports in (("SUB-noIT", "0"), ("SUB-IT", "1")):
+        subprocess.run(
+            [sys.executable, __file__, role, PKG_PARENT, TMP],
+            env={**os.environ, "MATRIX_IMPORT_IT": imports},
+            check=True,
+        )
+    time.sleep(0.5)  # let the forwarded records reach the receiver
+    logging.shutdown()
+'''
+
+#: Sink names used below. "own.native" is the capture file a process opened for
+#: itself; "leader.native" is the one it inherited from the process above it.
+_TERMINAL, _LEADER_LOG, _LEADER_NATIVE, _OWN_NATIVE = (
+    "terminal",
+    "leader.log",
+    "leader.native",
+    "own.native",
+)
+
+# The same table, for reading rather than asserting. Kept beside the dict below
+# so a change to one is obviously a change to the other.
+#
+#   sinks   terminal        the fd 1 / fd 2 the session started with
+#           leader.log      the leader's <ts>.isaacteleop.<pid>.log, records only
+#           leader.native   the leader's <ts>.isaacteleop.<pid>.native.log
+#           own.native      the emitting process's own .native.log, if it has one
+#
+#   output method                        leader            child,          child,
+#                                                          no isaacteleop  forwarding
+#   -----------------------------------  ----------------  --------------  -------------
+#   print()                              terminal          leader.native   leader.native
+#   sys.stderr.write()                   terminal          leader.native   leader.native
+#   warnings.warn()                      terminal          leader.native   leader.native
+#   logger outside the isaacteleop tree  terminal          leader.native   leader.native
+#   os.write(1, ...)                     leader.native     leader.native   own.native
+#   os.write(2, ...)                     leader.native     leader.native   own.native
+#   sys.__stderr__.write()               leader.native     leader.native   own.native
+#   C runtime printf()                   leader.native     leader.native   own.native
+#   isaacteleop.* logger                 terminal+.log     leader.native   terminal+.log
+#
+# Two rules produce every cell. A Python stream object goes to what *this*
+# process believes is the terminal; a file descriptor goes to wherever this
+# process's fd 1/2 currently point. The capture protects only its own process,
+# so a child's inherited "terminal" is its parent's capture file -- which is why
+# the two rules disagree for everything below the leader.
+#
+# A tenth source sits outside that table: a record logged from C++ through
+# isaacteleop::Logger. It is not a row above because it does not vary along that
+# table's axis. What decides where it goes is not which of the three roles the
+# process has, but which sinks that process's own local_sinks() picked -- chosen
+# once, in a function-local static, from the environment. _EXPECTED_ROUTING
+# below therefore covers the nine Python methods only; the assertions for this
+# one live in the files named on the right.
+#
+#   state of the emitting process   record goes to                 asserted by
+#   ------------------------------  -----------------------------  -----------------
+#   ISAACTELEOP_LOG_SOCKET unset    that process's own console,    test_routing.cpp
+#                                   and its own
+#                                   <ts>.isaacteleop.<pid>.log
+#
+#   ISAACTELEOP_LOG_SOCKET set      the leader's Python logger     this file, and
+#                                   tree, and onward from there    test_routing.cpp
+#                                   exactly as the isaacteleop.*   for the negative
+#                                   row above: terminal + the
+#                                   leader's .log
+#
+#   install_python_sink() has run   Python's logging module in     test_routing.cpp,
+#                                   this same process, without     with a capturing
+#                                   the socket                     stand-in sink
+#
+# The three are ordered, not independent: Logger::get() consults the bridge
+# before local_sinks(), so an installed bridge wins over a socket.
+#
+# The third row is the one to read carefully. What test_routing.cpp pins there
+# is the *seam* -- set_bridge_sink() re-points every registered logger and the
+# local sinks drop out -- and not PythonBridgeSink itself, which no test reaches
+# today: _log_bridge exports install_python_sink() and nothing that emits, so
+# nothing can put a record through the bridge it just installed. That, and the
+# separate matter of each compiled extension owning its own copy of the
+# registry, are written up in src/core/log_bridge/AGENTS.md.
+_EXPECTED_ROUTING = {
+    # The leader: Python streams were moved onto duplicates of the real
+    # descriptors, so they still reach the terminal; the descriptors themselves
+    # now point at the capture file.
+    ("MAIN", "print"): {_TERMINAL},
+    ("MAIN", "stderr_write"): {_TERMINAL},
+    ("MAIN", "warnings"): {_TERMINAL},
+    ("MAIN", "bare_logger"): {_TERMINAL},  # no handler anywhere -> lastResort
+    ("MAIN", "os_write1"): {_LEADER_NATIVE},
+    ("MAIN", "os_write2"): {_LEADER_NATIVE},
+    # sys.__stderr__ is the *original* object, still bound to fd 2, so the
+    # defensive "write to __stderr__ to bypass a replaced stream" idiom lands
+    # in the capture file rather than on the terminal.
+    ("MAIN", "dunder_stderr"): {_LEADER_NATIVE},
+    ("MAIN", "c_printf"): {_LEADER_NATIVE},
+    # The only method that reaches both, at every level.
+    ("MAIN", "it_logger"): {_TERMINAL, _LEADER_LOG},
+    # A child that never imports isaacteleop has no capture of its own, and its
+    # fd 1/2 are still the leader's. Every route collapses onto one file.
+    ("SUB-noIT", "print"): {_LEADER_NATIVE},
+    ("SUB-noIT", "stderr_write"): {_LEADER_NATIVE},
+    ("SUB-noIT", "warnings"): {_LEADER_NATIVE},
+    ("SUB-noIT", "bare_logger"): {_LEADER_NATIVE},
+    ("SUB-noIT", "os_write1"): {_LEADER_NATIVE},
+    ("SUB-noIT", "os_write2"): {_LEADER_NATIVE},
+    ("SUB-noIT", "dunder_stderr"): {_LEADER_NATIVE},
+    ("SUB-noIT", "c_printf"): {_LEADER_NATIVE},
+    ("SUB-noIT", "it_logger"): {_LEADER_NATIVE},
+    # A forwarding child splits: it saved its inherited fd 1/2 -- the leader's
+    # capture file -- as its "terminal", then pointed the descriptors at a
+    # capture file of its own. So Python streams go up one level and raw writes
+    # stay local. Its records are the exception: they travel over the socket.
+    ("SUB-IT", "print"): {_LEADER_NATIVE},
+    ("SUB-IT", "stderr_write"): {_LEADER_NATIVE},
+    ("SUB-IT", "warnings"): {_LEADER_NATIVE},
+    ("SUB-IT", "bare_logger"): {_LEADER_NATIVE},
+    ("SUB-IT", "os_write1"): {_OWN_NATIVE},
+    ("SUB-IT", "os_write2"): {_OWN_NATIVE},
+    ("SUB-IT", "dunder_stderr"): {_OWN_NATIVE},
+    ("SUB-IT", "c_printf"): {_OWN_NATIVE},
+    ("SUB-IT", "it_logger"): {_TERMINAL, _LEADER_LOG},
+}
+
+
+@_posix_only
+def test_output_routing_matrix(tmp_path):
+    """Every route, for all three kinds of process, against a pinned table."""
+    logs = tmp_path / "logs"
+    script = tmp_path / "matrix_emit.py"
+    script.write_text(_MATRIX_SCRIPT)
+    package_parent = str(Path(_core.__file__).resolve().parents[2])
+
+    env = {
+        **os.environ,
+        "ISAACTELEOP_LOG_DIR": str(logs),
+        "XDG_RUNTIME_DIR": str(tmp_path / "run"),
+        "MATRIX_IMPORT_IT": "1",
+        "PYTHONWARNINGS": "always",
+    }
+    env.pop("ISAACTELEOP_LOG_SOCKET", None)
+
+    # The leader's own fd 1/2 are these pipes, so "terminal" below means
+    # whatever the session started with -- exactly what the capture preserves.
+    done = subprocess.run(
+        [sys.executable, str(script), "MAIN", package_parent, str(tmp_path)],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=True,
+    )
+
+    leader_pid = (tmp_path / "leader_pid").read_text().strip()
+    natives = sorted(logs.glob("*.native.log"))
+    rotating = [p for p in logs.glob("*.log") if not p.name.endswith(".native.log")]
+    assert len(rotating) == 1, rotating
+    leader_native = [p for p in natives if f".{leader_pid}.native.log" in p.name]
+    own_native = [p for p in natives if p not in leader_native]
+    assert len(leader_native) == 1 and len(own_native) == 1, natives
+
+    sinks = {
+        _TERMINAL: done.stdout + done.stderr,
+        _LEADER_LOG: rotating[0].read_text(),
+        _LEADER_NATIVE: leader_native[0].read_text(),
+        _OWN_NATIVE: own_native[0].read_text(),
+    }
+
+    actual = {}
+    for role, method in _EXPECTED_ROUTING:
+        token = f"{role}|{method}"
+        actual[(role, method)] = {sink for sink, text in sinks.items() if token in text}
+
+    missing = {key for key, where in actual.items() if not where}
+    assert not missing, f"emitted nothing anywhere: {sorted(missing)}"
+    assert actual == _EXPECTED_ROUTING, "\n".join(
+        f"  {role}|{method}: expected {sorted(_EXPECTED_ROUTING[(role, method)])}, "
+        f"got {sorted(actual[(role, method)])}"
+        for (role, method) in sorted(_EXPECTED_ROUTING)
+        if actual[(role, method)] != _EXPECTED_ROUTING[(role, method)]
+    )
