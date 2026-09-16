@@ -225,12 +225,12 @@ def test_build_ee_output_from_controllers_preserves_manus_calibration() -> None:
         apply_manus_controller_mount_offset=True,
     )
 
-    expected_position = [4.07, 4.955, 5.96]
+    expected_position = [3.92131, 4.98866, 6.00617]
     expected_orientation = [
-        -0.3375082150,
-        -0.9049220261,
-        -0.1575038337,
-        0.2059050118,
+        -np.sqrt(0.5),
+        -0.5,
+        0.0,
+        0.5,
     ]
     actual_pose = msg.pose[0]
     actual_transform = transforms[0].transform

@@ -69,13 +69,13 @@ def test_apply_transform_returns_a_new_pose_without_mutating_input() -> None:
     (
         (
             "left",
-            [0.07, -0.045, -0.04],
-            [-0.3375082150, -0.9049220261, -0.1575038337, 0.2059050118],
+            [-0.07869, -0.01134, 0.00617],
+            [-np.sqrt(0.5), -0.5, 0.0, 0.5],
         ),
         (
             "right",
-            [-0.07, -0.045, -0.04],
-            [0.2458089107, -0.9423341602, -0.1851067102, -0.1316047708],
+            [0.07869, -0.01134, 0.00617],
+            [-np.sqrt(0.5), 0.5, 0.0, 0.5],
         ),
     ),
 )
@@ -102,7 +102,9 @@ def test_manus_controller_calibration_rotates_controller_local_translation() -> 
     left_pose.orientation.w = rotated_orientation[3]
     left_calibrated = apply_manus_controller_to_hand_pose(left_pose, "left")
 
-    np.testing.assert_allclose(_position(left_calibrated), [-0.27, 1.155, -0.11])
+    np.testing.assert_allclose(
+        _position(left_calibrated), [-0.12131, 1.18866, -0.15617]
+    )
 
 
 def test_manus_controller_calibration_rejects_unknown_side() -> None:

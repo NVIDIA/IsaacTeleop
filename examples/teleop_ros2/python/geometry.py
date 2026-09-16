@@ -16,16 +16,15 @@ def apply_manus_controller_to_hand_pose(pose: Pose, side: str) -> Pose:
     if side not in ("left", "right"):
         raise ValueError(f"side must be 'left' or 'right', got {side!r}")
 
-    # Hardware-tested new-mount values from isaac-deploy MR !1333.
+    # Controller-local rotations aligned with the MANUS wrist convention.
     mount_rotations = {
-        # Historical quaternions are WXYZ; scipy uses XYZW.
-        "left": Rotation.from_quat([-0.3375, -0.9049, -0.1575, 0.2059]),
-        "right": Rotation.from_quat([0.2458, -0.9423, -0.1851, -0.1316]),
+        "left": Rotation.from_quat([-np.sqrt(0.5), -0.5, 0.0, 0.5]),
+        "right": Rotation.from_quat([-np.sqrt(0.5), 0.5, 0.0, 0.5]),
     }
-    # Derived controller-local translations for the canonical calibration pose.
+    # Controller-local translations fitted from stationary-wrist rotation captures.
     mount_translations = {
-        "left": np.array([0.07, -0.045, -0.04], dtype=float),
-        "right": np.array([-0.07, -0.045, -0.04], dtype=float),
+        "left": np.array([-0.07869, -0.01134, 0.00617], dtype=float),
+        "right": np.array([0.07869, -0.01134, 0.00617], dtype=float),
     }
 
     controller_position = np.array(
