@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -51,6 +52,15 @@ def _restore_environ():
 def _live(value=True):
     """Patch the launcher's liveness probe."""
     return patch("isaacteleop.cloudxr.launcher.is_runtime_live", return_value=value)
+
+
+def _announced_client_url(stderr: str) -> str:
+    """Return the hosted ``/client/`` URL from launcher stderr."""
+    return next(
+        token
+        for token in stderr.split()
+        if token.startswith("https://") and "/client/" in token
+    )
 
 
 @contextlib.contextmanager
@@ -392,8 +402,13 @@ class TestNothingRunning:
             CloudXRLauncher(install_dir=install, host_client=True)
 
         err = capsys.readouterr().err
-        assert "https://10.0.0.5:55555/client/" in err
-        assert "https://10.0.0.5:48322/client/" not in err
+        url = urlparse(_announced_client_url(err))
+        assert url.hostname == "10.0.0.5"
+        assert url.port == 55555
+        assert parse_qs(url.query) == {
+            "serverIP": ["10.0.0.5"],
+            "port": ["55555"],
+        }
 
     def test_forwards_config_to_the_service_it_starts(self, tmp_path):
         """A dropped setting here would silently start the wrong runtime.
@@ -476,8 +491,13 @@ class TestNothingRunning:
             )
 
         err = capsys.readouterr().err
-        assert "https://127.0.0.1:49322/client/" in err
-        assert "https://10.0.0.5:49322/client/" not in err
+        url = urlparse(_announced_client_url(err))
+        assert url.hostname == "127.0.0.1"
+        assert url.port == 49322
+        assert parse_qs(url.query) == {
+            "serverIP": ["127.0.0.1"],
+            "port": ["49322"],
+        }
 
     def test_default_profile_adds_no_environment(self, tmp_path):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
@@ -503,6 +523,7 @@ class TestNothingRunning:
 
         assert launcher.owns_runtime is True
         mocks["popen"].assert_called_once()
+        mocks["static_client"].assert_called_once_with()
 
     def test_run_embedded_stops_what_it_started(self, tmp_path):
         with _live(False), mock_service_deps(tmp_path, ready=True) as mocks:

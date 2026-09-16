@@ -71,6 +71,21 @@ async def test_bundle_resolves_under_client_prefix(static_dir: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_webxr_controller_profile_assets_are_served(static_dir: Path) -> None:
+    asset = (
+        static_dir
+        / "npm/@webxr-input-profiles/assets@1.0.0/dist/profiles/profilesList.json"
+    )
+    asset.parent.mkdir(parents=True)
+    asset.write_text('{"profiles": []}')
+
+    response = await _get(static_dir, f"/client/{asset.relative_to(static_dir)}")
+    assert response.status_code == 200
+    assert response.headers["Content-Type"] == "application/json"
+    assert response.body == b'{"profiles": []}'
+
+
+@pytest.mark.asyncio
 async def test_unknown_client_asset_is_404(static_dir: Path) -> None:
     response = await _get(static_dir, "/client/secrets.env")
     assert response.status_code == 404

@@ -19,6 +19,7 @@ import sys
 import time
 import warnings
 from pathlib import Path
+from urllib.parse import urlencode
 
 try:  # POSIX only; without it the mismatch notice does not pause.
     import termios
@@ -306,7 +307,9 @@ class CloudXRLauncher:
         )
 
         host = "127.0.0.1" if usb_local else guess_lan_ipv4() or "localhost"
-        url = f"https://{host}:{wss_proxy_port()}/client/"
+        port = wss_proxy_port()
+        query = urlencode({"serverIP": host, "port": port})
+        url = f"https://{host}:{port}/client/?{query}"
         print_hosted_client_line(
             url, prefix=_STARTED_HOST_CLIENT_PREFIX, file=sys.stderr
         )
