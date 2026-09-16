@@ -49,6 +49,18 @@ recorded span. The evidence for that case belongs to
 `segmentation.labelled_step_actually_performed` and `segmentation.step_order_matches_labels`,
 which read what the windows contain instead of where they sit.
 
+**`label_windows_wellformed` no longer requires a partition either, for the same
+reason.** `StepTimeline.defects()` used to call an unlabelled stretch between two
+windows a `gap`, and the check is HARD/DEVICE and a dependency of the same thirteen. Once
+the capture panel started opening each window on the performer's press, gaps became
+universal — the performer is already in the pose when they press, so the move between
+poses belongs to no window. Measured on `145511-g4` relabelled that way: 6.4 s
+unlabelled between windows, `verdict FAIL`, every G4 check suppressed and the device
+blamed. The time between windows is now a measurement (`unlabelled_between_s`). An
+**overlap** is still a defect: the frames one window would be measured over belong to
+the next. Do not restore the partition requirement — windows that tile end to end are
+the signature of a computed schedule, not of a good take.
+
 ### 2. `posture.arm_raise_range_of_motion` attributes to PERFORMANCE, not DEVICE
 
 One recording cannot separate "the device clipped the arm" from "the arm never went up."
@@ -326,6 +338,12 @@ Each cost real time to establish and is asserted somewhere in the tests.
   from the embedded `.bfbs`; decode with the flatc-generated bindings and use the `.bfbs`
   only for byte comparison. Consequence: payload checks are per-schema, one mechanical
   flatc step, not runtime-generic.
+- **Never offer an alias for a recording path — no `latest` symlink, no convenience copy.**
+  `StepTimeline.beside` resolves the sidecar from the path as written, so an alias finds no
+  labels beside itself, and a missing sidecar is a supported case rather than an error: the
+  thirteen G4 checks go unanswered, they are `required=False`, and the verdict comes out
+  `pass`. Measured on `145511-g4`: `retake` by its real path, `pass` through a symlink to
+  it. `capture/record.sh` used to maintain such a symlink; that is why it no longer does.
 
 ## Real hardware, established facts
 

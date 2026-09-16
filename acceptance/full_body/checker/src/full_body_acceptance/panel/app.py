@@ -22,6 +22,7 @@ from viser import uplot
 
 from ..frames import NUM_JOINTS
 from ..labels import StepTimeline
+from ..profile import SkeletonProfile
 from ..report import Mark, Report
 from . import bundle, render, status
 from .track import Sample, Track
@@ -42,11 +43,15 @@ REENABLE_DELAY_S = 3.0
 
 
 class Skeleton:
-    """Joint cloud, bones, and a name floating beside every joint that is not live."""
+    """Joint cloud, bones, and a name floating beside every joint that is not live.
 
-    def __init__(self, server: viser.ViserServer, track: Track) -> None:
-        self._names = track.profile.joint_names
-        self._bones = track.profile.bones()
+    Takes the profile rather than a ``Track`` so a live panel, which has no track and
+    never will, can draw the same skeleton from the same code.
+    """
+
+    def __init__(self, server: viser.ViserServer, profile: SkeletonProfile) -> None:
+        self._names = profile.joint_names
+        self._bones = profile.bones()
         self._points = server.scene.add_point_cloud(
             "/body/joints",
             points=np.zeros((0, 3), np.float32),
@@ -147,7 +152,7 @@ class Panel:
         server.scene.add_frame("/origin", axes_length=0.3, axes_radius=0.004)
         server.initial_camera.position = (2.2, 1.6, 2.6)
         server.initial_camera.look_at = (0.0, 0.9, 0.0)
-        self._skeleton = Skeleton(server, track)
+        self._skeleton = Skeleton(server, track.profile)
 
         self._build_gui()
         self._seek(0)

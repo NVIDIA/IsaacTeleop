@@ -1,0 +1,200 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
+
+# Recording a take
+
+One recording of a prescribed ten-step motion script, plus the label sidecar that
+[the checker](../checker/README.md) reads. A panel in your browser tells the performer
+what to do; they press a button once they are in each pose.
+
+**Linux only.** Recording drives the device through Isaac Teleop, which is a Linux
+project — it is built and tested on Ubuntu and its wheel is `linux_x86_64`. There is no
+macOS or Windows path to recording a take, and there is no plan for one. The checker
+that reads the take back afterwards has no such constraint: it runs on Linux and macOS
+alike, so a take recorded here can be verified anywhere.
+
+You do not need to read any of the code here, and nothing in this directory is meant to
+be edited — see [Do not edit the script](#do-not-edit-the-script) at the end.
+
+## Before you start
+
+- **The project built**, so that an `isaacteleop` wheel exists under `install/wheels/`
+  or `build/wheels/`.
+- **`uv`, `curl` and `unzip`** on the same Linux host.
+- **`aplay`** — the spoken cues go through it. It comes from `alsa-utils`
+  (`apt install alsa-utils` on Debian or Ubuntu). Install it before your first take: a
+  missing `aplay` currently fails part way into the recording rather than at startup.
+- **A headset with body tracking**, plus CloudXR installed (by default at `~/.cloudxr`).
+  See [Get the headset streaming](#get-the-headset-streaming) below.
+- **A performer who can stand up and follow spoken instructions.** Two people is easier
+  than one — see the note about the space bar below.
+
+## Set up, once per clone
+
+Two scripts, in this order. The checker's comes first because it generates what the
+panel reads the recording back with.
+
+```bash
+acceptance/full_body/checker/setup_env.sh
+acceptance/full_body/capture/setup_env.sh
+```
+
+Both are idempotent and write nothing outside their own directory. Re-run them after
+pulling.
+
+## Get the headset streaming
+
+You do **not** start CloudXR by hand. `record.sh` attaches to a runtime that is already
+up, and starts one when there is none. Two things it cannot do for you:
+
+**Accept the CloudXR EULA, once per machine.** Review the licence, then either pass the
+flag through `record.sh`
+
+```bash
+acceptance/full_body/capture/record.sh pico4u --accept-eula
+```
+
+or accept it up front, independently of recording:
+
+```bash
+python -m isaacteleop.cloudxr.service start --accept-eula
+```
+
+Acceptance is remembered in `~/.cloudxr/run/eula_accepted`, so it is needed once per
+install directory, not once per take.
+
+**Connect the headset.** The panel receives nothing until the headset is streaming, and
+it will sit at *waiting for a frame with valid joints* until it is. Open the CloudXR web
+client on the headset:
+
+```bash
+python -m isaacteleop.cloudxr.webclient
+```
+
+That opens the client over USB `adb` with this host's address already filled in. Use
+`--print-only` to get the URL instead, to type or bookmark in the headset's own browser.
+Re-run it any time the headset browser gets closed or navigated away; it does not
+disturb a running take.
+
+Anything `record.sh` does not itself understand is passed through to the panel, so the
+runtime flags work from there too — `--cloudxr-install-dir` (default `~/.cloudxr`) and
+`--cloudxr-device-profile` (default `Quest3`) among them. Run
+`capture_panel.py --help` for the full list.
+
+Two references worth having open the first time:
+
+- [`docs/source/references/cloudxr.rst`](../../../docs/source/references/cloudxr.rst) —
+  device profiles, foreground vs detached service, out-of-band and USB-only setups.
+- [`docs/source/device/body_tracking.rst`](../../../docs/source/device/body_tracking.rst)
+  — which PICO Motion Tracker configurations are supported (5, 3 or 2 trackers), how to
+  calibrate them, and what body tracking needs from the headset. **Read this before your
+  first take**: without body tracking the recording contains no usable joints and only
+  the container checks can run.
+
+## Record
+
+```bash
+acceptance/full_body/capture/record.sh pico4u
+```
+
+The argument names the device and only decides where the files land; `pico4u` is the
+default. On the first run CloudXR asks you to accept its EULA — pass `--accept-eula`
+after the device name to skip the prompt.
+
+Open the panel at <http://localhost:8081>. It binds every interface, so the headset's
+own browser can reach it at `http://<your-host>:8081` as well.
+
+The cues sit in a column down the right edge and the skeleton gets the room to the left
+of it. Drag the column's inner edge to change the split. If the text is too small to
+read from where the performer stands, zoom the browser in with `Ctrl+=` — it scales the
+text and the column together, and the browser remembers the setting for that address.
+
+The panel idles. Nothing is open against the device and no file exists yet. Press
+**Start recording** when the performer is standing ready — that is when the recording
+is created and the first cue is spoken.
+
+Then, for each of the ten steps:
+
+1. The cue is spoken and shown on the panel — *"T pose. Hold."*
+2. The performer gets into the pose. Take as long as you need; nothing is running out.
+3. **Press the controller trigger, or the space bar.**
+4. A beep. Hold the pose while the countdown on the panel runs down.
+5. A tick. That pose is recorded, and the next cue follows.
+
+Two things to know before your first take:
+
+- **The space bar is a key in the _browser_, not in the terminal.** It works in whichever
+  browser has the panel open and focused — the headset's or the one on your desk. With
+  two people, the one at the screen does the pressing.
+- **Pressing at any other moment does nothing, deliberately, and the panel will not
+  react.** It is not broken and the press is not queued. Press once, when the performer
+  is in the pose.
+
+If the performer already knows the pose, they can press during the spoken cue to cut it
+short and go straight to waiting.
+
+After the tenth pose the recording closes, *"Done. You can stop now."* plays, and the
+panel reports what the labels came out as. The first few rows are about the file itself
+— how many records it holds, whether every one carries a timestamp, whether all ten
+windows resolved. The rows after those are named after the steps, and each one
+re-derives that pose from the recording, so a `BAD` there means the window does not hold
+the pose it claims. How many are `BAD` is what says whose fault it is: one row against
+otherwise good ones is that step, pressed at the wrong moment or performed wrongly. Most
+of them at once, with degenerate numbers like `pelvis drops 0 cm`, is the joint stream,
+and recording again reproduces it exactly.
+
+The process keeps serving the report; Ctrl+C when you have read it.
+
+## What you get
+
+```text
+~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap          the recording
+                                      /<time>-g4.labels.json   the motion-step windows
+                                      /<time>-g4.json          what produced it
+                                      /<time>-g4.log           the panel's output
+```
+
+Nothing is ever overwritten. Run `record.sh` again for another take and both are kept.
+
+All four files belong together. The labels **cannot** be regenerated from the recording
+afterwards, so keep them beside it.
+
+There is deliberately no `latest` shortcut to the newest take. The checker finds the
+labels at `<recording>.labels.json` **as you spelled the recording**, so any alias to one
+finds no labels beside itself: measured on `145511-g4`, the real path reports `retake` and
+an alias reports `pass` with thirteen G4 checks silently unanswered. Give the full path.
+
+Then run the checks — [`../checker/README.md`](../checker/README.md) covers reading the
+verdict and packaging a take to send.
+
+## If something goes wrong
+
+| What you see | What to do |
+|---|---|
+| `missing …/.venv; run …/setup_env.sh` | Run the two setup scripts above. |
+| `no isaacteleop wheel in …/wheels; build the repo first` | Build the project, then re-run `capture/setup_env.sh`. |
+| `run …/checker/setup_env.sh first` | You ran the two setup scripts in the wrong order. |
+| **the session did not open**, on the panel | CloudXR could not start or the headset is not connected. The message names the reason. Nothing was recorded; fix it and run `record.sh` again. |
+| **body_tracking is off**, on the panel | Stop — do not spend the take. On PICO this is the browser, not the hardware or a licence: use the headset's own browser, which grants WebXR body tracking on a consumer 4 Ultra. |
+| No sound, or a `FileNotFoundError` naming `aplay` | `aplay` is missing. Install `alsa-utils` and record again. |
+| The panel is not at 8081 | Something else held that port, so it moved to the next free one. Use the `http://localhost:…` line the run prints, which is always the real one. |
+| The headset's browser cannot load the panel | The port is not reachable from the headset. Check the host firewall; the panel itself listens on every interface. |
+| One `BAD` row in the label report, the rest `ok` | That pose was pressed at the wrong moment or performed wrongly. Record another take. |
+| Most rows `BAD`, with degenerate numbers (`pelvis drops 0 cm`, both hands at one height) | The joint stream is frozen: every window holds the same still pose, and one row can still read `ok` by accident. Why it freezes is not yet known, so report it — re-performing the script changes nothing. The checker confirms it with `continuity.max_joint_velocity` at `peak 0.0 m/s`. |
+
+## Do not edit the script
+
+The ten steps, their spoken cues and their hold durations are part of the acceptance
+specification, and the checker looks its measurements up by step name. Changing any of
+them here silently changes what the verdict means.
+
+If a take stops with
+
+```text
+the wording of cue 'squat_x2' changed, so squat_x2.wav no longer says it
+```
+
+then the capture side has drifted out of sync with its own audio. That is ours to fix —
+report it rather than working around it.

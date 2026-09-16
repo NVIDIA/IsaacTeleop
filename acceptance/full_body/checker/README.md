@@ -41,30 +41,44 @@ directory.
 
 ## Record a take
 
+[`../capture/README.md`](../capture/README.md) is the step-by-step, including what the
+performer does and what to do when it goes wrong. Recording is **Linux only** — it
+drives the device through Isaac Teleop — while everything above and below this section
+runs on macOS too. In outline: the capture side has its own venv, built once on a
+machine with the project built:
+
 ```bash
+acceptance/full_body/capture/setup_env.sh    # after this checker's setup_env.sh
 acceptance/full_body/capture/record.sh pico4u
 ```
 
-One continuous take of the eleven-step motion script (~40 s), spoken cues in the
-foreground and the recorder in the background. It writes
+One take of the ten-step motion script, in a viser panel on <http://localhost:8081>.
+Recording starts when you press **Start recording**, and each step then waits for the
+performer: the cue is spoken and shown, and the window opens on a controller trigger or
+the space bar and closes on that step's own length. So the take has no fixed duration,
+and both ends of the file are clean because nothing useless was ever written. It writes
 
 ```text
 ~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
                                       /<time>-g4.labels.json   motion-step windows
                                       /<time>-g4.log
                                       /<time>-g4.json          what produced it
-~/isaacteleop-captures/latest.mcap -> the newest take
 ```
 
-Nothing is ever overwritten, so run it again for another take. The repo has to be built
-first (`.venv-runtime` plus `examples/mcap_record_replay`); the spoken cues are WAV
-files in `acceptance/full_body/capture/cues/` and need no synthesiser, so `aplay` is the only
-other thing the prompter wants.
+Nothing is ever overwritten, so run it again for another take. The spoken cues are WAV
+files in `acceptance/full_body/capture/cues/` and need no synthesiser, so `aplay` is the
+only other thing the panel wants.
 
-The label sidecar carries the motion windows the G4 checks read, and it is written for
-you by `make_labels.py` at the end of the recording. Windows are anchored to the clap
-at the start of the script and re-derived from independent signals; they are marked
-provisional, and the report says so.
+The label sidecar carries the motion windows the G4 checks read, and the panel writes it
+once the file is closed: each window is a pair of record numbers observed as the presses
+happened, resolved against `sample_time_local_common_clock` in the finished recording.
+Windows no longer tile — the performer moving between poses falls outside all of them.
+Each one records whether a trigger or the keyboard opened it, since only a trigger leaves
+a trace in the recording to cross-check against. They are still marked provisional,
+because the labels are a sidecar rather than a channel in the MCAP.
+
+The trigger and the keyboard are equals, not a primary and a fallback: with two people
+the one at the screen does the pressing, and a mocap suit has no controllers at all.
 
 If the client reports `body_tracking: false`, every joint arrives invalid and only the
 container and envelope checks can run. On PICO that is a browser limitation, not a
@@ -73,8 +87,13 @@ hardware or licensing one — see `AGENTS.md`.
 ## Run the checks
 
 ```bash
-.venv/bin/python -m full_body_acceptance.cli ~/isaacteleop-captures/latest.mcap
+.venv/bin/python -m full_body_acceptance.cli \
+    ~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
 ```
+
+Spell the recording out. There is no `latest` alias, and making one defeats the next
+paragraph: a symlink or a copied-elsewhere `.mcap` has no `.labels.json` beside *it*, so
+every G4 check goes unanswered and the verdict reads `pass` instead of `retake`.
 
 | Option | Effect |
 |---|---|
@@ -109,7 +128,8 @@ verdict  RETAKE
 
 ```bash
 ./setup_env.sh --panel     # once; installs viser, the panel's renderer
-.venv/bin/python -m full_body_acceptance.panel ~/isaacteleop-captures/latest.mcap
+.venv/bin/python -m full_body_acceptance.panel \
+    ~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
 ```
 
 Prints the same report, then serves a panel on `http://127.0.0.1:8080`. It takes

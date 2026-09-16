@@ -1,40 +1,37 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Writes a G4 label sidecar for a real recording, anchored to the clap in the data.
+"""Writes the G4 label sidecar from the windows the panel recorded.
 
-The clap is step 0 and exists as a sync event, which is what lets the prompter and the
-recorder run without a common clock. Finding it as "the closest the hands ever come"
-is not enough: the performer holds the controllers together while waiting, which is a
-closer pass than some claps. The clap is instead the *last* hands-together event before
-the first T-pose, since nothing between those two moments brings the hands together.
+The panel knows each window as a pair of record numbers, because a live ``FullBodyPose``
+carries no timestamp at all. This opens the finished recording **read-only**, reads
+``sample_time_local_common_clock`` off those records, and writes the sidecar the checker
+loads beside the file.
 
-Every anchor is then checked against signals that do not depend on it -- a raised left
-arm must actually be the left one -- because a misplaced anchor silently renames every
-motion and the measurements downstream look plausible rather than wrong.
+Nothing here searches the data for the motion. The boundaries are events that were
+recorded as they happened, so the only arithmetic left is the frame-to-timestamp lookup
+-- and it is auditable, because the frame numbers go into the sidecar beside the times
+they resolved to.
+
+``verify()`` stays, with a changed job. It used to catch an anchor dropped on the wrong
+part of the recording; it now catches a step pressed at the wrong moment or performed
+wrongly. Seven of the ten steps have a criterion that reads a signal the press did not.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import math
 import statistics
-import sys
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "checker" / "src"))
+from full_body_acceptance.frames import Frame
+from full_body_acceptance.mcap_source import McapFrameSource
+from full_body_acceptance.profile import FULL_BODY
 
-from full_body_acceptance.checks.geometry import FULL_BODY  # noqa: E402
-from full_body_acceptance.mcap_source import McapFrameSource  # noqa: E402
-
-from session import (  # noqa: E402
-    CLAP_SEPARATION_M,
-    STEPS,
-    STILL_LABELS,
-    TPOSE_SEPARATION_M,
-)
+from steps import Window
 
 J = {
     name: FULL_BODY.joint_names.index(name)
@@ -47,176 +44,259 @@ NOTE = (
 )
 CLOCK_DOMAIN = "sample_time_local_common_clock (system monotonic, nanoseconds)"
 
+#: One row of the report the panel shows after the file closes: name, ok, detail.
+Check = tuple[str, bool, str]
 
-def read(recording: Path):
-    """Returns per-frame (t_s, hand separation, hand y, ankle y, pelvis y)."""
-    rows = []
-    first_ns = None
-    for frame in McapFrameSource(str(recording)):
-        if not frame.has_payload or frame.sample_time_ns is None:
-            continue
-        joints = frame.joints
-        if not all(joints[i].is_valid for i in J.values()):
-            continue
-        if first_ns is None:
-            first_ns = frame.sample_time_ns
-        left, right = joints[J["LEFT_HAND"]], joints[J["RIGHT_HAND"]]
-        rows.append(
-            {
-                "t": (frame.sample_time_ns - first_ns) / 1e9,
-                "sep": math.dist(left.position, right.position),
-                "lh": left.position[1],
-                "rh": right.position[1],
-                "la": joints[J["LEFT_ANKLE"]].position[1],
-                "ra": joints[J["RIGHT_ANKLE"]].position[1],
-                "pelvis": joints[J["PELVIS"]].position[1],
-            }
+
+@dataclass(frozen=True, slots=True)
+class Geometry:
+    """The few distances ``verify()`` re-derives a window's motion from."""
+
+    separation: float
+    left_hand_y: float
+    right_hand_y: float
+    left_ankle_y: float
+    right_ankle_y: float
+    pelvis_y: float
+
+
+@dataclass(frozen=True, slots=True)
+class Record:
+    """One record of the body channel, addressed by its position in the file."""
+
+    sequence: int
+    sample_ns: int | None
+    geometry: Geometry | None
+
+
+def read(recording: Path) -> list[Record]:
+    """Every record in file order, so a record number indexes straight into the list.
+
+    No record is skipped, unlike a reader that only wants measurable frames: the panel
+    counted publishes, so a position in this list is what its frame numbers mean.
+    """
+    return [
+        Record(
+            sequence=frame.sequence,
+            sample_ns=frame.sample_time_ns,
+            geometry=_geometry(frame),
         )
-    return rows, first_ns
+        for frame in McapFrameSource(str(recording))
+    ]
 
 
-CLAP_BURST_S = 1.5  # "clap twice" is two contacts; both belong to the one window
-
-
-def find_clap(rows) -> float | None:
-    tpose = next((r["t"] for r in rows if r["sep"] > TPOSE_SEPARATION_M), None)
-    if tpose is None:
+def _geometry(frame: Frame) -> Geometry | None:
+    joints = frame.joints
+    if joints is None or not all(joints[index].is_valid for index in J.values()):
         return None
-    together = [r["t"] for r in rows if r["t"] < tpose and r["sep"] < CLAP_SEPARATION_M]
-    if not together:
-        return None
-    burst = [t for t in together if t >= together[-1] - CLAP_BURST_S]
-    return (burst[0] + burst[-1]) / 2
+    left, right = joints[J["LEFT_HAND"]], joints[J["RIGHT_HAND"]]
+    return Geometry(
+        separation=math.dist(left.position, right.position),
+        left_hand_y=left.position[1],
+        right_hand_y=right.position[1],
+        left_ankle_y=joints[J["LEFT_ANKLE"]].position[1],
+        right_ankle_y=joints[J["RIGHT_ANKLE"]].position[1],
+        pelvis_y=joints[J["PELVIS"]].position[1],
+    )
 
 
-def lay_out(clap_s: float, first_ns: int):
+def audit(records: Sequence[Record], windows: Sequence[Window]) -> list[Check]:
+    """What has to hold before a frame number may be read as a record number.
+
+    Reported rather than raised: the take is already on disk by the time this runs, so
+    a mismatch is evidence about the file, not a reason to lose it. Do not let one of
+    these slide by mapping the numbers onto the nearest records anyway.
+    """
+    reach = max((window.end_frame for window in windows), default=0)
+    renumbered = sum(
+        1 for position, record in enumerate(records) if record.sequence != position
+    )
+    unstamped = sum(1 for record in records if record.sample_ns is None)
+    return [
+        (
+            "frames recorded",
+            reach <= len(records),
+            f"{len(records)} records, windows reach {reach}",
+        ),
+        (
+            "sequence in file order",
+            renumbered == 0,
+            "every sequence equals its position"
+            if renumbered == 0
+            else f"{renumbered} records are numbered otherwise",
+        ),
+        (
+            "sample clock present",
+            unstamped == 0,
+            "every record stamped"
+            if unstamped == 0
+            else f"{unstamped} records carry no sample time",
+        ),
+    ]
+
+
+def lay_out(records: Sequence[Record], windows: Sequence[Window]) -> list[dict]:
+    """The sidecar's step list: each window's record numbers resolved to timestamps.
+
+    ``start_frame`` / ``end_frame`` travel with the times so the conversion can be
+    re-checked later -- record N's sample time must equal ``start_ns``.
+    """
+    first_ns = next(
+        (record.sample_ns for record in records if record.sample_ns is not None), None
+    )
+    if first_ns is None:
+        return []
+
     steps = []
-    at = clap_s - STEPS[0][1] / 2
-    for index, (label, duration, _) in enumerate(STEPS):
+    for window in windows:
+        start_ns = _stamp(records, window.start_frame)
+        end_ns = _stamp(records, window.end_frame)
+        if start_ns is None or end_ns is None:
+            continue
         steps.append(
             {
-                "index": index,
-                "label": label,
-                "start_ns": first_ns + round(at * 1e9),
-                "end_ns": first_ns + round((at + duration) * 1e9),
-                "start_s_from_first_sample": round(at, 6),
-                "end_s_from_first_sample": round(at + duration, 6),
-                "is_still_window": label in STILL_LABELS,
+                "index": window.index,
+                "label": window.label,
+                "start_ns": start_ns,
+                "end_ns": end_ns,
+                "start_s_from_first_sample": round((start_ns - first_ns) / 1e9, 6),
+                "end_s_from_first_sample": round((end_ns - first_ns) / 1e9, 6),
+                "is_still_window": window.is_still_window,
+                "start_frame": window.start_frame,
+                "end_frame": window.end_frame,
+                # Which input opened the window. A trigger pull lands in the recording's
+                # controllers channel and can be cross-checked against this time; a key
+                # press lands in no channel at all. So it is a property of each
+                # boundary rather than of the file, and is recorded per step.
+                "boundary_source": window.source,
             }
         )
-        at += duration
     return steps
 
 
-def verify(steps, rows) -> list[tuple[str, bool, str]]:
-    """Re-derives each window's motion from signals the anchor did not use."""
-    standing = statistics.median([r["pelvis"] for r in rows])
-    results = []
+def _stamp(records: Sequence[Record], frame: int) -> int | None:
+    """The sample time of record ``frame``, as the half-open range means it.
+
+    ``end_frame`` one past the last record is a window that ran to the end of the file.
+    The bound it needs is then the smallest time after the final sample, derived from
+    that sample rather than read off any clock.
+    """
+    if 0 <= frame < len(records):
+        return records[frame].sample_ns
+    if frame == len(records) and records and records[-1].sample_ns is not None:
+        return records[-1].sample_ns + 1
+    return None
+
+
+def _mean(window: Sequence[Geometry], field: str) -> float:
+    return statistics.mean(getattr(geometry, field) for geometry in window)
+
+
+def verify(records: Sequence[Record], steps: Sequence[dict]) -> list[Check]:
+    """Re-derives each window's motion from signals the press did not use."""
+    measurable = [record.geometry for record in records if record.geometry is not None]
+    if not measurable:
+        return [("all steps", False, "no frames with all needed joints valid")]
+    standing = statistics.median(geometry.pelvis_y for geometry in measurable)
+
+    checks: list[Check] = []
     for step in steps:
-        a, b = step["start_s_from_first_sample"], step["end_s_from_first_sample"]
-        window = [r for r in rows if a <= r["t"] < b]
-        if not window:
-            results.append((step["label"], False, "no frames in the window"))
-            continue
-        mean = lambda key: statistics.mean(r[key] for r in window)  # noqa: E731
-        sep, lh, rh = mean("sep"), mean("lh"), mean("rh")
-        la, ra = mean("la"), mean("ra")
-        dip = standing - min(r["pelvis"] for r in window)
+        window = [
+            record.geometry
+            for record in records[step["start_frame"] : step["end_frame"]]
+            if record.geometry is not None
+        ]
         label = step["label"]
+        if not window:
+            checks.append((label, False, "no measurable frames in the window"))
+            continue
+
+        separation = _mean(window, "separation")
+        left_hand = _mean(window, "left_hand_y")
+        right_hand = _mean(window, "right_hand_y")
+        left_ankle = _mean(window, "left_ankle_y")
+        right_ankle = _mean(window, "right_ankle_y")
+        dip = standing - min(geometry.pelvis_y for geometry in window)
 
         if label in ("t_pose_hold_open", "t_pose_hold_close"):
-            results.append((label, sep > 1.30, f"hands {sep * 100:.0f} cm apart"))
+            checks.append(
+                (label, separation > 1.30, f"hands {separation * 100:.0f} cm apart")
+            )
         elif label == "left_arm_raise":
-            results.append(
-                (label, lh > rh + 0.25, f"left hand {lh:.2f} m vs right {rh:.2f} m")
+            checks.append(
+                (
+                    label,
+                    left_hand > right_hand + 0.25,
+                    f"left hand {left_hand:.2f} m vs right {right_hand:.2f} m",
+                )
             )
         elif label == "right_arm_raise":
-            results.append(
-                (label, rh > lh + 0.25, f"right hand {rh:.2f} m vs left {lh:.2f} m")
+            checks.append(
+                (
+                    label,
+                    right_hand > left_hand + 0.25,
+                    f"right hand {right_hand:.2f} m vs left {left_hand:.2f} m",
+                )
             )
         elif label == "left_leg_raise":
-            results.append(
-                (label, la > ra + 0.04, f"left ankle {la:+.3f} m vs right {ra:+.3f} m")
+            checks.append(
+                (
+                    label,
+                    left_ankle > right_ankle + 0.04,
+                    f"left ankle {left_ankle:+.3f} m vs right {right_ankle:+.3f} m",
+                )
             )
         elif label == "right_leg_raise":
-            results.append(
-                (label, ra > la + 0.04, f"right ankle {ra:+.3f} m vs left {la:+.3f} m")
+            checks.append(
+                (
+                    label,
+                    right_ankle > left_ankle + 0.04,
+                    f"right ankle {right_ankle:+.3f} m vs left {left_ankle:+.3f} m",
+                )
             )
         elif label == "squat_x2":
-            results.append((label, dip > 0.15, f"pelvis drops {dip * 100:.0f} cm"))
-    return results
+            checks.append((label, dip > 0.15, f"pelvis drops {dip * 100:.0f} cm"))
+    return checks
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("recording", type=Path)
-    parser.add_argument(
-        "--clap-at",
-        type=float,
-        default=None,
-        help="override the detected clap, seconds from first sample",
+def write(
+    recording: Path, windows: Sequence[Window]
+) -> tuple[Path | None, list[Check]]:
+    """Reads the take back and writes ``<stem>.labels.json`` beside it.
+
+    Returns the sidecar and every check run on the way. A sidecar with no steps is not
+    written at all: labels that exist and describe nothing are worse for the checker
+    than no labels, which it already handles.
+    """
+    records = read(recording)
+    checks = audit(records, windows)
+    steps = lay_out(records, windows)
+    checks.append(
+        (
+            "windows labelled",
+            len(steps) == len(windows),
+            f"{len(steps)} of {len(windows)} resolved to timestamps",
+        )
     )
-    parser.add_argument("--write", action="store_true")
-    parser.add_argument("--quiet", action="store_true")
-    args = parser.parse_args()
+    checks.extend(verify(records, steps))
+    if not steps:
+        return (None, checks)
 
-    rows, first_ns = read(args.recording)
-    if not rows:
-        print(
-            f"{args.recording.name}: no frames with all needed joints valid",
-            file=sys.stderr,
-        )
-        return 1
-    span = rows[-1]["t"]
-
-    clap = args.clap_at if args.clap_at is not None else find_clap(rows)
-    if clap is None:
-        print(
-            f"{args.recording.name}: no clap found "
-            f"(hands never came within {CLAP_SEPARATION_M * 100:.0f} cm before a "
-            f"T-pose, or there was no T-pose)",
-            file=sys.stderr,
-        )
-        return 1
-
-    steps = lay_out(clap, first_ns)
-    checks = verify(steps, rows)
-    ok = all(passed for _, passed, _ in checks)
-    ends = steps[-1]["end_s_from_first_sample"]
-
-    if not args.quiet:
-        print(
-            f"{args.recording.name}: {len(rows)} frames, {span:.1f} s, "
-            f"clap at {clap:.2f} s"
-        )
-        for label, passed, detail in checks:
-            print(f"    {'ok  ' if passed else 'BAD '} {label:<20} {detail}")
-    if steps[0]["start_s_from_first_sample"] < 0:
-        print("    BAD  script starts before the first sample")
-        ok = False
-    if ends > span:
-        print(f"    BAD  script ends {ends - span:.1f} s past the last sample")
-        ok = False
+    stamped = [record.sample_ns for record in records if record.sample_ns is not None]
+    span_s = (stamped[-1] - stamped[0]) / 1e9 if len(stamped) > 1 else 0.0
 
     payload = {
+        # Still true, and for the same reason as before: the labels are a sidecar
+        # rather than a channel in the recording. What would clear it is the annotation
+        # channel existing, not where a boundary came from -- see boundary_source.
         "provisional": True,
         "note": NOTE,
         "clock_domain": CLOCK_DOMAIN,
-        "nominal_rate_hz": round(len(rows) / span, 1) if span > 0 else None,
+        "nominal_rate_hz": round(len(stamped) / span_s, 1) if span_s > 0 else None,
+        "records": len(records),
         "steps": steps,
-        "mcap": args.recording.name,
+        "mcap": recording.name,
     }
-    sidecar = args.recording.with_name(args.recording.stem + ".labels.json")
-    if args.write:
-        sidecar.write_text(json.dumps(payload, indent=2) + "\n")
-        print(
-            f"    wrote {sidecar.name}  "
-            f"({'anchor verified' if ok else 'ANCHOR SUSPECT'})"
-        )
-    else:
-        print(f"    would write {sidecar.name}  (pass --write)")
-    return 0 if ok else 2
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+    sidecar = recording.with_name(recording.stem + ".labels.json")
+    sidecar.write_text(json.dumps(payload, indent=2) + "\n")
+    return (sidecar, checks)

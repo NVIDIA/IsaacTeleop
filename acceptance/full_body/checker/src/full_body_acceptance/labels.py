@@ -111,8 +111,29 @@ class StepTimeline:
             max(step.end_ns for step in self.steps),
         )
 
+    @property
+    def unlabelled_between_ns(self) -> int:
+        """Time between consecutive windows that no window claims.
+
+        Reported, never judged. A window opens when the performer presses, by which
+        time they are already in the pose, so the move *between* poses falls outside
+        every window by design -- which is the whole point: no transition inside a
+        measurement. Windows that tile end to end are the mark of a computed schedule,
+        not of a good take.
+        """
+        ordered = sorted(self.steps, key=lambda step: step.start_ns)
+        return sum(
+            max(0, later.start_ns - earlier.end_ns)
+            for earlier, later in zip(ordered, ordered[1:])
+        )
+
     def defects(self) -> tuple[Defect, ...]:
-        """Structural faults in the labels themselves, independent of the motion."""
+        """Structural faults in the labels themselves, independent of the motion.
+
+        An unlabelled stretch between two windows is not one of them; see
+        ``unlabelled_between_ns``. An **overlap** is, because two windows claiming the
+        same frames means at least one measurement reads motion belonging to the other.
+        """
         found: list[Defect] = []
         if not self.steps:
             return (Defect("empty", "the sidecar declares no steps"),)
@@ -138,14 +159,6 @@ class StepTimeline:
                         "overlap",
                         f"{earlier.label!r} and {later.label!r} overlap by "
                         f"{(earlier.end_ns - later.start_ns) / 1e9:.2f} s",
-                    )
-                )
-            elif later.start_ns > earlier.end_ns:
-                found.append(
-                    Defect(
-                        "gap",
-                        f"{(later.start_ns - earlier.end_ns) / 1e9:.2f} s is unlabelled "
-                        f"between {earlier.label!r} and {later.label!r}",
                     )
                 )
 

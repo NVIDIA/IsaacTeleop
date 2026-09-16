@@ -78,7 +78,12 @@ class LabelWindowsWellformed(_LabelCheck):
     gate = "G4"
     severity = Severity.HARD
     attribution = Attribution.DEVICE
-    summary = "The label windows tile the session without overlaps or gaps"
+    summary = "The label windows are ordered, non-overlapping, and named once each"
+
+    # Windows are not required to tile, and the time between them is reported rather
+    # than judged. The performer opens each window once already in the pose, so the
+    # move between poses belongs to no window -- demanding a partition would fail
+    # every honestly captured take and blame the device for it.
 
     def _update(self, frame: Frame) -> None:
         return
@@ -87,14 +92,17 @@ class LabelWindowsWellformed(_LabelCheck):
         if self.timeline is None:
             return Outcome(Status.INSUFFICIENT_DATA, "no motion labels to check")
         defects = self.timeline.defects()
+        between_s = self.timeline.unlabelled_between_ns / 1e9
         measurements = {
             "steps": len(self.timeline.steps),
+            "unlabelled_between_s": between_s,
             "defects": [f"{d.kind}: {d.detail}" for d in defects],
         }
         if not defects:
             return Outcome(
                 Status.PASS,
-                f"{len(self.timeline.steps)} windows tile the session cleanly",
+                f"{len(self.timeline.steps)} windows in order and non-overlapping, "
+                f"with {between_s:.1f} s between them unlabelled",
                 measurements,
             )
         kinds = sorted({d.kind for d in defects})

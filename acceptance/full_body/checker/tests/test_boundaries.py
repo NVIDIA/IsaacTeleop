@@ -19,7 +19,16 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CHECKER = REPO_ROOT / "acceptance" / "full_body" / "checker"
 CHECKER_SOURCES = (CHECKER / "src", CHECKER / "tests")
-CAPTURE_MODULES = ("session", "prompter", "make_labels", "amplify_arm_raise")
+CAPTURE_MODULES = (
+    "session",
+    "cues",
+    "steps",
+    "live",
+    "render",
+    "capture_panel",
+    "make_labels",
+    "amplify_arm_raise",
+)
 UPSTREAM = "origin/main"
 
 # Matched as an import statement, not as a bare name: the checker names `record.sh` and

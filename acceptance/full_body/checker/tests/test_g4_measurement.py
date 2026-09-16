@@ -243,12 +243,20 @@ class TestLabelTimeline:
         assert timeline.defects() == ()
         assert len(timeline.steps) == 11
 
-    def test_overlaps_and_gaps_are_both_named(self, fixture_dir: Path):
+    def test_an_overlap_is_a_defect_and_a_gap_is_not(self, fixture_dir: Path):
+        """A triggered take always leaves the moves between poses unlabelled.
+
+        Judging that would fail every real capture, so it is measured instead. An
+        overlap stays a defect: the frames one window would be measured over belong
+        to the next.
+        """
         timeline = StepTimeline.load(
             fixture_dir / "fixtures/g4/g4_seg_labels_overlap_and_gaps.labels.json"
         )
         kinds = {defect.kind for defect in timeline.defects()}
-        assert {"overlap", "gap"} <= kinds
+        assert "overlap" in kinds
+        assert "gap" not in kinds
+        assert timeline.unlabelled_between_ns > 0
 
     def test_a_step_is_found_by_its_own_timestamps(self, fixture_dir: Path):
         timeline = StepTimeline.load(

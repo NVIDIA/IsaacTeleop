@@ -2,8 +2,6 @@
   "voice": "en_GB-alba-medium",
   "length_scale": "1.25",
   "text_sha1": {
-    "briefing": "a4875f8fe2680e22",
-    "clap": "4f049db6cdc38727",
     "a_pose_still": "7ecb6110f5bd59fe",
     "t_pose_hold_open": "c413c900701e2b9a",
     "neutral_stance": "ff367e7cba1ab75e",
