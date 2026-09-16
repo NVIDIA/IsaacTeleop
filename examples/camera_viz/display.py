@@ -25,6 +25,7 @@ _MAILBOX_SLOTS = 7
 def make_session(
     cfg: dict,
     mode_override: Optional[str] = None,
+    system_wait_override: Optional[int] = None,
     required_extensions: Optional[List[str]] = None,
 ) -> viz.VizSession:
     display = cfg.get("display", {})
@@ -41,6 +42,16 @@ def make_session(
         x = display.get("xr", {})
         session_cfg.xr_near_z = float(x.get("near_z", 0.05))
         session_cfg.xr_far_z = float(x.get("far_z", 100.0))
+        if system_wait_override is not None:
+            wait_s = int(system_wait_override)
+        else:
+            wait_s = int(x.get("system_wait_seconds", 180))
+        session_cfg.xr_system_wait_seconds = wait_s
+        if wait_s > 0:
+            print(
+                f"camera_viz: waiting up to {wait_s}s for headset CONNECT...",
+                flush=True,
+            )
     else:
         raise ValueError(
             f"camera_viz: display.mode must be window|xr, got {mode_str!r}"

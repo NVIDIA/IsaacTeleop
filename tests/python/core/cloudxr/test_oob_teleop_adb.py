@@ -334,6 +334,78 @@ def test_run_adb_headset_bookmark_offline_returns_clean_diag(
 # Reverse-setup wraps subprocess errors as OobAdbError --------------------------
 
 
+def test_build_teleop_url_usb_local_uses_resolved_proxy_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """USB-local routing follows the port where the WSS proxy is listening."""
+    from cloudxr_py_test_ns.oob_teleop_adb import build_teleop_url
+
+    monkeypatch.delenv("TELEOP_WEB_CLIENT_BASE", raising=False)
+    monkeypatch.setenv("PROXY_PORT", "48322")
+    url = build_teleop_url(resolved_port=49322, usb_local=True)
+    assert "https://localhost:49322/client" in url
+    assert "8080" not in url
+    assert "serverIP=127.0.0.1" in url
+    assert "port=49322" in url
+
+
+def test_build_teleop_url_host_client_uses_resolved_proxy_host_and_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cloudxr_py_test_ns.oob_teleop_adb import build_teleop_url
+
+    monkeypatch.delenv("TELEOP_WEB_CLIENT_BASE", raising=False)
+    monkeypatch.setenv("PROXY_PORT", "48322")
+    monkeypatch.setenv("TELEOP_PROXY_HOST", "proxy.example.test")
+    monkeypatch.setattr(
+        "cloudxr_py_test_ns.oob_teleop_env.guess_lan_ipv4",
+        lambda: "10.0.0.2",
+    )
+    url = build_teleop_url(resolved_port=49322, host_client=True)
+    assert "https://proxy.example.test:49322/client" in url
+    assert "serverIP=proxy.example.test" in url
+    assert "10.0.0.2" not in url
+    assert "port=49322" in url
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+def test_setup_adb_reverse_ports_uses_resolved_proxy_port(
+    mock_run: MagicMock, _mock_state: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """adb reverse uses the listener port, not a conflicting environment value."""
+    from cloudxr_py_test_ns.oob_teleop_adb import setup_adb_reverse_ports
+    from cloudxr_py_test_ns.oob_teleop_env import USB_BACKEND_DEFAULT_PORT
+
+    monkeypatch.setenv("PROXY_PORT", "48322")
+    monkeypatch.delenv("USB_BACKEND_PORT", raising=False)
+    mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+    setup_adb_reverse_ports(49322)
+    ports = [
+        call.args[0][2].removeprefix("tcp:")
+        for call in mock_run.call_args_list
+        if call.args and call.args[0][:2] == ["adb", "reverse"]
+    ]
+    assert ports == ["49322", str(USB_BACKEND_DEFAULT_PORT)]
+    assert "8080" not in ports
+
+
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+def test_teardown_adb_reverse_ports_uses_resolved_proxy_port(
+    mock_run: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cloudxr_py_test_ns.oob_teleop_adb import teardown_adb_reverse_ports
+    from cloudxr_py_test_ns.oob_teleop_env import USB_BACKEND_DEFAULT_PORT
+
+    monkeypatch.setenv("PROXY_PORT", "48322")
+    monkeypatch.delenv("USB_BACKEND_PORT", raising=False)
+    teardown_adb_reverse_ports(49322)
+    assert [call.args[0] for call in mock_run.call_args_list] == [
+        ["adb", "reverse", "--remove", "tcp:49322"],
+        ["adb", "reverse", "--remove", f"tcp:{USB_BACKEND_DEFAULT_PORT}"],
+    ]
+
+
 @patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
 @patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_setup_adb_reverse_ports_wraps_called_process_error(
