@@ -7,6 +7,7 @@ import asyncio
 import errno
 import json
 import logging
+import mimetypes
 import os
 from http import HTTPStatus
 from urllib.parse import unquote, urlparse
@@ -366,7 +367,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 b"Not found",
             )
 
-        # Static web client (--host-client): index.html + two JS bundles.
+        # Static web client (--host-client).
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
         ):
@@ -388,7 +389,9 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 "bundle.emulator.js": "application/javascript; charset=utf-8",
             }
             tail = path[len("/client") :].lstrip("/") or "index.html"
-            if tail not in _MIME:
+            if tail not in _MIME and not tail.startswith(
+                "npm/@webxr-input-profiles/assets@"
+            ):
                 return Response(
                     404,
                     "Not Found",
@@ -404,6 +407,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                     Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
                     b"Not found",
                 )
+            content_type = _MIME.get(tail) or mimetypes.guess_type(tail)[0]
             return Response(
                 200,
                 "OK",
@@ -411,7 +415,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 # the static response body explicitly for headset browsers.
                 Headers(
                     {
-                        "Content-Type": _MIME[tail],
+                        "Content-Type": content_type or "application/octet-stream",
                         "Content-Length": str(len(body)),
                         **CORS_HEADERS,
                     }

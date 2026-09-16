@@ -132,7 +132,7 @@ def make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> Magic
 
 @contextmanager
 def mock_service_deps(tmp_path, ready=True, wss=True):
-    """Patch the heavy dependencies so CloudXRService construction runs without I/O.
+    """Patch process and network dependencies for isolated service construction.
 
     Yields a dict of the mock objects for assertion.  Pass ``wss=False`` to
     leave ``_start_wss_proxy_thread`` real, for tests about the proxy's own
@@ -143,6 +143,10 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
     run_dir = str(tmp_path / "run")
     logs_dir = tmp_path / "logs"
     fake_cfg = FakeEnvConfig(run_dir, logs_dir)
+    static_dir = tmp_path / "static-client"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    (static_dir / "index.html").write_text("<!doctype html>", encoding="utf-8")
+    (static_dir / "bundle.js").write_text("// test bundle", encoding="utf-8")
 
     mock_proc = make_mock_popen()
     wss_patch = (
@@ -165,6 +169,10 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
             return_value=ready,
         ) as m_wait,
         patch(
+            "isaaccapture.cloudxr.oob_teleop_env.require_web_client_static_dir",
+            return_value=static_dir,
+        ) as m_static_client,
+        patch(
             "isaaccapture.cloudxr.service._service.subprocess.Popen",
             return_value=mock_proc,
         ) as m_popen,
@@ -180,6 +188,7 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
         mocks["from_args"] = m_from_args
         mocks["check_eula"] = m_eula
         mocks["wait"] = m_wait
+        mocks["static_client"] = m_static_client
         mocks["popen"] = m_popen
         mocks["proc"] = mock_proc
         mocks["wss"] = m_wss

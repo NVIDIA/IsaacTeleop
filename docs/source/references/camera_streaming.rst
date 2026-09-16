@@ -339,10 +339,10 @@ serving. Useful flags:
 When the viewer starts a CloudXR service with hosting enabled (the default;
 ``--no-host-client`` disables it), it prints the local ``/client/`` URL. To
 inspect or stop an already-running service, activate the example venv (or any
-environment with ``isaacteleop``) and run::
+environment with ``isaaccapture``) and run::
 
-   python -m isaacteleop.cloudxr.service status
-   python -m isaacteleop.cloudxr.service stop
+   python -m isaaccapture.cloudxr.service status
+   python -m isaaccapture.cloudxr.service stop
 
 Run ``camera_viz.py --help`` for the rest (install dir, env-config file, WSS proxy toggle).
 

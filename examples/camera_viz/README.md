@@ -67,8 +67,8 @@ stop an already-running service from the example venv:
 
 ```bash
 source .venv/bin/activate
-python -m isaacteleop.cloudxr.service status
-python -m isaacteleop.cloudxr.service stop
+python -m isaaccapture.cloudxr.service status
+python -m isaaccapture.cloudxr.service stop
 ```
 
 (`service-status` / `service-logs` / `service-restart` are for the robot RTP unit from `deploy`, not CloudXR.)
