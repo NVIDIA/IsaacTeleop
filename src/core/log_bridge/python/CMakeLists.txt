@@ -8,6 +8,12 @@ pybind11_add_module(log_bridge_py
 
 target_link_libraries(log_bridge_py PRIVATE log_bridge::log_bridge_core)
 
+if(BUILD_TESTING)
+    target_compile_definitions(log_bridge_py PRIVATE
+        ISAACTELEOP_LOG_BRIDGE_TESTING
+    )
+endif()
+
 set_target_properties(log_bridge_py PROPERTIES
     OUTPUT_NAME "_log_bridge"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/log_bridge"
