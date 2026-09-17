@@ -1228,19 +1228,23 @@ void ManusTracker::inject_hand_data()
 {
     std::vector<SkeletonNode> left_nodes;
     std::vector<SkeletonNode> right_nodes;
+    std::array<std::chrono::steady_clock::time_point, 2> skeleton_stamps;
 
     {
         std::lock_guard<std::mutex> lock(m_skeleton_mutex);
         left_nodes = m_left_hand_nodes;
         right_nodes = m_right_hand_nodes;
+        skeleton_stamps = m_skeleton_stamps;
     }
 
     // Get current XrTime from the system monotonic clock
     XrTime time = m_time_converter->os_monotonic_now();
+    const auto now = std::chrono::steady_clock::now();
 
-    auto process_hand = [&](const std::vector<SkeletonNode>& nodes, bool is_left)
+    auto process_hand =
+        [&](const std::vector<SkeletonNode>& nodes, std::chrono::steady_clock::time_point stamp, bool is_left)
     {
-        if (nodes.empty())
+        if (!has_current_usable_skeleton(nodes, stamp, now))
         {
             return;
         }
@@ -1360,8 +1364,8 @@ void ManusTracker::inject_hand_data()
         }
     };
 
-    process_hand(left_nodes, true);
-    process_hand(right_nodes, false);
+    process_hand(left_nodes, skeleton_stamps[0], true);
+    process_hand(right_nodes, skeleton_stamps[1], false);
 }
 
 } // namespace manus
