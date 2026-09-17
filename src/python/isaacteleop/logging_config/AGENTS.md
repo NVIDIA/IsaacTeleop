@@ -51,11 +51,34 @@ receiver; every process that inherits the variable gets a forwarding handler
 
 ## Native fd capture
 
-`_native_fd.py` redirects fds 1 and 2 into files, never pipes. A pipe blocks
-writes past its 64 KiB capacity until a reader drains it, and a drain thread in
-this process needs the GIL while the native call doing the writing holds it —
-the two deadlock. A write to a file needs nothing else to run. Do not
-"simplify" this back to a pipe.
+`_native_fd.py` handles output that no logger can reach: the CloudXR/Monado
+OpenXR runtime and the Manus SDK write formatted lines straight to fd 1/2 and
+export no log hook, so the descriptor is the only seam.
+
+- **Never redirect fd 1 or fd 2 outside a scope.** A library must not alter its
+  host process's descriptors. `install()` opens the capture file and publishes
+  its path; it does *not* `dup2`. Rebinding happens only inside
+  `_native_fd.scoped()` — which `capture_native_output()` exposes and which
+  `TeleopSession` wraps around native construction and teardown — or in mode
+  `process`, which a host has to ask for explicitly. Reinstating an import-time,
+  process-wide redirection is the specific regression this module was rewritten
+  to remove.
+- **Capture files, never pipes.** A pipe blocks writes past its 64 KiB capacity
+  until a reader drains it, and a drain thread in this process needs the GIL
+  while the native call doing the writing holds it — `oxr_bindings.cpp` releases
+  none, so the two deadlock. A write to a file needs nothing else to run. Do not
+  "simplify" this back to a pipe. The same reasoning rules out a pty.
+- **A process isaacteleop launches is not the host.** Its descriptors are ours
+  to point at the capture file, and that is how out-of-process vendor output is
+  kept off the terminal without touching the host: `plugin.cpp` opens
+  `ISAACTELEOP_NATIVE_CAPTURE_FILE` between `fork()` and `execvp()`, and the
+  Python spawn sites pass `_native_fd.capture_fd()`.
+- **The published path is part of the contract.** `ISAACTELEOP_NATIVE_CAPTURE_FILE`
+  is read by C++ that cannot re-derive the name (it carries a timestamp and the
+  leader's pid). Change the name or the format in both halves at once.
+- **fd 1/2 are left closed if the host left them closed.** `_move_above_std()`
+  relocates our own descriptors clear of 0/1/2 rather than pinning `/dev/null`
+  onto a closed std fd, which would itself be a change to the host's state.
 
 ## Related
 

@@ -36,9 +36,11 @@ def install() -> None:
         # Not this process's own console handler/level: it has none anymore,
         # only the leader does. ISAACTELEOP_LOG_LEVEL is the existing
         # mechanism for propagating the leader's current console threshold to
-        # out-of-process code (set_console_level()); native fd 2 spew can
+        # out-of-process code (set_console_level()); raw fd 1/2 spew can
         # never be forwarded (it bypasses this logger tree entirely), so
-        # gating it in this process still has to key off that same variable.
+        # deciding whether to echo it in this process still has to key off
+        # that same variable. gate() opens the capture file and sets that
+        # echo policy; it does not rebind any descriptor.
         env_level_name = os.environ.get("ISAACTELEOP_LOG_LEVEL")
         env_level = (
             _LEVEL_NAMES.get(env_level_name.lower(), logging.INFO)

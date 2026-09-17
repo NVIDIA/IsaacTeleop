@@ -1,28 +1,83 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Capture of raw fd 1 / fd 2 writes that never reach the logger tree."""
+"""Capture of raw fd 1 / fd 2 writes that never reach the logger tree.
+
+A library must not alter its host process's descriptors. This module therefore
+does **not** redirect fd 1 and fd 2 at import; it opens a capture file, tells
+every process this session spawns where that file is, and rebinds the host's
+own descriptors only inside an explicitly entered scope
+(:func:`scoped`) that isaacteleop wraps around the native calls known to emit
+non-logger diagnostics. Outside that scope the host owns its descriptors
+exactly as it did before ``import isaacteleop``.
+
+Three modes, selected by ``ISAACTELEOP_NATIVE_CAPTURE`` and overridable with
+:func:`set_mode`:
+
+``scoped`` (default)
+    fd 1 / fd 2 are rebound only for the duration of a :func:`scoped` block and
+    restored on the way out.
+``off``
+    :func:`scoped` is a no-op in this process; native diagnostics go wherever
+    the host's descriptors already point. Child processes isaacteleop launches
+    still get the capture file, because those descriptors are not the host's.
+``process``
+    The pre-existing behaviour, now opt-in: fd 1 / fd 2 are rebound once, for
+    the life of the process, at :func:`gate` time.
+"""
 
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
 import os
 import sys
 import threading
 import time
+from collections.abc import Iterator
 from typing import TextIO
 
 from ._core import TRACE, ensure_log_dir
 
 _FD_LABELS = {1: "stdout", 2: "stderr"}
 
-# Duplicates of the real fd 1 / fd 2, kept so Python's own output still reaches
-# the terminal after both descriptors are pointed at the capture file.
-_saved: dict[int, TextIO] = {}
+#: Absolute path of this session's capture file, published so that a fork+exec'd
+#: child with no interpreter (``core/plugin_manager/cpp/plugin.cpp``) can open it
+#: for itself with nothing but ``getenv`` and an async-signal-safe ``open``.
+CAPTURE_FILE_ENV = "ISAACTELEOP_NATIVE_CAPTURE_FILE"
+
+#: ``off`` / ``scoped`` / ``process``; see the module docstring.
+CAPTURE_MODE_ENV = "ISAACTELEOP_NATIVE_CAPTURE"
+
+MODE_OFF = "off"
+MODE_SCOPED = "scoped"
+MODE_PROCESS = "process"
+_MODES = (MODE_OFF, MODE_SCOPED, MODE_PROCESS)
+
+_lock = threading.RLock()
+
+_mode: str | None = None
 _sink_path: str | None = None
+_sink_fd: int | None = None
+
+# Descriptors that keep pointing at whatever fd 1 / fd 2 pointed at when the
+# innermost scope was entered. Two per captured descriptor on purpose: one raw
+# duplicate used to dup2() the original back, and one that a permanent
+# TextIOWrapper owns, so entering a second scope can refresh both with dup2()
+# onto the *same* descriptor numbers instead of allocating and closing -- which
+# would invalidate a wrapper the interpreter may still hold a reference to.
+_saved_raw: dict[int, int] = {}
+_saved_stream_fd: dict[int, int] = {}
+_saved: dict[int, TextIO] = {}
+
+_depth = 0
+_pre_scope_streams: dict[int, TextIO | None] = {}
+_pre_scope_handler_stream: TextIO | None = None
+
 _mirror_thread: threading.Thread | None = None
 _echo = False
+_echo_override: bool | None = None
 
 
 def _write_all(fd: int, data: bytes) -> None:
@@ -34,9 +89,9 @@ def _write_all(fd: int, data: bytes) -> None:
 def _mirror(sink_path: str) -> None:
     """Tail the capture file onto the terminal while echo is on.
 
-    Onto fd 2's duplicate, which is where the console handler writes too, so
-    mirrored vendor text and formatted records share one stream exactly as they
-    would have on an unredirected terminal.
+    Onto the duplicate of fd 2, which is where the console handler writes too,
+    so mirrored vendor text and formatted records share one stream exactly as
+    they would have on an unredirected terminal.
 
     A convenience, never a step a writer waits on: the bytes reach the file
     without this thread, so falling behind loses nothing. The tail starts at
@@ -51,9 +106,9 @@ def _mirror(sink_path: str) -> None:
                 if not chunk:
                     time.sleep(0.05)
                     continue
-                saved = _saved.get(2)
-                if _echo and saved is not None:
-                    _write_all(saved.fileno(), chunk)
+                target = _saved_stream_fd.get(2)
+                if _echo and target is not None:
+                    _write_all(target, chunk)
     except OSError:
         pass
 
@@ -62,10 +117,10 @@ def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
     """Remove a capture file nothing ever wrote to.
 
     Most processes that import isaacteleop emit no raw fd 1/2 output at all,
-    and the file has to exist before the first byte can land in it, so without
-    this every one of them leaves a pair of empty logs behind. Only the creator
-    may unlink: a fork inherits this registration along with a descriptor still
-    open on the file.
+    and the file has to exist before the first byte can land in it -- and
+    before its path can be handed to a child -- so without this every one of
+    them leaves an empty log behind. Only the creator may unlink: a fork
+    inherits this registration along with a descriptor still open on the file.
     """
     if os.getpid() != owner_pid:
         return
@@ -76,24 +131,155 @@ def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
         pass
 
 
-def _reserve_std_fds() -> None:
-    """Make sure fds 1 and 2 are open before any allocation below.
+def mode() -> str:
+    """Which of ``off`` / ``scoped`` / ``process`` this process is in.
 
-    os.open() hands out the lowest free descriptor. If this process was started
-    with stdout or stderr closed -- daemons do exactly that -- the capture file
-    lands *on* the number we are about to dup2() over, and the duplicate meant
-    to keep the terminal reachable ends up pointing at the capture file
-    instead. Attaching /dev/null to a closed std fd first keeps every
-    allocation clear of the two descriptors this module rebinds.
+    Read from ``ISAACTELEOP_NATIVE_CAPTURE`` on first use and cached, so a
+    child inherits the host's choice; an unrecognised value falls back to
+    ``scoped`` rather than failing an import.
     """
-    for std in (1, 2):
+    global _mode
+    if _mode is None:
+        requested = (os.environ.get(CAPTURE_MODE_ENV) or "").strip().lower()
+        _mode = requested if requested in _MODES else MODE_SCOPED
+    return _mode
+
+
+def set_mode(new_mode: str) -> None:
+    """Override :func:`mode` for this process and every child it spawns.
+
+    Raises:
+        ValueError: if *new_mode* is not one of ``off``/``scoped``/``process``.
+    """
+    global _mode
+    if new_mode not in _MODES:
+        raise ValueError(f"mode must be one of {_MODES}, got {new_mode!r}")
+    _mode = new_mode
+    os.environ[CAPTURE_MODE_ENV] = new_mode
+
+
+def _move_above_std(fd: int) -> int:
+    """*fd*, relocated clear of 0/1/2 if the kernel handed us one of them.
+
+    ``os.open`` returns the lowest free descriptor, so a process started with
+    fd 1 or fd 2 closed -- daemons do exactly that -- gets the capture file
+    *on* the number this module is about to rebind. Relocating is preferable to
+    the usual trick of pinning ``/dev/null`` onto the closed descriptor first,
+    which would itself be a change to the host's descriptors; here fd 1 and
+    fd 2 are left closed, exactly as the host left them.
+    """
+    low: list[int] = []
+    while fd <= 2:
+        low.append(fd)
+        fd = os.dup(fd)
+    for spare in low:
+        os.close(spare)
+    return fd
+
+
+def ensure_sink() -> str | None:
+    """Open this session's capture file once and publish its path; idempotent.
+
+    Returns the path, or ``None`` if the file could not be created -- in which
+    case nothing is captured anywhere and every descriptor is left alone, which
+    is the correct failure for a facility that runs from ``import isaacteleop``.
+
+    One file for both descriptors, not one each. A terminal shows no difference
+    between them, so splitting them buys a distinction the operator never had,
+    at the cost of two files per process and, worse, of the interleaving: with
+    separate files the order of a vendor's stdout line relative to its stderr
+    line is lost, which is exactly the ordering a reader needs to follow a
+    failure. Merging keeps the byte stream a terminal would have shown. The
+    price is that a reader can no longer tell which descriptor a line arrived
+    on, and a shell redirect can no longer separate them after the fact.
+
+    A file, never a pipe. A pipe refuses writes past 64 KiB until a reader
+    empties it, and a reader in this process needs the GIL between reads while
+    the native call doing the writing holds it -- ``oxr_bindings.cpp`` releases
+    none -- so the two deadlock. A write to a file needs nothing else to run.
+    """
+    global _sink_path, _sink_fd
+    if _sink_path is not None:
+        return _sink_path
+    with _lock:
+        if _sink_path is not None:
+            return _sink_path
         try:
-            os.fstat(std)
+            directory = ensure_log_dir()
         except OSError:
-            opened = os.open(os.devnull, os.O_WRONLY)
-            if opened != std:
-                os.dup2(opened, std)
-                os.close(opened)
+            return None
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        path = str(directory / f"{timestamp}.isaacteleop.{os.getpid()}.native.log")
+        try:
+            fd = os.open(
+                path,
+                # O_NOFOLLOW guards a shared directory against a planted symlink; it
+                # does not exist on Windows, whose temp directory is per-user anyway.
+                # O_EXCL covers what it does not: a plain file someone else created
+                # and still owns would be appended to, handing them this process's
+                # captured output. ensure_log_dir() already makes that unreachable
+                # for the default 0700 per-uid path, but an operator's
+                # ISAACTELEOP_LOG_DIR keeps whatever permissions it came with and
+                # only has to be *owned* by us, so a world-writable one passes.
+                # Nothing legitimately collides: the name carries the timestamp and
+                # the pid, and this runs once per process.
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | os.O_APPEND
+                | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+        except OSError:
+            return None  # leave every descriptor alone rather than fail the import
+        _sink_fd = _move_above_std(fd)
+        _sink_path = path
+        # Published, not derived: a fork+exec'd child cannot re-derive the
+        # timestamp or the leader's pid, and the C++ side must open *this* file
+        # rather than start one of its own.
+        os.environ[CAPTURE_FILE_ENV] = path
+        atexit.register(_discard_if_empty, path, os.getpid())
+        return _sink_path
+
+
+def capture_path() -> str | None:
+    """Path of this session's capture file, or ``None`` if there is none yet."""
+    return _sink_path
+
+
+def capture_fd() -> int | None:
+    """An open, append-mode descriptor on the capture file, or ``None``.
+
+    Handed to ``subprocess`` as ``stdout=``/``stderr=`` at the sites where
+    isaacteleop launches a process of its own. Never closed by the caller: it
+    belongs to this module for the life of the process.
+    """
+    ensure_sink()
+    return _sink_fd
+
+
+def _ensure_saved_slots() -> list[int]:
+    """Reserve the per-descriptor spare slots; return the descriptors to capture.
+
+    A descriptor the host started with closed is skipped rather than opened
+    onto ``/dev/null``: it emits nothing, and pinning something to it would be
+    precisely the change to the host's descriptors this module exists to avoid.
+    """
+    capturable = []
+    for fd in _FD_LABELS:
+        if fd in _saved_raw:
+            capturable.append(fd)
+            continue
+        try:
+            raw = _move_above_std(os.dup(fd))
+        except OSError:
+            continue  # closed, or otherwise not duplicable; nothing to capture
+        stream_fd = _move_above_std(os.dup(fd))
+        _saved_raw[fd] = raw
+        _saved_stream_fd[fd] = stream_fd
+        _saved[fd] = os.fdopen(stream_fd, "w", buffering=1, closefd=False)
+        capturable.append(fd)
+    return capturable
 
 
 def _follows(stream: TextIO | None, fd: int) -> bool:
@@ -110,99 +296,125 @@ def _follows(stream: TextIO | None, fd: int) -> bool:
         return False
 
 
-def _capture(console_handler: logging.StreamHandler) -> None:
-    """Point fd 1 and fd 2 at one capture file; idempotent.
-
-    Native code -- the CloudXR/Monado OpenXR runtime above all -- writes its
-    diagnostics straight to fd 1/2 and cannot be routed into this logger tree:
-    it exports no log hook and does not implement ``XR_EXT_debug_utils``, so
-    the descriptor is the only seam. What comes out is raw text rather than
-    records, hence a file separate from the handler-formatted one.
-
-    One file for both descriptors, not one each. A terminal shows no difference
-    between them -- the tty has no idea which descriptor a byte came from -- so
-    splitting them buys a distinction the operator never had, at the cost of
-    two files per process and, worse, of the interleaving: with separate files
-    the order of a vendor's stdout line relative to its stderr line is lost,
-    which is exactly the ordering a reader needs to follow a failure. Merging
-    keeps the byte stream a terminal would have shown. The price is that a
-    reader can no longer tell which descriptor a line arrived on, and a shell
-    redirect can no longer separate them after the fact.
-
-    A file, never a pipe. A pipe refuses writes past 64 KiB until a reader
-    empties it, and a reader in this process needs the GIL between reads while
-    the native call doing the writing holds it -- ``oxr_bindings.cpp`` releases
-    none -- so the two deadlock. A write to a file needs nothing else to run.
-
-    ``sys.stdout``/``sys.stderr`` are moved onto duplicates of the real
-    descriptors instead of following them -- as is the console handler's
-    stream, bound to whatever ``sys.stderr`` was when it was built -- so
-    ``print()``, ``print(file=sys.stderr)``, and uncaught tracebacks stay on the
-    terminal. Without this, ordinary ``print()`` calls would vanish into the
-    capture file along with the native library's own writes, since Python
-    cannot tell the two apart at the fd level. Processes forked afterwards
-    inherit the redirection; the C++ console sink writes through its own fd 1
-    handle taken before this runs, and the file rotation handler writes through
-    a plain file object, so neither is affected.
+def _begin(console_handler: logging.StreamHandler | None) -> None:
+    """Point fd 1 and fd 2 at the capture file and keep Python's streams on the
+    terminal. Callers hold ``_lock``; :func:`_end` undoes exactly this.
     """
-    global _sink_path
-    if _sink_path is not None:
+    global _pre_scope_handler_stream
+    sink = capture_fd()
+    if sink is None:
         return
-    _reserve_std_fds()
-    directory = ensure_log_dir()
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    sink_path = str(directory / f"{timestamp}.isaacteleop.{os.getpid()}.native.log")
-    try:
-        sink_fd = os.open(
-            sink_path,
-            # O_NOFOLLOW guards a shared directory against a planted symlink; it
-            # does not exist on Windows, whose temp directory is per-user anyway.
-            # O_EXCL covers what it does not: a plain file someone else created
-            # and still owns would be appended to, handing them this process's
-            # captured output. ensure_log_dir() already makes that unreachable
-            # for the default 0700 per-uid path, but an operator's
-            # ISAACTELEOP_LOG_DIR keeps whatever permissions it came with and
-            # only has to be *owned* by us, so a world-writable one passes.
-            # Nothing legitimately collides: the name carries the timestamp and
-            # the pid, and this runs once per process.
-            os.O_WRONLY
-            | os.O_CREAT
-            | os.O_EXCL
-            | os.O_APPEND
-            | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
-        )
-    except OSError:
-        return  # leave the descriptors on the terminal rather than fail the import
+    capturable = _ensure_saved_slots()
+    if not capturable:
+        return
 
-    # Both duplicates taken before either dup2, or the second save would
-    # duplicate the capture file instead of the terminal.
-    for fd in _FD_LABELS:
-        _saved[fd] = os.fdopen(os.dup(fd), "w", buffering=1)
-    for fd in _FD_LABELS:
-        os.dup2(sink_fd, fd)
-    os.close(sink_fd)
-    _sink_path = sink_path
+    # Refreshed, not taken once: between two scopes the host is free to rebind
+    # its own fd 1 / fd 2, and dup2 onto the existing slot updates what the
+    # restore will put back without invalidating the wrapper built on it.
+    for fd in capturable:
+        os.dup2(fd, _saved_raw[fd])
+        os.dup2(fd, _saved_stream_fd[fd])
+    for fd in capturable:
+        os.dup2(sink, fd)
 
-    if _follows(sys.stdout, 1):
+    # ``print()``, ``print(file=sys.stderr)`` and uncaught tracebacks stay on the
+    # terminal: the stream objects are moved onto the duplicates rather than
+    # following the descriptors. Without this the host application's own output
+    # would vanish into the capture file for the length of the scope, since
+    # Python cannot tell it apart from the native library's writes at the fd
+    # level.
+    _pre_scope_streams.clear()
+    _pre_scope_handler_stream = None
+    if 1 in _saved and _follows(sys.stdout, 1):
+        _pre_scope_streams[1] = sys.stdout
         sys.stdout = _saved[1]
-    if _follows(sys.stderr, 2):
+    if 2 in _saved and _follows(sys.stderr, 2):
+        _pre_scope_streams[2] = sys.stderr
         sys.stderr = _saved[2]
-    if _follows(console_handler.stream, 2):
+    if (
+        console_handler is not None
+        and 2 in _saved
+        and _follows(console_handler.stream, 2)
+    ):
+        _pre_scope_handler_stream = console_handler.stream
         console_handler.setStream(_saved[2])
-    atexit.register(_discard_if_empty, sink_path, os.getpid())
+
+
+def _end(console_handler: logging.StreamHandler | None) -> None:
+    """Put fd 1, fd 2 and Python's streams back exactly as :func:`_begin` found
+    them. Callers hold ``_lock``.
+    """
+    global _pre_scope_handler_stream
+    for fd, saved in _saved_raw.items():
+        try:
+            os.dup2(saved, fd)
+        except OSError:
+            pass
+    if 1 in _pre_scope_streams:
+        sys.stdout = _pre_scope_streams[1]
+    if 2 in _pre_scope_streams:
+        sys.stderr = _pre_scope_streams[2]
+    if console_handler is not None and _pre_scope_handler_stream is not None:
+        console_handler.setStream(_pre_scope_handler_stream)
+    _pre_scope_streams.clear()
+    _pre_scope_handler_stream = None
+
+
+@contextlib.contextmanager
+def scoped(
+    console_handler: logging.StreamHandler | None = None,
+) -> Iterator[str | None]:
+    """Route raw fd 1 / fd 2 writes into the capture file for this block only.
+
+    Yields the capture file's path, or ``None`` when nothing is being captured
+    -- mode ``off``, no writable log directory, or a process already in mode
+    ``process``, where the descriptors are rebound for good and this block has
+    nothing left to do.
+
+    Reentrant: nested blocks, and blocks entered concurrently on two threads,
+    share one redirection and restore it when the last of them leaves.
+
+    The honest cost, stated once here because it cannot be designed away: a
+    descriptor is process-wide. For the length of this block, a *raw* fd 1/2
+    write by any other thread of the host process -- and the stdio of any
+    process the host spawns inside it -- lands in the capture file too. Python
+    stream writes (``print``, ``sys.stderr.write``) are exempt because the
+    stream objects are moved aside; only writers that bypass them are affected.
+    isaacteleop therefore keeps these blocks around native construction and
+    teardown rather than around a whole session, and a host that will not
+    accept even that sets ``ISAACTELEOP_NATIVE_CAPTURE=off``.
+    """
+    global _depth
+    if mode() != MODE_SCOPED:
+        yield capture_path() if mode() == MODE_PROCESS else None
+        return
+    with _lock:
+        if _depth == 0:
+            _begin(console_handler)
+        _depth += 1
+        path = _sink_path
+    try:
+        yield path
+    finally:
+        with _lock:
+            _depth -= 1
+            if _depth == 0:
+                sys.stdout.flush()
+                sys.stderr.flush()
+                _end(console_handler)
 
 
 def _start_mirror() -> None:
     """Start the tail thread once, on the first gate that asks for echo.
 
-    Not started alongside the capture: ``set_console_level`` can drop to
+    Not started alongside the capture file: ``set_console_level`` can drop to
     ``TRACE`` at any point, and a session that never does should not carry the
     thread.
     """
     global _mirror_thread
     if _mirror_thread is not None or _sink_path is None:
         return
+    _ensure_saved_slots()
     _mirror_thread = threading.Thread(
         target=_mirror,
         args=(_sink_path,),
@@ -212,18 +424,40 @@ def _start_mirror() -> None:
     _mirror_thread.start()
 
 
-def gate(level: int, console_handler: logging.StreamHandler) -> None:
-    """Always capture fd 1 + fd 2 to file; mirror to the terminal only at ``TRACE``.
+def set_echo(enabled: bool | None) -> None:
+    """Force the terminal mirror on/off, or follow the console level again.
 
-    Both descriptors, not just fd 2: the CloudXR runtime worker used to
-    ``dup2`` fd 1 to ``/dev/null`` and fd 2 to its own separate,
-    never-mirrored file (``cloudxr/runtime.py``, removed) precisely because
-    nothing here covered fd 1 -- covering both closes that gap and the fd 2
-    race it created (two independent redirects of the same descriptor in one
-    process).
+    ``None`` restores the default, which is to mirror exactly when the console
+    threshold is ``TRACE`` -- see :func:`gate`.
     """
-    global _echo
-    _capture(console_handler)
-    _echo = level <= TRACE
+    global _echo_override, _echo
+    _echo_override = None if enabled is None else bool(enabled)
+    if _echo_override:
+        ensure_sink()
+        _echo = True
+        _start_mirror()
+    elif _echo_override is False:
+        _echo = False
+
+
+def gate(level: int, console_handler: logging.StreamHandler) -> None:
+    """Open the capture file, and decide whether it is also mirrored live.
+
+    Captured output is *always* persisted; the console threshold only decides
+    whether it is additionally echoed to the terminal, at ``TRACE``. What
+    changed relative to earlier revisions is what this does *not* do: it no
+    longer rebinds the host's fd 1 and fd 2. Only mode ``process``, which a host
+    must ask for, still does that.
+    """
+    global _echo, _depth
+    if mode() == MODE_OFF:
+        return
+    ensure_sink()
+    if mode() == MODE_PROCESS:
+        with _lock:
+            if _depth == 0:
+                _begin(console_handler)
+                _depth = 1
+    _echo = _echo_override if _echo_override is not None else level <= TRACE
     if _echo:
         _start_mirror()

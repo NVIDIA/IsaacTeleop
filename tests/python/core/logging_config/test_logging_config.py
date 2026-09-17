@@ -415,34 +415,143 @@ def test_forwarding_is_disabled_without_unix_sockets(monkeypatch):
     assert not hasattr(_forwarding, "ThreadingUnixStreamServer")
 
 
+@pytest.fixture
+def _fresh_capture(monkeypatch, tmp_path):
+    """A capture file under *tmp_path*, with this module's state wound back.
+
+    The module memoises the sink, the saved duplicates and the mode for the life
+    of the process, and the test process has already installed once.
+    """
+    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
+    monkeypatch.setattr(_native_fd, "_sink_path", None)
+    monkeypatch.setattr(_native_fd, "_sink_fd", None)
+    monkeypatch.setattr(_native_fd, "_saved_raw", {})
+    monkeypatch.setattr(_native_fd, "_saved_stream_fd", {})
+    monkeypatch.setattr(_native_fd, "_saved", {})
+    monkeypatch.setattr(_native_fd, "_pre_scope_streams", {})
+    monkeypatch.setattr(_native_fd, "_depth", 0)
+    monkeypatch.setattr(_native_fd, "_mode", _native_fd.MODE_SCOPED)
+    yield tmp_path
+
+
 @_posix_only
-def test_native_capture_is_one_file_carrying_both_descriptors(monkeypatch, tmp_path):
+def test_native_capture_is_one_file_carrying_both_descriptors(_fresh_capture):
     """fd 1 and fd 2 are indistinguishable on a terminal, so they share a file
     here. Splitting them would cost the interleaving without buying a
     distinction the operator ever had.
     """
-    monkeypatch.setenv("ISAACTELEOP_LOG_DIR", str(tmp_path))
-    monkeypatch.setattr(_native_fd, "_sink_path", None)
-    monkeypatch.setattr(_native_fd, "_saved", {})
-    saved_out, saved_err = os.dup(1), os.dup(2)
-    try:
-        _native_fd.gate(logging.INFO, _console.ensure_handler())
+    with _native_fd.scoped(_console.ensure_handler()):
         os.write(1, b"from-stdout\n")
         os.write(2, b"from-stderr\n")
         os.write(1, b"stdout-again\n")
-    finally:
-        os.dup2(saved_out, 1)
-        os.dup2(saved_err, 2)
-        os.close(saved_out)
-        os.close(saved_err)
 
-    captures = list(tmp_path.glob("*.native.log"))
+    captures = list(_fresh_capture.glob("*.native.log"))
     assert len(captures) == 1, captures
     assert captures[0].read_text().splitlines() == [
         "from-stdout",
         "from-stderr",
         "stdout-again",
     ]
+
+
+@_posix_only
+def test_capture_is_confined_to_the_scope_and_restores_the_descriptors(
+    _fresh_capture,
+):
+    """The requirement this module exists to satisfy: a library must not alter
+    its host process's descriptors. Before and after the block, fd 1 and fd 2
+    point at whatever the host had them pointing at; only inside it do raw
+    writes divert.
+    """
+    before = [os.fstat(fd)[:2] for fd in (1, 2)]
+    os.write(1, b"outside-before\n")
+    with _native_fd.scoped(_console.ensure_handler()):
+        os.write(1, b"inside\n")
+        os.write(2, b"inside-err\n")
+    os.write(1, b"outside-after\n")
+    assert [os.fstat(fd)[:2] for fd in (1, 2)] == before
+
+    captures = list(_fresh_capture.glob("*.native.log"))
+    assert len(captures) == 1, captures
+    assert captures[0].read_text().splitlines() == ["inside", "inside-err"]
+
+
+@_posix_only
+def test_scopes_nest_and_only_the_outermost_restores(_fresh_capture):
+    """Reentrancy is not a convenience: TeleopSession enters a scope around a
+    construction that itself calls into code entering one.
+    """
+    before = [os.fstat(fd)[:2] for fd in (1, 2)]
+    handler = _console.ensure_handler()
+    with _native_fd.scoped(handler):
+        with _native_fd.scoped(handler):
+            os.write(1, b"inner\n")
+        # Still captured: the inner exit must not hand the descriptors back.
+        os.write(1, b"outer\n")
+    assert [os.fstat(fd)[:2] for fd in (1, 2)] == before
+
+    captures = list(_fresh_capture.glob("*.native.log"))
+    assert captures[0].read_text().splitlines() == ["inner", "outer"]
+
+
+@_posix_only
+def test_capture_mode_off_leaves_the_descriptors_alone_entirely(
+    _fresh_capture, monkeypatch
+):
+    """``off`` is the escape hatch for a host that will not accept even a
+    scoped, bounded redirection. Nothing is captured and nothing is persisted.
+    """
+    monkeypatch.setattr(_native_fd, "_mode", _native_fd.MODE_OFF)
+    read_fd, write_fd = os.pipe()
+    saved = os.dup(1)
+    try:
+        os.dup2(write_fd, 1)
+        with _native_fd.scoped(_console.ensure_handler()) as path:
+            assert path is None
+            os.write(1, b"not-captured\n")
+        os.dup2(saved, 1)
+    finally:
+        os.close(saved)
+        os.close(write_fd)
+    assert os.read(read_fd, 64) == b"not-captured\n"
+    os.close(read_fd)
+    assert list(_fresh_capture.glob("*.native.log")) == []
+
+
+@_posix_only
+def test_capture_mode_process_rebinds_for_the_whole_process(
+    _fresh_capture, monkeypatch
+):
+    """The old behaviour is still reachable, now only on request."""
+    monkeypatch.setattr(_native_fd, "_mode", _native_fd.MODE_PROCESS)
+    saved_out, saved_err = os.dup(1), os.dup(2)
+    try:
+        _native_fd.gate(logging.INFO, _console.ensure_handler())
+        os.write(1, b"process-wide\n")
+    finally:
+        os.dup2(saved_out, 1)
+        os.dup2(saved_err, 2)
+        os.close(saved_out)
+        os.close(saved_err)
+        _native_fd._depth = 0
+    captures = list(_fresh_capture.glob("*.native.log"))
+    assert len(captures) == 1, captures
+    assert captures[0].read_text() == "process-wide\n"
+
+
+@_posix_only
+def test_capture_file_path_is_published_for_processes_without_an_interpreter(
+    _fresh_capture, monkeypatch
+):
+    """``plugin_manager/cpp/plugin.cpp`` opens this path between ``fork()`` and
+    ``execvp()``, where it can do nothing but ``getenv`` and an
+    async-signal-safe ``open``. It cannot re-derive the name.
+    """
+    monkeypatch.delenv(_native_fd.CAPTURE_FILE_ENV, raising=False)
+    path = _native_fd.ensure_sink()
+    assert path is not None
+    assert os.environ[_native_fd.CAPTURE_FILE_ENV] == path
+    assert os.path.dirname(path) == str(_fresh_capture)
 
 
 def test_propagation_is_on_by_default_and_can_be_turned_off():
@@ -793,19 +902,33 @@ if ROLE == "MAIN":
     forwarded_handler = _ForwardedRecord()
     logging.getLogger("isaacteleop").addHandler(forwarded_handler)
 
-print(f"{ROLE}|print", flush=True)
-sys.stderr.write(f"{ROLE}|stderr_write\\n")
-sys.stderr.flush()
-os.write(1, f"{ROLE}|os_write1\\n".encode())
-os.write(2, f"{ROLE}|os_write2\\n".encode())
-sys.__stderr__.write(f"{ROLE}|dunder_stderr\\n")
-sys.__stderr__.flush()
-libc = ctypes.CDLL(None)
-libc.printf(f"{ROLE}|c_printf\\n".encode())
-libc.fflush(None)
-logging.getLogger("isaacteleop.matrix").warning(f"{ROLE}|it_logger")
-logging.getLogger("appown.matrix").warning(f"{ROLE}|bare_logger")
-warnings.warn(f"{ROLE}|warnings")
+def _emit():
+    print(f"{ROLE}|print", flush=True)
+    sys.stderr.write(f"{ROLE}|stderr_write\\n")
+    sys.stderr.flush()
+    os.write(1, f"{ROLE}|os_write1\\n".encode())
+    os.write(2, f"{ROLE}|os_write2\\n".encode())
+    sys.__stderr__.write(f"{ROLE}|dunder_stderr\\n")
+    sys.__stderr__.flush()
+    libc = ctypes.CDLL(None)
+    libc.printf(f"{ROLE}|c_printf\\n".encode())
+    libc.fflush(None)
+    logging.getLogger("isaacteleop.matrix").warning(f"{ROLE}|it_logger")
+    logging.getLogger("appown.matrix").warning(f"{ROLE}|bare_logger")
+    warnings.warn(f"{ROLE}|warnings")
+
+
+# The leader is the only role that ever enters a scope. A child is a separate
+# process: what its descriptors point at was decided by whoever spawned it.
+if ROLE == "MAIN" and os.environ.get("MATRIX_SCOPE") == "1":
+    with _logging_config().capture_native_output():
+        _emit()
+    # After the block the descriptors are the host's again, which is the whole
+    # point; this token must be on the terminal in both runs.
+    os.write(1, f"{ROLE}|after_scope\\n".encode())
+else:
+    _emit()
+    os.write(1, f"{ROLE}|after_scope\\n".encode())
 
 if ROLE == "MAIN":
     with open(os.path.join(TMP, "leader_pid"), "w") as handle:
@@ -822,35 +945,47 @@ if ROLE == "MAIN":
     logging.shutdown()
 """
 
-_TERMINAL, _LEADER_LOG, _LEADER_NATIVE, _OWN_NATIVE = (
-    "terminal",
-    "leader.log",
-    "leader.native",
-    "own.native",
-)
+_TERMINAL, _LEADER_LOG, _LEADER_NATIVE = "terminal", "leader.log", "leader.native"
 
-# Human-readable acceptance contract. The matrix runs at INFO with no
-# application root handler; TRACE would additionally mirror native files to the
-# terminal. Every listed sink contains the token once and every other sink zero
-# times.
+# Human-readable acceptance contract. Both matrices run at INFO with no
+# application root handler; TRACE would additionally mirror the capture file to
+# the terminal. Every listed sink contains the token once and every other sink
+# zero times.
 #
 #   sinks   terminal        the fd 1 / fd 2 the session started with
 #           leader.log      the leader's structured-record log
-#           leader.native   the leader's raw fd capture
-#           own.native      the forwarding child's raw fd capture
+#           leader.native   the leader's capture file for non-logger output
 #
-#   output method                        leader            child,          child,
-#                                                          no isaacteleop  forwarding
-#   -----------------------------------  ----------------  --------------  -------------
-#   print()                              terminal          leader.native   leader.native
-#   sys.stderr.write()                   terminal          leader.native   leader.native
-#   warnings.warn()                      terminal          leader.native   leader.native
-#   logger outside the isaacteleop tree  terminal          leader.native   leader.native
-#   os.write(1, ...)                     leader.native     leader.native   own.native
-#   os.write(2, ...)                     leader.native     leader.native   own.native
-#   sys.__stderr__.write()               leader.native     leader.native   own.native
-#   C runtime printf()                   leader.native     leader.native   own.native
-#   isaacteleop.* logger.warning()       terminal+.log     leader.native   terminal+.log
+# Run A -- no scope entered anywhere. This is what a host sees for the whole of
+# its own lifetime, and the property the design exists to guarantee: importing
+# isaacteleop changes nothing about where anything goes.
+#
+#   output method                        leader     child,          child,
+#                                                   no isaacteleop  forwarding
+#   -----------------------------------  ---------  --------------  -------------
+#   print()                              terminal   terminal        terminal
+#   sys.stderr.write()                   terminal   terminal        terminal
+#   warnings.warn()                      terminal   terminal        terminal
+#   logger outside the isaacteleop tree  terminal   terminal        terminal
+#   os.write(1, ...)                     terminal   terminal        terminal
+#   os.write(2, ...)                     terminal   terminal        terminal
+#   sys.__stderr__.write()               terminal   terminal        terminal
+#   C runtime printf()                   terminal   terminal        terminal
+#   isaacteleop.* logger.warning()       term+.log  terminal        term+.log
+#
+# Run B -- the leader emits inside capture_native_output(). Only the leader's
+# *raw* descriptor writes divert; its Python streams are moved aside and still
+# reach the terminal, and both children are spawned after the block, so they are
+# untouched. That last row is the regression this design fixes: a subprocess the
+# host starts is no longer swallowed for the rest of the run.
+#
+#   output method                        leader          children
+#   -----------------------------------  --------------  ------------------
+#   print() / sys.stderr.write()          terminal        terminal
+#   warnings.warn()                       terminal        terminal
+#   logger outside the isaacteleop tree   terminal        terminal
+#   os.write(1/2, ...), __stderr__, printf leader.native  terminal
+#   isaacteleop.* logger.warning()        terminal+.log   per run A
 #
 # sys.stdout.write() follows print(); sys.__stdout__, std::cout and std::cerr
 # follow their corresponding raw fd rows.
@@ -867,53 +1002,31 @@ _TERMINAL, _LEADER_LOG, _LEADER_NATIVE, _OWN_NATIVE = (
 # The bridge is shared-object-local. Other pybind extensions use the socket row
 # on POSIX and the local row where socket forwarding is unavailable. An
 # installed bridge takes precedence over the socket.
-_EXPECTED_ROUTING = {
-    # The leader: Python streams were moved onto duplicates of the real
-    # descriptors, so they still reach the terminal; the descriptors themselves
-    # now point at the capture file.
-    ("MAIN", "print"): {_TERMINAL},
-    ("MAIN", "stderr_write"): {_TERMINAL},
-    ("MAIN", "warnings"): {_TERMINAL},
-    ("MAIN", "bare_logger"): {_TERMINAL},  # no handler anywhere -> lastResort
-    ("MAIN", "os_write1"): {_LEADER_NATIVE},
-    ("MAIN", "os_write2"): {_LEADER_NATIVE},
-    # sys.__stderr__ is the *original* object, still bound to fd 2, so the
-    # defensive "write to __stderr__ to bypass a replaced stream" idiom lands
-    # in the capture file rather than on the terminal.
-    ("MAIN", "dunder_stderr"): {_LEADER_NATIVE},
-    ("MAIN", "c_printf"): {_LEADER_NATIVE},
-    # A structured warning reaches both leader-owned record sinks.
-    ("MAIN", "it_logger"): {_TERMINAL, _LEADER_LOG},
-    # A child that never imports isaacteleop has no capture of its own, and its
-    # fd 1/2 are still the leader's. Every route collapses onto one file.
-    ("SUB-noIT", "print"): {_LEADER_NATIVE},
-    ("SUB-noIT", "stderr_write"): {_LEADER_NATIVE},
-    ("SUB-noIT", "warnings"): {_LEADER_NATIVE},
-    ("SUB-noIT", "bare_logger"): {_LEADER_NATIVE},
-    ("SUB-noIT", "os_write1"): {_LEADER_NATIVE},
-    ("SUB-noIT", "os_write2"): {_LEADER_NATIVE},
-    ("SUB-noIT", "dunder_stderr"): {_LEADER_NATIVE},
-    ("SUB-noIT", "c_printf"): {_LEADER_NATIVE},
-    ("SUB-noIT", "it_logger"): {_LEADER_NATIVE},
-    # A forwarding child splits: it saved its inherited fd 1/2 -- the leader's
-    # capture file -- as its "terminal", then pointed the descriptors at a
-    # capture file of its own. So Python streams go up one level and raw writes
-    # stay local. Its records are the exception: they travel over the socket.
-    ("SUB-IT", "print"): {_LEADER_NATIVE},
-    ("SUB-IT", "stderr_write"): {_LEADER_NATIVE},
-    ("SUB-IT", "warnings"): {_LEADER_NATIVE},
-    ("SUB-IT", "bare_logger"): {_LEADER_NATIVE},
-    ("SUB-IT", "os_write1"): {_OWN_NATIVE},
-    ("SUB-IT", "os_write2"): {_OWN_NATIVE},
-    ("SUB-IT", "dunder_stderr"): {_OWN_NATIVE},
-    ("SUB-IT", "c_printf"): {_OWN_NATIVE},
-    ("SUB-IT", "it_logger"): {_TERMINAL, _LEADER_LOG},
+
+_RAW_METHODS = ("os_write1", "os_write2", "dunder_stderr", "c_printf")
+_STREAM_METHODS = ("print", "stderr_write", "warnings", "bare_logger")
+
+# Run A: nothing anywhere is redirected, so every route lands on the terminal.
+_EXPECTED_UNSCOPED = {
+    (role, method): {_TERMINAL}
+    for role in ("MAIN", "SUB-noIT", "SUB-IT")
+    for method in (*_RAW_METHODS, *_STREAM_METHODS, "after_scope")
 }
+# A structured record still reaches both leader-owned record sinks; a child that
+# never imports isaacteleop has no handler for it and falls back to lastResort.
+_EXPECTED_UNSCOPED[("MAIN", "it_logger")] = {_TERMINAL, _LEADER_LOG}
+_EXPECTED_UNSCOPED[("SUB-IT", "it_logger")] = {_TERMINAL, _LEADER_LOG}
+_EXPECTED_UNSCOPED[("SUB-noIT", "it_logger")] = {_TERMINAL}
+
+# Run B: the leader's raw writes -- and only those -- divert into the capture
+# file for the length of the block.
+_EXPECTED_SCOPED = dict(_EXPECTED_UNSCOPED)
+for _method in _RAW_METHODS:
+    _EXPECTED_SCOPED[("MAIN", _method)] = {_LEADER_NATIVE}
 
 
-@_posix_only
-def test_output_routing_matrix(tmp_path, _short_socket_dir):
-    """Every route, for all three kinds of process, against a pinned table."""
+def _run_matrix(tmp_path, short_socket_dir, *, scoped):
+    """Run the three roles once and return {sink name: concatenated text}."""
     logs = tmp_path / "logs"
     script = tmp_path / "matrix_emit.py"
     script.write_text(_MATRIX_SCRIPT, encoding="utf-8")
@@ -923,17 +1036,19 @@ def test_output_routing_matrix(tmp_path, _short_socket_dir):
         **os.environ,
         "ISAACTELEOP_LOG_DIR": str(logs),
         "ISAACTELEOP_LOG_LEVEL": "info",
-        "XDG_RUNTIME_DIR": str(_short_socket_dir),
+        "XDG_RUNTIME_DIR": str(short_socket_dir),
         "MATRIX_IMPORT_IT": "1",
+        "MATRIX_SCOPE": "1" if scoped else "0",
         "MATRIX_SOURCE_FALLBACK": (
             "1" if getattr(isaacteleop, "__file__", None) is None else "0"
         ),
         "PYTHONWARNINGS": "always",
     }
     env.pop("ISAACTELEOP_LOG_SOCKET", None)
+    env.pop(_native_fd.CAPTURE_FILE_ENV, None)
 
     # The leader's own fd 1/2 are these pipes, so "terminal" below means
-    # whatever the session started with -- exactly what the capture preserves.
+    # whatever the session started with -- exactly what must survive untouched.
     done = subprocess.run(
         [sys.executable, str(script), "MAIN", package_parent, str(tmp_path)],
         env=env,
@@ -948,26 +1063,45 @@ def test_output_routing_matrix(tmp_path, _short_socket_dir):
     rotating = [p for p in logs.glob("*.log") if not p.name.endswith(".native.log")]
     assert len(rotating) == 1, rotating
     leader_native = [p for p in natives if f".{leader_pid}.native.log" in p.name]
-    own_native = [p for p in natives if p not in leader_native]
-    assert len(leader_native) == 1 and len(own_native) == 1, natives
+    # A capture file nothing wrote to is unlinked at exit, so the unscoped run
+    # leaves none at all -- itself part of the contract.
+    assert natives == leader_native, natives
+    assert len(leader_native) == (1 if scoped else 0), natives
 
-    sinks = {
+    return {
         _TERMINAL: done.stdout + done.stderr,
         _LEADER_LOG: rotating[0].read_text(encoding="utf-8"),
-        _LEADER_NATIVE: leader_native[0].read_text(encoding="utf-8"),
-        _OWN_NATIVE: own_native[0].read_text(encoding="utf-8"),
+        _LEADER_NATIVE: (
+            leader_native[0].read_text(encoding="utf-8") if leader_native else ""
+        ),
     }
 
+
+def _check(sinks, expected):
     mismatches = []
-    for role, method in _EXPECTED_ROUTING:
+    for role, method in expected:
         token = f"{role}|{method}"
         actual = {
             sink: count for sink, text in sinks.items() if (count := text.count(token))
         }
-        expected = {sink: 1 for sink in _EXPECTED_ROUTING[(role, method)]}
-        if actual != expected:
+        want = {sink: 1 for sink in expected[(role, method)]}
+        if actual != want:
             mismatches.append(
-                f"  {token}: expected {sorted(expected.items())}, "
+                f"  {token}: expected {sorted(want.items())}, "
                 f"got {sorted(actual.items())}"
             )
     assert not mismatches, "\n".join(mismatches)
+
+
+@_posix_only
+def test_output_routing_matrix_without_a_scope(tmp_path, _short_socket_dir):
+    """Importing isaacteleop moves nothing. Every route, all three roles."""
+    _check(_run_matrix(tmp_path, _short_socket_dir, scoped=False), _EXPECTED_UNSCOPED)
+
+
+@_posix_only
+def test_output_routing_matrix_inside_a_scope(tmp_path, _short_socket_dir):
+    """Inside capture_native_output() the leader's raw writes -- and nothing
+    else -- go to the capture file, and the descriptors come back afterwards.
+    """
+    _check(_run_matrix(tmp_path, _short_socket_dir, scoped=True), _EXPECTED_SCOPED)

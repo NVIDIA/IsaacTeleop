@@ -100,11 +100,23 @@ the logging packages.
   `src/plugins/*/main.cpp`, `cloudxr/oob_teleop_*.py` and similar are that
   deliberate kind; do not "migrate" them, and do not add new ones for
   diagnostics.
-- **Three environment variables are the whole external contract**, read
+- **Five environment variables are the whole external contract**, read
   identically by both halves: `ISAACTELEOP_LOG_DIR` (where log files land),
-  `ISAACTELEOP_LOG_LEVEL` (console threshold for out-of-process code), and
+  `ISAACTELEOP_LOG_LEVEL` (console threshold for out-of-process code),
   `ISAACTELEOP_LOG_SOCKET` (set by the session leader; its presence is what
-  makes a process forward instead of owning handlers). Do not invent a fourth.
+  makes a process forward instead of owning handlers),
+  `ISAACTELEOP_NATIVE_CAPTURE` (`off`/`scoped`/`process` — how far this library
+  may go in rebinding fd 1 and fd 2; `scoped` by default) and
+  `ISAACTELEOP_NATIVE_CAPTURE_FILE` (published by the leader, read by processes
+  with no interpreter so they can point their own stdio at the same file). Do
+  not invent a sixth.
+- **Never rebind the host process's fd 1 or fd 2.** This is a library its host
+  imports; its descriptors are not ours. Output that no logger can reach —
+  vendor code that formats its own lines onto a descriptor — is captured either
+  inside `logging_config.capture_native_output()`, which restores what it found,
+  or in a process this library launched, whose descriptors *are* ours to set.
+  An unconditional `dup2()` at import time was removed for this reason; do not
+  reintroduce one.
 
 Subsystem-internal rules live with the code:
 [`src/python/isaacteleop/logging_config/AGENTS.md`](src/python/isaacteleop/logging_config/AGENTS.md)
