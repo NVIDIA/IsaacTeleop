@@ -251,21 +251,23 @@ void WristPoseSource::initialize_xdev_hand_trackers()
         return XR_SUCCEEDED(m_pfn_create_hand_tracker(m_handles.session, &create_info, &out_tracker));
     };
 
-    static constexpr std::array<XrHandEXT, kSideCount> kXrHands = { XR_HAND_LEFT_EXT, XR_HAND_RIGHT_EXT };
-    bool all_ok = true;
-    for (size_t s = 0; s < kSideCount; ++s)
-    {
-        all_ok = create_tracker(xdev_ids[s], kXrHands[s], m_native_hand_tracker[s]) && all_ok;
-    }
+    // Both sides or neither: the optical source is advertised as a whole, and a
+    // half-created pair would leave one hand silently on the fallback. Spelled
+    // per side rather than looped so the WristSide -> XrHandEXT pairing is in the
+    // call itself and does not depend on two arrays sharing an index order.
+    const bool left_ok = create_tracker(xdev_ids[static_cast<size_t>(WristSide::Left)], XR_HAND_LEFT_EXT,
+                                        m_native_hand_tracker[static_cast<size_t>(WristSide::Left)]);
+    const bool right_ok = create_tracker(xdev_ids[static_cast<size_t>(WristSide::Right)], XR_HAND_RIGHT_EXT,
+                                         m_native_hand_tracker[static_cast<size_t>(WristSide::Right)]);
 
-    if (all_ok)
+    if (left_ok && right_ok)
     {
         m_xdev_available = true;
     }
     else
     {
-        std::cerr << "[WristPoseSource] Failed to create native hand trackers; optical wrist source disabled"
-                  << std::endl;
+        std::cerr << "[WristPoseSource] Failed to create native hand trackers (left=" << left_ok
+                  << " right=" << right_ok << "); optical wrist source disabled" << std::endl;
         cleanup_xdev_hand_trackers();
     }
 }
