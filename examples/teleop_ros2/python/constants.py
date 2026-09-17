@@ -20,8 +20,8 @@ class HandRetargeter(StrEnum):
     WUJI = "wuji"
 
 
-class HandTrackingPlugin(StrEnum):
-    NONE = "none"
+class HandTrackingProvider(StrEnum):
+    NATIVE = "native"
     MANUS = "manus"
     WUJI = "wuji"
 
@@ -33,6 +33,11 @@ class TeleopMode(StrEnum):
     FULL_BODY = "full_body"
 
 
+class EePoseFrame(StrEnum):
+    WORLD = "world"
+    HEAD = "head"
+
+
 BODY_JOINT_NAMES = [e.name for e in BodyJointIndex]
 HAND_POSE_JOINT_INDICES = tuple(
     HandJointIndex(i)
@@ -40,11 +45,12 @@ HAND_POSE_JOINT_INDICES = tuple(
 )
 HAND_POSE_NAMES = [joint.name for joint in HAND_POSE_JOINT_INDICES]
 HAND_RETARGETERS = tuple(retargeter.value for retargeter in HandRetargeter)
-HAND_TRACKING_PLUGINS = tuple(plugin.value for plugin in HandTrackingPlugin)
+HAND_TRACKING_PROVIDERS = tuple(provider.value for provider in HandTrackingProvider)
 SHARPA_HAND_RETARGETERS = (HandRetargeter.PINK_IK, HandRetargeter.DEXPILOT)
 TRACKED_HAND_RETARGETERS = (*SHARPA_HAND_RETARGETERS, HandRetargeter.WUJI)
 TELEOP_MODES = tuple(mode.value for mode in TeleopMode)
 WUJI_HAND_MODELS = ("wuji_hand", "wuji_hand_2")
+EE_POSE_FRAMES = tuple(frame.value for frame in EePoseFrame)
 
 TRIHAND_JOINT_NAMES = [
     "thumb_rotation",

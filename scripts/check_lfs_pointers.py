@@ -37,6 +37,7 @@ def _staged_content(path: str) -> bytes | None:
     proc = subprocess.run(
         ["git", "show", f":{path}"],
         capture_output=True,
+        check=False,
     )
     if proc.returncode != 0:
         return None

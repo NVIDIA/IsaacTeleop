@@ -4,6 +4,7 @@
 // VizSession config + lifecycle tests.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_exception.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/layers/projection_layer.hpp>
@@ -12,9 +13,11 @@
 #include <viz/test_support/test_helpers.hpp>
 
 #include <chrono>
+#include <cuda_runtime.h>
 #include <stdexcept>
 
 using Catch::Matchers::ContainsSubstring;
+using Catch::Matchers::MessageMatches;
 using viz::DisplayMode;
 using viz::ProjectionLayer;
 using viz::QuadLayer;
@@ -45,6 +48,72 @@ TEST_CASE("VizSession::Config defaults are sensible", "[unit][viz_session]")
     CHECK(cfg.xr_far_z == 100.0f);
     CHECK(cfg.gpu_timing == false);
     CHECK(cfg.xr_system_wait_seconds == 0);
+    CHECK(cfg.physical_device_index == -1); // auto-pick
+}
+
+// physical_device_index is meaningless where the device is already
+// decided elsewhere. Reject, don't silently ignore — a caller that
+// believes it pinned viz to a GPU and didn't gets a peer copy on every
+// submit and no indication why.
+TEST_CASE("VizSession::create rejects physical_device_index it cannot honor", "[unit][viz_session]")
+{
+    SECTION("kXr — the OpenXR runtime dictates the device")
+    {
+        VizSession::Config cfg{};
+        cfg.mode = DisplayMode::kXr;
+        cfg.physical_device_index = 0;
+        CHECK_THROWS_MATCHES(VizSession::create(cfg), std::invalid_argument,
+                             MessageMatches(ContainsSubstring("physical_device_index") && ContainsSubstring("kXr")));
+    }
+    SECTION("external_context — that context already has a device")
+    {
+        VkContext foreign; // never initialized: the conflict check runs first
+        VizSession::Config cfg{};
+        cfg.mode = DisplayMode::kOffscreen;
+        cfg.external_context = &foreign;
+        cfg.physical_device_index = 0;
+        CHECK_THROWS_MATCHES(
+            VizSession::create(cfg), std::invalid_argument,
+            MessageMatches(ContainsSubstring("physical_device_index") && ContainsSubstring("external_context")));
+    }
+    SECTION("-1 (auto-pick) is accepted everywhere — no false rejection")
+    {
+        VizSession::Config cfg{};
+        cfg.mode = DisplayMode::kXr;
+        cfg.physical_device_index = -1;
+        // Fails for the usual no-runtime reason, NOT for the device index.
+        CHECK_THROWS_MATCHES(
+            VizSession::create(cfg), std::runtime_error, !MessageMatches(ContainsSubstring("physical_device_index")));
+    }
+}
+
+// The id CUDA producers need to allocate on the right GPU. Interop is
+// same-device only, so an app that guesses 0 here silently pays a peer
+// copy per submit (or fails outright in the semaphore signal).
+TEST_CASE("VizSession reports the CUDA device its Vulkan device lives on", "[gpu][viz_session]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+
+    VizSession::Config cfg{};
+    cfg.mode = DisplayMode::kOffscreen;
+    cfg.external_context = &shared_vk_context();
+    auto session = VizSession::create(cfg);
+
+    const int cuda_device = session->get_cuda_device_id();
+    CHECK(cuda_device >= 0);
+    // Matched by UUID to the Vulkan physical device, so it agrees with
+    // the context's own answer — and with the device CUDA calls on this
+    // thread now target (VkContext::init made it current).
+    CHECK(cuda_device == session->get_vk_context()->cuda_device_id());
+    int current = -1;
+    REQUIRE(cudaGetDevice(&current) == cudaSuccess);
+    CHECK(current == cuda_device);
+
+    session->destroy();
+    CHECK(session->get_cuda_device_id() == -1); // no context left to ask
 }
 
 // XR-only methods must throw on a non-XR session.

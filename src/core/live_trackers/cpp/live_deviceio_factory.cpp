@@ -7,6 +7,7 @@
 #include "live_controller_tracker_impl.hpp"
 #include "live_full_body_tracker_noitom_impl.hpp"
 #include "live_full_body_tracker_pico_impl.hpp"
+#include "live_full_body_tracker_xsens_impl.hpp"
 #include "live_hand_tracker_impl.hpp"
 #include "live_haptic_command_reader_tracker_impl.hpp"
 #include "live_head_tracker_impl.hpp"
@@ -92,6 +93,12 @@ std::unique_ptr<ITrackerImpl> try_create_full_body_noitom_impl(LiveDeviceIOFacto
     return typed ? factory.create_full_body_tracker_noitom_impl(typed) : nullptr;
 }
 
+std::unique_ptr<ITrackerImpl> try_create_full_body_xsens_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
+{
+    auto* typed = dynamic_cast<const FullBodyTracker*>(&tracker);
+    return typed ? factory.create_full_body_tracker_xsens_impl(typed) : nullptr;
+}
+
 std::unique_ptr<ITrackerImpl> try_create_tensor_push_impl(LiveDeviceIOFactory& factory, const ITracker& tracker)
 {
     auto* typed = dynamic_cast<const TensorPushTracker*>(&tracker);
@@ -144,6 +151,8 @@ inline const TrackerDispatchEntry k_tracker_dispatch[] = {
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerPicoImpl>(&try_create_full_body_pico_impl, "body.pico-xr"),
     make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerNoitomImpl>(
         &try_create_full_body_noitom_impl, LiveFullBodyTrackerNoitomImpl::VENDOR_ID),
+    make_dispatch_entry<FullBodyTracker, LiveFullBodyTrackerXsensImpl>(
+        &try_create_full_body_xsens_impl, LiveFullBodyTrackerXsensImpl::VENDOR_ID),
     make_dispatch_entry<TensorPushTracker, LiveTensorPushTrackerImpl>(&try_create_tensor_push_impl),
     make_dispatch_entry<HapticCommandReaderTracker, LiveHapticCommandReaderTrackerImpl>(
         &try_create_haptic_command_reader_impl),
@@ -275,6 +284,10 @@ void validate_vendor_selections(const std::vector<std::pair<const ITracker*, Tra
         if (vendor.id == LiveFullBodyTrackerNoitomImpl::VENDOR_ID)
         {
             LiveFullBodyTrackerNoitomImpl::validate_vendor(vendor);
+        }
+        else if (vendor.id == LiveFullBodyTrackerXsensImpl::VENDOR_ID)
+        {
+            LiveFullBodyTrackerXsensImpl::validate_vendor(vendor);
         }
         else if (!vendor.params.empty())
         {
@@ -451,6 +464,19 @@ std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_trac
     const TrackerVendor* vendor = find_vendor(tracker);
     assert(vendor && vendor->id == LiveFullBodyTrackerNoitomImpl::VENDOR_ID);
     return std::make_unique<LiveFullBodyTrackerNoitomImpl>(handles_, *vendor, std::move(channels));
+}
+
+std::unique_ptr<IFullBodyTrackerImpl> LiveDeviceIOFactory::create_full_body_tracker_xsens_impl(const FullBodyTracker* tracker)
+{
+    std::unique_ptr<FullBodyMcapChannels> channels;
+    if (should_record(tracker))
+    {
+        channels = LiveFullBodyTrackerPicoImpl::create_mcap_channels(*writer_, get_name(tracker));
+    }
+
+    const TrackerVendor* vendor = find_vendor(tracker);
+    assert(vendor && vendor->id == LiveFullBodyTrackerXsensImpl::VENDOR_ID);
+    return std::make_unique<LiveFullBodyTrackerXsensImpl>(handles_, *vendor, std::move(channels));
 }
 
 std::unique_ptr<ITensorPushTrackerImpl> LiveDeviceIOFactory::create_tensor_push_tracker_impl(const TensorPushTracker* tracker)

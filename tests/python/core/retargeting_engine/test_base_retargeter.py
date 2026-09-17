@@ -508,7 +508,7 @@ class TestRetargeterOutputSelector:
 class ParametricScaleRetargeter(BaseRetargeter):
     """Retargeter with a tunable scale parameter."""
 
-    def __init__(self, name: str, config_file: str = None) -> None:
+    def __init__(self, name: str, config_file: str | None = None) -> None:
         # Create parameter with sync function
         parameters = [
             FloatParameter(

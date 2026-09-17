@@ -42,6 +42,15 @@ public:
         return impl_->get_handles();
     }
 
+    OpenXRProviderSnapshot get_provider_snapshot()
+    {
+        if (!impl_)
+        {
+            throw std::runtime_error("OpenXRSession has been closed/destroyed");
+        }
+        return impl_->get_provider_snapshot();
+    }
+
     void close()
     {
         impl_.reset();
@@ -70,6 +79,28 @@ private:
 PYBIND11_MODULE(_oxr, m)
 {
     m.doc() = "Isaac Teleop OXR - OpenXR Session Module";
+
+    py::enum_<core::OpenXRProviderState>(m, "OpenXRProviderState")
+        .value("AVAILABLE", core::OpenXRProviderState::AVAILABLE)
+        .value("FAILED", core::OpenXRProviderState::FAILED);
+
+    py::enum_<core::OpenXRHeadsetState>(m, "OpenXRHeadsetState")
+        .value("CONNECTED", core::OpenXRHeadsetState::CONNECTED)
+        .value("DISCONNECTED", core::OpenXRHeadsetState::DISCONNECTED);
+
+    py::enum_<core::OpenXRProviderReason>(m, "OpenXRProviderReason")
+        .value("NONE", core::OpenXRProviderReason::NONE)
+        .value("FORM_FACTOR_UNAVAILABLE", core::OpenXRProviderReason::FORM_FACTOR_UNAVAILABLE)
+        .value("SESSION_LOST", core::OpenXRProviderReason::SESSION_LOST)
+        .value("INSTANCE_LOST", core::OpenXRProviderReason::INSTANCE_LOST)
+        .value("POLL_ERROR", core::OpenXRProviderReason::POLL_ERROR);
+
+    py::class_<core::OpenXRProviderSnapshot>(m, "OpenXRProviderSnapshot")
+        .def_readonly("state", &core::OpenXRProviderSnapshot::state)
+        .def_readonly("headset_state", &core::OpenXRProviderSnapshot::headset_state)
+        .def_readonly("reason", &core::OpenXRProviderSnapshot::reason)
+        .def_readonly("result_code", &core::OpenXRProviderSnapshot::result_code)
+        .def_readonly("error", &core::OpenXRProviderSnapshot::error);
 
     // OpenXRSessionHandles structure (for sharing)
     py::class_<core::OpenXRSessionHandles>(m, "OpenXRSessionHandles")
@@ -104,6 +135,8 @@ PYBIND11_MODULE(_oxr, m)
         .def(py::init<const std::string&, const std::vector<std::string>&>(), py::arg("app_name"),
              py::arg("extensions") = std::vector<std::string>())
         .def("get_handles", &core::PyOpenXRSession::get_handles, "Get session handles for sharing")
+        .def("get_provider_snapshot", &core::PyOpenXRSession::get_provider_snapshot,
+             "Poll and return the cached owned-provider health snapshot")
         .def("close", &core::PyOpenXRSession::close,
              "Release the native session immediately (usually automatic via context manager)")
         .def("__enter__", &core::PyOpenXRSession::enter)

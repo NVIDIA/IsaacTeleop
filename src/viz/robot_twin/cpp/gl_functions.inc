@@ -1,0 +1,54 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Every OpenGL entry point this module calls: the name we call it by, then the
+// spelling its glcorearb.h PFNGL...PROC typedef uses.
+//
+// No include guard, deliberately: gl.hpp and gl.cpp include this three times
+// over with ROBOT_TWIN_GL defined differently -- declare, define, load -- so no
+// two lists can drift and leave an entry point null at the first call.
+
+ROBOT_TWIN_GL(Disable, DISABLE)
+ROBOT_TWIN_GL(GetError, GETERROR)
+ROBOT_TWIN_GL(Viewport, VIEWPORT)
+ROBOT_TWIN_GL(PixelStorei, PIXELSTOREI)
+ROBOT_TWIN_GL(GetIntegerv, GETINTEGERV)
+ROBOT_TWIN_GL(ReadPixels, READPIXELS)
+ROBOT_TWIN_GL(DrawArrays, DRAWARRAYS)
+ROBOT_TWIN_GL(GenTextures, GENTEXTURES)
+ROBOT_TWIN_GL(DeleteTextures, DELETETEXTURES)
+ROBOT_TWIN_GL(BindTexture, BINDTEXTURE)
+ROBOT_TWIN_GL(TexImage2D, TEXIMAGE2D)
+ROBOT_TWIN_GL(TexParameteri, TEXPARAMETERI)
+ROBOT_TWIN_GL(ActiveTexture, ACTIVETEXTURE)
+ROBOT_TWIN_GL(GenFramebuffers, GENFRAMEBUFFERS)
+ROBOT_TWIN_GL(DeleteFramebuffers, DELETEFRAMEBUFFERS)
+ROBOT_TWIN_GL(BindFramebuffer, BINDFRAMEBUFFER)
+ROBOT_TWIN_GL(FramebufferTexture2D, FRAMEBUFFERTEXTURE2D)
+ROBOT_TWIN_GL(CheckFramebufferStatus, CHECKFRAMEBUFFERSTATUS)
+ROBOT_TWIN_GL(GetFramebufferAttachmentParameteriv, GETFRAMEBUFFERATTACHMENTPARAMETERIV)
+ROBOT_TWIN_GL(BlitFramebuffer, BLITFRAMEBUFFER)
+ROBOT_TWIN_GL(DrawBuffers, DRAWBUFFERS)
+ROBOT_TWIN_GL(ReadBuffer, READBUFFER)
+ROBOT_TWIN_GL(GenBuffers, GENBUFFERS)
+ROBOT_TWIN_GL(DeleteBuffers, DELETEBUFFERS)
+ROBOT_TWIN_GL(BindBuffer, BINDBUFFER)
+ROBOT_TWIN_GL(BufferData, BUFFERDATA)
+ROBOT_TWIN_GL(GenVertexArrays, GENVERTEXARRAYS)
+ROBOT_TWIN_GL(DeleteVertexArrays, DELETEVERTEXARRAYS)
+ROBOT_TWIN_GL(BindVertexArray, BINDVERTEXARRAY)
+ROBOT_TWIN_GL(CreateShader, CREATESHADER)
+ROBOT_TWIN_GL(ShaderSource, SHADERSOURCE)
+ROBOT_TWIN_GL(CompileShader, COMPILESHADER)
+ROBOT_TWIN_GL(GetShaderiv, GETSHADERIV)
+ROBOT_TWIN_GL(GetShaderInfoLog, GETSHADERINFOLOG)
+ROBOT_TWIN_GL(DeleteShader, DELETESHADER)
+ROBOT_TWIN_GL(CreateProgram, CREATEPROGRAM)
+ROBOT_TWIN_GL(AttachShader, ATTACHSHADER)
+ROBOT_TWIN_GL(LinkProgram, LINKPROGRAM)
+ROBOT_TWIN_GL(GetProgramiv, GETPROGRAMIV)
+ROBOT_TWIN_GL(GetProgramInfoLog, GETPROGRAMINFOLOG)
+ROBOT_TWIN_GL(DeleteProgram, DELETEPROGRAM)
+ROBOT_TWIN_GL(UseProgram, USEPROGRAM)
+ROBOT_TWIN_GL(GetUniformLocation, GETUNIFORMLOCATION)
+ROBOT_TWIN_GL(Uniform1i, UNIFORM1I)

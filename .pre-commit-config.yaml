@@ -59,3 +59,14 @@ repos:
         # COMMIT_EDITMSG path (outside the work tree), which makes the script's
         # `git check-attr` fail with "outside repository" (exit 128).
         stages: [pre-commit]
+      - id: check-doc-refs
+        name: "Check docs do not reference code that is not there"
+        entry: python3 scripts/check_doc_refs.py
+        language: system
+        # Roles: the code-file/code-dir roles in docs/source/conf.py build a
+        # github.com URL from the target without validating it, so a moved file
+        # ships a live 404 while the Sphinx build still passes. .rst only.
+        # Imports: documented isaacteleop.* imports must resolve under
+        # src/python/, so a package rename cannot leave copy-pasteable examples
+        # that raise ModuleNotFoundError. .rst and .md both carry those.
+        files: ^(docs/source/.*\.rst|(?!.*/(build|_build|\.venv|node_modules)/).*\.md)$

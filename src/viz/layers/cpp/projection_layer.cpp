@@ -3,6 +3,7 @@
 
 #include "inc/viz/layers/projection_layer.hpp"
 
+#include <viz/core/cuda_error.hpp>
 #include <viz/core/vk_context.hpp>
 #include <viz/session/viz_session.hpp>
 
@@ -16,12 +17,12 @@ namespace viz
 namespace
 {
 
-void check_cuda(cudaError_t result, const char* what)
+// viz_device: the device the layer's interop images live on — lets a
+// cross-device failure say so instead of just "invalid argument"
+// (viz/core/cuda_error.hpp).
+void check_cuda(cudaError_t result, const char* what, int viz_device)
 {
-    if (result != cudaSuccess)
-    {
-        throw std::runtime_error(std::string("ProjectionLayer: ") + what + " failed: " + cudaGetErrorString(result));
-    }
+    viz::check_cuda(result, "ProjectionLayer", what, viz_device);
 }
 
 } // namespace
@@ -139,7 +140,7 @@ void ProjectionLayer::enqueue_copy(const VizBuffer& src, DeviceImage& dst, cudaS
                                         /*wOffset=*/0,
                                         /*hOffset=*/0, src.data, src_pitch, row_bytes, src.height,
                                         cudaMemcpyDeviceToDevice, stream),
-               "cudaMemcpy2DToArrayAsync");
+               "cudaMemcpy2DToArrayAsync", ctx_->cuda_device_id());
 }
 
 uint8_t ProjectionLayer::pick_free_slot() const noexcept
@@ -218,6 +219,18 @@ void ProjectionLayer::submit(const VizBuffer& left_color,
         }
     }
 
+    // ── Make viz's GPU current on THIS thread ────────────────────────
+    // cudaSetDevice is per-host-thread, and both the mapped arrays and
+    // the cuda_done_writing semaphores below belong to the device
+    // VkContext matched to the Vulkan physical device — which is not
+    // necessarily CUDA device 0 (Vulkan and CUDA do not agree on device
+    // order). A caller submitting from a thread that never touched that
+    // device — any worker thread on a multi-GPU machine — would
+    // otherwise fail inside cudaSignalExternalSemaphoresAsync with a
+    // bare "invalid argument" that points nowhere near the cause.
+    // ImageLayerBase::submit takes the same guard; this is the parity.
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice", ctx_->cuda_device_id());
+
     // ── Pick a free slot ─────────────────────────────────────────────
     const uint8_t slot = pick_free_slot();
     if (slot == kSlotNone)
@@ -261,7 +274,7 @@ void ProjectionLayer::submit(const VizBuffer& left_color,
 
     // BLOCK on stream completion so the caller can re-use src buffers
     // immediately. Same contract as QuadLayer::submit. ~sub-ms cost.
-    check_cuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize");
+    check_cuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize", ctx_->cuda_device_id());
 
     latest_.store(slot, std::memory_order_release);
     submitted_this_frame_.store(true, std::memory_order_release);

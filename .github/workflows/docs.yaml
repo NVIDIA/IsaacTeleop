@@ -49,7 +49,8 @@ jobs:
       is-deploy-branch: ${{ steps.is-deploy-branch.outputs.defined }}
     steps:
     - id: is-canonical-repo
-      if: github.repository == 'NVIDIA/IsaacTeleop'
+      # Repo id, not slug — a rename must not silently disable this (`gh api repos/{owner}/{repo} --jq .id`).
+      if: github.repository_id == '1092046207'
       run: echo "defined=true" >> "$GITHUB_OUTPUT"
     - id: is-deploy-branch
       if: >-
@@ -143,6 +144,8 @@ jobs:
           # does not load come out as raw text, and its CSS is dropped. This step
           # deploys the whole site, so take the docs config from main either way.
           git -C "$GITHUB_WORKSPACE" checkout origin/main -- docs
+          # Main's extensions may require dependencies absent from the triggering ref.
+          python -m pip install -r requirements.txt
           make multi-docs
 
       - name: Upload docs artifact

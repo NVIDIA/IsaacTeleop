@@ -31,7 +31,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     RobotHandJoints,
 )
 
-from constants import BODY_JOINT_NAMES, HAND_POSE_NAMES
+from constants import BODY_JOINT_NAMES, HAND_POSE_NAMES, EePoseFrame
 from messages import (
     build_controller_msg,
     build_ee_output_from_controllers,
@@ -112,6 +112,10 @@ def _active_head() -> TensorGroup:
 
 def _decode_payload(msg: ByteMultiArray) -> dict:
     return msgpack.unpackb(b"".join(msg.data), raw=False)
+
+
+def _position(pose) -> list[float]:
+    return [pose.position.x, pose.position.y, pose.position.z]
 
 
 def _root_command(values: list[float] | None) -> OptionalTensorGroup:
@@ -212,6 +216,112 @@ def test_build_ee_output_from_controllers_keeps_message_and_tfs_consistent() -> 
     assert transform.transform.translation.y == 5.0
     assert transform.transform.translation.z == 6.0
     assert transform.transform.rotation.w == 1.0
+
+
+def test_build_ee_output_from_controllers_preserves_manus_calibration() -> None:
+    msg, transforms = build_ee_output_from_controllers(
+        _active_controller(),
+        OptionalTensorGroup(ControllerInput()),
+        Time(),
+        "world",
+        "left_wrist",
+        "right_wrist",
+        apply_manus_controller_mount_offset=True,
+    )
+
+    expected_position = [4.0103315472, 5.055536544, 5.9433523928]
+    expected_orientation = [
+        -0.1315856570103413,
+        -0.3586609382547703,
+        0.9111816820492541,
+        -0.15425786377769118,
+    ]
+    actual_pose = msg.pose[0]
+    actual_transform = transforms[0].transform
+
+    np.testing.assert_allclose(
+        [
+            actual_pose.position.x,
+            actual_pose.position.y,
+            actual_pose.position.z,
+        ],
+        expected_position,
+    )
+    np.testing.assert_allclose(
+        [
+            actual_pose.orientation.x,
+            actual_pose.orientation.y,
+            actual_pose.orientation.z,
+            actual_pose.orientation.w,
+        ],
+        expected_orientation,
+    )
+    np.testing.assert_allclose(
+        [
+            actual_transform.translation.x,
+            actual_transform.translation.y,
+            actual_transform.translation.z,
+        ],
+        expected_position,
+    )
+
+
+def test_build_ee_output_from_controllers_in_the_head_frame() -> None:
+    right = _active_controller()
+    right[ControllerInputIndex.AIM_POSITION] = np.array(
+        [2.0, 4.0, 6.0], dtype=np.float32
+    )
+    msg, transforms = build_ee_output_from_controllers(
+        _active_controller(),
+        right,
+        Time(sec=12, nanosec=34),
+        "world",
+        "left_wrist",
+        "right_wrist",
+        head=_active_head(),
+        head_frame="headset",
+        ee_poses_frame=EePoseFrame.HEAD,
+    )
+
+    assert msg.header.frame_id == "headset"
+    assert msg.header.stamp.sec == 12
+    assert msg.header.stamp.nanosec == 34
+    assert list(msg.name) == ["left", "right"]
+    assert list(msg.is_valid) == [True, True]
+    np.testing.assert_allclose(_position(msg.pose[0]), [3.0, 3.0, 3.0])
+    np.testing.assert_allclose(_position(msg.pose[1]), [1.0, 2.0, 3.0])
+    assert [transform.header.frame_id for transform in transforms] == [
+        "headset",
+        "headset",
+    ]
+    assert [transform.child_frame_id for transform in transforms] == [
+        "left_wrist",
+        "right_wrist",
+    ]
+
+
+def test_build_ee_output_from_hands_in_head_frame_keeps_untracked_sides_invalid() -> (
+    None
+):
+    msg, transforms = build_ee_output_from_hands(
+        _active_hand(),
+        OptionalTensorGroup(HandInput()),
+        Time(),
+        "world",
+        "left_wrist",
+        "right_wrist",
+        head=_active_head(),
+        head_frame="headset",
+        ee_poses_frame=EePoseFrame.HEAD,
+    )
+
+    assert msg.header.frame_id == "headset"
+    assert list(msg.is_valid) == [True, False]
+    np.testing.assert_allclose(_position(msg.pose[1]), [0.0, 0.0, 0.0])
+    assert msg.pose[1].orientation.w == 1.0
+    assert len(transforms) == 1
+    assert transforms[0].header.frame_id == "headset"
+    assert transforms[0].child_frame_id == "left_wrist"
 
 
 def test_build_ee_output_from_hands_uses_valid_wrist_entries() -> None:

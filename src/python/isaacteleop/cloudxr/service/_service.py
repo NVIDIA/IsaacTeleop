@@ -203,6 +203,12 @@ class CloudXRService:
         # its next write to stderr would block the runtime with no diagnostic.
         # Truncated per start so a failure report shows only this one.
         worker_stderr = logs_dir_path / _WORKER_STDERR_LOG
+        # PLW1509: preexec_fn runs between fork and exec, so a lock another thread held
+        # at fork time would deadlock the child. _set_pdeathsig only loads libc and calls
+        # prctl(2) -- it takes no lock this process could be holding -- and
+        # PR_SET_PDEATHSIG must be set in the child, so there is no post-spawn equivalent.
+        pdeathsig = _set_pdeathsig if sys.platform != "win32" else None
+
         with open(worker_stderr, "w", encoding="utf-8") as stderr_file:
             self._runtime_proc = subprocess.Popen(
                 [
@@ -213,7 +219,7 @@ class CloudXRService:
                 env=worker_env,
                 stderr=stderr_file,
                 start_new_session=True,
-                preexec_fn=_set_pdeathsig if sys.platform != "win32" else None,
+                preexec_fn=pdeathsig,  # noqa: PLW1509
             )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 

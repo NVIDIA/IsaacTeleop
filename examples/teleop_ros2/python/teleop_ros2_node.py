@@ -10,7 +10,9 @@ Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
-  - controller_teleop (default): ee_poses (from controller aim poses),
+  - controller_teleop (default): ee_poses (from controller aim poses for native
+                       or MANUS input, with MANUS calibration when selected; from
+                       provider wrist poses for Wuji input),
                        root_twist, root_pose, finger_joints
                        (retargeted TriHand angles), controller_data, head_pose,
                        and TF transforms for left/right wrists and head
@@ -36,6 +38,7 @@ TF frames published in hand_teleop and controller_teleop modes (configurable via
   - world_frame -> right_wrist_frame
   - world_frame -> left_wrist_frame
   - world_frame -> head_frame
+  - (With ee_poses_frame=head, world_frame -> head_frame -> left/right_wrist_frame)
 """
 
 import os
@@ -87,11 +90,11 @@ class TeleopRos2Node(Node):
         self._profile_spec = resolve_teleop_profile_spec(
             self._params.mode,
             self._params.resolved_hand_retargeter,
-            self._params.hand_tracking_plugin,
+            self._params.hand_tracking_provider,
         )
-        if self._profile_spec.apply_manus_controller_to_hand_transform:
+        if self._profile_spec.apply_manus_controller_mount_offset:
             self.get_logger().info(
-                "Applying MANUS controller-to-hand transform after pose transform."
+                "Applying MANUS controller mount offset after pose transform."
             )
         self._tf_broadcaster = TransformBroadcaster(self)
         self._create_publishers()
@@ -129,7 +132,10 @@ class TeleopRos2Node(Node):
             self._params.right_wrist_frame,
             self._params.transform_rotation,
             self._params.transform_translation,
-            self._profile_spec.apply_manus_controller_to_hand_transform,
+            self._profile_spec.apply_manus_controller_mount_offset,
+            head=result["head"],
+            head_frame=self._params.head_frame,
+            ee_poses_frame=self._params.ee_poses_frame,
         )
         self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:
@@ -179,6 +185,9 @@ class TeleopRos2Node(Node):
             self._params.right_wrist_frame,
             self._params.transform_rotation,
             self._params.transform_translation,
+            head=result["head"],
+            head_frame=self._params.head_frame,
+            ee_poses_frame=self._params.ee_poses_frame,
         )
         self._pub_ee_poses.publish(ee_poses_msg)
         if wrist_tfs:

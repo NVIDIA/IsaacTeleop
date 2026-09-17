@@ -102,16 +102,15 @@ with no arguments. Stale files from a crashed run are cleared on the next startu
 
 ## Recording / replay (Python examples)
 
-Both run with no arguments once the plugin is up (from the example directory, so
-`uv` picks up its `pyproject.toml`):
+Both run with no arguments once the plugin is up:
 
 ```bash
-cd examples/mcap_record_replay/python
-# records 10 s of every advertised collection to ../recordings/<timestamp>.mcap
-uv run record_se3_vive.py
+uv pip install -e ./examples/mcap_record_replay
+# records 10 s of every advertised collection to ./recordings/<timestamp>.mcap
+python -m isaacteleop_examples.mcap_record_replay.record_se3_vive
 # replays the newest recording, auto-discovering collections + capture rate,
 # and serves a viser 3D view at http://localhost:8080
-uv run replay_se3_vive.py
+python -m isaacteleop_examples.mcap_record_replay.replay_se3_vive
 ```
 
 Under the hood this is just the standard MCAP tooling — a `core::Se3Tracker(cid)`

@@ -417,6 +417,56 @@ TEST_CASE("QuadLayer ctor rejects non-finite stereo_baseline_mm", "[gpu][quad_la
     CHECK_THROWS_AS(QuadLayer(ctx, target->render_pass(), cfg), std::invalid_argument);
 }
 
+TEST_CASE("QuadLayer::set_stereo_baseline_mm round-trips and rejects non-finite", "[gpu][quad_layer][stereo]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto& ctx = shared_vk_context();
+    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
+
+    QuadLayer::Config cfg;
+    cfg.resolution = { 64, 64 };
+    cfg.stereo = true;
+    cfg.stereo_baseline_mm = 65.0f;
+    QuadLayer layer(ctx, target->render_pass(), cfg);
+
+    // Seeded from Config, then live-settable including negative (planes cross).
+    CHECK(layer.stereo_baseline_mm() == 65.0f);
+    layer.set_stereo_baseline_mm(0.0f);
+    CHECK(layer.stereo_baseline_mm() == 0.0f);
+    layer.set_stereo_baseline_mm(-42.5f);
+    CHECK(layer.stereo_baseline_mm() == -42.5f);
+
+    // Same finite-check as construction, and a rejected value must not land.
+    CHECK_THROWS_AS(layer.set_stereo_baseline_mm(std::numeric_limits<float>::quiet_NaN()), std::invalid_argument);
+    CHECK_THROWS_AS(layer.set_stereo_baseline_mm(std::numeric_limits<float>::infinity()), std::invalid_argument);
+    CHECK(layer.stereo_baseline_mm() == -42.5f);
+}
+
+// Mono layers accept the setter (apps toggle stereo without branching) but
+// the value stays inert -- record() and the native path both gate on
+// Config::stereo, which is fixed at construction.
+TEST_CASE("QuadLayer::set_stereo_baseline_mm is accepted but inert while mono", "[gpu][quad_layer][stereo]")
+{
+    if (!is_gpu_available())
+    {
+        SKIP("No Vulkan-capable GPU available");
+    }
+    auto& ctx = shared_vk_context();
+    auto target = RenderTarget::create(ctx, RenderTarget::Config{ Resolution{ 64, 64 } });
+
+    QuadLayer::Config cfg;
+    cfg.resolution = { 64, 64 };
+    cfg.stereo = false;
+    QuadLayer layer(ctx, target->render_pass(), cfg);
+
+    layer.set_stereo_baseline_mm(65.0f);
+    CHECK(layer.stereo_baseline_mm() == 65.0f);
+    CHECK(layer.device_image_right(0) == nullptr);
+}
+
 TEST_CASE("QuadLayer stereo allocates paired DeviceImages for every slot", "[gpu][quad_layer][stereo]")
 {
     if (!is_gpu_available())

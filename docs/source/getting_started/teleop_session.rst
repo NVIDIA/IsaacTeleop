@@ -356,6 +356,12 @@ regardless of ``required``.
    Any ``--plugin-root-id=...`` in ``plugin_args`` is ignored so that the
    ``plugin_root_id`` parameter cannot be overridden.
 
+Plugins with device monitoring support appear as providers in the status
+inventory. Other enabled plugins retain their existing launch behavior without
+appearing there. See
+:doc:`/references/device_provider_monitoring` for status identities, state
+precedence, and plugin integration guidance.
+
 API Reference
 -------------
 
@@ -383,6 +389,12 @@ Methods
   caller-provided inputs in ``step()``.
 - ``has_external_inputs() -> bool`` -- Whether this pipeline has external leaf
   nodes that require caller-provided inputs.
+- ``get_status() -> StatusSnapshot`` -- Return the current immutable provider
+  and device snapshot without performing I/O.
+- ``get_provider_status(provider_id) -> ProviderStatus | None`` -- Return one
+  cached provider record.
+- ``get_device_status(device_id) -> DeviceStatus | None`` -- Return one cached
+  device record.
 - ``get_elapsed_time() -> float`` -- Get elapsed time since session started.
 
 Example (explicit GraphTime + ExecutionEvents override):

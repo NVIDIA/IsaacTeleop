@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+
+The reBot DevArm (RobStride) gripper, locked to the operator's hand: what replaces the
+preview arm once the clutch engages. leader_gripper.xml's counterpart, and the
+same idea -- the operator holds the tool the follower will move.
+
+The reBot has no leader hardware, so unlike the SO-101's this is the FOLLOWER's
+own gripper drawn at the hand, from the same meshes rebot_arm.xml draws. They
+are re-declared here under ghost_ names because that file names them too and
+MuJoCo asset names are global; the STLs themselves are fetched once and land
+flat beside this file.
+
+No `scale`: Menagerie authors in METRES, where the SO-ARM print STLs
+leader_gripper.xml names are in millimetres.
+
+Three mocap bodies, because the two fingers articulate independently -- a
+jointed child of a mocap body honours a written qpos but mj_step integrates
+gravity into it. The fingers' geoms carry their body transform from
+seeed_rebot_devarm.xml baked in, so ghost.py translates each mocap body along
+the slide axis rather than reproducing that transform.
+
+Opaque, like the leader ghost; see leader_gripper.xml's header for why.
+-->
+<mujoco model="rebot devarm gripper ghost">
+  <asset>
+    <mesh name="ghost_pla7_green" file="pla7_green.STL"/>
+    <mesh name="ghost_cnc7" file="cnc7.STL"/>
+    <mesh name="ghost_motor_7" file="motor_7.STL"/>
+    <mesh name="ghost_pla_left" file="pla_left.STL"/>
+    <mesh name="ghost_cnc_left" file="cnc_left.STL"/>
+    <mesh name="ghost_pla_right" file="pla_right.STL"/>
+    <mesh name="ghost_cnc_right" file="cnc_right.STL"/>
+    <material name="leader_ghost" rgba="0.55 0.80 1.00 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- The gripper_end assembly. `pos` parks it clear of the scene until the
+         first valid controller sample, so "not moved yet" reads differently
+         from "broken". Its frame IS gripper_end's, which is the frame
+         preview_arm's gripper_body and the hand calibration both work in. -->
+    <body name="rebot_ghost" mocap="true" pos="0.12 0.16 0.22"
+          quat="0.5 0.5 -0.5 -0.5">
+      <geom name="rebot_ghost_pla7" type="mesh" mesh="ghost_pla7_green"
+            material="leader_ghost" contype="0" conaffinity="0" mass="0" group="2"/>
+      <geom name="rebot_ghost_cnc7" type="mesh" mesh="ghost_cnc7"
+            material="leader_ghost" contype="0" conaffinity="0" mass="0" group="2"/>
+      <geom name="rebot_ghost_motor" type="mesh" mesh="ghost_motor_7"
+            material="leader_ghost" contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+
+    <!-- The two fingers. `pos`/`quat` match rebot_ghost above: ghost.py slides
+         these bodies along the jaw axis from there, so the finger transform
+         lives in the geoms and in exactly one place. -->
+    <body name="rebot_ghost_left" mocap="true" pos="0.12 0.16 0.22"
+          quat="0.5 0.5 -0.5 -0.5">
+      <geom name="rebot_ghost_pla_left" type="mesh" mesh="ghost_pla_left"
+            material="leader_ghost" pos="-0.041939 -0.000073385 0"
+            quat="0.5 0.5 -0.5 0.5"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+      <geom name="rebot_ghost_cnc_left" type="mesh" mesh="ghost_cnc_left"
+            material="leader_ghost" pos="-0.041939 -0.000073385 0"
+            quat="0.5 0.5 -0.5 0.5"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+
+    <body name="rebot_ghost_right" mocap="true" pos="0.12 0.16 0.22"
+          quat="0.5 0.5 -0.5 -0.5">
+      <geom name="rebot_ghost_pla_right" type="mesh" mesh="ghost_pla_right"
+            material="leader_ghost" pos="-0.041939 0.000073385 0"
+            quat="0.5 -0.5 -0.5 -0.5"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+      <geom name="rebot_ghost_cnc_right" type="mesh" mesh="ghost_cnc_right"
+            material="leader_ghost" pos="-0.041939 0.000073385 0"
+            quat="0.5 -0.5 -0.5 -0.5"
+            contype="0" conaffinity="0" mass="0" group="2"/>
+    </body>
+  </worldbody>
+</mujoco>

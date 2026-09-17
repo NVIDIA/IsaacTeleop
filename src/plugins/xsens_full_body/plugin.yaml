@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 Xsens Technologies B.V. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: xsens_full_body
+description: "Xsens MVN full-body stream over UDP, republished as an OpenXR tensor collection"
+command: "./xsens_full_body_plugin"
+version: "0.1.0"
+# --address confines the launcher-deployed pusher to loopback. The UDP stream carries no sender
+# authentication, so any host that can reach the port can inject poses -- binding one interface is
+# what keeps that to this machine. A suit streaming from elsewhere needs the NIC named explicitly
+# here, plus a firewall rule for the port. The binary's own default is still 0.0.0.0.
+args:
+  - "--collection-id=xsens_full_body"
+  - "--address=127.0.0.1"
+  - "--port=9764"
+  - "--max-flatbuffer-size=4096"
+devices:
+  - path: "/mocap/xsens"
+    type: "xsens_full_body"
+    description: "Xsens MVN 24-joint full-body pose (hands untracked)"

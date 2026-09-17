@@ -21,8 +21,9 @@ permissions:
 jobs:
   clean-one-preview:
     name: Remove one PR preview from gh-pages
+    # Repo id, not slug — a rename must not silently disable this (`gh api repos/{owner}/{repo} --jq .id`).
     if: >-
-      github.repository == 'NVIDIA/IsaacTeleop'
+      github.repository_id == '1092046207'
       && github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     concurrency:
@@ -47,7 +48,7 @@ jobs:
   clean-previews:
     name: Remove all PR preview dirs from gh-pages
     if: >-
-      github.repository == 'NVIDIA/IsaacTeleop'
+      github.repository_id == '1092046207'
       && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     concurrency:

@@ -20,7 +20,8 @@ on:
 jobs:
   sweep:
     name: Remove previews for closed PRs
-    if: github.repository == 'NVIDIA/IsaacTeleop'
+    # Repo id, not slug — a rename must not silently disable this (`gh api repos/{owner}/{repo} --jq .id`).
+    if: github.repository_id == '1092046207'
     runs-on: ubuntu-latest
     permissions:
       contents: write

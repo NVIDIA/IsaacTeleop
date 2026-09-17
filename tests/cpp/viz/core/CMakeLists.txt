@@ -6,6 +6,7 @@ cmake_minimum_required(VERSION 3.20)
 # Unit tests for viz::core. Shared probes/fixtures (test_helpers.hpp) come
 # from viz::test_support.
 add_executable(viz_core_tests
+    test_cuda_error.cpp
     test_device_image.cpp
     test_frame_sync.cpp
     test_host_image.cpp

@@ -3,6 +3,7 @@
 
 #include "inc/viz/core/device_image.hpp"
 
+#include "inc/viz/core/cuda_error.hpp"
 #include "inc/viz/core/vk_context.hpp"
 
 #include <algorithm>
@@ -46,12 +47,12 @@ void check_vk(VkResult result, const char* what)
     }
 }
 
-void check_cuda(cudaError_t result, const char* what)
+// viz_device: the device this image's interop objects belong to, so a
+// failure can say "you are on GPU 0, these live on GPU 1" instead of
+// CUDA's bare "invalid argument" (cuda_error.hpp).
+void check_cuda(cudaError_t result, const char* what, int viz_device)
 {
-    if (result != cudaSuccess)
-    {
-        throw std::runtime_error(std::string("DeviceImage: ") + what + " failed: " + cudaGetErrorString(result));
-    }
+    viz::check_cuda(result, "DeviceImage", what, viz_device);
 }
 
 uint32_t find_memory_type(VkPhysicalDevice physical_device, uint32_t type_bits, VkMemoryPropertyFlags properties)
@@ -360,7 +361,7 @@ void DeviceImage::import_to_cuda()
 {
     // cudaSetDevice is per-host-thread; VkContext sets it on the
     // init thread, re-pin here for worker-thread create() callers.
-    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice");
+    check_cuda(cudaSetDevice(ctx_->cuda_device_id()), "cudaSetDevice", ctx_->cuda_device_id());
 
     VkMemoryRequirements reqs;
     vkGetImageMemoryRequirements(ctx_->device(), image_, &reqs);
@@ -371,7 +372,8 @@ void DeviceImage::import_to_cuda()
     ext_desc.size = reqs.size;
     ext_desc.flags = 0;
 
-    check_cuda(cudaImportExternalMemory(&cuda_external_memory_, &ext_desc), "cudaImportExternalMemory");
+    check_cuda(cudaImportExternalMemory(&cuda_external_memory_, &ext_desc), "cudaImportExternalMemory",
+               ctx_->cuda_device_id());
 
     // CUDA dup'd the fd internally; close ours so we don't double-free.
     close_fd(memory_fd_);
@@ -387,8 +389,9 @@ void DeviceImage::import_to_cuda()
     array_desc.numLevels = mip_levels_;
 
     check_cuda(cudaExternalMemoryGetMappedMipmappedArray(&cuda_mipmapped_array_, cuda_external_memory_, &array_desc),
-               "cudaExternalMemoryGetMappedMipmappedArray");
-    check_cuda(cudaGetMipmappedArrayLevel(&cuda_array_, cuda_mipmapped_array_, 0), "cudaGetMipmappedArrayLevel");
+               "cudaExternalMemoryGetMappedMipmappedArray", ctx_->cuda_device_id());
+    check_cuda(cudaGetMipmappedArrayLevel(&cuda_array_, cuda_mipmapped_array_, 0), "cudaGetMipmappedArrayLevel",
+               ctx_->cuda_device_id());
 }
 
 void DeviceImage::create_interop_semaphores()
@@ -436,8 +439,8 @@ void DeviceImage::create_interop_semaphores()
     if (err != cudaSuccess)
     {
         close_fd(fd);
-        throw std::runtime_error(std::string("DeviceImage: cudaImportExternalSemaphore(cuda_done_writing) failed: ") +
-                                 cudaGetErrorString(err));
+        throw std::runtime_error(cuda_error_message(
+            "DeviceImage", "cudaImportExternalSemaphore(cuda_done_writing)", err, ctx_->cuda_device_id()));
     }
     close_fd(fd);
 }
@@ -455,8 +458,12 @@ void DeviceImage::cuda_signal_write_done(cudaStream_t stream)
     const cudaError_t err = cudaSignalExternalSemaphoresAsync(&cuda_cuda_done_writing_, &params, 1, stream);
     if (err != cudaSuccess)
     {
-        throw std::runtime_error(std::string("DeviceImage: cudaSignalExternalSemaphoresAsync(cuda_done_writing) failed: ") +
-                                 cudaGetErrorString(err));
+        // The single most-reported viz error, and the least informative
+        // one CUDA produces: a cross-device signal is reported as
+        // "invalid argument". cuda_error_message names both devices and
+        // the fix when that is what happened.
+        throw std::runtime_error(cuda_error_message(
+            "DeviceImage", "cudaSignalExternalSemaphoresAsync(cuda_done_writing)", err, ctx_->cuda_device_id()));
     }
     cuda_done_writing_value_.store(reserved, std::memory_order_release);
 }

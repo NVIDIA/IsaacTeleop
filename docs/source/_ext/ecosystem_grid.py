@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import ClassVar
 
 import yaml
 from docutils import nodes
@@ -25,6 +26,13 @@ from sphinx.util.docutils import SphinxRole
 
 DEVICE_DATA = "_data/devices.yaml"
 DEVICE_LOGO_DIR = "_static/logos"
+
+# A device no release carries yet, so the only way to get it is to build main.
+SINCE_MAIN = "main"
+
+# The first stable release; everything before 1.0 was a pre-release. A device carried by
+# an earlier tag is listed from here rather than from a 0.x version.
+SINCE_FLOOR = "v1.0.191"
 
 # A link into the docs site or into the IsaacTeleop repository stays inside this
 # project, so it carries no external marker -- arrow or screen-reader label. Every
@@ -104,8 +112,13 @@ def _depart_eco_block(self, node):
     self.body.append(f"</{node.get('html_tag', 'div')}>\n")
 
 
-class eco_inline(nodes.Inline, nodes.Element):
-    """``eco_block``'s inline twin, for elements that sit inside a paragraph."""
+class eco_inline(nodes.Inline, nodes.TextElement):
+    """``eco_block``'s inline twin, for elements that sit inside a paragraph.
+
+    ``TextElement`` and not ``Element``: Sphinx's HTML writer treats a reference whose
+    parent is not one as an image reference, and asserts that its only child is an
+    image. A link nested in this span would crash the build.
+    """
 
 
 def _element(tag: str, classes: list[str], *, inline: bool = False, **attributes):
@@ -121,6 +134,11 @@ def _passthrough(self, node):
 
 _ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _ISSUE_RE = re.compile(r"/(?:issues|pull)/(\d+)/?$")
+# A release tag exactly as the repository spells it, because the link resolves it. Every
+# tag from SINCE_FLOOR on carries the "v", and only the releases below it drop the
+# prefix; matching those too lets the floor explain itself rather than reading as a
+# misspelling.
+_SINCE_RE = re.compile(r"^v?\d+\.\d+\.\d+$")
 _TEL_RE = re.compile(r"[^\d+]")
 
 # A stroked glyph rather than U+2197: the Unicode arrow renders far heavier than the
@@ -140,7 +158,7 @@ def _fail(source: str, record: str | None, message: str) -> None:
 
 
 _DEVICE_REQUIRED = ("id", "name", "url", "group", "modes")
-_DEVICE_KNOWN = _DEVICE_REQUIRED + ("details", "company")
+_DEVICE_KNOWN = _DEVICE_REQUIRED + ("since", "details", "company")
 _COMPANY_REQUIRED = ("name", "logo")
 _COMPANY_KNOWN = _COMPANY_REQUIRED + ("logo_dark",)
 _PLANNED_REQUIRED = ("id", "name", "url", "note", "tracking")
@@ -226,6 +244,41 @@ def _validate_details(details, source: str, name: str) -> None:
             _validate_entry(entry, source, name, f"details.{key}")
 
 
+def _release_order(tag: str) -> tuple:
+    """Sortable form of a release tag, whose "v" is optional in the oldest ones."""
+    return tuple(int(part) for part in tag.lstrip("v").split("."))
+
+
+def _validate_since(since, source: str, name: str, details) -> None:
+    """A release tag, or ``main``: both name something the tag can link to.
+
+    Rejecting anything else keeps the field derivable rather than editorial -- a date, a
+    release line, or "latest" would all make the tag a claim nobody can check, and none
+    of them resolve to a page the link can point at.
+    """
+    if since != SINCE_MAIN and not _SINCE_RE.fullmatch(str(since)):
+        _fail(
+            source,
+            name,
+            f"since must be {SINCE_MAIN!r} or a release tag such as 'v1.3.131', "
+            f"not {since!r}",
+        )
+    if since != SINCE_MAIN and _release_order(since) < _release_order(SINCE_FLOOR):
+        _fail(
+            source,
+            name,
+            f"since is {since!r}, older than {SINCE_FLOOR!r}; a device carried by an "
+            f"earlier release is listed from {SINCE_FLOOR!r} instead",
+        )
+    if not details:
+        _fail(
+            source,
+            name,
+            "since renders inside the Details panel, and this row has no 'details' to "
+            "open, so the tag would never appear",
+        )
+
+
 def _validate_company(company, source: str, name: str, confdir: str) -> None:
     """The panel header renders a mark and nothing else, so the schema carries no copy.
 
@@ -296,6 +349,9 @@ def _validate_devices(
 
         if record.get("details") is not None:
             _validate_details(record["details"], source, name)
+
+        if record.get("since") is not None:
+            _validate_since(record["since"], source, name, record.get("details"))
 
         if record.get("company") is not None:
             _validate_company(record["company"], source, name, confdir)
@@ -461,6 +517,34 @@ def _disclosure(panel_id: str) -> nodes.Element:
     return cell
 
 
+def _since_tag(since: str) -> nodes.Element:
+    """The earliest release carrying the device, linked to that release.
+
+    A release takes the word "Since", which the number alone does not say: on its own it
+    reads as a version of the device rather than of what runs it. ``main`` takes no word,
+    because it is not a floor -- it is the moving tip, and nothing is available "since"
+    it. The bare chip, in the theme's primary color against the other rows' "Since",
+    carries that on its own, and it points at the branch because there is no release for
+    it to point at.
+
+    The label restores the "v" the first two releases were tagged without, so the chips
+    read as one series; the link keeps the spelling the repository actually uses.
+    """
+    group = _element("span", ["device-since"], inline=True)
+    classes = ["device-since-branch"]
+    if since == SINCE_MAIN:
+        label = SINCE_MAIN
+        target = f"{PROJECT_REPO}/tree/{SINCE_MAIN}"
+        classes.append("is-main")
+    else:
+        group += nodes.inline("", "Since", classes=["device-since-label"])
+        label = since if since.startswith("v") else f"v{since}"
+        target = f"{PROJECT_REPO}/releases/tag/{since}"
+    # Into the project's own repository, so no external marker: see PROJECT_REPO.
+    group += nodes.reference("", label, refuri=target, classes=classes)
+    return group
+
+
 def _company_head(company: dict) -> nodes.Element:
     """The mark of the company behind the device, above the panel's columns.
 
@@ -485,6 +569,19 @@ def _company_head(company: dict) -> nodes.Element:
     return head
 
 
+def _since_foot(since: str) -> nodes.Element:
+    """Under the panel's columns rather than over them.
+
+    Fewer than half the rows carry a company mark, so sharing the mark's row left the
+    rest with a chip against an empty half -- and a row holding only a chip is a row
+    spent on nothing. Below the columns it also reads as what it is: a note on the
+    listing, not a heading over it.
+    """
+    foot = _line(["device-panel-foot"])
+    foot += _since_tag(since)
+    return foot
+
+
 def _device_panel(record: dict, panel_id: str, docname: str) -> nodes.Element:
     panel = _element("div", ["device-panel"])
     panel["ids"] = [panel_id]
@@ -501,6 +598,9 @@ def _device_panel(record: dict, panel_id: str, docname: str) -> nodes.Element:
         for entry in entries:
             column += _detail_line(entry, docname)
         panel += column
+    since = record.get("since")
+    if since:
+        panel += _since_foot(since)
     return panel
 
 
@@ -569,7 +669,7 @@ class DeviceMatrix(Directive):
     """Render one section of ``devices.yaml`` as a table: name, value, Details panel."""
 
     has_content = False
-    option_spec = {
+    option_spec: ClassVar[dict] = {
         "section": lambda arg: directives.choice(arg, tuple(DEVICE_SECTIONS)),
         "data": directives.unchanged,
     }

@@ -35,12 +35,16 @@ display:
   xr:
     near_z: 0.05
     far_z: 100.0
+    # How long create() waits for the headset to connect. -1 (default) waits
+    # forever, so you can start the viewer before putting the Quest on; 0
+    # fails fast. Ctrl-C is only delivered once the wait ends.
+    system_wait_seconds: -1
   clear_color: [0.05, 0.05, 0.08, 1.0]
   placements:
     synth:
       lock_mode: lazy
       distance: 1.0
-      stereo_baseline_mm: 0.0     # 0 → both eyes see the same world quad
+      stereo_plane_distance_cm: 0.0  # 0 → both eyes see the same world quad
                                   # (parallax purely from the captured frames).
                                   # Try 65.0 (typical IPD) to virtually push the
                                   # screen further; -30.0 to bring it closer.
