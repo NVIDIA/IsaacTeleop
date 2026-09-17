@@ -9,11 +9,11 @@
 #include <avatar_sdk/AvatarSDK.h>
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
-#include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <openxr/openxr_platform.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
+#include <oxr_utils/pose_conversions.hpp>
 #include <plugin_utils/hand_injector.hpp>
 #include <plugin_utils/wrist_pose_source.hpp>
 #include <pusherio/schema_pusher.hpp>
@@ -164,7 +164,6 @@ private:
     core::OpenXRSessionHandles m_handles;
     std::array<std::unique_ptr<plugin_utils::HandInjector>, kGloveCount> m_injectors;
     std::shared_ptr<core::ControllerTracker> m_controller_tracker;
-    std::shared_ptr<core::HandTracker> m_hand_tracker;
     std::shared_ptr<core::HapticCommandReaderTracker> m_haptic_reader;
     std::unique_ptr<plugin_utils::WristPoseSource> m_wrist_source;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
@@ -176,9 +175,9 @@ private:
     //! through this, so the OpenXR mapping stays spelled in SDK names.
     std::unordered_map<std::string, size_t> m_landmark_index;
 
-    // Identity quaternion fallback: written before it is read, but an all-zero
-    // pose would be invalid if that ever changed.
-    std::array<XrPosef, kGloveCount> m_root_poses{};
+    // Seeded to identity, never a zeroed XrPosef: a glove without a wrist
+    // source publishes this pose, and an all-zero quaternion is not a rotation.
+    std::array<XrPosef, kGloveCount> m_root_poses{ oxr_utils::identity_posef(), oxr_utils::identity_posef() };
 
     std::array<bool, kGloveCount> m_haptic_error_logged{};
     // Seeded to construction time, not to a zero time_point used as a "never set"

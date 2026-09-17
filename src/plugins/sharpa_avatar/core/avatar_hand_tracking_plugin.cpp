@@ -35,24 +35,6 @@ namespace avatar
 namespace
 {
 
-// Returns true if the OpenXR loader/runtime advertises the given extension.
-// Safe to call before any XrInstance exists.
-bool is_openxr_extension_supported(const char* ext_name)
-{
-    uint32_t count = 0;
-    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, 0, &count, nullptr)))
-    {
-        return false;
-    }
-    std::vector<XrExtensionProperties> props(count, XrExtensionProperties{ XR_TYPE_EXTENSION_PROPERTIES });
-    if (XR_FAILED(xrEnumerateInstanceExtensionProperties(nullptr, count, &count, props.data())))
-    {
-        return false;
-    }
-    return std::any_of(props.begin(), props.end(),
-                       [ext_name](const XrExtensionProperties& p) { return std::string(p.extensionName) == ext_name; });
-}
-
 constexpr size_t kAvatarFingerCount = 5;
 constexpr size_t kJointFlatbufferSize = 4096;
 constexpr auto kAvatarDataTimeout = std::chrono::seconds(10);
@@ -296,22 +278,10 @@ void AvatarTracker::Impl::try_initialize_openxr()
         wrist_config.aim_to_wrist = kHandOffsets;
         auto wrist_requirements = plugin_utils::WristPoseSource::collect_requirements(wrist_config.mode);
 
-        // ControllerTracker is always available; HandTracker requires
-        // XR_EXT_hand_tracking so only add it when advertised.
+        // ControllerTracker feeds the wrist fallback; injected HUMAN data goes
+        // through HandInjector, so no HandTracker is created (nothing would read it).
         m_controller_tracker = std::make_shared<core::ControllerTracker>();
         std::vector<std::shared_ptr<core::ITracker>> trackers = { m_controller_tracker };
-
-        const bool hand_tracking_supported = is_openxr_extension_supported(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
-        if (m_config.human && hand_tracking_supported)
-        {
-            m_hand_tracker = std::make_shared<core::HandTracker>();
-            trackers.push_back(m_hand_tracker);
-        }
-        else if (m_config.human)
-        {
-            std::cout << "[Avatar] " << XR_EXT_HAND_TRACKING_EXTENSION_NAME
-                      << " not supported by runtime; HandTracker will not be created." << std::endl;
-        }
 
         if (m_config.haptic)
         {
@@ -330,7 +300,11 @@ void AvatarTracker::Impl::try_initialize_openxr()
                 }
             }
         }
-        extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
+        if (m_config.human)
+        {
+            // HandInjector pushes hand data through the NVX1 device interface.
+            extensions.push_back(XR_NVX1_DEVICE_INTERFACE_BASE_EXTENSION_NAME);
+        }
         // WristPoseSource decides which of the optical/controller extensions it
         // can actually use; it appends nothing when the runtime lacks them.
         extensions.insert(extensions.end(), wrist_requirements.extensions.begin(), wrist_requirements.extensions.end());
@@ -411,7 +385,6 @@ void AvatarTracker::Impl::reset_openxr()
         injector.reset();
     }
     m_haptic_reader.reset();
-    m_hand_tracker.reset();
     m_controller_tracker.reset();
     m_time_converter.reset();
     m_session.reset();
@@ -726,8 +699,9 @@ void AvatarTracker::Impl::push_joint_frame(DeviceSide side, DeviceDataCategory c
     {
         auto joint = std::make_shared<core::JointStateT>();
         // RAW and ROBOT carry their names from sdk_config.json's raw/robot_joint_names,
-        // and those two orders differ per finger, so pass the SDK's names through.
-        joint->name = i < hand.joint.name.size() ? hand.joint.name[i] : ("joint_" + std::to_string(i));
+        // and those two orders differ per finger, so pass the SDK's names through;
+        // a short name vector leaves the joint unnamed rather than inventing one.
+        joint->name = i < hand.joint.name.size() ? hand.joint.name[i] : std::string();
         joint->position = hand.joint.position[i];
         joint->valid = std::isfinite(joint->position);
         output.joints.push_back(std::move(joint));

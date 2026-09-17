@@ -14,6 +14,7 @@ Usage (from the Isaac Teleop root, after ``src/plugins/sharpa_avatar/install.sh`
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -27,9 +28,9 @@ AVATAR_RAW_LEFT_COLLECTION_ID = "avatar_raw_left"
 AVATAR_RAW_RIGHT_COLLECTION_ID = "avatar_raw_right"
 AVATAR_ROBOT_LEFT_COLLECTION_ID = "avatar_robot_left"
 AVATAR_ROBOT_RIGHT_COLLECTION_ID = "avatar_robot_right"
-NUM_AVATAR_JOINTS = 22
-AVATAR_JOINT_NAMES = [f"joint_{i}" for i in range(NUM_AVATAR_JOINTS)]
 DEFAULT_DATASETS = "human,raw,robot,haptic"
+# Fixed SDK install path (install.sh checks it); override with --sdk-config.
+DEFAULT_SDK_CONFIG = Path("/opt/avatar-sdk/share/sdk_config.json")
 APP_NAME = "SharpaAvatarSample"
 FPS = 30.0
 DEFAULT_PRINT_HZ = 1.0
@@ -79,6 +80,20 @@ _HAND_DISPLAY_ORIGIN = {
 def _die(message: str, code: int = 2) -> None:
     print(f"ERROR: {message}", file=sys.stderr)
     raise SystemExit(code)
+
+
+def _load_joint_names(sdk_config: Path) -> tuple[list[str], list[str]]:
+    """RAW and ROBOT JointStateSource names, from the SDK's ``sdk_config.json``.
+
+    The plugin publishes RAW/ROBOT joints under the SDK's own spellings and
+    ``JointStateSource`` resolves subscriptions by name: a placeholder list
+    here would silently resolve every value to the 0.0 default.
+    """
+    try:
+        config = json.loads(sdk_config.read_text(encoding="utf-8"))
+        return list(config["raw_joint_names"]), list(config["robot_joint_names"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        _die(f"Could not read raw/robot joint names from {sdk_config}: {exc}")
 
 
 def _import_teleop():
@@ -472,8 +487,10 @@ def main() -> int:
     )
     parser.add_argument(
         "--sdk-config",
-        default="",
-        help="Optional sdk_config.json passed to the plugin.",
+        type=Path,
+        default=None,
+        help="sdk_config.json for RAW/ROBOT joint names and the plugin "
+        f"(default: {DEFAULT_SDK_CONFIG}).",
     )
     parser.add_argument(
         "--datasets",
@@ -513,17 +530,20 @@ def main() -> int:
         )
 
     hands = HandsSource(name="hands")
+    raw_joint_names, robot_joint_names = _load_joint_names(
+        args.sdk_config or DEFAULT_SDK_CONFIG
+    )
     joint_sources = [
         JointStateSource(
             name=name,
             collection_id=collection_id,
-            joint_names=AVATAR_JOINT_NAMES,
+            joint_names=joint_names,
         )
-        for name, collection_id in (
-            ("avatar_raw_left", AVATAR_RAW_LEFT_COLLECTION_ID),
-            ("avatar_raw_right", AVATAR_RAW_RIGHT_COLLECTION_ID),
-            ("avatar_robot_left", AVATAR_ROBOT_LEFT_COLLECTION_ID),
-            ("avatar_robot_right", AVATAR_ROBOT_RIGHT_COLLECTION_ID),
+        for name, collection_id, joint_names in (
+            ("avatar_raw_left", AVATAR_RAW_LEFT_COLLECTION_ID, raw_joint_names),
+            ("avatar_raw_right", AVATAR_RAW_RIGHT_COLLECTION_ID, raw_joint_names),
+            ("avatar_robot_left", AVATAR_ROBOT_LEFT_COLLECTION_ID, robot_joint_names),
+            ("avatar_robot_right", AVATAR_ROBOT_RIGHT_COLLECTION_ID, robot_joint_names),
         )
     ]
     mapping = {
@@ -541,8 +561,8 @@ def main() -> int:
     plugins = []
     if args.launch_plugin:
         plugin_args = [f"--datasets={args.datasets}"]
-        if args.sdk_config:
-            plugin_args.insert(0, args.sdk_config)
+        if args.sdk_config is not None:
+            plugin_args.insert(0, str(args.sdk_config))
         plugins = [
             PluginConfig(
                 plugin_name=PLUGIN_NAME,

@@ -89,21 +89,7 @@ echo "==> Building Sharpa Avatar plugin"
   --parallel
 
 install_prefix="$(awk -F= '/^CMAKE_INSTALL_PREFIX:PATH=/{print $2; exit}' "$build_dir/CMakeCache.txt")"
-legacy_lib_dir="$install_prefix/lib"
-if [[ -e "$legacy_lib_dir/libavatar_sdk.so" ]]; then
-  echo "==> Removing SDK libraries installed by the legacy vendor flow"
-  shopt -s nullglob
-  legacy_sdk_files=(
-    "$legacy_lib_dir"/libavatar_sdk*.so*
-    "$legacy_lib_dir"/libcasadi*.so*
-    "$legacy_lib_dir"/libipopt*.so*
-    "$legacy_lib_dir"/libsipopt*.so*
-    "$legacy_lib_dir"/libcoinmumps*.so*
-    "$legacy_lib_dir"/libcoinmetis*.so*
-  )
-  shopt -u nullglob
-  rm -f "${legacy_sdk_files[@]}"
-fi
+[[ -n "$install_prefix" ]] || die "Could not read CMAKE_INSTALL_PREFIX from $build_dir/CMakeCache.txt."
 
 echo "==> Installing Sharpa Avatar plugin"
 "$cmake_bin" --install "$build_dir" --component avatar

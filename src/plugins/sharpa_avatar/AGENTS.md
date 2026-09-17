@@ -12,12 +12,16 @@ SPDX-License-Identifier: Apache-2.0
   official package under `/opt/avatar-sdk`; CMake consumes that fixed host
   layout directly. Do not copy, patch, or package SDK files, and do not
   advertise extracted SDK trees as supported.
-- Install the latest candidate of the production `avatar-sdk` package; pin the
-  channel, not a release number, and never substitute `-dev` or `-beta`.
+- Install the pinned production `avatar-sdk` package: `install_avatar_sdk.sh`
+  selects a fixed `production_version` for reproducible installs; update that
+  pin deliberately, and never substitute `-dev` or `-beta`.
 - Keep installer responsibilities separate: SDK/APT in
   `install_avatar_sdk.sh`, host device permissions in
   `install_udev_rules.sh`, and plugin build/install orchestration in
   `install.sh`.
+- **Installers never delete files.** Paths parsed from `CMakeCache.txt` can
+  come up empty or wrong, and a cleanup `rm` built on one reaches outside the
+  install tree; stale copies under a prefix are the user's to remove.
 - Do not mutate loader environment variables or SDK configuration at runtime.
   Runtime paths come from the selected SDK root and its `sdk_config.json`.
 - **Sample lives in `tools/`, not `examples/`.** Path is
@@ -51,8 +55,10 @@ SPDX-License-Identifier: Apache-2.0
   are swapped, and the whole pinky run differs), while `human_joint_names` has
   25. Never name a tensor from a hand-written table: RAW and ROBOT frames
   arrive with `Joint::name` already populated by the SDK, so
-  `push_joint_frame` passes those names through verbatim. A local joint-name
-  array is the bug this bullet exists to prevent.
+  `push_joint_frame` passes those names through verbatim, and the Python
+  sample subscribes with `raw_joint_names`/`robot_joint_names` read from the
+  same file (`JointStateSource` matches by name and defaults to 0.0). A local
+  joint-name array on either side is the bug this bullet exists to prevent.
 - **Map OpenXR hand slots by name, never by a literal index array.**
   `HandSkeleton` (HUMAN) carries bare poses with *no* names, so the landmark
   order exists only in `sdk_config.json`. `kOpenXrSlotSources` therefore holds

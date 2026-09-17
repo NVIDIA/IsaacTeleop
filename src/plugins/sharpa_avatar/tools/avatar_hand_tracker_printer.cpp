@@ -179,8 +179,7 @@ void print_joints(const std::string& label, const AvatarJointFrame& frame, bool 
         std::cout << std::endl;
         for (size_t i = 0; i < n; ++i)
         {
-            const std::string name =
-                i < frame.names.size() && !frame.names[i].empty() ? frame.names[i] : ("joint_" + std::to_string(i));
+            const std::string name = i < frame.names.size() && !frame.names[i].empty() ? frame.names[i] : "<unnamed>";
             std::cout << "  [" << i << "] " << name << "=" << frame.positions[i] << std::endl;
         }
     }
