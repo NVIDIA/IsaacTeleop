@@ -350,8 +350,7 @@ bool XsensFullBodyPlugin::update(const std::atomic<bool>& stop)
     {
         ++stats_.session_resyncs;
         log_rate_limited(LC_SESSION_RESYNC,
-                         "new MVN session inferred from a run of stale frames -- its reset datagram was lost",
-                         std::cout);
+                         "new MVN session inferred from a run of stale frames -- its reset datagram was lost", std::cout);
     }
     if (outcome.sequence_numbers_skipped > 0)
     {

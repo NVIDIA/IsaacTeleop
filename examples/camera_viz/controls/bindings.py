@@ -572,7 +572,7 @@ class ControllerControls:
         the render() that follows on this thread, so no frame ever sees the
         pair half-applied."""
         changed = []
-        for i, target in enumerate(self._targets):
+        for target in self._targets:
             if len(target.shape_layers) < 2:
                 continue
             nxt = SHAPE_CYCLE[(SHAPE_CYCLE.index(target.shape) + 1) % len(SHAPE_CYCLE)]

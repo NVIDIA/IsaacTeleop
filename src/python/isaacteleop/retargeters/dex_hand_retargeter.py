@@ -323,7 +323,7 @@ class DexHandRetargeter(BaseRetargeter):
 
             return None
         except Exception as e:
-            logger.error(f"Error updating YAML {yaml_path}: {e}")
+            logger.error("Error updating YAML %s: %s", yaml_path, e)
             return None
 
     def _compute_hand(self, poses: Dict[str, np.ndarray]) -> np.ndarray:
@@ -418,7 +418,7 @@ class DexHandRetargeter(BaseRetargeter):
             with torch.enable_grad(), torch.inference_mode(False):
                 return self._dex_hand.retarget(ref_value)  # type: ignore
         except Exception as e:
-            logger.error(f"Error in retargeting: {e}")
+            logger.error("Error in retargeting: %s", e)
             return np.zeros(len(self._dex_hand.optimizer.robot.dof_joint_names))
 
 

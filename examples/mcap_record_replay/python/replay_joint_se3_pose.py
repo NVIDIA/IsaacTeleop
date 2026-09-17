@@ -130,7 +130,7 @@ def pinch_distances(data, side: str | None) -> str:
 
 def run_once(session, trackers, viz, rate_hz: float) -> tuple[int, dict]:
     frames = 0
-    samples = {cid: 0 for cid in trackers}
+    samples = dict.fromkeys(trackers, 0)
     none_streak = 0
     tick = 1.0 / rate_hz if rate_hz > 0 else 0.0
     # update() is void; per the replay contract tracker data goes null at end-of-file,

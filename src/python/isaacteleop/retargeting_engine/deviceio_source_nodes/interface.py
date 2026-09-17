@@ -71,7 +71,6 @@ class IDeviceIOSource(BaseRetargeter):
         Returns:
             The ITracker instance (e.g., HeadTracker, HandTracker, ControllerTracker)
         """
-        pass
 
     @abstractmethod
     def poll_tracker(self, deviceio_session: Any) -> RetargeterIO:
@@ -87,4 +86,3 @@ class IDeviceIOSource(BaseRetargeter):
             Dict mapping input names to TensorGroups containing raw tracker data,
             matching this source's input_spec().
         """
-        pass

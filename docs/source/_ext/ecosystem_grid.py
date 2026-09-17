@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import ClassVar
 
 import yaml
 from docutils import nodes
@@ -668,7 +669,7 @@ class DeviceMatrix(Directive):
     """Render one section of ``devices.yaml`` as a table: name, value, Details panel."""
 
     has_content = False
-    option_spec = {
+    option_spec: ClassVar[dict] = {
         "section": lambda arg: directives.choice(arg, tuple(DEVICE_SECTIONS)),
         "data": directives.unchanged,
     }

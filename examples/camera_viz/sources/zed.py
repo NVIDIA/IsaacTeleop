@@ -310,7 +310,7 @@ class _ZedCamera:
 
         # Pyzed Mats are pitched GPU buffers — one per eye, reused every
         # grab() / retrieve_image() pair.
-        for eye, slot in self._slots.items():
+        for slot in self._slots.values():
             slot.zed_mat = sl.Mat()
 
         self._camera = camera

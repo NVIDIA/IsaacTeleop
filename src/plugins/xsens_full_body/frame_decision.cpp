@@ -86,8 +86,7 @@ FrameOutcome FrameDecider::classify(const uint8_t* datagram, size_t size)
             // So a *run* of stale frames that is itself strictly ascending is taken for the new
             // session it almost certainly is. Duplicates and reordering bursts are not ascending
             // and never accumulate; a restart is, whatever became of its reset datagram.
-            stale_run_length_ =
-                (stale_run_length_ > 0 && frame->seq > stale_run_last_seq_) ? stale_run_length_ + 1 : 1;
+            stale_run_length_ = (stale_run_length_ > 0 && frame->seq > stale_run_last_seq_) ? stale_run_length_ + 1 : 1;
             stale_run_last_seq_ = frame->seq;
 
             if (stale_run_length_ < SESSION_RESYNC_AFTER)

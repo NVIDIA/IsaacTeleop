@@ -30,7 +30,7 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import ClassVar, List, Optional
 
 import numpy as np
 
@@ -120,7 +120,7 @@ class _OakdDevice:
     closes it.
     """
 
-    _SOCKET_MAP = {
+    _SOCKET_MAP: ClassVar[dict[str, str]] = {
         "RGB": "CAM_A",
         "CAM_A": "CAM_A",
         "LEFT": "CAM_B",
