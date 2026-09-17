@@ -395,16 +395,18 @@ def run() -> None:
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
 
     # fd 1/fd 2 (the native library's console banner and its Vulkan-loader /
-    # GPU-init diagnostics) are already captured by isaacteleop.logging_config's
-    # _gate_native_fds by the time this runs -- importing this module already
-    # imports the isaacteleop package, which sets that up at import time. This
-    # used to duplicate that here with its own dup2() calls (discarding fd 1
-    # outright, redirecting fd 2 to a separate runtime_stderr.log that never
-    # mirrored to the terminal), which raced with and then silently undid the
-    # unified capture: its pipe's write end lost its last reference the moment
-    # this code repointed fd 2, so the drain thread saw EOF and handed fd 2
-    # back to the real terminal shortly after -- undoing this block's own
-    # redirect. See isaacteleop.logging_config._native_fd for that capture.
+    # GPU-init diagnostics) are deliberately left alone here. This is the
+    # runtime worker: a process isaacteleop launched for the sole purpose of
+    # hosting that native stack, so whoever launched it already pointed its
+    # descriptors where the output belongs -- the session's capture file for
+    # stdout and the worker's own stderr log (cloudxr/service/_service.py).
+    # This block used to do its own dup2(), discarding fd 1 outright and
+    # sending fd 2 to a separate runtime_stderr.log that never mirrored to the
+    # terminal; it then raced with, and silently undid, the process-wide
+    # capture that logging_config installed at import. That capture is gone --
+    # a library must not rebind its host's descriptors -- and redirecting here
+    # would now only fight the launcher. See isaacteleop.logging_config
+    # ._native_fd for what does still get captured, and where.
 
     lib = _load_libcloudxr(sdk_path)
     svc = ctypes.c_void_p()

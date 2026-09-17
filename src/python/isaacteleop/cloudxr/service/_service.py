@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
-from ...logging_config import log_dir
+from ...logging_config import log_dir, native_capture_fd
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -204,6 +204,14 @@ class CloudXRService:
         # its next write to stderr would block the runtime with no diagnostic.
         # Truncated per start so a failure report shows only this one.
         worker_stderr = logs_dir_path / _WORKER_STDERR_LOG
+        # stdout explicitly, not inherited. isaacteleop no longer rebinds its
+        # host's fd 1, so inheriting would put the runtime's startup banner and
+        # the native stack's chatter on the host application's terminal. This is
+        # a process this library launched, so its descriptors are ours to set;
+        # capture_fd() is the same file every other non-logger byte of the
+        # session lands in. None only if the capture could not be opened at all,
+        # in which case inheriting is the correct fallback.
+        capture_fd = native_capture_fd()
         with open(worker_stderr, "w", encoding="utf-8") as stderr_file:
             self._runtime_proc = subprocess.Popen(
                 [
@@ -212,6 +220,7 @@ class CloudXRService:
                     _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
                 ],
                 env=worker_env,
+                stdout=capture_fd if capture_fd is not None else None,
                 stderr=stderr_file,
                 start_new_session=True,
                 preexec_fn=_set_pdeathsig if sys.platform != "win32" else None,
