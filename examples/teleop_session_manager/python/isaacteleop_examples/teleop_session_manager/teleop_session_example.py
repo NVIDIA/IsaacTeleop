@@ -10,6 +10,7 @@ This example shows:
 1. Computing velocity from wrist and controller position changes
 2. Using TeleopSession with synthetic hands plugin
 3. Displaying velocity data
+4. Reporting provider and device status transitions
 """
 
 import argparse
@@ -166,6 +167,34 @@ class VelocityTracker(BaseRetargeter):
         self._prev_time = current_time
 
 
+def print_status_changes(session, previous):
+    """Print provider and device records only when their status changes."""
+    snapshot = session.get_status()
+    current = {}
+    records = (
+        ("provider", provider.id, provider.status, provider.reason, provider.error)
+        for provider in snapshot.providers
+    )
+    records = list(records) + [
+        ("device", device.id, device.status, device.reason, device.error)
+        for device in snapshot.devices
+    ]
+
+    for kind, record_id, status, reason, error in records:
+        key = (kind, record_id)
+        value = (status, reason, error)
+        current[key] = value
+        if previous.get(key) == value:
+            continue
+
+        details = f"{status.value} ({reason.value})"
+        if error:
+            details += f": {error}"
+        print(f"[status] {kind} {record_id}: {details}")
+
+    return current
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     CloudXRLauncher.add_launcher_arguments(parser)
@@ -210,8 +239,10 @@ def main():
         print("Press Ctrl+C to exit")
         print("=" * 70 + "\n")
 
+        previous_statuses = {}
         while True:
             result = session.step()
+            previous_statuses = print_status_changes(session, previous_statuses)
 
             hand_left_vel = result["hand_velocity_left"][0]
             hand_right_vel = result["hand_velocity_right"][0]

@@ -20,7 +20,6 @@ namespace
 {
 
 constexpr std::string_view ROOT_ID_FLAG = "--plugin-root-id";
-constexpr size_t MAX_POSITIONALS = 3;
 
 bool starts_with(std::string_view text, std::string_view prefix)
 {
@@ -81,7 +80,7 @@ ParseOutcome parse_flag_form(const std::vector<std::string>& args, XsensFullBody
     {
         if (!starts_with(arg, "--"))
         {
-            error = "unexpected argument '" + arg + "' -- flags and the deprecated positional form cannot be mixed";
+            error = "unexpected argument '" + arg + "' -- every option is a flag, e.g. --port=9764";
             return ParseOutcome::Error;
         }
 
@@ -126,31 +125,6 @@ ParseOutcome parse_flag_form(const std::vector<std::string>& args, XsensFullBody
     return ParseOutcome::Ok;
 }
 
-ParseOutcome parse_positional_form(const std::vector<std::string>& args, XsensFullBodyOptions& out, std::string& error)
-{
-    if (args.size() > MAX_POSITIONALS)
-    {
-        error = "expected at most 3 positional arguments -- use the flag form for anything more";
-        return ParseOutcome::Error;
-    }
-
-    out.used_legacy_positionals = true;
-
-    if (parse_collection_id(args[0], out, error) != ParseOutcome::Ok)
-    {
-        return ParseOutcome::Error;
-    }
-    if (args.size() > 1 && !parse_port(args[1], out.udp_port))
-    {
-        return bad_value("udp_port", args[1], error);
-    }
-    if (args.size() > 2 && !parse_size(args[2], out.max_flatbuffer_size))
-    {
-        return bad_value("max_flatbuffer_size", args[2], error);
-    }
-    return ParseOutcome::Ok;
-}
-
 } // namespace
 
 ParseOutcome parse_options(int argc, const char* const* argv, XsensFullBodyOptions& out, std::string& error)
@@ -188,11 +162,7 @@ ParseOutcome parse_options(int argc, const char* const* argv, XsensFullBodyOptio
         args.emplace_back(arg);
     }
 
-    if (args.empty())
-    {
-        return ParseOutcome::Ok;
-    }
-    return starts_with(args.front(), "--") ? parse_flag_form(args, out, error) : parse_positional_form(args, out, error);
+    return parse_flag_form(args, out, error);
 }
 
 } // namespace xsens_full_body

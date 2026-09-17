@@ -308,6 +308,98 @@ void test_duplicate_seq_zero_is_stale_not_a_reset()
     CHECK(classify(d4, good_frame(0)).session_reset);
 }
 
+//! Regression: a new session whose `seq == 0` datagram was lost in transit.
+//!
+//! This is the failure the seq-0 reset rule cannot see. MVN restarts, the one datagram that
+//! announces it never arrives, and every frame of the new session reads as stale against the old
+//! session's last number -- so the stream stays dark until the new session counts all the way
+//! past it. At a restart from seq 500 that is 500 frames, over eight seconds at 60 Hz, with
+//! nothing in the log but a climbing `stale`.
+void test_resync_when_the_reset_datagram_is_lost()
+{
+    FrameDecider d(MAX_FB);
+    CHECK(classify(d, good_frame(500, 10000)).verdict == FrameVerdict::Deliver);
+
+    // seq 0 is dropped by the network and never classified. The new session starts at 1.
+    int stale = 0;
+    uint64_t seq = 1;
+    FrameOutcome resync;
+    for (; seq <= FrameDecider::SESSION_RESYNC_AFTER; ++seq)
+    {
+        const FrameOutcome o = classify(d, good_frame(seq, int64_t(seq) * 20));
+        if (o.verdict == FrameVerdict::Deliver)
+        {
+            resync = o;
+            ++seq; // `break` skips the loop's own increment, and the stream continues past here
+            break;
+        }
+        CHECK(o.verdict == FrameVerdict::DroppedStale);
+        CHECK(!o.session_reset && !o.session_resync);
+        ++stale;
+    }
+
+    // Recovery is bounded by the run length, not by the old session's sequence range.
+    CHECK(resync.verdict == FrameVerdict::Deliver);
+    CHECK(stale == int(FrameDecider::SESSION_RESYNC_AFTER) - 1);
+
+    // It is a session boundary, and one that says it was inferred rather than announced.
+    CHECK(resync.session_reset);
+    CHECK(resync.session_resync);
+    CHECK(resync.sequence_numbers_skipped == 0); // a resync is not a gap
+
+    // The timeline was cleared with it, so the new session's timestamps -- far behind the old
+    // session's 10 s -- are not reported as a rewind, just as after a seq-0 reset.
+    CHECK(!resync.timeline_rewind);
+
+    // And the stream runs normally from there: no second resync, no gap, nothing stale.
+    for (int i = 0; i < 5; ++i, ++seq)
+    {
+        const FrameOutcome o = classify(d, good_frame(seq, int64_t(seq) * 20));
+        CHECK(o.verdict == FrameVerdict::Deliver);
+        CHECK(!o.session_reset && !o.session_resync);
+        CHECK(o.sequence_numbers_skipped == 0 && !o.timeline_rewind);
+    }
+}
+
+//! The other half of the rule: only a *strictly ascending* run counts, so the things that
+//! legitimately produce stale frames never trip a resync.
+void test_resync_needs_an_ascending_run()
+{
+    // A duplicate hammered far more times than the threshold is still just a duplicate.
+    FrameDecider dup(MAX_FB);
+    CHECK(classify(dup, good_frame(500, 10000)).verdict == FrameVerdict::Deliver);
+    for (uint32_t i = 0; i < FrameDecider::SESSION_RESYNC_AFTER * 3; ++i)
+    {
+        const FrameOutcome o = classify(dup, good_frame(500, 10000));
+        CHECK(o.verdict == FrameVerdict::DroppedStale);
+        CHECK(!o.session_resync);
+    }
+
+    // Neither is a descending burst -- the shape of a reordered replay.
+    FrameDecider rev(MAX_FB);
+    CHECK(classify(rev, good_frame(500, 10000)).verdict == FrameVerdict::Deliver);
+    for (uint64_t back = FrameDecider::SESSION_RESYNC_AFTER * 2; back > 0; --back)
+    {
+        const FrameOutcome o = classify(rev, good_frame(back, int64_t(back) * 20));
+        CHECK(o.verdict == FrameVerdict::DroppedStale);
+        CHECK(!o.session_resync);
+    }
+
+    // A frame that gets through clears the run, so stale frames scattered among healthy ones
+    // cannot add up to a resync however many of them there are.
+    FrameDecider mixed(MAX_FB);
+    CHECK(classify(mixed, good_frame(500, 10000)).verdict == FrameVerdict::Deliver);
+    for (uint64_t i = 1; i <= FrameDecider::SESSION_RESYNC_AFTER * 2; ++i)
+    {
+        const FrameOutcome late = classify(mixed, good_frame(i, int64_t(i) * 20));
+        CHECK(late.verdict == FrameVerdict::DroppedStale);
+        CHECK(!late.session_resync);
+        // The live stream carries on in between, which is what makes those frames late arrivals
+        // rather than a new session.
+        CHECK(classify(mixed, good_frame(500 + i, 10000 + int64_t(i) * 20)).verdict == FrameVerdict::Deliver);
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Timestamp rules
 // ---------------------------------------------------------------------------------------------
@@ -519,6 +611,8 @@ int main()
     test_sequence();
     test_session_reset();
     test_duplicate_seq_zero_is_stale_not_a_reset();
+    test_resync_when_the_reset_datagram_is_lost();
+    test_resync_needs_an_ascending_run();
     test_whole_millisecond_rule();
     test_timeline_rewind();
     test_gap_accounting();

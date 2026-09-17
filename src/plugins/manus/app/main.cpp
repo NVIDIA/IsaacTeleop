@@ -76,7 +76,7 @@ ManusPluginConfig parse_args(int argc, char** argv)
         }
         else if (starts_with(arg, "--plugin-root-id="))
         {
-            // Injected by the PluginManager; not used by this plugin.
+            config.monitoring_plugin_root_id = arg.substr(std::string("--plugin-root-id=").size());
         }
         else
         {

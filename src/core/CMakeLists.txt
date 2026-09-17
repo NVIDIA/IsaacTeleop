@@ -36,7 +36,7 @@ add_subdirectory(mcap)
 
 # CloudXR runtime helper (stages the vendored CloudXR runtime SDK bundle).
 # Its pure-Python source lives in src/python/isaacteleop/cloudxr/, as does the
-# retargeting engine's, the rig launcher's and the session manager's.
+# retargeting engine's and the session manager's.
 add_subdirectory(cloudxr)
 
 # Python wheel packaging (combines both modules)

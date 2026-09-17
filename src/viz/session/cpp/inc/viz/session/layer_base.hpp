@@ -94,6 +94,15 @@ struct NativeLayerView
     // equirect sphere is unchanged by construction, so it's a no-op there).
     float stereo_baseline_mm = 0.0f;
 
+    // Per-eye yaw about the placement's local +y (degrees); the left eye's
+    // layer pose rotates +half, the right −half. The curved-surface
+    // equivalent of stereo_baseline_mm: on a surface wrapped around the
+    // viewer a horizontal image shift IS a rotation, so this gives uniform
+    // disparity across the whole arc where a translation falls off toward
+    // the edges — and it still works at infinite radius, where translating
+    // the surface does nothing at all. Ignored mono.
+    float stereo_convergence_deg = 0.0f;
+
     // Composite this layer honoring its texture's alpha channel
     // (XR_COMPOSITION_LAYER_BLEND_TEXTURE_SOURCE_ALPHA_BIT). False =
     // opaque within the layer's bounds — the right setting for camera

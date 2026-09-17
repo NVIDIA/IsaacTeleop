@@ -46,6 +46,13 @@ public:
     std::vector<std::string> get_plugin_names() const;
 
     /**
+     * @brief Get the complete immutable descriptor for a discovered plugin.
+     * @param plugin_name The name of the plugin to query.
+     * @return A copy of the plugin metadata and device descriptors.
+     */
+    PluginInfo get_plugin_info(const std::string& plugin_name) const;
+
+    /**
      * @brief Query available devices from a plugin.
      * @param plugin_name The name of the plugin to query.
      * @return List of device paths from the plugin metadata.

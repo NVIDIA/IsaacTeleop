@@ -40,7 +40,7 @@ display:
     synth:
       lock_mode: lazy
       distance: 1.0
-      stereo_baseline_mm: 0.0     # 0 → both eyes see the same world quad
+      stereo_plane_distance_cm: 0.0  # 0 → both eyes see the same world quad
                                   # (parallax purely from the captured frames).
                                   # Try 65.0 (typical IPD) to virtually push the
                                   # screen further; -30.0 to bring it closer.

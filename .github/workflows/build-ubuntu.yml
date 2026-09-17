@@ -18,7 +18,7 @@ concurrency:
 env:
   # Shared apt build dependencies. Each job installs these plus its own extras
   # (ccache, clang-format, the OAK camera autotools chain).
-  CORE_APT_DEPS: build-essential cmake glslang-tools libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev patchelf pkg-config wayland-protocols
+  CORE_APT_DEPS: build-essential cmake glslang-tools libegl-dev libvulkan-dev libwayland-dev libx11-dev libxcursor-dev libxext-dev libxi-dev libxinerama-dev libxkbcommon-dev libxrandr-dev patchelf pkg-config wayland-protocols
   # Pin vcpkg to an immutable commit for reproducible, supply-chain-stable CI
   # instead of tracking its moving default branch. Port versions are fixed by the
   # consuming manifest's builtin-baseline (e.g. DepthAI's vcpkg.json), so this
@@ -84,9 +84,9 @@ jobs:
         path: |
           ~/vcpkg
           ${{ env.BUILD_DIR }}/vcpkg_installed
-        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python_version }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('cmake/DepthAIVcpkgManifest.cmake') }}
         restore-keys: |
-          vcpkg-${{ runner.os }}-${{ runner.arch }}-py${{ matrix.python_version }}-${{ env.VCPKG_COMMIT }}-
+          vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ env.VCPKG_COMMIT }}-
 
     - name: Setup vcpkg
       run: |
@@ -363,7 +363,6 @@ jobs:
         # even though the smoke env installs no extras.
         expected = [
             "isaacteleop.mcap",
-            "isaacteleop.rig",
             "isaacteleop.cloudxr",
             "isaacteleop.teleop_session_manager",
             "isaacteleop.retargeters",
@@ -715,18 +714,20 @@ jobs:
           "source /usr/local/bin/teleop-env-setup && exec /opt/isaacteleop/install/examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator '$REPLAY_MCAP'"
 
         scenarios=(
-          "controller_teleop mode_default"
-          "hand_teleop mode_default"
-          "controller_raw mode_default"
-          "full_body mode_default"
-          "controller_teleop pink_ik"
-          "controller_teleop wuji"
-          "hand_teleop wuji"
+          "controller_teleop mode_default native"
+          "hand_teleop mode_default native"
+          "controller_raw mode_default native"
+          "full_body mode_default native"
+          "controller_teleop pink_ik native"
+          "controller_teleop wuji native"
+          "hand_teleop wuji native"
+          "controller_teleop dexpilot manus"
+          "controller_teleop dexpilot wuji"
         )
         for scenario in "${scenarios[@]}"; do
-          read -r mode hand_retargeter <<< "$scenario"
-          scenario_name="${mode}_${hand_retargeter}"
-          echo "Testing mode: $mode (hand_retargeter=$hand_retargeter)"
+          read -r mode hand_retargeter hand_tracking_provider <<< "$scenario"
+          scenario_name="${mode}_${hand_retargeter}_${hand_tracking_provider}"
+          echo "Testing mode: $mode (hand_retargeter=$hand_retargeter, hand_tracking_provider=$hand_tracking_provider)"
           LOG_FILE="${LOG_FILE_BASE}_${scenario_name}.log"
           RUN_NAME="teleop-ros2-${PROJECT_NAME}-${scenario_name//_/-}"
           verifier_rc=0
@@ -741,7 +742,7 @@ jobs:
             -v /tmp:/tmp \
             -e PYTHONUNBUFFERED=1 \
             --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p hand_retargeter:=$hand_retargeter -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
+            "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$mode -p hand_retargeter:=$hand_retargeter -p hand_tracking_provider:=$hand_tracking_provider -p mcap_replay_path:=$REPLAY_MCAP" >/dev/null
 
           deadline=$((SECONDS + READINESS_TIMEOUT_SEC))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -767,7 +768,7 @@ jobs:
             if docker exec \
               -e PYTHONUNBUFFERED=1 \
               "$RUN_NAME" bash -c \
-              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode --hand-retargeter $hand_retargeter"; then
+              "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync python -m integration_tests.teleop_ros2_topic_verifier --mode $mode --hand-retargeter $hand_retargeter --hand-tracking-provider $hand_tracking_provider"; then
               verifier_rc=0
             else
               verifier_rc=$?
@@ -816,7 +817,7 @@ jobs:
         LOG_FILE="/tmp/ros2_cloudxr_output_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}_${{ matrix.arch }}_${{ env.ROS_DISTRO }}.log"
         MODE="controller_teleop"
         HAND_RETARGETER="dexpilot"
-        HAND_TRACKING_PLUGIN="wuji"
+        HAND_TRACKING_PROVIDER="wuji"
 
         # The node logs this after CloudXRLauncher returns: runtime ready + WSS
         # proxy up. This is the primary bring-up marker.
@@ -848,7 +849,7 @@ jobs:
           -e PYTHONUNBUFFERED=1 \
           -e ACCEPT_CLOUDXR_EULA=Y \
           --entrypoint bash "$IMAGE" -c \
-          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p hand_retargeter:=$HAND_RETARGETER -p hand_tracking_plugin:=$HAND_TRACKING_PLUGIN -p cloudxr_accept_eula:=true" >/dev/null
+          "source /usr/local/bin/teleop-env-setup && exec uv run --no-sync teleop_ros2_node.py --ros-args -p mode:=$MODE -p hand_retargeter:=$HAND_RETARGETER -p hand_tracking_provider:=$HAND_TRACKING_PROVIDER -p cloudxr_accept_eula:=true" >/dev/null
 
         fail() {
           echo "Error: $1"
@@ -1200,7 +1201,6 @@ jobs:
     runs-on: [self-hosted, linux]
     needs:
       - kitmaker
-    environment: release
     permissions:
       contents: read
     if: ${{ github.event_name != 'pull_request' && needs.kitmaker.result == 'success' }}
@@ -1210,12 +1210,16 @@ jobs:
       env:
         KITMAKER_API_ENDPOINT: ${{ secrets.KITMAKER_API_ENDPOINT }}
         KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
-        KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
         KITMAKER_RELEASE_UUID: ${{ needs.kitmaker.outputs.release_uuid }}
         ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
         ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
       run: |
         set -euo pipefail
+
+        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_PROJECT_ID}" || -z "${ARTIFACTORY_URL}" || -z "${ARTIFACTORY_REPO}" ]]; then
+          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, KITMAKER_PROJECT_ID, ARTIFACTORY_URL, ARTIFACTORY_REPO"
+          exit 1
+        fi
 
         # Redact sensitive values that may appear in API responses.
         echo "::add-mask::${KITMAKER_API_ENDPOINT}"
@@ -1225,11 +1229,6 @@ jobs:
         echo "::add-mask::${ARTIFACTORY_URL}"
         echo "::add-mask::${ARTIFACTORY_URL%/}"
         echo "::add-mask::${ARTIFACTORY_REPO}"
-
-        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_TOKEN}" ]]; then
-          echo "Missing required secrets: KITMAKER_API_ENDPOINT, KITMAKER_TOKEN"
-          exit 1
-        fi
 
         if [[ "${KITMAKER_API_ENDPOINT}" != https://* ]]; then
           echo "KITMAKER_API_ENDPOINT must use https://"
@@ -1261,7 +1260,6 @@ jobs:
           curl_status=0
           curl_output="$(curl --show-error --silent --location --connect-timeout 10 --max-time 60 \
             --write-out '\n%{http_code}' \
-            -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
             "${status_url}")" || curl_status=$?
           http_code="${curl_output##*$'\n'}"
           response_json="${curl_output%$'\n'*}"

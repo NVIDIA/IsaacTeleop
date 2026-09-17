@@ -53,6 +53,10 @@ struct XsensFullBodyStats
     uint64_t sequence_gap_events = 0;
     uint64_t sequence_numbers_skipped = 0;
     uint64_t session_resets = 0;
+    //! Of those resets, the ones that had to be inferred from a run of stale frames because the
+    //! `seq == 0` datagram was lost. Each one cost the frames that ran out the stale run, so a
+    //! number that keeps climbing is a lossy link rather than an operator restarting recordings.
+    uint64_t session_resyncs = 0;
     //! Hard `recv` errors survived by re-binding the port, and recovery episodes that gave up.
     uint64_t socket_recoveries = 0;
     uint64_t socket_recovery_failures = 0;
@@ -123,6 +127,7 @@ private:
         LC_TRUNCATED = 0,
         LC_OVERSIZE_PAYLOAD,
         LC_SESSION_RESET,
+        LC_SESSION_RESYNC,
         LC_TIMELINE_REWIND,
         LC_NON_WHOLE_MS,
         LC_SOCKET_ERROR,

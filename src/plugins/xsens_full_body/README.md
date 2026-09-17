@@ -75,6 +75,18 @@ vendor  = deviceio.VendorConfig([(tracker, deviceio.TrackerVendor("body.xsens", 
   one — the verifier runs before the sequence machine, so a payload we refuse leaves a hole
   exactly like a dropped datagram. A long session outage also produces them, because the pusher
   stops draining the socket while it retries. A step back to 0 is a new MVN session, not a gap.
+- **A new session is recognised even when the datagram announcing it is lost.** The reset signal
+  is `seq` stepping back to 0, and it rides in exactly one UDP datagram. Lose that one and the
+  restart is invisible: MVN counts up from 0 while the decider still holds the old session's last
+  number, so every frame reads as stale until the new session climbs past it — 500 frames, over
+  eight seconds at 60 Hz, after a restart at `seq` 500.
+
+  So a *run* of stale frames that is itself strictly ascending is taken for the new session it
+  almost certainly is, and the stream resyncs after 30 of them (half a second at 60 Hz) however
+  the reset datagram was lost. Duplicates are not ascending, reordering bursts are not ascending,
+  and any frame that gets through clears the run — none of them can accumulate. `resyncs` counts
+  the times this fired; each one cost the frames that ran the counter out, so a number that keeps
+  climbing is a lossy link rather than an operator restarting recordings.
 - **Timestamps are two different clocks.** The header's `sample_time_ns` is on MVN's send-host
   clock and is deliberately *not* published as the local common clock; the plugin stamps that
   itself at publish time and forwards MVN's device clock verbatim alongside it.
@@ -158,7 +170,7 @@ the whole-millisecond flag, the oversize check or the verifier, dropping the tim
 session reset, putting the duplicate-`seq`-0 defect back, or collapsing the skipped-sequence
 count back to a flag, each make it fail.
 
-Three frame-decision behaviours it pins that are easy to get wrong by accident:
+Four frame-decision behaviours it pins that are easy to get wrong by accident:
 
 - **The verifier runs before the sequence machine, so a payload it rejects never consumes its
   sequence number** and the next frame reads as a gap. That is deliberate: an unverified payload
@@ -171,6 +183,10 @@ Three frame-decision behaviours it pins that are easy to get wrong by accident:
   than the next one it expects: the two differ by one, and writing the reset test against the
   expected value is what produced the defect this test now guards (a duplicate at seq 0 counted
   as a reset, cleared the timeline, and got pushed to the robot).
+- **A resync needs a strictly ascending run of stale frames**, which is what separates a restart
+  whose reset datagram was lost from the two things that also produce stale frames and must never
+  trigger one: a duplicate repeated indefinitely, and a descending burst of late arrivals. The
+  suite feeds all three well past the threshold.
 
 ## Wire format
 

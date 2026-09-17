@@ -58,7 +58,7 @@ the list of dependencies. On **Ubuntu**, install build tools and clang-format:
 .. code-block:: bash
 
    sudo apt-get update
-   sudo apt-get install -y build-essential cmake libx11-dev libwayland-dev clang-format-14 ccache patchelf pkg-config glslang-tools
+   sudo apt-get install -y build-essential cmake libegl-dev libx11-dev libwayland-dev clang-format-14 ccache patchelf pkg-config glslang-tools
 
 Runtime-only dependencies (needed to actually run teleop, not to build):
 
@@ -154,13 +154,13 @@ Add any other options as ``-D`` flags on the configure line, for example
 
    The Python version is baked into a build directory's CMake cache and its build
    venv, so ``ISAAC_TELEOP_PYTHON_VERSION`` cannot be changed on an existing tree —
-   configuring again with a different value fails with an explanatory error. Give
-   each version its own directory:
+   configuring again with a different value fails with an explanatory error. Select
+   it on the first configure, and delete the tree to switch later:
 
    .. code-block:: bash
 
-      cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
-      cmake --build build-py3.12 --parallel
+      cmake -B build -DISAAC_TELEOP_PYTHON_VERSION=3.12
+      cmake --build build --parallel
 
 This will:
 
@@ -260,13 +260,13 @@ The CMake options (defined in root :code-file:`CMakeLists.txt` and :code-file:`c
 Examples
 ~~~~~~~~
 
-Build for a different Python version — each needs its own build directory
-(``3.11``, ``3.12``, ``3.13`` are supported):
+Build for a different Python version (``3.11``, ``3.12``, ``3.13`` are supported;
+delete ``build/`` first if it is already configured for another one):
 
 .. code-block:: bash
 
-   cmake -B build-py3.12 -DISAAC_TELEOP_PYTHON_VERSION=3.12
-   cmake --build build-py3.12 --parallel
+   cmake -B build -DISAAC_TELEOP_PYTHON_VERSION=3.12
+   cmake --build build --parallel
 
 Debug build:
 

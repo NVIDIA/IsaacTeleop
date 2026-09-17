@@ -35,3 +35,12 @@ path = "examples/cloudxr_mujoco_teleop/**"
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright (c) 2026 HTC Corporation"
 SPDX-License-Identifier = "Apache-2.0"
+
+# MuJoCo is fetched at build time into _deps/ and its shared library is redistributed in
+# the wheel under a private SONAME; deps/third_party/Mujoco.cmake stages its LICENSE
+# beside the binary. Nothing from the fetched tree is committed here.
+[[annotations]]
+path = "deps/third_party/Mujoco.cmake"
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+SPDX-License-Identifier = "Apache-2.0"

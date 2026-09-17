@@ -18,6 +18,7 @@ import msgpack
 import rclpy
 from constants import (
     HAND_RETARGETERS,
+    HAND_TRACKING_PROVIDERS,
     LEFT_SHARPA_WAVE_JOINT_NAMES,
     LEFT_WUJI_HAND_JOINT_NAMES,
     RIGHT_SHARPA_WAVE_JOINT_NAMES,
@@ -134,11 +135,39 @@ def _assert_noncollinear_positions(
     raise ValueError(f"{label} positions are collinear")
 
 
-def _assert_ee_poses_array(msg: NamedPoseArray) -> None:
+def _assert_ee_poses_array(
+    msg: NamedPoseArray,
+    *,
+    mode: str,
+    hand_tracking_provider: str,
+) -> None:
     _assert_named_pose_array(msg, ["left", "right"])
     if not all(bool(is_valid) for is_valid in msg.is_valid):
         raise ValueError("EE pose array contains an invalid entry")
     _assert_nonzero_pose_positions(msg, "EE pose")
+
+    if mode != "controller_teleop" or hand_tracking_provider == "wuji":
+        expected_xy = ((-0.25, 1.10), (0.25, 1.10))
+    elif hand_tracking_provider == "manus":
+        expected_xy = (
+            (-0.1896684528, 1.255536544),
+            (0.2103315472, 1.144463456),
+        )
+    else:
+        expected_xy = ((-0.20, 1.20), (0.20, 1.20))
+    for side, pose, (expected_x, expected_y) in zip(
+        ("left", "right"), msg.pose, expected_xy, strict=True
+    ):
+        if not math.isclose(pose.position.x, expected_x, abs_tol=1e-5):
+            raise ValueError(
+                f"{side} EE pose x={pose.position.x} does not match "
+                f"the {hand_tracking_provider} provider fixture value {expected_x}"
+            )
+        if not math.isclose(pose.position.y, expected_y, abs_tol=1e-5):
+            raise ValueError(
+                f"{side} EE pose y={pose.position.y} does not match "
+                f"the {hand_tracking_provider} provider fixture value {expected_y}"
+            )
 
 
 def _assert_hand_pose_array(msg: NamedPoseArray) -> None:
@@ -314,14 +343,19 @@ def _finger_joint_validator(hand_retargeter: str) -> Callable:
 class TopicVerifier(Node):
     """Small ROS 2 node that waits for mode-specific verified messages."""
 
-    def __init__(self, mode: str, hand_retargeter: str) -> None:
+    def __init__(
+        self,
+        mode: str,
+        hand_retargeter: str,
+        hand_tracking_provider: str,
+    ) -> None:
         super().__init__("teleop_ros2_topic_verifier")
         self._pending: set[str] = set()
         self._errors: dict[str, str] = {}
         self._seen_tf_frames: set[str] = set()
 
         for name, topic, msg_type, validator in self._expected_subscriptions(
-            mode, hand_retargeter
+            mode, hand_retargeter, hand_tracking_provider
         ):
             self._pending.add(name)
             self.create_subscription(
@@ -368,15 +402,23 @@ class TopicVerifier(Node):
         self._pending.discard("tf")
 
     def _expected_subscriptions(
-        self, mode: str, hand_retargeter: str
+        self,
+        mode: str,
+        hand_retargeter: str,
+        hand_tracking_provider: str,
     ) -> list[tuple[str, str, type, Callable]]:
+        ee_validator = partial(
+            _assert_ee_poses_array,
+            mode=mode,
+            hand_tracking_provider=hand_tracking_provider,
+        )
         if mode == "controller_teleop":
             subscriptions = [
                 (
                     "ee_poses",
                     "xr_teleop/ee_poses",
                     NamedPoseArray,
-                    _assert_ee_poses_array,
+                    ee_validator,
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
                 ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
@@ -417,7 +459,7 @@ class TopicVerifier(Node):
                     "ee_poses",
                     "xr_teleop/ee_poses",
                     NamedPoseArray,
-                    _assert_ee_poses_array,
+                    ee_validator,
                 ),
                 ("root_twist", "xr_teleop/root_twist", TwistStamped, _assert_twist),
                 ("root_pose", "xr_teleop/root_pose", PoseStamped, _assert_pose_stamped),
@@ -464,6 +506,11 @@ def _parse_args() -> argparse.Namespace:
         choices=HAND_RETARGETERS,
         default="mode_default",
     )
+    parser.add_argument(
+        "--hand-tracking-provider",
+        choices=HAND_TRACKING_PROVIDERS,
+        default="native",
+    )
     parser.add_argument("--timeout", type=float, default=20.0)
     return parser.parse_args()
 
@@ -471,7 +518,11 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     rclpy.init()
-    verifier = TopicVerifier(args.mode, args.hand_retargeter)
+    verifier = TopicVerifier(
+        args.mode,
+        args.hand_retargeter,
+        args.hand_tracking_provider,
+    )
     try:
         deadline = time.monotonic() + args.timeout
         while verifier.pending and time.monotonic() < deadline:
@@ -488,7 +539,8 @@ def main() -> int:
 
         print(
             "Verified teleop_ros2 topics for "
-            f"mode {args.mode} and hand retargeter {args.hand_retargeter}"
+            f"mode {args.mode}, hand retargeter {args.hand_retargeter}, "
+            f"and hand-tracking provider {args.hand_tracking_provider}"
         )
         return 0
     finally:

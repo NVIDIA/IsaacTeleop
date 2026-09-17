@@ -24,7 +24,7 @@ target_link_libraries(xsens_full_body_plugin PRIVATE
 )
 
 install(TARGETS xsens_full_body_plugin RUNTIME DESTINATION plugins/xsens_full_body)
-install(FILES plugin.yaml README.md DESTINATION plugins/xsens_full_body)
+install(FILES plugin.yaml README.md USER_GUIDE.md DESTINATION plugins/xsens_full_body)
 
 # Unit tests for the two pieces the plugin can be taken apart into: what it decides about a
 # datagram, and what it decides about a command line. Both link their unit directly and need no

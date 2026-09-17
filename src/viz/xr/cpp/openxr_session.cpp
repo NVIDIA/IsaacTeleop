@@ -399,9 +399,11 @@ void OpenXrSession::poll_events()
             exit_requested_ = true;
             break;
         case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
-            // Pose origin shifted (recenter, guardian rebound). For
-            // seated/local the next locate_views absorbs the change;
-            // app can re-anchor world-locked content if it cares.
+            // Pose origin shifted (recenter, guardian rebound). locate_views
+            // absorbs it, but a pose the app LATCHED in the old space does not:
+            // it is now wrong by the whole recenter transform. Surfaced through
+            // FrameInfo::reference_space_changed so the owner can re-anchor.
+            reference_space_changed_ = true;
             break;
         default:
             // Ignore unknown / extension event types we didn't ask for.

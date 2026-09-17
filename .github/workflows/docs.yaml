@@ -143,6 +143,8 @@ jobs:
           # does not load come out as raw text, and its CSS is dropped. This step
           # deploys the whole site, so take the docs config from main either way.
           git -C "$GITHUB_WORKSPACE" checkout origin/main -- docs
+          # Main's extensions may require dependencies absent from the triggering ref.
+          python -m pip install -r requirements.txt
           make multi-docs
 
       - name: Upload docs artifact

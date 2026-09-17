@@ -30,10 +30,6 @@ struct XsensFullBodyOptions
     //! Must match the reader's `max_flatbuffer_size`. A mismatch throws loudly on both sides --
     //! which is the good case; a `collection_id` mismatch instead fails silently and forever.
     size_t max_flatbuffer_size = 4096;
-
-    //! Set when the deprecated positional form was used. Parse metadata rather than
-    //! configuration: the parser stays free of I/O, and the caller decides how to warn.
-    bool used_legacy_positionals = false;
 };
 
 enum class ParseOutcome
@@ -46,10 +42,10 @@ enum class ParseOutcome
 /*!
  * @brief Parse the command line into \a out.
  *
- * Accepts the flag form (`--collection-id=`, `--address=`, `--port=`, `--max-flatbuffer-size=`)
- * and, deprecated, the original positional form `[collection_id] [udp_port]
- * [max_flatbuffer_size]`. The two cannot be mixed. `--plugin-root-id` is swallowed in both its
- * spellings: the plugin launcher injects it ahead of `plugin.yaml`'s own arguments.
+ * Flags only (`--collection-id=`, `--address=`, `--port=`, `--max-flatbuffer-size=`): a bare
+ * positional argument is an error rather than a value, so a mistyped flag can never be read as
+ * configuration. `--plugin-root-id` is swallowed in both its spellings: the plugin launcher
+ * injects it ahead of `plugin.yaml`'s own arguments.
  *
  * @param error filled with an operator-facing message when ParseOutcome::Error is returned.
  */
