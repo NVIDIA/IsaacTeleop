@@ -25,6 +25,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace plugins
@@ -101,10 +102,6 @@ public:
 
     static const char* device_id(DeviceSide side, DeviceDataCategory category);
 
-    //! Joint name for @a index in a tensor-backed frame; null for HUMAN, whose
-    //! landmarks are not published as joints.
-    static const char* joint_name(DeviceDataCategory category, size_t index);
-
     template <typename Fn>
     void for_each(Fn&& fn) const
     {
@@ -173,6 +170,11 @@ private:
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     std::optional<core::XrTimeConverter> m_time_converter;
     JointStreamRegistry m_joint_streams;
+
+    //! `human_joint_names` from sdk_config.json mapped to landmark index, built
+    //! once at construction. map_landmarks_to_openxr() resolves its slot table
+    //! through this, so the OpenXR mapping stays spelled in SDK names.
+    std::unordered_map<std::string, size_t> m_landmark_index;
 
     // Identity quaternion fallback: written before it is read, but an all-zero
     // pose would be invalid if that ever changed.

@@ -28,6 +28,7 @@ target_link_libraries(avatar_plugin_core
     deviceio::deviceio_session
     deviceio::deviceio_trackers
     isaacteleop_schema
+    nlohmann_json::nlohmann_json
     oxr::oxr_core
     oxr::oxr_utils
     pusherio::pusherio

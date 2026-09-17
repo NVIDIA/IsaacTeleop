@@ -4,6 +4,7 @@
 #include "avatar_hand_tracking_plugin_impl.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <nlohmann/json.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/math.hpp>
 #include <oxr_utils/os_time.hpp>
@@ -15,11 +16,14 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -53,7 +57,6 @@ constexpr size_t kAvatarFingerCount = 5;
 constexpr size_t kJointFlatbufferSize = 4096;
 constexpr auto kAvatarDataTimeout = std::chrono::seconds(10);
 constexpr auto kOpenXRRetryInterval = std::chrono::seconds(10);
-constexpr char kAvatarSdkConfigPath[] = "/opt/avatar-sdk/share/sdk_config.json";
 // Must match SchemaPusherConfig::tensor_identifier below.
 constexpr char TENSOR_IDENTIFIER[] = "joint_state";
 // plugin_utils::WristSide is index-aligned with DeviceSide (Left/Right == LEFT/RIGHT),
@@ -72,18 +75,6 @@ constexpr std::array<XrPosef, kGloveCount> kHandOffsets = {
     XrPosef{ { -0.70710678f, 0.5f, 0.0f, 0.5f }, { 0.1f, 0.02f, -0.02f } }, // RIGHT
 };
 
-// HUMAN landmark names in raw-JointState order. The index is the landmark index,
-// not a semantic joint id: index 24 is both pinky_CFF and pinky_tip because the
-// source skeleton has one fewer pinky landmark. Only names that can reach a
-// JointState tensor live here.
-constexpr std::array<const char*, kAvatarHumanLandmarkCount> kAvatarJointNames = {
-    "wrist",        "thumb_CMC_FE", "thumb_CMC_AA", "thumb_MCP_FE", "thumb_MCP_AA", "thumb_IP",      "thumb_tip",
-    "index_MCP_AA", "index_MCP_FE", "index_PIP",    "index_DIP",    "index_tip",    "middle_MCP_AA", "middle_MCP_FE",
-    "middle_PIP",   "middle_DIP",   "middle_tip",   "ring_MCP_AA",  "ring_MCP_FE",  "ring_PIP",      "ring_DIP",
-    "ring_tip",     "pinky_MCP_AA", "pinky_MCP_FE", "pinky_tip"
-};
-constexpr size_t kAvatarJointNameCount = kAvatarJointNames.size();
-
 // Category <-> [0, kCategoryCount) index. One helper instead of raw casts keeps
 // the enum order and the array slots tied together at a single place.
 constexpr size_t category_index(DeviceDataCategory category)
@@ -91,60 +82,96 @@ constexpr size_t category_index(DeviceDataCategory category)
     return static_cast<size_t>(category);
 }
 
-// Maps the 26 OpenXR XrHandJointEXT slots onto Avatar HUMAN landmark indices.
+// Names the Avatar HUMAN landmark each OpenXR slot takes, indexed by
+// XrHandJointEXT.
 //
-// OpenXR order (XrHandJointEXT): 0 PALM, 1 WRIST, then per finger
-//   THUMB:  2 METACARPAL, 3 PROXIMAL, 4 DISTAL, 5 TIP
-//   INDEX:  6 METACARPAL, 7 PROXIMAL, 8 INTERMEDIATE, 9 DISTAL, 10 TIP
-//   MIDDLE: 11..15, RING: 16..20, LITTLE: 21..25 (same 5-slot layout)
-//
-// Avatar HUMAN landmark order (config/sdk_config.json `human_joint_names`, 25 entries):
-//   0 WRIST
-//   1 thumb_CMC_FE, 2 thumb_CMC_AA, 3 thumb_MCP_FE, 4 thumb_MCP_AA, 5 thumb_IP, 6 thumb_tip
-//   7 index_MCP_AA, 8 index_MCP_FE, 9 index_PIP, 10 index_DIP, 11 index_tip
-//   12 middle(AA,FE,PIP,DIP,tip)   17 ring(AA,FE,PIP,DIP,tip)   22 pinky(AA,FE,tip)
-//
-// The Avatar and OpenXR skeletons do not have identical joint counts per finger,
-// so this is a best-effort correspondence. Validate/adjust with the
-// avatar_hand_tracker_printer tool. PALM has no Avatar source (reuses WRIST).
-const std::array<int, XR_HAND_JOINT_COUNT_EXT>& openxr_to_avatar_map()
-{
+// Spellings are exactly `human_joint_names` from sdk_config.json, so a rename
+// there shows up here as an unresolved slot instead of a silently wrong index.
+// A null entry means no Avatar landmark corresponds: OpenXR splits some fingers
+// into more joints than the Avatar skeleton has, and PALM has no Avatar source.
+// Those slots are published invalid rather than borrowing a neighbour.
+constexpr std::array<const char*, XR_HAND_JOINT_COUNT_EXT> kOpenXrSlotSources = {
     // clang-format off
-    static const std::array<int, XR_HAND_JOINT_COUNT_EXT> kMap = {
-        0,   // XR_HAND_JOINT_PALM_EXT           -> WRIST (no dedicated palm landmark)
-        0,   // XR_HAND_JOINT_WRIST_EXT          -> WRIST
+    nullptr,                          // PALM: no dedicated palm landmark
+    "WRIST",                          // WRIST
 
-        1,   // THUMB_METACARPAL                 -> thumb_CMC_FE
-        3,   // THUMB_PROXIMAL                   -> thumb_MCP_FE
-        5,   // THUMB_DISTAL                     -> thumb_IP
-        6,   // THUMB_TIP                        -> thumb_tip
+    "right_thumb_CMC_FE_link",        // THUMB_METACARPAL
+    "right_thumb_MCP_FE_link",        // THUMB_PROXIMAL
+    "right_thumb_IP_link",            // THUMB_DISTAL
+    "right_thumb_virtualtip",         // THUMB_TIP
 
-        7,   // INDEX_METACARPAL                 -> index_MCP_AA
-        8,   // INDEX_PROXIMAL                   -> index_MCP_FE
-        9,   // INDEX_INTERMEDIATE              -> index_PIP
-        10,  // INDEX_DISTAL                     -> index_DIP
-        11,  // INDEX_TIP                        -> index_tip
+    "right_index_MCP_AA_link",        // INDEX_METACARPAL
+    "right_index_MCP_FE_link",        // INDEX_PROXIMAL
+    "right_index_PIP_link",           // INDEX_INTERMEDIATE
+    "right_index_DIP_link",           // INDEX_DISTAL
+    "right_index_virtualtip",         // INDEX_TIP
 
-        12,  // MIDDLE_METACARPAL                -> middle_MCP_AA
-        13,  // MIDDLE_PROXIMAL                  -> middle_MCP_FE
-        14,  // MIDDLE_INTERMEDIATE            -> middle_PIP
-        15,  // MIDDLE_DISTAL                    -> middle_DIP
-        16,  // MIDDLE_TIP                       -> middle_tip
+    "right_middle_MCP_AA_link",       // MIDDLE_METACARPAL
+    "right_middle_MCP_FE_link",       // MIDDLE_PROXIMAL
+    "right_middle_PIP_link",          // MIDDLE_INTERMEDIATE
+    "right_middle_DIP_link",          // MIDDLE_DISTAL
+    "right_middle_virtualtip",        // MIDDLE_TIP
 
-        17,  // RING_METACARPAL                  -> ring_MCP_AA
-        18,  // RING_PROXIMAL                    -> ring_MCP_FE
-        19,  // RING_INTERMEDIATE              -> ring_PIP
-        20,  // RING_DISTAL                      -> ring_DIP
-        21,  // RING_TIP                         -> ring_tip
+    "right_ring_MCP_AA_link",         // RING_METACARPAL
+    "right_ring_MCP_FE_link",         // RING_PROXIMAL
+    "right_ring_PIP_link",            // RING_INTERMEDIATE
+    "right_ring_DIP_link",            // RING_DISTAL
+    "right_ring_virtualtip",          // RING_TIP
 
-        22,        // LITTLE_METACARPAL          -> pinky_MCP_AA
-        23,        // LITTLE_PROXIMAL            -> pinky_MCP_FE
-        23,        // LITTLE_INTERMEDIATE      -> pinky_MCP_FE (no pinky PIP landmark)
-        24,        // LITTLE_DISTAL              -> pinky_tip
-        24,        // LITTLE_TIP                 -> pinky_tip
-    };
+    "right_pinky_MCP_AA_link",        // LITTLE_METACARPAL
+    "right_pinky_MCP_FE_link",        // LITTLE_PROXIMAL
+    nullptr,                          // LITTLE_INTERMEDIATE: Avatar pinky has no PIP
+    nullptr,                          // LITTLE_DISTAL: Avatar pinky has no DIP
+    "right_pinky_virtualtip",         // LITTLE_TIP
     // clang-format on
-    return kMap;
+};
+
+// Reads `human_joint_names` out of an sdk_config.json and returns name -> landmark
+// index. HUMAN frames carry no names of their own (HandSkeleton is bare poses),
+// so this file is the only place the ORDER of a human landmark is defined.
+std::unordered_map<std::string, size_t> load_human_joint_names(const std::string& config_path)
+{
+    std::unordered_map<std::string, size_t> index;
+
+    std::ifstream file(config_path);
+    if (!file)
+    {
+        std::cerr << "[Avatar] Cannot open SDK config " << config_path << "; OpenXR hand mapping will be empty."
+                  << std::endl;
+        return index;
+    }
+
+    try
+    {
+        const nlohmann::json config = nlohmann::json::parse(file);
+        const auto names = config.at("human_joint_names");
+        for (size_t i = 0; i < names.size(); ++i)
+        {
+            index.emplace(names[i].get<std::string>(), i);
+        }
+    }
+    catch (const nlohmann::json::exception& e)
+    {
+        std::cerr << "[Avatar] Cannot read human_joint_names from " << config_path << ": " << e.what() << std::endl;
+    }
+
+    std::cout << "[Avatar] Loaded " << index.size() << " human landmark names." << std::endl;
+    return index;
+}
+
+// Logs the slots whose sdk_config.json name did not resolve. Silence means every
+// OpenXR slot this plugin intends to fill has a landmark behind it.
+void report_unresolved_slots(const std::unordered_map<std::string, size_t>& index)
+{
+    for (size_t j = 0; j < kOpenXrSlotSources.size(); ++j)
+    {
+        const char* const source = kOpenXrSlotSources[j];
+        if (source != nullptr && index.find(source) == index.end())
+        {
+            std::cerr << "[Avatar] OpenXR joint " << j << " wants human landmark '" << source
+                      << "' but sdk_config.json has no such name; slot stays invalid." << std::endl;
+        }
+    }
 }
 
 } // anonymous namespace
@@ -183,19 +210,9 @@ const char* JointStreamRegistry::device_id(DeviceSide side, DeviceDataCategory c
     return kIds[category_index(category)][static_cast<size_t>(side)];
 }
 
-const char* JointStreamRegistry::joint_name(DeviceDataCategory category, size_t index)
-{
-    if (category == DeviceDataCategory::HUMAN || index >= kAvatarJointNameCount)
-    {
-        return nullptr;
-    }
-    return kAvatarJointNames[index];
-}
-
 AvatarSdkSession::AvatarSdkSession(const std::string& config_path)
 {
-    const std::string effective_path = config_path.empty() ? kAvatarSdkConfigPath : config_path;
-    const auto error = ::avatar::AvatarSDK::get_instance().initialize(effective_path);
+    const auto error = ::avatar::AvatarSDK::get_instance().initialize(config_path);
     if (error != ::avatar::ErrorCode::SUCCESS)
     {
         throw std::runtime_error("Avatar SDK initialize failed, error code: " + std::to_string(static_cast<int>(error)));
@@ -253,6 +270,8 @@ AvatarTracker::Impl::Impl(AvatarPluginConfig config) : m_config(std::move(config
     std::cout << "[Avatar] datasets: human=" << (m_config.human ? "on" : "off")
               << " raw=" << (m_config.raw ? "on" : "off") << " robot=" << (m_config.robot ? "on" : "off")
               << " haptic=" << (m_config.haptic ? "on" : "off") << std::endl;
+    m_landmark_index = load_human_joint_names(m_config.sdk_config_path);
+    report_unresolved_slots(m_landmark_index);
     connect_gloves();
     try_initialize_openxr();
 }
@@ -706,8 +725,9 @@ void AvatarTracker::Impl::push_joint_frame(DeviceSide side, DeviceDataCategory c
     for (size_t i = 0; i < hand.joint.position.size(); ++i)
     {
         auto joint = std::make_shared<core::JointStateT>();
-        const char* name = JointStreamRegistry::joint_name(category, i);
-        joint->name = name != nullptr ? name : ("joint_" + std::to_string(i));
+        // RAW and ROBOT carry their names from sdk_config.json's raw/robot_joint_names,
+        // and those two orders differ per finger, so pass the SDK's names through.
+        joint->name = i < hand.joint.name.size() ? hand.joint.name[i] : ("joint_" + std::to_string(i));
         joint->position = hand.joint.position[i];
         joint->valid = std::isfinite(joint->position);
         output.joints.push_back(std::move(joint));
@@ -764,19 +784,28 @@ void AvatarTracker::Impl::map_landmarks_to_openxr(const std::vector<::avatar::Po
                                                   bool is_root_tracked,
                                                   XrHandJointLocationEXT out_joints[XR_HAND_JOINT_COUNT_EXT]) const
 {
-    const auto& map = openxr_to_avatar_map();
-    const int count = static_cast<int>(landmarks.size());
+    const size_t count = landmarks.size();
 
     for (uint32_t j = 0; j < XR_HAND_JOINT_COUNT_EXT; ++j)
     {
-        const int src = map[j];
-        if (src < 0 || src >= count)
+        // Unmapped slots and slots whose landmark is missing from this frame stay
+        // zeroed with every location flag clear, so the runtime reports them
+        // untracked instead of receiving a VALID pose at the origin.
+        out_joints[j] = { 0 };
+
+        const char* const source = kOpenXrSlotSources[j];
+        if (source == nullptr)
         {
-            out_joints[j] = { 0 };
             continue;
         }
 
-        const auto& lp = landmarks[static_cast<size_t>(src)];
+        const auto it = m_landmark_index.find(source);
+        if (it == m_landmark_index.end() || it->second >= count)
+        {
+            continue;
+        }
+
+        const auto& lp = landmarks[it->second];
 
         XrPosef local_pose;
         local_pose.position.x = lp.position.x;

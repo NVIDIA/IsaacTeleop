@@ -33,6 +33,19 @@ set_target_properties(AvatarSDK::AvatarSDK PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${_AVATAR_SDK_INCLUDE_DIR}"
 )
 
+# ------------------------------------------------------------------------------
+# nlohmann/json — read `human_joint_names` out of sdk_config.json (MIT, header-only).
+# ------------------------------------------------------------------------------
+include(FetchContent)
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+    GIT_SHALLOW TRUE
+)
+set(JSON_BuildTests OFF CACHE INTERNAL "")
+FetchContent_MakeAvailable(nlohmann_json)
+
 add_subdirectory(core)
 add_subdirectory(app)
 add_subdirectory(tools)
