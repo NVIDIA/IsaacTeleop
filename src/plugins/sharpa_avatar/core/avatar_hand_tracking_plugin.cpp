@@ -22,7 +22,6 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -309,6 +308,8 @@ void AvatarTracker::Impl::try_initialize_openxr()
         // can actually use; it appends nothing when the runtime lacks them.
         extensions.insert(extensions.end(), wrist_requirements.extensions.begin(), wrist_requirements.extensions.end());
 
+        // No wait for an OpenXR system here: the headset may come up later,
+        // and update() retries on the kOpenXRRetryInterval cadence.
         const bool wait_for_openxr_system = false;
         m_session = std::make_shared<core::OpenXRSession>(m_config.app_name, extensions, wait_for_openxr_system);
         m_handles = m_session->get_handles();
@@ -393,9 +394,8 @@ void AvatarTracker::Impl::reset_openxr()
 
 void AvatarTracker::Impl::connect_gloves()
 {
-    std::cout << "[Avatar] Waiting for glove discovery..." << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-
+    // One non-blocking discovery pass: waiting for a glove to appear is the
+    // caller's job; update() retries via try_connect_missing_gloves().
     for (const DeviceSide side : kDeviceSides)
     {
         glove(side).reset();

@@ -49,6 +49,10 @@ SPDX-License-Identifier: Apache-2.0
   calibration) and the `DeviceSide` -> `plugin_utils::WristSide` conversion;
   any local `m_pfn_*`/`m_xdev_*` members or a second `is_openxr_extension_supported`
   mean the shared component was bypassed.
+- **Init paths never sleep.** The constructor makes one discovery pass and
+  returns; offline gloves are retried from `update()` (see
+  `try_connect_missing_gloves`), and waiting for a device to appear is the
+  caller's job (the sample's main loop polls until data arrives).
 - **`sdk_config.json` defines three different joint lists, not one.**
   `raw_joint_names` and `robot_joint_names` have 22 entries each but order the
   joints *differently within each finger* (e.g. `index_MCP_AA`/`index_MCP_FE`
