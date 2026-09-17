@@ -63,6 +63,22 @@ def native_capture_path() -> Path | None:
     return Path(path) if path is not None else None
 
 
+def native_capture_fd() -> int | None:
+    """An open, append-mode descriptor on the capture file, for a child's stdio.
+
+    Pass it as ``stdout=``/``stderr=`` when launching a process of your own that
+    loads non-logger native code, so the child's output is persisted with the
+    rest of the session instead of appearing on the host's terminal. A process
+    you launched is not the host, so pointing *its* descriptors at the capture
+    file is exactly the move this design relies on.
+
+    ``None`` when there is no capture file, in which case letting the child
+    inherit is the right fallback. Never close it: it belongs to
+    :mod:`isaacteleop.logging_config` for the life of the process.
+    """
+    return _native_fd.capture_fd()
+
+
 def native_capture_mode() -> str:
     """``"off"``, ``"scoped"`` or ``"process"``; see :func:`set_native_capture_mode`."""
     return _native_fd.mode()

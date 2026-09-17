@@ -31,6 +31,7 @@ from ._console import set_console_filter, set_console_level, set_logger_colors
 from ._core import DATE_FORMAT, LINE_FORMAT, TRACE, log_dir
 from ._native_api import (
     capture_native_output,
+    native_capture_fd,
     native_capture_mode,
     native_capture_path,
     set_native_capture_mode,
@@ -48,6 +49,7 @@ __all__ = [
     "TRACE",
     "capture_native_output",
     "log_dir",
+    "native_capture_fd",
     "native_capture_mode",
     "native_capture_path",
     "set_console_filter",
