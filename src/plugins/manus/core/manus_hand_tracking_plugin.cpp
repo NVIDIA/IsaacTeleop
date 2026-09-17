@@ -680,7 +680,10 @@ void ManusTracker::OnSkeletonStream(const SkeletonStreamInfo* skeleton_stream_in
     for (uint32_t i = 0; i < skeleton_stream_info->skeletonsCount; i++)
     {
         RawSkeletonInfo skeleton_info;
-        CoreSdk_GetRawSkeletonInfo(i, &skeleton_info);
+        if (CoreSdk_GetRawSkeletonInfo(i, &skeleton_info) != SDKReturnCode::SDKReturnCode_Success)
+        {
+            continue;
+        }
 
         std::vector<SkeletonNode> nodes(skeleton_info.nodesCount);
         skeleton_info.publishTime = skeleton_stream_info->publishTime;
