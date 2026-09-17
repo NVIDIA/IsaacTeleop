@@ -381,7 +381,7 @@ void AvatarTracker::Impl::try_initialize_openxr()
         {
             if (!glove(side).device)
             {
-                m_root_poses[static_cast<size_t>(side)] = XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+                m_root_poses[static_cast<size_t>(side)] = oxr_utils::identity_posef();
             }
         }
 

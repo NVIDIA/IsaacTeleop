@@ -9,6 +9,7 @@
 #include <deviceio_trackers/controller_tracker.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_session_handles.hpp>
+#include <oxr_utils/pose_conversions.hpp>
 
 #include <XR_MNDX_xdev_space.h>
 #include <array>
@@ -47,14 +48,15 @@ struct WristSourceConfig
     // kLeft/kRightAimToWrist in wuji_glove_plugin.cpp and
     // kLeft/kRightHandOffset in manus_hand_tracking_plugin.cpp).
     // Indexed by WristSide so the two hands are a table lookup, not a branch.
-    std::array<XrPosef, kSideCount> aim_to_wrist = { XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } },
-                                                     XrPosef{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } } };
+    // Defaults to the identity pose: XrPosef is a C struct with no default member
+    // initializers, so `XrPosef{}` would give an all-zero, non-unit quaternion.
+    std::array<XrPosef, kSideCount> aim_to_wrist = { oxr_utils::identity_posef(), oxr_utils::identity_posef() };
 };
 
 /** @brief One wrist query result, in the session base space. */
 struct WristSample
 {
-    XrPosef pose{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+    XrPosef pose = oxr_utils::identity_posef();
     bool valid = false; //!< Pose usable (may be the cached last good pose).
     bool tracked = false; //!< Source actively tracked this frame.
 };
@@ -122,7 +124,7 @@ private:
 
     struct HandState
     {
-        XrPosef last_pose{ { 0.0f, 0.0f, 0.0f, 1.0f }, { 0.0f, 0.0f, 0.0f } };
+        XrPosef last_pose = oxr_utils::identity_posef();
         bool has_pose = false;
     };
     std::array<HandState, kSideCount> m_hand_state;
