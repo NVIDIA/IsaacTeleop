@@ -46,8 +46,12 @@ import * as CloudXR from '@nvidia/cloudxr';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useXR } from '@react-three/xr';
 import { useRef, useEffect } from 'react';
+import { Color } from 'three';
 import type { WebGLRenderer } from 'three';
 import { applyTargetFrameRate } from '../../src/config/frameRate';
+
+/** Clear color shown in headless mode so it's visually obvious the client is running with rendering suppressed. */
+const HEADLESS_CLEAR_COLOR = 0x00194d;
 
 /**
  * Props for the CloudXRComponent.
@@ -192,6 +196,27 @@ export default function CloudXRComponent({
 
   // Disable Three.js so it doesn't clear the framebuffer after CloudXR renders.
   threeRenderer.autoClear = false;
+
+  // In headless mode the CloudXR frame blit is skipped, so mark the connected-but-suppressed
+  // case with a distinct dark blue instead of leaving whatever was last in the framebuffer -
+  // that's the one case where, non-headless, the client would actually be rendering a scene.
+  // Captures the renderer's original clear color/alpha once so toggling headless off (without
+  // remounting) restores it instead of leaving the dark blue marker color applied.
+  const originalClearColorRef = useRef<{ color: Color; alpha: number } | null>(null);
+  useEffect(() => {
+    if (!originalClearColorRef.current) {
+      originalClearColorRef.current = {
+        color: threeRenderer.getClearColor(new Color()),
+        alpha: threeRenderer.getClearAlpha(),
+      };
+    }
+    if (headless) {
+      threeRenderer.setClearColor(HEADLESS_CLEAR_COLOR, 1);
+    } else {
+      const original = originalClearColorRef.current;
+      threeRenderer.setClearColor(original.color, original.alpha);
+    }
+  }, [headless, threeRenderer]);
 
   // Access Three.js WebXRManager and WebGL context.
   const gl: WebGL2RenderingContext = threeRenderer.getContext() as WebGL2RenderingContext;
@@ -603,6 +628,11 @@ export default function CloudXRComponent({
           if (!headless) {
             const layer: XRWebGLLayer = webXRManager.getBaseLayer() as XRWebGLLayer;
             cxrSession.render(timestamp, xrFrame, layer);
+          } else {
+            // Connected but the frame blit is suppressed - this is the one case where,
+            // non-headless, the client would actually be rendering a scene. Clear to the dark
+            // blue marker color every frame so it's visually obvious this is headless.
+            threeRenderer.clear();
           }
         } catch (error) {
           // Handle deferred exceptions from callbacks or render errors

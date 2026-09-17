@@ -30,7 +30,9 @@ def _positive_int(value: str) -> int:
     try:
         n = int(value)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"expected a positive integer, got {value!r}")
+        raise argparse.ArgumentTypeError(
+            f"expected a positive integer, got {value!r}"
+        ) from None
     if n <= 0:
         raise argparse.ArgumentTypeError(f"must be a positive integer, got {n}")
     return n
@@ -44,7 +46,7 @@ def _parse_uuid_bytes(uuid_text: str) -> bytes:
         raise argparse.ArgumentTypeError(
             f"--channel-uuid: invalid UUID {uuid_text!r} (expected canonical form, "
             "e.g. 550e8400-e29b-41d4-a716-446655440000)"
-        )
+        ) from None
 
 
 def _enqueue_outbound_message(sink, payload: bytes) -> None:

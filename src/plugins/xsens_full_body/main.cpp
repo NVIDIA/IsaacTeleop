@@ -54,9 +54,9 @@ void print_stats(const XsensFullBodyStats& s, const char* prefix)
               << " truncated=" << s.dropped_truncated << " gapEvents=" << s.sequence_gap_events
               << " seqSkipped=" << s.sequence_numbers_skipped << " resets=" << s.session_resets
               << " resyncs=" << s.session_resyncs << " rewinds=" << s.timeline_rewinds
-              << " nonWholeMs=" << s.non_whole_ms_samples
-              << " socketRecoveries=" << s.socket_recoveries << " socketRecoveryFailures=" << s.socket_recovery_failures
-              << " pushFailures=" << s.push_failures << " sessionRecoveries=" << s.session_recoveries << std::endl;
+              << " nonWholeMs=" << s.non_whole_ms_samples << " socketRecoveries=" << s.socket_recoveries
+              << " socketRecoveryFailures=" << s.socket_recovery_failures << " pushFailures=" << s.push_failures
+              << " sessionRecoveries=" << s.session_recoveries << std::endl;
 }
 
 } // namespace

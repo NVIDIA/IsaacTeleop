@@ -252,7 +252,7 @@ class RtpH264Sender:
                     raise RuntimeError(
                         f"RtpH264Sender: encode failed {consecutive_encode_failures} "
                         f"times in a row; surfacing to supervisor for full restart"
-                    )
+                    ) from e
                 continue
 
             for pkt in packets:
