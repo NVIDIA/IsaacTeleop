@@ -21,6 +21,7 @@ struct FrameInfo
     int64_t predicted_display_time = 0; // XR time (ns); 0 in window/offscreen
     float delta_time = 0.0f; // CPU wall-clock seconds since last frame
     bool should_render = true; // false in kStopping or when XR runtime says skip
+    bool reference_space_changed = false; // runtime recentered; re-anchor latched poses
     std::vector<ViewInfo> views; // 1 in window/offscreen, 2 in XR stereo
     Resolution resolution{}; // Render-target resolution (per view in XR)
 };

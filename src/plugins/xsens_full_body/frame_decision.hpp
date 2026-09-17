@@ -36,7 +36,8 @@ enum class FrameVerdict
     DroppedOversize,
     //! Payload failed the FlatBuffers structural verifier.
     DroppedUnverified,
-    //! Sequence regression: a duplicate or reordered datagram.
+    //! Sequence regression: a duplicate or reordered datagram. Not necessarily forever -- see
+    //! FrameOutcome::session_resync for the run of these that means "new session" instead.
     DroppedStale,
 };
 
@@ -47,7 +48,17 @@ struct FrameOutcome
 {
     FrameVerdict verdict = FrameVerdict::DroppedMalformed;
 
-    bool session_reset = false; //!< `seq` stepped back to 0: MVN started a new session.
+    bool session_reset = false; //!< A new MVN session began, by either route below.
+    /*!
+     * @brief The new session was recognised from a run of stale frames, not from its `seq == 0`.
+     *
+     * Set alongside `session_reset` when the session boundary had to be inferred because the
+     * frame carrying `seq == 0` never arrived. Reported separately because the two are very
+     * different operationally: a plain reset costs nothing, while a resync means
+     * `SESSION_RESYNC_AFTER - 1` frames of the new session were dropped before it was believed,
+     * and a stream that resyncs repeatedly is losing datagrams.
+     */
+    bool session_resync = false;
     /*!
      * @brief How many sequence numbers this frame skipped past; 0 for a contiguous frame.
      *
@@ -106,6 +117,16 @@ public:
      */
     FrameOutcome classify(const uint8_t* datagram, size_t size);
 
+    /*!
+     * @brief Stale frames that must stack up, strictly ascending, before a new session is
+     *        inferred without its `seq == 0` datagram.
+     *
+     * 30 is half a second at MVN's 60 Hz: long enough that no plausible reordering burst reaches
+     * it, short enough that a restart whose reset datagram was lost costs half a second rather
+     * than the whole of the previous session's sequence range.
+     */
+    static constexpr uint32_t SESSION_RESYNC_AFTER = 30;
+
 private:
     size_t max_flatbuffer_size_;
     bool have_seq_ = false;
@@ -119,6 +140,12 @@ private:
     //! passed this point and consumed its number. See classify().
     uint64_t last_seq_ = 0;
     int64_t last_sample_time_ns_ = 0;
+
+    //! The stale run being watched for a lost session boundary: how many frames long it is, and
+    //! the last seq in it. Cleared by any frame that gets through, so an isolated duplicate or a
+    //! reordering burst among healthy frames can never accumulate toward a resync.
+    uint64_t stale_run_last_seq_ = 0;
+    uint32_t stale_run_length_ = 0;
 };
 
 } // namespace xsens_full_body

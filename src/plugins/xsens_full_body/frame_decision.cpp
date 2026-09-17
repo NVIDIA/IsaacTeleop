@@ -76,14 +76,38 @@ FrameOutcome FrameDecider::classify(const uint8_t* datagram, size_t size)
         }
         else if (frame->seq <= last_seq_)
         {
-            outcome.verdict = FrameVerdict::DroppedStale;
-            return outcome; // duplicate or reordered datagram; state deliberately unchanged
+            // Normally a duplicate or a reordered datagram, and it changes nothing. But it is
+            // also what a new session looks like when the frame carrying its `seq == 0` is the
+            // one UDP dropped: MVN restarts at 0, the reset branch above never fires, and every
+            // frame of the new session reads as stale until it climbs past the old session's
+            // last number -- 500 frames of silence after a restart at seq 500, with nothing to
+            // show for it but a rising `stale` counter.
+            //
+            // So a *run* of stale frames that is itself strictly ascending is taken for the new
+            // session it almost certainly is. Duplicates and reordering bursts are not ascending
+            // and never accumulate; a restart is, whatever became of its reset datagram.
+            stale_run_length_ =
+                (stale_run_length_ > 0 && frame->seq > stale_run_last_seq_) ? stale_run_length_ + 1 : 1;
+            stale_run_last_seq_ = frame->seq;
+
+            if (stale_run_length_ < SESSION_RESYNC_AFTER)
+            {
+                outcome.verdict = FrameVerdict::DroppedStale;
+                return outcome; // duplicate or reordered datagram; state deliberately unchanged
+            }
+
+            // Believed. Adopt this frame's numbering and clear the timeline, exactly as the
+            // seq-0 reset above would have done had it arrived.
+            outcome.session_reset = true;
+            outcome.session_resync = true;
+            last_sample_time_ns_ = 0;
         }
         else if (frame->seq > last_seq_ + 1)
         {
             outcome.sequence_numbers_skipped = frame->seq - last_seq_ - 1;
         }
     }
+    stale_run_length_ = 0;
     have_seq_ = true;
     last_seq_ = frame->seq;
 

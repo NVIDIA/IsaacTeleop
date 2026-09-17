@@ -7,5 +7,4 @@ add_subdirectory(teleop_session_manager)
 
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(cloudxr)
-    add_subdirectory(rig)
 endif()

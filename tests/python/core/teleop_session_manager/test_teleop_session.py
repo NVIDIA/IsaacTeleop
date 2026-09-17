@@ -15,6 +15,7 @@ import threading
 import time
 import pytest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from contextlib import contextmanager
 
@@ -613,9 +614,20 @@ class MockOpenXRSession:
         self.app_name = app_name
         self.extensions = extensions or []
         self._handles = MockOpenXRHandles()
+        self.provider_poll_count = 0
 
     def get_handles(self):
         return self._handles
+
+    def get_provider_snapshot(self):
+        self.provider_poll_count += 1
+        return SimpleNamespace(
+            state="AVAILABLE",
+            headset_state="CONNECTED",
+            reason="NONE",
+            result_code=None,
+            error="",
+        )
 
     def __enter__(self):
         return self
@@ -661,6 +673,17 @@ class MockPluginContext:
     def check_health(self):
         self.health_check_count += 1
 
+    def get_process_snapshot(self):
+        return SimpleNamespace(
+            state="RUNNING",
+            reason="NONE",
+            pid=123,
+            exit_code=None,
+            term_signal=None,
+            error_code=None,
+            error="",
+        )
+
     def __enter__(self):
         self.entered = True
         return self
@@ -681,6 +704,9 @@ class MockPluginManager:
 
     def get_plugin_names(self):
         return self._plugin_names
+
+    def get_plugin_info(self, plugin_name):
+        return SimpleNamespace(name=plugin_name, devices=())
 
     def start(self, plugin_name, plugin_root_id, plugin_args=None):
         self.start_calls.append(
@@ -1533,6 +1559,203 @@ class TestPluginInitialization:
             with session:
                 assert len(mock_pm.start_calls) == 1
                 assert mock_pm.start_calls[0]["plugin_args"] == []
+
+
+class TestStatusMonitoringIntegration:
+    """Test Manus-only inventory, refresh, and provider failure integration."""
+
+    def test_only_manus_is_monitored_and_plugin_launch_order_is_preserved(
+        self, tmp_path
+    ):
+        class StatusTracker:
+            def __init__(self):
+                self.poll_count = 0
+
+            def get_device_status_snapshot(self, _session):
+                self.poll_count += 1
+
+        class CountingContext(MockPluginContext):
+            def __init__(self):
+                super().__init__()
+                self.process_poll_count = 0
+
+            def get_process_snapshot(self):
+                self.process_poll_count += 1
+                return super().get_process_snapshot()
+
+        manager = MockPluginManager(plugin_names=["legacy_plugin", "manus_hand_plugin"])
+        legacy_context = CountingContext()
+        manus_context = CountingContext()
+        manager._contexts["legacy_plugin"] = legacy_context
+        manager._contexts["manus_hand_plugin"] = manus_context
+        manager.get_plugin_info = MagicMock(
+            return_value=SimpleNamespace(
+                name="Manus",
+                devices=(
+                    SimpleNamespace(
+                        path="/hand/left", type="hand", description="Left hand"
+                    ),
+                ),
+            )
+        )
+        tracker = StatusTracker()
+        collected_trackers = []
+        config = make_config(
+            MockPipeline(leaf_nodes=[]),
+            plugins=[
+                PluginConfig(
+                    plugin_name="legacy_plugin",
+                    plugin_root_id="/legacy",
+                    search_paths=[tmp_path],
+                ),
+                PluginConfig(
+                    plugin_name="manus_hand_plugin",
+                    plugin_root_id="/manus",
+                    search_paths=[tmp_path],
+                ),
+            ],
+        )
+
+        with (
+            patch(
+                "isaacteleop.deviceio_trackers.PluginDeviceStatusTracker",
+                return_value=tracker,
+            ) as tracker_cls,
+            mock_session_dependencies(
+                mock_pm=manager,
+                collected_trackers=collected_trackers,
+            ),
+        ):
+            session = TeleopSession(config)
+            with session:
+                tracker_cls.assert_called_once_with("/manus/device_status")
+                manager.get_plugin_info.assert_called_once_with("manus_hand_plugin")
+                assert collected_trackers == [tracker]
+                assert [call["plugin_name"] for call in manager.start_calls] == [
+                    "legacy_plugin",
+                    "manus_hand_plugin",
+                ]
+                assert len(session.plugin_managers) == 2
+                assert len(session.plugin_contexts) == 2
+
+                snapshot = session.get_status()
+                assert {provider.id for provider in snapshot.providers} == {
+                    "openxr/runtime",
+                    "plugin//manus",
+                }
+                assert {device.id for device in snapshot.devices} == {
+                    "openxr/headset",
+                    "/manus/hand/left",
+                }
+                assert session.get_provider_status("plugin//legacy") is None
+                assert session.get_device_status("/legacy/device") is None
+
+                cached = session.get_status()
+                assert manus_context.process_poll_count == 0
+                assert legacy_context.process_poll_count == 0
+                assert tracker.poll_count == 0
+
+                session.step()
+                assert session.get_status() is not cached
+                assert manus_context.process_poll_count == 1
+                assert legacy_context.process_poll_count == 0
+                assert tracker.poll_count == 1
+
+    def test_manus_process_failure_is_cached_before_health_error(self, tmp_path):
+        class CrashedContext(MockPluginContext):
+            def check_health(self):
+                raise RuntimeError("plugin crashed")
+
+            def get_process_snapshot(self):
+                return SimpleNamespace(
+                    state="EXITED",
+                    reason="NONZERO_EXIT",
+                    pid=123,
+                    exit_code=7,
+                    term_signal=None,
+                    error_code=None,
+                    error="unexpected exit",
+                )
+
+        context = CrashedContext()
+        manager = MockPluginManager(plugin_names=["manus_hand_plugin"])
+        manager._contexts["manus_hand_plugin"] = context
+        manager.get_plugin_info = MagicMock(
+            return_value=SimpleNamespace(
+                name="Manus",
+                devices=(
+                    SimpleNamespace(
+                        path="/hand/left", type="hand", description="Left hand"
+                    ),
+                ),
+            )
+        )
+        config = make_config(
+            MockPipeline(leaf_nodes=[]),
+            plugins=[
+                PluginConfig(
+                    plugin_name="manus_hand_plugin",
+                    plugin_root_id="/manus",
+                    search_paths=[tmp_path],
+                )
+            ],
+        )
+
+        with (
+            patch("isaacteleop.deviceio_trackers.PluginDeviceStatusTracker"),
+            mock_session_dependencies(mock_pm=manager),
+        ):
+            session = TeleopSession(config)
+            with session:
+                with pytest.raises(RuntimeError, match="plugin crashed"):
+                    session.step()
+
+                provider = session.get_provider_status("plugin//manus")
+                assert provider.status == teleop_session_manager.ProviderState.FAILED
+                assert (
+                    provider.reason
+                    == teleop_session_manager.StatusReason.PROCESS_EXITED
+                )
+                assert provider.exit_code == 7
+
+    def test_deviceio_failure_marks_openxr_and_manus_failed(self, tmp_path):
+        class FailingDeviceIOSession(MockDeviceIOSession):
+            def update(self):
+                raise RuntimeError("runtime update failed")
+
+        manager = MockPluginManager(plugin_names=["manus_hand_plugin"])
+        manager.get_plugin_info = MagicMock(
+            return_value=SimpleNamespace(name="Manus", devices=())
+        )
+        config = make_config(
+            MockPipeline(leaf_nodes=[]),
+            plugins=[
+                PluginConfig(
+                    plugin_name="manus_hand_plugin",
+                    plugin_root_id="/manus",
+                    search_paths=[tmp_path],
+                )
+            ],
+        )
+
+        with (
+            patch("isaacteleop.deviceio_trackers.PluginDeviceStatusTracker"),
+            mock_session_dependencies(
+                mock_dio=FailingDeviceIOSession(),
+                mock_pm=manager,
+            ),
+        ):
+            session = TeleopSession(config)
+            with session:
+                with pytest.raises(RuntimeError, match="runtime update failed"):
+                    session.step()
+
+                assert {
+                    provider.status for provider in session.get_status().providers
+                } == {teleop_session_manager.ProviderState.FAILED}
+                assert {
+                    provider.reason for provider in session.get_status().providers
+                } == {teleop_session_manager.StatusReason.RUNTIME_UPDATE_FAILED}
 
 
 class TestStep:
@@ -2938,12 +3161,23 @@ class TestReplayModePlugins:
             plugins=[plugin_config],
         )
 
-        with mock_replay_dependencies(mock_pm=mock_pm):
+        with (
+            patch(
+                "isaacteleop.deviceio_trackers.PluginDeviceStatusTracker"
+            ) as tracker_cls,
+            mock_replay_dependencies(mock_pm=mock_pm),
+        ):
             session = TeleopSession(config)
             session.__enter__()
             try:
                 assert len(session.plugin_managers) == 1
                 assert len(session.plugin_contexts) == 1
+                assert [call["plugin_name"] for call in mock_pm.start_calls] == [
+                    "test_plugin"
+                ]
+                tracker_cls.assert_not_called()
+                assert session.get_status().providers == ()
+                assert session.get_status().devices == ()
             finally:
                 session.__exit__(None, None, None)
 

@@ -182,7 +182,14 @@ if(NOT depthai_POPULATED)
     function(export)
     endfunction()
 
+    # DepthAI and its own FetchContent'd deps (XLink, ...) are third-party: keep the
+    # project warning set out of them, or -Werror builds fail in code we do not own.
+    isaac_teleop_third_party_scope_begin()
     add_subdirectory(${depthai_SOURCE_DIR} ${depthai_BINARY_DIR} EXCLUDE_FROM_ALL)
+    isaac_teleop_third_party_scope_end()
+
+    # ...and our own sources include DepthAI's headers, so those need -isystem too.
+    isaac_teleop_mark_include_dirs_system(depthai::core)
 endif()
 
 message(STATUS "DepthAI v${DEPTHAI_VERSION} ready")
@@ -201,7 +208,9 @@ FetchContent_Declare(
     URL "https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz"
     URL_HASH "SHA256=5f5993c530f084535c65a6879e9b26ad441169b3e25d789d83287040a9ca5165"
 )
+isaac_teleop_third_party_scope_begin()
 FetchContent_MakeAvailable(sdl2)
+isaac_teleop_third_party_scope_end()
 message(STATUS "SDL2 ${SDL2_VERSION} — live preview support enabled")
 
 # ==============================================================================

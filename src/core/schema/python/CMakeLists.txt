@@ -8,10 +8,12 @@ pybind11_add_module(schema_py
     hand_bindings.h
     haptic_command_bindings.h
     head_bindings.h
+    joint_se3_pose_bindings.h
     joint_state_bindings.h
     message_channel_bindings.h
     oglo_tactile_bindings.h
     pedals_bindings.h
+    plugin_device_status_bindings.h
     pose_bindings.h
     schema_array_views.h
     schema_serialized.h

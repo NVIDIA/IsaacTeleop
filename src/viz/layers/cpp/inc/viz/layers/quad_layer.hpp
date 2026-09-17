@@ -11,6 +11,7 @@
 #include <vulkan/vulkan.h>
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -167,6 +168,13 @@ public:
     void set_placement(std::optional<Config::Placement> placement);
     std::optional<Config::Placement> placement() const noexcept;
 
+    // Live stereo baseline, thread-safe vs record(); takes effect next
+    // frame. No-op while the layer is mono (Config::stereo == false) --
+    // a baseline needs two eyes to separate. Throws std::invalid_argument
+    // on a non-finite value, matching construction.
+    void set_stereo_baseline_mm(float baseline_mm);
+    float stereo_baseline_mm() const noexcept;
+
 protected:
     // Native quad: first GPU read is the backend's copy into the quad
     // swapchain (TRANSFER). Composited-with-mips: the mip-gen blit chain
@@ -214,6 +222,10 @@ private:
 
     // Live placement; lock for set_placement / record() snapshot.
     mutable std::mutex placement_mutex_;
+
+    // Lock-free: record() snapshots it once per frame so both eyes
+    // shift by the same amount even if a setter lands mid-record.
+    std::atomic<float> stereo_baseline_mm_;
     std::optional<Config::Placement> placement_;
 };
 

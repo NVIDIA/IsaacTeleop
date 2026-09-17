@@ -77,7 +77,6 @@ void test_defaults()
     CHECK(p.options.bind_address == "0.0.0.0");
     CHECK(p.options.udp_port == 9764);
     CHECK(p.options.max_flatbuffer_size == 4096);
-    CHECK(!p.options.used_legacy_positionals);
     CHECK(p.error.empty());
 }
 
@@ -112,7 +111,6 @@ void test_all_flags_together()
     CHECK(p.options.bind_address == "10.1.2.3");
     CHECK(p.options.udp_port == 65535);
     CHECK(p.options.max_flatbuffer_size == 8192);
-    CHECK(!p.options.used_legacy_positionals);
 }
 
 //! Regression: the launcher injects --plugin-root-id ahead of plugin.yaml's own arguments, and
@@ -123,7 +121,6 @@ void test_plugin_root_id_is_swallowed()
     const Parsed alone = parse({ "--plugin-root-id=abc" });
     CHECK(alone.outcome == ParseOutcome::Ok);
     CHECK(alone.options.collection_id == "xsens_full_body");
-    CHECK(!alone.options.used_legacy_positionals);
 
     // The real launcher shape: injected first, then the yaml args.
     const Parsed launcher = parse({ "--plugin-root-id=abc", "--collection-id=rig", "--port=9000" });
@@ -140,54 +137,38 @@ void test_plugin_root_id_is_swallowed()
     const Parsed spaced = parse({ "--plugin-root-id", "abc", "--port=9000" });
     CHECK(spaced.outcome == ParseOutcome::Ok);
     CHECK(spaced.options.udp_port == 9000);
-    CHECK(!spaced.options.used_legacy_positionals);
 
-    // Ahead of the deprecated positional form, it must not be taken for the collection id.
-    const Parsed with_positionals = parse({ "--plugin-root-id=abc", "rig", "9000", "4096" });
-    CHECK(with_positionals.outcome == ParseOutcome::Ok);
-    CHECK(with_positionals.options.collection_id == "rig");
-    CHECK(with_positionals.options.udp_port == 9000);
-    CHECK(with_positionals.options.used_legacy_positionals);
+    // Swallowing the flag must not make what follows it acceptable: a bare word after
+    // --plugin-root-id= is still an argument nobody asked for.
+    check_error_naming(parse({ "--plugin-root-id=abc", "rig" }), "rig");
 
     check_error_naming(parse({ "--plugin-root-id" }), "--plugin-root-id");
 }
 
-void test_legacy_positionals()
+//! Every option is a flag. An earlier revision also accepted a positional form
+//! (`collection_id udp_port max_flatbuffer_size`); it is gone, and a bare word is now rejected
+//! wherever it appears rather than quietly configuring the pusher. Rejecting is the safe answer:
+//! a positional silently applied is a pusher listening somewhere the operator did not ask for.
+void test_positionals_rejected()
 {
-    const Parsed one = parse({ "rig" });
-    CHECK(one.outcome == ParseOutcome::Ok);
-    CHECK(one.options.collection_id == "rig");
-    CHECK(one.options.udp_port == 9764);
-    CHECK(one.options.max_flatbuffer_size == 4096);
-    CHECK(one.options.used_legacy_positionals);
+    // The three shapes the removed form accepted.
+    check_error_naming(parse({ "rig" }), "rig");
+    check_error_naming(parse({ "rig", "9000" }), "rig");
+    check_error_naming(parse({ "xsens_full_body", "9764", "4096" }), "xsens_full_body");
 
-    const Parsed two = parse({ "rig", "9000" });
-    CHECK(two.outcome == ParseOutcome::Ok);
-    CHECK(two.options.udp_port == 9000);
-    CHECK(two.options.max_flatbuffer_size == 4096);
-
-    // The invocation the README and run/pipeline.sh have always used.
-    const Parsed three = parse({ "xsens_full_body", "9764", "4096" });
-    CHECK(three.outcome == ParseOutcome::Ok);
-    CHECK(three.options.collection_id == "xsens_full_body");
-    CHECK(three.options.udp_port == 9764);
-    CHECK(three.options.max_flatbuffer_size == 4096);
-    CHECK(three.options.used_legacy_positionals);
-    // No positional ever sets the bind address -- that is flag-only by design.
-    CHECK(three.options.bind_address == "0.0.0.0");
-
-    CHECK(parse({ "rig", "9764", "4096", "extra" }).outcome == ParseOutcome::Error);
-}
-
-//! Mixing is an error rather than a precedence rule: a silently ignored argument here is a
-//! pusher listening somewhere the operator did not ask for.
-void test_flags_and_positionals_do_not_mix()
-{
+    // In every position relative to a real flag, and whichever comes first.
     check_error_naming(parse({ "--port=9000", "rig" }), "rig");
-    // Leading positional wins the form, so the flag lands in the positional parser as a fourth
-    // argument or an unparsable port -- either way it must not be silently applied.
-    CHECK(parse({ "rig", "--port=9000" }).outcome == ParseOutcome::Error);
-    CHECK(parse({ "rig", "9000", "4096", "--address=127.0.0.1" }).outcome == ParseOutcome::Error);
+    check_error_naming(parse({ "rig", "--port=9000" }), "rig");
+    check_error_naming(parse({ "--collection-id=rig", "9000", "--address=127.0.0.1" }), "9000");
+
+    // The message must name the argument itself and point at the flag form, because the operator
+    // reading it is most likely running a command line that used to work.
+    const Parsed p = parse({ "rig" });
+    CHECK(p.error.find("--port=9764") != std::string::npos);
+
+    // Nothing is applied on the way to the error.
+    CHECK(p.options.collection_id == "xsens_full_body");
+    CHECK(p.options.udp_port == 9764);
 }
 
 void test_invalid_port()
@@ -196,7 +177,6 @@ void test_invalid_port()
     {
         check_error_naming(parse({ bad }), "--port");
     }
-    check_error_naming(parse({ "rig", "70000" }), "udp_port");
 }
 
 void test_invalid_max_flatbuffer_size()
@@ -206,7 +186,6 @@ void test_invalid_max_flatbuffer_size()
     {
         check_error_naming(parse({ bad }), "--max-flatbuffer-size");
     }
-    check_error_naming(parse({ "rig", "9764", "0" }), "max_flatbuffer_size");
 }
 
 //! An unvalidated bind address fails as silent no-data, the same signature as a collection_id
@@ -230,7 +209,8 @@ void test_invalid_address()
 void test_empty_collection_id()
 {
     check_error_naming(parse({ "--collection-id=" }), "collection_id");
-    check_error_naming(parse({ "" }), "collection_id");
+    // An empty argument is not an empty collection id -- it is an argument that is not a flag.
+    CHECK(parse({ "" }).outcome == ParseOutcome::Error);
 }
 
 void test_unknown_flag()
@@ -261,8 +241,7 @@ int main()
     test_each_flag_alone();
     test_all_flags_together();
     test_plugin_root_id_is_swallowed();
-    test_legacy_positionals();
-    test_flags_and_positionals_do_not_mix();
+    test_positionals_rejected();
     test_invalid_port();
     test_invalid_max_flatbuffer_size();
     test_invalid_address();
