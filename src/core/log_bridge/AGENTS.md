@@ -80,6 +80,19 @@ acquires the GIL; both are unsafe there. The four `std::cerr` sites in that
 window are correct as they stand — the rule is stated next to them in the
 source, and this is the reminder not to "finish the migration" by moving them.
 
+The same window now also points the **child's** fd 1 and fd 2 at
+`ISAACTELEOP_NATIVE_CAPTURE_FILE`. `open`, `dup2` and `close` are on POSIX's
+async-signal-safe list; `getenv` is not, so the path is read into a `const
+char*` **before** `fork()` and only dereferenced afterwards. Keep it that way.
+
+This is how a plugin's non-logger output — the OpenXR runtime's `xrCreate*`
+diagnostics, the Manus SDK's own formatted lines — stays off the terminal now
+that the Python half no longer rebinds the *host's* descriptors. The child's
+descriptors are ours to set; the host's are not. Consequence to be aware of:
+those four `std::cerr` sites now report into the capture file rather than the
+terminal, which is where a reader looking for a failed plugin launch should be
+directed.
+
 ## Related
 
 - Python half: [`../../python/isaacteleop/logging_config/AGENTS.md`](../../python/isaacteleop/logging_config/AGENTS.md)
