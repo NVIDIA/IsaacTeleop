@@ -181,8 +181,10 @@ private:
     std::array<XrPosef, kGloveCount> m_root_poses{};
 
     std::array<bool, kGloveCount> m_haptic_error_logged{};
-    std::chrono::steady_clock::time_point m_last_glove_retry{};
-    std::chrono::steady_clock::time_point m_last_glove_wait_log{};
+    // Seeded to construction time, not to a zero time_point used as a "never set"
+    // sentinel: the interval guards alone then decide whether a first call is due.
+    std::chrono::steady_clock::time_point m_last_glove_retry{ std::chrono::steady_clock::now() };
+    std::chrono::steady_clock::time_point m_last_glove_wait_log{ std::chrono::steady_clock::now() };
     std::chrono::steady_clock::time_point m_last_openxr_retry{};
     std::mutex m_update_mutex;
     mutable std::mutex m_data_mutex;

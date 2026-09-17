@@ -178,13 +178,13 @@ void WristPoseSource::initialize_xdev_hand_trackers()
     // Find native hand tracking devices by matching against their serial strings.
     //
     // NOTE: The serial values are NOT defined by the XR_MNDX_xdev_space spec.
-    // The "<kXDevSerialPrefix> (<side label>)" form is an observed runtime-specific
-    // naming convention (e.g. Monado). If a runtime changes these display names
-    // across firmware or software updates the match below will silently fail —
-    // hence the diagnostic listing every serial actually seen.
+    // The "Head Device (left)" / "Head Device (right)" form is an observed
+    // runtime-specific naming convention (e.g. Monado). If a runtime changes these
+    // display names across firmware or software updates the match below will
+    // silently fail — hence the diagnostic listing every serial actually seen.
     // See: https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html (XR_MNDX_xdev_space)
-    constexpr char kXDevSerialPrefix[] = "Head Device";
-    constexpr std::array<const char*, kSideCount> kSideLabels = { "left", "right" };
+    constexpr char kLeftSerial[] = "Head Device (left)";
+    constexpr char kRightSerial[] = "Head Device (right)";
 
     std::array<XrXDevIdMNDX, kSideCount> xdev_ids{};
     std::vector<std::string> seen_serials;
@@ -204,12 +204,13 @@ void WristPoseSource::initialize_xdev_hand_trackers()
         std::string serial_str = properties.serial ? properties.serial : "";
         seen_serials.push_back(serial_str);
 
-        for (size_t s = 0; s < kSideCount; ++s)
+        if (serial_str == kLeftSerial)
         {
-            if (serial_str == std::string(kXDevSerialPrefix) + " (" + kSideLabels[s] + ")")
-            {
-                xdev_ids[s] = xdev_id;
-            }
+            xdev_ids[static_cast<size_t>(WristSide::Left)] = xdev_id;
+        }
+        else if (serial_str == kRightSerial)
+        {
+            xdev_ids[static_cast<size_t>(WristSide::Right)] = xdev_id;
         }
     }
 
@@ -227,8 +228,8 @@ void WristPoseSource::initialize_xdev_hand_trackers()
             serials_list += '"';
         }
         std::cerr << "[WristPoseSource] Could not match optical hand-tracking XDevs by serial. "
-                  << "Expected \"" << kXDevSerialPrefix << " (left)\" and \"" << kXDevSerialPrefix
-                  << " (right)\", but found: [" << serials_list << "]. "
+                  << "Expected \"" << kLeftSerial << "\" and \"" << kRightSerial << "\", but found: [" << serials_list
+                  << "]. "
                   << "These serial strings are runtime-specific and may have changed." << std::endl;
     }
 

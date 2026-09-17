@@ -65,3 +65,15 @@ SPDX-License-Identifier: Apache-2.0
   `sdk_config.json` path is passed as a positional `args` entry and is
   required, with no compiled-in default: a wrong path must fail at startup
   rather than silently degrade to an empty OpenXR mapping.
+- **A table earns its place only when it removes a branch, not when it
+  restates one.** Two entries that call the same function under different
+  names, or a `kSideLabels`/`kXrHands` array whose only job is to translate
+  an enum back into the value it already names, should be written out. Those
+  forms also make correctness depend on several arrays sharing an index
+  order that nothing checks.
+- **No zero-valued time_point used as a "never set" sentinel.** Seed the
+  member at construction and let the interval guard alone decide whether a
+  first call is due, so a guard never has to ask two questions at once.
+- **Do not re-check a precondition the only caller already enforced.** If
+  the call site rejects a payload size before building the argument, the
+  callee must not repeat the check.

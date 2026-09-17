@@ -57,6 +57,8 @@ constexpr size_t kAvatarFingerCount = 5;
 constexpr size_t kJointFlatbufferSize = 4096;
 constexpr auto kAvatarDataTimeout = std::chrono::seconds(10);
 constexpr auto kOpenXRRetryInterval = std::chrono::seconds(10);
+constexpr auto kGloveRetryInterval = std::chrono::seconds(2);
+constexpr auto kGloveWaitLogInterval = std::chrono::seconds(10);
 // Must match SchemaPusherConfig::tensor_identifier below.
 constexpr char TENSOR_IDENTIFIER[] = "joint_state";
 // plugin_utils::WristSide is index-aligned with DeviceSide (Left/Right == LEFT/RIGHT),
@@ -127,8 +129,9 @@ constexpr std::array<const char*, XR_HAND_JOINT_COUNT_EXT> kOpenXrSlotSources = 
 };
 
 // Reads `human_joint_names` out of an sdk_config.json and returns name -> landmark
-// index. HUMAN frames carry no names of their own (HandSkeleton is bare poses),
-// so this file is the only place the ORDER of a human landmark is defined.
+// index, warning about any OpenXR slot the file cannot satisfy. HUMAN frames carry
+// no names of their own (HandSkeleton is bare poses), so this file is the only
+// place the order of a human landmark is defined.
 std::unordered_map<std::string, size_t> load_human_joint_names(const std::string& config_path)
 {
     std::unordered_map<std::string, size_t> index;
@@ -153,16 +156,12 @@ std::unordered_map<std::string, size_t> load_human_joint_names(const std::string
     catch (const nlohmann::json::exception& e)
     {
         std::cerr << "[Avatar] Cannot read human_joint_names from " << config_path << ": " << e.what() << std::endl;
+        return index;
     }
 
     std::cout << "[Avatar] Loaded " << index.size() << " human landmark names." << std::endl;
-    return index;
-}
 
-// Logs the slots whose sdk_config.json name did not resolve. Silence means every
-// OpenXR slot this plugin intends to fill has a landmark behind it.
-void report_unresolved_slots(const std::unordered_map<std::string, size_t>& index)
-{
+    // Silence here means every OpenXR slot this plugin intends to fill resolved.
     for (size_t j = 0; j < kOpenXrSlotSources.size(); ++j)
     {
         const char* const source = kOpenXrSlotSources[j];
@@ -172,6 +171,8 @@ void report_unresolved_slots(const std::unordered_map<std::string, size_t>& inde
                       << "' but sdk_config.json has no such name; slot stays invalid." << std::endl;
         }
     }
+
+    return index;
 }
 
 } // anonymous namespace
@@ -197,11 +198,12 @@ core::SchemaPusher* JointStreamRegistry::pusher(DeviceSide side, DeviceDataCateg
 const char* JointStreamRegistry::device_id(DeviceSide side, DeviceDataCategory category)
 {
     // [category][side]; the only place a collection id is written down, so the
-    // plugin.yaml descriptions and the runtime pushers cannot drift apart.
-    static constexpr std::array<std::array<const char*, kGloveCount>, kCategoryCount> kIds = { {
+    // plugin.yaml descriptions and the runtime pushers cannot drift apart. HUMAN
+    // has no row: it is injected through OpenXR, not the tensor pipeline, and
+    // is_joint_category() keeps it out before this table is reached.
+    static constexpr std::array<std::array<const char*, kGloveCount>, kJointDataCategories.size()> kIds = { {
         { AVATAR_RAW_LEFT_COLLECTION_ID, AVATAR_RAW_RIGHT_COLLECTION_ID },
         { AVATAR_ROBOT_LEFT_COLLECTION_ID, AVATAR_ROBOT_RIGHT_COLLECTION_ID },
-        { nullptr, nullptr }, // HUMAN is injected through OpenXR, not the tensor pipeline.
     } };
     if (!is_joint_category(category))
     {
@@ -271,7 +273,6 @@ AvatarTracker::Impl::Impl(AvatarPluginConfig config) : m_config(std::move(config
               << " raw=" << (m_config.raw ? "on" : "off") << " robot=" << (m_config.robot ? "on" : "off")
               << " haptic=" << (m_config.haptic ? "on" : "off") << std::endl;
     m_landmark_index = load_human_joint_names(m_config.sdk_config_path);
-    report_unresolved_slots(m_landmark_index);
     connect_gloves();
     try_initialize_openxr();
 }
@@ -493,7 +494,7 @@ void AvatarTracker::Impl::try_connect_missing_gloves()
     }
 
     const auto now = std::chrono::steady_clock::now();
-    if (m_last_glove_retry.time_since_epoch().count() != 0 && now - m_last_glove_retry < std::chrono::seconds(2))
+    if (now - m_last_glove_retry < kGloveRetryInterval)
     {
         return;
     }
@@ -512,8 +513,7 @@ void AvatarTracker::Impl::try_connect_missing_gloves()
 
     const bool any_online =
         std::any_of(m_gloves.begin(), m_gloves.end(), [](const GloveState& state) { return state.device != nullptr; });
-    if (!any_online && (m_last_glove_wait_log.time_since_epoch().count() == 0 ||
-                        now - m_last_glove_wait_log >= std::chrono::seconds(10)))
+    if (!any_online && now - m_last_glove_wait_log >= kGloveWaitLogInterval)
     {
         m_last_glove_wait_log = now;
         std::cout << "[Avatar] Waiting for an online glove..." << std::endl;
@@ -742,11 +742,8 @@ void AvatarTracker::Impl::push_joint_frame(DeviceSide side, DeviceDataCategory c
 
 void AvatarTracker::Impl::apply_haptic_command(DeviceSide side, const std::vector<float>& powers)
 {
-    if (powers.size() != kAvatarFingerCount)
-    {
-        return;
-    }
-
+    // No size check: the only caller builds `powers` with exactly kAvatarFingerCount
+    // entries after rejecting any command whose payload size differs.
     GloveState& state = glove(side);
     if (!state.device)
     {
