@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
+#include <utility>
 
 namespace plugin_utils
 {
@@ -93,9 +94,9 @@ WristPoseSource::~WristPoseSource()
     cleanup_xdev_hand_trackers();
 }
 
-WristSample WristPoseSource::query(bool is_left, XrTime time)
+WristSample WristPoseSource::query(WristSide side, XrTime time)
 {
-    HandState& state = is_left ? m_left : m_right;
+    HandState& state = m_hand_state[static_cast<size_t>(side)];
 
     XrPosef pose;
     bool tracked = false;
@@ -103,13 +104,13 @@ WristSample WristPoseSource::query(bool is_left, XrTime time)
 
     if (m_config.mode != WristSourceMode::Controller && m_xdev_available)
     {
-        got_pose = query_xdev(is_left, time, pose, tracked);
+        got_pose = query_xdev(side, time, pose, tracked);
     }
 
     // Keep a valid-but-untracked optical pose instead of switching sources.
     if (!got_pose && m_config.mode != WristSourceMode::HandTracking)
     {
-        got_pose = query_controller(is_left, pose, tracked);
+        got_pose = query_controller(side, pose, tracked);
     }
 
     if (got_pose)
@@ -167,8 +168,8 @@ void WristPoseSource::initialize_xdev_hand_trackers()
         return;
     }
 
-    std::vector<XrXDevIdMNDX> xdev_ids(xdev_count);
-    result = m_pfn_enumerate_xdevs(m_xdev_list, xdev_count, &xdev_count, xdev_ids.data());
+    std::vector<XrXDevIdMNDX> enumerated_ids(xdev_count);
+    result = m_pfn_enumerate_xdevs(m_xdev_list, xdev_count, &xdev_count, enumerated_ids.data());
     if (XR_FAILED(result))
     {
         return;
@@ -176,16 +177,19 @@ void WristPoseSource::initialize_xdev_hand_trackers()
 
     // Find native hand tracking devices by matching against their serial strings.
     //
-    // NOTE: The serial values "Head Device (0)" (left) and "Head Device (1)" (right) are
-    // NOT defined by the XR_MNDX_xdev_space specification. They are an observed runtime-
-    // specific naming convention (e.g. Monado). If a runtime changes these display names
-    // across firmware or software updates the match below will silently fail.
+    // NOTE: The serial values are NOT defined by the XR_MNDX_xdev_space spec.
+    // The "<kXDevSerialPrefix> (<side label>)" form is an observed runtime-specific
+    // naming convention (e.g. Monado). If a runtime changes these display names
+    // across firmware or software updates the match below will silently fail —
+    // hence the diagnostic listing every serial actually seen.
     // See: https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html (XR_MNDX_xdev_space)
-    XrXDevIdMNDX left_xdev_id = 0;
-    XrXDevIdMNDX right_xdev_id = 0;
+    constexpr char kXDevSerialPrefix[] = "Head Device";
+    constexpr std::array<const char*, kSideCount> kSideLabels = { "left", "right" };
+
+    std::array<XrXDevIdMNDX, kSideCount> xdev_ids{};
     std::vector<std::string> seen_serials;
 
-    for (const auto& xdev_id : xdev_ids)
+    for (const auto& xdev_id : enumerated_ids)
     {
         XrGetXDevInfoMNDX get_info{ XR_TYPE_GET_XDEV_INFO_MNDX };
         get_info.id = xdev_id;
@@ -200,17 +204,16 @@ void WristPoseSource::initialize_xdev_hand_trackers()
         std::string serial_str = properties.serial ? properties.serial : "";
         seen_serials.push_back(serial_str);
 
-        if (serial_str == "Head Device (0)")
+        for (size_t s = 0; s < kSideCount; ++s)
         {
-            left_xdev_id = xdev_id;
-        }
-        else if (serial_str == "Head Device (1)")
-        {
-            right_xdev_id = xdev_id;
+            if (serial_str == std::string(kXDevSerialPrefix) + " (" + kSideLabels[s] + ")")
+            {
+                xdev_ids[s] = xdev_id;
+            }
         }
     }
 
-    if (left_xdev_id == 0 || right_xdev_id == 0)
+    if (xdev_ids[static_cast<size_t>(WristSide::Left)] == 0 || xdev_ids[static_cast<size_t>(WristSide::Right)] == 0)
     {
         std::string serials_list;
         for (const auto& s : seen_serials)
@@ -224,8 +227,8 @@ void WristPoseSource::initialize_xdev_hand_trackers()
             serials_list += '"';
         }
         std::cerr << "[WristPoseSource] Could not match optical hand-tracking XDevs by serial. "
-                  << "Expected \"Head Device (0)\" (left) and \"Head Device (1)\" (right), "
-                  << "but found: [" << serials_list << "]. "
+                  << "Expected \"" << kXDevSerialPrefix << " (left)\" and \"" << kXDevSerialPrefix
+                  << " (right)\", but found: [" << serials_list << "]. "
                   << "These serial strings are runtime-specific and may have changed." << std::endl;
     }
 
@@ -248,10 +251,14 @@ void WristPoseSource::initialize_xdev_hand_trackers()
         return XR_SUCCEEDED(m_pfn_create_hand_tracker(m_handles.session, &create_info, &out_tracker));
     };
 
-    const bool left_ok = create_tracker(left_xdev_id, XR_HAND_LEFT_EXT, m_native_left_hand_tracker);
-    const bool right_ok = create_tracker(right_xdev_id, XR_HAND_RIGHT_EXT, m_native_right_hand_tracker);
+    static constexpr std::array<XrHandEXT, kSideCount> kXrHands = { XR_HAND_LEFT_EXT, XR_HAND_RIGHT_EXT };
+    bool all_ok = true;
+    for (size_t s = 0; s < kSideCount; ++s)
+    {
+        all_ok = create_tracker(xdev_ids[s], kXrHands[s], m_native_hand_tracker[s]) && all_ok;
+    }
 
-    if (left_ok && right_ok)
+    if (all_ok)
     {
         m_xdev_available = true;
     }
@@ -265,15 +272,13 @@ void WristPoseSource::initialize_xdev_hand_trackers()
 
 void WristPoseSource::cleanup_xdev_hand_trackers()
 {
-    if (m_native_left_hand_tracker != XR_NULL_HANDLE && m_pfn_destroy_hand_tracker)
+    for (XrHandTrackerEXT& tracker : m_native_hand_tracker)
     {
-        m_pfn_destroy_hand_tracker(m_native_left_hand_tracker);
-        m_native_left_hand_tracker = XR_NULL_HANDLE;
-    }
-    if (m_native_right_hand_tracker != XR_NULL_HANDLE && m_pfn_destroy_hand_tracker)
-    {
-        m_pfn_destroy_hand_tracker(m_native_right_hand_tracker);
-        m_native_right_hand_tracker = XR_NULL_HANDLE;
+        if (tracker != XR_NULL_HANDLE && m_pfn_destroy_hand_tracker)
+        {
+            m_pfn_destroy_hand_tracker(tracker);
+            tracker = XR_NULL_HANDLE;
+        }
     }
     if (m_xdev_list != XR_NULL_HANDLE && m_pfn_destroy_xdev_list)
     {
@@ -283,11 +288,11 @@ void WristPoseSource::cleanup_xdev_hand_trackers()
     m_xdev_available = false;
 }
 
-bool WristPoseSource::query_xdev(bool is_left, XrTime time, XrPosef& out_pose, bool& out_tracked)
+bool WristPoseSource::query_xdev(WristSide side, XrTime time, XrPosef& out_pose, bool& out_tracked)
 {
     out_tracked = false;
 
-    const XrHandTrackerEXT tracker = is_left ? m_native_left_hand_tracker : m_native_right_hand_tracker;
+    const XrHandTrackerEXT tracker = m_native_hand_tracker[static_cast<size_t>(side)];
     if (tracker == XR_NULL_HANDLE || !m_pfn_locate_hand_joints || time == 0)
     {
         return false;
@@ -325,7 +330,7 @@ bool WristPoseSource::query_xdev(bool is_left, XrTime time, XrPosef& out_pose, b
     return true;
 }
 
-bool WristPoseSource::query_controller(bool is_left, XrPosef& out_pose, bool& out_tracked)
+bool WristPoseSource::query_controller(WristSide side, XrPosef& out_pose, bool& out_tracked)
 {
     out_tracked = false;
 
@@ -334,8 +339,17 @@ bool WristPoseSource::query_controller(bool is_left, XrPosef& out_pose, bool& ou
         return false;
     }
 
-    const auto& tracked = is_left ? m_controller_tracker->get_left_controller(*m_deviceio_session) :
-                                    m_controller_tracker->get_right_controller(*m_deviceio_session);
+    // DeviceIO names the two arms get_left_controller/get_right_controller; this
+    // table is what keeps that naming out of every caller.
+    using ControllerGetter =
+        const core::Serialized<core::ControllerSnapshot>& (core::ControllerTracker::*)(const core::ITrackerSession&)
+            const;
+    static constexpr std::array<ControllerGetter, kSideCount> kGetters = {
+        &core::ControllerTracker::get_left_controller,
+        &core::ControllerTracker::get_right_controller,
+    };
+
+    const auto& tracked = (m_controller_tracker.get()->*kGetters[static_cast<size_t>(side)])(*m_deviceio_session);
     if (!tracked)
     {
         return false;
@@ -348,8 +362,7 @@ bool WristPoseSource::query_controller(bool is_left, XrPosef& out_pose, bool& ou
         return false;
     }
 
-    const XrPosef& offset = is_left ? m_config.left_aim_to_wrist : m_config.right_aim_to_wrist;
-    out_pose = oxr_utils::multiply_poses(aim_pose, offset);
+    out_pose = oxr_utils::multiply_poses(aim_pose, m_config.aim_to_wrist[static_cast<size_t>(side)]);
     out_tracked = true;
     return true;
 }

@@ -23,3 +23,25 @@ SPDX-License-Identifier: Apache-2.0
 - **Sample lives in `tools/`, not `examples/`.** Path is
   `src/plugins/sharpa_avatar/tools/sharpa_avatar_sample.py` (ticket #9). Do not
   put it back under `examples/sharpa_avatar`.
+- **Public headers pull their dependencies into the interface.**
+  `core/inc/avatar/device_side.hpp` is included by
+  `avatar_hand_tracking_plugin.hpp`, so every consumer of
+  `avatar_plugin_core` parses `AvatarSDK.h` and `openxr.h`. Keep those two link
+  entries `PUBLIC` in `core/CMakeLists.txt`; demoting either to `PRIVATE`
+  compiles the library but breaks `app/` and `tools/` with "fatal error: no such
+  file or directory".
+- **Bilateral behavior is table-driven, keyed by the enums, not by `if
+  (left) / else`.** `DeviceSide {LEFT, RIGHT}` and `DeviceDataCategory {RAW,
+  ROBOT, HUMAN}` in `core/inc/avatar/device_side.hpp` are the single source of
+  truth for mapping to SDK enums, XR handles, collection ids, log labels, and
+  per-side arrays. Add a case by extending a table (`kDeviceSides`,
+  `kJointDataCategories`, `JointStreamRegistry`) — not by copy-pasting a second
+  code path for the other hand. A literal `"left"`/`"right"` comparison
+  outside that header means the enum round-trip was skipped.
+- **Do not re-implement the wrist pose source.** Wrist placement
+  (controller aim pose plus per-hand calibration, `XR_MNDX_xdev_space` optical
+  hand tracking, and the runtime-specific xdev serial match) lives in
+  `plugin_utils::WristPoseSource`. This plugin owns only `kHandOffsets` (its
+  calibration) and the `DeviceSide` -> `plugin_utils::WristSide` conversion;
+  any local `m_pfn_*`/`m_xdev_*` members or a second `is_openxr_extension_supported`
+  mean the shared component was bypassed.

@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "device_side.hpp"
+
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -66,12 +69,12 @@ public:
     // Concurrent update calls are serialized; getters return locked data snapshots.
     void update();
 
-    std::vector<AvatarLandmark> get_left_landmarks() const;
-    std::vector<AvatarLandmark> get_right_landmarks() const;
-    AvatarJointFrame get_left_raw_frame() const;
-    AvatarJointFrame get_right_raw_frame() const;
-    AvatarJointFrame get_left_robot_frame() const;
-    AvatarJointFrame get_right_robot_frame() const;
+    /** @brief HUMAN landmarks for @a side; empty until a HUMAN frame has succeeded. */
+    std::vector<AvatarLandmark> get_landmarks(DeviceSide side) const;
+
+    /** @brief RAW or ROBOT joint names/positions for @a side; empty for HUMAN or
+     *  when no frame of @a category has succeeded yet. */
+    AvatarJointFrame get_joint_frame(DeviceSide side, DeviceDataCategory category) const;
 
 private:
     class Impl;

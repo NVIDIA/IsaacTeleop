@@ -123,7 +123,31 @@ AvatarPluginConfig parse_args(int argc, char** argv)
     return config;
 }
 
-void print_landmarks(const char* label, const std::vector<AvatarLandmark>& lm)
+// A dataset is enabled when any thing below asks for it; the printer mirrors
+// the plugin's own config flags so both agree on what "streaming" means.
+bool dataset_enabled(const AvatarPluginConfig& config, DeviceDataCategory category)
+{
+    switch (category)
+    {
+    case DeviceDataCategory::RAW:
+        return config.raw;
+    case DeviceDataCategory::ROBOT:
+        return config.robot;
+    case DeviceDataCategory::HUMAN:
+        return config.human;
+    }
+    return false;
+}
+
+// Column-aligned side label, so the two hands print as two rows.
+std::string side_label(DeviceSide side)
+{
+    std::string label = std::string(to_string(side));
+    label.resize(5, ' ');
+    return label;
+}
+
+void print_landmarks(const std::string& label, const std::vector<AvatarLandmark>& lm)
 {
     std::cout << label << " landmarks=" << lm.size();
     if (!lm.empty())
@@ -139,7 +163,7 @@ void print_landmarks(const char* label, const std::vector<AvatarLandmark>& lm)
     std::cout << std::endl;
 }
 
-void print_joints(const char* label, const AvatarJointFrame& frame, bool full)
+void print_joints(const std::string& label, const AvatarJointFrame& frame, bool full)
 {
     const size_t n = frame.positions.size();
     std::cout << label << " joints=" << n;
@@ -200,21 +224,23 @@ try
 
         tracker.update();
 
-        if (config.human)
+        for (const DeviceSide side : kDeviceSides)
         {
-            print_landmarks("LEFT  human", tracker.get_left_landmarks());
-            print_landmarks("RIGHT human", tracker.get_right_landmarks());
-        }
-        if (config.raw)
-        {
-            // Full 22-DOF dump for RAW (what most bring-up checks need).
-            print_joints("LEFT  raw  ", tracker.get_left_raw_frame(), /*full=*/true);
-            print_joints("RIGHT raw  ", tracker.get_right_raw_frame(), /*full=*/true);
-        }
-        if (config.robot)
-        {
-            print_joints("LEFT  robot", tracker.get_left_robot_frame(), /*full=*/false);
-            print_joints("RIGHT robot", tracker.get_right_robot_frame(), /*full=*/false);
+            if (config.human)
+            {
+                print_landmarks(side_label(side) + " human", tracker.get_landmarks(side));
+            }
+            for (const DeviceDataCategory category : kJointDataCategories)
+            {
+                if (!dataset_enabled(config, category))
+                {
+                    continue;
+                }
+                // Full 22-DOF dump for RAW (what most bring-up checks need).
+                print_joints(side_label(side) + " " + std::string(to_string(category)),
+                             tracker.get_joint_frame(side, category),
+                             /*full=*/category == DeviceDataCategory::RAW);
+            }
         }
 
         std::this_thread::sleep_until(frame_start + period);
