@@ -4,8 +4,10 @@
 #include "inc/plugin_manager/plugin.hpp"
 
 #ifndef _WIN32
+#    include <sys/stat.h>
 #    include <sys/wait.h>
 
+#    include <fcntl.h>
 #    include <signal.h>
 #    include <string.h>
 #    include <unistd.h>
@@ -13,6 +15,7 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -85,6 +88,13 @@ void Plugin::start_process(const std::string& command,
                            const std::vector<std::string>& plugin_args)
 {
 #ifndef _WIN32
+    // Read before fork(): getenv() is not async-signal-safe, and the child needs
+    // the path as a plain pointer it can hand straight to open(). Published by
+    // isaacteleop.logging_config (_native_fd.CAPTURE_FILE_ENV); absent when the
+    // host turned the capture off, or when this process never imported the
+    // Python half at all, in which case the child simply inherits our stdio.
+    const char* const native_capture_path = std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
+
     const pid_t child_pid = fork();
     if (child_pid == -1)
     {
@@ -97,6 +107,33 @@ void Plugin::start_process(const std::string& command,
         // are allowed here (POSIX). Never add Logger/spdlog calls in this window --
         // spdlog's registry and (in a Python process) GIL acquisition are both
         // unsafe post-fork-pre-exec.
+
+        // Point *this process's* stdio at the session's capture file, which is what
+        // keeps a plugin's non-logger output -- the OpenXR runtime's xrCreate* spew,
+        // the Manus SDK's own formatted lines, anything a vendor writes to a
+        // descriptor -- off the terminal and in the log without the parent ever
+        // rebinding its own fd 1/2. These descriptors belong to the child, not to
+        // the host, so setting them here is not the redirection isaacteleop has to
+        // avoid; it is the reason that redirection is no longer needed for plugins.
+        //
+        // open(), dup2() and close() are all on POSIX's async-signal-safe list.
+        // O_APPEND, so several plugins and the parent can share one file without
+        // overwriting each other. A failure is silent by necessity: there is
+        // nowhere left to report it to, and losing the capture must not stop the
+        // plugin from starting.
+        if (native_capture_path != nullptr && native_capture_path[0] != '\0')
+        {
+            const int capture_fd = ::open(native_capture_path, O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600);
+            if (capture_fd >= 0)
+            {
+                ::dup2(capture_fd, STDOUT_FILENO);
+                ::dup2(capture_fd, STDERR_FILENO);
+                if (capture_fd > STDERR_FILENO)
+                {
+                    ::close(capture_fd);
+                }
+            }
+        }
 
         // Change working directory
         if (!working_dir.empty())
