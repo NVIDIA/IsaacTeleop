@@ -13,7 +13,6 @@
 #include <openxr/openxr_platform.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
-#include <oxr_utils/pose_conversions.hpp>
 #include <plugin_utils/hand_injector.hpp>
 #include <plugin_utils/wrist_pose_source.hpp>
 #include <pusherio/schema_pusher.hpp>
@@ -22,7 +21,6 @@
 #include <chrono>
 #include <cstddef>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -33,13 +31,6 @@ namespace plugins
 namespace avatar
 {
 
-inline constexpr size_t kGloveCount = kDeviceSides.size();
-inline constexpr size_t kCategoryCount = kDeviceDataCategoryCount;
-
-// Owns the Avatar SDK lifecycle for this process. avatar::AvatarSDK is itself a
-// process-wide singleton (get_instance() with copy deleted), so exclusivity is
-// the SDK's job, not ours; this class only pairs initialize() with destroy().
-// A second tracker in the same process is unsupported but not policed here.
 class AvatarSdkSession
 {
 public:
@@ -50,12 +41,12 @@ public:
     AvatarSdkSession& operator=(const AvatarSdkSession&) = delete;
 
     ::avatar::AvatarSDK& get();
+    const std::string& config_path() const;
 
 private:
-    bool m_initialized = false;
+    std::string m_config_path;
 };
 
-// Forward-declare so DevicePtr can reference AvatarDevice before its definition.
 struct GloveState
 {
     ~GloveState() noexcept;
@@ -66,59 +57,11 @@ struct GloveState
 
     void reset() noexcept;
 
-    // Non-null iff the glove is connected and streaming. init()/start() failure
-    // or an offline device clears the handle, so this single field is the state.
     ::avatar::DevicePtr device;
-    std::vector<::avatar::Pose> landmarks; //!< HUMAN skeleton of the last successful fetch
-    // Latest RAW / ROBOT frame, indexed by DeviceDataCategory. A frame is kept
-    // only while it carries the payload the SDK was asked for; HUMAN has no
-    // joint frame, so its slot stays empty.
-    std::array<::avatar::AvatarDataFrame, kCategoryCount> joint_frames;
+    std::vector<::avatar::Pose> landmarks;
+    ::avatar::AvatarDataFrame raw_frame;
+    ::avatar::AvatarDataFrame robot_frame;
     std::chrono::steady_clock::time_point last_successful_fetch{};
-
-    //! Latest frame of @a category, or a zeroed frame when none arrived yet.
-    ::avatar::AvatarDataFrame& joint_frame(DeviceDataCategory category)
-    {
-        return joint_frames[static_cast<size_t>(category)];
-    }
-
-    const ::avatar::AvatarDataFrame& joint_frame(DeviceDataCategory category) const
-    {
-        return joint_frames[static_cast<size_t>(category)];
-    }
-};
-
-// All live joint streams, keyed by side then category. Registering the pusher
-// itself (not just its id) is what lets refresh_data() exist once: it iterates
-// the registered streams, so enabling a dataset automatically feeds it, and the
-// device_id a pusher publishes and the cache it reads from cannot drift apart.
-class JointStreamRegistry
-{
-public:
-    void add(DeviceSide side, DeviceDataCategory category, std::unique_ptr<core::SchemaPusher> pusher);
-    void clear();
-
-    core::SchemaPusher* pusher(DeviceSide side, DeviceDataCategory category) const;
-
-    static const char* device_id(DeviceSide side, DeviceDataCategory category);
-
-    template <typename Fn>
-    void for_each(Fn&& fn) const
-    {
-        for (size_t s = 0; s < kGloveCount; ++s)
-        {
-            for (size_t c = 0; c < kCategoryCount; ++c)
-            {
-                if (m_pushers[s][c] != nullptr)
-                {
-                    fn(static_cast<DeviceSide>(s), static_cast<DeviceDataCategory>(c), *m_pushers[s][c]);
-                }
-            }
-        }
-    }
-
-private:
-    std::array<std::array<std::unique_ptr<core::SchemaPusher>, kCategoryCount>, kGloveCount> m_pushers;
 };
 
 class __attribute__((visibility("hidden"))) AvatarTracker::Impl
@@ -129,28 +72,34 @@ public:
 
     void update();
 
-    std::vector<AvatarLandmark> get_landmarks(DeviceSide side) const;
-    AvatarJointFrame get_joint_frame(DeviceSide side, DeviceDataCategory category) const;
+    std::vector<AvatarLandmark> get_landmarks(::avatar::DeviceSide side) const;
+    AvatarJointFrame get_joint_frame(::avatar::DeviceSide side, ::avatar::DeviceDataCategory category) const;
+    std::vector<AvatarLandmark> get_left_landmarks() const;
+    std::vector<AvatarLandmark> get_right_landmarks() const;
+    AvatarJointFrame get_left_raw_frame() const;
+    AvatarJointFrame get_right_raw_frame() const;
+    AvatarJointFrame get_left_robot_frame() const;
+    AvatarJointFrame get_right_robot_frame() const;
 
 private:
-    void try_initialize_openxr();
-    void reset_openxr();
-    void connect_gloves();
+    static constexpr std::size_t kAvatarFingerCount = 5;
+
+    void initialize_openxr();
     void try_connect_missing_gloves();
-    void start_glove_if_present(DeviceSide side);
-    GloveState& glove(DeviceSide side);
-    const GloveState& glove(DeviceSide side) const;
-    //! Side of a state taken from m_gloves; the two are index-aligned by
-    //! construction (kDeviceSides order == enum order).
-    DeviceSide side_of(const GloveState& state) const;
+    void start_glove_if_present(GloveState& glove, ::avatar::DeviceSide side);
     void refresh_data();
-    bool refresh_joint_frame(GloveState& state, DeviceDataCategory category);
-    bool refresh_landmarks(GloveState& state);
-    bool dataset_enabled(DeviceDataCategory category) const;
     void inject_hand_data();
     void push_joint_frames();
-    void push_joint_frame(DeviceSide side, DeviceDataCategory category, core::SchemaPusher& pusher);
-    void apply_haptic_command(DeviceSide side, const std::vector<float>& powers);
+    void push_joint_frame(const GloveState& glove,
+                          ::avatar::DeviceSide side,
+                          ::avatar::DeviceDataCategory category,
+                          core::SchemaPusher& pusher);
+    bool dataset_enabled(::avatar::DeviceDataCategory category) const;
+    void apply_haptic_command(::avatar::DeviceSide side, const std::array<float, kAvatarFingerCount>& powers);
+    const GloveState& glove(::avatar::DeviceSide side) const;
+    GloveState& glove(::avatar::DeviceSide side);
+    std::vector<AvatarLandmark> landmarks(::avatar::DeviceSide side) const;
+    AvatarJointFrame joint_frame(::avatar::DeviceSide side, ::avatar::DeviceDataCategory category) const;
     void map_landmarks_to_openxr(const std::vector<::avatar::Pose>& landmarks,
                                  const XrPosef& root_pose,
                                  bool is_root_tracked,
@@ -158,35 +107,22 @@ private:
 
     AvatarPluginConfig m_config;
     AvatarSdkSession m_sdk;
-    std::array<GloveState, kGloveCount> m_gloves;
+    std::array<GloveState, 2> m_gloves;
 
     std::shared_ptr<core::OpenXRSession> m_session;
     core::OpenXRSessionHandles m_handles;
-    std::array<std::unique_ptr<plugin_utils::HandInjector>, kGloveCount> m_injectors;
-    std::shared_ptr<core::ControllerTracker> m_controller_tracker;
+    std::array<std::unique_ptr<plugin_utils::HandInjector>, 2> m_injectors;
     std::shared_ptr<core::HapticCommandReaderTracker> m_haptic_reader;
-    std::unique_ptr<plugin_utils::WristPoseSource> m_wrist_source;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     std::optional<core::XrTimeConverter> m_time_converter;
-    JointStreamRegistry m_joint_streams;
+    std::array<std::array<std::unique_ptr<core::SchemaPusher>, 2>, 2> m_joint_pushers;
+    // Destroy before the DeviceIOSession and OpenXR session it references.
+    std::unique_ptr<plugin_utils::WristPoseSource> m_wrist_source;
+    std::unordered_map<std::string, std::size_t> m_landmark_index;
 
-    //! `human_joint_names` from sdk_config.json mapped to landmark index, built
-    //! once at construction. map_landmarks_to_openxr() resolves its slot table
-    //! through this, so the OpenXR mapping stays spelled in SDK names.
-    std::unordered_map<std::string, size_t> m_landmark_index;
-
-    // Seeded to identity, never a zeroed XrPosef: a glove without a wrist
-    // source publishes this pose, and an all-zero quaternion is not a rotation.
-    std::array<XrPosef, kGloveCount> m_root_poses{ oxr_utils::identity_posef(), oxr_utils::identity_posef() };
-
-    std::array<bool, kGloveCount> m_haptic_error_logged{};
-    // Seeded to construction time, not to a zero time_point used as a "never set"
-    // sentinel: the interval guards alone then decide whether a first call is due.
-    std::chrono::steady_clock::time_point m_last_glove_retry{ std::chrono::steady_clock::now() };
-    std::chrono::steady_clock::time_point m_last_glove_wait_log{ std::chrono::steady_clock::now() };
-    std::chrono::steady_clock::time_point m_last_openxr_retry{};
-    std::mutex m_update_mutex;
-    mutable std::mutex m_data_mutex;
+    std::array<bool, 2> m_haptic_error_logged{ { false, false } };
+    std::optional<std::chrono::steady_clock::time_point> m_last_glove_retry;
+    std::optional<std::chrono::steady_clock::time_point> m_last_glove_wait_log;
 };
 
 } // namespace avatar
