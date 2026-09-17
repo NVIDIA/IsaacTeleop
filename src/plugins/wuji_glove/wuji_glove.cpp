@@ -3,10 +3,11 @@
 
 #include "wuji_glove_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
@@ -44,12 +45,13 @@ try
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    std::cout << "Wuji Glove Plugin" << std::endl;
-    std::cout << "Plugin Root ID: " << plugin_root_id << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.wuji_glove.main");
+    logger->info("Wuji Glove Plugin");
+    logger->info("Plugin Root ID: {}", plugin_root_id);
 
     auto plugin = std::make_unique<WujiGlovePlugin>(plugin_root_id);
 
-    std::cout << "Plugin running. Press Ctrl+C to stop." << std::endl;
+    logger->info("Plugin running. Press Ctrl+C to stop.");
     while (!g_stop_requested.load(std::memory_order_relaxed) && plugin->is_running())
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -61,11 +63,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.wuji_glove.main");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.wuji_glove.main");
+    logger->error("{}: Unknown error occurred", argv[0]);
     return 1;
 }

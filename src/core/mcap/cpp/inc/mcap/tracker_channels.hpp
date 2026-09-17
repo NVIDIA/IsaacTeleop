@@ -6,6 +6,7 @@
 #include "recorded_schemas.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <log_bridge/logger.hpp>
 #include <mcap/reader.hpp>
 #include <mcap/writer.hpp>
 #include <schema/serialized.hpp>
@@ -17,7 +18,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <span>
@@ -99,7 +99,7 @@ public:
         auto status = writer_->write(msg);
         if (!status.ok())
         {
-            std::cerr << "McapTrackerChannels: write failed: " << status.message << std::endl;
+            isaacteleop::Logger::get("isaacteleop.core.McapTrackerChannels")->error("write failed: {}", status.message);
         }
     }
 

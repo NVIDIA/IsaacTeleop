@@ -7,7 +7,6 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
 #include <vector>
 
@@ -32,7 +31,7 @@ SchemaPusher::SchemaPusher(const OpenXRSessionHandles& handles, SchemaPusherConf
     // Create the tensor collection
     create_tensor_collection(handles);
 
-    std::cout << "SchemaPusher initialized for collection: " << m_config.collection_id << std::endl;
+    m_logger->info("SchemaPusher initialized for collection: {}", m_config.collection_id);
 }
 
 SchemaPusher::~SchemaPusher()
@@ -44,7 +43,7 @@ SchemaPusher::~SchemaPusher()
     XrResult result = m_destroy_fn(m_push_tensor);
     if (result != XR_SUCCESS)
     {
-        std::cerr << "Warning: Failed to destroy push tensor collection, result=" << result << std::endl;
+        m_logger->warn("Failed to destroy push tensor collection, result={}", static_cast<int>(result));
     }
 }
 

@@ -6,6 +6,7 @@
 
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
+#include <log_bridge/logger.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
 #include <plugin_utils/hand_injector.hpp>
@@ -55,6 +56,9 @@ private:
     std::mutex m_state_mutex;
     float m_left_curl = 0.0f;
     float m_right_curl = 0.0f;
+
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaacteleop::Logger::get("isaacteleop.plugins.controller_synthetic_hands.SyntheticHandsPlugin");
 };
 
 } // namespace controller_synthetic_hands

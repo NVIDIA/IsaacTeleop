@@ -3,6 +3,8 @@
 
 #include "noitom_mocap_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -61,6 +63,8 @@ uint16_t parse_u16(const std::string& value, const std::string& name)
 int main(int argc, char** argv)
 try
 {
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.noitom_mocap.main");
+
     NoitomMocapPluginConfig config;
     double rate_hz = 90.0;
 
@@ -133,7 +137,7 @@ try
         }
         else
         {
-            std::cerr << "Unknown option: " << arg << std::endl;
+            logger->error("Unknown option: {}", arg);
             print_usage(argv[0]);
             return 1;
         }
@@ -162,11 +166,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.noitom_mocap.main");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error" << std::endl;
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.noitom_mocap.main");
+    logger->error("{}: Unknown error", argv[0]);
     return 1;
 }

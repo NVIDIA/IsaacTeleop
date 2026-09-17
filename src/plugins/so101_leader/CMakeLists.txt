@@ -11,6 +11,7 @@ target_link_libraries(so101_leader_plugin PRIVATE
     pusherio::pusherio
     oxr::oxr_core
     isaacteleop_schema
+    log_bridge::log_bridge_core
 )
 
 install(TARGETS so101_leader_plugin RUNTIME DESTINATION plugins/so101_leader)

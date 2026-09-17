@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/full_body_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/full_body_generated.h>
 
@@ -36,6 +37,8 @@ public:
 private:
     Serialized<FullBodyPose> tracked_;
     std::unique_ptr<FullBodyMcapViewers> mcap_viewers_;
+    std::shared_ptr<spdlog::logger> logger_;
+    bool warned_no_data_ = false;
 };
 
 // Deprecated alias for the renamed ReplayFullBodyTrackerImpl (was

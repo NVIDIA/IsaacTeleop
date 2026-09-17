@@ -35,14 +35,12 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 import threading
 import time
 from abc import abstractmethod
 from typing import Optional
 
 import numpy as np
-
 from pipeline import Frame, FrameSource, SourceSpec
 
 
@@ -61,13 +59,14 @@ def set_notify_sink(sink) -> None:
 
 
 def notify(tag: str, msg: str) -> None:
-    # Stderr-direct so it shows without a configured Python logger.
-    # Reserved for lifecycle events; periodic stats use notify_verbose.
-    line = f"[{tag}] {msg}"
+    """Lifecycle events (opening/connected/streaming/errors); see notify_verbose for stats."""
+    # The sink still wins when one is installed: the status panel owns stderr
+    # while it is up, and the console handler writes there too, so logging
+    # instead of handing the line over would repaint the panel out of line.
     if _SINK is not None:
-        _SINK(line)
+        _SINK(f"[{tag}] {msg}")
         return
-    print(line, file=sys.stderr, flush=True)
+    logger.info("[%s] %s", tag, msg)
 
 
 _VERBOSE = False
@@ -96,7 +95,9 @@ def notify_verbose(tag: str, msg: str) -> None:
         notify(tag, msg)
 
 
-logger = logging.getLogger(__name__)
+# Named under isaacteleop.* (not plain __name__) so the module actually
+# nests under, and inherits handlers from, the root isaacteleop logger.
+logger = logging.getLogger("isaacteleop.camera_viz.sources")
 
 
 def alloc_pinned_host(shape: tuple, dtype: np.dtype) -> np.ndarray:

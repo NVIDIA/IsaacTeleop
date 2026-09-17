@@ -5,6 +5,7 @@
 
 #include <deviceio_base/tracker.hpp>
 #include <deviceio_base/tracker_vendor.hpp>
+#include <log_bridge/logger.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 
@@ -107,6 +108,7 @@ private:
                     VendorConfig vendor_config);
 
     const OpenXRSessionHandles handles_;
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.DeviceIOSession");
     std::unordered_map<const ITracker*, std::unique_ptr<ITrackerImpl>> tracker_impls_;
 
     // Owned MCAP writer; null when recording is not configured.

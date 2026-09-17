@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/full_body_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
@@ -50,6 +51,7 @@ public:
 private:
     XrTimeConverter time_converter_;
     XrSpace base_space_;
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.LiveFullBodyTrackerPicoImpl");
     XrBodyTrackerBD body_tracker_;
     // The snapshot published each frame, encoded from a local in update().
     Serialized<FullBodyPose> tracked_;

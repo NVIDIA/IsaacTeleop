@@ -5,6 +5,7 @@
 #include "frame_sink.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <log_bridge/logger.hpp>
 #include <mcap/writer.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
@@ -12,7 +13,6 @@
 #include <schema/oak_bfbs_generated.h>
 
 #include <filesystem>
-#include <iostream>
 #include <memory>
 #include <stdexcept>
 
@@ -36,8 +36,7 @@ FrameSink::FrameSink(const std::vector<StreamConfig>& streams, std::unique_ptr<I
             std::filesystem::create_directories(parent);
 
         m_writers[config.camera] = std::make_unique<RawDataWriter>(config.output_path);
-        std::cout << "Add stream:  " << core::EnumNameStreamType(config.camera) << " -> " << config.output_path
-                  << std::endl;
+        m_logger->info("Add stream:  {} -> {}", core::EnumNameStreamType(config.camera), config.output_path);
     }
 }
 
@@ -72,7 +71,7 @@ public:
                                                                         .tensor_identifier = "frame_metadata",
                                                                         .localized_name = "Frame Metadata Pusher",
                                                                         .app_name = "OakCameraPlugin" });
-            std::cout << "  Metadata:  " << collection_id << std::endl;
+            m_logger->info("  Metadata:  {}", collection_id);
         }
     }
 
@@ -83,8 +82,7 @@ public:
         auto it = m_pushers.find(metadata.stream);
         if (it == m_pushers.end())
         {
-            std::cout << "Stream " << core::EnumNameStreamType(metadata.stream) << " not found in SchemaMetadataPusher"
-                      << std::endl;
+            m_logger->warn("Stream {} not found in SchemaMetadataPusher", core::EnumNameStreamType(metadata.stream));
             return;
         }
 
@@ -99,6 +97,7 @@ private:
     static constexpr size_t MAX_FLATBUFFER_SIZE = 128;
     std::shared_ptr<core::OpenXRSession> m_oxr_session;
     std::map<core::StreamType, std::unique_ptr<core::SchemaPusher>> m_pushers;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.oak.SchemaMetadataPusher");
 };
 
 // =============================================================================
@@ -128,16 +127,16 @@ public:
             mcap::Channel channel(channel_name, "flatbuffer", schema.id);
             m_writer.addChannel(channel);
             m_channel_ids[config.camera] = channel.id;
-            std::cout << "  MCAP channel: " << channel_name << std::endl;
+            m_logger->info("  MCAP channel: {}", channel_name);
         }
 
-        std::cout << "MCAP recording to: " << mcap_filename << std::endl;
+        m_logger->info("MCAP recording to: {}", mcap_filename);
     }
 
     ~McapMetadataPusher() override
     {
         m_writer.close();
-        std::cout << "MCAP closed with " << m_message_count << " messages" << std::endl;
+        m_logger->info("MCAP closed with {} messages", m_message_count);
     }
 
     void on_frame_metadata(const core::FrameMetadataOakT& metadata,
@@ -147,8 +146,7 @@ public:
         auto it = m_channel_ids.find(metadata.stream);
         if (it == m_channel_ids.end())
         {
-            std::cerr << "McapMetadataPusher: Stream " << core::EnumNameStreamType(metadata.stream)
-                      << " not found in MCAP" << std::endl;
+            m_logger->warn("Stream {} not found in MCAP", core::EnumNameStreamType(metadata.stream));
             return;
         }
 
@@ -175,7 +173,8 @@ public:
 
         auto status = m_writer.write(msg);
         if (!status.ok())
-            std::cerr << "McapMetadataPusher: write failed: " << status.message << std::endl;
+            // Runs at frame rate: if writes start failing persistently, this will spam the log.
+            m_logger->warn("write failed: {}", status.message);
 
         ++m_message_count;
     }
@@ -185,6 +184,7 @@ private:
     mcap::McapWriter m_writer;
     std::map<core::StreamType, mcap::ChannelId> m_channel_ids;
     uint64_t m_message_count = 0;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.oak.McapMetadataPusher");
 };
 
 // =============================================================================

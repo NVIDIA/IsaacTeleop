@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
 
@@ -10,6 +11,7 @@
 #include <XR_NVX1_tensor_data.h>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -158,6 +160,7 @@ private:
 
     SchemaPusherConfig m_config;
     XrTimeConverter m_time_converter;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.core.SchemaPusher");
 
     // Push tensor collection handle
     XrPushTensorCollectionNV m_push_tensor{ XR_NULL_HANDLE };

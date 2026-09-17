@@ -5,6 +5,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 #include <linux/joystick.h>
+#include <log_bridge/logger.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/pedals_generated.h>
@@ -13,7 +14,6 @@
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
-#include <iostream>
 #include <unistd.h>
 
 namespace plugins
@@ -122,7 +122,7 @@ bool Generic3AxisPedalPlugin::open_device()
         return false;
 
     device_fd_ = fd;
-    std::cout << "Generic3AxisPedalPlugin: Opened " << device_path_ << std::endl;
+    logger_->info("Opened {}", device_path_);
     return true;
 }
 
