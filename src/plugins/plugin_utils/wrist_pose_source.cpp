@@ -341,17 +341,8 @@ bool WristPoseSource::query_controller(WristSide side, XrPosef& out_pose, bool& 
         return false;
     }
 
-    // DeviceIO names the two arms get_left_controller/get_right_controller; this
-    // table is what keeps that naming out of every caller.
-    using ControllerGetter =
-        const core::Serialized<core::ControllerSnapshot>& (core::ControllerTracker::*)(const core::ITrackerSession&)
-            const;
-    static constexpr std::array<ControllerGetter, kSideCount> kGetters = {
-        &core::ControllerTracker::get_left_controller,
-        &core::ControllerTracker::get_right_controller,
-    };
-
-    const auto& tracked = (m_controller_tracker.get()->*kGetters[static_cast<size_t>(side)])(*m_deviceio_session);
+    const auto& tracked = side == WristSide::Left ? m_controller_tracker->get_left_controller(*m_deviceio_session) :
+                                                    m_controller_tracker->get_right_controller(*m_deviceio_session);
     if (!tracked)
     {
         return false;
