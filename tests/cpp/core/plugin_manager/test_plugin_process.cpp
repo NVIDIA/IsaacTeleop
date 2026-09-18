@@ -6,8 +6,12 @@
 
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <thread>
+#include <unistd.h>
 
 namespace
 {
@@ -30,6 +34,16 @@ core::ProcessSnapshot wait_for_terminal(core::Plugin& plugin)
 
     FAIL("plugin process did not terminate before timeout");
     return snapshot;
+}
+
+//! Published by isaacteleop.logging_config so a process with no interpreter can
+//! open the session's capture file; read by plugin.cpp before it forks.
+constexpr const char* kCaptureFileEnv = "ISAACTELEOP_NATIVE_CAPTURE_FILE";
+
+std::string read_file(const std::filesystem::path& path)
+{
+    std::ifstream file(path);
+    return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 }
 
 std::string health_error(core::Plugin& plugin)
@@ -129,4 +143,50 @@ TEST_CASE("explicit stop is cached and non-failing", "[plugin_manager][process]"
     const core::ProcessSnapshot second = plugin.get_process_snapshot();
     REQUIRE(second.state == first.state);
     REQUIRE(second.reason == first.reason);
+}
+
+
+// A plugin is a process this library launched, so its descriptors are ours to
+// set -- that is the half of the logging design that keeps vendor output off the
+// terminal without the parent ever rebinding its own fd 1 and fd 2. plugin.cpp
+// does it between fork() and execvp(), where only async-signal-safe calls are
+// legal, and nothing else exercises that window.
+TEST_CASE("a launched plugin's stdio follows the published capture file", "[plugin_manager][process][logging]")
+{
+    const auto capture =
+        std::filesystem::temp_directory_path() / ("plugin_capture_" + std::to_string(::getpid()) + ".log");
+    std::filesystem::remove(capture);
+
+    SECTION("published: both of the child's descriptors land in that file")
+    {
+        ::setenv(kCaptureFileEnv, capture.string().c_str(), 1);
+        {
+            core::Plugin plugin(PLUGIN_MANAGER_TEST_PROCESS, "", "test-root", { "write" });
+            const core::ProcessSnapshot snapshot = wait_for_terminal(plugin);
+            REQUIRE(snapshot.exit_code == 0);
+        }
+        ::unsetenv(kCaptureFileEnv);
+
+        REQUIRE(std::filesystem::exists(capture));
+        const std::string contents = read_file(capture);
+        CHECK(contents.find("PLUGIN-STDOUT") != std::string::npos);
+        CHECK(contents.find("PLUGIN-STDERR") != std::string::npos);
+    }
+
+    SECTION("not published: the child inherits ours and no file is created")
+    {
+        // The two marker lines go to this test binary's own stdout and stderr
+        // here, which is the correct fallback: with nowhere published, a plugin
+        // must keep the stdio it inherited rather than lose its output.
+        ::unsetenv(kCaptureFileEnv);
+        {
+            core::Plugin plugin(PLUGIN_MANAGER_TEST_PROCESS, "", "test-root", { "write" });
+            const core::ProcessSnapshot snapshot = wait_for_terminal(plugin);
+            REQUIRE(snapshot.exit_code == 0);
+        }
+
+        CHECK_FALSE(std::filesystem::exists(capture));
+    }
+
+    std::filesystem::remove(capture);
 }
