@@ -16,8 +16,8 @@ python -m isaacteleop_examples.mcap_record_replay.replay_hand      # newest take
 
 Recordings are written to `./recordings/` relative to where you run the
 command; a replay given no path picks the newest matching recording there
-(e.g. `replay_hand` picks the newest `hands_*.mcap`), falling back to the
-newest `.mcap` of any kind if none match.
+(e.g. `replay_hand` picks the newest `hands_*.mcap`) and exits if none
+match -- no silent fallback to a wrong-type recording.
 
 `uv run` (instead of an activated venv) needs an explicit `--python 3.11` --
 without it, `uv` may resolve against the system Python and fail to match the

@@ -12,7 +12,7 @@ Usage:
     python -m isaacteleop_examples.mcap_record_replay.replay_full_body [path/to/file.mcap] [--port 8080] [--loop]
 
 If no path is given, the newest ``full_body_*.mcap`` under ``./recordings/`` is
-used, falling back to the newest ``.mcap`` of any kind if none match.
+used.
 ``--loop`` keeps replaying the file end-to-end until the process is killed.
 
 See: https://nvidia.github.io/IsaacTeleop/main/references/mcap_record_replay.html
@@ -66,18 +66,10 @@ def resolve_mcap(path_arg: str | None) -> Path:
     recordings = Path.cwd() / "recordings"
     candidates = list(recordings.glob("full_body_*.mcap"))
     if not candidates:
-        candidates = list(recordings.glob("*.mcap"))
-        if candidates:
-            print(
-                f"[replay] warning: no full_body_*.mcap in {recordings}, "
-                "falling back to the newest .mcap of any kind -- it may not "
-                "match this replay's channels."
-            )
-        else:
-            sys.exit(
-                f"[replay] error: no .mcap files in {recordings}. "
-                "Run record_full_body first or pass a path."
-            )
+        sys.exit(
+            f"[replay] error: no full_body_*.mcap in {recordings}. "
+            "Run record_full_body first or pass a path."
+        )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
