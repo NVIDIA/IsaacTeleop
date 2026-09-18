@@ -44,8 +44,6 @@ Shared C++ fixtures (not executables) live under `tests/cpp/viz/support/`
   locally (mujoco pins, asyncio, cupy extras, grounding/wuji extras).
 - CTest runs one `pytest` invocation per `test_*.py` with `WORKING_DIRECTORY`
   set to that leaf.
-- Keep a compact human-readable behavior matrix beside executable expectations
-  when it serves as the review contract; update both together.
 - Use [`repo_paths.py`](python/repo_paths.py) for paths into `src/python/` or
   `examples/` from `conftest.py` — do not hard-code `parents[N]` against repo depth.
 - If CMake under `examples/` reads a file under `tests/`, guard it on the

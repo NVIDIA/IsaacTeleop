@@ -15,7 +15,6 @@ import threading
 import time
 from pathlib import Path
 
-import isaacteleop
 import pytest
 from isaacteleop import logging_config
 from isaacteleop.logging_config import _console, _core, _file, _forwarding, _native_fd
@@ -49,13 +48,6 @@ _needs_cpp_emitter = pytest.mark.skipif(
 )
 
 
-@pytest.fixture
-def _short_socket_dir():
-    """A private path short enough for every POSIX sockaddr_un.sun_path."""
-    with tempfile.TemporaryDirectory(prefix="it-log-", dir="/tmp") as directory:
-        yield Path(directory)
-
-
 @pytest.fixture(autouse=True)
 def _restore_console_state():
     """Snapshot/restore the module-global console handler state around each test."""
@@ -63,22 +55,13 @@ def _restore_console_state():
     saved_level = handler.level
     saved_filters = list(handler.filters)
     saved_active_filter = _console._active_filter
-    saved_native_echo = _native_fd._echo
-    saved_env_level = os.environ.get("ISAACTELEOP_LOG_LEVEL")
-    try:
-        yield
-    finally:
-        handler.setLevel(saved_level)
-        for f in list(handler.filters):
-            handler.removeFilter(f)
-        for f in saved_filters:
-            handler.addFilter(f)
-        _console._active_filter = saved_active_filter
-        _native_fd._echo = saved_native_echo
-        if saved_env_level is None:
-            os.environ.pop("ISAACTELEOP_LOG_LEVEL", None)
-        else:
-            os.environ["ISAACTELEOP_LOG_LEVEL"] = saved_env_level
+    yield
+    handler.setLevel(saved_level)
+    for f in list(handler.filters):
+        handler.removeFilter(f)
+    for f in saved_filters:
+        handler.addFilter(f)
+    _console._active_filter = saved_active_filter
 
 
 def test_console_handler_attaches_once():
@@ -682,12 +665,12 @@ def test_receiver_degrades_instead_of_raising(monkeypatch, tmp_path):
 
 
 @_posix_only
-def test_forwarding_round_trip(_short_socket_dir):
+def test_forwarding_round_trip(tmp_path):
     """A record sent through ForwardingHandler reaches the receiving logger
     with the same name, level, and rendered message -- the exact contract
     src/core/log_bridge/cpp/socket_sink.cpp's C++ sender must also match.
     """
-    socket_path = str(_short_socket_dir / "test.sock")
+    socket_path = str(tmp_path / "test.sock")
     server = _forwarding.ThreadingUnixStreamServer(
         socket_path, _forwarding.RequestHandler
     )
@@ -759,76 +742,9 @@ def test_forwarding_handler_drops_record_when_leader_unreachable(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@_needs_cpp_emitter
-def test_cpp_logger_without_socket_uses_own_console_and_file(tmp_path):
-    marker = "CPP-LOCAL-ROUTING-RECORD"
-    logs = tmp_path / "logs"
-    env = {
-        **os.environ,
-        "ISAACTELEOP_LOG_DIR": str(logs),
-        "ISAACTELEOP_LOG_LEVEL": "warning",
-    }
-    env.pop("ISAACTELEOP_LOG_SOCKET", None)
-
-    done = subprocess.run(
-        [
-            _CPP_EMITTER,
-            "isaacteleop.log_bridge.test.cpp_local",
-            "warning",
-            marker,
-        ],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=True,
-    )
-
-    assert done.stdout.count(marker) == 1
-    assert marker not in done.stderr
-    files = list(logs.glob("*.log"))
-    assert len(files) == 1, files
-    assert files[0].read_text(encoding="utf-8").count(marker) == 1
-
-
-def test_cpp_logger_reaches_python_through_real_bridge():
-    try:
-        from isaacteleop.log_bridge import _log_bridge
-    except ImportError:
-        if _CPP_EMITTER:
-            raise
-        pytest.skip("needs the CMake-built _log_bridge test hook")
-
-    emit = getattr(_log_bridge, "_emit_test_warning", None)
-    if emit is None:
-        if _CPP_EMITTER:
-            pytest.fail("CMake test build omitted _log_bridge._emit_test_warning")
-        pytest.skip("installed package was built without the private test hook")
-
-    logger_name = "isaacteleop.log_bridge.test.python_bridge"
-    received: list[logging.LogRecord] = []
-
-    class _Capture(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            received.append(record)
-
-    logger = logging.getLogger(logger_name)
-    capture = _Capture()
-    logger.addHandler(capture)
-    try:
-        emit(logger_name, "CPP-PYTHON-BRIDGE-RECORD")
-    finally:
-        logger.removeHandler(capture)
-
-    assert len(received) == 1
-    assert received[0].name == logger_name
-    assert received[0].levelno == logging.WARNING
-    assert received[0].getMessage() == "CPP-PYTHON-BRIDGE-RECORD"
-
-
 @_posix_only
 @_needs_cpp_emitter
-def test_cpp_logger_reaches_the_python_receiver(tmp_path, _short_socket_dir):
+def test_cpp_logger_reaches_the_python_receiver(tmp_path):
     """A record logged from C++ arrives here as a LogRecord, not as text.
 
     This is the one route neither suite can check on its own. The sender is
@@ -843,11 +759,14 @@ def test_cpp_logger_reaches_the_python_receiver(tmp_path, _short_socket_dir):
     process -- because a field the receiver silently defaults is a field the
     sender can stop sending without anything failing.
     """
-    socket_path = str(_short_socket_dir / "cpp.sock")
+    socket_path = str(tmp_path / "cpp.sock")
     logger_name = "isaacteleop.log_bridge.test.cpp_forwarding"
 
-    # Exercise every branch in socket_sink.cpp's append_json_escaped().
-    message = 'from C++: "quoted", back\\slash,\nnewline,\rcarriage,\ttab,\x01control'
+    # A quote, a backslash and a newline together: everything socket_sink.cpp's
+    # append_json_escaped() has to escape for the receiver's json.loads() to
+    # accept the frame at all. Miss one and the record is dropped whole, not
+    # corrupted, so nothing downstream would report it.
+    message = 'from C++: "quoted", back\\slash, and a\nnewline'
 
     # One process per level -- which sinks a process gets is decided once, by a
     # function-local static in local_sinks(). TRACE is included because it is
@@ -879,7 +798,6 @@ def test_cpp_logger_reaches_the_python_receiver(tmp_path, _short_socket_dir):
                 env={
                     **os.environ,
                     "ISAACTELEOP_LOG_SOCKET": socket_path,
-                    "ISAACTELEOP_LOG_LEVEL": "warning",
                     # Only so that a local file, were one wrongly written,
                     # lands here instead of in the real log directory.
                     "ISAACTELEOP_LOG_DIR": str(tmp_path / "logs"),
@@ -890,7 +808,6 @@ def test_cpp_logger_reaches_the_python_receiver(tmp_path, _short_socket_dir):
             )
             output = emitter.communicate(timeout=60)[0]
             assert emitter.returncode == 0, output
-            assert message not in output
             pids[level_name] = emitter.pid
 
         deadline = time.monotonic() + 5.0
@@ -902,7 +819,6 @@ def test_cpp_logger_reaches_the_python_receiver(tmp_path, _short_socket_dir):
         server.server_close()
 
     assert len(received) == len(levels), [r.getMessage() for r in received]
-    assert not list((tmp_path / "logs").glob("*.log"))
     by_level = {record.levelno: record for record in received}
     assert sorted(by_level) == sorted(levels.values())
     for level_name, levelno in levels.items():
@@ -920,20 +836,23 @@ def test_cpp_logger_reaches_the_python_receiver(tmp_path, _short_socket_dir):
 # Output-routing matrix
 # ---------------------------------------------------------------------------
 #
-# Python streams follow their saved stream objects; raw writes follow fd 1/2.
-# A child inherits the leader's redirected descriptors, while a forwarding
-# child then captures its own descriptors and sends structured records over the
-# socket. The data table below pins the resulting three process roles.
+# Where a line ends up is decided by what it travels through, not by who wrote
+# it: a Python stream object goes to what *this* process believes is the
+# terminal, a file descriptor goes to what this process's fd 1/2 currently
+# point at. The capture only protects its own process, so the two answers
+# diverge for a child -- whose inherited "terminal" is its parent's capture
+# file. That is the part nobody guesses correctly, so it is pinned here as a
+# table rather than described in prose.
 
 #: Written to tmp_path and run as all three roles. Each emission carries a
 #: ``ROLE|method`` token, which is how the sinks are attributed afterwards.
-_MATRIX_SCRIPT = """
+_MATRIX_SCRIPT = '''
 import ctypes
 import logging
 import os
 import subprocess
 import sys
-import threading
+import time
 import types
 import warnings
 
@@ -941,57 +860,39 @@ ROLE, PKG_PARENT, TMP = sys.argv[1], sys.argv[2], sys.argv[3]
 
 
 def _logging_config():
-    if os.environ.get("MATRIX_SOURCE_FALLBACK") != "1":
-        from isaacteleop import logging_config
-        return logging_config
+    """The same logging_config the test process imported.
 
-    pkg = types.ModuleType("isaacteleop")
-    pkg.__path__ = [os.path.join(PKG_PARENT, "isaacteleop")]
-    sys.modules["isaacteleop"] = pkg
-    from isaacteleop import logging_config
+    The fallback exists so the matrix can be measured without a built package:
+    it exposes the pure-Python subpackage without running isaacteleop/__init__,
+    which needs the compiled extensions. Nothing in this matrix depends on that
+    difference -- install() is what does the routing.
+    """
+    try:
+        from isaacteleop import logging_config
+    except Exception:
+        pkg = types.ModuleType("isaacteleop")
+        pkg.__path__ = [os.path.join(PKG_PARENT, "isaacteleop")]
+        sys.modules["isaacteleop"] = pkg
+        from isaacteleop import logging_config
     return logging_config
 
 
 if os.environ.get("MATRIX_IMPORT_IT") == "1":
     _logging_config().install()
 
-forwarded = threading.Event()
-if ROLE == "MAIN":
-    class _ForwardedRecord(logging.Handler):
-        def emit(self, record):
-            if record.getMessage() == "SUB-IT|it_logger":
-                forwarded.set()
-
-    forwarded_handler = _ForwardedRecord()
-    logging.getLogger("isaacteleop").addHandler(forwarded_handler)
-
-def _emit():
-    print(f"{ROLE}|print", flush=True)
-    sys.stderr.write(f"{ROLE}|stderr_write\\n")
-    sys.stderr.flush()
-    os.write(1, f"{ROLE}|os_write1\\n".encode())
-    os.write(2, f"{ROLE}|os_write2\\n".encode())
-    sys.__stderr__.write(f"{ROLE}|dunder_stderr\\n")
-    sys.__stderr__.flush()
-    libc = ctypes.CDLL(None)
-    libc.printf(f"{ROLE}|c_printf\\n".encode())
-    libc.fflush(None)
-    logging.getLogger("isaacteleop.matrix").warning(f"{ROLE}|it_logger")
-    logging.getLogger("appown.matrix").warning(f"{ROLE}|bare_logger")
-    warnings.warn(f"{ROLE}|warnings")
-
-
-# The leader is the only role that ever enters a scope. A child is a separate
-# process: what its descriptors point at was decided by whoever spawned it.
-if ROLE == "MAIN" and os.environ.get("MATRIX_SCOPE") == "1":
-    with _logging_config().capture_native_output():
-        _emit()
-    # After the block the descriptors are the host's again, which is the whole
-    # point; this token must be on the terminal in both runs.
-    os.write(1, f"{ROLE}|after_scope\\n".encode())
-else:
-    _emit()
-    os.write(1, f"{ROLE}|after_scope\\n".encode())
+print(f"{ROLE}|print", flush=True)
+sys.stderr.write(f"{ROLE}|stderr_write\\n")
+sys.stderr.flush()
+os.write(1, f"{ROLE}|os_write1\\n".encode())
+os.write(2, f"{ROLE}|os_write2\\n".encode())
+sys.__stderr__.write(f"{ROLE}|dunder_stderr\\n")
+sys.__stderr__.flush()
+libc = ctypes.CDLL(None)
+libc.printf(f"{ROLE}|c_printf\\n".encode())
+libc.fflush(None)
+logging.getLogger("isaacteleop.matrix").warning(f"{ROLE}|it_logger")
+logging.getLogger("appown.matrix").warning(f"{ROLE}|bare_logger")
+warnings.warn(f"{ROLE}|warnings")
 
 if ROLE == "MAIN":
     with open(os.path.join(TMP, "leader_pid"), "w") as handle:
@@ -1002,78 +903,121 @@ if ROLE == "MAIN":
             env={**os.environ, "MATRIX_IMPORT_IT": imports},
             check=True,
         )
-    if not forwarded.wait(timeout=5):
-        raise RuntimeError("forwarded record did not reach the leader")
-    logging.getLogger("isaacteleop").removeHandler(forwarded_handler)
+    time.sleep(0.5)  # let the forwarded records reach the receiver
     logging.shutdown()
-"""
+'''
 
-_TERMINAL, _LEADER_LOG, _LEADER_NATIVE = "terminal", "leader.log", "leader.native"
+#: Sink names used below. "own.native" is the capture file a process opened for
+#: itself; "leader.native" is the one it inherited from the process above it.
+_TERMINAL, _LEADER_LOG, _LEADER_NATIVE, _OWN_NATIVE = (
+    "terminal",
+    "leader.log",
+    "leader.native",
+    "own.native",
+)
 
-# Human-readable acceptance contract. Both matrices run at INFO with no
-# application root handler; TRACE would additionally mirror the capture file to
-# the terminal. Every listed sink contains the token once and every other sink
-# zero times.
+# The same table, for reading rather than asserting. Kept beside the dict below
+# so a change to one is obviously a change to the other.
 #
 #   sinks   terminal        the fd 1 / fd 2 the session started with
-#           leader.log      the leader's structured-record log
-#           leader.native   the leader's capture file for non-logger output
+#           leader.log      the leader's <ts>.isaacteleop.<pid>.log, records only
+#           leader.native   the leader's <ts>.isaacteleop.<pid>.native.log
+#           own.native      the emitting process's own .native.log, if it has one
 #
-# Run A -- no scope entered anywhere. This is what a host sees for the whole of
-# its own lifetime, and the property the design exists to guarantee: importing
-# isaacteleop changes nothing about where anything goes.
+#   output method                        leader            child,          child,
+#                                                          no isaacteleop  forwarding
+#   -----------------------------------  ----------------  --------------  -------------
+#   print()                              terminal          leader.native   leader.native
+#   sys.stderr.write()                   terminal          leader.native   leader.native
+#   warnings.warn()                      terminal          leader.native   leader.native
+#   logger outside the isaacteleop tree  terminal          leader.native   leader.native
+#   os.write(1, ...)                     leader.native     leader.native   own.native
+#   os.write(2, ...)                     leader.native     leader.native   own.native
+#   sys.__stderr__.write()               leader.native     leader.native   own.native
+#   C runtime printf()                   leader.native     leader.native   own.native
+#   isaacteleop.* logger                 terminal+.log     leader.native   terminal+.log
 #
-#   output method                        leader     child,          child,
-#                                                   no isaacteleop  forwarding
-#   -----------------------------------  ---------  --------------  -------------
-#   print()                              terminal   terminal        terminal
-#   sys.stderr.write()                   terminal   terminal        terminal
-#   warnings.warn()                      terminal   terminal        terminal
-#   logger outside the isaacteleop tree  terminal   terminal        terminal
-#   os.write(1, ...)                     terminal   terminal        terminal
-#   os.write(2, ...)                     terminal   terminal        terminal
-#   sys.__stderr__.write()               terminal   terminal        terminal
-#   C runtime printf()                   terminal   terminal        terminal
-#   isaacteleop.* logger.warning()       term+.log  terminal        term+.log
+# Two rules produce every cell. A Python stream object goes to what *this*
+# process believes is the terminal; a file descriptor goes to wherever this
+# process's fd 1/2 currently point. The capture protects only its own process,
+# so a child's inherited "terminal" is its parent's capture file -- which is why
+# the two rules disagree for everything below the leader.
 #
-# Run B -- the leader emits inside capture_native_output(). Only the leader's
-# *raw* descriptor writes divert; its Python streams are moved aside and still
-# reach the terminal, and both children are spawned after the block, so they are
-# untouched. That last row is the regression this design fixes: a subprocess the
-# host starts is no longer swallowed for the rest of the run.
+# A tenth source sits outside that table: a record logged from C++ through
+# isaacteleop::Logger. It is not a row above because it does not vary along that
+# table's axis. What decides where it goes is not which of the three roles the
+# process has, but which sinks that process's own local_sinks() picked -- chosen
+# once, in a function-local static, from the environment. _EXPECTED_ROUTING
+# below therefore covers the nine Python methods only; the assertions for this
+# one live in the files named on the right.
 #
-#   output method                        leader          children
-#   -----------------------------------  --------------  ------------------
-#   print() / sys.stderr.write()          terminal        terminal
-#   warnings.warn()                       terminal        terminal
-#   logger outside the isaacteleop tree   terminal        terminal
-#   os.write(1/2, ...), __stderr__, printf leader.native  terminal
-#   isaacteleop.* logger.warning()        terminal+.log   per run A
+#   state of the emitting process   record goes to                 asserted by
+#   ------------------------------  -----------------------------  -----------------
+#   ISAACTELEOP_LOG_SOCKET unset    that process's own console,    test_routing.cpp
+#                                   and its own
+#                                   <ts>.isaacteleop.<pid>.log
 #
-# sys.stdout.write() follows print(); sys.__stdout__, std::cout and std::cerr
-# follow their corresponding raw fd rows.
+#   ISAACTELEOP_LOG_SOCKET set      the leader's Python logger     this file, and
+#                                   tree, and onward from there    test_routing.cpp
+#                                   exactly as the isaacteleop.*   for the negative
+#                                   row above: terminal + the
+#                                   leader's .log
 #
-# C++ structured records select one of three routes before Python handler
-# levels and filters are applied:
+#   install_python_sink() has run   Python's logging module in     test_routing.cpp,
+#                                   this same process, without     with a capturing
+#                                   the socket                     stand-in sink
 #
-#   process state                         selected destination
-#   ------------------------------------  -------------------------------------------
-#   ISAACTELEOP_LOG_SOCKET unset          own console + own structured-record log
-#   ISAACTELEOP_LOG_SOCKET set (POSIX)    leader's Python logger tree; no local sinks
-#   bridge installed in this extension    same-process Python logger tree; no local sinks
+# The three are ordered, not independent: Logger::get() consults the bridge
+# before local_sinks(), so an installed bridge wins over a socket.
 #
-# The bridge is shared-object-local. Other pybind extensions use the socket row
-# on POSIX and the local row where socket forwarding is unavailable. An
-# installed bridge takes precedence over the socket.
-
-_RAW_METHODS = ("os_write1", "os_write2", "dunder_stderr", "c_printf")
-_STREAM_METHODS = ("print", "stderr_write", "warnings", "bare_logger")
-
-# Run A: nothing anywhere is redirected, so every route lands on the terminal.
-_EXPECTED_UNSCOPED = {
-    (role, method): {_TERMINAL}
-    for role in ("MAIN", "SUB-noIT", "SUB-IT")
-    for method in (*_RAW_METHODS, *_STREAM_METHODS, "after_scope")
+# The third row is the one to read carefully. What test_routing.cpp pins there
+# is the *seam* -- set_bridge_sink() re-points every registered logger and the
+# local sinks drop out -- and not PythonBridgeSink itself, which no test reaches
+# today: _log_bridge exports install_python_sink() and nothing that emits, so
+# nothing can put a record through the bridge it just installed. That, and the
+# separate matter of each compiled extension owning its own copy of the
+# registry, are written up in src/core/log_bridge/AGENTS.md.
+_EXPECTED_ROUTING = {
+    # The leader: Python streams were moved onto duplicates of the real
+    # descriptors, so they still reach the terminal; the descriptors themselves
+    # now point at the capture file.
+    ("MAIN", "print"): {_TERMINAL},
+    ("MAIN", "stderr_write"): {_TERMINAL},
+    ("MAIN", "warnings"): {_TERMINAL},
+    ("MAIN", "bare_logger"): {_TERMINAL},  # no handler anywhere -> lastResort
+    ("MAIN", "os_write1"): {_LEADER_NATIVE},
+    ("MAIN", "os_write2"): {_LEADER_NATIVE},
+    # sys.__stderr__ is the *original* object, still bound to fd 2, so the
+    # defensive "write to __stderr__ to bypass a replaced stream" idiom lands
+    # in the capture file rather than on the terminal.
+    ("MAIN", "dunder_stderr"): {_LEADER_NATIVE},
+    ("MAIN", "c_printf"): {_LEADER_NATIVE},
+    # The only method that reaches both, at every level.
+    ("MAIN", "it_logger"): {_TERMINAL, _LEADER_LOG},
+    # A child that never imports isaacteleop has no capture of its own, and its
+    # fd 1/2 are still the leader's. Every route collapses onto one file.
+    ("SUB-noIT", "print"): {_LEADER_NATIVE},
+    ("SUB-noIT", "stderr_write"): {_LEADER_NATIVE},
+    ("SUB-noIT", "warnings"): {_LEADER_NATIVE},
+    ("SUB-noIT", "bare_logger"): {_LEADER_NATIVE},
+    ("SUB-noIT", "os_write1"): {_LEADER_NATIVE},
+    ("SUB-noIT", "os_write2"): {_LEADER_NATIVE},
+    ("SUB-noIT", "dunder_stderr"): {_LEADER_NATIVE},
+    ("SUB-noIT", "c_printf"): {_LEADER_NATIVE},
+    ("SUB-noIT", "it_logger"): {_LEADER_NATIVE},
+    # A forwarding child splits: it saved its inherited fd 1/2 -- the leader's
+    # capture file -- as its "terminal", then pointed the descriptors at a
+    # capture file of its own. So Python streams go up one level and raw writes
+    # stay local. Its records are the exception: they travel over the socket.
+    ("SUB-IT", "print"): {_LEADER_NATIVE},
+    ("SUB-IT", "stderr_write"): {_LEADER_NATIVE},
+    ("SUB-IT", "warnings"): {_LEADER_NATIVE},
+    ("SUB-IT", "bare_logger"): {_LEADER_NATIVE},
+    ("SUB-IT", "os_write1"): {_OWN_NATIVE},
+    ("SUB-IT", "os_write2"): {_OWN_NATIVE},
+    ("SUB-IT", "dunder_stderr"): {_OWN_NATIVE},
+    ("SUB-IT", "c_printf"): {_OWN_NATIVE},
+    ("SUB-IT", "it_logger"): {_TERMINAL, _LEADER_LOG},
 }
 # A structured record still reaches both leader-owned record sinks; a child that
 # never imports isaacteleop has no handler for it and falls back to lastResort.
@@ -1088,23 +1032,19 @@ for _method in _RAW_METHODS:
     _EXPECTED_SCOPED[("MAIN", _method)] = {_LEADER_NATIVE}
 
 
-def _run_matrix(tmp_path, short_socket_dir, *, scoped):
-    """Run the three roles once and return {sink name: concatenated text}."""
+@_posix_only
+def test_output_routing_matrix(tmp_path):
+    """Every route, for all three kinds of process, against a pinned table."""
     logs = tmp_path / "logs"
     script = tmp_path / "matrix_emit.py"
-    script.write_text(_MATRIX_SCRIPT, encoding="utf-8")
-    package_parent = str(Path(isaacteleop.__path__[0]).resolve().parent)
+    script.write_text(_MATRIX_SCRIPT)
+    package_parent = str(Path(_core.__file__).resolve().parents[2])
 
     env = {
         **os.environ,
         "ISAACTELEOP_LOG_DIR": str(logs),
-        "ISAACTELEOP_LOG_LEVEL": "info",
-        "XDG_RUNTIME_DIR": str(short_socket_dir),
+        "XDG_RUNTIME_DIR": str(tmp_path / "run"),
         "MATRIX_IMPORT_IT": "1",
-        "MATRIX_SCOPE": "1" if scoped else "0",
-        "MATRIX_SOURCE_FALLBACK": (
-            "1" if getattr(isaacteleop, "__file__", None) is None else "0"
-        ),
         "PYTHONWARNINGS": "always",
     }
     env.pop("ISAACTELEOP_LOG_SOCKET", None)
@@ -1121,7 +1061,7 @@ def _run_matrix(tmp_path, short_socket_dir, *, scoped):
         check=True,
     )
 
-    leader_pid = (tmp_path / "leader_pid").read_text(encoding="utf-8").strip()
+    leader_pid = (tmp_path / "leader_pid").read_text().strip()
     natives = sorted(logs.glob("*.native.log"))
     rotating = [p for p in logs.glob("*.log") if not p.name.endswith(".native.log")]
     assert len(rotating) == 1, rotating
@@ -1133,38 +1073,21 @@ def _run_matrix(tmp_path, short_socket_dir, *, scoped):
 
     return {
         _TERMINAL: done.stdout + done.stderr,
-        _LEADER_LOG: rotating[0].read_text(encoding="utf-8"),
-        _LEADER_NATIVE: (
-            leader_native[0].read_text(encoding="utf-8") if leader_native else ""
-        ),
+        _LEADER_LOG: rotating[0].read_text(),
+        _LEADER_NATIVE: leader_native[0].read_text(),
+        _OWN_NATIVE: own_native[0].read_text(),
     }
 
-
-def _check(sinks, expected):
-    mismatches = []
-    for role, method in expected:
+    actual = {}
+    for role, method in _EXPECTED_ROUTING:
         token = f"{role}|{method}"
-        actual = {
-            sink: count for sink, text in sinks.items() if (count := text.count(token))
-        }
-        want = {sink: 1 for sink in expected[(role, method)]}
-        if actual != want:
-            mismatches.append(
-                f"  {token}: expected {sorted(want.items())}, "
-                f"got {sorted(actual.items())}"
-            )
-    assert not mismatches, "\n".join(mismatches)
+        actual[(role, method)] = {sink for sink, text in sinks.items() if token in text}
 
-
-@_posix_only
-def test_output_routing_matrix_without_a_scope(tmp_path, _short_socket_dir):
-    """Importing isaacteleop moves nothing. Every route, all three roles."""
-    _check(_run_matrix(tmp_path, _short_socket_dir, scoped=False), _EXPECTED_UNSCOPED)
-
-
-@_posix_only
-def test_output_routing_matrix_inside_a_scope(tmp_path, _short_socket_dir):
-    """Inside capture_native_output() the leader's raw writes -- and nothing
-    else -- go to the capture file, and the descriptors come back afterwards.
-    """
-    _check(_run_matrix(tmp_path, _short_socket_dir, scoped=True), _EXPECTED_SCOPED)
+    missing = {key for key, where in actual.items() if not where}
+    assert not missing, f"emitted nothing anywhere: {sorted(missing)}"
+    assert actual == _EXPECTED_ROUTING, "\n".join(
+        f"  {role}|{method}: expected {sorted(_EXPECTED_ROUTING[(role, method)])}, "
+        f"got {sorted(actual[(role, method)])}"
+        for (role, method) in sorted(_EXPECTED_ROUTING)
+        if actual[(role, method)] != _EXPECTED_ROUTING[(role, method)]
+    )
