@@ -123,6 +123,7 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_EXAMPLE_TELEOP_ROS2=ON \
         -DBUILD_TESTING=OFF \
+        -DBUILD_VIZ=OFF \
         -DBUILD_PLUGINS=ON \
         -DBUILD_PLUGIN_OAK_CAMERA=OFF \
         -DENABLE_CLANG_FORMAT_CHECK=OFF \
@@ -182,6 +183,16 @@ EOF
 # -----------------------------------------------------------------------------
 FROM base AS runtime_base
 ARG PYTHON_VERSION
+ARG TARGETARCH
+ARG MANUS_ACCEPT_EULA
+
+# install_manus.sh supplies development headers in the builder; the final
+# image only needs the shared library used by libManusSDK.so.
+RUN if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
+        apt-get update \
+        && apt-get install -y --no-install-recommends libzmq5 \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
 
