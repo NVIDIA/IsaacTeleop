@@ -4,7 +4,6 @@
 add_subdirectory(schema)
 add_subdirectory(retargeting_engine)
 add_subdirectory(teleop_session_manager)
-add_subdirectory(logging_config)
 add_subdirectory(packaging)
 
 if(BUILD_PYTHON_BINDINGS)
