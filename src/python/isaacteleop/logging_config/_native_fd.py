@@ -72,6 +72,14 @@ _saved_stream_fd: dict[int, int] = {}
 _saved: dict[int, TextIO] = {}
 
 _depth = 0
+
+# The permanent, process-wide binding taken by mode ``process``, kept separate
+# from the scope counter above. Both can be in force at once -- a host may switch
+# to ``process`` while a scope is open -- and the descriptors are bound whenever
+# either of them is, so the two must not share a counter or each would undo the
+# other's restore.
+_process_hold = False
+
 _pre_scope_streams: dict[int, TextIO | None] = {}
 _pre_scope_handler_stream: TextIO | None = None
 
@@ -145,8 +153,17 @@ def mode() -> str:
     return _mode
 
 
-def set_mode(new_mode: str) -> None:
+def set_mode(
+    new_mode: str, console_handler: logging.StreamHandler | None = None
+) -> None:
     """Override :func:`mode` for this process and every child it spawns.
+
+    Applies the transition, rather than only recording it. Selecting
+    ``process`` rebinds fd 1 and fd 2 here and now; leaving ``process`` puts
+    them back. Without that, the only moment mode ``process`` could ever take
+    hold was :func:`gate` during ``import isaacteleop``, so a host calling this
+    afterwards -- the only time it can call it -- would be told the mode had
+    changed while nothing had been redirected.
 
     Raises:
         ValueError: if *new_mode* is not one of ``off``/``scoped``/``process``.
@@ -154,8 +171,19 @@ def set_mode(new_mode: str) -> None:
     global _mode
     if new_mode not in _MODES:
         raise ValueError(f"mode must be one of {_MODES}, got {new_mode!r}")
-    _mode = new_mode
-    os.environ[CAPTURE_MODE_ENV] = new_mode
+    with _lock:
+        previous = mode()
+        _mode = new_mode
+        os.environ[CAPTURE_MODE_ENV] = new_mode
+        if new_mode == previous:
+            return
+        if new_mode == MODE_PROCESS:
+            # No sink, no capture anywhere; leave every descriptor alone rather
+            # than claim a binding that would write nothing.
+            if ensure_sink() is not None:
+                _enter_process_hold(console_handler)
+        elif previous == MODE_PROCESS:
+            _exit_process_hold(console_handler)
 
 
 def _move_above_std(fd: int) -> int:
@@ -360,6 +388,35 @@ def _end(console_handler: logging.StreamHandler | None) -> None:
     _pre_scope_handler_stream = None
 
 
+def _enter_process_hold(console_handler: logging.StreamHandler | None) -> None:
+    """Take mode ``process``'s permanent binding. Callers hold ``_lock``.
+
+    A scope may already have the descriptors rebound, in which case this only
+    records that they are now held for good and must survive that scope's exit.
+    """
+    global _process_hold
+    if _process_hold:
+        return
+    if _depth == 0:
+        _begin(console_handler)
+    _process_hold = True
+
+
+def _exit_process_hold(console_handler: logging.StreamHandler | None) -> None:
+    """Release it again. Callers hold ``_lock``.
+
+    Restores the descriptors only if no scope still wants them rebound.
+    """
+    global _process_hold
+    if not _process_hold:
+        return
+    _process_hold = False
+    if _depth == 0:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        _end(console_handler)
+
+
 @contextlib.contextmanager
 def scoped(
     console_handler: logging.StreamHandler | None = None,
@@ -389,7 +446,7 @@ def scoped(
         yield capture_path() if mode() == MODE_PROCESS else None
         return
     with _lock:
-        if _depth == 0:
+        if _depth == 0 and not _process_hold:
             _begin(console_handler)
         _depth += 1
         path = _sink_path
@@ -398,7 +455,10 @@ def scoped(
     finally:
         with _lock:
             _depth -= 1
-            if _depth == 0:
+            # Not while mode ``process`` holds the binding: a host that switched
+            # mode inside this block expects the descriptors to stay rebound
+            # after it, and restoring here would silently undo that.
+            if _depth == 0 and not _process_hold:
                 sys.stdout.flush()
                 sys.stderr.flush()
                 _end(console_handler)
@@ -449,15 +509,13 @@ def gate(level: int, console_handler: logging.StreamHandler) -> None:
     longer rebinds the host's fd 1 and fd 2. Only mode ``process``, which a host
     must ask for, still does that.
     """
-    global _echo, _depth
+    global _echo
     if mode() == MODE_OFF:
         return
     ensure_sink()
     if mode() == MODE_PROCESS:
         with _lock:
-            if _depth == 0:
-                _begin(console_handler)
-                _depth = 1
+            _enter_process_hold(console_handler)
     _echo = _echo_override if _echo_override is not None else level <= TRACE
     if _echo:
         _start_mirror()
