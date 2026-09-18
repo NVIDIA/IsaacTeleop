@@ -888,7 +888,7 @@ def test_cpp_logger_without_socket_uses_own_console_and_file(tmp_path):
     }
     env.pop("ISAACTELEOP_LOG_SOCKET", None)
 
-    done = subprocess.run(
+    emitter = subprocess.Popen(
         [
             _CPP_EMITTER,
             "isaacteleop.log_bridge.test.cpp_local",
@@ -896,16 +896,24 @@ def test_cpp_logger_without_socket_uses_own_console_and_file(tmp_path):
             marker,
         ],
         env=env,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=60,
-        check=True,
     )
+    stdout, stderr = emitter.communicate(timeout=60)
+    assert emitter.returncode == 0, stderr
 
-    assert done.stdout.count(marker) == 1
-    assert marker not in done.stderr
+    assert stdout.count(marker) == 1
+    assert marker not in stderr
     files = list(logs.glob("*.log"))
     assert len(files) == 1, files
+    # The name, not just the extension. sink_config.cpp builds it to match the
+    # Python half's <ts>.isaacteleop.<pid>.log (_file.py:44), and
+    # test_output_routing_matrix below identifies which process wrote which
+    # capture file from that shape, so a divergence has to fail here.
+    assert re.fullmatch(
+        rf"\d{{8}}-\d{{6}}\.isaacteleop\.{emitter.pid}\.log", files[0].name
+    ), files[0].name
     assert files[0].read_text(encoding="utf-8").count(marker) == 1
 
 
@@ -923,6 +931,13 @@ def test_cpp_logger_reaches_python_through_real_bridge():
             pytest.fail("CMake test build omitted _log_bridge._emit_test_warning")
         pytest.skip("installed package was built without the private test hook")
 
+    # Not left to isaacteleop/__init__.py having run: without the sink installed
+    # the record goes to this process's C++ console and file sinks instead, and
+    # the assertions below would fail as an empty list rather than as a bridge
+    # that is not installed. install_python_sink() is guarded by a call_once, so
+    # a second call is a no-op.
+    _log_bridge.install_python_sink()
+
     logger_name = "isaacteleop.log_bridge.test.python_bridge"
     received: list[logging.LogRecord] = []
 
@@ -933,9 +948,15 @@ def test_cpp_logger_reaches_python_through_real_bridge():
     logger = logging.getLogger(logger_name)
     capture = _Capture()
     logger.addHandler(capture)
+    # This name is under the real isaacteleop tree, which in this process has the
+    # real console and file handlers on it. Without this the test writes its
+    # marker to the developer's terminal and into the real log directory.
+    saved_propagate = logger.propagate
+    logger.propagate = False
     try:
         emit(logger_name, "CPP-PYTHON-BRIDGE-RECORD")
     finally:
+        logger.propagate = saved_propagate
         logger.removeHandler(capture)
 
     assert len(received) == 1
@@ -1211,7 +1232,10 @@ def _run_matrix(tmp_path, short_socket_dir, *, scoped):
     logs = tmp_path / "logs"
     script = tmp_path / "matrix_emit.py"
     script.write_text(_MATRIX_SCRIPT, encoding="utf-8")
-    package_parent = str(Path(isaacteleop.__path__[0]).resolve().parent)
+    # From _core, not from isaacteleop.__path__[0]: the fallback branch in the
+    # script needs the directory the *pure-Python* subpackage actually lives in,
+    # which an editable install or a path-stub package need not put first.
+    package_parent = str(Path(_core.__file__).resolve().parents[2])
 
     env = {
         **os.environ,

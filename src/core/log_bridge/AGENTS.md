@@ -61,6 +61,22 @@ split for real means giving the extensions shared logging state -- a shared
 test that emits from a second compiled extension and asserts a Python handler
 received it. Neither is in place.
 
+`PythonBridgeSink::sink_it_()` is exercised, but only through a test-only entry
+point. `python_bindings.cpp` exports `_emit_test_warning()` when the build is
+not a scikit-build wheel build, and
+`tests/python/core/logging_config/test_logging_config.py`'s
+`test_cpp_logger_reaches_python_through_real_bridge` calls it to put a real
+record through the real bridge. Keep the symbol underscore-prefixed, out of
+`isaacteleop/log_bridge/__init__.py`'s `__all__`, and behind
+`ISAACTELEOP_LOG_BRIDGE_TESTING`: `pyproject.toml` deliberately passes no
+`cmake.define` overrides, so `BUILD_TESTING` alone is ON in a `pip install`
+build and would ship this symbol to users. `tests/cpp/core/log_bridge/
+test_routing.cpp` covers the adjacent but different question -- the *seam*,
+that `set_bridge_sink()` re-points every registered logger and the local sinks
+drop out -- with a capturing stand-in, because what is under test there is
+`logger.cpp`, not the bridge. The shared-logging-state work above is a
+prerequisite for the cross-extension test, not for either of these.
+
 ## The env-var contract is shared with Python, not parallel to it
 
 `sink_config.cpp` and `socket_sink.cpp` read `ISAACTELEOP_LOG_DIR`,
@@ -70,6 +86,15 @@ Python half gives them, and `SocketForwardSink` speaks the same wire format as
 at all therefore forwards exactly like a Python child does. If you change the
 frame layout, the field names, or how a variable is interpreted, change both
 halves in the same commit or they silently stop understanding each other.
+
+One test holds the two halves together:
+`tests/python/core/logging_config/test_logging_config.py`'s
+`test_cpp_logger_reaches_the_python_receiver` stands up a real receiver and runs
+`log_bridge_emit_record` -- the one-record executable in
+`tests/cpp/core/log_bridge/emit_record/` -- against it, asserting every field the
+frame carries. Nothing else compares a real C++ sender with a real Python
+receiver, so do not let that test lapse into asserting against a hand-built
+frame.
 
 ## Never log between `fork()` and `execvp()`
 
