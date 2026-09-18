@@ -20,8 +20,9 @@ permissions:
 
 jobs:
   promote:
+    # Repo id, not slug — a rename must not silently disable this (`gh api repos/{owner}/{repo} --jq .id`).
     if: >-
-      github.repository == 'NVIDIA/IsaacTeleop'
+      github.repository_id == '1092046207'
       && (
         github.event_name == 'workflow_dispatch'
         || (github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v'))
