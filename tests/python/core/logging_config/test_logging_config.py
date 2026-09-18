@@ -755,6 +755,124 @@ def test_forwarding_handler_drops_record_when_leader_unreachable(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# A process that is not part of the session
+# ---------------------------------------------------------------------------
+
+#: Imports the package, installs, emits one record, exits. Argument 1 is the
+#: directory holding ``isaacteleop/`` so the fallback can synthesise the package
+#: without running ``isaacteleop/__init__.py``; argument 2 is the marker.
+_OUTSIDE_SCRIPT = """
+import logging
+import os
+import sys
+import types
+
+PKG_PARENT, MARKER = sys.argv[1], sys.argv[2]
+
+if os.environ.get("OUTSIDE_SOURCE_FALLBACK") == "1":
+    pkg = types.ModuleType("isaacteleop")
+    pkg.__path__ = [os.path.join(PKG_PARENT, "isaacteleop")]
+    sys.modules["isaacteleop"] = pkg
+
+from isaacteleop import logging_config
+
+logging_config.install()
+logging.getLogger("isaacteleop.test.outside").warning(MARKER)
+logging.shutdown()
+"""
+
+
+@_posix_only
+def test_only_the_socket_variable_makes_a_process_join_the_session(
+    tmp_path, _short_socket_dir
+):
+    """An entry point started from another shell is a leader, not a child.
+
+    ISAACTELEOP_LOG_SOCKET is the whole of what makes a process forward. It is
+    inherited, never discovered, so a TeleopSession, a PluginManager or a single
+    plugin started in a second terminal -- the three ways this project is run
+    against an already-running CloudXR runtime -- keeps its own console and file
+    handlers and writes its own file. The routing matrix cannot pin this: all
+    three of its roles are descendants of the leader.
+
+    Both directions in one test, because the negative alone would also pass if
+    the record had simply been lost.
+    """
+    socket_path = str(_short_socket_dir / "leader.sock")
+    server = _forwarding.ThreadingUnixStreamServer(
+        socket_path, _forwarding.RequestHandler
+    )
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    receiver = logging.getLogger("isaacteleop.test.outside")
+    received: list[logging.LogRecord] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            received.append(record)
+
+    capture = _Capture()
+    receiver.addHandler(capture)
+
+    script = tmp_path / "outside.py"
+    script.write_text(_OUTSIDE_SCRIPT, encoding="utf-8")
+    package_parent = str(Path(_core.__file__).resolve().parents[2])
+
+    def _run(logs_dir: Path, marker: str, *, joined: bool) -> None:
+        env = {
+            **os.environ,
+            "ISAACTELEOP_LOG_DIR": str(logs_dir),
+            "XDG_RUNTIME_DIR": str(_short_socket_dir),
+            "OUTSIDE_SOURCE_FALLBACK": (
+                "1" if getattr(isaacteleop, "__file__", None) is None else "0"
+            ),
+        }
+        env.pop(_native_fd.CAPTURE_FILE_ENV, None)
+        if joined:
+            env["ISAACTELEOP_LOG_SOCKET"] = socket_path
+        else:
+            env.pop("ISAACTELEOP_LOG_SOCKET", None)
+        subprocess.run(
+            [sys.executable, str(script), package_parent, marker],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=True,
+        )
+
+    def _own_log_files(logs_dir: Path) -> list[Path]:
+        if not logs_dir.exists():
+            return []
+        return [p for p in logs_dir.glob("*.log") if not p.name.endswith(".native.log")]
+
+    joined_logs = tmp_path / "joined"
+    alone_logs = tmp_path / "alone"
+    try:
+        _run(joined_logs, "JOINED-THE-SESSION", joined=True)
+        deadline = time.monotonic() + 5.0
+        while not received and time.monotonic() < deadline:
+            time.sleep(0.01)
+        _run(alone_logs, "OUTSIDE-THE-SESSION", joined=False)
+        # Nothing to wait for on this one; give a stray frame the same chance to
+        # arrive that the first one had, so the emptiness below means something.
+        time.sleep(0.2)
+    finally:
+        receiver.removeHandler(capture)
+        server.shutdown()
+        server.server_close()
+
+    # With the variable: forwarded, and no local file of its own.
+    assert [r.getMessage() for r in received] == ["JOINED-THE-SESSION"]
+    assert _own_log_files(joined_logs) == []
+
+    # Without it: nothing forwarded, and its own file carries the record.
+    alone = _own_log_files(alone_logs)
+    assert len(alone) == 1, alone
+    assert "OUTSIDE-THE-SESSION" in alone[0].read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 # The C++ end of the same wire
 # ---------------------------------------------------------------------------
 
