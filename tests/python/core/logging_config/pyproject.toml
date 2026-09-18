@@ -10,11 +10,6 @@ requires-python = ">=3.11,<3.14"
 [project.optional-dependencies]
 dev = [
     "pytest",
-    # Not imported by these tests. `from isaacteleop import logging_config` runs
-    # isaacteleop/__init__.py, whose eager import list reaches
-    # retargeting_engine.interface.tunable_parameter, and that imports numpy.
-    # Every other leaf here that touches isaacteleop declares it for the same reason.
-    "numpy",
 ]
 
 [tool.pytest.ini_options]
