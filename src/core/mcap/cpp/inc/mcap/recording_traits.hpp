@@ -58,6 +58,13 @@ struct PedalRecordingTraits
     static constexpr std::array replay_channels = { "pedals_tracked" };
 };
 
+struct KeyboardRecordingTraits
+{
+    static constexpr std::string_view schema_name = "core.KeyboardOutputRecord";
+    static constexpr std::array recording_channels = { "keyboard", "keyboard_tracked" };
+    static constexpr std::array replay_channels = { "keyboard_tracked" };
+};
+
 struct OgloRecordingTraits
 {
     static constexpr std::string_view schema_name = "core.OgloGloveSampleRecord";
