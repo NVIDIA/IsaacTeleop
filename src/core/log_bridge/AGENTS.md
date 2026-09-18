@@ -118,6 +118,15 @@ those four `std::cerr` sites now report into the capture file rather than the
 terminal, which is where a reader looking for a failed plugin launch should be
 directed.
 
+The window is covered by
+`tests/cpp/core/plugin_manager/test_plugin_process.cpp`'s "a
+launched plugin's stdio follows the published capture file", which drives a real
+`core::Plugin` against `plugin_manager_test_process`'s `write` mode and asserts
+both directions: with the variable published, both of the child's descriptors
+land in that file; with nothing published, the child keeps the stdio it
+inherited and no file appears. Change either half and that case is what tells
+you.
+
 ## Related
 
 - Python half: [`../../python/isaacteleop/logging_config/AGENTS.md`](../../python/isaacteleop/logging_config/AGENTS.md)
