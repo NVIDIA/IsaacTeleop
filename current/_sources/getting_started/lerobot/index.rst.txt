@@ -82,6 +82,7 @@ In this section
 - :doc:`data_collection_real` — record demonstrations on a physical SO-101.
 - :doc:`data_collection_sim` — record demonstrations in Isaac Lab.
 - :doc:`training_groot` — fine-tune a GR00T N1.7 policy on the collected data.
+- :doc:`rebot` — bring up a reBot B601-RS arm on a Jetson AGX Orin over built-in CAN.
 
 New to XR teleoperation? Start with the :doc:`Isaac Teleop Quick Start </getting_started/quick_start>`
 to set up CloudXR and connect a headset.
@@ -108,6 +109,7 @@ See also: the `Sim-to-Real SO-101 learning path`_.
    data_collection_real
    data_collection_sim
    training_groot
+   rebot
 
 ..
    References
