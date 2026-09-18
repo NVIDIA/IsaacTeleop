@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=ec4b8e38" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=aad37187" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -46,7 +46,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=04dcff72"></script>
+    <script src="../_static/documentation_options.js?v=96a32199"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -59,13 +59,13 @@
 
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Rig Launcher" href="rig.html" />
+    <link rel="next" title="Out-of-Band Teleop Control" href="oob_teleop_control.html" />
     <link rel="prev" title="MCAP Recording &amp; Replay" href="mcap_record_replay.html" />
 
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.5.x" />
+  <meta name="docsearch:version" content="1.6.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -371,10 +371,10 @@
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device_provider_monitoring.html">Device provider monitoring</a></li>
 <li class="toctree-l1"><a class="reference internal" href="camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mcap_record_replay.html">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">CloudXR Service</a></li>
-<li class="toctree-l1"><a class="reference internal" href="rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
@@ -612,8 +612,8 @@ application started from that terminal connects to the running runtime.</p>
 <p>Make sure to run the rest of the commands in the same terminal. If you have
 to open a new terminal, source the CloudXR environment variables again.</p>
 </div>
-<p>Applications that embed <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code> — the teleop examples, the rig
-launcher — do this for themselves and need no sourcing.</p>
+<p>Applications that embed <code class="docutils literal notranslate"><span class="pre">CloudXRLauncher</span></code> — the teleop examples — do this
+for themselves and need no sourcing.</p>
 </section>
 <section id="run-teleop-examples-against-the-service">
 <h2>Run teleop examples against the service<a class="headerlink" href="#run-teleop-examples-against-the-service" title="Link to this heading">#</a></h2>
@@ -633,7 +633,7 @@ accept <code class="docutils literal notranslate"><span class="pre">--no-launch-
 the process does not start or attach to CloudXR and leaves <code class="docutils literal notranslate"><span class="pre">XR_RUNTIME_JSON</span></code> and
 related environment variables unchanged. Use this when another runtime is already
 configured (for example Monado) or when a host singleton must not be duplicated
-(see <code class="docutils literal notranslate"><span class="pre">examples/mujoco_xr/README.md</span></code> and <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> there).</p>
+(see <code class="docutils literal notranslate"><span class="pre">examples/robot_viz/README.md</span></code> and <code class="docutils literal notranslate"><span class="pre">--no-launch-cloudxr-runtime</span></code> there).</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">XR_RUNTIME_JSON</span><span class="o">=</span>/path/to/your/openxr.json
 python<span class="w"> </span>examples/latency_probe/python/latency_probe_example.py<span class="w"> </span>--no-launch-cloudxr-runtime
 </pre></div>
@@ -791,11 +791,11 @@ expose it. <code class="docutils literal notranslate"><span class="pre">VizSessi
       </div>
     </a>
     <a class="right-next"
-       href="rig.html"
+       href="oob_teleop_control.html"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Rig Launcher</p>
+        <p class="prev-next-title">Out-of-Band Teleop Control</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>
@@ -915,7 +915,7 @@ expose it. <code class="docutils literal notranslate"><span class="pre">VizSessi
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 03, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 18, 2026.
       <br/>
     
   </p>
