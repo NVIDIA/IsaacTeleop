@@ -179,7 +179,7 @@ HeadTracker
 Tracks the HMD head pose via the OpenXR view space.
 
 - Schema: :code-file:`src/core/schema/fbs/head.fbs`
-- C++ header: ``#include <deviceio/head_tracker.hpp>``
+- C++ header: ``#include <deviceio_trackers/head_tracker.hpp>``
 - Python import: ``from isaacteleop.deviceio import HeadTracker``
 - Record channels: ``head`` | MCAP schema: ``core.HeadPoseRecord``
 - Tests:
@@ -199,7 +199,7 @@ Tracks articulated hand joints (26 joints per hand, following the OpenXR
 ``XrHandJointEXT`` ordering) using the ``XR_EXT_hand_tracking`` extension.
 
 - Schema: :code-file:`src/core/schema/fbs/hand.fbs`
-- C++ header: ``#include <deviceio/hand_tracker.hpp>``
+- C++ header: ``#include <deviceio_trackers/hand_tracker.hpp>``
 - Python import: ``from isaacteleop.deviceio import HandTracker``
 - Record channels: ``left_hand``, ``right_hand`` | MCAP schema: ``core.HandPoseRecord``
 - Tests:
@@ -221,7 +221,7 @@ Tracks both left and right controllers -- grip and aim poses, plus button and
 axis inputs. Uses standard OpenXR action bindings.
 
 - Schema: :code-file:`src/core/schema/fbs/controller.fbs`
-- C++ header: ``#include <deviceio/controller_tracker.hpp>``
+- C++ header: ``#include <deviceio_trackers/controller_tracker.hpp>``
 - Python import: ``from isaacteleop.deviceio import ControllerTracker``
 - Record channels: ``left_controller``, ``right_controller`` | MCAP schema: ``core.ControllerSnapshotRecord``
 - Tests:
@@ -301,9 +301,9 @@ collections. Uses the :code-file:`SchemaTracker <src/core/live_trackers/cpp/inc/
 utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/pedals.fbs`
-- C++ header: ``#include <deviceio/generic_3axis_pedal_tracker.hpp>``
+- C++ header: ``#include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>``
 - Python import: ``from isaacteleop.deviceio import Generic3AxisPedalTracker``
-- Record channels: ``pedals`` | MCAP schema: ``core.Generic3AxisPedalOutputRecord``
+- Record channels: ``pedals``, ``pedals_tracked`` | MCAP schema: ``core.Generic3AxisPedalOutputRecord``
 - Tests:
 
   - :code-file:`tests/cpp/core/schema/test_pedals.cpp`

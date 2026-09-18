@@ -36,7 +36,7 @@
     <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=215b52d1" />
-    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=35d49528" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/ecosystem.css?v=aad37187" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -46,7 +46,7 @@
 
 
 
-    <script src="../_static/documentation_options.js?v=04dcff72"></script>
+    <script src="../_static/documentation_options.js?v=96a32199"></script>
     <script src="../_static/doctools.js?v=9bcbadda"></script>
     <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
@@ -65,7 +65,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-  <meta name="docsearch:version" content="1.5.x" />
+  <meta name="docsearch:version" content="1.6.x" />
   
     
     <script src="../_static/searchtools.js"></script>
@@ -371,10 +371,10 @@
 <li class="toctree-l1"><a class="reference internal" href="build.html">Build System</a></li>
 <li class="toctree-l1"><a class="reference internal" href="generated_trackers.html">Generated Tracker Code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="retargeting/index.html">Retargeting Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="device_provider_monitoring.html">Device provider monitoring</a></li>
 <li class="toctree-l1"><a class="reference internal" href="camera_streaming.html">Camera Streaming</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">MCAP Recording &amp; Replay</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cloudxr.html">CloudXR Service</a></li>
-<li class="toctree-l1"><a class="reference internal" href="rig.html">Rig Launcher</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
@@ -519,6 +519,25 @@ to add extra trackers that aren’t part of the pipeline:</p>
 <p><code class="docutils literal notranslate"><span class="pre">mcap_config</span></code> is <strong>required</strong> when <code class="docutils literal notranslate"><span class="pre">mode</span></code> is <code class="docutils literal notranslate"><span class="pre">SessionMode.REPLAY</span></code>.
 Omitting it raises <code class="docutils literal notranslate"><span class="pre">ValueError</span></code>.</p>
 </div>
+<section id="schema-compatibility">
+<h3>Schema compatibility<a class="headerlink" href="#schema-compatibility" title="Link to this heading">#</a></h3>
+<p>Every recording embeds the FlatBuffer schema it was written under. Opening a replay
+session compares every schema the recording carries against the schema the running
+build was compiled from, and raises <code class="docutils literal notranslate"><span class="pre">RuntimeError</span></code> when the recorded bytes would be
+misread — a recording made before a breaking schema change, for instance. The whole
+recording is graded before the first frame is read, so replay never stops part-way
+through for a schema reason.</p>
+<p>That needs the list of schemas up front. It normally comes from the summary section at
+the end of the file; a recording whose writer never got to flush one, which is what a
+run cut short leaves behind, is scanned for its schema records instead. A recording so
+damaged that neither route works is refused.</p>
+<p>A difference that leaves every recorded field readable — a table field appended
+since, or one marked <code class="docutils literal notranslate"><span class="pre">(deprecated)</span></code> — is reported on stderr and replayed instead.
+There is no way to override the raise: a recording the running build would misread
+is not replayable, and reading it anyway would hand back records whose field values
+are quietly wrong. <code class="docutils literal notranslate"><span class="pre">src/core/schema/README.md</span></code> has the evolution rules that keep a
+schema change from getting there.</p>
+</section>
 </section>
 <section id="runnable-example">
 <h2>Runnable Example<a class="headerlink" href="#runnable-example" title="Link to this heading">#</a></h2>
@@ -557,22 +576,23 @@ python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.dev
 <li><p><code class="docutils literal notranslate"><span class="pre">record_full_body.cpp</span></code> — records the <code class="docutils literal notranslate"><span class="pre">full_body</span></code> channel by passing a
 <code class="docutils literal notranslate"><span class="pre">core::McapRecordingConfig</span></code> to <code class="docutils literal notranslate"><span class="pre">DeviceIOSession::run()</span></code>. It uses the
 same channel base name as <code class="docutils literal notranslate"><span class="pre">FullBodySource</span></code>, so the resulting file replays
-with <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code>. <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop.rig</span> <span class="pre">rigs/full_body.yaml</span></code>
-runs it together with the full-body printer (see <a class="reference internal" href="rig.html#rig-launcher"><span class="std std-ref">Rig Launcher</span></a>).</p></li>
+with <code class="docutils literal notranslate"><span class="pre">replay_full_body</span></code>.</p></li>
 </ul>
 <section id="live-preview">
 <h3>Live preview<a class="headerlink" href="#live-preview" title="Link to this heading">#</a></h3>
-<p>From the example directory:</p>
+<p>From the repo root:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/mcap_record_replay
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.mcap_record_replay.live_full_body<span class="w"> </span>--accept-eula
 python<span class="w"> </span>-m<span class="w"> </span>isaacteleop_examples.mcap_record_replay.live_full_body<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w"> </span>--accept-eula
 </pre></div>
 </div>
-<p>Open the printed URL (default <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>) in a browser.</p>
+<p>Open the printed URL (default <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>) in a browser.  The
+viewers bind every interface, since they run where the headset is and get
+opened from another machine; pass <code class="docutils literal notranslate"><span class="pre">--host</span> <span class="pre">127.0.0.1</span></code> to keep one local.</p>
 </section>
 <section id="recording">
 <h3>Recording<a class="headerlink" href="#recording" title="Link to this heading">#</a></h3>
-<p>From the example directory:</p>
+<p>From the repo root:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>./examples/mcap_record_replay
 <span class="nv">R</span><span class="o">=</span><span class="s2">"python -m isaacteleop_examples.mcap_record_replay.record_hand"</span>
 <span class="nv">$R</span><span class="w">              </span><span class="c1"># 5 s → ./recordings/hands_&lt;timestamp&gt;.mcap</span>
@@ -598,19 +618,22 @@ has no such requirement.</p>
 <section id="replaying">
 <h3>Replaying<a class="headerlink" href="#replaying" title="Link to this heading">#</a></h3>
 <p>Replay runs headless — no headset required:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w">                       </span><span class="c1"># newest file in ../recordings/</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w"> </span>path/to/file.mcap<span class="w">     </span><span class="c1"># explicit file</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w"> </span>--loop<span class="w">                </span><span class="c1"># repeat until Ctrl+C</span>
-uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>replay_hand.py<span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w">           </span><span class="c1"># change viser port</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">R</span><span class="o">=</span><span class="s2">"python -m isaacteleop_examples.mcap_record_replay.replay_hand"</span>
+<span class="nv">$R</span><span class="w">                    </span><span class="c1"># newest hands_*.mcap under ./recordings/</span>
+<span class="nv">$R</span><span class="w"> </span>path/to/file.mcap<span class="w">  </span><span class="c1"># explicit file</span>
+<span class="nv">$R</span><span class="w"> </span>--loop<span class="w">             </span><span class="c1"># repeat until Ctrl+C</span>
+<span class="nv">$R</span><span class="w"> </span>--port<span class="w"> </span><span class="m">8090</span><span class="w">        </span><span class="c1"># change viser port</span>
 </pre></div>
 </div>
 <p>Open the printed URL (default <code class="docutils literal notranslate"><span class="pre">http://localhost:8080</span></code>) in a browser to see the
 left (green) and right (blue) hand skeletons update each frame.</p>
-<p>The <code class="docutils literal notranslate"><span class="pre">record_controller.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_controller.py</span></code> and
-<code class="docutils literal notranslate"><span class="pre">record_full_body.py</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_full_body.py</span></code> pairs use the same CLI
-(positional MCAP path, <code class="docutils literal notranslate"><span class="pre">--host</span></code>, <code class="docutils literal notranslate"><span class="pre">--port</span></code>, <code class="docutils literal notranslate"><span class="pre">--loop</span></code>).
-<code class="docutils literal notranslate"><span class="pre">live_full_body.py</span></code> accepts <code class="docutils literal notranslate"><span class="pre">--host</span></code>, <code class="docutils literal notranslate"><span class="pre">--port</span></code>, and the CloudXR launcher
-flags (including <code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>).</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">record_controller</span></code> / <code class="docutils literal notranslate"><span class="pre">replay_controller</span></code> and <code class="docutils literal notranslate"><span class="pre">record_full_body</span></code> /
+<code class="docutils literal notranslate"><span class="pre">replay_full_body</span></code> module pairs use the same CLI (positional MCAP path,
+<code class="docutils literal notranslate"><span class="pre">--host</span></code>, <code class="docutils literal notranslate"><span class="pre">--port</span></code>, <code class="docutils literal notranslate"><span class="pre">--loop</span></code>). <code class="docutils literal notranslate"><span class="pre">live_full_body</span></code> accepts <code class="docutils literal notranslate"><span class="pre">--host</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--port</span></code>, and the CloudXR launcher flags (including <code class="docutils literal notranslate"><span class="pre">--accept-eula</span></code>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">run</span></code> (instead of an activated venv) needs an explicit <code class="docutils literal notranslate"><span class="pre">--python</span> <span class="pre">3.11</span></code>
+— without it, <code class="docutils literal notranslate"><span class="pre">uv</span></code> may resolve against the system Python and fail to match
+the lockfile.</p>
 </section>
 </section>
 <section id="api-reference">
@@ -703,7 +726,10 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#auto-population-and-appending-of-tracker-names">Auto-population and appending of tracker names</a></li>
 </ul>
 </li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying-a-recording">Replaying a Recording</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#replaying-a-recording">Replaying a Recording</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#schema-compatibility">Schema compatibility</a></li>
+</ul>
+</li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-example">Runnable Example</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#live-preview">Live preview</a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#recording">Recording</a></li>
@@ -798,7 +824,7 @@ When empty, <code class="docutils literal notranslate"><span class="pre">TeleopS
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on August 28, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 18, 2026.
       <br/>
     
   </p>
