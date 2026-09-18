@@ -1,11 +1,11 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Simplified Gripper Retargeting Example
+Locomotion Retargeting Example
 
-Demonstrates using TeleopSession with the new retargeting engine.
-Minimal boilerplate - just configure and run!
+Demonstrates using LocomotionRootCmdRetargeter to generate robot base commands
+from VR controller inputs.
 """
 
 import argparse
@@ -16,8 +16,8 @@ import isaacteleop.deviceio as deviceio
 
 from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeters import (
-    GripperRetargeter,
-    GripperRetargeterConfig,
+    LocomotionRootCmdRetargeter,
+    LocomotionRootCmdRetargeterConfig,
 )
 from isaacteleop.teleop_session_manager import (
     TeleopSession,
@@ -27,7 +27,9 @@ from isaacteleop.teleop_session_manager import (
 )
 
 
-PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
+# Six levels up is the tree root -- the checkout, or the install prefix
+# when running from install/examples/teleop/.
+PLUGIN_ROOT_DIR = Path(__file__).resolve().parents[5] / "plugins"
 PLUGIN_NAME = "controller_synthetic_hands"
 PLUGIN_ROOT_ID = "synthetic_hands"
 
@@ -37,26 +39,39 @@ def main():
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args()
 
+    print("\n" + "=" * 80)
+    print("  Locomotion Retargeting Example")
+    print("=" * 80)
+    print("Controls:")
+    print("  Left Stick X/Y  : Linear Velocity (Forward/Backward/Left/Right)")
+    print("  Right Stick X   : Angular Velocity (Turn)")
+    print("  Right Stick Y   : Hip Height Adjustment")
+    print("=" * 80 + "\n")
+
     # ==================================================================
     # Setup: Create standard inputs (trackers + sources)
     # ==================================================================
 
-    hand_tracker = deviceio.HandTracker()
     controller_tracker = deviceio.ControllerTracker()
-    trackers = [hand_tracker, controller_tracker]
+    trackers = [controller_tracker]
     sources = create_standard_inputs(trackers)
-    hands = sources["hands"]
     controllers = sources["controllers"]
 
     # ==================================================================
     # Build Retargeting Pipeline
     # ==================================================================
 
-    retargeter_config = GripperRetargeterConfig()
-    gripper = GripperRetargeter(retargeter_config, name="gripper")
-    pipeline = gripper.connect(
+    config = LocomotionRootCmdRetargeterConfig(
+        initial_hip_height=0.72,
+        movement_scale=1.0,  # Scale up for visibility
+        rotation_scale=0.5,
+    )
+
+    locomotion = LocomotionRootCmdRetargeter(config, name="locomotion")
+
+    pipeline = locomotion.connect(
         {
-            "hand_right": hands.output(hands.RIGHT),
+            "controller_left": controllers.output(controllers.LEFT),
             "controller_right": controllers.output(controllers.RIGHT),
         }
     )
@@ -79,35 +94,38 @@ def main():
     # Create and run TeleopSession
     # ==================================================================
 
-    config = TeleopSessionConfig(
-        app_name="GripperRetargetingSimple",
-        trackers=[],  # Empty list if using new sources
+    session_config = TeleopSessionConfig(
+        app_name="LocomotionExample",
+        trackers=[],  # Empty list if using new sources via create_standard_inputs
         pipeline=pipeline,
         plugins=plugins,
     )
 
-    with CloudXRLauncher.launch_context(args), TeleopSession(config) as session:
-        # No session injection needed
-
-        print("\n" + "=" * 60)
-        print("Gripper Retargeting - Squeeze triggers to control grippers")
-        print("=" * 60 + "\n")
+    with (
+        CloudXRLauncher.launch_context(args),
+        TeleopSession(session_config) as session,
+    ):
+        # No need to inject session anymore
 
         start_time = time.time()
 
-        while time.time() - start_time < 20.0:
-            # Run one iteration (updates trackers + executes pipeline)
+        while time.time() - start_time < 30.0:
+            # Run one iteration
             result = session.step()
 
-            # Get gripper values
-            right = result["gripper_command"][0]
+            # Get root command: [vel_x, vel_y, rot_vel_z, hip_height]
+            cmd = result["root_command"][0]
 
-            # Print status every 0.5 seconds
-            if session.frame_count % 30 == 0:
+            # Print status every 0.2 seconds
+            if session.frame_count % 12 == 0:
                 elapsed = session.get_elapsed_time()
-                print(f"[{elapsed:5.1f}s] Right: {right:.2f}")
+                print(
+                    f"[{elapsed:5.1f}s] Vel: ({cmd[0]:5.2f}, {cmd[1]:5.2f})  Rot: {cmd[2]:5.2f}  Height: {cmd[3]:.3f}"
+                )
 
             time.sleep(0.016)  # ~60 FPS
+
+        print("\nTime limit reached.")
 
     return 0
 
