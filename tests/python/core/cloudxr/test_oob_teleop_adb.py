@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import (
+from cloudxr_py_test_ns.oob_teleop_adb import (
     OobAdbError,
     adb_automation_failure_hint,
     adb_device_state,
@@ -61,21 +61,18 @@ def test_oob_adb_automation_message_empty_detail() -> None:
     assert "no output from adb" in msg
 
 
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.shutil.which",
-    return_value="/usr/bin/adb",
-)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.shutil.which", return_value="/usr/bin/adb")
 def test_require_adb_on_path_found(mock_which: MagicMock) -> None:
     require_adb_on_path()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.shutil.which", return_value=None)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.shutil.which", return_value=None)
 def test_require_adb_on_path_missing(mock_which: MagicMock) -> None:
     with pytest.raises(OobAdbError, match="not found on PATH"):
         require_adb_on_path()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_assert_exactly_one_adb_device_zero_raises(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(
         returncode=0,
@@ -86,7 +83,7 @@ def test_assert_exactly_one_adb_device_zero_raises(mock_run: MagicMock) -> None:
         assert_exactly_one_adb_device()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_assert_exactly_one_adb_device_one(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(
         returncode=0,
@@ -96,7 +93,7 @@ def test_assert_exactly_one_adb_device_one(mock_run: MagicMock) -> None:
     assert_exactly_one_adb_device()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_assert_exactly_one_adb_device_two_raises(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(
         returncode=0,
@@ -107,7 +104,7 @@ def test_assert_exactly_one_adb_device_two_raises(mock_run: MagicMock) -> None:
         assert_exactly_one_adb_device()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_assert_exactly_one_adb_device_pin_via_android_serial(
     mock_run: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -121,7 +118,7 @@ def test_assert_exactly_one_adb_device_pin_via_android_serial(
     assert_exactly_one_adb_device()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_assert_exactly_one_adb_device_pin_unknown_serial_raises(
     mock_run: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -137,7 +134,7 @@ def test_assert_exactly_one_adb_device_pin_unknown_serial_raises(
         assert_exactly_one_adb_device()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_assert_exactly_one_too_many_hints_at_android_serial(
     mock_run: MagicMock,
 ) -> None:
@@ -152,7 +149,7 @@ def test_assert_exactly_one_too_many_hints_at_android_serial(
         assert_exactly_one_adb_device()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_assert_exactly_one_ignores_unauthorized(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(
         returncode=0,
@@ -162,13 +159,10 @@ def test_assert_exactly_one_ignores_unauthorized(mock_run: MagicMock) -> None:
     assert_exactly_one_adb_device()
 
 
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 @patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-    return_value="device",
-)
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.resolve_lan_host_for_oob",
+    "cloudxr_py_test_ns.oob_teleop_adb.resolve_lan_host_for_oob",
     return_value="10.0.0.1",
 )
 def test_run_adb_headset_bookmark_success(
@@ -184,13 +178,10 @@ def test_run_adb_headset_bookmark_success(
     assert "am start" in args[2]
 
 
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 @patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-    return_value="device",
-)
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.resolve_lan_host_for_oob",
+    "cloudxr_py_test_ns.oob_teleop_adb.resolve_lan_host_for_oob",
     return_value="10.0.0.1",
 )
 def test_run_adb_headset_bookmark_failure(
@@ -207,10 +198,8 @@ def test_run_adb_headset_bookmark_failure(
 # coturn binary lookup -------------------------------------------------------
 
 
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.os.path.exists", return_value=False
-)
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.shutil.which")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.os.path.exists", return_value=False)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.shutil.which")
 def test_coturn_binary_path_prefers_turnserver(
     mock_which: MagicMock, _mock_exists: MagicMock
 ) -> None:
@@ -220,10 +209,8 @@ def test_coturn_binary_path_prefers_turnserver(
     assert coturn_binary_path() == "/usr/local/bin/turnserver"
 
 
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.os.path.exists", return_value=False
-)
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.shutil.which")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.os.path.exists", return_value=False)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.shutil.which")
 def test_coturn_binary_path_accepts_coturn_name(
     mock_which: MagicMock, _mock_exists: MagicMock
 ) -> None:
@@ -233,19 +220,17 @@ def test_coturn_binary_path_accepts_coturn_name(
     assert coturn_binary_path() == "/opt/coturn/bin/coturn"
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.shutil.which", return_value=None)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.shutil.which", return_value=None)
 def test_coturn_binary_path_falls_back_to_usr_bin(mock_which: MagicMock) -> None:
     with patch(
-        "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.os.path.exists",
+        "cloudxr_py_test_ns.oob_teleop_adb.os.path.exists",
         side_effect=lambda p: p == "/usr/bin/coturn",
     ):
         assert coturn_binary_path() == "/usr/bin/coturn"
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.shutil.which", return_value=None)
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.os.path.exists", return_value=False
-)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.shutil.which", return_value=None)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.os.path.exists", return_value=False)
 def test_require_coturn_available_missing_mentions_both_names(
     _mock_exists: MagicMock, _mock_which: MagicMock
 ) -> None:
@@ -258,13 +243,13 @@ def test_require_coturn_available_missing_mentions_both_names(
 # Device-state guard ---------------------------------------------------------
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_adb_device_state_device(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(returncode=0, stdout="device\n", stderr="")
     assert adb_device_state() == "device"
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_adb_device_state_unauthorized_via_stderr(mock_run: MagicMock) -> None:
     mock_run.return_value = MagicMock(
         returncode=1, stdout="", stderr="error: device unauthorized\n"
@@ -273,17 +258,14 @@ def test_adb_device_state_unauthorized_via_stderr(mock_run: MagicMock) -> None:
 
 
 @patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run",
+    "cloudxr_py_test_ns.oob_teleop_adb.subprocess.run",
     side_effect=FileNotFoundError(),
 )
 def test_adb_device_state_no_adb(mock_run: MagicMock) -> None:
     assert adb_device_state() == ""
 
 
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-    return_value="device",
-)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
 def test_assert_adb_device_online_ok(mock_state: MagicMock) -> None:
     assert_adb_device_online()
 
@@ -299,17 +281,16 @@ def test_assert_adb_device_online_ok(mock_state: MagicMock) -> None:
 )
 def test_assert_adb_device_online_messages(state: str, needle: str) -> None:
     with patch(
-        "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-        return_value=state,
+        "cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value=state
     ):
         with pytest.raises(OobAdbError) as excinfo:
             assert_adb_device_online()
         assert needle.lower() in str(excinfo.value).lower()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state")
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.time.sleep")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.time.sleep")
 def test_assert_adb_device_online_recovers_offline_via_reconnect(
     _mock_sleep: MagicMock, mock_state: MagicMock, mock_run: MagicMock
 ) -> None:
@@ -320,9 +301,9 @@ def test_assert_adb_device_online_recovers_offline_via_reconnect(
     assert cmd == ["adb", "reconnect"]
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state")
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.time.sleep")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.time.sleep")
 def test_assert_adb_device_online_offline_persists(
     _mock_sleep: MagicMock, mock_state: MagicMock, mock_run: MagicMock
 ) -> None:
@@ -332,14 +313,11 @@ def test_assert_adb_device_online_offline_persists(
         assert_adb_device_online()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.time.sleep")
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.time.sleep")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="offline")
 @patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-    return_value="offline",
-)
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.resolve_lan_host_for_oob",
+    "cloudxr_py_test_ns.oob_teleop_adb.resolve_lan_host_for_oob",
     return_value="10.0.0.1",
 )
 def test_run_adb_headset_bookmark_offline_returns_clean_diag(
@@ -356,15 +334,12 @@ def test_run_adb_headset_bookmark_offline_returns_clean_diag(
 # Reverse-setup wraps subprocess errors as OobAdbError --------------------------
 
 
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-    return_value="device",
-)
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="device")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
 def test_setup_adb_reverse_ports_wraps_called_process_error(
     mock_run: MagicMock, _mock_state: MagicMock
 ) -> None:
-    from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import (
+    from cloudxr_py_test_ns.oob_teleop_adb import (
         setup_adb_reverse_ports,
     )
     import subprocess as sp
@@ -379,16 +354,13 @@ def test_setup_adb_reverse_ports_wraps_called_process_error(
     assert "device offline" in msg
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.time.sleep")
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-    return_value="offline",
-)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.time.sleep")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="offline")
 def test_setup_adb_reverse_ports_offline_short_circuits(
     _mock_state: MagicMock, _mock_run: MagicMock, _mock_sleep: MagicMock
 ) -> None:
-    from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import (
+    from cloudxr_py_test_ns.oob_teleop_adb import (
         setup_adb_reverse_ports,
     )
 
@@ -396,16 +368,13 @@ def test_setup_adb_reverse_ports_offline_short_circuits(
         setup_adb_reverse_ports()
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.time.sleep")
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.subprocess.run")
-@patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.adb_device_state",
-    return_value="offline",
-)
+@patch("cloudxr_py_test_ns.oob_teleop_adb.time.sleep")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_adb.adb_device_state", return_value="offline")
 def test_setup_adb_reverse_turn_offline_short_circuits(
     _mock_state: MagicMock, _mock_run: MagicMock, _mock_sleep: MagicMock
 ) -> None:
-    from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import (
+    from cloudxr_py_test_ns.oob_teleop_adb import (
         setup_adb_reverse_turn,
     )
 
@@ -418,7 +387,7 @@ def test_setup_adb_reverse_turn_offline_short_circuits(
 
 import asyncio  # noqa: E402
 
-from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import monitor_headset_wifi  # noqa: E402
+from cloudxr_py_test_ns.oob_teleop_adb import monitor_headset_wifi  # noqa: E402
 
 
 async def test_monitor_headset_wifi_warns_on_drop(capsys) -> None:
@@ -430,7 +399,7 @@ async def test_monitor_headset_wifi_warns_on_drop(capsys) -> None:
         [],
     ]
     with patch(
-        "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.headset_non_loopback_interfaces",
+        "cloudxr_py_test_ns.oob_teleop_adb.headset_non_loopback_interfaces",
         side_effect=lambda: seq.pop(0) if seq else [],
     ):
         task = asyncio.create_task(monitor_headset_wifi(poll_seconds=0.001))
@@ -457,7 +426,7 @@ async def test_monitor_headset_wifi_warns_on_drop(capsys) -> None:
 
 async def test_monitor_headset_wifi_silent_when_steady(capsys) -> None:
     with patch(
-        "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.headset_non_loopback_interfaces",
+        "cloudxr_py_test_ns.oob_teleop_adb.headset_non_loopback_interfaces",
         return_value=[("wlan0", "10.0.0.1")],
     ):
         task = asyncio.create_task(monitor_headset_wifi(poll_seconds=0.001))
@@ -473,10 +442,10 @@ async def test_monitor_headset_wifi_silent_when_steady(capsys) -> None:
 # Coturn watchdog (H7) -------------------------------------------------------
 
 
-from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import watch_coturn  # noqa: E402
+from cloudxr_py_test_ns.oob_teleop_adb import watch_coturn  # noqa: E402
 
 
-from isaacteleop_py_test_ns.cloudxr.oob_teleop_adb import _teleop_error_hint  # noqa: E402
+from cloudxr_py_test_ns.oob_teleop_adb import _teleop_error_hint  # noqa: E402
 
 
 @pytest.mark.parametrize(
@@ -507,12 +476,10 @@ async def test_watch_coturn_restarts_once_then_gives_up(capsys) -> None:
 
     with (
         patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb.start_coturn",
-            return_value=new_proc,
+            "cloudxr_py_test_ns.oob_teleop_adb.start_coturn", return_value=new_proc
         ) as mock_start,
         patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_adb._tail_file",
-            return_value="<log tail>",
+            "cloudxr_py_test_ns.oob_teleop_adb._tail_file", return_value="<log tail>"
         ),
     ):
         task = asyncio.create_task(

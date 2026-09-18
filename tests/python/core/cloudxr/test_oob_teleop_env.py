@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
-import isaacteleop_py_test_ns.cloudxr.oob_teleop_env as oob_teleop_env_under_test
+import cloudxr_py_test_ns.oob_teleop_env as oob_teleop_env_under_test
 import pytest
 
-from isaacteleop_py_test_ns.cloudxr.oob_teleop_env import (
+from cloudxr_py_test_ns.oob_teleop_env import (
     FALLBACK_WEB_CLIENT_ORIGIN,
     TELEOP_WEB_CLIENT_BASE_ENV,
     TELEOP_WEB_CLIENT_STATIC_DIR_ENV,
@@ -34,7 +34,7 @@ from isaacteleop_py_test_ns.cloudxr.oob_teleop_env import (
     web_client_base_override_from_env,
     wss_proxy_port,
 )
-from isaacteleop_py_test_ns.cloudxr.oob_teleop_hub import OOB_WS_PATH
+from cloudxr_py_test_ns.oob_teleop_hub import OOB_WS_PATH
 
 
 @pytest.fixture
@@ -179,7 +179,7 @@ def test_default_web_client_origin_uses_installed_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """default_web_client_origin returns a versioned URL when the package version is known."""
-    import isaacteleop_py_test_ns.cloudxr.oob_teleop_env as mod
+    import cloudxr_py_test_ns.oob_teleop_env as mod
 
     monkeypatch.setattr(mod, "version", lambda _name: "1.4.0", raising=False)
     assert (
@@ -192,7 +192,7 @@ def test_default_web_client_origin_falls_back_when_version_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """default_web_client_origin falls back to FALLBACK_WEB_CLIENT_ORIGIN when the package is not found."""
-    import isaacteleop_py_test_ns.cloudxr.oob_teleop_env as mod
+    import cloudxr_py_test_ns.oob_teleop_env as mod
     from importlib.metadata import PackageNotFoundError
 
     def _raise(_name: str) -> str:
@@ -475,13 +475,13 @@ def test_print_oob_hub_startup_banner(
 
 from unittest.mock import MagicMock, patch  # noqa: E402
 
-from isaacteleop_py_test_ns.cloudxr.oob_teleop_env import (  # noqa: E402
+from cloudxr_py_test_ns.oob_teleop_env import (  # noqa: E402
     _ufw_unallowed_ports,
     print_host_preflight_warnings,
 )
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_env.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_env.subprocess.run")
 def test_ufw_unallowed_ports_inactive_returns_none(mock_run: MagicMock) -> None:
     """ufw inactive → _ufw_unallowed_ports returns None (ufw check skipped)."""
     mock_run.return_value = MagicMock(returncode=0, stdout="Status: inactive\n")
@@ -489,15 +489,14 @@ def test_ufw_unallowed_ports_inactive_returns_none(mock_run: MagicMock) -> None:
 
 
 @patch(
-    "isaacteleop_py_test_ns.cloudxr.oob_teleop_env.subprocess.run",
-    side_effect=FileNotFoundError(),
+    "cloudxr_py_test_ns.oob_teleop_env.subprocess.run", side_effect=FileNotFoundError()
 )
 def test_ufw_unallowed_ports_no_ufw_returns_none(mock_run: MagicMock) -> None:
     """ufw binary not on PATH → _ufw_unallowed_ports returns None."""
     assert _ufw_unallowed_ports([48322]) is None
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_env.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_env.subprocess.run")
 def test_ufw_unallowed_ports_active_with_allow(mock_run: MagicMock) -> None:
     """ufw active with an ALLOW rule for the port → returns an empty list."""
     mock_run.return_value = MagicMock(
@@ -512,7 +511,7 @@ def test_ufw_unallowed_ports_active_with_allow(mock_run: MagicMock) -> None:
     assert _ufw_unallowed_ports([48322]) == []
 
 
-@patch("isaacteleop_py_test_ns.cloudxr.oob_teleop_env.subprocess.run")
+@patch("cloudxr_py_test_ns.oob_teleop_env.subprocess.run")
 def test_ufw_unallowed_ports_active_missing_allow(mock_run: MagicMock) -> None:
     """ufw active but no ALLOW rule for the port → returns a list containing that port."""
     mock_run.return_value = MagicMock(
@@ -529,13 +528,9 @@ def test_ufw_unallowed_ports_active_missing_allow(mock_run: MagicMock) -> None:
 def test_print_host_preflight_warnings_clean(capsys) -> None:
     """No warnings are printed when all ports are free and ufw is not blocking."""
     with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=False),
         patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._port_in_use",
-            return_value=False,
-        ),
-        patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._ufw_unallowed_ports",
-            return_value=None,
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports", return_value=None
         ),
     ):
         print_host_preflight_warnings(usb_local=False)
@@ -545,13 +540,9 @@ def test_print_host_preflight_warnings_clean(capsys) -> None:
 def test_print_host_preflight_warnings_busy_port(capsys) -> None:
     """A busy proxy port prints a warning mentioning the port and PROXY_PORT."""
     with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=True),
         patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._port_in_use",
-            return_value=True,
-        ),
-        patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._ufw_unallowed_ports",
-            return_value=None,
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports", return_value=None
         ),
     ):
         print_host_preflight_warnings(usb_local=False)
@@ -563,12 +554,9 @@ def test_print_host_preflight_warnings_busy_port(capsys) -> None:
 def test_print_host_preflight_warnings_ufw_blocks(capsys) -> None:
     """ufw blocking the proxy port prints a warning with the ufw allow command."""
     with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=False),
         patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._port_in_use",
-            return_value=False,
-        ),
-        patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._ufw_unallowed_ports",
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports",
             return_value=[48322],
         ),
     ):
@@ -581,12 +569,9 @@ def test_print_host_preflight_warnings_ufw_blocks(capsys) -> None:
 def test_print_host_preflight_warnings_skips_ufw_in_usb_local(capsys) -> None:
     """ufw check is skipped entirely in --usb-local mode (loopback-only, no firewall concern)."""
     with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=False),
         patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._port_in_use",
-            return_value=False,
-        ),
-        patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._ufw_unallowed_ports",
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports",
             return_value=[48322],
         ) as mock_ufw,
     ):
@@ -601,13 +586,9 @@ def test_print_host_preflight_warnings_busy_port_usb_local_raises(capsys) -> Non
     # a busy port means streaming can't work, so we fail fast instead of
     # warn-and-continue.
     with (
+        patch("cloudxr_py_test_ns.oob_teleop_env._port_in_use", return_value=True),
         patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._port_in_use",
-            return_value=True,
-        ),
-        patch(
-            "isaacteleop_py_test_ns.cloudxr.oob_teleop_env._ufw_unallowed_ports",
-            return_value=None,
+            "cloudxr_py_test_ns.oob_teleop_env._ufw_unallowed_ports", return_value=None
         ),
         pytest.raises(RuntimeError, match="USB-local: required port"),
     ):

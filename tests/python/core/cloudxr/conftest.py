@@ -4,24 +4,8 @@
 """Make CloudXR python sources importable without installing ``isaacteleop``.
 
 * Flat ``sys.path`` entry: ``from oob_teleop_hub import …`` (no relative imports).
-* Synthetic package ``isaacteleop_py_test_ns.cloudxr``:
-  ``from isaacteleop_py_test_ns.cloudxr.oob_teleop_env import …`` so modules that
-  use relative imports load correctly.
-
-The synthetic package has two levels because the real one does. A relative
-import is resolved against the loaded module's ``__package__``, by dropping
-``level - 1`` trailing components from it -- so ``from .. import x`` inside
-``isaacteleop.cloudxr.wss`` reaches ``isaacteleop``, and the same line inside a
-module loaded under a one-level package has nothing left to drop and raises
-``attempted relative import beyond top-level package``. Mirroring the real
-shape is what makes a module behave here exactly as it does in the package;
-a flatter stand-in silently constrains what the source file is allowed to say.
-
-The parent's ``__path__`` points at ``src/python/isaacteleop``, so a sibling
-subpackage a cloudxr module reaches for -- ``logging_config`` today -- resolves
-to the real source. Nothing executes ``isaacteleop/__init__.py``: these are
-plain module objects carrying a ``__path__``, so the eager import list in that
-file, and the compiled extensions it pulls in, stay out of the way.
+* Synthetic package ``cloudxr_py_test_ns``: ``from cloudxr_py_test_ns.oob_teleop_env import …``
+  so modules that use sibling relative imports load correctly.
 """
 
 from __future__ import annotations
@@ -46,30 +30,15 @@ _CLOUDXR_PY = repo_root() / "src" / "python" / "isaacteleop" / "cloudxr"
 if _CLOUDXR_PY.is_dir() and str(_CLOUDXR_PY) not in sys.path:
     sys.path.insert(0, str(_CLOUDXR_PY))
 
-ISAACTELEOP_TEST_PKG = "isaacteleop_py_test_ns"
-CLOUDXR_TEST_PKG = f"{ISAACTELEOP_TEST_PKG}.cloudxr"
-
-
-def _synthetic_package(name: str, source_dir: Path) -> types.ModuleType:
-    """Register *name* as a package whose submodules come from *source_dir*.
-
-    A module object with a ``__path__`` is all the import system needs to treat
-    it as a package; the directory's own ``__init__.py`` is never run.
-    """
-    pkg = types.ModuleType(name)
-    pkg.__path__ = [str(source_dir)]
-    sys.modules[name] = pkg
-    parent, _, leaf = name.rpartition(".")
-    if parent:
-        setattr(sys.modules[parent], leaf, pkg)
-    return pkg
+CLOUDXR_TEST_PKG = "cloudxr_py_test_ns"
 
 
 def _ensure_cloudxr_package() -> None:
     if CLOUDXR_TEST_PKG in sys.modules:
         return
-    _synthetic_package(ISAACTELEOP_TEST_PKG, _CLOUDXR_PY.parent)
-    _synthetic_package(CLOUDXR_TEST_PKG, _CLOUDXR_PY)
+    pkg = types.ModuleType(CLOUDXR_TEST_PKG)
+    pkg.__path__ = [str(_CLOUDXR_PY)]
+    sys.modules[CLOUDXR_TEST_PKG] = pkg
 
     def load(mod: str) -> None:
         full = f"{CLOUDXR_TEST_PKG}.{mod}"
