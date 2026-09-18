@@ -449,7 +449,7 @@ Environment variables
    * - ``TELEOP_PROXY_HOST``
      - Override the LAN IP used for headset bookmark URLs
    * - ``TELEOP_WEB_CLIENT_BASE``
-     - Override the web client origin URL
+     - Override the web client origin in headset bookmark URLs
    * - ``TELEOP_STREAM_PORT``
      - Override the signaling port (default same as proxy port)
    * - ``TELEOP_CLIENT_CODEC``
