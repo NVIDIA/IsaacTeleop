@@ -400,6 +400,7 @@ def _fresh_capture(monkeypatch, tmp_path):
     monkeypatch.setattr(_native_fd, "_saved", {})
     monkeypatch.setattr(_native_fd, "_pre_scope_streams", {})
     monkeypatch.setattr(_native_fd, "_depth", 0)
+    monkeypatch.setattr(_native_fd, "_process_hold", False)
     monkeypatch.setattr(_native_fd, "_mode", _native_fd.MODE_SCOPED)
     yield tmp_path
 
@@ -503,10 +504,72 @@ def test_capture_mode_process_rebinds_for_the_whole_process(
         os.dup2(saved_err, 2)
         os.close(saved_out)
         os.close(saved_err)
-        _native_fd._depth = 0
+        _native_fd._process_hold = False
     captures = list(_fresh_capture.glob("*.native.log"))
     assert len(captures) == 1, captures
     assert captures[0].read_text() == "process-wide\n"
+
+
+@_posix_only
+def test_switching_to_process_mode_at_runtime_rebinds_immediately(
+    _fresh_capture, monkeypatch
+):
+    """The setter applies the transition rather than only recording it.
+
+    A host can call it only after ``import isaacteleop``, which is already past
+    the ``gate()`` that used to be the one place mode ``process`` could ever
+    take hold. Recording the mode without rebinding left
+    ``native_capture_mode()`` answering ``process`` while nothing had been
+    redirected, and the child processes that inherited the exported variable
+    captured while their parent did not.
+    """
+    monkeypatch.delenv(_native_fd.CAPTURE_MODE_ENV, raising=False)
+    saved_out, saved_err = os.dup(1), os.dup(2)
+    try:
+        logging_config.set_native_capture_mode("process")
+        assert logging_config.native_capture_mode() == "process"
+        os.write(1, b"after-the-switch\n")
+        logging_config.set_native_capture_mode("scoped")
+        os.write(1, b"after-the-switch-back\n")
+    finally:
+        os.dup2(saved_out, 1)
+        os.dup2(saved_err, 2)
+        os.close(saved_out)
+        os.close(saved_err)
+        _native_fd._process_hold = False
+
+    captures = list(_fresh_capture.glob("*.native.log"))
+    assert len(captures) == 1, captures
+    assert captures[0].read_text() == "after-the-switch\n"
+
+
+@_posix_only
+def test_switching_to_process_mode_inside_a_scope_survives_the_scope(
+    _fresh_capture, monkeypatch
+):
+    """The scope counter and the permanent binding are deliberately separate.
+
+    Sharing one counter would make the block's exit restore the descriptors the
+    host had just asked, mid-block, to keep rebound.
+    """
+    monkeypatch.delenv(_native_fd.CAPTURE_MODE_ENV, raising=False)
+    saved_out, saved_err = os.dup(1), os.dup(2)
+    try:
+        with logging_config.capture_native_output():
+            os.write(1, b"inside\n")
+            logging_config.set_native_capture_mode("process")
+        os.write(1, b"after\n")
+    finally:
+        os.dup2(saved_out, 1)
+        os.dup2(saved_err, 2)
+        os.close(saved_out)
+        os.close(saved_err)
+        _native_fd._process_hold = False
+        _native_fd._depth = 0
+
+    captures = list(_fresh_capture.glob("*.native.log"))
+    assert len(captures) == 1, captures
+    assert captures[0].read_text() == "inside\nafter\n"
 
 
 @_posix_only

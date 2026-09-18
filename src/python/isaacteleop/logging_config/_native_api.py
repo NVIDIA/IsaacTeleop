@@ -101,14 +101,17 @@ def set_native_capture_mode(mode: str) -> None:
         ask for, because it also captures the host's own raw writes and every
         subprocess the host starts afterwards.
 
-    Equivalent to the ``ISAACTELEOP_NATIVE_CAPTURE`` environment variable, which
-    a host can set before ``import isaacteleop``; this call also exports it, so
-    child processes inherit the choice.
+    Takes effect in this process immediately, and exports
+    ``ISAACTELEOP_NATIVE_CAPTURE`` so child processes inherit the choice.
+    Switching to ``"process"`` rebinds fd 1 and fd 2 on return; switching away
+    from it restores them, unless a :func:`capture_native_output` block is open,
+    in which case that block's exit does. The environment variable is the same
+    switch for a host that would rather decide before ``import isaacteleop``.
 
     Raises:
         ValueError: if *mode* is not one of the three names above.
     """
-    _native_fd.set_mode(mode)
+    _native_fd.set_mode(mode, _console.ensure_handler())
 
 
 def set_native_echo(enabled: bool | None) -> None:
