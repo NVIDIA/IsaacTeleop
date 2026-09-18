@@ -14,8 +14,8 @@ import math
 
 import pytest
 
-from placements import PlacementConfig, build
-from placements._math import rotate_vec
+from isaacteleop_examples.camera_viz.placements import PlacementConfig, build
+from isaacteleop_examples.camera_viz.placements._math import rotate_vec
 
 MODES = ("world", "head", "gimbal", "lazy")
 
