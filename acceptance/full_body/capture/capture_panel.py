@@ -26,8 +26,12 @@ from pathlib import Path
 import viser
 
 from isaacteleop.cloudxr import CloudXRLauncher, NoopContext
-from isaacteleop.deviceio import McapRecordingConfig
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaacteleop.deviceio import McapRecordingConfig, TrackerVendor
+from isaacteleop.teleop_session_manager import (
+    PluginConfig,
+    TeleopSession,
+    TeleopSessionConfig,
+)
 
 from full_body_acceptance.frames import NUM_JOINTS, Frame
 from full_body_acceptance.panel.app import Skeleton
@@ -59,6 +63,11 @@ DEFAULT_PORT = 8081
 # panel does not take. Pixels, not a fraction of the window: tune it for the operator's
 # display, or drag the panel's inner edge, which overrides this.
 PANEL_WIDTH_PX = 480
+
+# How long the take may run with no valid joint before the panel names the causes. Long
+# enough to cover a plugin's cold start and its connection to the device's data server,
+# which happen after the button is pressed. Nothing is stopped when it elapses.
+NO_DATA_S = 10.0
 
 
 class HeldJoints:
@@ -102,10 +111,14 @@ class CapturePanel:
         server: viser.ViserServer,
         launcher: CloudXRLauncher | NoopContext,
         recording: Path,
+        vendor: TrackerVendor | None = None,
+        plugins: tuple[PluginConfig, ...] = (),
     ) -> None:
         self._server = server
         self._launcher = launcher
         self._recording = recording
+        self._vendor = vendor
+        self._plugins = plugins
         self._spoken = {label: cues.wav(label, text) for label, _, text in STEPS}
         self._cue_process: subprocess.Popen | None = None
         self._armed = threading.Event()
@@ -128,6 +141,22 @@ class CapturePanel:
         server.initial_camera.look_at = (0.0, 0.9, 0.0)
         self._skeleton = Skeleton(server, FULL_BODY)
         self._build_gui()
+        self._build_warning()
+
+    def _build_warning(self) -> None:
+        """The no-data causes, parked at the canvas's bottom-left until they apply.
+
+        Floated rather than docked so it costs the skeleton no width, and floating
+        costs no visibility either: it is only ever shown when no skeleton is being
+        drawn. ``float`` measures from the canvas, so it cannot land under the
+        right-docked control panel.
+        """
+        panel = self._server.gui.add_panel(visible=False)
+        panel.float(x=20, y=-20, width=440)
+        with panel.add_tab("No data"):
+            self._warning_text = self._server.gui.add_html("")
+        self._warning = panel
+        self._warned = False
 
     def _build_gui(self) -> None:
         gui = self._server.gui
@@ -199,10 +228,11 @@ class CapturePanel:
             time.sleep(0.5)
 
     def _record(self) -> None:
-        pipeline, body = build_pipeline()
+        pipeline, body = build_pipeline(self._vendor)
         config = TeleopSessionConfig(
             app_name="FullBodyAcceptanceCapture",
             pipeline=pipeline,
+            plugins=list(self._plugins),
             mcap_config=McapRecordingConfig(str(self._recording)),
         )
         take = Take(
@@ -249,12 +279,28 @@ class CapturePanel:
             if now - drawn > GUI_PERIOD_S:
                 drawn = now
                 self._draw_sidebar(take, now, now - started, held.ever_valid)
+                self._warn(held.ever_valid, now - started)
 
             if take.phase is Phase.DONE:
                 finished_at = finished_at or now
                 if now - finished_at > TAIL_S:
                     return
             time.sleep(STEP_PERIOD_S)
+
+    def _warn(self, ever_valid: bool, elapsed_s: float) -> None:
+        """Show the causes once the take has run this long with nothing valid.
+
+        Advisory only: the take keeps running, the file keeps being written, and the
+        first valid frame both starts the script and takes this back down. Nothing
+        here decides anything -- the operator does.
+        """
+        show = not ever_valid and elapsed_s > NO_DATA_S
+        if show and not self._warned:
+            self._warned = True
+            vendor = None if self._vendor is None else self._vendor.id
+            self._warning_text.content = render.no_data(NO_DATA_S, vendor)
+            print(f"[capture] no body data after {NO_DATA_S:.0f}s", file=sys.stderr)
+        self._warning.visible = show
 
     def _play(self, sound: Sound | None, take: Take) -> None:
         if sound is Sound.CUE:
@@ -306,6 +352,55 @@ class CapturePanel:
             print(f"    {'ok  ' if ok else 'BAD '} {label:<24} {detail}")
 
 
+def _vendor(
+    parser: argparse.ArgumentParser, vendor_id: str | None, params: list[str]
+) -> TrackerVendor | None:
+    pairs: dict[str, str] = {}
+    for item in params:
+        key, separator, value = item.partition("=")
+        if not separator or not key:
+            parser.error(f"--vendor-param wants KEY=VALUE, got {item!r}")
+        pairs[key] = value
+    if vendor_id is None:
+        if pairs:
+            parser.error("--vendor-param needs --vendor")
+        return None
+    print(f"[capture] full body from {vendor_id} {pairs or ''}".rstrip())
+    return TrackerVendor(vendor_id, pairs)
+
+
+def _plugins(
+    parser: argparse.ArgumentParser, names: list[str]
+) -> tuple[PluginConfig, ...]:
+    """Plugin processes the session launches, searched for the way the examples do."""
+    if not names:
+        return ()
+    repo = Path(__file__).resolve().parents[3]
+    roots = [
+        path
+        for path in (repo / "plugins", repo / "install" / "plugins")
+        if path.is_dir()
+    ]
+    if not roots:
+        parser.error(
+            f"--plugin given but neither {repo}/plugins nor {repo}/install/plugins "
+            "exists; run `cmake --install build`"
+        )
+    for name in names:
+        print(f"[capture] plugin {name}")
+    # required, because a plugin that quietly fails to load records a take with no body
+    # data in it -- which is the one outcome this panel exists to prevent.
+    return tuple(
+        PluginConfig(
+            plugin_name=name,
+            plugin_root_id=name,
+            search_paths=roots,
+            required=True,
+        )
+        for name in names
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="capture-panel", description=__doc__)
     parser.add_argument("output", type=Path, help="where to write the take")
@@ -315,8 +410,29 @@ def main(argv: list[str] | None = None) -> int:
         help="bind address (default: all interfaces, so the headset can reach it)",
     )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument(
+        "--vendor",
+        help="full-body backend id, e.g. body.noitom (default: the tracker's own "
+        "body.pico-xr)",
+    )
+    parser.add_argument(
+        "--vendor-param",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="parameter for --vendor, repeatable, e.g. collection_id=noitom_mocap",
+    )
+    parser.add_argument(
+        "--plugin",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="plugin to launch for the session, repeatable, e.g. noitom_mocap",
+    )
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv)
+    vendor = _vendor(parser, args.vendor, args.vendor_param)
+    plugins = _plugins(parser, args.plugin)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with CloudXRLauncher.launch_context(args) as launcher:
@@ -329,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
         # necessarily where it landed.
         print(f"[capture] http://localhost:{server.get_port()}")
         try:
-            CapturePanel(server, launcher, args.output).run()
+            CapturePanel(server, launcher, args.output, vendor, plugins).run()
         except KeyboardInterrupt:
             pass
         finally:

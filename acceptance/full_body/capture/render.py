@@ -215,6 +215,43 @@ def joints(valid: int, total: int, held: Sequence[str], ever_valid: bool) -> str
     )
 
 
+def no_data(seconds: float, vendor: str | None) -> str:
+    """Causes to work through when no joint has ever been valid.
+
+    Listed rather than diagnosed: the panel cannot see the headset's browser, the
+    plugin's process or the suit, so naming one cause would be a guess. Which list
+    appears depends on where the joints were supposed to come from -- a plugin's
+    failures mean nothing to a PICO operator and the reverse holds too.
+    """
+    if vendor is None:
+        causes = (
+            "The headset is not streaming, or the session dropped.",
+            "The browser has no WebXR body tracking. Use the headset's own browser; "
+            "on a consumer PICO 4 Ultra it needs no enterprise activation.",
+            "The performer is out of the tracked area.",
+        )
+    else:
+        causes = (
+            f"The {vendor} plugin is not running, or it exited. Check its terminal.",
+            "The plugin cannot reach the device's data server.",
+            "The plugin is pushing to a different collection_id than --vendor-param "
+            "asked for. A mismatch looks exactly like this.",
+            "The suit or gloves are off, unpaired, or uncalibrated.",
+        )
+    items = "".join(
+        f'<li style="margin:0 0 4px">{escape(cause)}</li>' for cause in causes
+    )
+    return (
+        f'<div style="background:#fcebeb;border:1px solid #e0a9a4;border-radius:5px;'
+        f'padding:9px 12px;color:#501313">'
+        f'<div style="font-size:14px;font-weight:700;margin:0 0 6px">'
+        f"No body data after {seconds:.0f} s</div>"
+        f'<div style="font-size:12px;margin:0 0 6px">The take is still running and '
+        f"nothing has been lost. It starts at the first valid frame.</div>"
+        f'<ul style="font-size:12px;margin:0;padding-left:16px">{items}</ul></div>'
+    )
+
+
 def _names(labels: Sequence[str]) -> str:
     # Joined after escaping, so the separator's own entity survives.
     return " &middot; ".join(escape(label) for label in labels)

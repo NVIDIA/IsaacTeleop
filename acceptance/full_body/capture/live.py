@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from isaacteleop.deviceio import TrackerVendor
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     FullBodySource,
@@ -39,15 +40,22 @@ class LiveStep:
     pressed: bool
 
 
-def build_pipeline() -> tuple[OutputCombiner, FullBodySource]:
+def build_pipeline(
+    vendor: TrackerVendor | None = None,
+) -> tuple[OutputCombiner, FullBodySource]:
     """The body channel the take is about, and the controllers channel beside it.
 
     The controllers are not decoration: the trigger is one of the two inputs that open
     a window, and recording the channel is the only thing that makes a trigger-opened
-    boundary checkable against the take itself afterwards.
+    boundary checkable against the take itself afterwards. A mocap suit has none, and
+    the take then runs on the key press alone.
+
+    ``FullBodyTracker`` is vendor-agnostic; ``None`` selects its default ``body.pico-xr``
+    backend, which reads the PICO ``XR_BD_body_tracking`` extension. Any other vendor
+    arrives from a plugin and needs that plugin running -- see ``--plugin``.
     """
     controllers = ControllersSource(name="controllers")
-    body = FullBodySource(name="full_body")
+    body = FullBodySource(name="full_body", vendor=vendor)
     pipeline = OutputCombiner(
         {
             "controller_left": controllers.output(ControllersSource.LEFT),
