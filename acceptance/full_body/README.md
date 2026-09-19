@@ -24,11 +24,11 @@ Nothing under [`capture/`](capture) is meant to be read or edited — see
 - **`aplay`** — the spoken cues go through it. It comes from `alsa-utils`
   (`apt install alsa-utils` on Debian or Ubuntu). Install it before your first take: a
   missing `aplay` currently fails part way into the recording rather than at startup.
-- **A headset with body tracking**, plus CloudXR installed (by default at `~/.cloudxr`)
-  — see [Get the headset streaming](#get-the-headset-streaming). Driving the body from
-  your own device instead does **not** remove the headset: the head pose and the
-  controller trigger still come through it. See
-  [Recording from your own device](#recording-from-your-own-device).
+- **A headset**, plus CloudXR installed (by default at `~/.cloudxr`) — see
+  [Get the headset streaming](#get-the-headset-streaming). It has to be connected even
+  when your own device produces the joints, because the OpenXR session comes from
+  CloudXR. **Body tracking** on the headset is needed only where the headset is also
+  the body source.
 - **A performer who can stand up and follow spoken instructions.** Two people is easier
   than one — see the note about the space bar below.
 
@@ -46,6 +46,14 @@ Both are idempotent and write nothing outside their own directory. Re-run them a
 pulling.
 
 ## Get the headset streaming
+
+**Every take needs this, including one whose joints come from your own device.** CloudXR
+is the OpenXR runtime the capture itself runs on, and it has no system to hand out until
+a headset has loaded the web client and pressed CONNECT. Skipping it does not raise:
+**Start recording** blocks inside session creation, logging `OpenXR HMD form factor is
+unavailable; waiting for a system...` once a second, and Python does not take Ctrl+C
+there. Recording with no headset at all is possible but untried — see
+[Recording from your own device](#recording-from-your-own-device).
 
 Every `isaacteleop` command below runs under the interpreter `capture/setup_env.sh`
 built. Nothing else on the host has the package, and Ubuntu has no bare `python` at all.
@@ -105,10 +113,11 @@ Two references worth having open the first time:
 - [`docs/source/references/cloudxr.rst`](../../docs/source/references/cloudxr.rst) —
   device profiles, foreground vs detached service, out-of-band and USB-only setups.
 - [`docs/source/device/body_tracking.rst`](../../docs/source/device/body_tracking.rst)
-  — which PICO Motion Tracker configurations are supported (5, 3 or 2 trackers), how to
-  calibrate them, and what body tracking needs from the headset. **Read this before your
-  first take**: without body tracking the recording contains no usable joints and only
-  the container checks can run.
+  — PICO only, and skippable if your joints come from elsewhere: which Motion Tracker
+  configurations are supported (5, 3 or 2 trackers), how to calibrate them, and what
+  body tracking needs from the headset. **Read it before your first PICO take**, since
+  without body tracking the recording holds no usable joints and only the container
+  checks can run.
 
 ## Recording from your own device
 
@@ -132,11 +141,18 @@ acceptance/full_body/capture/record.sh mysuit \
 - `--vendor-param KEY=VALUE` is repeatable and free-form. `collection_id` must match
   what the plugin publishes under; a mismatch records an empty take and looks exactly
   like a device that never connected.
-- **The headset stays in the loop**, for the head pose and the controllers. A suit has
-  no trigger, so the performer opens every window with the space bar alone.
+- **A headset still has to be connected.** Not for the joints — for the OpenXR session,
+  which CloudXR will not create until one is. A suit has no trigger either, so the
+  performer opens every window with the space bar alone.
 
 Everything in [Record](#record) below then applies unchanged, and so does the checker:
 it reads the recorded `full_body` channel and never asks what produced it.
+
+Dropping the headset means handing the process a different OpenXR runtime:
+`--no-launch-cloudxr-runtime` leaves `XR_RUNTIME_JSON` alone, so a system runtime such
+as Monado serves the session instead. It is documented under *Use a system OpenXR
+runtime* in [`cloudxr.rst`](../../docs/source/references/cloudxr.rst) and has never been
+tried for a take — ask us rather than budgeting for it.
 
 **No full-body plugin ships in this tree and this path is not yet exercised end to end.**
 `install/plugins/` holds controller, pedal and leader-arm plugins, and the registry has
@@ -236,7 +252,8 @@ verdict and packaging a take to send.
 | `missing …/.venv; run …/setup_env.sh` | Run the two setup scripts above. |
 | `no isaacteleop wheel in …/wheels; build the repo first` | Build the project, then re-run `capture/setup_env.sh`. |
 | `run …/checker/setup_env.sh first` | You ran the two setup scripts in the wrong order. |
-| **the session did not open**, on the panel | CloudXR could not start or the headset is not connected. The message names the reason. Nothing was recorded; fix it and run `record.sh` again. |
+| **the session did not open**, on the panel | CloudXR could not start, or a `--plugin` failed to load. The message names the reason. Nothing was recorded; fix it and run `record.sh` again. |
+| **Start recording** does nothing and the terminal repeats `waiting for a system` | No headset is connected to the runtime, so there is no OpenXR system yet. Connect it as above and the take goes on by itself. Ctrl+C is not delivered during that wait — close the terminal if you need out. |
 | The client page loads but CONNECT does nothing | The headset has not accepted the runtime's self-signed certificate. Open `https://<this-host>:48322/` in the headset browser, click through the warning, then go back to the client. Failing that: same subnet, and the host firewall allows 48322. |
 | The service prints `running` but a second one will not start | The runtime is a host singleton on 48322. One is already up — `service status` names it, `service stop` ends a detached one, Ctrl+C a foreground one. |
 | **body_tracking is off**, in the cue column | On PICO this is the browser, not the hardware or a licence: use the headset's own browser, which grants WebXR body tracking on a consumer 4 Ultra. |
