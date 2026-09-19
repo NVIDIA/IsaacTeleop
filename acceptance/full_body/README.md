@@ -9,15 +9,12 @@ One recording of a prescribed ten-step motion script, plus the label sidecar tha
 [the checker](checker/README.md) reads. A panel in your browser tells the performer
 what to do; they press a button once they are in each pose.
 
-**Linux only.** Recording drives the device through Isaac Teleop, which is a Linux
-project — it is built and tested on Ubuntu and its wheel is `linux_x86_64`. There is no
-macOS or Windows path to recording a take, and there is no plan for one. The checker
-that reads the take back afterwards has no such constraint: it runs on Linux and macOS
-alike, so a take recorded here can be verified anywhere.
+**Linux only**, with no plan otherwise: recording goes through Isaac Teleop, whose wheel
+is `linux_x86_64`. The checker has no such constraint, so a take recorded here can be
+verified on macOS too.
 
-You do not need to read any of the code under [`capture/`](capture), and nothing in
-there is meant to be edited — see [Do not edit the script](#do-not-edit-the-script) at
-the end.
+Nothing under [`capture/`](capture) is meant to be read or edited — see
+[Do not edit the script](#do-not-edit-the-script).
 
 ## Before you start
 
@@ -27,8 +24,11 @@ the end.
 - **`aplay`** — the spoken cues go through it. It comes from `alsa-utils`
   (`apt install alsa-utils` on Debian or Ubuntu). Install it before your first take: a
   missing `aplay` currently fails part way into the recording rather than at startup.
-- **A headset with body tracking**, plus CloudXR installed (by default at `~/.cloudxr`).
-  See [Get the headset streaming](#get-the-headset-streaming) below.
+- **A headset with body tracking**, plus CloudXR installed (by default at `~/.cloudxr`)
+  — see [Get the headset streaming](#get-the-headset-streaming). Driving the body from
+  your own device instead does **not** remove the headset: the head pose and the
+  controller trigger still come through it. See
+  [Recording from your own device](#recording-from-your-own-device).
 - **A performer who can stand up and follow spoken instructions.** Two people is easier
   than one — see the note about the space bar below.
 
@@ -48,8 +48,7 @@ pulling.
 ## Get the headset streaming
 
 Every `isaacteleop` command below runs under the interpreter `capture/setup_env.sh`
-built. It is the only Python here that has the package — a bare `python` does not, and
-on Ubuntu there is usually no `python` at all.
+built. Nothing else on the host has the package, and Ubuntu has no bare `python` at all.
 
 ```bash
 PY=acceptance/full_body/capture/.venv/bin/python
@@ -61,8 +60,8 @@ PY=acceptance/full_body/capture/.venv/bin/python
 $PY -m isaacteleop.cloudxr.service run --accept-eula
 ```
 
-Acceptance is remembered in `~/.cloudxr/run/eula_accepted`, so it is needed once per
-install directory, not once per take.
+It is remembered in `~/.cloudxr/run/eula_accepted`, so that is once per install
+directory, not once per take.
 
 **Start the service in a terminal of its own and leave it open.**
 
@@ -70,40 +69,36 @@ install directory, not once per take.
 $PY -m isaacteleop.cloudxr.service run
 ```
 
-`run` stays in the foreground and prints the runtime's log, so a headset that will not
-connect says why where you are already looking; Ctrl+C stops it. `start` is the same
-service detached, with `stop`, `status` and `logs` beside it. The runtime is a host
-singleton on port 48322 — run one form or the other, never both.
+`run` is the foreground form and prints the runtime's log, which is where a headset that
+will not connect says why; Ctrl+C stops it. `start` is the same service detached, with
+`stop`, `status` and `logs` beside it. The runtime is a host singleton on port 48322, so
+run one form or the other, never both. `record.sh` starts its own when nothing is up,
+but a runtime takes tens of seconds to come up and one of these outlives any number of
+takes.
 
-`record.sh` attaches to whatever runtime is up and starts its own when there is none, so
-this terminal is a convenience. It is worth having: the runtime takes tens of seconds to
-come up and one of these outlives any number of takes.
-
-**Connect the headset over Wi-Fi.** The panel receives nothing until the headset is
-streaming, and sits at *waiting for a frame with valid joints* until it is. Put the
-headset on the same subnet as this host, then
+**Connect the headset over Wi-Fi.** Nothing reaches the panel until this is done, and it
+sits at *waiting for a frame with valid joints* meanwhile. Put the headset on the same
+subnet as this host, then
 
 ```bash
 $PY -m isaacteleop.cloudxr.webclient --print-only
 ```
 
-That prints two things: the streaming target `https://<this-host>:48322/` and the client
-URL with that address and port already filled in.
+That prints the streaming target `https://<this-host>:48322/` and the client URL with
+that address already filled in. **Open the streaming target in the headset's browser
+first and accept the self-signed certificate** — until you have, the client page loads
+normally and CONNECT fails with nothing in either log. Then open the client URL and
+press CONNECT.
 
-**Open the streaming target in the headset's browser first and accept the self-signed
-certificate.** Until you have, the client page loads normally and CONNECT fails with
-nothing in either log. Then open the client URL and press CONNECT.
+Without `--print-only` the same command types that URL into the headset over USB `adb`,
+which saves the typing and needs USB debugging authorised. The cable carries `adb`,
+never the video. Re-run either form whenever the headset browser gets closed; it does
+not disturb a running take.
 
-Dropping `--print-only` types the client URL into the headset for you over USB `adb`,
-which saves the typing and needs USB debugging authorised on the headset. It changes
-nothing about how the session streams — the cable is for `adb`, not for the video. Re-run
-either form whenever the headset browser gets closed or navigated away; it does not
-disturb a running take.
-
-Anything `record.sh` does not itself understand is passed through to the panel, so the
-runtime flags work from there too — `--cloudxr-install-dir` (default `~/.cloudxr`) and
-`--cloudxr-device-profile` (default `Quest3`) among them. Run
-`capture_panel.py --help` for the full list.
+`record.sh` passes anything it does not understand through to the panel, so the runtime
+flags work from there too — `--cloudxr-install-dir` (default `~/.cloudxr`),
+`--cloudxr-device-profile` (default `Quest3`), and the rest of
+`capture_panel.py --help`.
 
 Two references worth having open the first time:
 
@@ -115,12 +110,12 @@ Two references worth having open the first time:
   first take**: without body tracking the recording contains no usable joints and only
   the container checks can run.
 
-## Recording from a device you integrated yourself
+## Recording from your own device
 
-The joints come from the headset's own `body.pico-xr` backend unless you say otherwise. A
-suit, gloves or any other full-body device arrives instead as a **vendor**, a backend id
-the session resolves when it is constructed, fed by a **plugin** process the session
-launches. Both are `capture_panel.py` flags, so `record.sh` passes them through:
+The joints come from the headset's own `body.pico-xr` backend unless you say otherwise.
+Another full-body device arrives as a **vendor**, a backend id the session resolves when
+it is constructed, fed by a **plugin** process the session launches. Both are
+`capture_panel.py` flags, and `record.sh` passes them through:
 
 ```bash
 acceptance/full_body/capture/record.sh mysuit \
@@ -129,29 +124,25 @@ acceptance/full_body/capture/record.sh mysuit \
     --vendor-param collection_id=my_body
 ```
 
-- `--plugin NAME` names a directory under `plugins/` or `install/plugins/`, so the plugin
-  must be installed (`cmake --install build`) before the take. It is launched as
-  required: a plugin that fails to load stops the take instead of recording a file with
-  no body in it.
-- `--vendor ID` selects the backend from the live factory's vendor registry. An unknown
-  id is rejected at session construction, not at the first frame.
-- `--vendor-param KEY=VALUE` is repeatable and free-form. `collection_id` has to match
+- `--plugin NAME` names a directory under `plugins/` or `install/plugins/`, so the
+  plugin must be installed (`cmake --install build`) first. It is launched as required:
+  one that fails to load stops the take rather than recording a file with no body in it.
+- `--vendor ID` is rejected at session construction if the registry does not know it,
+  not at the first frame.
+- `--vendor-param KEY=VALUE` is repeatable and free-form. `collection_id` must match
   what the plugin publishes under; a mismatch records an empty take and looks exactly
   like a device that never connected.
-- CloudXR still runs, because the head pose and the controllers come through it. A suit
-  has no trigger, so the performer opens every window with the space bar.
+- **The headset stays in the loop**, for the head pose and the controllers. A suit has
+  no trigger, so the performer opens every window with the space bar alone.
 
-The device name is the first argument and only decides where the take lands, so
-`mysuit` above gives `~/isaacteleop-captures/mysuit_<date>_<time>/`. The checker judges
-the result identically either way: it reads the recorded `full_body` channel and never
-asks what produced it.
+Everything in [Record](#record) below then applies unchanged, and so does the checker:
+it reads the recorded `full_body` channel and never asks what produced it.
 
 **No full-body plugin ships in this tree and this path is not yet exercised end to end.**
-`install/plugins/` holds controller, pedal and leader-arm plugins, and the vendor registry
-has the one entry. Writing the backend and its plugin comes first —
+`install/plugins/` holds controller, pedal and leader-arm plugins, and the registry has
+the one vendor. Write the backend and its plugin first —
 [`docs/source/device/trackers.rst`](../../docs/source/device/trackers.rst) under *Vendor
-Selection* is the reference. Tell us before planning a take around this rather than
-working from `--help`.
+Selection* — and tell us before planning a take around this.
 
 ## Record
 
@@ -160,8 +151,7 @@ acceptance/full_body/capture/record.sh pico4u
 ```
 
 The argument names the device and only decides where the files land; `pico4u` is the
-default. On the first run CloudXR asks you to accept its EULA — pass `--accept-eula`
-after the device name to skip the prompt.
+default.
 
 Open the panel at <http://localhost:8081>. It binds every interface, so the headset's
 own browser can reach it at `http://<your-host>:8081` as well.
@@ -202,14 +192,13 @@ If the performer already knows the pose, they can press during the spoken cue to
 short and go straight to waiting.
 
 After the tenth pose the recording closes, *"Done. You can stop now."* plays, and the
-panel reports what the labels came out as. The first few rows are about the file itself
-— how many records it holds, whether every one carries a timestamp, whether all ten
-windows resolved. The rows after those are named after the steps, and each one
-re-derives that pose from the recording, so a `BAD` there means the window does not hold
-the pose it claims. How many are `BAD` is what says whose fault it is: one row against
-otherwise good ones is that step, pressed at the wrong moment or performed wrongly. Most
-of them at once, with degenerate numbers like `pelvis drops 0 cm`, is the joint stream,
-and recording again reproduces it exactly.
+panel reports what the labels came out as. The first rows are about the file — record
+count, timestamps, whether all ten windows resolved. The rest are named after the steps
+and re-derive that pose from the recording, so a `BAD` means the window does not hold
+the pose it claims. How many are `BAD` says whose fault it is: one against otherwise
+good ones is that step, pressed at the wrong moment or performed wrongly; most of them
+at once, with degenerate numbers like `pelvis drops 0 cm`, is the joint stream, and
+recording again reproduces it exactly.
 
 The process keeps serving the report; Ctrl+C when you have read it.
 
@@ -227,16 +216,14 @@ pico4u_2026-03-04_101530/pico4u_2026-03-04_101530-g4.mcap          the recording
 
 Nothing is ever overwritten. Run `record.sh` again for another take and both are kept.
 
-All four files belong together, which is why they share a directory and why they repeat
-its name: sending a take is sending the directory, and the recording still says what it
-is once it is out of there. The labels **cannot** be regenerated from the recording
-afterwards, so keep them beside it.
+The four files travel together, which is why they share a directory and repeat its name:
+sending a take is sending the directory, and the recording still says what it is once it
+is out of there. The labels **cannot** be regenerated afterwards.
 
-There is deliberately no `latest` shortcut to the newest take. The checker finds the
-labels at `<recording>.labels.json` **as you spelled the recording**, so any alias to one
-finds no labels beside itself: measured on a real take, the true path reports `retake`
-while a symlink to it reports `pass` with thirteen G4 checks silently unanswered. Give
-the full path.
+There is deliberately no `latest` shortcut, and do not make one. The checker looks for
+the labels at `<recording>.labels.json` **as you spelled the recording**, so a symlink
+finds none beside itself and turns a `retake` into a `pass` with thirteen G4 checks
+silently unanswered. Give the full path.
 
 Then run the checks — [`checker/README.md`](checker/README.md) covers reading the
 verdict and packaging a take to send.
