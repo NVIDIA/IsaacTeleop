@@ -9,29 +9,27 @@ from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_FIXTURES = REPO_ROOT / "design_agent-testing" / "synthetic-fixtures"
+DEFAULT_FIXTURES = Path(__file__).resolve().parents[2] / "oracle"
 
 
 def fixtures_root() -> Path | None:
-    """The fixture set is not in git, so its absence is normal, not an error.
+    """The fixtures are derived and not in git, so their absence is normal.
 
-    ``FULLBODY_FIXTURES`` overrides the default location, which matters when tests run
-    from a worktree that does not carry the local-only directory.
+    ``../oracle/generate.sh`` builds them. ``FULLBODY_FIXTURES`` overrides the location,
+    which matters when the set has been built somewhere other than beside the generator.
     """
     override = os.environ.get("FULLBODY_FIXTURES")
     candidate = Path(override) if override else DEFAULT_FIXTURES
-    return candidate if (candidate / "fixtures_index.json").is_file() else None
+    if not (candidate / "fixtures_index.json").is_file():
+        return None
+    return candidate if (candidate / "fixtures").is_dir() else None
 
 
 @pytest.fixture(scope="session")
 def fixture_dir() -> Path:
     root = fixtures_root()
     if root is None:
-        pytest.skip(
-            "fixture set not found; set FULLBODY_FIXTURES to "
-            "design_agent-testing/synthetic-fixtures"
-        )
+        pytest.skip(f"no fixture set; run {DEFAULT_FIXTURES}/generate.sh")
     return root
 
 

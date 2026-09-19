@@ -3,7 +3,7 @@
 
 """Derives a fully-passing session from a real capture by amplifying one deficiency.
 
-The capture this was built for (145511) passes 36 of 37 checks: the squat is even to
+The capture this was built for passes 36 of 37 checks: the squat is even to
 4.0 deg, the labels verify, every envelope and geometry check is clean. It fails only
 the arm raise, whose hands reach 36 deg above the shoulder against a gate of 60. So the
 arm-raise windows are the only thing edited here, and inside them only the three joints
@@ -16,7 +16,7 @@ length, the subject's own left-right asymmetry, and every other window untouched
 What this proves and what it does not
 -------------------------------------
 It proves no check misfires on the shape of real data -- which is the failure mode that
-produced five defects in one afternoon, all of them invisible to 83 generated fixtures.
+produced five defects in one afternoon, all of them invisible to the generated set.
 
 It does not prove a person can reach the gate. That one reading is synthetic, and a
 fixture that passes because it was made to pass is no evidence about human reach. Only

@@ -3,9 +3,10 @@
 
 """The lines this work must not cross. Asserted mechanically, not by good intentions.
 
-Two of them run between the halves of ``acceptance/full_body/`` rather than around the
+Three of them run between the parts of ``acceptance/full_body/`` rather than around the
 whole directory: ``checker/`` must stay runnable on ``mcap`` and ``flatbuffers`` alone,
-while ``capture/`` drives a real session and therefore has to import the built package.
+``capture/`` drives a real session and therefore has to import the built package, and
+``oracle/`` must share no code with the checker it is the oracle for.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[4]
 CHECKER = REPO_ROOT / "acceptance" / "full_body" / "checker"
 CHECKER_SOURCES = (CHECKER / "src", CHECKER / "tests")
+ORACLE = REPO_ROOT / "acceptance" / "full_body" / "oracle"
 CAPTURE_MODULES = (
     "session",
     "cues",
@@ -122,3 +124,18 @@ def test_the_checker_does_not_import_the_capture_scripts():
         if CAPTURE_IMPORT.search(path.read_text())
     ]
     assert offenders == [], f"the checker must not import capture: {offenders}"
+
+
+def test_the_oracle_shares_no_code_with_the_checker():
+    """A fault in code shared by the oracle and the checker cancels itself out.
+
+    So the 24-joint table, the parent table, the FK and the quaternion arithmetic exist
+    twice on purpose: once in ``oracle/skeleton.py``, once across ``checker/profile.py``
+    and ``checker/vectors.py``. Do not resolve the duplication.
+    """
+    offenders = [
+        path.relative_to(REPO_ROOT)
+        for path in sorted(ORACLE.rglob("*.py"))
+        if "full_body_acceptance" in path.read_text()
+    ]
+    assert offenders == [], f"the oracle must not import the checker: {offenders}"

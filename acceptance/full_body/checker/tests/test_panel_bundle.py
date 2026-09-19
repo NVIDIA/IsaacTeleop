@@ -34,26 +34,26 @@ LABELS = {
 
 
 CAPTURE = {
-    "recorded_at": "2026-09-14T14:55:11.652357-07:00",
+    "recorded_at": "2026-03-04T10:15:30.652357-07:00",
     "device": "pico4u",
     "recording_duration_s": 102,
-    "repo_commit": "e76ae5a5d24e9cf800ce008f1170f5705dd1217e",
-    "host": "f8ec702-lcedt",
+    "repo_commit": "0" * 40,
+    "host": "a-recording-host",
 }
 
-# What the archive and its one top-level directory are called.
-STEM = "pico4u_2026-09-14_145511-g4"
+# The take name, which `record.sh` gives to the directory and to every file in it.
+STEM = "pico4u_2026-03-04_101530-g4"
 
 
 @pytest.fixture
 def take(tmp_path: Path) -> Path:
     """A recording laid out and companioned the way `record.sh` leaves one."""
-    folder = tmp_path / "pico4u" / "2026-09-14"
+    folder = tmp_path / "pico4u_2026-03-04_101530"
     folder.mkdir(parents=True)
-    recording = synth.write_recording(folder / "145511-g4.mcap", synth.frames(120))
-    recording.with_name("145511-g4.labels.json").write_text(json.dumps(LABELS))
-    recording.with_name("145511-g4.json").write_text(json.dumps(CAPTURE))
-    recording.with_name("145511-g4.log").write_text("[record] writing 145511-g4.mcap\n")
+    recording = synth.write_recording(folder / f"{STEM}.mcap", synth.frames(120))
+    recording.with_name(f"{STEM}.labels.json").write_text(json.dumps(LABELS))
+    recording.with_name(f"{STEM}.json").write_text(json.dumps(CAPTURE))
+    recording.with_name(f"{STEM}.log").write_text(f"[record] writing {STEM}.mcap\n")
     return recording
 
 
@@ -78,26 +78,25 @@ def test_the_archive_holds_the_take_its_companions_and_the_report(take):
     assert name == f"{root}.zip"
     # One top-level directory, so unzipping cannot spray files into a working dir.
     assert set(members(data)) == {
-        f"{root}/145511-g4.mcap",
-        f"{root}/145511-g4.labels.json",
-        f"{root}/145511-g4.json",
-        f"{root}/145511-g4.log",
+        f"{root}/{STEM}.mcap",
+        f"{root}/{STEM}.labels.json",
+        f"{root}/{STEM}.json",
+        f"{root}/{STEM}.log",
         f"{root}/report.json",
         f"{root}/report.txt",
     }
 
 
-def test_the_name_carries_the_device_and_the_date(take):
-    """A take name is a time of day: it repeats daily and collides across devices."""
+def test_the_name_is_the_take_and_the_verdict(take):
     name, _, report = packaged(take)
-    assert name == f"pico4u_2026-09-14_145511-g4.{report.verdict}.zip"
+    assert name == f"pico4u_2026-03-04_101530-g4.{report.verdict}.zip"
 
 
-def test_a_take_with_no_capture_sidecar_falls_back_to_the_layout(take):
-    """`<device>/<date>/` is how the recorder writes them, so the path still answers."""
-    take.with_name("145511-g4.json").unlink()
+def test_the_name_does_not_depend_on_the_capture_sidecar(take):
+    """The stem already carries the device and the date, so nothing is read for them."""
+    take.with_name(f"{STEM}.json").unlink()
     name, _, report = packaged(take)
-    assert name == f"pico4u_2026-09-14_145511-g4.{report.verdict}.zip"
+    assert name == f"pico4u_2026-03-04_101530-g4.{report.verdict}.zip"
 
 
 def test_a_take_from_nowhere_in_particular_still_gets_a_name(tmp_path):
@@ -107,19 +106,20 @@ def test_a_take_from_nowhere_in_particular_still_gets_a_name(tmp_path):
     assert name.endswith(f"hand-copied.{report.verdict}.zip")
 
 
-def test_a_device_name_from_the_shell_cannot_escape_the_filename(take):
-    take.with_name("145511-g4.json").write_text(
-        json.dumps({**CAPTURE, "device": "../pico 4/ultra"})
-    )
-    name, _, _ = packaged(take)
-    assert name.startswith("pico_4_ultra_2026-09-14_145511-g4.")
+def test_a_stem_that_would_escape_the_filename_cannot(tmp_path):
+    """The device name reaches the stem from a shell argument, through record.sh."""
+    folder = tmp_path / "odd"
+    folder.mkdir()
+    odd = synth.write_recording(folder / "..pico 4_2026-01-01_000000-g4.mcap", [])
+    name, _, _ = packaged(odd, timeline=None)
+    assert name.startswith("pico_4_2026-01-01_000000-g4.")
     assert "/" not in name and " " not in name
 
 
 def test_the_packed_recording_is_byte_for_byte_the_source(take):
     _, data, report = packaged(take)
     inside = members(data)
-    packed = inside[f"{STEM}.{report.verdict}/145511-g4.mcap"]
+    packed = inside[f"{STEM}.{report.verdict}/{STEM}.mcap"]
     assert packed == take.read_bytes()
 
     payload = json.loads(inside[f"{STEM}.{report.verdict}/report.json"])
@@ -168,10 +168,10 @@ def test_the_series_carries_every_frame_and_nulls_a_rate_it_cannot_state(take):
 
 
 def test_a_take_with_no_labels_says_which_input_is_missing(take):
-    take.with_name("145511-g4.labels.json").unlink()
+    take.with_name(f"{STEM}.labels.json").unlink()
     _, data, report = packaged(take, timeline=None)
     payload = json.loads(members(data)[f"{STEM}.{report.verdict}/report.json"])
-    assert payload["inputs"]["missing"] == ["145511-g4.labels.json"]
+    assert payload["inputs"]["missing"] == [f"{STEM}.labels.json"]
     assert payload["inputs"]["labels"] == {
         "present": False,
         "provisional": None,
@@ -184,7 +184,7 @@ def test_labels_read_from_elsewhere_are_packed_from_where_they_were_read(
     take, tmp_path
 ):
     """`--labels` elsewhere must not leave the verdict's own labels out of the zip."""
-    take.with_name("145511-g4.labels.json").unlink()
+    take.with_name(f"{STEM}.labels.json").unlink()
     elsewhere = tmp_path / "moved" / "session.labels.json"
     elsewhere.parent.mkdir()
     elsewhere.write_text(json.dumps(LABELS))

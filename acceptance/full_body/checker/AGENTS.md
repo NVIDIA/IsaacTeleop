@@ -6,8 +6,8 @@ SPDX-License-Identifier: Apache-2.0
 # Agent notes — `acceptance/full_body/checker/`
 
 **CRITICAL:** complete the mandatory `AGENTS.md` preflight in [`../../../AGENTS.md`](../../../AGENTS.md)
-before editing here. Read [`../../../design_agent-testing/synthetic-fixtures/AGENTS.md`](../../../design_agent-testing/synthetic-fixtures/AGENTS.md)
-too if you touch anything the fixture set is the oracle for.
+before editing here. Read [`../oracle/AGENTS.md`](../oracle/AGENTS.md) too if you touch
+anything the fixture set is the oracle for.
 
 This is the design record for the checker: the reasoning, the measurements behind every
 threshold, and the questions still open. [`README.md`](README.md) is the operator's guide
@@ -15,7 +15,7 @@ and this file does not repeat it.
 
 ## The one thing to take away
 
-One real PICO 4 Ultra capture exposed five defects in this checker. Eighty-three
+One real PICO 4 Ultra capture exposed five defects in this checker. Fifty-five
 synthetic fixtures had found none of them.
 
 They share a single cause: **a property that the generated fixtures happen to satisfy was
@@ -54,7 +54,7 @@ reason.** `StepTimeline.defects()` used to call an unlabelled stretch between tw
 windows a `gap`, and the check is HARD/DEVICE and a dependency of the same thirteen. Once
 the capture panel started opening each window on the performer's press, gaps became
 universal — the performer is already in the pose when they press, so the move between
-poses belongs to no window. Measured on `145511-g4` relabelled that way: 6.4 s
+poses belongs to no window. Measured on the 102 s take relabelled that way: 6.4 s
 unlabelled between windows, `verdict FAIL`, every G4 check suppressed and the device
 blamed. The time between windows is now a measurement (`unlabelled_between_s`). An
 **overlap** is still a defect: the frames one window would be measured over belong to
@@ -250,8 +250,9 @@ Other structural decisions that are settled:
   gravity alignment is body-only.
 - **This directory sits outside `src/`** because `src/python/CMakeLists.txt` globs `.py`
   recursively: a file placed under it would change the wheel with no edit to any build
-  file. `acceptance/` holds one directory per recordable `.fbs`, and each splits into
-  `capture/` and `checker/`; the boundary between the two is under Hard constraints.
+  file. `acceptance/` holds one directory per recordable `.fbs`, and each splits three
+  ways: `capture/` records a take, `checker/` judges it, `oracle/` generates takes whose
+  verdict is already known. The boundaries between them are under Hard constraints.
 
 ## Hard constraints
 
@@ -265,6 +266,11 @@ Other structural decisions that are settled:
    capture reads the checker's `Frame`, `TrackBuilder` and profile, never the reverse.
    `tests/test_boundaries.py` asserts all of it mechanically, diffing against the commit
    this branch grew from rather than against wherever `origin/main` has since moved to.
+
+   `../oracle/` runs the other way again: it shares **no** code with this package, so
+   that a fault cannot cancel itself out across the oracle and the thing it judges. The
+   duplicated joint table and quaternion arithmetic are deliberate; see
+   [`../oracle/AGENTS.md`](../oracle/AGENTS.md).
 2. **`fixtures_index.json` is the oracle and is never edited to make a test pass.** A
    disagreement is declared in `tests/known_deviations.py` with its reason.
 3. **New test data belongs here.** The fixture generator rewrites the index as a side
@@ -342,7 +348,7 @@ Each cost real time to establish and is asserted somewhere in the tests.
   `StepTimeline.beside` resolves the sidecar from the path as written, so an alias finds no
   labels beside itself, and a missing sidecar is a supported case rather than an error: the
   thirteen G4 checks go unanswered, they are `required=False`, and the verdict comes out
-  `pass`. Measured on `145511-g4`: `retake` by its real path, `pass` through a symlink to
+  `pass`. Measured on a real take: `retake` by its real path, `pass` through a symlink to
   it. `capture/record.sh` used to maintain such a symlink; that is why it no longer does.
 
 ## Real hardware, established facts
@@ -368,18 +374,17 @@ they stay out of git and out of the fixture folder, and live under `$HOME`.
 
 ## Derived data
 
-`~/isaacteleop-captures/derived/145511-g4-passing.mcap`, built from the real 145511 capture
-by `../capture/amplify_arm_raise.py`. Only the two arm-raise windows are
-edited, and inside them only the three joints below each shoulder: positions and
-orientations rotate together about the shoulder so the relative geometry
-`consistency.position_orientation_same_frame` reads is preserved. Every other frame and
-joint is the original capture. It reaches `pass` with all 38 checks answered, and the solved
-bones are still exactly the two forearms.
+`../capture/amplify_arm_raise.py` builds a passing take out of the 102 s one. Only the
+two arm-raise windows are edited, and inside them only the three joints below each
+shoulder: positions and orientations rotate together about the shoulder so the relative
+geometry `consistency.position_orientation_same_frame` reads is preserved. Every other
+frame and joint is the original capture. The result reaches `pass` with all 38 checks
+answered, and the solved bones are still exactly the two forearms.
 
 **Its limits matter as much as its result.** It proves that no check misfires on the shape
-of real data — the failure mode that produced five defects in one afternoon and that 83
-generated fixtures never showed. It does **not** prove a person can reach the gate: that one
-reading is synthetic. It is not a substitute for one real qualifying capture.
+of real data — the failure mode that produced five defects in one afternoon and that the
+generated fixtures never showed. It does **not** prove a person can reach the gate: that
+one reading is synthetic. It is not a substitute for one real qualifying capture.
 
 Building it also found a ceiling: targeting 85 deg of elevation drives a joint to 25 m/s,
 past the 20 m/s `continuity.max_joint_velocity` limit. On a real performer's own timing the
@@ -395,9 +400,9 @@ arm cannot be raised much higher without making the speed implausible. The file 
   hip angle is pelvis-relative, so pelvis tilt is the suspicion, unverified.
 - **Peak joint speeds of 10–11 m/s are unexplained.** Below the 20 m/s limit, so nothing
   fails, but nothing accounts for them either.
-- **No purely real capture has reached `pass`.** 145511 squats evenly (4.0 deg) but the
-  hands reach only 36 deg; the earlier take reaches 72 deg but squats unevenly (21.4 deg).
-  This is the most concrete gap in the evidence.
+- **No purely real capture has reached `pass`.** The 102 s take squats evenly (4.0 deg)
+  but the hands reach only 36 deg; the earlier take reaches 72 deg but squats unevenly
+  (21.4 deg). This is the most concrete gap in the evidence.
 - **G5 is not a slice away — the thing it would test does not exist.** No retargeter in
   this repository consumes `full_body`. Everything under
   `src/python/isaacteleop/retargeters/` takes `ControllerInput`, `HandInput`,
@@ -442,18 +447,21 @@ arm cannot be raised much higher without making the speed implausible. The file 
 
 ## Tests
 
-Two layers, split by whether a test needs the fixture set, which lives outside git.
+Two layers, split by whether a test needs the fixture set.
 
 - **Unit** — accumulators fed frames built in memory by `tests/synth.py`. No MCAP, no
   external data, runs from a fresh clone. `tests/test_pico_shapes.py` covers shapes the
   fixture set (modelled on Noitom) does not: garbage on invalid joints, a registered channel
   with no messages, a file whose schema is something else, a renamed topic.
-- **Oracle** — parametrised over `fixtures_index.json`, asserting `expected_verdict` and
-  `expected_failing_check`. Skips when the set is absent; `FULLBODY_FIXTURES` overrides its
-  location.
+- **Oracle** — parametrised over `../oracle/fixtures_index.json`, asserting
+  `expected_verdict` and `expected_failing_check`. 26 tests, skipped until
+  `../oracle/generate.sh` has built the recordings the index describes;
+  `FULLBODY_FIXTURES` overrides where they are looked for. The index is committed and
+  the recordings are not, so `fixtures_root()` checks for both.
 
-CI can only ever run the unit layer: the fixtures are not in git and the largest is 1.8 MB
-against pre-commit's 2000 KiB ceiling.
+CI can only ever run the unit layer: the recordings are derived and not in git, the
+largest is 1.77 MiB against pre-commit's 2000 KiB ceiling, and building them needs flatc
+downloaded.
 
 `tests/test_panel_app.py` is a third, smaller layer: it drives the renderer against a
 real `ViserServer` and skips wherever viser is absent, which includes CI. Keep it that

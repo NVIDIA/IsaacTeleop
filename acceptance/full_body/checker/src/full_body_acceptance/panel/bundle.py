@@ -142,39 +142,15 @@ def series(track: Track) -> dict[str, list[Any]]:
     }
 
 
-def archive_stem(report_recording: Path, report: Report) -> str:
-    """``<device>_<date>_<take>.<verdict>``.
+def archive_stem(recording: Path, report: Report) -> str:
+    """``<take>.<verdict>``.
 
-    The take name is a time of day, so it repeats every day and collides outright
-    between two devices recording at once. The verdict is in there so a mailbox of
-    submissions can be triaged without opening any of them.
+    ``record.sh`` names a take ``<device>_<date>_<time>`` and names every file in it
+    after its directory, so the recording's stem already separates two devices
+    recording at once and two takes a day apart. The verdict is appended so a mailbox
+    of submissions can be triaged without opening any of them.
     """
-    device, date = capture_identity(report_recording)
-    named = "_".join(part for part in (device, date, report_recording.stem) if part)
-    return f"{named}.{report.verdict}"
-
-
-def capture_identity(recording: Path) -> tuple[str, str]:
-    """Device and date, from the capture sidecar and then from the layout.
-
-    ``record.sh`` writes both by construction — ``<device>/<date>/<time>-g4.mcap``
-    on disk, and the same two strings into ``<take>.json`` — so they agree wherever
-    both exist. The sidecar is the one that says which is which, so it answers first;
-    the path covers a take whose sidecar never arrived or that was copied elsewhere.
-    """
-    device = date = ""
-    try:
-        payload = json.loads(recording.with_name(recording.stem + ".json").read_text())
-    except (OSError, ValueError):
-        payload = {}
-    if isinstance(payload, dict):
-        device = str(payload.get("device") or "")
-        date = str(payload.get("recorded_at") or "")[:10]
-    if not (device and date):
-        holder = recording.resolve().parent
-        device = device or holder.parent.name
-        date = date or holder.name
-    return (_filename_safe(device), _filename_safe(date))
+    return f"{_filename_safe(recording.stem)}.{report.verdict}"
 
 
 def companions(
@@ -220,8 +196,8 @@ def tool(checks: int) -> dict[str, Any]:
 
 
 def _filename_safe(text: str) -> str:
-    """The device name reaches here from a shell argument and becomes a filename."""
-    return "".join(c if c.isalnum() or c in "-." else "_" for c in text).strip("_.")
+    """The stem carries a device name that reached record.sh as a shell argument."""
+    return "".join(c if c.isalnum() or c in "-._" else "_" for c in text).strip("_.")
 
 
 def _labels(timeline: StepTimeline | None) -> dict[str, Any]:

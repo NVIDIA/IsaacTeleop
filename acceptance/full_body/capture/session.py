@@ -3,7 +3,7 @@
 
 """The motion script as performed by a human, shared by the panel and the labeller.
 
-Durations are longer than the synthetic script in synthetic-fixtures/g4_script.py.
+Durations are longer than the synthetic script in ../oracle/g4_script.py.
 The checker reads windows from the sidecar and has no nominal duration of its own, so
 lengthening is free; what forces it is SETTLE_FRACTION = 0.40 in the posture checks,
 which discards the leading 40% of a held window and measures the rest. At the synthetic

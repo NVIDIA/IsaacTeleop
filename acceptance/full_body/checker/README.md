@@ -67,7 +67,7 @@ hardware or licensing one — see `AGENTS.md`.
 
 ```bash
 .venv/bin/python -m full_body_acceptance.cli \
-    ~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
+    ~/isaacteleop-captures/<take>/<take>-g4.mcap
 ```
 
 Spell the recording out. There is no `latest` alias, and making one defeats the next
@@ -108,7 +108,7 @@ verdict  RETAKE
 ```bash
 ./setup_env.sh --panel     # once; installs viser, the panel's renderer
 .venv/bin/python -m full_body_acceptance.panel \
-    ~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
+    ~/isaacteleop-captures/<take>/<take>-g4.mcap
 ```
 
 Prints the same report, then serves a panel on `http://127.0.0.1:8080`. It takes
@@ -137,20 +137,19 @@ browser — so it lands on the machine you will send it from, even when the pane
 viewed over `--host`. Right-click the link it offers for *Save as…* to choose where.
 
 ```text
-pico4u_2026-09-14_145511-g4.retake.zip        device, date, take and verdict, so a
-└── pico4u_2026-09-14_145511-g4.retake/       mailbox of these can be triaged unopened
-    ├── report.json                  verdict, checks, groups, per-frame series,
-    │                                input hashes, the checker's commit
-    ├── report.txt                   the same report, for reading
-    ├── 145511-g4.mcap               the recording, byte for byte
-    ├── 145511-g4.labels.json        motion-step windows
-    ├── 145511-g4.json               capture provenance
-    └── 145511-g4.log                recorder log
+pico4u_2026-03-04_101530-g4.retake.zip           the take and the verdict, so a mailbox
+└── pico4u_2026-03-04_101530-g4.retake/          of these can be triaged unopened
+    ├── report.json                              verdict, checks, groups, per-frame
+    │                                            series, input hashes, tool commit
+    ├── report.txt                               the same report, for reading
+    ├── pico4u_2026-03-04_101530-g4.mcap         the recording, byte for byte
+    ├── pico4u_2026-03-04_101530-g4.labels.json  motion-step windows
+    ├── pico4u_2026-03-04_101530-g4.json         capture provenance
+    └── pico4u_2026-03-04_101530-g4.log          recorder log
 ```
 
-The take name alone is a time of day, which repeats every day and collides outright
-between two devices recording at once, so the device and date come from the capture
-sidecar — or from the `<device>/<date>/` layout when that sidecar is missing.
+The name is the take's own, which already carries the device and the moment it was
+recorded, so two devices recording at once cannot collide.
 
 4.5 MB and a fifth of a second for a 102 s take. `report.json` is a superset of `--json`
 and reads out of the archive without decompressing the recording, so a dashboard needs
@@ -187,9 +186,10 @@ label they belong to, which `--json` reports and `--list-checks` prints.
 ```
 
 Two layers. The unit layer feeds accumulators frames built in memory and runs from a
-fresh clone. The oracle layer is parametrised over the synthetic fixture set's
-`fixtures_index.json` and skips when that set is not present; point `FULLBODY_FIXTURES`
-at it if it lives somewhere other than `design_agent-testing/synthetic-fixtures`.
+fresh clone. The oracle layer is parametrised over
+[`../oracle/`](../oracle)`fixtures_index.json` and skips until
+[`../oracle/generate.sh`](../oracle/generate.sh) has built the recordings that index
+describes; point `FULLBODY_FIXTURES` at them if you built them somewhere else.
 
 ## Layout
 

@@ -161,22 +161,28 @@ The process keeps serving the report; Ctrl+C when you have read it.
 
 ## What you get
 
+One directory per take, under `~/isaacteleop-captures/`, named for the device and the
+moment you pressed the button:
+
 ```text
-~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap          the recording
-                                      /<time>-g4.labels.json   the motion-step windows
-                                      /<time>-g4.json          what produced it
-                                      /<time>-g4.log           the panel's output
+pico4u_2026-03-04_101530/pico4u_2026-03-04_101530-g4.mcap          the recording
+                        /pico4u_2026-03-04_101530-g4.labels.json   the motion-step windows
+                        /pico4u_2026-03-04_101530-g4.json          what produced it
+                        /pico4u_2026-03-04_101530-g4.log           the panel's output
 ```
 
 Nothing is ever overwritten. Run `record.sh` again for another take and both are kept.
 
-All four files belong together. The labels **cannot** be regenerated from the recording
+All four files belong together, which is why they share a directory and why they repeat
+its name: sending a take is sending the directory, and the recording still says what it
+is once it is out of there. The labels **cannot** be regenerated from the recording
 afterwards, so keep them beside it.
 
 There is deliberately no `latest` shortcut to the newest take. The checker finds the
 labels at `<recording>.labels.json` **as you spelled the recording**, so any alias to one
-finds no labels beside itself: measured on `145511-g4`, the real path reports `retake` and
-an alias reports `pass` with thirteen G4 checks silently unanswered. Give the full path.
+finds no labels beside itself: measured on a real take, the true path reports `retake`
+while a symlink to it reports `pass` with thirteen G4 checks silently unanswered. Give
+the full path.
 
 Then run the checks — [`checker/README.md`](checker/README.md) covers reading the
 verdict and packaging a take to send.

@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
-from conftest import fixtures_root
+from conftest import DEFAULT_FIXTURES, fixtures_root
 from known_deviations import BY_FIXTURE, EXPECTED_COLLATERAL
 
 from full_body_acceptance import McapFrameSource, run
@@ -33,12 +33,16 @@ def _envelope_fixtures() -> list[dict]:
 
 ENVELOPE = _envelope_fixtures()
 
+# Stated at collection time, so it has to name the script rather than rely on the
+# fixture's own skip: an empty parametrisation never reaches ``fixture_dir``.
+NEEDS_FIXTURES = f"no fixture set; run {DEFAULT_FIXTURES}/generate.sh"
+
 
 def _identify(entry: dict) -> str:
     return Path(entry["filename"]).stem
 
 
-@pytest.mark.skipif(not ENVELOPE, reason="fixture set not available")
+@pytest.mark.skipif(not ENVELOPE, reason=NEEDS_FIXTURES)
 @pytest.mark.parametrize("entry", ENVELOPE, ids=_identify)
 def test_envelope_fixture_matches_the_index(entry: dict, fixture_dir: Path):
     report = run(McapFrameSource(fixture_dir / entry["filename"]))
@@ -69,7 +73,7 @@ def test_envelope_fixture_matches_the_index(entry: dict, fixture_dir: Path):
     assert report.verdict is Verdict.FAIL
 
 
-@pytest.mark.skipif(not ENVELOPE, reason="fixture set not available")
+@pytest.mark.skipif(not ENVELOPE, reason=NEEDS_FIXTURES)
 def test_every_golden_and_benign_fixture_passes(fixture_dir: Path):
     """The false-positive guard. A checker that fails everything must not score well."""
     clean = [e for e in ENVELOPE if e["category"] in ("golden", "benign")]
@@ -82,7 +86,7 @@ def test_every_golden_and_benign_fixture_passes(fixture_dir: Path):
         )
 
 
-@pytest.mark.skipif(not ENVELOPE, reason="fixture set not available")
+@pytest.mark.skipif(not ENVELOPE, reason=NEEDS_FIXTURES)
 def test_schema_bytes_match_the_repo_golden(fixture_dir: Path):
     """Every fixture embeds the schema the C++ writer embeds.
 
@@ -105,7 +109,7 @@ def test_schema_bytes_match_the_repo_golden(fixture_dir: Path):
         assert source.metadata.message_encoding == "flatbuffer"
 
 
-@pytest.mark.skipif(not ENVELOPE, reason="fixture set not available")
+@pytest.mark.skipif(not ENVELOPE, reason=NEEDS_FIXTURES)
 def test_reader_preserves_file_order(fixture_dir: Path):
     """``make_reader()`` would re-sort by log time and silently repair this fixture."""
     entry = next(

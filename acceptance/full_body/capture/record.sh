@@ -7,10 +7,14 @@
 #
 #   ./record.sh [device]
 #
-#   ~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
-#                                         /<time>-g4.labels.json
-#                                         /<time>-g4.log
-#                                         /<time>-g4.json      (what produced it)
+#   ~/isaacteleop-captures/<device>_<date>_<time>/<device>_<date>_<time>-g4.mcap
+#                                                                       -g4.labels.json
+#                                                                       -g4.log
+#                                                                       -g4.json
+#
+# One directory per take, holding files that repeat its name. The repetition is the
+# point: the four files have to travel together, and a take is sent by handing over the
+# directory, after which the recording still says what it is on its own.
 #
 # This only names the take and records what produced it. Everything else -- the panel,
 # the cues, the windows and the sidecar -- is capture_panel.py in one process, because
@@ -29,9 +33,9 @@ if [[ ! -x "$HERE/.venv/bin/python" ]]; then
     exit 1
 fi
 
-day="$CAPTURES/$DEVICE/$(date +%Y-%m-%d)"
-mkdir -p "$day"
-stem="$day/$(date +%H%M%S)-g4"
+take="${DEVICE}_$(date +%Y-%m-%d_%H%M%S)"
+mkdir -p "$CAPTURES/$take"
+stem="$CAPTURES/$take/$take-g4"
 
 # -C, because record.sh is normally invoked by path from somewhere else entirely and a
 # bare `git rev-parse` would then describe the caller's directory or nothing at all.
