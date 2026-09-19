@@ -41,33 +41,12 @@ directory.
 
 ## Record a take
 
-[`../capture/README.md`](../capture/README.md) is the step-by-step, including what the
-performer does and what to do when it goes wrong. Recording is **Linux only** — it
-drives the device through Isaac Teleop — while everything above and below this section
-runs on macOS too. In outline: the capture side has its own venv, built once on a
-machine with the project built:
+[`../README.md`](../README.md) is the step-by-step: the setup, the headset, the ten
+steps, the four files a take leaves behind, and what to do when it goes wrong. Recording
+is **Linux only** — it drives the device through Isaac Teleop — while everything above
+and below this section runs on macOS too.
 
-```bash
-acceptance/full_body/capture/setup_env.sh    # after this checker's setup_env.sh
-acceptance/full_body/capture/record.sh pico4u
-```
-
-One take of the ten-step motion script, in a viser panel on <http://localhost:8081>.
-Recording starts when you press **Start recording**, and each step then waits for the
-performer: the cue is spoken and shown, and the window opens on a controller trigger or
-the space bar and closes on that step's own length. So the take has no fixed duration,
-and both ends of the file are clean because nothing useless was ever written. It writes
-
-```text
-~/isaacteleop-captures/<device>/<date>/<time>-g4.mcap
-                                      /<time>-g4.labels.json   motion-step windows
-                                      /<time>-g4.log
-                                      /<time>-g4.json          what produced it
-```
-
-Nothing is ever overwritten, so run it again for another take. The spoken cues are WAV
-files in `acceptance/full_body/capture/cues/` and need no synthesiser, so `aplay` is the
-only other thing the panel wants.
+Three things about a take belong here rather than there.
 
 The label sidecar carries the motion windows the G4 checks read, and the panel writes it
 once the file is closed: each window is a pair of record numbers observed as the presses
@@ -100,7 +79,7 @@ every G4 check goes unanswered and the verdict reads `pass` instead of `retake`.
 | `--json` | Machine-readable report: per-check status, severity, attribution, and every measurement. |
 | `--check NAME` | Run only this check. Repeatable. |
 | `--labels SIDECAR` | Use these motion labels instead of `RECORDING.labels.json` beside the file. |
-| `--list-checks` | Print the check names with their severities and one-line summaries. |
+| `--list-checks` | Print the check names with their gate, severity and a one-line summary. The one option that needs no recording, so it answers *what does this thing look for* before a take exists. |
 
 Labels are optional. Without them the G4 window measurements report that they could not
 be answered, and the envelope and geometry checks still run.
