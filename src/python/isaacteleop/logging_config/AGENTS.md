@@ -28,11 +28,10 @@ stub generation.
   it must sit inside an equivalent guard — skipping the *call* is not enough.
 - An unguarded POSIX call here is a **build** failure, not a runtime one: stub
   generation imports the package and fails the Windows job outright.
-- **Both branches need assertions, not one branch and a skip.** This package has
-  no test suite at present. Whatever is built for it will be run by ctest in the
-  Windows job as well as the Linux one, unless it is deliberately gated, so the
-  degraded path needs assertions of its own rather than a platform skip that
-  quietly covers nothing.
+- **Tests must assert both branches.** The suite in
+  `tests/python/core/logging_config/` is not gated on platform anywhere, so
+  ctest runs it in the Windows job too. Mark POSIX-only assertions and give the
+  degraded path its own assertions rather than only skipping.
 
 ## Leader and forwarding children
 

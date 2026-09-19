@@ -93,6 +93,48 @@ class TestServiceConstruction:
         assert Path(stderr.name) == tmp_path / "logs" / "runtime_worker_stderr.log"
 
     @_windows_skip
+    def test_runtime_stdout_goes_to_the_session_capture_file(self, tmp_path):
+        """Explicit, not inherited.
+
+        isaacteleop no longer rebinds its host's fd 1, so an inherited stdout
+        would put the runtime's startup banner and the native stack's chatter on
+        the host application's terminal. This worker is a process this library
+        launched, so its descriptors are ours to set, and the capture file is
+        where every other non-logger byte of the session already lands.
+        """
+        # A sentinel, not a real descriptor: Popen is mocked, and what is under
+        # test is that whatever native_capture_fd() answers is what gets passed.
+        with (
+            patch(
+                "isaacteleop.cloudxr.service._service.native_capture_fd",
+                return_value=4242,
+            ),
+            mock_service_deps(tmp_path, ready=True) as mocks,
+        ):
+            CloudXRService()
+
+        assert mocks["popen"].call_args.kwargs["stdout"] == 4242
+
+    @_windows_skip
+    def test_runtime_stdout_is_inherited_without_a_capture_file(self, tmp_path):
+        """Having nowhere to persist it is not a reason to discard it.
+
+        native_capture_fd() answers None when the capture file could not be
+        opened at all; inheriting is then the correct fallback, and stdout=None
+        is how subprocess spells it.
+        """
+        with (
+            patch(
+                "isaacteleop.cloudxr.service._service.native_capture_fd",
+                return_value=None,
+            ),
+            mock_service_deps(tmp_path, ready=True) as mocks,
+        ):
+            CloudXRService()
+
+        assert mocks["popen"].call_args.kwargs["stdout"] is None
+
+    @_windows_skip
     def test_startup_failure_reports_the_worker_stderr(self, tmp_path):
         """A file the caller is never told about is no better than a full pipe."""
 

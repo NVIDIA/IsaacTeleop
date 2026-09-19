@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <string>
 #include <thread>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -51,6 +52,19 @@ int main(int argc, char** argv)
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         return 0;
+    }
+
+    if (arguments[0] == "write")
+    {
+        // Raw ::write, not std::cout: the point of this mode is what the
+        // *descriptors* carry, and a buffered stream would only prove that
+        // exit() flushed it. One line on each, because plugin.cpp points both
+        // at the capture file and a reader has to see that it did both.
+        constexpr char kOut[] = "PLUGIN-STDOUT\n";
+        constexpr char kErr[] = "PLUGIN-STDERR\n";
+        const auto written_out = ::write(STDOUT_FILENO, kOut, sizeof(kOut) - 1);
+        const auto written_err = ::write(STDERR_FILENO, kErr, sizeof(kErr) - 1);
+        return (written_out > 0 && written_err > 0) ? 0 : 4;
     }
 
     if (arguments.size() < 3)

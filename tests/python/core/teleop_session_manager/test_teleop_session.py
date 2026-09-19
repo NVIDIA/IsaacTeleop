@@ -1080,6 +1080,59 @@ class TestSessionLifecycle:
                 assert s.deviceio_session is mock_dio
                 assert s.frame_count == 0
 
+    def test_enter_and_exit_hold_a_native_capture_scope(self):
+        """The scope has to wrap the native calls, not sit beside them.
+
+        Everything __enter__ acquires eventually reaches code that writes
+        diagnostics straight to a descriptor and exports no log hook:
+        xrCreateInstance and xrCreateSession, the xrCreateHandTrackerEXT probes
+        inside DeviceIOSession.run(), and each plugin's own startup. This pins
+        the wiring -- that the scope is open while those run and closed again by
+        the time __enter__ returns, and that __exit__ holds a second one over a
+        teardown that is just as noisy. What the scope does to fd 1 and fd 2 is
+        pinned in tests/python/core/logging_config, not here.
+        """
+        events: list[str] = []
+
+        @contextmanager
+        def _recording_scope():
+            events.append("enter-scope")
+            try:
+                yield None
+            finally:
+                events.append("exit-scope")
+
+        def _run_recording(*_args, **_kwargs):
+            events.append("deviceio-run")
+            return MockDeviceIOSession()
+
+        config = make_config(MockPipeline(leaf_nodes=[MockHeadSource()]))
+        with (
+            mock_session_dependencies(),
+            patch(
+                "isaacteleop.teleop_session_manager.teleop_session."
+                "logging_config.capture_native_output",
+                _recording_scope,
+            ),
+            # Applied after the helper's own patch of the same target, so this
+            # one wins; the helper still supplies OpenXR and PluginManager.
+            patch(
+                "isaacteleop.deviceio.DeviceIOSession.run",
+                side_effect=_run_recording,
+            ),
+        ):
+            session = TeleopSession(config)
+            with session:
+                # Closed before the caller gets control back: the host's
+                # descriptors must not stay rebound for the length of a session.
+                assert events[0] == "enter-scope", events
+                assert "deviceio-run" in events, events
+                assert events[-1] == "exit-scope", events
+
+            assert events.count("enter-scope") == 2, events
+            assert events.count("exit-scope") == 2, events
+            assert events.index("deviceio-run") < events.index("exit-scope"), events
+
     def test_enter_rejects_nested_active_session(self):
         """A session should be reusable after exit but not re-enterable while active."""
         config = make_config(MockPipeline(leaf_nodes=[]))
