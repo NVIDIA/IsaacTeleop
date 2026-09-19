@@ -47,47 +47,63 @@ pulling.
 
 ## Get the headset streaming
 
-You do **not** start CloudXR by hand. `record.sh` attaches to a runtime that is already
-up, and starts one when there is none. Two things it cannot do for you:
-
-**Accept the CloudXR EULA, once per machine.** Review the licence, then either pass the
-flag through `record.sh`
+Every `isaacteleop` command below runs under the interpreter `capture/setup_env.sh`
+built. It is the only Python here that has the package — a bare `python` does not, and
+on Ubuntu there is usually no `python` at all.
 
 ```bash
-acceptance/full_body/capture/record.sh pico4u --accept-eula
+PY=acceptance/full_body/capture/.venv/bin/python
 ```
 
-or accept it up front, independently of recording:
+**Accept the CloudXR EULA, once per machine.** Review the licence, then
 
 ```bash
-python -m isaacteleop.cloudxr.service start --accept-eula
+$PY -m isaacteleop.cloudxr.service run --accept-eula
 ```
 
 Acceptance is remembered in `~/.cloudxr/run/eula_accepted`, so it is needed once per
 install directory, not once per take.
 
-**Connect the headset.** The panel receives nothing until the headset is streaming, and
-it will sit at *waiting for a frame with valid joints* until it is. Open the CloudXR web
-client on the headset:
+**Start the service in a terminal of its own and leave it open.**
 
 ```bash
-python -m isaacteleop.cloudxr.webclient
+$PY -m isaacteleop.cloudxr.service run
 ```
 
-That opens the client over USB `adb` with this host's address already filled in. Use
-`--print-only` to get the URL instead, to type or bookmark in the headset's own browser.
-Re-run it any time the headset browser gets closed or navigated away; it does not
+`run` stays in the foreground and prints the runtime's log, so a headset that will not
+connect says why where you are already looking; Ctrl+C stops it. `start` is the same
+service detached, with `stop`, `status` and `logs` beside it. The runtime is a host
+singleton on port 48322 — run one form or the other, never both.
+
+`record.sh` attaches to whatever runtime is up and starts its own when there is none, so
+this terminal is a convenience. It is worth having: the runtime takes tens of seconds to
+come up and one of these outlives any number of takes.
+
+**Connect the headset over Wi-Fi.** The panel receives nothing until the headset is
+streaming, and sits at *waiting for a frame with valid joints* until it is. Put the
+headset on the same subnet as this host, then
+
+```bash
+$PY -m isaacteleop.cloudxr.webclient --print-only
+```
+
+That prints two things: the streaming target `https://<this-host>:48322/` and the client
+URL with that address and port already filled in.
+
+**Open the streaming target in the headset's browser first and accept the self-signed
+certificate.** Until you have, the client page loads normally and CONNECT fails with
+nothing in either log. Then open the client URL and press CONNECT.
+
+Dropping `--print-only` types the client URL into the headset for you over USB `adb`,
+which saves the typing and needs USB debugging authorised on the headset. It changes
+nothing about how the session streams — the cable is for `adb`, not for the video. Re-run
+either form whenever the headset browser gets closed or navigated away; it does not
 disturb a running take.
 
 Anything `record.sh` does not itself understand is passed through to the panel, so the
 runtime flags work from there too — `--cloudxr-install-dir` (default `~/.cloudxr`) and
 `--cloudxr-device-profile` (default `Quest3`) among them. Run
 `capture_panel.py --help` for the full list.
-
-That list also holds `--vendor` and `--plugin`, which take the joints from a full-body
-backend other than the headset's own — a Noitom or an X Mocap suit rather than PICO
-trackers. The steps for those differ from this section and are **not yet exercised end to
-end**, so ask us before planning a take around them rather than working from `--help`.
 
 Two references worth having open the first time:
 
@@ -98,6 +114,44 @@ Two references worth having open the first time:
   calibrate them, and what body tracking needs from the headset. **Read this before your
   first take**: without body tracking the recording contains no usable joints and only
   the container checks can run.
+
+## Recording from a device you integrated yourself
+
+The joints come from the headset's own `body.pico-xr` backend unless you say otherwise. A
+suit, gloves or any other full-body device arrives instead as a **vendor**, a backend id
+the session resolves when it is constructed, fed by a **plugin** process the session
+launches. Both are `capture_panel.py` flags, so `record.sh` passes them through:
+
+```bash
+acceptance/full_body/capture/record.sh mysuit \
+    --plugin my_body_plugin \
+    --vendor body.my-vendor \
+    --vendor-param collection_id=my_body
+```
+
+- `--plugin NAME` names a directory under `plugins/` or `install/plugins/`, so the plugin
+  must be installed (`cmake --install build`) before the take. It is launched as
+  required: a plugin that fails to load stops the take instead of recording a file with
+  no body in it.
+- `--vendor ID` selects the backend from the live factory's vendor registry. An unknown
+  id is rejected at session construction, not at the first frame.
+- `--vendor-param KEY=VALUE` is repeatable and free-form. `collection_id` has to match
+  what the plugin publishes under; a mismatch records an empty take and looks exactly
+  like a device that never connected.
+- CloudXR still runs, because the head pose and the controllers come through it. A suit
+  has no trigger, so the performer opens every window with the space bar.
+
+The device name is the first argument and only decides where the take lands, so
+`mysuit` above gives `~/isaacteleop-captures/mysuit_<date>_<time>/`. The checker judges
+the result identically either way: it reads the recorded `full_body` channel and never
+asks what produced it.
+
+**No full-body plugin ships in this tree and this path is not yet exercised end to end.**
+`install/plugins/` holds controller, pedal and leader-arm plugins, and the vendor registry
+has the one entry. Writing the backend and its plugin comes first —
+[`docs/source/device/trackers.rst`](../../docs/source/device/trackers.rst) under *Vendor
+Selection* is the reference. Tell us before planning a take around this rather than
+working from `--help`.
 
 ## Record
 
@@ -191,10 +245,13 @@ verdict and packaging a take to send.
 
 | What you see | What to do |
 |---|---|
+| `Command 'python' not found` | Use the interpreter the setup built, `acceptance/full_body/capture/.venv/bin/python`. Ubuntu has `python3` and no `python`, and neither has `isaacteleop`. |
 | `missing …/.venv; run …/setup_env.sh` | Run the two setup scripts above. |
 | `no isaacteleop wheel in …/wheels; build the repo first` | Build the project, then re-run `capture/setup_env.sh`. |
 | `run …/checker/setup_env.sh first` | You ran the two setup scripts in the wrong order. |
 | **the session did not open**, on the panel | CloudXR could not start or the headset is not connected. The message names the reason. Nothing was recorded; fix it and run `record.sh` again. |
+| The client page loads but CONNECT does nothing | The headset has not accepted the runtime's self-signed certificate. Open `https://<this-host>:48322/` in the headset browser, click through the warning, then go back to the client. Failing that: same subnet, and the host firewall allows 48322. |
+| The service prints `running` but a second one will not start | The runtime is a host singleton on 48322. One is already up — `service status` names it, `service stop` ends a detached one, Ctrl+C a foreground one. |
 | **body_tracking is off**, in the cue column | On PICO this is the browser, not the hardware or a licence: use the headset's own browser, which grants WebXR body tracking on a consumer 4 Ultra. |
 | **No body data after 10 s**, in red under the skeleton | The same thing as the row above, once it has lasted ten seconds, with the causes spelled out. Two red things, one problem. Nothing has been lost: no joint has been valid since you pressed **Start recording**, so the script has not begun. Fix what the box names and the script starts on its own — same take, same file, nothing to redo. |
 | No sound, or a `FileNotFoundError` naming `aplay` | `aplay` is missing. Install `alsa-utils` and record again. |
