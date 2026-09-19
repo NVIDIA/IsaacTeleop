@@ -30,7 +30,7 @@ EXIT_STATUS = {
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="check-full-body", description=__doc__)
-    parser.add_argument("recording", help="MCAP file to check")
+    parser.add_argument("recording", nargs="?", help="MCAP file to check")
     parser.add_argument(
         "--json", action="store_true", help="emit the machine-readable report"
     )
@@ -47,14 +47,21 @@ def main(argv: list[str] | None = None) -> int:
         help="motion-step labels; defaults to RECORDING.labels.json beside the file",
     )
     parser.add_argument(
-        "--list-checks", action="store_true", help="print the check names and exit"
+        "--list-checks",
+        action="store_true",
+        help="print the checks, with no recording, and exit",
     )
     args = parser.parse_args(argv)
 
     if args.list_checks:
         for check in build_all():
-            print(f"{check.name:<45} {check.severity:<9} {check.summary}")
+            print(
+                f"{check.name:<45} {check.gate:<3} {check.severity:<9} {check.summary}"
+            )
         return 0
+
+    if args.recording is None:
+        parser.error("a recording is required unless --list-checks is given")
 
     source = McapFrameSource(args.recording)
     timeline = (
