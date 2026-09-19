@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from email.message import Message
 from urllib.parse import parse_qs, urlparse
 
 import cloudxr_py_test_ns.oob_teleop_env as oob_teleop_env_under_test
@@ -364,6 +365,97 @@ def test_guess_lan_ipv4_returns_string_or_none() -> None:
     """guess_lan_ipv4 returns a string IP address or None — never raises."""
     result = guess_lan_ipv4()
     assert result is None or isinstance(result, str)
+
+
+class FakeHTTPResponse:
+    """urlopen stand-in: context manager exposing ``.headers``, ``.chunked`` and ``.read``."""
+
+    def __init__(
+        self, body: bytes, content_length: str | None, *, chunked: bool = False
+    ) -> None:
+        self._body = body
+        self.chunked = chunked
+        # http.client hands back an HTTPMessage, whose .get() is case-insensitive.
+        self.headers = Message()
+        if content_length is not None:
+            self.headers["Content-Length"] = content_length
+
+    def __enter__(self) -> FakeHTTPResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+    def read(self, amt: int) -> bytes:
+        return self._body[:amt]
+
+
+def _patch_urlopen(
+    monkeypatch: pytest.MonkeyPatch,
+    body: bytes,
+    content_length: str | None,
+    *,
+    chunked: bool = False,
+) -> None:
+    """Make oob_teleop_env.urlopen return a canned response."""
+    monkeypatch.setattr(
+        oob_teleop_env_under_test,
+        "urlopen",
+        lambda _req, timeout: FakeHTTPResponse(body, content_length, chunked=chunked),
+    )
+
+
+def test_fetch_url_bytes_rejects_short_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A body shorter than Content-Length raises rather than caching a truncated asset."""
+    _patch_urlopen(monkeypatch, b"console.log(1);", "100")
+    with pytest.raises(RuntimeError, match="Truncated download: got 15 of 100 bytes"):
+        oob_teleop_env_under_test._fetch_url_bytes("https://example.invalid/bundle.js")
+
+
+def test_fetch_url_bytes_accepts_exact_length(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A body matching Content-Length is returned unchanged."""
+    body = b"console.log(1);"
+    _patch_urlopen(monkeypatch, body, str(len(body)))
+    got = oob_teleop_env_under_test._fetch_url_bytes(
+        "https://example.invalid/bundle.js"
+    )
+    assert got == body
+
+
+def test_fetch_url_bytes_without_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A response with no Content-Length is returned as-is."""
+    body = b"console.log(1);"
+    _patch_urlopen(monkeypatch, body, None)
+    got = oob_teleop_env_under_test._fetch_url_bytes(
+        "https://example.invalid/bundle.js"
+    )
+    assert got == body
+
+
+def test_fetch_url_bytes_ignores_chunked_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chunked framing overrides a stray Content-Length, as http.client does."""
+    body = b"console.log(1);"
+    _patch_urlopen(monkeypatch, body, "999", chunked=True)
+    got = oob_teleop_env_under_test._fetch_url_bytes(
+        "https://example.invalid/bundle.js"
+    )
+    assert got == body
+
+
+def test_fetch_url_bytes_ignores_negative_content_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A negative Content-Length is ignored, as http.client ignores it."""
+    body = b"console.log(1);"
+    _patch_urlopen(monkeypatch, body, "-1")
+    got = oob_teleop_env_under_test._fetch_url_bytes(
+        "https://example.invalid/bundle.js"
+    )
+    assert got == body
 
 
 def test_require_web_client_static_dir_default_downloads(

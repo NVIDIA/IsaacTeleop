@@ -135,16 +135,19 @@ def resolve_web_client_static_dir() -> Path:
 def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
     """Download *url* into memory (WebXR client assets only; size-capped)."""
     req = Request(url, headers={"User-Agent": "isaacteleop-cloudxr"})
+    n: int | None = None
     try:
         with urlopen(req, timeout=timeout) as resp:
             cl = resp.headers.get("Content-Length")
-            if cl is not None:
+            if cl is not None and not getattr(resp, "chunked", False):
                 try:
                     n = int(cl)
                 except ValueError:
-                    pass
+                    n = None
                 else:
-                    if n > _USB_LOCAL_ASSET_MAX_BYTES:
+                    if n < 0:
+                        n = None
+                    elif n > _USB_LOCAL_ASSET_MAX_BYTES:
                         raise RuntimeError(
                             f"Refusing download larger than {_USB_LOCAL_ASSET_MAX_BYTES} bytes "
                             f"(Content-Length={n}): {url}"
@@ -155,6 +158,14 @@ def _fetch_url_bytes(url: str, *, timeout: float = 120.0) -> bytes:
     if len(data) > _USB_LOCAL_ASSET_MAX_BYTES:
         raise RuntimeError(
             f"Download exceeded {_USB_LOCAL_ASSET_MAX_BYTES} bytes (no trusted Content-Length): {url}"
+        )
+    # HTTPResponse.read(amt) returns a short buffer on a mid-body disconnect rather
+    # than raising, and require_web_client_static_dir's skip-if-present check would
+    # then cache it forever. Gated to match http.client, which ignores Content-Length
+    # when the response is chunked or the value is negative.
+    if n is not None and len(data) != n:
+        raise RuntimeError(
+            f"Truncated download: got {len(data)} of {n} bytes from {url}"
         )
     return data
 
