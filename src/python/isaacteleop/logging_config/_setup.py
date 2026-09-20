@@ -53,7 +53,18 @@ def install() -> None:
 
     console = _console.ensure_handler()
     _native_fd.gate(console.level, console)
-    _file.ensure_handler()
+    try:
+        _file.ensure_handler()
+    except OSError as exc:
+        # install() runs from `import isaacteleop`, so a log directory this
+        # process cannot create or write must cost the file handler and nothing
+        # else. Every other facility here already degrades that way; this was
+        # the one path that could fail the import of the whole library.
+        logging.getLogger(ROOT_LOGGER_NAME).warning(
+            "File logging disabled: %s. Records will reach the console only. "
+            "Set ISAACTELEOP_LOG_DIR to a directory you can write.",
+            exc,
+        )
     _forwarding.ensure_receiver()
 
 
