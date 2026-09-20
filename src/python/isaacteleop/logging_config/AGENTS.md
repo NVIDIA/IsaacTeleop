@@ -28,6 +28,10 @@ stub generation.
   it must sit inside an equivalent guard — skipping the *call* is not enough.
 - An unguarded POSIX call here is a **build** failure, not a runtime one: stub
   generation imports the package and fails the Windows job outright.
+- **Nothing `install()` reaches may raise.** Whatever it raises is raised by
+  `import isaacteleop` in the host application. An unusable log directory costs
+  the handler that needed it and is reported through the handlers already
+  attached; it must never cost the import.
 - **Both branches need assertions, not one branch and a skip.** This package has
   no test suite at present. Whatever is built for it will be run by ctest in the
   Windows job as well as the Linux one, unless it is deliberately gated, so the
@@ -49,6 +53,11 @@ receiver; every process that inherits the variable gets a forwarding handler
   `cloudxr/service/_service.py`'s runtime worker deliberately does not, because
   it is tied to the service's lifetime.
 - The C++ half reads the same variable, so dropping it covers both.
+- **`socket_path()` verifies the address rather than trusting it**, and unsets
+  the variable when nothing is listening, so an address left behind by a dead
+  leader cannot hand a process a forwarding handler and no other. That covers
+  startup only — a leader that dies mid-run still takes its children's records
+  with it.
 
 ## Native fd capture
 

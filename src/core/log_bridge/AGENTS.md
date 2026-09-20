@@ -30,6 +30,14 @@ calls are cheap and always yield the same instance.
 to trace and is for loggers that wrap vendor/SDK output, so vendor chatter stays
 silent unless someone explicitly lowers the threshold to TRACE.
 
+**`local_sinks()` must not throw.** It is the function-local static behind
+`Logger::get()`, which every call site in this tree treats as infallible — and
+a static whose initializer throws stays uninitialised, so the next logging call
+re-runs it and throws again. The console sink is therefore built before
+anything that can fail, directory creation takes the `std::error_code`
+overload, and the file sink is wrapped: an unwritable log directory costs the
+file and nothing else.
+
 ## `install_python_sink()` reaches one shared object, not the process
 
 `log_bridge_core` is a static library, and roughly twenty targets link it --
