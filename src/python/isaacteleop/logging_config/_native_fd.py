@@ -118,7 +118,7 @@ def _mirror(sink_path: str) -> None:
                 if _echo and target is not None:
                     _write_all(target, chunk)
     except OSError:
-        pass
+        return  # Mirroring is best-effort and must not affect capture or the host.
 
 
 def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
@@ -136,7 +136,7 @@ def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
         if os.path.getsize(sink_path) == 0:
             os.unlink(sink_path)
     except OSError:
-        pass
+        return  # Best-effort atexit cleanup; the file may already be gone or open.
 
 
 def mode() -> str:
@@ -377,6 +377,7 @@ def _end(console_handler: logging.StreamHandler | None) -> None:
         try:
             os.dup2(saved, fd)
         except OSError:
+            # Keep restoring the other descriptor and Python stream objects.
             pass
     if 1 in _pre_scope_streams:
         sys.stdout = _pre_scope_streams[1]

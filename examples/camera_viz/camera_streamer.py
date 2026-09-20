@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
-from isaacteleop import logging_config
 from pipeline import FrameSource
 from sources import (
     PairedFrameSource,
@@ -250,11 +249,29 @@ class CameraSupervisor:
 
 
 def _setup_logging() -> None:
-    # Uses the shared isaacteleop line format (which has its own timestamp), so
-    # under systemd the journal's timestamp prefix and this one will both show.
     import os
 
-    level = "debug" if os.environ.get("CAMERA_STREAMER_DEBUG") else "info"
+    level = logging.DEBUG if os.environ.get("CAMERA_STREAMER_DEBUG") else logging.INFO
+    try:
+        from isaacteleop import logging_config
+    except ModuleNotFoundError as exc:
+        if exc.name != "isaacteleop":
+            raise
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            handler.setFormatter(
+                logging.Formatter(
+                    "[%(asctime)s.%(msecs)03d] [%(levelname)-5s] "
+                    "[%(name)s] [pid:%(process)d] %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
+            )
+            logger.addHandler(handler)
+        for handler in logger.handlers:
+            handler.setLevel(level)
+        logger.setLevel(level)
+        logger.propagate = False
+        return
     logging_config.set_console_level(level)
 
 
