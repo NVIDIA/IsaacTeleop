@@ -79,6 +79,20 @@ _MAX_FRAME_SIZE = 1 * 1024 * 1024  # 1 MiB
 _lock = threading.Lock()
 
 
+_verified_path: str | None = None
+
+
+def _reachable(path: str) -> bool:
+    """Whether anything is still accepting connections at *path*."""
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+            probe.settimeout(1.0)
+            probe.connect(path)
+        return True
+    except OSError:
+        return False
+
+
 def socket_path() -> str | None:
     """Path this process forwards every record to, or ``None`` if it is the
     session leader and owns the real console+file handlers.
@@ -86,10 +100,26 @@ def socket_path() -> str | None:
     Always ``None`` where Unix sockets are unavailable, so every process takes
     the leader branch and keeps local handlers rather than forwarding into a
     transport that cannot exist.
+
+    The address is verified once, not trusted: a leader that exited leaves it
+    behind in every environment exported from it, and the forwarding branch
+    installs no console handler and no file handler, so a process that believed
+    a dead address would emit nothing, anywhere.
     """
+    global _verified_path
     if not _HAS_UNIX_SOCKETS:
         return None
-    return os.environ.get("ISAACTELEOP_LOG_SOCKET") or None
+    path = os.environ.get("ISAACTELEOP_LOG_SOCKET") or None
+    if path is None or path == _verified_path:
+        return path
+    if _reachable(path):
+        _verified_path = path
+        return path
+    # Unset rather than merely ignored: the C++ half reads the same variable
+    # through getenv() and would otherwise keep its one SocketForwardSink
+    # pointed at the dead address, with no console or file sink behind it.
+    del os.environ["ISAACTELEOP_LOG_SOCKET"]
+    return None
 
 
 class ForwardingHandler(logging.Handler):
