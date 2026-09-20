@@ -257,7 +257,14 @@ def _setup_logging() -> None:
     except ModuleNotFoundError as exc:
         if exc.name != "isaacteleop":
             raise
-        if not logger.handlers:
+        # On the isaacteleop root, not on this module's logger. The camera
+        # lifecycle lines this service exists to report -- sources' notify(),
+        # the RTP senders, the pipeline runner -- log under
+        # isaacteleop.camera_viz.*, so a handler on isaacteleop.camera_streamer
+        # leaves them with no handler at all and logging.lastResort silently
+        # drops everything below WARNING.
+        root = logging.getLogger("isaacteleop")
+        if not root.handlers:
             handler = logging.StreamHandler()
             handler.setFormatter(
                 logging.Formatter(
@@ -266,11 +273,11 @@ def _setup_logging() -> None:
                     datefmt="%Y-%m-%d %H:%M:%S",
                 )
             )
-            logger.addHandler(handler)
-        for handler in logger.handlers:
+            root.addHandler(handler)
+        for handler in root.handlers:
             handler.setLevel(level)
-        logger.setLevel(level)
-        logger.propagate = False
+        root.setLevel(level)
+        root.propagate = False
         return
     logging_config.set_console_level(level)
 
