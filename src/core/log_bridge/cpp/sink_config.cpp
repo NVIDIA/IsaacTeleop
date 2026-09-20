@@ -5,6 +5,7 @@
 
 #include "socket_sink.hpp"
 
+#include <spdlog/common.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -132,8 +133,16 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
             return std::vector<spdlog::sink_ptr>{ forward };
         }
 
+        // Built first and unconditionally: everything below it can fail on a
+        // directory this process may not write, and Logger::get() -- which every
+        // diagnostic call site in the tree treats as infallible -- must not throw.
+        auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        console->set_level(console_level());
+        console->set_pattern(kPattern);
+
         auto dir = log_dir();
-        const bool dir_created = std::filesystem::create_directories(dir);
+        std::error_code dir_ec;
+        const bool dir_created = std::filesystem::create_directories(dir, dir_ec);
 #ifndef _WIN32
         if (dir_created)
         {
@@ -157,16 +166,20 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         // still guards against two processes starting in the same second.
         auto filename = dir / (current_timestamp() + ".isaacteleop." + std::to_string(current_pid()) + ".log");
 
-        auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        console->set_level(console_level());
-        console->set_pattern(kPattern);
-
-        auto file =
-            std::make_shared<spdlog::sinks::rotating_file_sink_mt>(filename.string(), kFileMaxBytes, kFileBackupCount);
-        file->set_level(spdlog::level::debug); // always captures everything, not user-configurable
-        file->set_pattern(kPattern);
-
-        return std::vector<spdlog::sink_ptr>{ console, file };
+        try
+        {
+            auto file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+                filename.string(), kFileMaxBytes, kFileBackupCount);
+            file->set_level(spdlog::level::debug); // always captures everything, not user-configurable
+            file->set_pattern(kPattern);
+            return std::vector<spdlog::sink_ptr>{ console, file };
+        }
+        catch (const spdlog::spdlog_ex&)
+        {
+            // Console only, and reported nowhere: this call is what builds the sinks
+            // every logger is created with, so there is no logger to report through.
+            return std::vector<spdlog::sink_ptr>{ console };
+        }
     }();
     return sinks;
 }
