@@ -70,7 +70,13 @@ std::filesystem::path log_dir()
 #ifndef _WIN32
     return "/tmp/isaacteleop-" + std::to_string(static_cast<unsigned>(::getuid())) + "/logs";
 #else
-    return "/tmp/isaacteleop/logs";
+    // The Python side resolves tempfile.gettempdir() here, which is already
+    // per-user; a literal "/tmp" resolves against the current drive's root
+    // instead, so the two halves of one session wrote to two directories. The
+    // cwd fallback is Python's last resort too.
+    std::error_code temp_ec;
+    const auto temp_dir = std::filesystem::temp_directory_path(temp_ec);
+    return (temp_ec ? std::filesystem::path(".") : temp_dir) / "isaacteleop" / "logs";
 #endif
 }
 
