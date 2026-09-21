@@ -38,7 +38,7 @@ namespace
 constexpr std::size_t kFileMaxBytes = 10 * 1024 * 1024; // 10 MiB
 constexpr std::size_t kFileBackupCount = 5;
 // [timestamp] [LEVEL ] [logger.name] [pid:N] message -- same shape as the
-// Python side's LINE_FORMAT (isaacteleop/logging_config.py).
+// Python side's LINE_FORMAT (isaacteleop/logging_config/_core.py).
 constexpr const char* kPattern = "[%Y-%m-%d %H:%M:%S.%e] [%-7l] [%n] [pid:%P] %v";
 
 #ifndef _WIN32
@@ -286,7 +286,7 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
     static const std::vector<spdlog::sink_ptr> sinks = []
     {
         // Set by the process that spawned us (the session leader, or an intermediate
-        // forwarder) so its own logging_config.py receiver becomes the one place that
+        // forwarder) so its own logging_config receiver becomes the one place that
         // formats, filters, and persists every process's records -- the session's
         // single log file. Standalone/manual runs with nothing to forward to (no
         // ISAACTELEOP_LOG_SOCKET) fall back to this process's own console+file sinks

@@ -60,7 +60,7 @@ void set_bridge_sink(std::shared_ptr<spdlog::sinks::sink> sink);
 // logging module -- directly in-process (log_bridge_py's PythonBridgeSink) or
 // serialized across a socket to another process's Python logger (SocketForwardSink,
 // this library) -- so both speak the exact same numbering as
-// isaacteleop/logging_config.py's _LEVEL_NAMES.
+// isaacteleop/logging_config/_core.py's _LEVEL_NAMES.
 int to_python_level(spdlog::level::level_enum level);
 
 } // namespace detail

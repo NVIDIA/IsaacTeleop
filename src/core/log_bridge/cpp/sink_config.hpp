@@ -18,7 +18,7 @@ namespace isaacteleop::detail
 //     record to the process that set that variable (see socket_sink.hpp).
 //   - unset: this process's own console+rotating-file sinks, built from
 //     ISAACTELEOP_LOG_DIR / ISAACTELEOP_LOG_LEVEL (mirrors the Python side's
-//     defaults: console at info, file always debug+, /tmp/isaacteleop/logs/).
+//     defaults: console at info, file always debug+, /tmp/isaacteleop-<uid>/logs/).
 const std::vector<spdlog::sink_ptr>& local_sinks();
 
 } // namespace isaacteleop::detail

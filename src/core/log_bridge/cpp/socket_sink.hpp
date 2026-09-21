@@ -13,13 +13,14 @@ namespace isaacteleop::detail
 
 // Ships every record to the leader process's log receiver over a Unix domain
 // socket, using the wire format isaacteleop.logging_config's receiver expects
-// (see _ForwardingHandler / _ForwardingRequestHandler in
-// isaacteleop/logging_config.py): a 4-byte big-endian length prefix followed
-// by a UTF-8 JSON object with name/levelno/msg/created/process. Used instead
-// of local_sinks()'s own console+file sinks whenever ISAACTELEOP_LOG_SOCKET is
-// set, so a standalone (fork+exec'd) process's records go through the same
-// isaacteleop root logger -- same formatting, filtering, and single log file
-// -- as the process that spawned it, rather than keeping their own.
+// (see ForwardingHandler / RequestHandler in
+// isaacteleop/logging_config/_forwarding.py): a 4-byte big-endian length
+// prefix followed by a UTF-8 JSON object with name/levelno/msg/created and
+// process. Used instead of local_sinks()'s own console+file sinks whenever
+// ISAACTELEOP_LOG_SOCKET is set, so a standalone (fork+exec'd) process's
+// records go through the same isaacteleop root logger -- same formatting,
+// filtering, and single log file -- as the process that spawned it, rather
+// than keeping their own.
 //
 // Best-effort: a record is dropped, not queued or retried, if the leader is
 // unreachable -- losing a line during a connection hiccup beats blocking the

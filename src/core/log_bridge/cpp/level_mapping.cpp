@@ -6,9 +6,8 @@
 namespace isaacteleop::detail
 {
 
-// critical never fires from C++ today (it is kept out of the level set for parity
-// with the Python side) but is mapped for the case where spdlog::critical is called
-// directly -- onto logging.CRITICAL, which is 50, not ERROR's 40.
+// No call site in this tree logs at critical today; spdlog::critical still maps onto
+// logging.CRITICAL, which is 50, not ERROR's 40.
 int to_python_level(spdlog::level::level_enum level)
 {
     switch (level)
