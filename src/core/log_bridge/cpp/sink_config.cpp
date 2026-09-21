@@ -18,7 +18,10 @@
 #include <system_error>
 
 #ifndef _WIN32
+#    include <sys/stat.h>
+
 #    include <unistd.h>
+#    include <vector>
 #else
 #    include <process.h>
 #endif
@@ -33,6 +36,49 @@ constexpr std::size_t kFileBackupCount = 5;
 // [timestamp] [LEVEL ] [logger.name] [pid:N] message -- same shape as the
 // Python side's LINE_FORMAT (isaacteleop/logging_config.py).
 constexpr const char* kPattern = "[%Y-%m-%d %H:%M:%S.%e] [%-7l] [%n] [pid:%P] %v";
+
+#ifndef _WIN32
+// Mirrors ensure_private_dir() in the Python half. A directory another user
+// created first is one they can still move aside, and the default name --
+// /tmp/isaacteleop-<uid>/logs -- is entirely predictable. lstat, not stat, so
+// a symlink planted where the directory belongs is judged by its own owner
+// rather than by whatever it points at.
+//
+// Answers a question, never throws and never reports: local_sinks() must not
+// throw, and a false here costs the file sink and nothing else.
+bool directory_is_private(const std::filesystem::path& dir)
+{
+    struct ::stat info
+    {
+    };
+    if (::lstat(dir.c_str(), &info) != 0 || !S_ISDIR(info.st_mode) || info.st_uid != ::getuid())
+    {
+        return false;
+    }
+
+    // Owning the leaf is not enough when someone else owns what it sits in.
+    // Root-owned parents are fine (that is /var/log); a world-writable parent
+    // is fine only when sticky, which is what stops one user renaming
+    // another's entry in /tmp.
+    const std::filesystem::path parent = dir.parent_path();
+    if (parent.empty() || parent == dir)
+    {
+        return true;
+    }
+    struct ::stat parent_info
+    {
+    };
+    if (::lstat(parent.c_str(), &parent_info) != 0)
+    {
+        return false;
+    }
+    if (parent_info.st_uid != ::getuid() && parent_info.st_uid != 0)
+    {
+        return false;
+    }
+    return (parent_info.st_mode & S_IWOTH) == 0 || (parent_info.st_mode & S_ISVTX) != 0;
+}
+#endif
 
 int current_pid()
 {
@@ -147,21 +193,33 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         console->set_pattern(kPattern);
 
         auto dir = log_dir();
-        std::error_code dir_ec;
-        const bool dir_created = std::filesystem::create_directories(dir, dir_ec);
 #ifndef _WIN32
-        if (dir_created)
+        // Every component this call is about to create, deepest first. The Python
+        // half chmods each of them, not just the leaf, because the default log
+        // directory is <runtime dir>/logs and the runtime directory is where the
+        // log socket lives; chmodding only the leaf left it at the umask.
+        std::vector<std::filesystem::path> missing;
         {
-            // Matches the Python side: owner-only, so the records and the raw fd
-            // captures beside them are not readable by other users of the machine.
-            // Only when this call created it -- an operator-chosen ISAACTELEOP_LOG_DIR
-            // keeps the permissions the operator gave it.
+            std::error_code exists_ec;
+            std::filesystem::path probe = dir;
+            while (!probe.empty() && probe != probe.parent_path() && !std::filesystem::exists(probe, exists_ec))
+            {
+                missing.push_back(probe);
+                probe = probe.parent_path();
+            }
+        }
+#endif
+        std::error_code dir_ec;
+        std::filesystem::create_directories(dir, dir_ec);
+#ifndef _WIN32
+        // Owner-only, and only on what this call created -- an operator-chosen
+        // ISAACTELEOP_LOG_DIR keeps the permissions the operator gave it.
+        for (const auto& component : missing)
+        {
             std::error_code perms_ec;
             std::filesystem::permissions(
-                dir, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, perms_ec);
+                component, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, perms_ec);
         }
-#else
-        (void)dir_created;
 #endif
         // One file per process: concurrent processes rotating a shared file
         // can corrupt it, so each process gets its own (mirrors the Python
@@ -171,6 +229,18 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         // against a reused pid colliding with an older run's file; the pid
         // still guards against two processes starting in the same second.
         auto filename = dir / (current_timestamp() + ".isaacteleop." + std::to_string(current_pid()) + ".log");
+
+#ifndef _WIN32
+        // Whoever owns the directory decides who reads what lands in it, and
+        // create_directories() succeeds silently on one that already exists --
+        // so without this a directory another user planted at the predictable
+        // default path collected this process's whole log. The Python half
+        // refuses the same shape; before this it refused and this did not.
+        if (!directory_is_private(dir))
+        {
+            return std::vector<spdlog::sink_ptr>{ console };
+        }
+#endif
 
         try
         {

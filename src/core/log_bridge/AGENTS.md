@@ -38,6 +38,15 @@ anything that can fail, directory creation takes the `std::error_code`
 overload, and the file sink is wrapped: an unwritable log directory costs the
 file and nothing else.
 
+**The directory is vetted the same way on both sides.** `ensure_private_dir()`
+in the Python half and `directory_is_private()` here answer the same question:
+the directory is ours by `lstat` (so a planted symlink is judged by its own
+owner), and the directory it sits in is owned by us or by root and not
+world-writable-without-sticky. The default path is predictable
+(`/tmp/isaacteleop-<uid>/logs`) and a standalone plugin executable never runs
+the Python check, so a divergence here is a divergence in who can read the
+logs. Failing the check costs the file sink; it must never throw.
+
 ## `install_python_sink()` reaches one shared object, not the process
 
 `log_bridge_core` is a static library, and roughly twenty targets link it --
