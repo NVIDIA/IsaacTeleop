@@ -946,10 +946,23 @@ simple-log
         return None
 
     # Truncate the log so operators only see lines from this run.
+    #
+    # Fatal, where a failed truncate used to be ignored. coturn opens this path
+    # itself, from `log-file=` in the config above, and follows whatever is
+    # there -- so starting it over a name we could not clear is starting it
+    # over a path someone else controls. The usual innocent cause is a file
+    # left by an earlier run under sudo, which /tmp's sticky bit then stops us
+    # unlinking; name the remedy, because the condition does not clear itself.
     try:
         os.close(_open_private(log_path))
     except OSError as exc:
-        log.warning("coturn: failed to prepare log file %s: %s", log_path, exc)
+        log.warning(
+            "coturn: failed to prepare log file %s: %s. Not starting the TURN "
+            "relay over a path this user cannot claim; remove the file and "
+            "retry.",
+            log_path,
+            exc,
+        )
         return None
 
     try:
