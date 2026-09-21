@@ -188,6 +188,15 @@ void Plugin::start_process(const std::string& command,
         // are allowed here (POSIX). Never add Logger/spdlog calls in this window --
         // spdlog's registry and (in a Python process) GIL acquisition are both
         // unsafe post-fork-pre-exec.
+        //
+        // One exception, deliberate and the only one: execvp() itself. POSIX lists
+        // execl/execle/execv/execve as async-signal-safe and leaves execvp out,
+        // because the PATH search may allocate -- which, if another thread held
+        // malloc's lock at fork() time, hangs this child. It is kept because a
+        // plugin's command comes from its metadata and may be a bare name that has
+        // to be found on PATH. Removing the exception means resolving the
+        // executable to an absolute path *before* fork() and calling execv(); do
+        // not instead delete this note and leave the blanket claim above standing.
 
         // Point *this process's* stdio at the session's capture file, which is what
         // keeps a plugin's non-logger output -- the OpenXR runtime's xrCreate* spew,
