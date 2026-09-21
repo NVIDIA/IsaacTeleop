@@ -120,12 +120,14 @@ def _mirror(sink_path: str, sink_fd: int) -> None:
     """
     reader_fd = -1
     try:
-        reader_fd = os.open(
-            sink_path,
-            os.O_RDONLY
-            | getattr(os, "O_NOFOLLOW", 0)
-            | getattr(os, "O_NONBLOCK", 0)
-            | getattr(os, "O_BINARY", 0),
+        reader_fd = _move_above_std(
+            os.open(
+                sink_path,
+                os.O_RDONLY
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0)
+                | getattr(os, "O_BINARY", 0),
+            )
         )
         # An operator-provided log directory may be shared; only tail the file
         # ensure_sink() opened, not a replacement at the same name.
