@@ -108,6 +108,12 @@ the logging packages.
   `src/plugins/*/main.cpp`, `cloudxr/oob_teleop_*.py` and similar are that
   deliberate kind; do not "migrate" them, and do not add new ones for
   diagnostics.
+- **One operator message, one channel.** The line rejecting an argument and
+  the usage block printed straight after it are one message; splitting them
+  between a logger and `std::cout` shows the operator half of it, and under
+  `ISAACTELEOP_LOG_SOCKET` — where `local_sinks()` gives a forwarding sink and
+  no console sink — none of the logged half. Judge such a site by the message
+  it belongs to, not by the call on its own line.
 - **Five environment variables are the whole external contract**, read
   identically by both halves: `ISAACTELEOP_LOG_DIR` (where log files land),
   `ISAACTELEOP_LOG_LEVEL` (console threshold for out-of-process code),
