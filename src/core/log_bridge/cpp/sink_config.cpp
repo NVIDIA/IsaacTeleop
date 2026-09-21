@@ -414,11 +414,16 @@ spdlog::level::level_enum console_level()
     {
         return spdlog::level::info;
     }
-    if (name == "warning" || name == "warn")
+    // "warn" and "err" are spdlog's own spellings and are deliberately absent:
+    // the Python half's _LEVEL_NAMES holds exactly the six names accepted here,
+    // so taking spdlog's aliases as well would give one operator value two
+    // different thresholds -- warn in a standalone plugin, info in the Python
+    // process beside it, which falls back to info for a name it does not know.
+    if (name == "warning")
     {
         return spdlog::level::warn;
     }
-    if (name == "error" || name == "err")
+    if (name == "error")
     {
         return spdlog::level::err;
     }
