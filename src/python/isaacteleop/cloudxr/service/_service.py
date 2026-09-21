@@ -56,19 +56,14 @@ drop the live session.
 _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
 
 
-def _set_pdeathsig() -> None:
-    """Ask the kernel to send SIGTERM to this process when its parent dies.
-
-    Called as subprocess preexec_fn so the runtime is cleaned up even if the
-    parent Python process is killed with SIGKILL or crashes.  Linux-only.
-    """
-    import ctypes  # noqa: PLC0415
-
-    ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG = 1
-
-
 _RUNTIME_WORKER_CODE = """\
 import sys, os
+if sys.platform.startswith("linux"):
+    # After exec: preexec_fn can deadlock once the log receiver thread exists.
+    import ctypes, signal
+    ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG
+    if os.getppid() != {parent_pid}:
+        raise SystemExit(1)
 sys.path = [p for p in sys.path if p]
 from {runtime_mod}.runtime import run
 run()
@@ -217,13 +212,14 @@ class CloudXRService:
                 [
                     sys.executable,
                     "-c",
-                    _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
+                    _RUNTIME_WORKER_CODE.format(
+                        runtime_mod=runtime_mod, parent_pid=os.getpid()
+                    ),
                 ],
                 env=worker_env,
                 stdout=capture_fd if capture_fd is not None else None,
                 stderr=stderr_file,
                 start_new_session=True,
-                preexec_fn=_set_pdeathsig if sys.platform != "win32" else None,
             )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
