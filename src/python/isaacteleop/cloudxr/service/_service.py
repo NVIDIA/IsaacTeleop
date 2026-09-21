@@ -407,9 +407,10 @@ class CloudXRService:
     def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
         """Build a diagnostic string after a failed runtime startup.
 
-        Captures the process exit code, the worker's stderr, the runtime
-        stderr log file (written by :func:`~.runtime.run`), and the most
-        recent CloudXR native server log.
+        Captures the process exit code, the worker's stderr, this session's
+        native-fd capture file (where the worker's own fd 1 goes), and the
+        most recent CloudXR native server log. See
+        :meth:`_gather_diagnostic_logs`.
         """
         _MAX_LOG_BYTES = 4096
         parts: list[str] = []
