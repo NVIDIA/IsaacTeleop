@@ -128,6 +128,45 @@ bool directory_is_private(const std::filesystem::path& dir)
     return !canonical_ec && ancestors_are_private(resolved);
 }
 
+// Make the name safe in the instant before spdlog opens it.
+//
+// secure_log_file() below runs from after_open and is too late for one case.
+// file_helper::open(fname, truncate=true) -- which every rotation reaches, via
+// rotate_()'s reopen(true) -- opens by name with "wb" and no O_NOFOLLOW, so a
+// symlink standing at the base name has its *target* truncated before
+// after_open ever sees the descriptor. Demonstrated against spdlog v1.17.0: a
+// 44-byte file pointed at by a symlink planted in the window rotate_() opens
+// between renaming the backups and reopening the base came back 0 bytes, with
+// secure_log_file() attached and correctly refusing to write through it.
+//
+// The window is reachable whenever anyone else can create entries in the log
+// directory. directory_is_private() constrains the directory's *owner* but not
+// its mode, and an operator's ISAACTELEOP_LOG_DIR keeps whatever permissions it
+// came with -- _file.py says so, and answers it on its half with
+// O_EXCL|O_NOFOLLOW.
+void reserve_log_file(const spdlog::filename_t& filename)
+{
+    struct ::stat existing
+    {
+    };
+    if (::lstat(filename.c_str(), &existing) == 0)
+    {
+        if (S_ISREG(existing.st_mode) && existing.st_uid == ::getuid())
+        {
+            return; // our own file being reopened; leave it and its mode alone
+        }
+        // A symlink, or a file someone else owns, standing where ours belongs.
+        // Fails harmlessly if the directory is not ours to write, in which case
+        // secure_log_file() still keeps the records out of it.
+        ::unlink(filename.c_str());
+    }
+    const int reserved = ::open(filename.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (reserved >= 0)
+    {
+        ::close(reserved);
+    }
+}
+
 void secure_log_file(const spdlog::filename_t& filename, std::FILE* file)
 {
     const int fd = ::fileno(file);
@@ -438,6 +477,10 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         {
             spdlog::file_event_handlers events;
 #ifndef _WIN32
+            // Both halves of the pair: before_open vets the name, after_open
+            // vets the descriptor. Neither covers the other -- see
+            // reserve_log_file().
+            events.before_open = reserve_log_file;
             events.after_open = secure_log_file;
 #endif
             auto file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(

@@ -38,6 +38,14 @@ anything that can fail, directory creation takes the `std::error_code`
 overload, and the file sink is wrapped: an unwritable log directory costs the
 file and nothing else.
 
+**A log file is vetted twice, and `after_open` alone is not enough.**
+`file_helper::open(name, truncate=true)` — every rotation reaches it — opens by
+name with `"wb"` and no `O_NOFOLLOW`, so a symlink standing at that name has its
+target truncated *before* `after_open` can look at the descriptor. `before_open`
+(`reserve_log_file`) is what vets the name; `after_open` (`secure_log_file`)
+vets the descriptor it got. Keep both, and do not assume a check on the opened
+file can undo what opening it already did.
+
 **The directory is vetted the same way on both sides.** `ensure_private_dir()`
 in the Python half and `directory_is_private()` here answer the same question:
 the directory is ours by `lstat` (so a planted symlink is judged by its own
