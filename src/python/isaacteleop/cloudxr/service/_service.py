@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
-from ...logging_config import log_dir, native_capture_fd
+from ...logging_config import native_capture_fd, native_capture_path
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -425,8 +425,7 @@ class CloudXRService:
             else:
                 parts.append("Process is still running but did not signal readiness.")
 
-        runtime_pid = proc.pid if proc is not None else None
-        for log_path in self._gather_diagnostic_logs(logs_dir, runtime_pid):
+        for log_path in self._gather_diagnostic_logs(logs_dir):
             try:
                 content = log_path.read_text(errors="replace").strip()
                 if not content:
@@ -441,9 +440,7 @@ class CloudXRService:
         return "  ".join(parts)
 
     @staticmethod
-    def _gather_diagnostic_logs(
-        logs_dir: Path, runtime_pid: int | None = None
-    ) -> list[Path]:
+    def _gather_diagnostic_logs(logs_dir: Path) -> list[Path]:
         """Return log files useful for diagnosing a startup failure."""
         result: list[Path] = []
 
@@ -451,22 +448,17 @@ class CloudXRService:
         if worker_stderr.is_file():
             result.append(worker_stderr)
 
-        # The runtime process's own fd 1/2 (its Vulkan-loader/GPU-init
-        # diagnostics, and the startup banner on fd 1) land in
-        # isaacteleop.logging_config's native-fd capture file, not under
-        # `logs_dir` (CloudXR's own ~/.cloudxr/logs). One file carries both
-        # descriptors. Matched on the runtime's own pid: every isaacteleop
-        # process writes one of these into the same directory, so "the newest
-        # one" could just as easily be a plugin from this session, or a
-        # leftover from an unrelated one.
-        pattern = (
-            f"*.isaacteleop.{runtime_pid}.native.log"
-            if runtime_pid is not None
-            else "*.isaacteleop.*.native.log"
-        )
-        captures = sorted(log_dir().glob(pattern))
-        if captures:
-            result.append(captures[-1])
+        # The runtime worker's own fd 1 (its startup banner, and the
+        # Vulkan-loader/GPU-init diagnostics it writes straight to a
+        # descriptor) lands in *this* process's native-fd capture file, not
+        # under `logs_dir` (CloudXR's own ~/.cloudxr/logs): the worker is
+        # launched with stdout=native_capture_fd(), a descriptor onto the file
+        # this service opened. The worker's own capture file, named after its
+        # pid, is the wrong one -- in the default `scoped` mode nothing ever
+        # rebinds the worker's descriptors onto it, so it stays empty.
+        capture = native_capture_path()
+        if capture is not None and capture.is_file():
+            result.append(capture)
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:
