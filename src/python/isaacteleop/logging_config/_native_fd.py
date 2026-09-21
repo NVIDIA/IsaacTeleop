@@ -71,6 +71,7 @@ _saved_raw: dict[int, int] = {}
 _saved_stream_fd: dict[int, int] = {}
 _saved: dict[int, TextIO] = {}
 _active_fds: list[int] = []
+_active_inheritable: dict[int, bool] = {}
 
 _depth = 0
 
@@ -369,8 +370,9 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
     """Point fd 1 and fd 2 at the capture file and keep Python's streams on the
     terminal. Callers hold ``_lock``; :func:`_end` undoes exactly this.
     """
-    global _active_fds, _pre_scope_handler_stream
+    global _active_fds, _active_inheritable, _pre_scope_handler_stream
     _active_fds = []
+    _active_inheritable = {}
     sink = capture_fd()
     if sink is None:
         return
@@ -384,20 +386,26 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
     capturable = []
     for fd in candidates:
         try:
-            os.dup2(fd, _saved_raw[fd])
-            os.dup2(fd, _saved_stream_fd[fd])
+            inheritable = os.get_inheritable(fd)
+            os.dup2(fd, _saved_raw[fd], inheritable=False)
+            os.dup2(fd, _saved_stream_fd[fd], inheritable=False)
         except OSError:
             continue
         capturable.append(fd)
+        _active_inheritable[fd] = inheritable
 
     rebound = []
     for fd in capturable:
         try:
-            os.dup2(sink, fd)
+            os.dup2(sink, fd, inheritable=_active_inheritable[fd])
         except OSError:
             for captured in rebound:
                 try:
-                    os.dup2(_saved_raw[captured], captured)
+                    os.dup2(
+                        _saved_raw[captured],
+                        captured,
+                        inheritable=_active_inheritable[captured],
+                    )
                 except OSError:
                     pass
             return
@@ -431,10 +439,12 @@ def _end(console_handler: logging.StreamHandler | None) -> None:
     """Put fd 1, fd 2 and Python's streams back exactly as :func:`_begin` found
     them. Callers hold ``_lock``.
     """
-    global _active_fds, _pre_scope_handler_stream
+    global _active_fds, _active_inheritable, _pre_scope_handler_stream
     for fd in _active_fds:
         try:
-            os.dup2(_saved_raw[fd], fd)
+            os.dup2(
+                _saved_raw[fd], fd, inheritable=_active_inheritable[fd]
+            )
         except OSError:
             # Keep restoring the other descriptor and Python stream objects.
             pass
@@ -447,6 +457,7 @@ def _end(console_handler: logging.StreamHandler | None) -> None:
     _pre_scope_streams.clear()
     _pre_scope_handler_stream = None
     _active_fds = []
+    _active_inheritable = {}
 
 
 def _enter_process_hold(console_handler: logging.StreamHandler | None) -> None:
