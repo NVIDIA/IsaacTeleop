@@ -352,7 +352,13 @@ def ensure_receiver() -> str:
             )
         server = None
         try:
-            if os.path.exists(path):
+            # lexists, not exists: exists() follows the link, so a symlink left
+            # here pointing at a name that has since gone answers False and the
+            # unlink is skipped -- but the entry still occupies the name, and
+            # bind() then fails with EADDRINUSE, which costs the whole session
+            # its forwarding for exactly the leftover this line exists to
+            # clear.
+            if os.path.lexists(path):
                 os.unlink(path)
             server = ThreadingUnixStreamServer(path, RequestHandler)
             # The directory is the main boundary; narrow the socket too before
