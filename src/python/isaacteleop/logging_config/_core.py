@@ -57,6 +57,25 @@ _LEVEL_NAMES = {
 _LEVEL_NAME_BY_VALUE = {value: name for name, value in _LEVEL_NAMES.items()}
 
 
+def _move_above_std(fd: int) -> int:
+    """Relocate *fd* clear of 0/1/2, leaving any closed std fd closed."""
+    low: list[int] = []
+    try:
+        while fd <= 2:
+            low.append(fd)
+            fd = os.dup(fd)
+    except OSError:
+        for spare in low:
+            try:
+                os.close(spare)
+            except OSError:
+                pass
+        raise
+    for spare in low:
+        os.close(spare)
+    return fd
+
+
 def resolve_level(level: int | str) -> int:
     """Accept either a stdlib level int or one of the names in ``_LEVEL_NAMES``."""
     if isinstance(level, str):

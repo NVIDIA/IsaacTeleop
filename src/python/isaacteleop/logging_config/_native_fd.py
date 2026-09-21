@@ -39,7 +39,7 @@ import time
 from collections.abc import Iterator
 from typing import TextIO
 
-from ._core import ROOT_LOGGER_NAME, TRACE, ensure_log_dir
+from ._core import ROOT_LOGGER_NAME, TRACE, _move_above_std, ensure_log_dir
 
 _FD_LABELS = {1: "stdout", 2: "stderr"}
 
@@ -256,33 +256,6 @@ def set_mode(
                 _enter_process_hold(console_handler)
         elif previous == MODE_PROCESS:
             _exit_process_hold(console_handler)
-
-
-def _move_above_std(fd: int) -> int:
-    """*fd*, relocated clear of 0/1/2 if the kernel handed us one of them.
-
-    ``os.open`` returns the lowest free descriptor, so a process started with
-    fd 1 or fd 2 closed -- daemons do exactly that -- gets the capture file
-    *on* the number this module is about to rebind. Relocating is preferable to
-    the usual trick of pinning ``/dev/null`` onto the closed descriptor first,
-    which would itself be a change to the host's descriptors; here fd 1 and
-    fd 2 are left closed, exactly as the host left them.
-    """
-    low: list[int] = []
-    try:
-        while fd <= 2:
-            low.append(fd)
-            fd = os.dup(fd)
-    except OSError:
-        for spare in low:
-            try:
-                os.close(spare)
-            except OSError:
-                pass
-        raise
-    for spare in low:
-        os.close(spare)
-    return fd
 
 
 def ensure_sink() -> str | None:

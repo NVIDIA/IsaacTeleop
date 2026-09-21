@@ -29,7 +29,7 @@ import struct
 import threading
 from pathlib import Path
 
-from ._core import ROOT_LOGGER_NAME, ensure_private_dir
+from ._core import ROOT_LOGGER_NAME, _move_above_std, ensure_private_dir
 
 # The C++ forwarding sink is POSIX-only. Keep the Python side on that same
 # boundary even where a non-POSIX Python exposes AF_UNIX; otherwise it publishes
@@ -80,10 +80,32 @@ _lock = threading.Lock()
 _verified_path: str | None = None
 
 
+def _move_socket_above_std(sock: socket.socket) -> socket.socket:
+    """Keep a logging socket from occupying a host-closed fd 0/1/2."""
+    if sock.fileno() > 2:
+        return sock
+    family, kind, proto, timeout = sock.family, sock.type, sock.proto, sock.gettimeout()
+    fd = _move_above_std(sock.detach())
+    try:
+        moved = socket.socket(family, kind, proto, fileno=fd)
+        moved.settimeout(timeout)
+        return moved
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
+
+
+def _unix_socket() -> socket.socket:
+    return _move_socket_above_std(socket.socket(socket.AF_UNIX, socket.SOCK_STREAM))
+
+
 def _reachable(path: str) -> bool:
     """Whether anything is still accepting connections at *path*."""
     try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        with _unix_socket() as probe:
             probe.settimeout(1.0)
             probe.connect(path)
         return True
@@ -140,7 +162,7 @@ class ForwardingHandler(logging.Handler):
 
     def _connect(self) -> socket.socket | None:
         try:
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock = _unix_socket()
             sock.settimeout(1.0)
             sock.connect(self._socket_path)
             return sock
@@ -267,6 +289,14 @@ if _HAS_UNIX_SOCKETS:
         socketserver.ThreadingMixIn, socketserver.UnixStreamServer
     ):
         daemon_threads = True
+
+        def server_bind(self) -> None:
+            self.socket = _move_socket_above_std(self.socket)
+            super().server_bind()
+
+        def get_request(self):
+            request, address = super().get_request()
+            return _move_socket_above_std(request), address
 
 
 _receiver_socket: str | None = None

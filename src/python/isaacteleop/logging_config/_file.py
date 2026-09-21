@@ -11,7 +11,13 @@ import threading
 import time
 from logging.handlers import RotatingFileHandler
 
-from ._core import DATE_FORMAT, LINE_FORMAT, ROOT_LOGGER_NAME, ensure_log_dir
+from ._core import (
+    DATE_FORMAT,
+    LINE_FORMAT,
+    ROOT_LOGGER_NAME,
+    _move_above_std,
+    ensure_log_dir,
+)
 
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MiB
 _BACKUP_COUNT = 5
@@ -48,13 +54,20 @@ class _PrivateRotatingFileHandler(RotatingFileHandler):
             # "\r\r\n".
             | getattr(os, "O_BINARY", 0)
         )
-        fd = os.open(self.baseFilename, flags, 0o600)
-        return open(
-            fd,
-            self.mode,
-            encoding=self.encoding,
-            errors=getattr(self, "errors", None),
-        )
+        fd = _move_above_std(os.open(self.baseFilename, flags, 0o600))
+        try:
+            return open(
+                fd,
+                self.mode,
+                encoding=self.encoding,
+                errors=getattr(self, "errors", None),
+            )
+        except BaseException:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
 
 
 def ensure_handler() -> logging.Handler:

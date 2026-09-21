@@ -33,6 +33,31 @@ namespace
 constexpr int kSendTimeoutSeconds = 1;
 constexpr int kConnectTimeoutMs = 1000;
 
+int move_above_std(int fd)
+{
+    if (fd < 0 || fd > STDERR_FILENO)
+    {
+        return fd;
+    }
+#    ifdef F_DUPFD_CLOEXEC
+    const int moved = ::fcntl(fd, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+#    else
+    const int moved = ::fcntl(fd, F_DUPFD, STDERR_FILENO + 1);
+    if (moved >= 0)
+    {
+        const int flags = ::fcntl(moved, F_GETFD);
+        if (flags < 0 || ::fcntl(moved, F_SETFD, flags | FD_CLOEXEC) < 0)
+        {
+            ::close(moved);
+            ::close(fd);
+            return -1;
+        }
+    }
+#    endif
+    ::close(fd);
+    return moved;
+}
+
 int current_pid()
 {
     return static_cast<int>(::getpid());
@@ -89,9 +114,9 @@ namespace
 int create_unix_socket()
 {
 #    ifdef SOCK_CLOEXEC
-    return ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    return move_above_std(::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0));
 #    else
-    const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    const int fd = move_above_std(::socket(AF_UNIX, SOCK_STREAM, 0));
     if (fd < 0)
     {
         return -1;
