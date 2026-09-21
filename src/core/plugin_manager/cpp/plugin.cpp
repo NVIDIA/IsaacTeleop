@@ -17,13 +17,44 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
 
 namespace core
 {
+namespace
+{
+
+// Report from inside the fork()/execvp() window. std::cerr must not be used
+// there: the standard ties cerr to cout, so ostream::sentry flushes cout
+// first, and this child inherited whatever the *host* process had buffered on
+// stdout -- which fd 1 now points at the capture file, so the host's own
+// output gets copied into isaacteleop's log. write() has no buffer of its own
+// and is on POSIX's async-signal-safe list, which the stream operators,
+// std::stringstream and std::string concatenation in this window are not.
+void write_fd2(const char* text, std::size_t len)
+{
+    std::size_t written = 0;
+    while (written < len)
+    {
+        const ssize_t n = ::write(STDERR_FILENO, text + written, len - written);
+        if (n <= 0)
+        {
+            return; // Nothing useful is left to do about it in this window.
+        }
+        written += static_cast<std::size_t>(n);
+    }
+}
+
+// Length from the literal, so no strlen() call is needed in the window.
+template <std::size_t N>
+void write_fd2(const char (&literal)[N])
+{
+    write_fd2(literal, N - 1);
+}
+
+} // namespace
 
 Plugin::Plugin(const std::string& command,
                const std::string& working_dir,
@@ -140,7 +171,9 @@ void Plugin::start_process(const std::string& command,
         {
             if (chdir(working_dir.c_str()) != 0)
             {
-                std::cerr << "Failed to change directory to " << working_dir << std::endl;
+                write_fd2("Failed to change directory to ");
+                write_fd2(working_dir.data(), working_dir.size());
+                write_fd2("\n");
                 _exit(1);
             }
         }
@@ -163,7 +196,7 @@ void Plugin::start_process(const std::string& command,
 
         if (args_str.empty())
         {
-            std::cerr << "Empty command" << std::endl;
+            write_fd2("Empty command\n");
             _exit(1);
         }
 
@@ -182,8 +215,9 @@ void Plugin::start_process(const std::string& command,
             }
             else
             {
-                std::cerr << "Warning: --plugin-root-id is managed by the plugin launcher, ignoring manual override"
-                          << std::endl;
+                write_fd2(
+                    "Warning: --plugin-root-id is managed by the plugin launcher, "
+                    "ignoring manual override\n");
             }
         }
 
@@ -197,7 +231,9 @@ void Plugin::start_process(const std::string& command,
         execvp(args[0], args.data());
 
         // If execvp returns, it failed
-        std::cerr << "Failed to exec plugin command: " << command << std::endl;
+        write_fd2("Failed to exec plugin command: ");
+        write_fd2(command.data(), command.size());
+        write_fd2("\n");
         _exit(1);
     }
     else

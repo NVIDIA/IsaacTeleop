@@ -84,9 +84,16 @@ halves in the same commit or they silently stop understanding each other.
 `plugin_manager/cpp/plugin.cpp` launches every plugin through that window,
 where only async-signal-safe calls are legal. `Logger::get()` allocates and
 touches spdlog's global registry, and in a Python process the bridge sink
-acquires the GIL; both are unsafe there. The four `std::cerr` sites in that
-window are correct as they stand — the rule is stated next to them in the
-source, and this is the reminder not to "finish the migration" by moving them.
+acquires the GIL; both are unsafe there. Do not "finish the migration" by
+routing the child's four failure reports through a logger.
+
+**Nor through `std::cerr`, which is what they used to use.** The standard ties
+`cerr` to `cout`, so `ostream::sentry` flushes `cout` before every write — and
+the child inherited whatever the *host* had buffered there, which now lands in
+whatever fd 1 points at. Since this same window rebinds fd 1 to the capture
+file, one `std::cerr` in the child copied up to a buffer's worth of the host's
+own stdout into isaacteleop's log. They use `write(2, …)` now, which has no
+buffer of its own and is on the async-signal-safe list.
 
 The same window now also points the **child's** fd 1 and fd 2 at
 `ISAACTELEOP_NATIVE_CAPTURE_FILE`. `open`, `dup2` and `close` are on POSIX's
