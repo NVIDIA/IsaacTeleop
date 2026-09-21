@@ -12,6 +12,7 @@ import re
 import socket
 import ssl
 import subprocess
+import sys
 import threading
 import time
 from importlib.metadata import PackageNotFoundError, version
@@ -555,11 +556,18 @@ def resolve_lan_host_for_oob() -> str:
 def oob_progress(stage: str, msg: str) -> None:
     """One-line progress update for ``--setup-oob`` / ``--usb-local`` steps.
 
-    *stage* becomes the record's logger name rather than a bracket prefix in
-    the message, so the launcher's phases stay greppable and independently
-    filterable the way module names already are.
+    Goes to stderr in dim cyan so the operator can see *where* the launcher
+    is in its sequence of steps without these lines competing with the
+    success banner (stdout) or error prints (red).
+
+    A print(), deliberately, and one the repo root AGENTS.md names as such:
+    progress lines are terminal UX, not diagnostics. Routing them through a
+    logger puts them behind the console threshold, so an operator who had
+    called set_console_level("warning") -- a supported, public thing to do --
+    lost every phase marker in a sequence that drives adb, coturn and a
+    headset browser in turn. Do not "migrate" this one.
     """
-    logging.getLogger(f"isaacteleop.cloudxr.{stage}").info(msg)
+    print(f"\033[36m[{stage}]\033[0m {msg}", file=sys.stderr, flush=True)
 
 
 def print_oob_hub_startup_banner(
