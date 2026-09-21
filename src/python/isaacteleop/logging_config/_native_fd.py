@@ -160,9 +160,10 @@ def _no_sink(reason: str) -> None:
     capture file *and* publishes ISAACTELEOP_NATIVE_CAPTURE_FILE, so when it
     returns None every vendor line written straight to a descriptor is lost --
     in this process and in every plugin it forks -- with nothing on the console
-    or in the log file to say so. The console handler is attached before
-    install() reaches gate(), so this lands the same way _setup's file-handler
-    warning and _forwarding's _no_receiver() do.
+    or in the log file to say so. It lands the same way _setup's file-handler
+    warning and _forwarding's _no_receiver() do, because install() attaches
+    this process's handler -- console in the leader, forwarding in a child --
+    before it reaches gate().
     """
     global _sink_warned
     if _sink_warned:

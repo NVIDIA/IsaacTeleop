@@ -33,6 +33,15 @@ def install() -> None:
 
     socket_path = _forwarding.socket_path()
     if socket_path is not None:
+        # The forwarding handler first, and that ordering is load-bearing: a
+        # child attaches no console handler (_console.ensure_handler() builds
+        # one but does not add it), so until this line the isaacteleop logger
+        # has no handler at all and anything reported during setup falls
+        # through to logging.lastResort -- an unformatted line on this
+        # process's stderr, which for a plugin or the runtime worker is the
+        # parent's capture file rather than the session log. gate() reports
+        # exactly that way when the capture file cannot be created.
+        _forwarding.ensure_handler(socket_path)
         # Not this process's own console handler/level: it has none anymore,
         # only the leader does. ISAACTELEOP_LOG_LEVEL is the existing
         # mechanism for propagating the leader's current console threshold to
@@ -47,7 +56,6 @@ def install() -> None:
         except ValueError:
             env_level = _LEVEL_NAMES.get(env_level_name.lower(), logging.INFO)
         _native_fd.gate(env_level, _console.ensure_handler())
-        _forwarding.ensure_handler(socket_path)
         return
 
     console = _console.ensure_handler()
