@@ -6,10 +6,9 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from . import _console, _file, _forwarding, _native_fd
-from ._core import ROOT_LOGGER_NAME, _LEVEL_NAMES
+from ._core import ROOT_LOGGER_NAME
 
 _installed = False
 
@@ -48,14 +47,11 @@ def install() -> None:
         # out-of-process code (set_console_level()); raw fd 1/2 spew can
         # never be forwarded (it bypasses this logger tree entirely), so
         # deciding whether to echo it in this process still has to key off
-        # that same variable. gate() opens the capture file and sets that
-        # echo policy; it does not rebind any descriptor.
-        env_level_name = os.environ.get("ISAACTELEOP_LOG_LEVEL")
-        try:
-            env_level = int(env_level_name) if env_level_name else logging.INFO
-        except ValueError:
-            env_level = _LEVEL_NAMES.get(env_level_name.lower(), logging.INFO)
-        _native_fd.gate(env_level, _console.ensure_handler())
+        # that same variable. ensure_handler() is where it is read, on both
+        # branches. gate() opens the capture file and sets that echo policy;
+        # it does not rebind any descriptor.
+        console = _console.ensure_handler()
+        _native_fd.gate(console.level, console)
         return
 
     console = _console.ensure_handler()

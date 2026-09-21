@@ -69,6 +69,29 @@ def resolve_level(level: int | str) -> int:
     return level
 
 
+def env_console_level() -> int:
+    """Console threshold from ``ISAACTELEOP_LOG_LEVEL``, or ``INFO`` if unset.
+
+    The same variable, with the same vocabulary, that
+    ``log_bridge/cpp/sink_config.cpp``'s ``console_level()`` reads: the six
+    names above, case-insensitively, or a stdlib level number. Anything else
+    falls back to ``INFO`` rather than raising -- this is read from
+    ``install()``, which runs from ``import isaacteleop``.
+
+    A number is taken literally here and bucketed to the nearest spdlog level
+    there, because spdlog has no room between its six. That is the whole of the
+    difference.
+    """
+    raw = os.environ.get("ISAACTELEOP_LOG_LEVEL")
+    if not raw:
+        return logging.INFO
+    raw = raw.strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return _LEVEL_NAMES.get(raw.lower(), logging.INFO)
+
+
 def log_dir() -> Path:
     """Directory every log file of this session lands in.
 

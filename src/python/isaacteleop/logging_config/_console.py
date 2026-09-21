@@ -17,6 +17,7 @@ from ._core import (
     LINE_FORMAT,
     ROOT_LOGGER_NAME,
     TRACE,
+    env_console_level,
     resolve_level,
 )
 
@@ -141,6 +142,11 @@ def ensure_handler() -> logging.StreamHandler:
     just never receives records, so it never prints a local, second copy of
     what the leader's own console handler already shows once the record comes
     back through the forwarder.
+
+    Its starting threshold comes from ``ISAACTELEOP_LOG_LEVEL``, the same
+    variable ``log_bridge``'s ``console_level()`` reads, so one setting in the
+    environment governs a session's Python and C++ consoles alike;
+    :func:`set_console_level` overrides it afterwards and republishes it.
     """
     global _handler
     if _handler is not None:
@@ -152,7 +158,7 @@ def ensure_handler() -> logging.StreamHandler:
         handler.setFormatter(
             _LoggerNameColorFormatter(LINE_FORMAT, datefmt=DATE_FORMAT, handler=handler)
         )
-        handler.setLevel(logging.INFO)
+        handler.setLevel(env_console_level())
         root = logging.getLogger(ROOT_LOGGER_NAME)
         root.setLevel(
             TRACE

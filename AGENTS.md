@@ -117,10 +117,10 @@ the logging packages.
 - **Five environment variables are the whole external contract.** The first
   three are read identically by both halves — change one and change both, or
   the two stop agreeing: `ISAACTELEOP_LOG_DIR` (where log files land),
-  `ISAACTELEOP_LOG_LEVEL` (console threshold for out-of-process code; the six
-  level names and the numeric form, nothing else — spdlog's `warn`/`err`
-  spellings are deliberately not accepted, because Python has no entry for
-  them) and `ISAACTELEOP_LOG_SOCKET` (set by the session leader; its presence
+  `ISAACTELEOP_LOG_LEVEL` (the console threshold every process starts at, the
+  Python leader's included; the six level names and the numeric form, nothing
+  else — spdlog's `warn`/`err` spellings are deliberately not accepted, because
+  Python has no entry for them) and `ISAACTELEOP_LOG_SOCKET` (set by the session leader; its presence
   is what makes a process forward instead of owning handlers). The last two are
   shared but **not** symmetric, and assuming otherwise is how a check gets
   written on the wrong side: `ISAACTELEOP_NATIVE_CAPTURE` (`off`/`scoped`/
