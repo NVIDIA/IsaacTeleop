@@ -179,7 +179,10 @@ try
         }
         else
         {
-            logger->error("Unknown option: {}", arg);
+            // Paired with print_usage()'s std::cout. A logger would split one
+            // message across two destinations, and under ISAACTELEOP_LOG_SOCKET
+            // local_sinks() carries no console sink, so this half would vanish.
+            std::cerr << "Unknown option: " << arg << std::endl;
             print_usage(argv[0]);
             return 1;
         }
@@ -187,7 +190,7 @@ try
 
     if (stream_map.empty())
     {
-        logger->error("at least one --add-stream is required.");
+        std::cerr << "Error: at least one --add-stream is required." << std::endl;
         print_usage(argv[0]);
         return 1;
     }
