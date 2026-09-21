@@ -57,12 +57,12 @@ says whether it is still safe. Neither `before_open` nor `after_open` can stop
 returns `void`; it cannot veto), so the *first* rotation into a directory
 swapped in since the last check can still truncate whatever a symlink at the
 next name points at. What the re-check buys is that it does not stay open:
-once caught, the descriptor is redirected to `/dev/null` and stays that way
-through every later rotation, rather than the process trusting a directory it
-last verified at start-up for however long it keeps running. Verified against
-real spdlog v1.17.0: turning an ancestor world-writable mid-run stops the file
-from growing at the next rotation, with everything written before that point
-intact.
+once caught, the descriptor is redirected to `/dev/null` instead of the
+process trusting a directory it last verified at start-up for however long it
+keeps running -- see below for exactly how permanent that redirection is, and
+what it costs. Verified against real spdlog v1.17.0: turning an ancestor
+world-writable mid-run stops the file from growing at the next rotation, with
+everything written before that point intact.
 
 Know the three things that buys it, because each is a support call waiting to
 happen. The redirection is **one-way**: `/dev/null` reports size 0, so
