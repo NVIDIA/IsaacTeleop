@@ -127,8 +127,8 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
     Raises:
         PermissionError: if *directory* is not our directory; if an ancestor of
             either its lexical or its resolved path is owned by neither us nor
-            root, or a real-directory ancestor is group/world-writable without
-            the sticky bit; or if the path cannot be resolved at all.
+            root, or a real-directory ancestor is world-writable without the
+            sticky bit; or if the path cannot be resolved at all.
     """
     # Every component this call is about to create, shallowest last. mkdir()'s
     # mode is masked by the umask, so each one needs the bits set explicitly --
@@ -184,16 +184,27 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
             # A symlink ancestor is judged by its owner alone: its own mode bits
             # are not its target's (Linux reports 0777), so testing them here
             # would refuse ordinary paths -- /tmp and /var are symlinks on macOS.
+            #
+            # World-write, not group-write. Every ancestor is already required
+            # to be owned by us or by root, so a group-writable one is writable
+            # by a group that owner deliberately chose -- and that is the
+            # ordinary shape of the directories an operator points
+            # ISAACTELEOP_LOG_DIR at: /var/log ships root:syslog 0775, and
+            # root:<deploy group> 0775 is how /opt and /srv are shared.
+            # Refusing those bought nothing and cost the whole file handler.
+            # World-write is different in kind: every account on the machine
+            # can move the ancestor aside and substitute a symlink, which is
+            # the attack this check exists for, and the sticky bit is how /tmp
+            # makes that same shape safe.
             parent_mode = stat.S_IMODE(parent_info.st_mode)
-            shared_write = parent_mode & (stat.S_IWGRP | stat.S_IWOTH)
             if (
                 not stat.S_ISLNK(parent_info.st_mode)
-                and shared_write
+                and parent_mode & stat.S_IWOTH
                 and not parent_mode & stat.S_ISVTX
             ):
                 raise PermissionError(
                     f"Refusing to use {directory}: ancestor {parent} is "
-                    f"group/world-writable without the sticky bit.{remedy}"
+                    f"world-writable without the sticky bit.{remedy}"
                 )
             previous = parent
             parent = parent.parent

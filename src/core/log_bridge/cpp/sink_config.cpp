@@ -91,8 +91,14 @@ bool ancestors_are_private(const std::filesystem::path& path)
             {
                 return false;
             }
-            constexpr mode_t kSharedWrite = S_IWGRP | S_IWOTH;
-            if ((parent_info.st_mode & kSharedWrite) != 0 && (parent_info.st_mode & S_ISVTX) == 0)
+            // World-write, not group-write, and the same rule the Python half
+            // applies (ensure_private_dir's vet_ancestors). A group-writable
+            // ancestor is writable by a group its owner -- us or root -- chose
+            // on purpose, which is what /var/log (root:syslog 0775) and a
+            // shared /opt or /srv look like. World-write lets any account on
+            // the machine move the ancestor aside; the sticky bit is how /tmp
+            // makes that safe.
+            if ((parent_info.st_mode & S_IWOTH) != 0 && (parent_info.st_mode & S_ISVTX) == 0)
             {
                 return false;
             }

@@ -42,8 +42,10 @@ file and nothing else.
 in the Python half and `directory_is_private()` here answer the same question:
 the directory is ours by `lstat` (so a planted symlink is judged by its own
 owner), and every lexical and resolved ancestor is owned by us or by root and
-— where it is a real directory rather than a symlink — is not group/world
-writable without the sticky bit. The default path is predictable
+— where it is a real directory rather than a symlink — is not world-writable
+without the sticky bit. Group-writable is allowed: the owner is already
+constrained to us or root, so the group is one of them delegating on purpose,
+which is what `/var/log` and a shared `/opt` look like. The default path is predictable
 (`/tmp/isaacteleop-<uid>/logs`) and a standalone plugin executable never runs
 the Python check, so a divergence here is a divergence in who can read the
 logs. Failing the check costs the file sink; it must never throw.
