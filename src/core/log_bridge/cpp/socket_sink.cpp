@@ -159,10 +159,13 @@ bool connect_bounded(int fd, const sockaddr_un& addr)
             break;
         }
         // A full accept queue answers EAGAIN here and blocks a *blocking*
-        // socket outright; EALREADY is this loop coming back after EINTR.
-        // Retry inside the budget rather than call a live leader unreachable
-        // over one burst of simultaneous plugin launches.
-        if ((errno != EAGAIN && errno != EALREADY) || millis_until(deadline) == 0)
+        // socket outright; EALREADY is this loop coming back after the poll
+        // below was interrupted; EINTR is a signal landing on ::connect()
+        // itself. Retry all three inside the budget rather than call a live
+        // leader unreachable over one burst of simultaneous plugin launches,
+        // or over a single signal -- that costs the process the session-wide
+        // log file, which is the outcome this function exists to avoid.
+        if ((errno != EAGAIN && errno != EALREADY && errno != EINTR) || millis_until(deadline) == 0)
         {
             break;
         }
