@@ -272,6 +272,26 @@ if _HAS_UNIX_SOCKETS:
 _receiver_socket: str | None = None
 
 
+def _release_receiver(server, path: str, owner_pid: int) -> None:
+    """Stop the receiver and remove its socket, in the process that started it.
+
+    Only the creator may do either. ``fork()`` does not copy threads, so in a
+    child ``serve_forever`` is not running and ``shutdown()`` waits forever on
+    an Event nothing will ever set -- and the unlink would meanwhile take the
+    socket the *leader* is still listening on, silently ending forwarding for
+    the whole session. One registration rather than two also fixes the order:
+    atexit runs LIFO, so a separately registered unlink ran before the
+    shutdown it should follow.
+    """
+    if os.getpid() != owner_pid:
+        return
+    server.shutdown()
+    try:
+        os.unlink(path)
+    except OSError:
+        pass  # already gone, or a directory we can no longer write
+
+
 def _no_receiver(reason: str) -> str:
     """Report that forwarding is off and return the "no address" sentinel.
 
@@ -364,8 +384,7 @@ def ensure_receiver() -> str:
             except OSError:
                 pass
             return _no_receiver(f"cannot start the receiver thread ({exc})")
-        atexit.register(server.shutdown)
-        atexit.register(lambda: os.path.exists(path) and os.unlink(path))
+        atexit.register(_release_receiver, server, path, os.getpid())
         os.environ["ISAACTELEOP_LOG_SOCKET"] = path
         _receiver_socket = path
         return path
