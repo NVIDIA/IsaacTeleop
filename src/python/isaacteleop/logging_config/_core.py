@@ -203,8 +203,7 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
         resolved = directory.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
         raise PermissionError(
-            f"Refusing to use {directory}: cannot resolve its ancestor chain."
-            f"{remedy}"
+            f"Refusing to use {directory}: cannot resolve its ancestor chain.{remedy}"
         ) from exc
     if resolved != directory:
         vet_ancestors(resolved)
