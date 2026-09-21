@@ -196,9 +196,17 @@ std::filesystem::path unique_log_path(const std::filesystem::path& dir, const st
     {
         const std::string suffix = attempt == 0 ? std::string() : "-" + std::to_string(attempt);
         auto candidate = dir / (stem + suffix + ".log");
-        std::error_code exists_ec;
-        if (!std::filesystem::exists(candidate, exists_ec) && !exists_ec)
+        // Reserved, not merely checked: exists() left a gap before the real open
+        // (a few lines below, inside rotating_file_sink_mt) that two extension
+        // modules' independent creation_mutex()es do not close -- each is a
+        // function-local static in its own copy of this static library. "wx"
+        // (C11 exclusive create; glibc, MSVC's CRT and macOS's libc all support
+        // it) fails instead of truncating when the name is already taken.
+        // Reproduced racing threads through the old exists()-then-create shape
+        // and through this one in a standalone harness: only the former collides.
+        if (std::FILE* reserved = std::fopen(candidate.string().c_str(), "wx"))
         {
+            std::fclose(reserved);
             return candidate;
         }
     }
