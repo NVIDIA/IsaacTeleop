@@ -419,12 +419,13 @@ void RebotDevarmLeaderPlugin::update()
 
 int run_probe(const std::string& device_path, const std::string& calibration_path, int seconds)
 {
-    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.rebot_devarm_leader.main");
+    // Probe output is terminal UX; keep it on the raw streams even when log
+    // forwarding is active.
     if (device_path.empty())
     {
-        logger->error(
-            "a device is required: a serial path (e.g. /dev/ttyACM0, Damiao) or a SocketCAN interface name "
-            "(e.g. can0, RobStride)");
+        std::cerr << "probe: a device is required: a serial path (e.g. /dev/ttyACM0, Damiao) or a "
+                     "SocketCAN interface name (e.g. can0, RobStride)"
+                  << std::endl;
         return 2;
     }
 
@@ -602,12 +603,13 @@ int run_probe(const std::string& device_path, const std::string& calibration_pat
         if (!joints[i].seen)
         {
             all_ok = false;
-            logger->warn("no feedback from motor 0x{:x} ({})", joints[i].motor_id, kJointNames[i]);
+            std::cerr << "probe: no feedback from motor 0x" << std::hex << joints[i].motor_id << std::dec << " ("
+                      << kJointNames[i] << ")" << std::endl;
         }
     }
     if (!all_ok)
     {
-        logger->warn("some motors missing");
+        std::cout << "probe: some motors missing" << std::endl;
         return 1;
     }
 
@@ -618,15 +620,15 @@ int run_probe(const std::string& device_path, const std::string& calibration_pat
     const ProbeJoint& gripper = joints[kGripperJointIndex];
     if (gripper.pos < kGripperTravelMinRad || gripper.pos > kGripperTravelMaxRad)
     {
-        logger->warn(
-            "gripper reads {} rad, outside its physical travel [{}, {}]: the multi-turn encoder wrapped after "
-            "a power cycle. Re-home the gripper (close against the stop and re-zero) before teleoperating.",
-            gripper.pos, kGripperTravelMinRad, kGripperTravelMaxRad);
-        logger->info("all motors replied (gripper out of travel)");
+        std::cerr << "probe: WARNING: gripper reads " << gripper.pos << " rad, outside its physical travel ["
+                  << kGripperTravelMinRad << ", " << kGripperTravelMaxRad
+                  << "]: the multi-turn encoder wrapped after a power cycle. Re-home the gripper "
+                  << "(close against the stop and re-zero) before teleoperating." << std::endl;
+        std::cout << "probe: all motors replied (gripper out of travel)" << std::endl;
         return 3;
     }
 
-    logger->info("all motors replied");
+    std::cout << "probe: all motors replied" << std::endl;
     return 0;
 }
 
