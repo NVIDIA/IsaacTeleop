@@ -23,6 +23,7 @@
 
 namespace core
 {
+#ifndef _WIN32
 namespace
 {
 
@@ -55,6 +56,7 @@ void write_fd2(const char (&literal)[N])
 }
 
 } // namespace
+#endif
 
 Plugin::Plugin(const std::string& command,
                const std::string& working_dir,
