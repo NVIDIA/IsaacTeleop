@@ -70,6 +70,7 @@ _sink_fd: int | None = None
 _saved_raw: dict[int, int] = {}
 _saved_stream_fd: dict[int, int] = {}
 _saved: dict[int, TextIO] = {}
+_active_fds: list[int] = []
 
 _depth = 0
 
@@ -201,9 +202,17 @@ def _move_above_std(fd: int) -> int:
     fd 2 are left closed, exactly as the host left them.
     """
     low: list[int] = []
-    while fd <= 2:
-        low.append(fd)
-        fd = os.dup(fd)
+    try:
+        while fd <= 2:
+            low.append(fd)
+            fd = os.dup(fd)
+    except OSError:
+        for spare in low:
+            try:
+                os.close(spare)
+            except OSError:
+                pass
+        raise
     for spare in low:
         os.close(spare)
     return fd
@@ -264,7 +273,14 @@ def ensure_sink() -> str | None:
             )
         except OSError:
             return None  # leave every descriptor alone rather than fail the import
-        _sink_fd = _move_above_std(fd)
+        try:
+            _sink_fd = _move_above_std(fd)
+        except OSError:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            return None
         _sink_path = path
         # Published, not derived: a fork+exec'd child cannot re-derive the
         # timestamp or the leader's pid, and the C++ side must open *this* file
@@ -306,10 +322,18 @@ def _ensure_saved_slots() -> list[int]:
             raw = _move_above_std(os.dup(fd))
         except OSError:
             continue  # closed, or otherwise not duplicable; nothing to capture
-        stream_fd = _move_above_std(os.dup(fd))
+        stream_fd = None
+        try:
+            stream_fd = _move_above_std(os.dup(fd))
+            stream = os.fdopen(stream_fd, "w", buffering=1, closefd=False)
+        except (OSError, ValueError):
+            os.close(raw)
+            if stream_fd is not None:
+                os.close(stream_fd)
+            continue
         _saved_raw[fd] = raw
         _saved_stream_fd[fd] = stream_fd
-        _saved[fd] = os.fdopen(stream_fd, "w", buffering=1, closefd=False)
+        _saved[fd] = stream
         capturable.append(fd)
     return capturable
 
@@ -328,26 +352,57 @@ def _follows(stream: TextIO | None, fd: int) -> bool:
         return False
 
 
+def _set_handler_stream(
+    handler: logging.StreamHandler, stream: TextIO
+) -> None:
+    try:
+        handler.setStream(stream)
+    except Exception:  # noqa: BLE001 -- restoring host descriptors wins
+        handler.acquire()
+        try:
+            handler.stream = stream
+        finally:
+            handler.release()
+
+
 def _begin(console_handler: logging.StreamHandler | None) -> None:
     """Point fd 1 and fd 2 at the capture file and keep Python's streams on the
     terminal. Callers hold ``_lock``; :func:`_end` undoes exactly this.
     """
-    global _pre_scope_handler_stream
+    global _active_fds, _pre_scope_handler_stream
+    _active_fds = []
     sink = capture_fd()
     if sink is None:
         return
-    capturable = _ensure_saved_slots()
-    if not capturable:
+    candidates = _ensure_saved_slots()
+    if not candidates:
         return
 
     # Refreshed, not taken once: between two scopes the host is free to rebind
     # its own fd 1 / fd 2, and dup2 onto the existing slot updates what the
     # restore will put back without invalidating the wrapper built on it.
+    capturable = []
+    for fd in candidates:
+        try:
+            os.dup2(fd, _saved_raw[fd])
+            os.dup2(fd, _saved_stream_fd[fd])
+        except OSError:
+            continue
+        capturable.append(fd)
+
+    rebound = []
     for fd in capturable:
-        os.dup2(fd, _saved_raw[fd])
-        os.dup2(fd, _saved_stream_fd[fd])
-    for fd in capturable:
-        os.dup2(sink, fd)
+        try:
+            os.dup2(sink, fd)
+        except OSError:
+            for captured in rebound:
+                try:
+                    os.dup2(_saved_raw[captured], captured)
+                except OSError:
+                    pass
+            return
+        rebound.append(fd)
+    _active_fds = rebound
 
     # ``print()``, ``print(file=sys.stderr)`` and uncaught tracebacks stay on the
     # terminal: the stream objects are moved onto the duplicates rather than
@@ -357,29 +412,29 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
     # level.
     _pre_scope_streams.clear()
     _pre_scope_handler_stream = None
-    if 1 in _saved and _follows(sys.stdout, 1):
+    if 1 in _active_fds and _follows(sys.stdout, 1):
         _pre_scope_streams[1] = sys.stdout
         sys.stdout = _saved[1]
-    if 2 in _saved and _follows(sys.stderr, 2):
+    if 2 in _active_fds and _follows(sys.stderr, 2):
         _pre_scope_streams[2] = sys.stderr
         sys.stderr = _saved[2]
     if (
         console_handler is not None
-        and 2 in _saved
+        and 2 in _active_fds
         and _follows(console_handler.stream, 2)
     ):
         _pre_scope_handler_stream = console_handler.stream
-        console_handler.setStream(_saved[2])
+        _set_handler_stream(console_handler, _saved[2])
 
 
 def _end(console_handler: logging.StreamHandler | None) -> None:
     """Put fd 1, fd 2 and Python's streams back exactly as :func:`_begin` found
     them. Callers hold ``_lock``.
     """
-    global _pre_scope_handler_stream
-    for fd, saved in _saved_raw.items():
+    global _active_fds, _pre_scope_handler_stream
+    for fd in _active_fds:
         try:
-            os.dup2(saved, fd)
+            os.dup2(_saved_raw[fd], fd)
         except OSError:
             # Keep restoring the other descriptor and Python stream objects.
             pass
@@ -388,9 +443,10 @@ def _end(console_handler: logging.StreamHandler | None) -> None:
     if 2 in _pre_scope_streams:
         sys.stderr = _pre_scope_streams[2]
     if console_handler is not None and _pre_scope_handler_stream is not None:
-        console_handler.setStream(_pre_scope_handler_stream)
+        _set_handler_stream(console_handler, _pre_scope_handler_stream)
     _pre_scope_streams.clear()
     _pre_scope_handler_stream = None
+    _active_fds = []
 
 
 def _enter_process_hold(console_handler: logging.StreamHandler | None) -> None:
@@ -423,7 +479,7 @@ def _flush_before_restore() -> None:
             continue
         try:
             stream.flush()
-        except (OSError, ValueError):
+        except Exception:  # noqa: BLE001 -- restoring host descriptors wins
             # BrokenPipeError, or a stream closed under us. Nothing to do
             # about it here, and nothing that justifies keeping the host's
             # descriptors.
