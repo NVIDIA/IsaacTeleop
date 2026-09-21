@@ -33,6 +33,13 @@ namespace
 constexpr int kSendTimeoutSeconds = 1;
 constexpr int kConnectTimeoutMs = 1000;
 
+// Keep this socket clear of fd 0/1/2. ::socket() returns the lowest free
+// number, so a host that left one of them closed -- a daemon does exactly that
+// -- gets the forwarding socket on a number that vendor code, and a fork()ed
+// child's own failure reports, write to blindly; the receiver reads that text
+// as a frame length and drops the connection. The ::close() below gives back a
+// number the kernel had just handed us, leaving the host's descriptors as they
+// were. Same rule as the Python half's _move_above_std() (logging_config/_core.py).
 int move_above_std(int fd)
 {
     if (fd < 0 || fd > STDERR_FILENO)
