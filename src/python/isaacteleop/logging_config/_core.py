@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import stat
 import tempfile
 from pathlib import Path
 
@@ -90,9 +91,12 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
 
     The ownership check refuses a directory some other user got to first, which
     under /tmp is the classic way to have another process write through a
-    symlink on your behalf. Both steps are POSIX-only: chmod moves nothing but
-    the read-only bit on Windows, st_uid is always 0 there, and the shared-
-    directory threat they answer does not arise under a per-user temp path.
+    symlink on your behalf. It covers the directory *and the directory it sits
+    in*, by ``lstat``, because owning a leaf inside someone else's directory
+    buys nothing: they can move it aside. Both steps are POSIX-only: chmod
+    moves nothing but the read-only bit on Windows, st_uid is always 0 there,
+    and the shared-directory threat they answer does not arise under a per-user
+    temp path.
 
     Args:
         directory: the path to create and vet.
@@ -100,7 +104,9 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
             can change.
 
     Raises:
-        PermissionError: if *directory* exists and another user owns it.
+        PermissionError: if *directory* exists and another user owns it, or if
+            its parent is owned by neither us nor root, or is world-writable
+            without the sticky bit.
     """
     # Every component this call is about to create, shallowest last. mkdir()'s
     # mode is masked by the umask, so each one needs the bits set explicitly --
@@ -123,12 +129,43 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
     for component in missing:
         component.chmod(0o700)
 
-    info = directory.stat()
+    # lstat, not stat: a symlink planted where the directory should be carries
+    # the planter's uid, while whatever it points at may well be ours -- which
+    # is exactly what makes planting it worth doing. stat() would follow it and
+    # report the target's owner, so the check passed on the one shape it was
+    # written to refuse.
+    info = directory.lstat()
     if info.st_uid != os.getuid():
         raise PermissionError(
             f"Refusing to use {directory}: owned by uid {info.st_uid}, "
             f"not {os.getuid()}.{remedy}"
         )
+
+    # Owning the directory is not enough if someone else owns the directory it
+    # sits in: they can move it aside and leave their own in its place. The
+    # default path is two deep -- <runtime dir>/logs -- and only the leaf was
+    # vetted, so a runtime directory another user created first passed, and
+    # every later call passed too, because the leaf we then created inside it
+    # really was ours.
+    #
+    # Root-owned parents are fine; that is what /var/log is. A world-writable
+    # parent is fine only when it is sticky, which is what stops one user
+    # renaming another's entry in /tmp.
+    parent = directory.parent
+    if parent != directory:
+        parent_info = parent.lstat()
+        if parent_info.st_uid not in (os.getuid(), 0):
+            raise PermissionError(
+                f"Refusing to use {directory}: its parent {parent} is owned by "
+                f"uid {parent_info.st_uid}, not {os.getuid()} or root.{remedy}"
+            )
+        parent_mode = stat.S_IMODE(parent_info.st_mode)
+        if parent_mode & stat.S_IWOTH and not parent_mode & stat.S_ISVTX:
+            raise PermissionError(
+                f"Refusing to use {directory}: its parent {parent} is "
+                f"world-writable without the sticky bit, so any user can "
+                f"replace it.{remedy}"
+            )
     return directory
 
 
