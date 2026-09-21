@@ -42,6 +42,10 @@ void write_fd2(const char* text, std::size_t len)
     while (written < len)
     {
         const ssize_t n = ::write(STDERR_FILENO, text + written, len - written);
+        if (n < 0 && errno == EINTR)
+        {
+            continue;
+        }
         if (n <= 0)
         {
             return; // Nothing useful is left to do about it in this window.
