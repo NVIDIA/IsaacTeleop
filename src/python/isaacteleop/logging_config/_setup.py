@@ -86,6 +86,15 @@ def set_propagate_to_root(enabled: bool) -> None:
     application's handlers -- past ``set_console_level`` and
     ``set_console_filter``, which only govern the handler installed here.
 
+    The second copy is also **louder** than the first, which is the part that
+    surprises people. ``ensure_handler`` puts the ``isaacteleop`` logger at
+    ``TRACE`` so the file handler can capture everything, and ``callHandlers``
+    gates the walk up the tree on each *handler's* level, never on a logger's.
+    A host that called ``logging.basicConfig(level=logging.INFO)`` therefore
+    gets this tree's DEBUG and TRACE records too, because ``basicConfig``
+    leaves the handler it creates at ``NOTSET``. Measured, not inferred.
+    Turning propagation off is the remedy.
+
     Turning it off makes this tree the sole route for its own records. An
     application that still wants them attaches its handler to the
     ``isaacteleop`` logger rather than to the root::
