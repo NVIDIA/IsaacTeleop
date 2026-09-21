@@ -8,6 +8,8 @@
 #include <log_bridge/logger.hpp>
 
 #ifndef _WIN32
+#    include <sys/stat.h>
+
 #    include <fcntl.h>
 #    include <unistd.h>
 #endif
@@ -48,28 +50,40 @@ void persist_fatal(std::string_view message) noexcept
     const int fd = path != nullptr && path[0] != '\0' ? ::open(path, O_WRONLY | O_APPEND | O_NOFOLLOW) : -1;
     if (fd >= 0)
     {
-        const auto write_all = [fd](std::string_view text)
+        struct ::stat capture_info
         {
-            while (!text.empty())
-            {
-                const ssize_t count = ::write(fd, text.data(), text.size());
-                if (count < 0 && errno == EINTR)
-                {
-                    continue;
-                }
-                if (count <= 0)
-                {
-                    break;
-                }
-                text.remove_prefix(static_cast<std::size_t>(count));
-            }
         };
-        write_all("robot_twin: unguarded MuJoCo error: ");
-        write_all(message);
-        write_all("\n");
-        ::fsync(fd);
+        const bool private_capture = ::fstat(fd, &capture_info) == 0 && S_ISREG(capture_info.st_mode) &&
+                                     capture_info.st_uid == ::getuid() &&
+                                     (capture_info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+        if (private_capture)
+        {
+            const auto write_all = [fd](std::string_view text)
+            {
+                while (!text.empty())
+                {
+                    const ssize_t count = ::write(fd, text.data(), text.size());
+                    if (count < 0 && errno == EINTR)
+                    {
+                        continue;
+                    }
+                    if (count <= 0)
+                    {
+                        break;
+                    }
+                    text.remove_prefix(static_cast<std::size_t>(count));
+                }
+            };
+            write_all("robot_twin: unguarded MuJoCo error: ");
+            write_all(message);
+            write_all("\n");
+            ::fsync(fd);
+        }
         ::close(fd);
-        return;
+        if (private_capture)
+        {
+            return;
+        }
     }
 #endif
     std::fprintf(stderr, "robot_twin: unguarded MuJoCo error: %.*s\n", static_cast<int>(message.size()), message.data());
