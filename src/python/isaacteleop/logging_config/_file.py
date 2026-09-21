@@ -34,7 +34,13 @@ class _PrivateRotatingFileHandler(RotatingFileHandler):
     """
 
     def _open(self):
-        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+        flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | os.O_APPEND
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
         fd = os.open(self.baseFilename, flags, 0o600)
         return open(
             fd,
