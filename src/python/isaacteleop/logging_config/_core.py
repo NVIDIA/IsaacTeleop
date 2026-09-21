@@ -111,12 +111,13 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
 
     The ownership check refuses a directory some other user got to first, which
     under /tmp is the classic way to have another process write through a
-    symlink on your behalf. It covers the directory *and the directory it sits
-    in*, by ``lstat``, because owning a leaf inside someone else's directory
-    buys nothing: they can move it aside. Both steps are POSIX-only: chmod
-    moves nothing but the read-only bit on Windows, st_uid is always 0 there,
-    and the shared-directory threat they answer does not arise under a per-user
-    temp path.
+    symlink on your behalf. It covers *every* ancestor, by ``lstat``, and the
+    ancestors of the resolved path as well: owning a leaf inside someone else's
+    directory buys nothing, because they can move it aside, and a symlink
+    ancestor says nothing about who owns its target. Both steps are POSIX-only:
+    chmod moves nothing but the read-only bit on Windows, st_uid is always 0
+    there, and the shared-directory threat they answer does not arise under a
+    per-user temp path.
 
     Args:
         directory: the path to create and vet.
@@ -124,9 +125,10 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
             can change.
 
     Raises:
-        PermissionError: if *directory* is not our directory, or if an ancestor
-            is owned by neither us nor root, or is group/world-writable without
-            the sticky bit.
+        PermissionError: if *directory* is not our directory; if an ancestor of
+            either its lexical or its resolved path is owned by neither us nor
+            root, or is group/world-writable without the sticky bit; or if the
+            path cannot be resolved at all.
     """
     # Every component this call is about to create, shallowest last. mkdir()'s
     # mode is masked by the umask, so each one needs the bits set explicitly --
