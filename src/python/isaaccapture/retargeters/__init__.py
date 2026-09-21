@@ -146,6 +146,17 @@ _LAZY_IMPORTS: dict[str, tuple[str, str, str | None]] = {
     "ControllerPoseSource": (".controller_pose", "ControllerPoseSource", None),
     "HandPose": (".controller_pose", "HandPose", None),
     "EePoseRateLimiter": (".rate_limiter", "EePoseRateLimiter", None),
+    "EePoseRateLimiterDisposition": (
+        ".rate_limiter",
+        "EePoseRateLimiterDisposition",
+        None,
+    ),
+    "EePoseRateLimiterStatusIndex": (
+        ".rate_limiter",
+        "EePoseRateLimiterStatusIndex",
+        None,
+    ),
+    "EE_POSE_STATUS_KEY": (".rate_limiter", "EE_POSE_STATUS_KEY", None),
     "JointRateLimiter": (".rate_limiter", "JointRateLimiter", None),
     "RateLimiterConfig": (".rate_limiter", "RateLimiterConfig", None),
     # .se3_retargeter  (requires retargeters-lite extra: scipy)
@@ -251,6 +262,9 @@ __all__ = [
     # Safety-harness rate limiters (per-frame velocity bounds)
     "ControllerPoseSource",
     "EePoseRateLimiter",
+    "EePoseRateLimiterDisposition",
+    "EePoseRateLimiterStatusIndex",
+    "EE_POSE_STATUS_KEY",
     "HandPose",
     "JointRateLimiter",
     "RateLimiterConfig",

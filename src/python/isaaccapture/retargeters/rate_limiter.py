@@ -60,6 +60,7 @@ limit -- teleop feel is untouched until the harness actually has to intervene.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import IntEnum
 
 import numpy as np
 
@@ -73,14 +74,17 @@ from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
 )
 from isaaccapture.retargeting_engine.tensor_types import (
+    BoolType,
     DLDataType,
     FloatType,
+    IntType,
     NDArrayType,
 )
 
 # Output group key of the EE-pose limiter -- matches the upstream SO-101 clutch /
 # Se3 retargeters so the limiter is a drop-in insertion in the pipeline wiring.
 EE_POSE_KEY = "ee_pose"
+EE_POSE_STATUS_KEY = "ee_pose_status"
 # Output group key of the joint limiter -- matches JointStateRetargeter's
 # ``joint`` mode output so the limiter is a drop-in insertion.
 JOINT_TARGETS_KEY = "joint_targets"
@@ -93,6 +97,31 @@ _MIN_QUAT_NORM = 1e-6
 # rotation axis is numerically meaningless near identity and the step is
 # guaranteed under any sane limit.
 _MIN_ANGLE_RAD = 1e-9
+
+
+class EePoseRateLimiterDisposition(IntEnum):
+    """Authoritative decision made for one EE-pose limiter output frame."""
+
+    LATCHED = 0
+    PASSED = 1
+    CLAMPED = 2
+    REJECTED = 3
+    HELD_NO_INPUT = 4
+    HELD_INVALID = 5
+
+
+class EePoseRateLimiterStatusIndex(IntEnum):
+    """Element indices of :data:`EE_POSE_STATUS_KEY`."""
+
+    DISPOSITION = 0
+    LINEAR_REJECTED = 1
+    ANGULAR_REJECTED = 2
+    SAMPLE_DT_S = 3
+    RAW_DT_S = 4
+    EFFECTIVE_DT_S = 5
+    INPUT_LINEAR_STEP_M = 6
+    INPUT_ANGULAR_STEP_RAD = 7
+    CONSECUTIVE_REJECTIONS = 8
 
 
 @dataclass
@@ -207,12 +236,23 @@ def _clamped_dt(
     Falls back to ``nominal`` when there is no previous stamp or the clock did not
     advance (duplicate or non-monotonic timestamps).
     """
+    return _frame_dts(prev_ns, now_ns, nominal, lo, hi)[1]
+
+
+def _frame_dts(
+    prev_ns: int | None,
+    now_ns: int,
+    nominal: float,
+    lo: float,
+    hi: float,
+) -> tuple[float, float]:
+    """Return ``(raw_dt, effective_dt)`` used for one limiter decision."""
     if prev_ns is None:
-        return nominal
-    delta = (now_ns - prev_ns) * 1e-9
-    if delta <= 0.0:
-        return nominal
-    return min(max(delta, lo), hi)
+        raw = nominal
+    else:
+        delta = (now_ns - prev_ns) * 1e-9
+        raw = delta if delta > 0.0 else nominal
+    return raw, min(max(raw, lo), hi)
 
 
 def _clamp_position_step(
@@ -266,13 +306,12 @@ def _quat_geodesic_angle(a: np.ndarray, b: np.ndarray) -> float:
 
 def _clamp_orientation_step(
     target: np.ndarray, previous: np.ndarray, max_step: float
-) -> np.ndarray:
+) -> tuple[np.ndarray, bool]:
     """Clamp the geodesic rotation from ``previous`` toward ``target`` to ``max_step`` [rad].
 
-    Both quaternions are ``[x, y, z, w]`` unit quaternions. Returns ``target``
-    (sign-aligned with the shortest arc) when the relative rotation is within
-    ``max_step``, else the orientation reached by rotating ``max_step`` along the
-    shortest arc from ``previous`` toward ``target``.
+    Both quaternions are ``[x, y, z, w]`` unit quaternions. Returns the governed
+    orientation and whether the clamp branch ran. The pass-through orientation
+    is sign-aligned with the shortest arc.
     """
     # Relative rotation in the previous frame's body frame: q_rel = prev^-1 (x) target.
     q_rel = _quat_mul(_quat_conjugate(previous), target)
@@ -282,10 +321,12 @@ def _clamp_orientation_step(
     sin_half = float(np.linalg.norm(q_rel[:3]))
     angle = 2.0 * float(np.arctan2(sin_half, q_rel[3]))
     if angle <= max_step or angle < _MIN_ANGLE_RAD:
+        clamped = False
         # Within the limit: emit the target, but from the shortest-arc branch so
         # consecutive emitted quaternions never flip hemisphere spuriously.
         composed = _quat_mul(previous, q_rel)
     else:
+        clamped = True
         axis = q_rel[:3] / sin_half
         half = 0.5 * max_step
         q_step = np.array(
@@ -303,7 +344,9 @@ def _clamp_orientation_step(
     # back, that SQUARES the deviation from unit every frame, so float64's 1e-16 reaches
     # float32 overflow in ~60 frames (0.9 s at 72 Hz). Do not drop this.
     normalized = _quat_normalize(composed)
-    return previous if normalized is None else normalized
+    if normalized is None:
+        return previous, True
+    return normalized, clamped
 
 
 class EePoseRateLimiter(BaseRetargeter):
@@ -338,6 +381,7 @@ class EePoseRateLimiter(BaseRetargeter):
         super().__init__(name=name)
         self._last_pose: np.ndarray | None = None
         self._last_time_ns: int | None = None
+        self._last_compute_time_ns: int | None = None
         # Anomaly-rejection reference: the last *accepted* input (position +
         # normalized orientation), distinct from the last *emitted* pose -- the
         # emitted pose lags a far target by design, and measuring input velocity
@@ -362,7 +406,7 @@ class EePoseRateLimiter(BaseRetargeter):
         }
 
     def output_spec(self) -> RetargeterIOType:
-        """Outputs the rate-limited absolute 7-D ``ee_pose``."""
+        """Output the governed pose plus its frame-correlated decision status."""
         return {
             EE_POSE_KEY: TensorGroupType(
                 EE_POSE_KEY,
@@ -371,39 +415,112 @@ class EePoseRateLimiter(BaseRetargeter):
                         "pose", shape=(7,), dtype=DLDataType.FLOAT, dtype_bits=32
                     )
                 ],
-            )
+            ),
+            EE_POSE_STATUS_KEY: TensorGroupType(
+                EE_POSE_STATUS_KEY,
+                [
+                    IntType("disposition"),
+                    BoolType("linear_rejected"),
+                    BoolType("angular_rejected"),
+                    FloatType("sample_dt_s"),
+                    FloatType("raw_dt_s"),
+                    FloatType("effective_dt_s"),
+                    FloatType("input_linear_step_m"),
+                    FloatType("input_angular_step_rad"),
+                    IntType("consecutive_rejections"),
+                ],
+            ),
         }
 
-    def _is_anomalous(self, pos: np.ndarray, ori: np.ndarray | None, dt: float) -> bool:
-        """True when the input step from the last accepted input breaks the reject envelope."""
+    def _input_metrics(
+        self,
+        pos: np.ndarray,
+        ori: np.ndarray | None,
+        dt: float,
+    ) -> tuple[float, float, bool, bool]:
+        """Return input steps and the exact linear/angular rejection decisions."""
         cfg = self._cfg
-        if (
+        linear_step = (
+            float(np.linalg.norm(pos - self._last_input_pos))
+            if self._last_input_pos is not None
+            else 0.0
+        )
+        angular_step = (
+            _quat_geodesic_angle(ori, self._last_input_ori)
+            if ori is not None and self._last_input_ori is not None
+            else 0.0
+        )
+        linear_rejected = bool(
             cfg.reject_linear_velocity is not None
             and self._last_input_pos is not None
-            and float(np.linalg.norm(pos - self._last_input_pos))
-            > cfg.reject_linear_velocity * dt
-        ):
-            return True
-        return (
+            and linear_step > cfg.reject_linear_velocity * dt
+        )
+        angular_rejected = bool(
             cfg.reject_angular_velocity is not None
             and ori is not None
             and self._last_input_ori is not None
-            and _quat_geodesic_angle(ori, self._last_input_ori)
-            > cfg.reject_angular_velocity * dt
+            and angular_step > cfg.reject_angular_velocity * dt
+        )
+        return linear_step, angular_step, linear_rejected, angular_rejected
+
+    @staticmethod
+    def _write_status(
+        outputs: RetargeterIO,
+        disposition: EePoseRateLimiterDisposition,
+        *,
+        linear_rejected: bool = False,
+        angular_rejected: bool = False,
+        sample_dt_s: float,
+        raw_dt_s: float,
+        effective_dt_s: float,
+        input_linear_step_m: float = 0.0,
+        input_angular_step_rad: float = 0.0,
+        consecutive_rejections: int = 0,
+    ) -> None:
+        status = outputs[EE_POSE_STATUS_KEY]
+        status[EePoseRateLimiterStatusIndex.DISPOSITION] = int(disposition)
+        status[EePoseRateLimiterStatusIndex.LINEAR_REJECTED] = linear_rejected
+        status[EePoseRateLimiterStatusIndex.ANGULAR_REJECTED] = angular_rejected
+        status[EePoseRateLimiterStatusIndex.SAMPLE_DT_S] = sample_dt_s
+        status[EePoseRateLimiterStatusIndex.RAW_DT_S] = raw_dt_s
+        status[EePoseRateLimiterStatusIndex.EFFECTIVE_DT_S] = effective_dt_s
+        status[EePoseRateLimiterStatusIndex.INPUT_LINEAR_STEP_M] = input_linear_step_m
+        status[EePoseRateLimiterStatusIndex.INPUT_ANGULAR_STEP_RAD] = (
+            input_angular_step_rad
+        )
+        status[EePoseRateLimiterStatusIndex.CONSECUTIVE_REJECTIONS] = (
+            consecutive_rejections
         )
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         """Emits the input pose clamped to the configured per-frame step."""
+        now_ns = int(context.graph_time.real_time_ns)
         if context.execution_events.reset:
             # Fresh episode: forget the baseline. The next valid frame passes
             # through and re-latches -- clamping against the stale pre-reset pose
             # would command a long cross-workspace slew.
             self._last_pose = None
             self._last_time_ns = None
+            self._last_compute_time_ns = None
             self._last_input_pos = None
             self._last_input_ori = None
             self._rejections = 0
 
+        sample_dt, _ = _frame_dts(
+            self._last_compute_time_ns,
+            now_ns,
+            self._cfg.nominal_dt,
+            self._cfg.min_dt,
+            self._cfg.max_dt,
+        )
+        self._last_compute_time_ns = now_ns
+        raw_dt, dt = _frame_dts(
+            self._last_time_ns,
+            now_ns,
+            self._cfg.nominal_dt,
+            self._cfg.min_dt,
+            self._cfg.max_dt,
+        )
         out = outputs[EE_POSE_KEY]
         inp = inputs[EE_POSE_KEY]
         if inp.is_none:
@@ -411,39 +528,71 @@ class EePoseRateLimiter(BaseRetargeter):
             # Keep the time baseline -- max_dt bounds the catch-up step anyway.
             if self._last_pose is not None:
                 out[0] = self._last_pose.astype(np.float32)
+            self._write_status(
+                outputs,
+                EePoseRateLimiterDisposition.HELD_NO_INPUT,
+                sample_dt_s=sample_dt,
+                raw_dt_s=raw_dt,
+                effective_dt_s=dt,
+                consecutive_rejections=self._rejections,
+            )
             return
 
         pose = np.asarray(np.from_dlpack(inp[0]), dtype=np.float64)
         if not np.all(np.isfinite(pose[:3])):
             if self._last_pose is not None:
                 out[0] = self._last_pose.astype(np.float32)
+            self._write_status(
+                outputs,
+                EePoseRateLimiterDisposition.HELD_INVALID,
+                sample_dt_s=sample_dt,
+                raw_dt_s=raw_dt,
+                effective_dt_s=dt,
+                consecutive_rejections=self._rejections,
+            )
             return
         ori = _quat_normalize(pose[3:7])
 
         if self._last_pose is None:
             if ori is None:
                 # Degenerate first orientation: nothing sane to latch; hold off.
+                self._write_status(
+                    outputs,
+                    EePoseRateLimiterDisposition.HELD_INVALID,
+                    sample_dt_s=sample_dt,
+                    raw_dt_s=raw_dt,
+                    effective_dt_s=dt,
+                )
                 return
             # First valid frame: pass through, latch the baseline.
             latched = np.concatenate([pose[:3], ori])
             self._last_pose = latched
-            self._last_time_ns = int(context.graph_time.real_time_ns)
+            self._last_time_ns = now_ns
             self._last_input_pos = pose[:3].copy()
             self._last_input_ori = ori.copy()
             self._rejections = 0
             out[0] = latched.astype(np.float32)
+            self._write_status(
+                outputs,
+                EePoseRateLimiterDisposition.LATCHED,
+                sample_dt_s=sample_dt,
+                raw_dt_s=raw_dt,
+                effective_dt_s=dt,
+            )
             return
 
-        now_ns = int(context.graph_time.real_time_ns)
-        dt = _clamped_dt(
-            self._last_time_ns,
-            now_ns,
-            self._cfg.nominal_dt,
-            self._cfg.min_dt,
-            self._cfg.max_dt,
+        (
+            linear_step,
+            angular_step,
+            linear_rejected,
+            angular_rejected,
+        ) = self._input_metrics(
+            pose[:3],
+            ori,
+            dt,
         )
 
-        if self._is_anomalous(pose[:3], ori, dt):
+        if linear_rejected or angular_rejected:
             self._rejections += 1
             cap = self._cfg.max_consecutive_rejections
             if cap is None or self._rejections <= cap:
@@ -452,6 +601,18 @@ class EePoseRateLimiter(BaseRetargeter):
                 # and advance no baseline (mirrors the dropped-frame path), so
                 # the arm never starts moving toward a discontinuity.
                 out[0] = self._last_pose.astype(np.float32)
+                self._write_status(
+                    outputs,
+                    EePoseRateLimiterDisposition.REJECTED,
+                    linear_rejected=linear_rejected,
+                    angular_rejected=angular_rejected,
+                    sample_dt_s=sample_dt,
+                    raw_dt_s=raw_dt,
+                    effective_dt_s=dt,
+                    input_linear_step_m=linear_step,
+                    input_angular_step_rad=angular_step,
+                    consecutive_rejections=self._rejections,
+                )
                 return
             # Cap tripped: the far input is persistent, so it is a new regime,
             # not a glitch. Fall through and re-accept it -- the clamp below
@@ -463,11 +624,13 @@ class EePoseRateLimiter(BaseRetargeter):
         pos = _clamp_position_step(
             pose[:3], self._last_pose[:3], self._cfg.max_linear_velocity * dt
         )
+        position_clamped = float(np.linalg.norm(pos - pose[:3])) > 1e-12
         if ori is None:
             # Degenerate target orientation: keep the last emitted one.
             ori_limited = self._last_pose[3:7]
+            orientation_clamped = True
         else:
-            ori_limited = _clamp_orientation_step(
+            ori_limited, orientation_clamped = _clamp_orientation_step(
                 ori, self._last_pose[3:7], self._cfg.max_angular_velocity * dt
             )
 
@@ -478,6 +641,23 @@ class EePoseRateLimiter(BaseRetargeter):
         self._last_pose = limited
         self._last_time_ns = now_ns
         out[0] = limited.astype(np.float32)
+        disposition = (
+            EePoseRateLimiterDisposition.CLAMPED
+            if position_clamped or orientation_clamped
+            else EePoseRateLimiterDisposition.PASSED
+        )
+        self._write_status(
+            outputs,
+            disposition,
+            linear_rejected=linear_rejected,
+            angular_rejected=angular_rejected,
+            sample_dt_s=sample_dt,
+            raw_dt_s=raw_dt,
+            effective_dt_s=dt,
+            input_linear_step_m=linear_step,
+            input_angular_step_rad=angular_step,
+            consecutive_rejections=self._rejections,
+        )
 
 
 class JointRateLimiter(BaseRetargeter):
