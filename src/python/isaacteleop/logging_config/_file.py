@@ -20,6 +20,30 @@ _lock = threading.Lock()
 _handler: logging.Handler | None = None
 
 
+class _PrivateRotatingFileHandler(RotatingFileHandler):
+    """A rotating handler whose files are ours alone.
+
+    logging opens with plain ``open(..., 'a')``: mode ``0666 & ~umask`` -- 0644
+    under the usual umask -- and it follows a symlink already sitting at the
+    path. The native capture file beside it is opened 0600 with ``O_NOFOLLOW``,
+    and the same reasoning applies here. ``ensure_log_dir()`` makes the *default*
+    directory 0700, but an operator's ``ISAACTELEOP_LOG_DIR`` only has to be
+    owned by us, so a world-writable one is accepted; and the file name is
+    guessable, being a timestamp to the second plus a pid anyone can read out
+    of /proc.
+    """
+
+    def _open(self):
+        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(self.baseFilename, flags, 0o600)
+        return open(
+            fd,
+            self.mode,
+            encoding=self.encoding,
+            errors=getattr(self, "errors", None),
+        )
+
+
 def ensure_handler() -> logging.Handler:
     """Create and attach the file handler on first use; idempotent after that.
 
@@ -40,7 +64,7 @@ def ensure_handler() -> logging.Handler:
             return _handler
         directory = ensure_log_dir()
         timestamp = time.strftime("%Y%m%d-%H%M%S")
-        handler = RotatingFileHandler(
+        handler = _PrivateRotatingFileHandler(
             directory / f"{timestamp}.isaacteleop.{os.getpid()}.log",
             maxBytes=_MAX_BYTES,
             backupCount=_BACKUP_COUNT,
