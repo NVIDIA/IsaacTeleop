@@ -366,8 +366,19 @@ def _text_options(fd: int) -> dict[str, str]:
     clause and would leave ``capture_native_output()`` through
     ``TeleopSession.__enter__``. Verified: an ``encoding`` of ``42`` raises
     ``TypeError: open() argument 'encoding' must be str or None, not int``.
+
+    From a stream that actually writes through *fd*. ``sys.stdout`` stops
+    answering for fd 1 the moment a host puts something else there -- inside
+    ``contextlib.redirect_stdout`` it is a ``StringIO``, whose ``encoding`` is
+    ``None`` -- and the slots below are built once and kept for the life of the
+    process, so a wrong answer taken during the first scope is permanent.
+    ``sys.__stdout__`` is what the interpreter built for the descriptor and is
+    the fallback.
     """
-    stream = sys.stdout if fd == 1 else sys.stderr
+    current, original = (
+        (sys.stdout, sys.__stdout__) if fd == 1 else (sys.stderr, sys.__stderr__)
+    )
+    stream = next((s for s in (current, original) if _follows(s, fd)), None)
     encoding = getattr(stream, "encoding", None)
     errors = getattr(stream, "errors", None)
     return {
