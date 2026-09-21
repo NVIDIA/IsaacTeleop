@@ -6,6 +6,7 @@
 #include "socket_sink.hpp"
 
 #include <spdlog/common.h>
+#include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -16,7 +17,9 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 #ifndef _WIN32
@@ -37,9 +40,70 @@ namespace
 
 constexpr std::size_t kFileMaxBytes = 10 * 1024 * 1024; // 10 MiB
 constexpr std::size_t kFileBackupCount = 5;
-// [timestamp] [LEVEL ] [logger.name] [pid:N] message -- same shape as the
-// Python side's LINE_FORMAT (isaacteleop/logging_config/_core.py).
-constexpr const char* kPattern = "[%Y-%m-%d %H:%M:%S.%e] [%-7l] [%n] [pid:%P] %v";
+// [timestamp] [LEVEL] [logger.name] [pid:N] message -- same shape as the
+// Python side's LINE_FORMAT (isaacteleop/logging_config/_core.py). %* is
+// PythonLevelFormatter below, not spdlog's own %l/%L: neither of those is the
+// shape this comment claims to share with the Python side.
+constexpr const char* kPattern = "[%Y-%m-%d %H:%M:%S.%e] [%*] [%n] [pid:%P] %v";
+
+// DEBUG/INFO/WARNING/ERROR/CRITICAL, plus TRACE (logging.addLevelName(TRACE,
+// "TRACE") in logging_config/_core.py): the stdlib names Python's LINE_FORMAT
+// renders. spdlog's own level::to_string_view() gives the lowercase built-ins
+// ("info", "warning", ...) and %L gives a single letter; neither matches, so a
+// record rendered here (no forwarding/bridge to re-render it in Python) reads
+// differently from one that reached a file through either of those -- exactly
+// the two situations (no bound receiver, or Windows) this tree's docs already
+// call out as the case a local C++ sink has to carry on its own.
+std::string_view python_level_name(spdlog::level::level_enum level)
+{
+    switch (level)
+    {
+    case spdlog::level::trace:
+        return "TRACE";
+    case spdlog::level::debug:
+        return "DEBUG";
+    case spdlog::level::info:
+        return "INFO";
+    case spdlog::level::warn:
+        return "WARNING";
+    case spdlog::level::err:
+        return "ERROR";
+    case spdlog::level::critical:
+        return "CRITICAL";
+    default:
+        return "INFO";
+    }
+}
+
+// Left-padded to 5 and never truncated, matching Python's own "%(levelname)-5s".
+class PythonLevelFormatter : public spdlog::custom_flag_formatter
+{
+public:
+    void format(const spdlog::details::log_msg& msg, const std::tm&, spdlog::memory_buf_t& dest) override
+    {
+        const std::string_view name = python_level_name(msg.level);
+        dest.append(name.data(), name.data() + name.size());
+        for (std::size_t pad = name.size(); pad < 5; ++pad)
+        {
+            dest.push_back(' ');
+        }
+    }
+
+    std::unique_ptr<custom_flag_formatter> clone() const override
+    {
+        return std::make_unique<PythonLevelFormatter>();
+    }
+};
+
+// A fresh formatter per sink: pattern_formatter is owned exclusively by the
+// sink it is set on (sink::set_formatter() takes a unique_ptr), so console and
+// file each need their own instance built from the same recipe.
+std::unique_ptr<spdlog::pattern_formatter> make_formatter()
+{
+    auto formatter = std::make_unique<spdlog::pattern_formatter>();
+    formatter->add_flag<PythonLevelFormatter>('*').set_pattern(kPattern);
+    return formatter;
+}
 
 #ifndef _WIN32
 // Path.expanduser(), matched. An operator who writes ISAACTELEOP_LOG_DIR=~/logs
@@ -425,7 +489,7 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         // is fd 2.
         auto console = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
         console->set_level(console_level());
-        console->set_pattern(kPattern);
+        console->set_formatter(make_formatter());
 
         auto dir = log_dir();
 #ifndef _WIN32
@@ -494,7 +558,7 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
             auto file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
                 filename.string(), kFileMaxBytes, kFileBackupCount, false, events);
             file->set_level(spdlog::level::debug); // always captures everything, not user-configurable
-            file->set_pattern(kPattern);
+            file->set_formatter(make_formatter());
             return std::vector<spdlog::sink_ptr>{ console, file };
         }
         catch (const spdlog::spdlog_ex&)
