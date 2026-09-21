@@ -448,9 +448,18 @@ spdlog::level::level_enum console_level()
         return spdlog::level::critical;
     }
 
-    int numeric = 0;
-    const auto [end, ec] = std::from_chars(name.data(), name.data() + name.size(), numeric);
-    if (ec == std::errc{} && end == name.data() + name.size())
+    std::string_view numeric_name(name);
+    if (!numeric_name.empty() && numeric_name.front() == '+')
+    {
+        numeric_name.remove_prefix(1);
+    }
+    long long numeric = 0;
+    const auto [end, ec] = std::from_chars(numeric_name.data(), numeric_name.data() + numeric_name.size(), numeric);
+    if (ec == std::errc::result_out_of_range && end == numeric_name.data() + numeric_name.size())
+    {
+        return !numeric_name.empty() && numeric_name.front() == '-' ? spdlog::level::trace : spdlog::level::off;
+    }
+    if (ec == std::errc{} && end == numeric_name.data() + numeric_name.size())
     {
         if (numeric <= 5)
         {

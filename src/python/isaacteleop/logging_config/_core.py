@@ -86,10 +86,10 @@ def env_console_level() -> int:
     if not raw:
         return logging.INFO
     raw = raw.strip()
-    try:
+    digits = raw[1:] if raw[:1] in ("+", "-") else raw
+    if digits.isascii() and digits.isdecimal():
         return int(raw)
-    except ValueError:
-        return _LEVEL_NAMES.get(raw.lower(), logging.INFO)
+    return _LEVEL_NAMES.get(raw.lower(), logging.INFO)
 
 
 def log_dir() -> Path:
