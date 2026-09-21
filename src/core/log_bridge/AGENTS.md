@@ -41,9 +41,9 @@ file and nothing else.
 **The directory is vetted the same way on both sides.** `ensure_private_dir()`
 in the Python half and `directory_is_private()` here answer the same question:
 the directory is ours by `lstat` (so a planted symlink is judged by its own
-owner), and every ancestor is owned by us or by root and — where it is a real
-directory rather than a symlink — is not group/world writable without the
-sticky bit. The default path is predictable
+owner), and every lexical and resolved ancestor is owned by us or by root and
+— where it is a real directory rather than a symlink — is not group/world
+writable without the sticky bit. The default path is predictable
 (`/tmp/isaacteleop-<uid>/logs`) and a standalone plugin executable never runs
 the Python check, so a divergence here is a divergence in who can read the
 logs. Failing the check costs the file sink; it must never throw.

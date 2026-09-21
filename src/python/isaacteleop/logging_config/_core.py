@@ -161,11 +161,9 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
             f"uid {os.getuid()}.{remedy}"
         )
 
-    # Every ancestor matters: owning the immediate parent buys nothing when
-    # someone else can replace that parent from the level above it.
-    parent = directory.parent
-    if parent != directory:
-        previous = directory
+    def vet_ancestors(path: Path) -> None:
+        parent = path.parent
+        previous = path
         while parent != previous:
             parent_info = parent.lstat()
             if parent_info.st_uid not in (os.getuid(), 0):
@@ -197,6 +195,19 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
                 )
             previous = parent
             parent = parent.parent
+
+    # Check both names in a symlinked path: the lexical chain owns the links,
+    # while the resolved chain owns the directories an attacker could replace.
+    vet_ancestors(directory)
+    try:
+        resolved = directory.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise PermissionError(
+            f"Refusing to use {directory}: cannot resolve its ancestor chain."
+            f"{remedy}"
+        ) from exc
+    if resolved != directory:
+        vet_ancestors(resolved)
     return directory
 
 

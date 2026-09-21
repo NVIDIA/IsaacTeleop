@@ -69,28 +69,10 @@ std::filesystem::path expand_user(const std::string& raw)
     return raw.size() == 1 ? std::filesystem::path(home) : std::filesystem::path(home) / raw.substr(2);
 }
 
-// Mirrors ensure_private_dir() in the Python half. A directory another user
-// created first is one they can still move aside, and the default name --
-// /tmp/isaacteleop-<uid>/logs -- is entirely predictable. lstat, not stat, so
-// a symlink planted where the directory belongs is judged by its own owner
-// rather than by whatever it points at.
-//
-// Answers a question, never throws and never reports: local_sinks() must not
-// throw, and a false here costs the file sink and nothing else.
-bool directory_is_private(const std::filesystem::path& dir)
+bool ancestors_are_private(const std::filesystem::path& path)
 {
-    struct ::stat info
-    {
-    };
-    if (::lstat(dir.c_str(), &info) != 0 || !S_ISDIR(info.st_mode) || info.st_uid != ::getuid())
-    {
-        return false;
-    }
-
-    // Every ancestor matters: an attacker who can replace the immediate parent
-    // from the level above can replace the leaf with it.
-    std::filesystem::path previous = dir;
-    std::filesystem::path parent = dir.parent_path();
+    std::filesystem::path previous = path;
+    std::filesystem::path parent = path.parent_path();
     while (!parent.empty() && parent != previous)
     {
         struct ::stat parent_info
@@ -119,6 +101,25 @@ bool directory_is_private(const std::filesystem::path& dir)
         parent = parent.parent_path();
     }
     return true;
+}
+
+// Mirrors ensure_private_dir() in the Python half. Check both the lexical path
+// (which owns any symlinks) and its resolved path (which owns their targets).
+// Never throws or reports: a false here costs the file sink and nothing else.
+bool directory_is_private(const std::filesystem::path& dir)
+{
+    struct ::stat info
+    {
+    };
+    if (::lstat(dir.c_str(), &info) != 0 || !S_ISDIR(info.st_mode) || info.st_uid != ::getuid() ||
+        !ancestors_are_private(dir))
+    {
+        return false;
+    }
+
+    std::error_code canonical_ec;
+    const std::filesystem::path resolved = std::filesystem::canonical(dir, canonical_ec);
+    return !canonical_ec && ancestors_are_private(resolved);
 }
 
 void secure_log_file(const spdlog::filename_t& filename, std::FILE* file)
