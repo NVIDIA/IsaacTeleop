@@ -7,10 +7,18 @@
 
 #include <log_bridge/logger.hpp>
 
+#ifndef _WIN32
+#    include <fcntl.h>
+#    include <unistd.h>
+#endif
+
+#include <cerrno>
 #include <csetjmp>
+#include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace viz
 {
@@ -33,6 +41,41 @@ std::shared_ptr<spdlog::logger>& logger()
     return instance;
 }
 
+void persist_fatal(std::string_view message) noexcept
+{
+#ifndef _WIN32
+    const char* path = std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
+    const int fd = path != nullptr && path[0] != '\0' ? ::open(path, O_WRONLY | O_APPEND | O_NOFOLLOW) : -1;
+    if (fd >= 0)
+    {
+        const auto write_all = [fd](std::string_view text)
+        {
+            while (!text.empty())
+            {
+                const ssize_t count = ::write(fd, text.data(), text.size());
+                if (count < 0 && errno == EINTR)
+                {
+                    continue;
+                }
+                if (count <= 0)
+                {
+                    break;
+                }
+                text.remove_prefix(static_cast<std::size_t>(count));
+            }
+        };
+        write_all("robot_twin: unguarded MuJoCo error: ");
+        write_all(message);
+        write_all("\n");
+        ::fsync(fd);
+        ::close(fd);
+        return;
+    }
+#endif
+    std::fprintf(stderr, "robot_twin: unguarded MuJoCo error: %.*s\n", static_cast<int>(message.size()), message.data());
+    std::fflush(stderr);
+}
+
 void on_error(const char* message)
 {
     g_message = message == nullptr ? "" : message;
@@ -41,11 +84,10 @@ void on_error(const char* message)
         // Outside a guarded call there is nowhere to land. A core dump beats continuing
         // on state MuJoCo has already declared invalid.
         logger()->error("unguarded MuJoCo error: {}", g_message);
-        // abort() runs no atexit handler and flushes no stdio, and spdlog's file
-        // sink buffers through a FILE*. The raw fprintf(stderr) this replaced was
-        // unbuffered and always landed; without an explicit flush the last thing
-        // MuJoCo said before the core dump can be missing from the log.
         logger()->flush();
+        // A forwarding flush cannot wait for the Python receiver thread;
+        // abort() can stop that thread before it persists the record.
+        persist_fatal(g_message);
         std::abort();
     }
     g_armed = false;

@@ -268,17 +268,9 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
 void SocketForwardSink::flush_()
 {
     // Each record is already sent to the kernel socket buffer synchronously, so
-    // there is nothing here to batch or drain.
-    //
-    // What this cannot do, and what a caller must not read into it: make the
-    // record durable. The receiver owns the file, and in the common in-process
-    // case -- the leader's own extensions forwarding to a receiver thread in
-    // this same process -- that thread needs the GIL to run. A caller holding
-    // the GIL, or one about to std::abort(), gets a flush() that returns
-    // promptly and a record that never lands. src/viz/robot_twin/cpp/mj_guard.cpp
-    // flushes before abort() for exactly the durability this cannot give it;
-    // closing that gap needs a path that does not depend on another thread,
-    // not a change here.
+    // there is nothing here to batch or drain. This is not a durability
+    // acknowledgement from the receiver; crash paths need their own
+    // synchronous fallback.
 }
 
 } // namespace isaacteleop::detail
