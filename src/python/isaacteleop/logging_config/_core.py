@@ -77,7 +77,18 @@ def log_dir() -> Path:
     Use :func:`ensure_log_dir` when the directory has to exist.
     """
     override = os.environ.get("ISAACTELEOP_LOG_DIR")
-    return Path(override).expanduser() if override else _DEFAULT_LOG_DIR
+    if not override:
+        return _DEFAULT_LOG_DIR
+    try:
+        return Path(override).expanduser()
+    except RuntimeError:
+        # expanduser() raises RuntimeError, not OSError, for a path starting
+        # with ~ that it cannot resolve: no HOME, and no passwd entry for this
+        # uid, which is what a container started with `--user 1234` looks
+        # like. Every caller here guards against OSError only, so this escaped
+        # install() and took `import isaacteleop` down with it. The default is
+        # always resolvable -- it is built from os.getuid() alone.
+        return _DEFAULT_LOG_DIR
 
 
 def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
