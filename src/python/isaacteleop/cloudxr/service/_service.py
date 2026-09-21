@@ -18,6 +18,7 @@ import concurrent.futures.thread  # noqa: F401
 import logging
 import os
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -66,7 +67,15 @@ def _tail_text(path: Path, limit: int) -> str:
     fails late would otherwise pull the whole thing into memory to print four
     kilobytes of it.
     """
-    with path.open("rb") as handle:
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
+    with os.fdopen(os.open(path, flags), "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise OSError(f"Refusing non-regular diagnostic log {path}")
         handle.seek(0, os.SEEK_END)
         size = handle.tell()
         handle.seek(max(0, size - limit))
