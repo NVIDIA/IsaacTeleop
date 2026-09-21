@@ -193,10 +193,9 @@ pre-commit install --hook-type commit-msg
 - **C++ formatting is enforced by CI, not pre-commit.** The hook set runs `ruff` for Python but does **not** run `clang-format`; CI (`build-ubuntu.yml`) installs **`clang-format-14`** and rejects unformatted C++ as `-Wclang-format-violations`. Before pushing, format touched C++ with **version 14** — not whatever `clang-format` resolves to — and verify:
 
   ```bash
-  FILES=$(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
   # Drop the uvx prefix if a real clang-format-14 is installed.
-  uvx --from clang-format==14.0.6 clang-format -i $FILES
-  uvx --from clang-format==14.0.6 clang-format --dry-run --Werror $FILES
+  uvx --from clang-format==14.0.6 clang-format -i $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
+  uvx --from clang-format==14.0.6 clang-format --dry-run --Werror $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
   ```
 
   Version 14 for `--dry-run` as much as for `-i`: a newer binary reformats
