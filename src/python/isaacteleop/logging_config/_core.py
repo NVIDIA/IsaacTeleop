@@ -181,6 +181,9 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
                     f"Refusing to use {directory}: ancestor {parent} is not a "
                     f"directory.{remedy}"
                 )
+            # A symlink ancestor is judged by its owner alone: its own mode bits
+            # are not its target's (Linux reports 0777), so testing them here
+            # would refuse ordinary paths -- /tmp and /var are symlinks on macOS.
             parent_mode = stat.S_IMODE(parent_info.st_mode)
             shared_write = parent_mode & (stat.S_IWGRP | stat.S_IWOTH)
             if (

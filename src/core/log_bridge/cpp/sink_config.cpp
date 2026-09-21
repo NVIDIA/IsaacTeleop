@@ -100,6 +100,9 @@ bool directory_is_private(const std::filesystem::path& dir)
         {
             return false;
         }
+        // A symlink ancestor is judged by its owner alone: its own mode bits are
+        // not its target's (Linux reports 0777), so testing them here would refuse
+        // ordinary paths -- /tmp and /var are symlinks on macOS.
         if (!S_ISLNK(parent_info.st_mode))
         {
             if (!S_ISDIR(parent_info.st_mode))
