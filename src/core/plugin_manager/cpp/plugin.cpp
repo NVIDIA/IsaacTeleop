@@ -171,9 +171,10 @@ void Plugin::start_process(const std::string& command,
 
     // Read before fork(): getenv() is not async-signal-safe, and the child needs
     // the path as a plain pointer it can hand straight to open(). Published by
-    // isaacteleop.logging_config (_native_fd.CAPTURE_FILE_ENV); absent when the
-    // host turned the capture off, or when this process never imported the
-    // Python half at all, in which case the child simply inherits our stdio.
+    // isaacteleop.logging_config (_native_fd.CAPTURE_FILE_ENV); absent only when
+    // no file could be opened or this process never imported the Python half.
+    // Capture mode "off" still publishes it because it governs the host's
+    // descriptors, not those of a process the host launches.
     const char* const native_capture_path = std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
 
     const pid_t child_pid = fork();

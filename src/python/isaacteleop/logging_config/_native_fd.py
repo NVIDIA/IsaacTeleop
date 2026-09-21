@@ -740,10 +740,11 @@ def gate(level: int, console_handler: logging.StreamHandler) -> None:
     must ask for, still does that.
     """
     global _echo, _gated_level
-    if mode() == MODE_OFF:
-        return
+    capture_mode = mode()
+    # ``off`` forbids rebinding this process; children launched by
+    # isaacteleop still need the published file for their own descriptors.
     ensure_sink()
-    if mode() == MODE_PROCESS:
+    if capture_mode == MODE_PROCESS:
         with _lock:
             _enter_process_hold(console_handler)
     _gated_level = level
