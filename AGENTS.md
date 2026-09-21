@@ -114,16 +114,24 @@ the logging packages.
   `ISAACTELEOP_LOG_SOCKET` — where `local_sinks()` gives a forwarding sink and
   no console sink — none of the logged half. Judge such a site by the message
   it belongs to, not by the call on its own line.
-- **Five environment variables are the whole external contract**, read
-  identically by both halves: `ISAACTELEOP_LOG_DIR` (where log files land),
-  `ISAACTELEOP_LOG_LEVEL` (console threshold for out-of-process code),
-  `ISAACTELEOP_LOG_SOCKET` (set by the session leader; its presence is what
-  makes a process forward instead of owning handlers),
-  `ISAACTELEOP_NATIVE_CAPTURE` (`off`/`scoped`/`process` — how far this library
-  may go in rebinding fd 1 and fd 2; `scoped` by default) and
-  `ISAACTELEOP_NATIVE_CAPTURE_FILE` (published by the leader, read by processes
-  with no interpreter so they can point their own stdio at the same file). Do
-  not invent a sixth.
+- **Five environment variables are the whole external contract.** The first
+  three are read identically by both halves — change one and change both, or
+  the two stop agreeing: `ISAACTELEOP_LOG_DIR` (where log files land),
+  `ISAACTELEOP_LOG_LEVEL` (console threshold for out-of-process code; the six
+  level names and the numeric form, nothing else — spdlog's `warn`/`err`
+  spellings are deliberately not accepted, because Python has no entry for
+  them) and `ISAACTELEOP_LOG_SOCKET` (set by the session leader; its presence
+  is what makes a process forward instead of owning handlers). The last two are
+  shared but **not** symmetric, and assuming otherwise is how a check gets
+  written on the wrong side: `ISAACTELEOP_NATIVE_CAPTURE` (`off`/`scoped`/
+  `process`, `scoped` by default) is Python's — it says how far this library
+  may go in rebinding *the host's* fd 1 and fd 2, so C++ consults it only where
+  it is about to write on the host's behalf (`viz/robot_twin`'s fatal handler)
+  and never where it is setting a child's descriptors
+  (`plugin_manager/cpp/plugin.cpp`, which ignores it on purpose);
+  `ISAACTELEOP_NATIVE_CAPTURE_FILE` is written by the Python leader only and
+  read by processes with no interpreter so they can point their own stdio at
+  the same file. Do not invent a sixth.
 - **Never rebind the host process's fd 1 or fd 2.** This is a library its host
   imports; its descriptors are not ours. Output that no logger can reach —
   vendor code that formats its own lines onto a descriptor — is captured either
