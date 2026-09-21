@@ -64,6 +64,18 @@ real spdlog v1.17.0: turning an ancestor world-writable mid-run stops the file
 from growing at the next rotation, with everything written before that point
 intact.
 
+Know the three things that buys it, because each is a support call waiting to
+happen. The redirection is **one-way**: `/dev/null` reports size 0, so
+`rotating_file_sink` never calls `rotate_()` again, so `after_open` never runs
+again and nothing re-checks — a directory that becomes trustworthy again does
+not bring the file back, only restarting the process does. It is **silent**:
+nothing may log from here, because `sink_it_` holds this sink's mutex across
+`after_open` and logging into it would deadlock. And the trigger is now **a
+directory mode, not just an attack signature** — an operator who `chmod`s a
+parent and reverts it has the same effect as an attacker. Widening what
+redirects to `/dev/null` therefore costs more than it looks; weigh it against
+that, not against the identity checks beside it.
+
 **The directory is vetted the same way on both sides.** `ensure_private_dir()`
 in the Python half and `directory_is_private()` here answer the same question:
 the directory is ours by `lstat` (so a planted symlink is judged by its own
