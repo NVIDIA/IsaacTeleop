@@ -39,6 +39,10 @@ int current_pid()
 }
 #endif
 
+// Guarded like current_pid() beside it: its only caller is sink_it_()'s
+// POSIX-only body, so on Windows this is an unused static function -- MSVC
+// C4505 under /W4, -Wunused-function under GCC/Clang.
+#ifndef _WIN32
 void append_json_escaped(std::string& out, std::string_view s)
 {
     for (unsigned char c : s)
@@ -74,6 +78,7 @@ void append_json_escaped(std::string& out, std::string_view s)
         }
     }
 }
+#endif
 
 } // namespace
 
