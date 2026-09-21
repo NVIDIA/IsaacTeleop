@@ -948,8 +948,9 @@ simple-log
     # Truncate the log so operators only see lines from this run.
     try:
         os.close(_open_private(log_path))
-    except OSError:
-        pass
+    except OSError as exc:
+        log.warning("coturn: failed to prepare log file %s: %s", log_path, exc)
+        return None
 
     try:
         with os.fdopen(
