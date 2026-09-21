@@ -403,6 +403,29 @@ def _enter_process_hold(console_handler: logging.StreamHandler | None) -> None:
     _process_hold = True
 
 
+def _flush_before_restore() -> None:
+    """Flush what is about to be unhooked, without letting a failure strand it.
+
+    Whatever is buffered on these streams was written while they pointed at
+    the real terminal, so it has to go out before ``_end()`` moves them; but a
+    flush can fail -- a closed pipe downstream (``prog | head``), a stream
+    CPython left as ``None`` because the host started with that descriptor
+    closed -- and a failure here must never cost the restore. The caller runs
+    ``_end()`` from a ``finally``; this swallows what it can so the caller
+    does not have to see it at all.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if stream is None:
+            continue
+        try:
+            stream.flush()
+        except (OSError, ValueError):
+            # BrokenPipeError, or a stream closed under us. Nothing to do
+            # about it here, and nothing that justifies keeping the host's
+            # descriptors.
+            pass
+
+
 def _exit_process_hold(console_handler: logging.StreamHandler | None) -> None:
     """Release it again. Callers hold ``_lock``.
 
@@ -413,9 +436,10 @@ def _exit_process_hold(console_handler: logging.StreamHandler | None) -> None:
         return
     _process_hold = False
     if _depth == 0:
-        sys.stdout.flush()
-        sys.stderr.flush()
-        _end(console_handler)
+        try:
+            _flush_before_restore()
+        finally:
+            _end(console_handler)
 
 
 @contextlib.contextmanager
@@ -460,9 +484,16 @@ def scoped(
             # mode inside this block expects the descriptors to stay rebound
             # after it, and restoring here would silently undo that.
             if _depth == 0 and not _process_hold:
-                sys.stdout.flush()
-                sys.stderr.flush()
-                _end(console_handler)
+                # _end() from a finally, never after a bare flush: a flush
+                # that raises here used to leave the descriptors bound to the
+                # capture file for the rest of the process's life, with
+                # _depth already back at 0 so nothing would ever restore
+                # them. That is the process-wide redirection this module
+                # exists to not do.
+                try:
+                    _flush_before_restore()
+                finally:
+                    _end(console_handler)
 
 
 def _start_mirror() -> None:
