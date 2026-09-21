@@ -127,8 +127,8 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
     Raises:
         PermissionError: if *directory* is not our directory; if an ancestor of
             either its lexical or its resolved path is owned by neither us nor
-            root, or is group/world-writable without the sticky bit; or if the
-            path cannot be resolved at all.
+            root, or a real-directory ancestor is group/world-writable without
+            the sticky bit; or if the path cannot be resolved at all.
     """
     # Every component this call is about to create, shallowest last. mkdir()'s
     # mode is masked by the umask, so each one needs the bits set explicitly --
