@@ -441,8 +441,10 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
         if (!home_ok[i])
         {
             all_ok = false;
-            // On the same stream as the table it annotates: split across two
-            // destinations, the table reads as though every servo replied.
+            // Terminal, beside the std::cout table it annotates, rather than a
+            // log file the operator is not reading: without it the table looks
+            // as though every servo replied. Still stderr, so redirecting the
+            // table to a file keeps the file to measurements.
             std::cerr << "  warning: no reply from servo " << static_cast<int>(ids[i]) << " (" << kJointNames[i]
                       << "); writing defaults" << std::endl;
         }
