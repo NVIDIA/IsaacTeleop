@@ -186,9 +186,9 @@ pre-commit install --hook-type commit-msg
   ```
 
 - The REUSE hook requires Python 3.10 or newer. If `pre-commit` resolves
-  `python3` to an older system interpreter, prepend a supported interpreter to
-  `PATH` and use a fresh `PRE_COMMIT_HOME` (or clean the stale hook cache)
-  before retrying.
+  `python3` to an older system interpreter, launch `pre-commit` itself with a
+  supported Python (for example `uvx --python 3.13 pre-commit ...`) and use a
+  fresh `PRE_COMMIT_HOME` (or clean the stale hook cache) before retrying.
 - **REUSE:** files covered by the REUSE hook need **`SPDX-FileCopyrightText`** and **`SPDX-License-Identifier`** in the form the repo already uses (for example the HTML comment block at the top of `README.md` also applies to **`AGENTS.md`** and similar docs).
 - **C++ formatting is enforced by CI, not pre-commit.** The hook set runs `ruff` for Python but does **not** run `clang-format`; CI (`build-ubuntu.yml`) installs **`clang-format-14`** and rejects unformatted C++ as `-Wclang-format-violations`. Before pushing, format touched C++ with the system `clang-format` (match CI's version 14) and verify:
 
