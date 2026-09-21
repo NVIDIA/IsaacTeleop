@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
@@ -20,6 +21,7 @@
 #ifndef _WIN32
 #    include <sys/stat.h>
 
+#    include <fcntl.h>
 #    include <pwd.h>
 #    include <unistd.h>
 #    include <vector>
@@ -105,6 +107,37 @@ bool directory_is_private(const std::filesystem::path& dir)
         return false;
     }
     return (parent_info.st_mode & S_IWOTH) == 0 || (parent_info.st_mode & S_ISVTX) != 0;
+}
+
+void secure_log_file(const spdlog::filename_t& filename, std::FILE* file)
+{
+    const int fd = ::fileno(file);
+    struct ::stat opened
+    {
+    };
+    struct ::stat path
+    {
+    };
+    const bool safe = fd >= 0 && ::fstat(fd, &opened) == 0 && ::lstat(filename.c_str(), &path) == 0 &&
+                      S_ISREG(opened.st_mode) && S_ISREG(path.st_mode) && opened.st_uid == ::getuid() &&
+                      opened.st_dev == path.st_dev && opened.st_ino == path.st_ino && ::fchmod(fd, 0600) == 0;
+    if (safe)
+    {
+        const int flags = ::fcntl(fd, F_GETFD);
+        if (flags >= 0)
+        {
+            ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+        }
+        return;
+    }
+
+    // Keep the sink valid but prevent a planted path from receiving records.
+    const int null_fd = ::open("/dev/null", O_WRONLY);
+    if (null_fd >= 0)
+    {
+        ::dup2(null_fd, fd);
+        ::close(null_fd);
+    }
 }
 #endif
 
@@ -281,8 +314,12 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
 
         try
         {
+            spdlog::file_event_handlers events;
+#ifndef _WIN32
+            events.after_open = secure_log_file;
+#endif
             auto file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-                filename.string(), kFileMaxBytes, kFileBackupCount);
+                filename.string(), kFileMaxBytes, kFileBackupCount, false, events);
             file->set_level(spdlog::level::debug); // always captures everything, not user-configurable
             file->set_pattern(kPattern);
             return std::vector<spdlog::sink_ptr>{ console, file };
