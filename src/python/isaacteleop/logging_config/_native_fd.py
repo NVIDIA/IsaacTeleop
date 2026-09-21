@@ -42,6 +42,11 @@ from ._core import ROOT_LOGGER_NAME, TRACE, ensure_log_dir
 
 _FD_LABELS = {1: "stdout", 2: "stderr"}
 
+# What CPython gives sys.stdout and sys.stderr when it builds them, and so what
+# a stand-in for either has to be built with -- os.fdopen() would otherwise
+# default to errors="strict". See _ensure_saved_slots().
+_FALLBACK_ERRORS = {1: "surrogateescape", 2: "backslashreplace"}
+
 #: Absolute path of this session's capture file, published so that a fork+exec'd
 #: child with no interpreter (``core/plugin_manager/cpp/plugin.cpp``) can open it
 #: for itself with nothing but ``getenv`` and an async-signal-safe ``open``.
@@ -338,6 +343,25 @@ def capture_fd() -> int | None:
     return _sink_fd
 
 
+def _text_options(fd: int) -> dict[str, str]:
+    """``encoding``/``errors`` the interpreter gave this descriptor's own stream.
+
+    Copied rather than defaulted. ``os.fdopen`` uses ``errors="strict"``, while
+    CPython builds ``sys.stdout`` with ``surrogateescape`` and ``sys.stderr``
+    with ``backslashreplace``. A stand-in on the default therefore raises
+    ``UnicodeEncodeError`` on text the real stream printed without complaint --
+    ``os.fsdecode`` of a non-UTF-8 path is the everyday case -- and
+    ``TeleopSession.__enter__`` holds a scope around the whole of resource
+    acquisition. On stderr it is worse: printing the traceback of an exception
+    leaving the scope would itself raise.
+    """
+    stream = sys.stdout if fd == 1 else sys.stderr
+    return {
+        "encoding": getattr(stream, "encoding", None) or "utf-8",
+        "errors": getattr(stream, "errors", None) or _FALLBACK_ERRORS[fd],
+    }
+
+
 def _ensure_saved_slots() -> list[int]:
     """Reserve the per-descriptor spare slots; return the descriptors to capture.
 
@@ -357,8 +381,10 @@ def _ensure_saved_slots() -> list[int]:
         stream_fd = None
         try:
             stream_fd = _move_above_std(os.dup(fd))
-            stream = os.fdopen(stream_fd, "w", buffering=1, closefd=False)
-        except (OSError, ValueError):
+            stream = os.fdopen(
+                stream_fd, "w", buffering=1, closefd=False, **_text_options(fd)
+            )
+        except (OSError, ValueError, LookupError):
             os.close(raw)
             if stream_fd is not None:
                 os.close(stream_fd)
