@@ -14,6 +14,7 @@
 #    include <unistd.h>
 #endif
 
+#include <cctype>
 #include <cerrno>
 #include <csetjmp>
 #include <cstdio>
@@ -43,10 +44,30 @@ std::shared_ptr<spdlog::logger>& logger()
     return instance;
 }
 
+#ifndef _WIN32
+bool native_capture_is_off() noexcept
+{
+    const char* raw = std::getenv("ISAACTELEOP_NATIVE_CAPTURE");
+    std::string_view mode = raw == nullptr ? std::string_view() : std::string_view(raw);
+    while (!mode.empty() && std::isspace(static_cast<unsigned char>(mode.front())))
+    {
+        mode.remove_prefix(1);
+    }
+    while (!mode.empty() && std::isspace(static_cast<unsigned char>(mode.back())))
+    {
+        mode.remove_suffix(1);
+    }
+    return mode.size() == 3 && (mode[0] == 'o' || mode[0] == 'O') && (mode[1] == 'f' || mode[1] == 'F') &&
+           (mode[2] == 'f' || mode[2] == 'F');
+}
+#endif
+
 void persist_fatal(std::string_view message) noexcept
 {
 #ifndef _WIN32
-    const char* path = std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
+    // "off" still publishes a path for launched children; this callback runs
+    // in the host process, whose native output must stay on its own stderr.
+    const char* path = native_capture_is_off() ? nullptr : std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
     const int fd = path != nullptr && path[0] != '\0' ? ::open(path, O_WRONLY | O_APPEND | O_NOFOLLOW) : -1;
     if (fd >= 0)
     {
