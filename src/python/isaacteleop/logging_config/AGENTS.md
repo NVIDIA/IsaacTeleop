@@ -91,6 +91,11 @@ export no log hook, so the descriptor is the only seam.
 - **fd 1/2 are left closed if the host left them closed.** `_move_above_std()`
   relocates our own descriptors clear of 0/1/2 rather than pinning `/dev/null`
   onto a closed std fd, which would itself be a change to the host's state.
+  **Decide that by the interpreter's streams, never by `os.dup()` succeeding.**
+  The kernel hands out the lowest free number, so a descriptor the host started
+  with closed is occupied by an ordinary file of its long before a scope opens —
+  the leader's own log file, often enough. `_stdio_stream()` answers the
+  question that matters, "does this interpreter write through that number".
 
 ## Related
 

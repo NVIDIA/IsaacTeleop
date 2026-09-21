@@ -400,10 +400,7 @@ def _text_options(fd: int) -> dict[str, str]:
     ``sys.__stdout__`` is what the interpreter built for the descriptor and is
     the fallback.
     """
-    current, original = (
-        (sys.stdout, sys.__stdout__) if fd == 1 else (sys.stderr, sys.__stderr__)
-    )
-    stream = next((s for s in (current, original) if _follows(s, fd)), None)
+    stream = _stdio_stream(fd)
     try:
         encoding = getattr(stream, "encoding", None)
         errors = getattr(stream, "errors", None)
@@ -421,11 +418,22 @@ def _ensure_saved_slots() -> list[int]:
     A descriptor the host started with closed is skipped rather than opened
     onto ``/dev/null``: it emits nothing, and pinning something to it would be
     precisely the change to the host's descriptors this module exists to avoid.
+
+    ``os.dup`` is not what answers "closed", though: it answers "in use now".
+    A host that started with fd 1 closed goes on opening files, and the kernel
+    hands out the lowest free number, so by the time a scope is entered fd 1 is
+    some unrelated file of the host's -- including, when the leader's own log
+    file gets there first, one of ours. Capturing it would route that file's
+    writes into the capture file for the length of the block. :func:`_stdio_stream`
+    is the question actually worth asking: does this interpreter have a stdio
+    stream on the descriptor at all.
     """
     capturable = []
     for fd in _FD_LABELS:
         if fd in _saved_raw:
             capturable.append(fd)
+            continue
+        if _stdio_stream(fd) is None:
             continue
         try:
             raw = _move_above_std(os.dup(fd))
@@ -461,6 +469,23 @@ def _follows(stream: TextIO | None, fd: int) -> bool:
         return stream.fileno() == fd
     except Exception:  # noqa: BLE001 -- host stream implementations are unrestricted
         return False
+
+
+def _stdio_stream(fd: int) -> TextIO | None:
+    """The interpreter's own stream writing through *fd*, or ``None``.
+
+    ``sys.stdout`` first, because a host that redirected the descriptor itself
+    (``os.dup2``, a shell ``>``) still writes through it; ``sys.__stdout__`` as
+    the fallback, because ``contextlib.redirect_stdout`` and a notebook's
+    wrapper replace the object while the real stream keeps the descriptor.
+    ``None`` means neither writes through *fd* -- an interpreter started with it
+    closed, or a stream the host has since closed -- and whatever occupies that
+    number now belongs to somebody else.
+    """
+    current, original = (
+        (sys.stdout, sys.__stdout__) if fd == 1 else (sys.stderr, sys.__stderr__)
+    )
+    return next((s for s in (current, original) if _follows(s, fd)), None)
 
 
 def _set_handler_stream(handler: logging.StreamHandler, stream: TextIO) -> None:
