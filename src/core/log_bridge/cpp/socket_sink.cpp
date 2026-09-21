@@ -190,7 +190,20 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
         return;
     }
 
-    const double created = std::chrono::duration<double>(msg.time.time_since_epoch()).count();
+    // Seconds and microseconds as integers, formatted with a literal '.'.
+    // Never std::to_string(double) here: libstdc++ implements it through
+    // vsnprintf("%f"), whose decimal point comes from the global C locale. A
+    // vendor SDK that calls setlocale(LC_ALL, "") on a host set to a language
+    // that writes 1,5 turns this field into 1758000000,123456, which is not
+    // JSON -- and the receiver's json.loads() raises ValueError, which its
+    // frame loop catches and continues past, so every record from that point
+    // on is dropped in silence with the connection still healthy.
+    const auto since_epoch = msg.time.time_since_epoch();
+    const auto whole_seconds = std::chrono::duration_cast<std::chrono::seconds>(since_epoch);
+    const auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(since_epoch - whole_seconds);
+    char created[32];
+    std::snprintf(created, sizeof(created), "%lld.%06lld", static_cast<long long>(whole_seconds.count()),
+                  static_cast<long long>(microseconds.count()));
 
     std::string payload = "{\"name\":\"";
     append_json_escaped(payload, std::string_view(msg.logger_name.data(), msg.logger_name.size()));
@@ -199,7 +212,7 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
     payload += ",\"msg\":\"";
     append_json_escaped(payload, std::string_view(msg.payload.data(), msg.payload.size()));
     payload += "\",\"created\":";
-    payload += std::to_string(created);
+    payload += created;
     payload += ",\"process\":";
     payload += std::to_string(current_pid());
     payload += "}";
