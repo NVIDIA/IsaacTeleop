@@ -190,18 +190,19 @@ pre-commit install --hook-type commit-msg
   supported Python (for example `uvx --python 3.13 pre-commit ...`) and use a
   fresh `PRE_COMMIT_HOME` (or clean the stale hook cache) before retrying.
 - **REUSE:** files covered by the REUSE hook need **`SPDX-FileCopyrightText`** and **`SPDX-License-Identifier`** in the form the repo already uses (for example the HTML comment block at the top of `README.md` also applies to **`AGENTS.md`** and similar docs).
-- **C++ formatting is enforced by CI, not pre-commit.** The hook set runs `ruff` for Python but does **not** run `clang-format`; CI (`build-ubuntu.yml`) installs **`clang-format-14`** and rejects unformatted C++ as `-Wclang-format-violations`. Before pushing, format touched C++ with the system `clang-format` (match CI's version 14) and verify:
+- **C++ formatting is enforced by CI, not pre-commit.** The hook set runs `ruff` for Python but does **not** run `clang-format`; CI (`build-ubuntu.yml`) installs **`clang-format-14`** and rejects unformatted C++ as `-Wclang-format-violations`. Before pushing, format touched C++ with **version 14** — not whatever `clang-format` resolves to — and verify:
 
   ```bash
-  clang-format -i $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
-  clang-format --dry-run --Werror $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
+  FILES=$(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
+  # Drop the uvx prefix if a real clang-format-14 is installed.
+  uvx --from clang-format==14.0.6 clang-format -i $FILES
+  uvx --from clang-format==14.0.6 clang-format --dry-run --Werror $FILES
   ```
 
-  **Check the version first.** A newer binary reformats constructs 14 left
-  alone — clang-format 20 rewrites `struct ::stat info\n{\n};` to
-  `struct ::stat info{};` — so do not run a newer version with either `-i` or
-  `--dry-run`. If 14 is not installed, invoke it explicitly, for example with
-  `uvx --from clang-format==14.0.6 clang-format ...`.
+  Version 14 for `--dry-run` as much as for `-i`: a newer binary reformats
+  constructs 14 leaves alone — clang-format 20 rewrites
+  `struct ::stat info\n{\n};` to `struct ::stat info{};` — so it both
+  introduces violations and reports ones CI will never see.
 - **`end-of-file-fixer` rewrites LFS-smudged files locally, not in CI.**
   The pre-commit workflow's `actions/checkout` step does not fetch LFS, so that
   job lints the pointer text; a local clone lints the smudged content and the
