@@ -430,10 +430,10 @@ def _ensure_saved_slots() -> list[int]:
     """
     capturable = []
     for fd in _FD_LABELS:
+        if _stdio_stream(fd) is None:
+            continue
         if fd in _saved_raw:
             capturable.append(fd)
-            continue
-        if _stdio_stream(fd) is None:
             continue
         try:
             raw = _move_above_std(os.dup(fd))
