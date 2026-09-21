@@ -199,16 +199,29 @@ std::filesystem::path unique_log_path(const std::filesystem::path& dir, const st
         // Reserved, not merely checked: exists() left a gap before the real open
         // (a few lines below, inside rotating_file_sink_mt) that two extension
         // modules' independent creation_mutex()es do not close -- each is a
-        // function-local static in its own copy of this static library. "wx"
-        // (C11 exclusive create; glibc, MSVC's CRT and macOS's libc all support
-        // it) fails instead of truncating when the name is already taken.
-        // Reproduced racing threads through the old exists()-then-create shape
-        // and through this one in a standalone harness: only the former collides.
+        // function-local static in its own copy of this static library. An
+        // exclusive create fails instead of truncating when the name is already
+        // taken, and also refuses a symlink planted at it.
+#ifndef _WIN32
+        // 0600 in the creating call, as logging_config/_file.py does. fopen's
+        // "wx" would create it 0666 & ~umask, and secure_log_file() only narrows
+        // the mode once the sink opens the file -- a reader who opens it in
+        // between keeps that descriptor, and reads everything written after.
+        const int reserved = ::open(candidate.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+        if (reserved >= 0)
+        {
+            ::close(reserved);
+            return candidate;
+        }
+#else
+        // No mode to set and no secure_log_file() on this platform: the file
+        // inherits the directory's ACL. "wx" is C11 exclusive create.
         if (std::FILE* reserved = std::fopen(candidate.string().c_str(), "wx"))
         {
             std::fclose(reserved);
             return candidate;
         }
+#endif
     }
     return {}; // Console only; see local_sinks().
 }
