@@ -203,9 +203,10 @@ pre-commit install --hook-type commit-msg
   `--dry-run`. If 14 is not installed, invoke it explicitly, for example with
   `uvx --from clang-format==14.0.6 clang-format ...`.
 - **`end-of-file-fixer` rewrites LFS-smudged files locally, not in CI.**
-  `actions/checkout` does not fetch LFS, so CI lints the pointer text; a local
-  clone lints the smudged content and the hook appends a newline to files such
-  as `docs/source/_static/camera-viz-controls.svg`. Do not commit that: it is a
+  The pre-commit workflow's `actions/checkout` step does not fetch LFS, so that
+  job lints the pointer text; a local clone lints the smudged content and the
+  hook appends a newline to files such as
+  `docs/source/_static/camera-viz-controls.svg`. Do not commit that: it is a
   local artefact, and committing it rewrites the LFS object.
 - If a hook failure shows **missing or non-obvious repo policy** (not a one-off typo), you **must** add a **short** reminder under **Mandatory learning loop** rules to the right `AGENTS.md` or adjacent **`//` comments** so the next run does not repeat it—unless it is already documented.
 
