@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <iostream>
 #include <string>
 #include <thread>
 
@@ -25,7 +26,11 @@ try
 
     if (hand != "left" && hand != "right")
     {
-        logger->error("Usage: {} [hand(left|right)] [collection_id]", argv[0]);
+        // Usage text is terminal UX, not a diagnostic, and the other plugin
+        // mains in this tree print it the same way. A logger would also hide
+        // it outright under ISAACTELEOP_LOG_SOCKET, where local_sinks()
+        // carries a forwarding sink and no console sink.
+        std::cout << "Usage: " << argv[0] << " [hand(left|right)] [collection_id]" << std::endl;
         return 1;
     }
 
