@@ -842,9 +842,17 @@ void ManusTracker::OnLog(LogSeverity p_Severity, const char* p_Log, uint32_t p_L
         // CoreSdk_InitializeIntegrated(), called mid-constructor, before the function-local
         // static in instance() has finished constructing -- reentering that initialization
         // from the same thread is undefined behavior. Look the logger up directly by name
-        // instead; isaacteleop::Logger::get() is memoized, so this is the same object m_logger
-        // holds once the tracker exists.
-        static const auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
+        // instead.
+        //
+        // Its own name, not m_logger's, and ThirdParty: this is the vendor's log stream,
+        // the case LoggerKind::ThirdParty exists for (robot_twin's MuJoCo wrapper is the
+        // other one). Sharing the ManusTracker name with the plugin's own diagnostics made
+        // the two indistinguishable to a reader, to set_console_filter() and to
+        // set_logger_colors() -- and, since Logger::get() memoizes on the name alone, the
+        // kind would have been decided by whichever of the two ran first, which for a
+        // callback firing mid-constructor is not a fixed order.
+        static const auto logger =
+            isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusSdk", isaacteleop::LoggerKind::ThirdParty);
         const std::string message(p_Log, p_Length);
 
         // Inherit the SDK's own severity rather than collapsing everything to one level.
