@@ -32,6 +32,7 @@ import atexit
 import contextlib
 import logging
 import os
+import stat
 import sys
 import threading
 import time
@@ -105,7 +106,7 @@ def _write_all(fd: int, data: bytes) -> None:
         data = data[os.write(fd, data) :]
 
 
-def _mirror(sink_path: str) -> None:
+def _mirror(sink_path: str, sink_fd: int) -> None:
     """Tail the capture file onto the terminal while echo is on.
 
     Onto the duplicate of fd 2, which is where the console handler writes too,
@@ -117,8 +118,27 @@ def _mirror(sink_path: str) -> None:
     end-of-file and drops what it reads while echo is off, so enabling echo
     mid-session shows what follows rather than a backlog.
     """
+    reader_fd = -1
     try:
-        with open(sink_path, "rb", buffering=0) as sink:
+        reader_fd = os.open(
+            sink_path,
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_BINARY", 0),
+        )
+        # An operator-provided log directory may be shared; only tail the file
+        # ensure_sink() opened, not a replacement at the same name.
+        opened = os.fstat(reader_fd)
+        original = os.fstat(sink_fd)
+        if not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino) != (
+            original.st_dev,
+            original.st_ino,
+        ):
+            return
+        stream = os.fdopen(reader_fd, "rb", buffering=0)
+        reader_fd = -1
+        with stream as sink:
             sink.seek(0, os.SEEK_END)
             while True:
                 chunk = sink.read(65536)
@@ -128,8 +148,11 @@ def _mirror(sink_path: str) -> None:
                 target = _saved_stream_fd.get(2)
                 if _echo and target is not None:
                     _write_all(target, chunk)
-    except OSError:
+    except (OSError, ValueError):
         return  # Mirroring is best-effort and must not affect capture or the host.
+    finally:
+        if reader_fd >= 0:
+            os.close(reader_fd)
 
 
 def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
@@ -682,12 +705,12 @@ def _start_mirror() -> None:
     # Callers reach this from gate() and set_echo(), neither of which holds
     # _lock at the point it calls in; _mirror itself takes no lock.
     with _lock:
-        if _mirror_thread is not None or _sink_path is None:
+        if _mirror_thread is not None or _sink_path is None or _sink_fd is None:
             return
         _ensure_saved_slots()
         thread = threading.Thread(
             target=_mirror,
-            args=(_sink_path,),
+            args=(_sink_path, _sink_fd),
             name="isaacteleop-native-capture",
             daemon=True,
         )
