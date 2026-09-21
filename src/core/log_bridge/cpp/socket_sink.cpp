@@ -158,13 +158,20 @@ bool connect_bounded(int fd, const sockaddr_un& addr)
             connected = ::getsockopt(fd, SOL_SOCKET, SO_ERROR, &pending, &pending_size) == 0 && pending == 0;
             break;
         }
-        // A full accept queue answers EAGAIN here and blocks a *blocking*
-        // socket outright; EALREADY is this loop coming back after the poll
-        // below was interrupted; EINTR is a signal landing on ::connect()
-        // itself. Retry all three inside the budget rather than call a live
-        // leader unreachable over one burst of simultaneous plugin launches,
-        // or over a single signal -- that costs the process the session-wide
-        // log file, which is the outcome this function exists to avoid.
+        // EAGAIN is what a full accept queue answers on a non-blocking socket,
+        // and it is the one that matters: a blocking socket waits there with no
+        // bound at all. Retrying it inside the budget is what keeps a burst of
+        // simultaneous plugin launches from making a live leader look
+        // unreachable, which would cost that process the session-wide log file.
+        //
+        // EALREADY and EINTR are carried for completeness, not for a failure
+        // anyone has produced. POSIX permits both and handling them costs a
+        // comparison; measured on Linux, AF_UNIX against a full backlog answers
+        // EAGAIN every time (400/400, including with a no-SA_RESTART signal
+        // landing on the call), so neither the EINPROGRESS branch above nor
+        // these two is reached by this sink's transport here. Do not read their
+        // presence as evidence that they occur, and do not fold the EAGAIN path
+        // into the EINPROGRESS one on the strength of the poll() it does.
         if ((errno != EAGAIN && errno != EALREADY && errno != EINTR) || millis_until(deadline) == 0)
         {
             break;
