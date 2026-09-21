@@ -508,16 +508,27 @@ def _start_mirror() -> None:
     thread.
     """
     global _mirror_thread
-    if _mirror_thread is not None or _sink_path is None:
-        return
-    _ensure_saved_slots()
-    _mirror_thread = threading.Thread(
-        target=_mirror,
-        args=(_sink_path,),
-        name="isaacteleop-native-capture",
-        daemon=True,
-    )
-    _mirror_thread.start()
+    # Under _lock, as _begin()'s own call to _ensure_saved_slots() is. Those
+    # three dicts are the only record of where the host's descriptors went,
+    # and filling a slot from here while _begin() has already pointed fd 1 at
+    # the capture file would save a duplicate *of the capture file* -- which
+    # _end() would then dutifully restore onto fd 1, taking the host's stdout
+    # with it for good. The check-then-set on _mirror_thread needs the same
+    # cover, or two callers start two tail threads.
+    #
+    # Callers reach this from gate() and set_echo(), neither of which holds
+    # _lock at the point it calls in; _mirror itself takes no lock.
+    with _lock:
+        if _mirror_thread is not None or _sink_path is None:
+            return
+        _ensure_saved_slots()
+        _mirror_thread = threading.Thread(
+            target=_mirror,
+            args=(_sink_path,),
+            name="isaacteleop-native-capture",
+            daemon=True,
+        )
+        _mirror_thread.start()
 
 
 def set_echo(enabled: bool | None) -> None:
