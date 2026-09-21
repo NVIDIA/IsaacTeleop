@@ -42,11 +42,10 @@ def install() -> None:
         # that same variable. gate() opens the capture file and sets that
         # echo policy; it does not rebind any descriptor.
         env_level_name = os.environ.get("ISAACTELEOP_LOG_LEVEL")
-        env_level = (
-            _LEVEL_NAMES.get(env_level_name.lower(), logging.INFO)
-            if env_level_name
-            else logging.INFO
-        )
+        try:
+            env_level = int(env_level_name) if env_level_name else logging.INFO
+        except ValueError:
+            env_level = _LEVEL_NAMES.get(env_level_name.lower(), logging.INFO)
         _native_fd.gate(env_level, _console.ensure_handler())
         _forwarding.ensure_handler(socket_path)
         return

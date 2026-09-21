@@ -49,6 +49,7 @@ _LEVEL_NAMES = {
     "info": logging.INFO,
     "warning": logging.WARNING,
     "error": logging.ERROR,
+    "critical": logging.CRITICAL,
 }
 
 # spdlog spells its levels exactly like the keys above, so a name round-trips straight

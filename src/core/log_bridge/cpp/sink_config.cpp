@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -196,11 +197,10 @@ std::filesystem::path log_dir()
 #endif
 }
 
-// Mirrors isaacteleop.logging_config's _LEVEL_NAMES, which lowercases before
-// looking up and falls back to info. spdlog::level::from_str() is deliberately
-// not used here: it answers level::off for anything it does not recognise, so
-// the "DEBUG" a user naturally writes -- or any typo -- would silently mute the
-// console of every standalone plugin instead of falling back to the default.
+// Mirrors isaacteleop.logging_config's names and integer thresholds.
+// spdlog::level::from_str() is deliberately not used here: it answers
+// level::off for anything it does not recognise, so a typo would silently mute
+// every standalone plugin instead of falling back to info.
 spdlog::level::level_enum console_level()
 {
     const char* level_str = std::getenv("ISAACTELEOP_LOG_LEVEL");
@@ -232,6 +232,41 @@ spdlog::level::level_enum console_level()
     if (name == "error" || name == "err")
     {
         return spdlog::level::err;
+    }
+    if (name == "critical")
+    {
+        return spdlog::level::critical;
+    }
+
+    int numeric = 0;
+    const auto [end, ec] = std::from_chars(name.data(), name.data() + name.size(), numeric);
+    if (ec == std::errc{} && end == name.data() + name.size())
+    {
+        if (numeric <= 5)
+        {
+            return spdlog::level::trace;
+        }
+        if (numeric <= 10)
+        {
+            return spdlog::level::debug;
+        }
+        if (numeric <= 20)
+        {
+            return spdlog::level::info;
+        }
+        if (numeric <= 30)
+        {
+            return spdlog::level::warn;
+        }
+        if (numeric <= 40)
+        {
+            return spdlog::level::err;
+        }
+        if (numeric <= 50)
+        {
+            return spdlog::level::critical;
+        }
+        return spdlog::level::off;
     }
     return spdlog::level::info;
 }

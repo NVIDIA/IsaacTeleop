@@ -175,8 +175,9 @@ def set_console_level(level: int | str) -> None:
     _native_fd.gate(resolved, handler)
     # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
     # the in-process bridge; they read their own console threshold from this variable.
-    if resolved in _LEVEL_NAME_BY_VALUE:
-        os.environ["ISAACTELEOP_LOG_LEVEL"] = _LEVEL_NAME_BY_VALUE[resolved]
+    os.environ["ISAACTELEOP_LOG_LEVEL"] = _LEVEL_NAME_BY_VALUE.get(
+        resolved, str(resolved)
+    )
 
 
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
