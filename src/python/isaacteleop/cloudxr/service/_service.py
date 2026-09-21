@@ -56,6 +56,27 @@ drop the live session.
 _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
 
 
+def _tail_text(path: Path, limit: int) -> str:
+    """Last *limit* bytes of *path*, decoded leniently.
+
+    Seeks instead of reading the file and slicing what it wanted. One of the
+    files this is pointed at is the session's native capture file, which is
+    truncated by nothing and rotated by nothing -- it collects every process's
+    raw fd 1/2 output for as long as the session runs -- so a restart that
+    fails late would otherwise pull the whole thing into memory to print four
+    kilobytes of it.
+    """
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        handle.seek(max(0, size - limit))
+        chunk = handle.read()
+    text = chunk.decode(errors="replace").strip()
+    if text and size > limit:
+        return "...\n" + text
+    return text
+
+
 _RUNTIME_WORKER_CODE = """\
 import sys, os
 if sys.platform.startswith("linux"):
@@ -424,11 +445,9 @@ class CloudXRService:
 
         for log_path in self._gather_diagnostic_logs(logs_dir):
             try:
-                content = log_path.read_text(errors="replace").strip()
+                content = _tail_text(log_path, _MAX_LOG_BYTES)
                 if not content:
                     continue
-                if len(content) > _MAX_LOG_BYTES:
-                    content = "...\n" + content[-_MAX_LOG_BYTES:]
                 parts.append(f"{log_path.name}:\n{content}")
             except Exception:
                 pass
