@@ -435,6 +435,13 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
     if not candidates:
         return
 
+    # Before anything is rebound. Bytes still sitting in sys.stdout's buffer
+    # were written to the terminal, but nothing has carried them there yet --
+    # a redirected stdout is block-buffered -- and the next flush after this
+    # function returns would put them in the capture file instead, out of order
+    # with everything printed inside the scope.
+    _flush_host_streams()
+
     # Refreshed, not taken once: between two scopes the host is free to rebind
     # its own fd 1 / fd 2, and dup2 onto the existing slot updates what the
     # restore will put back without invalidating the wrapper built on it.
@@ -527,16 +534,20 @@ def _enter_process_hold(console_handler: logging.StreamHandler | None) -> None:
     _process_hold = True
 
 
-def _flush_before_restore() -> None:
-    """Flush what is about to be unhooked, without letting a failure strand it.
+def _flush_host_streams() -> None:
+    """Flush the host's streams before a rebinding moves what they point at.
 
-    Whatever is buffered on these streams was written while they pointed at
-    the real terminal, so it has to go out before ``_end()`` moves them; but a
-    flush can fail -- a closed pipe downstream (``prog | head``), a stream
+    Needed at both ends of a scope, for the same reason in mirror image.
+    Whatever sits in ``sys.stdout``'s buffer on the way *in* was written to the
+    terminal and must not be carried into the capture file by a later flush;
+    whatever sits there on the way *out* was written to the terminal through
+    the stand-in stream and must go out before ``_end()`` unhooks it.
+
+    A flush can fail -- a closed pipe downstream (``prog | head``), a stream
     CPython left as ``None`` because the host started with that descriptor
-    closed -- and a failure here must never cost the restore. The caller runs
-    ``_end()`` from a ``finally``; this swallows what it can so the caller
-    does not have to see it at all.
+    closed -- and a failure must never cost the rebinding or the restore. The
+    restoring caller runs ``_end()`` from a ``finally``; this swallows what it
+    can so neither caller has to see it at all.
     """
     for stream in (sys.stdout, sys.stderr):
         if stream is None:
@@ -561,7 +572,7 @@ def _exit_process_hold(console_handler: logging.StreamHandler | None) -> None:
     _process_hold = False
     if _depth == 0:
         try:
-            _flush_before_restore()
+            _flush_host_streams()
         finally:
             _end(console_handler)
 
@@ -615,7 +626,7 @@ def scoped(
                 # them. That is the process-wide redirection this module
                 # exists to not do.
                 try:
-                    _flush_before_restore()
+                    _flush_host_streams()
                 finally:
                     _end(console_handler)
 
