@@ -5,6 +5,7 @@
 
 #include "inc/log_bridge/logger.hpp"
 
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -18,6 +19,7 @@
 #    include <sys/un.h>
 
 #    include <fcntl.h>
+#    include <poll.h>
 #    include <unistd.h>
 #endif
 
@@ -29,6 +31,7 @@ namespace
 #ifndef _WIN32
 // Matches the Python sender's socket timeout (logging_config/_forwarding.py).
 constexpr int kSendTimeoutSeconds = 1;
+constexpr int kConnectTimeoutMs = 1000;
 
 int current_pid()
 {
@@ -98,6 +101,74 @@ int create_unix_socket()
 #    endif
 }
 
+int millis_until(std::chrono::steady_clock::time_point deadline)
+{
+    const auto left =
+        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
+    return left > 0 ? static_cast<int>(left) : 0;
+}
+
+// ::connect(), bounded. A blocking AF_UNIX connect() is not the fast-fail it
+// looks like: with nothing bound it fails at once with ECONNREFUSED, but
+// against a live socket whose accept backlog is full and whose owner never
+// accepts, it waits with no bound at all (measured past 20 s). Both callers
+// reach this holding a lock the whole process contends for --
+// forwarding_socket_path() runs inside local_sinks()'s function-local static,
+// which Logger::get() enters under creation_mutex, and sink_it_() holds
+// base_sink's mutex -- so an unbounded wait here wedges every logging thread,
+// not just this one. SO_SNDTIMEO is no substitute: it bounds connect() on
+// Linux only.
+bool connect_bounded(int fd, const sockaddr_un& addr)
+{
+    const int flags = ::fcntl(fd, F_GETFL);
+    if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+    {
+        return false;
+    }
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kConnectTimeoutMs);
+    bool connected = false;
+    for (;;)
+    {
+        if (::connect(fd, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) == 0 || errno == EISCONN)
+        {
+            connected = true;
+            break;
+        }
+        if (errno == EINPROGRESS)
+        {
+            pollfd waiting{};
+            waiting.fd = fd;
+            waiting.events = POLLOUT;
+            const int ready = ::poll(&waiting, 1, millis_until(deadline));
+            if (ready != 1)
+            {
+                if (ready < 0 && errno == EINTR)
+                {
+                    continue; // ::connect() answers EALREADY next time round
+                }
+                break;
+            }
+            int pending = 0;
+            socklen_t pending_size = sizeof(pending);
+            connected = ::getsockopt(fd, SOL_SOCKET, SO_ERROR, &pending, &pending_size) == 0 && pending == 0;
+            break;
+        }
+        // A full accept queue answers EAGAIN here and blocks a *blocking*
+        // socket outright; EALREADY is this loop coming back after EINTR.
+        // Retry inside the budget rather than call a live leader unreachable
+        // over one burst of simultaneous plugin launches.
+        if ((errno != EAGAIN && errno != EALREADY) || millis_until(deadline) == 0)
+        {
+            break;
+        }
+        ::poll(nullptr, 0, 10); // no descriptor to wait on; just yield
+    }
+    // Put back: ensure_connected()'s ::send() is bounded by SO_SNDTIMEO, which
+    // a non-blocking descriptor ignores.
+    ::fcntl(fd, F_SETFL, flags);
+    return connected;
+}
+
 // Is anything still accepting connections there? A leader killed with SIGKILL
 // never unlinks its socket, and the address then travels in every environment
 // exported from it -- a shell, a systemd Environment= line, a command re-run
@@ -116,7 +187,7 @@ bool socket_is_reachable(const std::string& path)
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
-    const bool reachable = ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
+    const bool reachable = connect_bounded(fd, addr);
     ::close(fd);
     return reachable;
 }
@@ -187,8 +258,7 @@ bool SocketForwardSink::ensure_connected()
     // producer) -- and base_sink holds this sink's mutex across sink_it_(), so every
     // other thread logging in this process would pile up behind the stuck one. A record
     // dropped on timeout is the documented best-effort contract; a hung tracking loop is
-    // not. (::connect() is not covered, but a Unix socket with no listener fails fast
-    // with ECONNREFUSED; only a full accept backlog can delay it, and transiently.)
+    // not. connect_bounded() covers ::connect(), which has the same failure mode.
     timeval send_timeout{};
     send_timeout.tv_sec = kSendTimeoutSeconds;
     ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
@@ -196,7 +266,7 @@ bool SocketForwardSink::ensure_connected()
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     std::strncpy(addr.sun_path, socket_path_.c_str(), sizeof(addr.sun_path) - 1);
-    if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0)
+    if (!connect_bounded(fd, addr))
     {
         ::close(fd);
         return false;
