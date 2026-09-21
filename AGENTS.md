@@ -91,6 +91,14 @@ the logging packages.
   installs a handler on the *root* logger, and nothing here sets
   `propagate = False`, so from that call onward every `isaacteleop` record is
   emitted twice — once in the shared line format and once in yours.
+  **The one exception is a program that imports no `isaacteleop` at all**, and
+  is meant to keep it that way: there are no handlers of ours for it to
+  duplicate, and reaching for `logging_config` would add the dependency the
+  program exists without. `examples/camera_viz/camera_streamer.py` is the
+  case — a sender-only camera box runs it with no CUDA/Vulkan/OpenXR runtime
+  installed, so `import isaacteleop` would fail outright. Keep the logger
+  names under `isaacteleop.` anyway; the naming rule above is a convention,
+  not a runtime coupling.
 - **Configure through the public API instead:** `logging_config.set_console_level()`,
   `set_console_filter()`, `set_logger_colors()`. A `--verbose` flag should call
   `set_console_level("debug")`, not build a handler.

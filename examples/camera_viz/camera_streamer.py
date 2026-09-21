@@ -249,37 +249,24 @@ class CameraSupervisor:
 
 
 def _setup_logging() -> None:
+    # systemd captures stdout/stderr — journal formats timestamps, so we
+    # don't add our own. Keep level info by default; DEBUG via env var.
+    #
+    # basicConfig(), and the root logger, on purpose. The repo-wide rule
+    # against both exists because a handler on the root duplicates every
+    # isaacteleop record already carried by logging_config's own handlers.
+    # This process has none: the sender imports no isaacteleop at all, which
+    # is what lets a camera box run it with no CUDA/Vulkan/OpenXR runtime
+    # installed. Do not "migrate" this to logging_config -- that reintroduces
+    # the dependency.
     import os
 
     level = logging.DEBUG if os.environ.get("CAMERA_STREAMER_DEBUG") else logging.INFO
-    try:
-        from isaacteleop import logging_config
-    except ModuleNotFoundError as exc:
-        if exc.name != "isaacteleop":
-            raise
-        # On the isaacteleop root, not on this module's logger. The camera
-        # lifecycle lines this service exists to report -- sources' notify(),
-        # the RTP senders, the pipeline runner -- log under
-        # isaacteleop.camera_viz.*, so a handler on isaacteleop.camera_streamer
-        # leaves them with no handler at all and logging.lastResort silently
-        # drops everything below WARNING.
-        root = logging.getLogger("isaacteleop")
-        if not root.handlers:
-            handler = logging.StreamHandler()
-            handler.setFormatter(
-                logging.Formatter(
-                    "[%(asctime)s.%(msecs)03d] [%(levelname)-5s] "
-                    "[%(name)s] [pid:%(process)d] %(message)s",
-                    datefmt="%Y-%m-%d %H:%M:%S",
-                )
-            )
-            root.addHandler(handler)
-        for handler in root.handlers:
-            handler.setLevel(level)
-        root.setLevel(level)
-        root.propagate = False
-        return
-    logging_config.set_console_level(level)
+    logging.basicConfig(
+        level=level,
+        format="%(name)s [%(levelname)s] %(message)s",
+        stream=sys.stderr,
+    )
 
 
 def main(argv: Optional[List[str]] = None) -> int:
