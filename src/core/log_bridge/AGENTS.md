@@ -46,6 +46,24 @@ target truncated *before* `after_open` can look at the descriptor. `before_open`
 vets the descriptor it got. Keep both, and do not assume a check on the opened
 file can undo what opening it already did.
 
+`secure_log_file` also re-runs `directory_is_private()` on the file's parent,
+every open — not only the one `local_sinks()` does before the sink exists.
+Reason: `ancestors_are_private()`'s group-write carve-out below lets a member
+of a delegated group replace the whole log directory after that one-shot check
+has passed, for as long as the process then keeps running, and a file this
+same hook just created still stats as ours regardless — only the directory
+says whether it is still safe. Neither `before_open` nor `after_open` can stop
+`file_helper::open()`'s own truncating reopen from running (`before_open`
+returns `void`; it cannot veto), so the *first* rotation into a directory
+swapped in since the last check can still truncate whatever a symlink at the
+next name points at. What the re-check buys is that it does not stay open:
+once caught, the descriptor is redirected to `/dev/null` and stays that way
+through every later rotation, rather than the process trusting a directory it
+last verified at start-up for however long it keeps running. Verified against
+real spdlog v1.17.0: turning an ancestor world-writable mid-run stops the file
+from growing at the next rotation, with everything written before that point
+intact.
+
 **The directory is vetted the same way on both sides.** `ensure_private_dir()`
 in the Python half and `directory_is_private()` here answer the same question:
 the directory is ours by `lstat` (so a planted symlink is judged by its own

@@ -163,13 +163,9 @@ bool ancestors_are_private(const std::filesystem::path& path)
             // the machine move the ancestor aside; the sticky bit is how /tmp
             // makes that safe.
             //
-            // What this accepts: a member of that group can replace the whole
-            // log directory after this one-shot check has passed, and
-            // reserve_log_file() cannot clear a planted name in a directory
-            // this process may no longer write -- so a rotation can still
-            // truncate whatever a symlink there points at. Not closable from
-            // inside the sink; pointing ISAACTELEOP_LOG_DIR under a
-            // group-writable ancestor is a decision to trust that group.
+            // What this accepts, and what secure_log_file()'s own
+            // directory_is_private() re-check narrows it to: see
+            // log_bridge/AGENTS.md's "vetted twice" section.
             if ((parent_info.st_mode & S_IWOTH) != 0 && (parent_info.st_mode & S_ISVTX) == 0)
             {
                 return false;
@@ -248,9 +244,16 @@ void secure_log_file(const spdlog::filename_t& filename, std::FILE* file)
     struct ::stat path
     {
     };
+    // directory_is_private() again here, not trusted from local_sinks()'s one
+    // call before construction: this hook runs on every rotation too, and a
+    // file it just created still stats as ours even when the directory around
+    // it no longer is -- the file's own identity cannot answer that, only the
+    // directory can. See log_bridge/AGENTS.md's "vetted twice" section for
+    // what this does and does not close.
     const bool safe = fd >= 0 && ::fstat(fd, &opened) == 0 && ::lstat(filename.c_str(), &path) == 0 &&
                       S_ISREG(opened.st_mode) && S_ISREG(path.st_mode) && opened.st_uid == ::getuid() &&
-                      opened.st_dev == path.st_dev && opened.st_ino == path.st_ino && ::fchmod(fd, 0600) == 0;
+                      opened.st_dev == path.st_dev && opened.st_ino == path.st_ino &&
+                      directory_is_private(std::filesystem::path(filename).parent_path()) && ::fchmod(fd, 0600) == 0;
     if (safe)
     {
         const int flags = ::fcntl(fd, F_GETFD);
