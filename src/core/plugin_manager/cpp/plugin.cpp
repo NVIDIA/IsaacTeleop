@@ -199,7 +199,7 @@ void Plugin::start_process(const std::string& command,
         // executable to an absolute path *before* fork() and calling execv(); do
         // not instead delete this note and leave the blanket claim above standing.
 
-        // Point *this process's* stdio at the session's capture file, which is what
+        // Point *this process's* output at the session's capture file, which is what
         // keeps a plugin's non-logger output -- the OpenXR runtime's xrCreate* spew,
         // the Manus SDK's own formatted lines, anything a vendor writes to a
         // descriptor -- off the terminal and in the log without the parent ever
@@ -219,7 +219,7 @@ void Plugin::start_process(const std::string& command,
             {
                 ::dup2(capture_fd, STDOUT_FILENO);
                 ::dup2(capture_fd, STDERR_FILENO);
-                if (capture_fd > STDERR_FILENO)
+                if (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO)
                 {
                     ::close(capture_fd);
                 }
