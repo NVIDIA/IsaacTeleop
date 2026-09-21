@@ -8,8 +8,21 @@
 
 #include <algorithm>
 #include <chrono>
+#include <iomanip>
+#include <iostream>
 #include <thread>
 #include <vector>
+
+// This tool is a standalone diagnostic CLI whose whole product is joint data
+// on the terminal (docs/source/device/manus.rst). It therefore keeps
+// std::cout, which the repo root AGENTS.md reserves for exactly this: operator
+// banners and progress lines a log file would ruin. Routing it through a
+// logger made it silent in the one situation it is most often run in -- a
+// shell that inherited ISAACTELEOP_LOG_SOCKET from a session leader, where
+// local_sinks() returns a forwarding sink and no console sink at all, so every
+// line including "Waiting for gloves..." went to the leader's log file and the
+// tool looked hung. Diagnostics -- the visualizer failure, the fatal handlers
+// -- stay on the logger.
 
 int main(int argc, char** argv)
 try
@@ -18,7 +31,7 @@ try
     (void)argv;
 
     auto logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.manus_hand_tracker_printer");
-    logger->info("Initializing Manus Tracker...");
+    std::cout << "[Manus] Initializing Manus Tracker..." << std::endl;
 
     plugins::manus::ManusPluginConfig config;
     config.app_name = "ManusHandPrinter";
@@ -43,7 +56,7 @@ try
             }
         });
 
-    logger->info("Press Ctrl+C to stop. Printing joint data...");
+    std::cout << "[Manus] Press Ctrl+C to stop. Printing joint data..." << std::endl;
 
     int frame = 0;
     bool waiting_printed = false;
@@ -57,7 +70,7 @@ try
         {
             if (!waiting_printed)
             {
-                logger->info("Waiting for gloves...");
+                std::cout << "[Manus] Waiting for gloves..." << std::endl;
                 waiting_printed = true;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -65,35 +78,39 @@ try
         }
         waiting_printed = false;
 
-        logger->info("=== Frame {} ===", frame);
+        std::cout << "\n[Manus] === Frame " << frame << " ===" << std::endl;
 
         // Helper lambda to print hand data
-        auto print_hand = [logger](const std::string& side, const std::vector<SkeletonNode>& nodes)
+        auto print_hand = [](const std::string& side, const std::vector<SkeletonNode>& nodes)
         {
             if (nodes.empty())
             {
                 return;
             }
 
-            logger->info("{} hand ({} joints):", side, nodes.size());
+            std::cout << "[Manus] " << side << " hand (" << nodes.size() << " joints):" << std::endl;
 
             for (size_t i = 0; i < std::min(nodes.size(), static_cast<size_t>(5)); ++i)
             {
                 const auto& pos = nodes[i].transform.position;
                 const auto& ori = nodes[i].transform.rotation;
 
-                logger->info("  Joint {}: pos=[{:.3f}, {:.3f}, {:.3f}] ori=[{:.3f}, {:.3f}, {:.3f}, {:.3f}]", i, pos.x,
-                             pos.y, pos.z, ori.x, ori.y, ori.z, ori.w);
+                std::cout << "[Manus]   Joint " << i << ": "
+                          << "pos=[" << std::fixed << std::setprecision(3) << pos.x << ", " << pos.y << ", " << pos.z
+                          << "] "
+                          << "ori=[" << ori.x << ", " << ori.y << ", " << ori.z << ", " << ori.w << "]" << std::endl;
             }
 
             if (nodes.size() > 5)
             {
-                logger->info("  ... ({} more joints)", nodes.size() - 5);
+                std::cout << "[Manus]   ... (" << (nodes.size() - 5) << " more joints)" << std::endl;
             }
         };
 
         print_hand("left", left_nodes);
         print_hand("right", right_nodes);
+
+        std::cout << std::flush;
 
         frame++;
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
