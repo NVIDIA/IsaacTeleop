@@ -179,7 +179,9 @@ void Plugin::start_process(const std::string& command,
     // no file could be opened or this process never imported the Python half.
     // Capture mode "off" still publishes it because it governs the host's
     // descriptors, not those of a process the host launches.
-    const char* const native_capture_path = std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
+    const char* const native_capture_env = std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
+    const std::string native_capture_path_text = native_capture_env == nullptr ? "" : native_capture_env;
+    const char* const native_capture_path = native_capture_path_text.empty() ? nullptr : native_capture_path_text.c_str();
 
     const pid_t child_pid = fork();
     if (child_pid == -1)
@@ -295,7 +297,12 @@ void Plugin::start_process(const std::string& command,
         }
         if (startup_state == ProcessState::EXITED || startup_state == ProcessState::SIGNALED)
         {
-            throw std::runtime_error("Plugin process exited immediately");
+            std::string message = startup_error.empty() ? "Plugin process exited immediately" : startup_error;
+            if (!native_capture_path_text.empty())
+            {
+                message += "; see native output capture at " + native_capture_path_text;
+            }
+            throw std::runtime_error(message);
         }
     }
 #else
