@@ -347,7 +347,15 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         // Built first and unconditionally: everything below it can fail on a
         // directory this process may not write, and Logger::get() -- which every
         // diagnostic call site in the tree treats as infallible -- must not throw.
-        auto console = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        // stderr, like the Python half's console handler (logging.StreamHandler
+        // defaults there) and like the std::cerr these call sites were migrated
+        // off. On stdout a standalone tool's own product and its diagnostics go
+        // down one descriptor, so `tool > data.txt` swallows the diagnostics and
+        // corrupts the data; `tool 2>/dev/null` stops silencing them; and the two
+        // halves of one session disagree about which descriptor carries a record,
+        // which _native_fd's mirror and console-handler bookkeeping both assume
+        // is fd 2.
+        auto console = std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
         console->set_level(console_level());
         console->set_pattern(kPattern);
 
