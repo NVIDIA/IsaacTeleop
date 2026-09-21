@@ -379,8 +379,11 @@ def _text_options(fd: int) -> dict[str, str]:
         (sys.stdout, sys.__stdout__) if fd == 1 else (sys.stderr, sys.__stderr__)
     )
     stream = next((s for s in (current, original) if _follows(s, fd)), None)
-    encoding = getattr(stream, "encoding", None)
-    errors = getattr(stream, "errors", None)
+    try:
+        encoding = getattr(stream, "encoding", None)
+        errors = getattr(stream, "errors", None)
+    except Exception:  # noqa: BLE001 -- these attributes belong to the host
+        encoding = errors = None
     return {
         "encoding": encoding if isinstance(encoding, str) else "utf-8",
         "errors": errors if isinstance(errors, str) else _FALLBACK_ERRORS[fd],
@@ -431,7 +434,7 @@ def _follows(stream: TextIO | None, fd: int) -> bool:
     """
     try:
         return stream.fileno() == fd
-    except (AttributeError, OSError, ValueError):
+    except Exception:  # noqa: BLE001 -- host stream implementations are unrestricted
         return False
 
 
@@ -507,19 +510,23 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
     # level.
     _pre_scope_streams.clear()
     _pre_scope_handler_stream = None
-    if 1 in _active_fds and _follows(sys.stdout, 1):
-        _pre_scope_streams[1] = sys.stdout
-        sys.stdout = _saved[1]
-    if 2 in _active_fds and _follows(sys.stderr, 2):
-        _pre_scope_streams[2] = sys.stderr
-        sys.stderr = _saved[2]
-    if (
-        console_handler is not None
-        and 2 in _active_fds
-        and _follows(console_handler.stream, 2)
-    ):
-        _pre_scope_handler_stream = console_handler.stream
-        _set_handler_stream(console_handler, _saved[2])
+    try:
+        if 1 in _active_fds and _follows(sys.stdout, 1):
+            _pre_scope_streams[1] = sys.stdout
+            sys.stdout = _saved[1]
+        if 2 in _active_fds and _follows(sys.stderr, 2):
+            _pre_scope_streams[2] = sys.stderr
+            sys.stderr = _saved[2]
+        if (
+            console_handler is not None
+            and 2 in _active_fds
+            and _follows(console_handler.stream, 2)
+        ):
+            _pre_scope_handler_stream = console_handler.stream
+            _set_handler_stream(console_handler, _saved[2])
+    except BaseException:
+        _end(console_handler)
+        raise
 
 
 def _end(console_handler: logging.StreamHandler | None) -> None:
