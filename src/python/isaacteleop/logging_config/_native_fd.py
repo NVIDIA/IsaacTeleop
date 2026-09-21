@@ -359,11 +359,20 @@ def _text_options(fd: int) -> dict[str, str]:
     ``TeleopSession.__enter__`` holds a scope around the whole of resource
     acquisition. On stderr it is worse: printing the traceback of an exception
     leaving the scope would itself raise.
+
+    Used only when they are strings. These come off a host-owned object -- a
+    test's mock, a notebook's stream wrapper -- and ``os.fdopen`` answers
+    anything else with ``TypeError``, which is not in the caller's ``except``
+    clause and would leave ``capture_native_output()`` through
+    ``TeleopSession.__enter__``. Verified: an ``encoding`` of ``42`` raises
+    ``TypeError: open() argument 'encoding' must be str or None, not int``.
     """
     stream = sys.stdout if fd == 1 else sys.stderr
+    encoding = getattr(stream, "encoding", None)
+    errors = getattr(stream, "errors", None)
     return {
-        "encoding": getattr(stream, "encoding", None) or "utf-8",
-        "errors": getattr(stream, "errors", None) or _FALLBACK_ERRORS[fd],
+        "encoding": encoding if isinstance(encoding, str) else "utf-8",
+        "errors": errors if isinstance(errors, str) else _FALLBACK_ERRORS[fd],
     }
 
 
