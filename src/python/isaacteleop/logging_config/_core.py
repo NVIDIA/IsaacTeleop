@@ -174,7 +174,9 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
                     f"by uid {parent_info.st_uid}, not {os.getuid()} or root."
                     f"{remedy}"
                 )
-            if not (stat.S_ISDIR(parent_info.st_mode) or stat.S_ISLNK(parent_info.st_mode)):
+            if not (
+                stat.S_ISDIR(parent_info.st_mode) or stat.S_ISLNK(parent_info.st_mode)
+            ):
                 raise PermissionError(
                     f"Refusing to use {directory}: ancestor {parent} is not a "
                     f"directory.{remedy}"

@@ -353,9 +353,7 @@ def _follows(stream: TextIO | None, fd: int) -> bool:
         return False
 
 
-def _set_handler_stream(
-    handler: logging.StreamHandler, stream: TextIO
-) -> None:
+def _set_handler_stream(handler: logging.StreamHandler, stream: TextIO) -> None:
     try:
         handler.setStream(stream)
     except Exception:  # noqa: BLE001 -- restoring host descriptors wins
@@ -442,9 +440,7 @@ def _end(console_handler: logging.StreamHandler | None) -> None:
     global _active_fds, _active_inheritable, _pre_scope_handler_stream
     for fd in _active_fds:
         try:
-            os.dup2(
-                _saved_raw[fd], fd, inheritable=_active_inheritable[fd]
-            )
+            os.dup2(_saved_raw[fd], fd, inheritable=_active_inheritable[fd])
         except OSError:
             # Keep restoring the other descriptor and Python stream objects.
             pass
