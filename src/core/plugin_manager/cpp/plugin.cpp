@@ -3,6 +3,8 @@
 
 #include "inc/plugin_manager/plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #ifndef _WIN32
 #    include <sys/stat.h>
 #    include <sys/wait.h>
@@ -121,6 +123,52 @@ void Plugin::start_process(const std::string& command,
                            const std::vector<std::string>& plugin_args)
 {
 #ifndef _WIN32
+    std::vector<std::string> args_str;
+    std::stringstream ss(command);
+    std::string item;
+    while (std::getline(ss, item, ' '))
+    {
+        if (!item.empty())
+        {
+            args_str.push_back(item);
+        }
+    }
+    if (args_str.empty())
+    {
+        throw std::runtime_error("Empty plugin command");
+    }
+    if (!plugin_root_id.empty())
+    {
+        args_str.push_back("--plugin-root-id=" + plugin_root_id);
+    }
+    for (const auto& arg : plugin_args)
+    {
+        if (!arg.starts_with("--plugin-root-id="))
+        {
+            args_str.push_back(arg);
+        }
+        else
+        {
+            isaacteleop::Logger::get("isaacteleop.core.Plugin")
+                ->warn("--plugin-root-id is managed by the plugin launcher, ignoring manual override");
+        }
+    }
+
+    std::vector<char*> args;
+    args.reserve(args_str.size() + 1);
+    for (auto& arg : args_str)
+    {
+        args.push_back(arg.data());
+    }
+    args.push_back(nullptr);
+
+    char* const executable = args.front();
+    char* const* const argv = args.data();
+    const char* const working_dir_path = working_dir.empty() ? nullptr : working_dir.c_str();
+    const std::size_t working_dir_size = working_dir.size();
+    const char* const command_text = command.data();
+    const std::size_t command_size = command.size();
+
     // Read before fork(): getenv() is not async-signal-safe, and the child needs
     // the path as a plain pointer it can hand straight to open(). Published by
     // isaacteleop.logging_config (_native_fd.CAPTURE_FILE_ENV); absent when the
@@ -169,12 +217,12 @@ void Plugin::start_process(const std::string& command,
         }
 
         // Change working directory
-        if (!working_dir.empty())
+        if (working_dir_path != nullptr)
         {
-            if (chdir(working_dir.c_str()) != 0)
+            if (chdir(working_dir_path) != 0)
             {
                 write_fd2("Failed to change directory to ");
-                write_fd2(working_dir.data(), working_dir.size());
+                write_fd2(working_dir_path, working_dir_size);
                 write_fd2("\n");
                 _exit(1);
             }
@@ -186,55 +234,11 @@ void Plugin::start_process(const std::string& command,
             close(i);
         }
 
-        // Split command into args (naive splitting by space)
-        std::vector<std::string> args_str;
-        std::stringstream ss(command);
-        std::string item;
-        while (std::getline(ss, item, ' '))
-        {
-            if (!item.empty())
-                args_str.push_back(item);
-        }
-
-        if (args_str.empty())
-        {
-            write_fd2("Empty command\n");
-            _exit(1);
-        }
-
-        // Append plugin root ID argument if set
-        if (!plugin_root_id.empty())
-        {
-            args_str.push_back("--plugin-root-id=" + plugin_root_id);
-        }
-
-        // Append plugin arguments, skipping --plugin-root-id if already injected above
-        for (const auto& arg : plugin_args)
-        {
-            if (!arg.starts_with("--plugin-root-id="))
-            {
-                args_str.push_back(arg);
-            }
-            else
-            {
-                write_fd2(
-                    "Warning: --plugin-root-id is managed by the plugin launcher, "
-                    "ignoring manual override\n");
-            }
-        }
-
-        std::vector<char*> args;
-        for (auto& s : args_str)
-        {
-            args.push_back(&s[0]);
-        }
-        args.push_back(nullptr);
-
-        execvp(args[0], args.data());
+        execvp(executable, argv);
 
         // If execvp returns, it failed
         write_fd2("Failed to exec plugin command: ");
-        write_fd2(command.data(), command.size());
+        write_fd2(command_text, command_size);
         write_fd2("\n");
         _exit(1);
     }
