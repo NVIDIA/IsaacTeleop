@@ -38,7 +38,7 @@ import time
 from collections.abc import Iterator
 from typing import TextIO
 
-from ._core import TRACE, ensure_log_dir
+from ._core import ROOT_LOGGER_NAME, TRACE, ensure_log_dir
 
 _FD_LABELS = {1: "stdout", 2: "stderr"}
 
@@ -145,6 +145,33 @@ def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
         return  # Best-effort atexit cleanup; the file may already be gone or open.
 
 
+_sink_warned = False
+
+
+def _no_sink(reason: str) -> None:
+    """Report, once, that raw fd 1/2 output is going uncaptured.
+
+    Silence was the wrong failure. This is the only thing that creates the
+    capture file *and* publishes ISAACTELEOP_NATIVE_CAPTURE_FILE, so when it
+    returns None every vendor line written straight to a descriptor is lost --
+    in this process and in every plugin it forks -- with nothing on the console
+    or in the log file to say so. The console handler is attached before
+    install() reaches gate(), so this lands the same way _setup's file-handler
+    warning and _forwarding's _no_receiver() do.
+    """
+    global _sink_warned
+    if _sink_warned:
+        return
+    _sink_warned = True
+    logging.getLogger(ROOT_LOGGER_NAME).warning(
+        "Native output capture disabled: %s. Lines written straight to fd 1 or "
+        "fd 2 -- the OpenXR runtime's and the vendor SDKs' own diagnostics -- "
+        "will not be recorded. Set ISAACTELEOP_LOG_DIR to a directory you can "
+        "write.",
+        reason,
+    )
+
+
 def mode() -> str:
     """Which of ``off`` / ``scoped`` / ``process`` this process is in.
 
@@ -248,7 +275,8 @@ def ensure_sink() -> str | None:
             return _sink_path
         try:
             directory = ensure_log_dir()
-        except OSError:
+        except OSError as exc:
+            _no_sink(f"cannot use the log directory ({exc})")
             return None
         timestamp = time.strftime("%Y%m%d-%H%M%S")
         path = str(directory / f"{timestamp}.isaacteleop.{os.getpid()}.native.log")
@@ -272,15 +300,18 @@ def ensure_sink() -> str | None:
                 | getattr(os, "O_NOFOLLOW", 0),
                 0o600,
             )
-        except OSError:
-            return None  # leave every descriptor alone rather than fail the import
+        except OSError as exc:
+            # Leave every descriptor alone rather than fail the import.
+            _no_sink(f"cannot create {path} ({exc})")
+            return None
         try:
             _sink_fd = _move_above_std(fd)
-        except OSError:
+        except OSError as exc:
             try:
                 os.unlink(path)
             except OSError:
                 pass
+            _no_sink(f"cannot reserve a descriptor for {path} ({exc})")
             return None
         _sink_path = path
         # Published, not derived: a fork+exec'd child cannot re-derive the
