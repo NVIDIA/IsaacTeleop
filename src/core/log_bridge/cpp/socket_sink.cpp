@@ -87,7 +87,7 @@ bool socket_is_reachable(const std::string& path)
     {
         return false;
     }
-    const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    const int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (fd < 0)
     {
         return false;
@@ -151,7 +151,12 @@ bool SocketForwardSink::ensure_connected()
     {
         return false;
     }
-    const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    // SOCK_CLOEXEC: plugin_manager fork+execs plugins, and its child closes fds
+    // 3..1023 by hand. A host that raised its own RLIMIT_NOFILE can land this
+    // one above that bound, where it would survive the exec and hold a
+    // connection -- and a receiver thread behind it -- open for the plugin's
+    // whole life. Closing on exec does not depend on that loop's ceiling.
+    const int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (fd < 0)
     {
         return false;
