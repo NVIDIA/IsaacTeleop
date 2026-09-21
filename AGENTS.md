@@ -199,9 +199,9 @@ pre-commit install --hook-type commit-msg
 
   **Check the version first.** A newer binary reformats constructs 14 left
   alone — clang-format 20 rewrites `struct ::stat info\n{\n};` to
-  `struct ::stat info{};` — so `-i` with it *introduces* the violations CI
-  then rejects. If only a newer clang-format is available, hand-match the
-  surrounding style instead and use `--dry-run` only to spot over-long lines.
+  `struct ::stat info{};` — so do not run a newer version with either `-i` or
+  `--dry-run`. If 14 is not installed, invoke it explicitly, for example with
+  `uvx --from clang-format==14.0.6 clang-format ...`.
 - **`end-of-file-fixer` rewrites LFS-smudged files locally, not in CI.**
   `actions/checkout` does not fetch LFS, so CI lints the pointer text; a local
   clone lints the smudged content and the hook appends a newline to files such
