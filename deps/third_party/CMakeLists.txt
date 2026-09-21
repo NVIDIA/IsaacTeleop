@@ -130,12 +130,19 @@ set(SPDLOG_INSTALL OFF CACHE BOOL "Skip spdlog install target" FORCE)
 # Pointing our spdlog at the same vcpkg fmt leaves exactly one fmt in the build.
 # Only under this option: without vcpkg there is no external fmt to find, and
 # the bundled copy is the right default for every other configuration.
+#
+# Set in both directions, because FORCE writes the cache: setting it only in the
+# ON branch left an earlier -DBUILD_PLUGIN_OAK_CAMERA=ON standing in a build
+# directory reconfigured with the option off, so spdlog kept looking for a
+# vcpkg fmt that the new configuration has no reason to provide.
 if(BUILD_PLUGIN_OAK_CAMERA)
     # Explicit, though spdlog would find_package(fmt) on its own: a missing fmt
     # should fail here, naming this as the reason, not inside spdlog's build.
     find_package(fmt CONFIG REQUIRED)
     set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "Share DepthAI's vcpkg fmt" FORCE)
     message(STATUS "spdlog will use the external (vcpkg) fmt, shared with DepthAI")
+else()
+    set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "Use spdlog's bundled fmt" FORCE)
 endif()
 FetchContent_MakeAvailable(spdlog)
 message(STATUS "spdlog v1.17.0 fetched")
