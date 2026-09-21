@@ -31,10 +31,10 @@ from pathlib import Path
 
 from ._core import ROOT_LOGGER_NAME, ensure_private_dir
 
-# Forwarding is built on Unix domain sockets, which Windows does not provide.
-# Without them every process keeps its own console and file handlers, which is
-# the pre-forwarding behaviour and a correct degradation.
-_HAS_UNIX_SOCKETS = hasattr(socket, "AF_UNIX")
+# The C++ forwarding sink is POSIX-only. Keep the Python side on that same
+# boundary even where a non-POSIX Python exposes AF_UNIX; otherwise it publishes
+# an address that in-process C++ loggers select but cannot send to.
+_HAS_UNIX_SOCKETS = os.name == "posix" and hasattr(socket, "AF_UNIX")
 
 # sun_path caps at 108 bytes including the terminator -- two orders of magnitude
 # below any filesystem path limit. The socket therefore cannot live beside the log

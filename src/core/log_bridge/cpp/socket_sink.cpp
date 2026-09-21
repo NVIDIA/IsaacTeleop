@@ -126,12 +126,16 @@ bool socket_is_reachable(const std::string& path)
 
 std::string forwarding_socket_path()
 {
+#ifdef _WIN32
+    // The forwarding transport is POSIX-only. Ignore an inherited address
+    // rather than selecting a sink whose ensure_connected() cannot send.
+    return {};
+#else
     const char* path = std::getenv("ISAACTELEOP_LOG_SOCKET");
     if (path == nullptr || path[0] == '\0')
     {
         return {};
     }
-#ifndef _WIN32
     // Verified once, not trusted. local_sinks() returns *only* a
     // SocketForwardSink when this is non-empty -- no console sink, no file
     // sink behind it -- so a process that believed a dead address would log
@@ -143,8 +147,8 @@ std::string forwarding_socket_path()
     {
         return {};
     }
-#endif
     return std::string(path);
+#endif
 }
 
 SocketForwardSink::SocketForwardSink(std::string socket_path) : socket_path_(std::move(socket_path))
