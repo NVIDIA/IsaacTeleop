@@ -85,7 +85,10 @@ try
             }
             if (ms <= 0)
             {
-                logger->error("--scan-timeout-ms expects a positive integer (got '{}').", val);
+                // Paired with print_usage()'s std::cout. A logger would split one
+                // message across two destinations, and under ISAACTELEOP_LOG_SOCKET
+                // local_sinks() carries no console sink, so this half would vanish.
+                std::cerr << "Error: --scan-timeout-ms expects a positive integer (got '" << val << "')." << std::endl;
                 print_usage(argv[0]);
                 return 1;
             }
@@ -97,7 +100,7 @@ try
         }
         else
         {
-            logger->error("Unknown option: {}", arg);
+            std::cerr << "Unknown option: " << arg << std::endl;
             print_usage(argv[0]);
             return 1;
         }
@@ -105,14 +108,14 @@ try
 
     if (!side_set || opts.side == Side::Unknown)
     {
-        logger->error("--side left|right is required.");
+        std::cerr << "Error: --side left|right is required." << std::endl;
         print_usage(argv[0]);
         return 1;
     }
 
     if (opts.collection_prefix.empty())
     {
-        logger->error("--collection-prefix=PREFIX is required.");
+        std::cerr << "Error: --collection-prefix=PREFIX is required." << std::endl;
         print_usage(argv[0]);
         return 1;
     }
