@@ -331,21 +331,40 @@ def ensure_receiver() -> str:
                 f"socket path is {len(path)} bytes, over the {_MAX_SOCKET_PATH} "
                 f"a Unix domain socket allows ({path})"
             )
+        server = None
         try:
             if os.path.exists(path):
                 os.unlink(path)
             server = ThreadingUnixStreamServer(path, RequestHandler)
+            # The directory is the main boundary; narrow the socket too before
+            # any thread can accept forged records.
+            os.chmod(path, 0o600)
         except OSError as exc:
+            if server is not None:
+                try:
+                    server.server_close()
+                except OSError:
+                    pass
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
             return _no_receiver(f"cannot bind {path} ({exc})")
-        # The 0700 directory above is what actually keeps other users out; this
-        # narrows the socket itself too, so the receiver -- which re-emits
-        # whatever it is handed, straight into this process's logger tree --
-        # cannot be fed forged records by anything running as another user.
-        os.chmod(path, 0o600)
         thread = threading.Thread(
             target=server.serve_forever, name="isaacteleop-log-receiver", daemon=True
         )
-        thread.start()
+        try:
+            thread.start()
+        except RuntimeError as exc:
+            try:
+                server.server_close()
+            except OSError:
+                pass
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            return _no_receiver(f"cannot start the receiver thread ({exc})")
         atexit.register(server.shutdown)
         atexit.register(lambda: os.path.exists(path) and os.unlink(path))
         os.environ["ISAACTELEOP_LOG_SOCKET"] = path
