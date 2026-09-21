@@ -368,10 +368,17 @@ std::vector<int> averaged_positions(FeetechBus& bus, const std::vector<uint8_t>&
 
 int run_calibration(const std::string& device_path, const std::string& output_path)
 {
-    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.so101_leader.main");
+    // Raw streams throughout, deliberately. This whole function is an interactive
+    // session: it prompts on std::cout and blocks on std::getline(std::cin), which
+    // the repo root AGENTS.md names as the case those streams are reserved for. A
+    // logger would send these three messages to the session leader's file instead
+    // whenever ISAACTELEOP_LOG_SOCKET is set, since local_sinks() then carries a
+    // forwarding sink and no console sink -- leaving the operator with an exit code
+    // and a blank terminal, either before the first prompt or after completing the
+    // whole sweep.
     if (device_path.empty())
     {
-        logger->error("a serial device path is required (e.g. /dev/ttyACM0)");
+        std::cerr << "calibrate: a serial device path is required (e.g. /dev/ttyACM0)" << std::endl;
         return 2;
     }
 
@@ -434,7 +441,10 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
         if (!home_ok[i])
         {
             all_ok = false;
-            logger->warn("no reply from servo {} ({}); writing defaults", static_cast<int>(ids[i]), kJointNames[i]);
+            // On the same stream as the table it annotates: split across two
+            // destinations, the table reads as though every servo replied.
+            std::cerr << "  warning: no reply from servo " << static_cast<int>(ids[i]) << " (" << kJointNames[i]
+                      << "); writing defaults" << std::endl;
         }
         std::cout << "  " << kJointNames[i] << "  id=" << static_cast<int>(ids[i]) << "  home=" << home[i]
                   << "  range=[" << range_min[i] << ", " << range_max[i] << "]" << std::endl;
@@ -453,7 +463,7 @@ int run_calibration(const std::string& device_path, const std::string& output_pa
         std::ofstream out(output_path);
         if (!out)
         {
-            logger->error("cannot write '{}'", output_path);
+            std::cerr << "calibrate: cannot write '" << output_path << "'" << std::endl;
             return 2;
         }
         if (output_path.ends_with(".json"))
