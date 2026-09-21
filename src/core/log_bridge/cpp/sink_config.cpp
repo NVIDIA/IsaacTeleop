@@ -98,6 +98,14 @@ bool ancestors_are_private(const std::filesystem::path& path)
             // shared /opt or /srv look like. World-write lets any account on
             // the machine move the ancestor aside; the sticky bit is how /tmp
             // makes that safe.
+            //
+            // What this accepts: a member of that group can replace the whole
+            // log directory after this one-shot check has passed, and
+            // reserve_log_file() cannot clear a planted name in a directory
+            // this process may no longer write -- so a rotation can still
+            // truncate whatever a symlink there points at. Not closable from
+            // inside the sink; pointing ISAACTELEOP_LOG_DIR under a
+            // group-writable ancestor is a decision to trust that group.
             if ((parent_info.st_mode & S_IWOTH) != 0 && (parent_info.st_mode & S_ISVTX) == 0)
             {
                 return false;

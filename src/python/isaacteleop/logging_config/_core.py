@@ -196,6 +196,17 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
             # can move the ancestor aside and substitute a symlink, which is
             # the attack this check exists for, and the sticky bit is how /tmp
             # makes that same shape safe.
+            #
+            # Residual risk this accepts, stated so it is not rediscovered as a
+            # surprise: a member of that group can still replace the whole log
+            # directory. This half then degrades safely -- _PrivateRotatingFileHandler
+            # opens every file, rotations included, with O_EXCL|O_NOFOLLOW, so a
+            # planted symlink costs the handler and nothing else. The C++ half
+            # cannot match that on the swap case: spdlog reopens by name with
+            # "wb", and log_bridge's before_open hook can only clear a planted
+            # name in a directory this process may still write. Choosing a log
+            # directory under a group-writable ancestor is therefore a decision
+            # to trust that group.
             parent_mode = stat.S_IMODE(parent_info.st_mode)
             if (
                 not stat.S_ISLNK(parent_info.st_mode)
