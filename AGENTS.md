@@ -197,6 +197,16 @@ pre-commit install --hook-type commit-msg
   clang-format --dry-run --Werror $(git diff --name-only main -- '*.cpp' '*.hpp' '*.h' '*.cc')
   ```
 
+  **Check the version first.** A newer binary reformats constructs 14 left
+  alone — clang-format 20 rewrites `struct ::stat info\n{\n};` to
+  `struct ::stat info{};` — so `-i` with it *introduces* the violations CI
+  then rejects. If only a newer clang-format is available, hand-match the
+  surrounding style instead and use `--dry-run` only to spot over-long lines.
+- **`end-of-file-fixer` rewrites LFS-smudged files locally, not in CI.**
+  `actions/checkout` does not fetch LFS, so CI lints the pointer text; a local
+  clone lints the smudged content and the hook appends a newline to files such
+  as `docs/source/_static/camera-viz-controls.svg`. Do not commit that: it is a
+  local artefact, and committing it rewrites the LFS object.
 - If a hook failure shows **missing or non-obvious repo policy** (not a one-off typo), you **must** add a **short** reminder under **Mandatory learning loop** rules to the right `AGENTS.md` or adjacent **`//` comments** so the next run does not repeat it—unless it is already documented.
 
 ## Mandatory learning loop (AGENTS.md and comments)
