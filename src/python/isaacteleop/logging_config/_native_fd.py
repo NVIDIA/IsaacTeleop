@@ -157,7 +157,7 @@ def _mirror(sink_path: str, sink_fd: int) -> None:
             os.close(reader_fd)
 
 
-def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
+def _discard_if_empty(sink_path: str, sink_fd: int, owner_pid: int) -> None:
     """Remove a capture file nothing ever wrote to.
 
     Most processes that import isaacteleop emit no raw fd 1/2 output at all,
@@ -165,11 +165,19 @@ def _discard_if_empty(sink_path: str, owner_pid: int) -> None:
     before its path can be handed to a child -- so without this every one of
     them leaves an empty log behind. Only the creator may unlink: a fork
     inherits this registration along with a descriptor still open on the file.
+    The path must still name that descriptor's inode; the host may replace it.
     """
     if os.getpid() != owner_pid:
         return
     try:
-        if os.path.getsize(sink_path) == 0:
+        opened = os.fstat(sink_fd)
+        current = os.lstat(sink_path)
+        if (
+            stat.S_ISREG(opened.st_mode)
+            and stat.S_ISREG(current.st_mode)
+            and (opened.st_dev, opened.st_ino) == (current.st_dev, current.st_ino)
+            and opened.st_size == 0
+        ):
             os.unlink(sink_path)
     except OSError:
         return  # Best-effort atexit cleanup; the file may already be gone or open.
@@ -340,7 +348,7 @@ def ensure_sink() -> str | None:
             _no_sink(f"cannot create {path} ({exc})")
             return None
         try:
-            _sink_fd = _move_above_std(fd)
+            sink_fd = _move_above_std(fd)
         except OSError as exc:
             try:
                 os.unlink(path)
@@ -348,12 +356,13 @@ def ensure_sink() -> str | None:
                 pass
             _no_sink(f"cannot reserve a descriptor for {path} ({exc})")
             return None
+        _sink_fd = sink_fd
         _sink_path = path
         # Published, not derived: a fork+exec'd child cannot re-derive the
         # timestamp or the leader's pid, and the C++ side must open *this* file
         # rather than start one of its own.
         os.environ[CAPTURE_FILE_ENV] = path
-        atexit.register(_discard_if_empty, path, os.getpid())
+        atexit.register(_discard_if_empty, path, sink_fd, os.getpid())
         return _sink_path
 
 
