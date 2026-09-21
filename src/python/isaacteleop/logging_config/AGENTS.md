@@ -52,7 +52,9 @@ receiver; every process that inherits the variable gets a forwarding handler
   has nothing of its own to fall back on. `cloudxr/background.py` does this;
   `cloudxr/service/_service.py`'s runtime worker deliberately does not, because
   it is tied to the service's lifetime.
-- The C++ half reads the same variable, so dropping it covers both.
+- The C++ half reads the same variable, so dropping it covers both — but only
+  for a process that has a Python half to do the dropping. A standalone plugin
+  executable has none, so `socket_sink.cpp` verifies the address for itself.
 - **`socket_path()` verifies the address rather than trusting it**, and unsets
   the variable when nothing is listening, so an address left behind by a dead
   leader cannot hand a process a forwarding handler and no other. That covers

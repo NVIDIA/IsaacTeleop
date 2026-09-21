@@ -73,10 +73,57 @@ void append_json_escaped(std::string& out, std::string_view s)
 
 } // namespace
 
+namespace
+{
+
+#ifndef _WIN32
+// Is anything still accepting connections there? A leader killed with SIGKILL
+// never unlinks its socket, and the address then travels in every environment
+// exported from it -- a shell, a systemd Environment= line, a command re-run
+// out of an operator's history.
+bool socket_is_reachable(const std::string& path)
+{
+    if (path.empty() || path.size() >= sizeof(sockaddr_un{}.sun_path))
+    {
+        return false;
+    }
+    const int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0)
+    {
+        return false;
+    }
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+    const bool reachable = ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0;
+    ::close(fd);
+    return reachable;
+}
+#endif
+
+} // namespace
+
 std::string forwarding_socket_path()
 {
     const char* path = std::getenv("ISAACTELEOP_LOG_SOCKET");
-    return path != nullptr ? std::string(path) : std::string();
+    if (path == nullptr || path[0] == '\0')
+    {
+        return {};
+    }
+#ifndef _WIN32
+    // Verified once, not trusted. local_sinks() returns *only* a
+    // SocketForwardSink when this is non-empty -- no console sink, no file
+    // sink behind it -- so a process that believed a dead address would log
+    // nothing, anywhere. The Python half checks the same thing and unsets the
+    // variable, but a standalone executable with no interpreter has no Python
+    // half to do that for it. Called from local_sinks()'s function-local
+    // static, so this probe runs once per process.
+    if (!socket_is_reachable(path))
+    {
+        return {};
+    }
+#endif
+    return std::string(path);
 }
 
 SocketForwardSink::SocketForwardSink(std::string socket_path) : socket_path_(std::move(socket_path))
