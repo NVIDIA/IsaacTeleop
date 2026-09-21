@@ -182,7 +182,9 @@ def set_console_level(level: int | str) -> None:
     # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
     # the in-process bridge; they read their own console threshold from this variable.
     name = _LEVEL_NAME_BY_VALUE.get(resolved)
-    os.environ["ISAACTELEOP_LOG_LEVEL"] = name if name is not None else str(int(resolved))
+    os.environ["ISAACTELEOP_LOG_LEVEL"] = (
+        name if name is not None else str(int(resolved))
+    )
 
 
 def set_console_filter(pattern: str | None, target: str = "both") -> None:
