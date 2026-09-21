@@ -86,6 +86,10 @@ _pre_scope_handler_stream: TextIO | None = None
 _mirror_thread: threading.Thread | None = None
 _echo = False
 _echo_override: bool | None = None
+# Console threshold the last gate() saw. Kept so set_echo(None) can rebuild
+# the default -- mirror exactly at TRACE -- without reaching into _console,
+# which imports this module and cannot be imported back.
+_gated_level: int | None = None
 
 
 def _write_all(fd: int, data: bytes) -> None:
@@ -530,6 +534,16 @@ def set_echo(enabled: bool | None) -> None:
         _start_mirror()
     elif _echo_override is False:
         _echo = False
+    else:
+        # Clearing the override is not enough: _echo only ever gets rebuilt in
+        # gate(), which nothing here calls, so set_echo(None) used to leave
+        # the mirror wherever the override had put it until the next
+        # set_console_level() happened to run. Rebuild the same default gate()
+        # would, from the threshold it last saw.
+        _echo = _gated_level is not None and _gated_level <= TRACE
+        if _echo:
+            ensure_sink()
+            _start_mirror()
 
 
 def gate(level: int, console_handler: logging.StreamHandler) -> None:
@@ -541,13 +555,14 @@ def gate(level: int, console_handler: logging.StreamHandler) -> None:
     longer rebinds the host's fd 1 and fd 2. Only mode ``process``, which a host
     must ask for, still does that.
     """
-    global _echo
+    global _echo, _gated_level
     if mode() == MODE_OFF:
         return
     ensure_sink()
     if mode() == MODE_PROCESS:
         with _lock:
             _enter_process_hold(console_handler)
+    _gated_level = level
     _echo = _echo_override if _echo_override is not None else level <= TRACE
     if _echo:
         _start_mirror()
