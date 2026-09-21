@@ -70,7 +70,7 @@ def _tail_text(path: Path, limit: int) -> str:
         handle.seek(0, os.SEEK_END)
         size = handle.tell()
         handle.seek(max(0, size - limit))
-        chunk = handle.read()
+        chunk = handle.read(limit)
     text = chunk.decode(errors="replace").strip()
     if text and size > limit:
         return "...\n" + text
