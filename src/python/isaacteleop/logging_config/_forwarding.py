@@ -36,11 +36,9 @@ from ._core import ROOT_LOGGER_NAME, ensure_private_dir
 # an address that in-process C++ loggers select but cannot send to.
 _HAS_UNIX_SOCKETS = os.name == "posix" and hasattr(socket, "AF_UNIX")
 
-# sun_path caps at 108 bytes including the terminator -- two orders of magnitude
-# below any filesystem path limit. The socket therefore cannot live beside the log
-# files: ISAACTELEOP_LOG_DIR is free to point somewhere deep, and where an operator
-# keeps logs must not decide whether `import isaacteleop` succeeds.
-_MAX_SOCKET_PATH = 107
+# sockaddr_un.sun_path is 104 bytes on Darwin/BSD and 108 on Linux, including
+# the terminator. Use the common limit.
+_MAX_SOCKET_PATH = 103
 
 
 def _runtime_dir() -> Path:
@@ -326,9 +324,10 @@ def ensure_receiver() -> str:
         # No timestamp in the name, unlike the log files: the pid alone is
         # unique among live processes, and every byte counts against sun_path.
         path = str(directory / f"isaacteleop.{os.getpid()}.sock")
-        if len(path) > _MAX_SOCKET_PATH:
+        path_bytes = len(os.fsencode(path))
+        if path_bytes > _MAX_SOCKET_PATH:
             return _no_receiver(
-                f"socket path is {len(path)} bytes, over the {_MAX_SOCKET_PATH} "
+                f"socket path is {path_bytes} bytes, over the {_MAX_SOCKET_PATH} "
                 f"a Unix domain socket allows ({path})"
             )
         server = None
