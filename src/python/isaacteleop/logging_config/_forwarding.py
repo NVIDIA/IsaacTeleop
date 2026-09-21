@@ -118,7 +118,10 @@ def socket_path() -> str | None:
     # Unset rather than merely ignored: the C++ half reads the same variable
     # through getenv() and would otherwise keep its one SocketForwardSink
     # pointed at the dead address, with no console or file sink behind it.
-    del os.environ["ISAACTELEOP_LOG_SOCKET"]
+    # pop(), not del: this function holds no lock, so two threads reaching a
+    # dead address together would both get here and the second `del` would
+    # raise KeyError out of install().
+    os.environ.pop("ISAACTELEOP_LOG_SOCKET", None)
     return None
 
 
