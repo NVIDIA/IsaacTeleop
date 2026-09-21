@@ -124,9 +124,9 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
             can change.
 
     Raises:
-        PermissionError: if *directory* exists and another user owns it, or if
-            its parent is owned by neither us nor root, or is world-writable
-            without the sticky bit.
+        PermissionError: if *directory* is not our directory, or if an ancestor
+            is owned by neither us nor root, or is group/world-writable without
+            the sticky bit.
     """
     # Every component this call is about to create, shallowest last. mkdir()'s
     # mode is masked by the umask, so each one needs the bits set explicitly --
@@ -155,37 +155,43 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
     # report the target's owner, so the check passed on the one shape it was
     # written to refuse.
     info = directory.lstat()
-    if info.st_uid != os.getuid():
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
         raise PermissionError(
-            f"Refusing to use {directory}: owned by uid {info.st_uid}, "
-            f"not {os.getuid()}.{remedy}"
+            f"Refusing to use {directory}: it is not a directory owned by "
+            f"uid {os.getuid()}.{remedy}"
         )
 
-    # Owning the directory is not enough if someone else owns the directory it
-    # sits in: they can move it aside and leave their own in its place. The
-    # default path is two deep -- <runtime dir>/logs -- and only the leaf was
-    # vetted, so a runtime directory another user created first passed, and
-    # every later call passed too, because the leaf we then created inside it
-    # really was ours.
-    #
-    # Root-owned parents are fine; that is what /var/log is. A world-writable
-    # parent is fine only when it is sticky, which is what stops one user
-    # renaming another's entry in /tmp.
+    # Every ancestor matters: owning the immediate parent buys nothing when
+    # someone else can replace that parent from the level above it.
     parent = directory.parent
     if parent != directory:
-        parent_info = parent.lstat()
-        if parent_info.st_uid not in (os.getuid(), 0):
-            raise PermissionError(
-                f"Refusing to use {directory}: its parent {parent} is owned by "
-                f"uid {parent_info.st_uid}, not {os.getuid()} or root.{remedy}"
-            )
-        parent_mode = stat.S_IMODE(parent_info.st_mode)
-        if parent_mode & stat.S_IWOTH and not parent_mode & stat.S_ISVTX:
-            raise PermissionError(
-                f"Refusing to use {directory}: its parent {parent} is "
-                f"world-writable without the sticky bit, so any user can "
-                f"replace it.{remedy}"
-            )
+        previous = directory
+        while parent != previous:
+            parent_info = parent.lstat()
+            if parent_info.st_uid not in (os.getuid(), 0):
+                raise PermissionError(
+                    f"Refusing to use {directory}: ancestor {parent} is owned "
+                    f"by uid {parent_info.st_uid}, not {os.getuid()} or root."
+                    f"{remedy}"
+                )
+            if not (stat.S_ISDIR(parent_info.st_mode) or stat.S_ISLNK(parent_info.st_mode)):
+                raise PermissionError(
+                    f"Refusing to use {directory}: ancestor {parent} is not a "
+                    f"directory.{remedy}"
+                )
+            parent_mode = stat.S_IMODE(parent_info.st_mode)
+            shared_write = parent_mode & (stat.S_IWGRP | stat.S_IWOTH)
+            if (
+                not stat.S_ISLNK(parent_info.st_mode)
+                and shared_write
+                and not parent_mode & stat.S_ISVTX
+            ):
+                raise PermissionError(
+                    f"Refusing to use {directory}: ancestor {parent} is "
+                    f"group/world-writable without the sticky bit.{remedy}"
+                )
+            previous = parent
+            parent = parent.parent
     return directory
 
 

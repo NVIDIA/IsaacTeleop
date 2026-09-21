@@ -87,27 +87,35 @@ bool directory_is_private(const std::filesystem::path& dir)
         return false;
     }
 
-    // Owning the leaf is not enough when someone else owns what it sits in.
-    // Root-owned parents are fine (that is /var/log); a world-writable parent
-    // is fine only when sticky, which is what stops one user renaming
-    // another's entry in /tmp.
-    const std::filesystem::path parent = dir.parent_path();
-    if (parent.empty() || parent == dir)
+    // Every ancestor matters: an attacker who can replace the immediate parent
+    // from the level above can replace the leaf with it.
+    std::filesystem::path previous = dir;
+    std::filesystem::path parent = dir.parent_path();
+    while (!parent.empty() && parent != previous)
     {
-        return true;
+        struct ::stat parent_info
+        {
+        };
+        if (::lstat(parent.c_str(), &parent_info) != 0 || (parent_info.st_uid != ::getuid() && parent_info.st_uid != 0))
+        {
+            return false;
+        }
+        if (!S_ISLNK(parent_info.st_mode))
+        {
+            if (!S_ISDIR(parent_info.st_mode))
+            {
+                return false;
+            }
+            constexpr mode_t kSharedWrite = S_IWGRP | S_IWOTH;
+            if ((parent_info.st_mode & kSharedWrite) != 0 && (parent_info.st_mode & S_ISVTX) == 0)
+            {
+                return false;
+            }
+        }
+        previous = parent;
+        parent = parent.parent_path();
     }
-    struct ::stat parent_info
-    {
-    };
-    if (::lstat(parent.c_str(), &parent_info) != 0)
-    {
-        return false;
-    }
-    if (parent_info.st_uid != ::getuid() && parent_info.st_uid != 0)
-    {
-        return false;
-    }
-    return (parent_info.st_mode & S_IWOTH) == 0 || (parent_info.st_mode & S_ISVTX) != 0;
+    return true;
 }
 
 void secure_log_file(const spdlog::filename_t& filename, std::FILE* file)
