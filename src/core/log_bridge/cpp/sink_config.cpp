@@ -169,6 +169,42 @@ int current_pid()
 #endif
 }
 
+// A rotating file no other writer in this session already owns.
+//
+// Two rotating writers on one path corrupt it: each keeps its own size counter
+// and rolls over on its own schedule, and whichever renames first leaves the
+// other's handle on the renamed inode. Both halves of this tree can want a
+// file in the same process at the same moment, because log_bridge_core is a
+// static library -- _oxr, _viz, _robot_twin and every other extension module
+// carries its own local_sinks(), loaded RTLD_LOCAL so nothing unifies them --
+// and because the forwarding socket that normally keeps C++ out of the file
+// business does not exist on Windows and may fail to bind anywhere.
+//
+// Hence ".cpp": the plain <timestamp>.isaacteleop.<pid>.log belongs to the
+// Python half (logging_config/_file.py builds it from the same timestamp and
+// the same pid, and claims it with O_EXCL), and this must not contend for it.
+// The trailing -1, -2 then separate one module's copy from the next.
+//
+// A dash, not a dot. rotating_file_sink's calc_filename() inserts its backup
+// index before the extension -- "x.cpp.log" rotates to "x.cpp.1.log" -- so a
+// dotted suffix here would hand the second module the name the first module's
+// first rotation is going to rename over.
+std::filesystem::path unique_log_path(const std::filesystem::path& dir, const std::string& stem)
+{
+    constexpr int kMaxAttempts = 16;
+    for (int attempt = 0; attempt < kMaxAttempts; ++attempt)
+    {
+        const std::string suffix = attempt == 0 ? std::string() : "-" + std::to_string(attempt);
+        auto candidate = dir / (stem + suffix + ".log");
+        std::error_code exists_ec;
+        if (!std::filesystem::exists(candidate, exists_ec) && !exists_ec)
+        {
+            return candidate;
+        }
+    }
+    return {}; // Console only; see local_sinks().
+}
+
 // Local time, filename-safe (no ':' or ' '): YYYYMMDD-HHMMSS.
 std::string current_timestamp()
 {
@@ -344,15 +380,6 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
                 component, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, perms_ec);
         }
 #endif
-        // One file per process: concurrent processes rotating a shared file
-        // can corrupt it, so each process gets its own (mirrors the Python
-        // side's <timestamp>.isaacteleop.<pid>.log default). The leading
-        // timestamp makes the run's start time the first thing the name says,
-        // keeps a run's files adjacent whatever produced them, and guards
-        // against a reused pid colliding with an older run's file; the pid
-        // still guards against two processes starting in the same second.
-        auto filename = dir / (current_timestamp() + ".isaacteleop." + std::to_string(current_pid()) + ".log");
-
 #ifndef _WIN32
         // Whoever owns the directory decides who reads what lands in it, and
         // create_directories() succeeds silently on one that already exists --
@@ -364,6 +391,19 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
             return std::vector<spdlog::sink_ptr>{ console };
         }
 #endif
+
+        // One file per writer: the leading timestamp makes the run's start
+        // time the first thing the name says, keeps a run's files adjacent
+        // whatever produced them, and guards against a reused pid colliding
+        // with an older run's file; the pid guards against two processes
+        // starting in the same second. See unique_log_path() for what ".cpp"
+        // and the numeric suffix are keeping apart.
+        auto filename =
+            unique_log_path(dir, current_timestamp() + ".isaacteleop." + std::to_string(current_pid()) + ".cpp");
+        if (filename.empty())
+        {
+            return std::vector<spdlog::sink_ptr>{ console };
+        }
 
         try
         {

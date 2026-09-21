@@ -74,6 +74,15 @@ Linux. Where the transport does not exist, on Windows, those modules fall back
 to their own console and file sinks and their records never enter the Python
 tree at all.
 
+That fallback is also why **no two log-file names may be derivable from the
+same inputs**. A rotating file tolerates exactly one writer, and on Windows —
+or on POSIX whenever `ensure_receiver()` cannot bind — the Python half and
+every extension module's `local_sinks()` all want one in the same process at
+the same moment. `_file.py` owns `<timestamp>.isaacteleop.<pid>.log`; C++ takes
+`.cpp` and, past the first writer, a `-1`/`-2` suffix (`unique_log_path()`).
+Keep them disjoint, and keep any new suffix out of the shape
+`rotating_file_sink` gives its own backups.
+
 Do not write, or leave standing, a comment claiming that loading in-process
 under a Python interpreter is sufficient for the bridge to apply. Closing the
 split for real means giving the extensions shared logging state -- a shared
