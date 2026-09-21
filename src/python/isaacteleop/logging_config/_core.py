@@ -77,10 +77,8 @@ def log_dir() -> Path:
     Use :func:`ensure_log_dir` when the directory has to exist.
     """
     override = os.environ.get("ISAACTELEOP_LOG_DIR")
-    if not override:
-        return _DEFAULT_LOG_DIR
     try:
-        return Path(override).expanduser()
+        directory = Path(override).expanduser() if override else _DEFAULT_LOG_DIR
     except RuntimeError:
         # expanduser() raises RuntimeError, not OSError, for a path starting
         # with ~ that it cannot resolve: no HOME, and no passwd entry for this
@@ -88,7 +86,17 @@ def log_dir() -> Path:
         # like. Every caller here guards against OSError only, so this escaped
         # install() and took `import isaacteleop` down with it. The default is
         # always resolvable -- it is built from os.getuid() alone.
-        return _DEFAULT_LOG_DIR
+        directory = _DEFAULT_LOG_DIR
+
+    try:
+        directory = directory.absolute()
+    except OSError:
+        pass
+    # Children may chdir before their first C++ logger is created. Publishing
+    # the expanded absolute path also covers platform-specific ~ and temp-dir
+    # rules that C++ cannot reproduce exactly.
+    os.environ["ISAACTELEOP_LOG_DIR"] = str(directory)
+    return directory
 
 
 def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
