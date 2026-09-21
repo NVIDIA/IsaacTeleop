@@ -40,6 +40,13 @@ class _PrivateRotatingFileHandler(RotatingFileHandler):
             | os.O_EXCL
             | os.O_APPEND
             | getattr(os, "O_NOFOLLOW", 0)
+            # Windows opens a descriptor in text mode unless asked otherwise,
+            # and the TextIOWrapper below already turns "\n" into os.linesep.
+            # logging's own FileHandler never meets this because io.FileIO ORs
+            # O_BINARY in when it opens by *name*; handing open() a ready-made
+            # fd, as this does, skips that. Without it every line on disk ends
+            # "\r\r\n".
+            | getattr(os, "O_BINARY", 0)
         )
         fd = os.open(self.baseFilename, flags, 0o600)
         return open(

@@ -303,7 +303,11 @@ def ensure_sink() -> str | None:
                 | os.O_CREAT
                 | os.O_EXCL
                 | os.O_APPEND
-                | getattr(os, "O_NOFOLLOW", 0),
+                | getattr(os, "O_NOFOLLOW", 0)
+                # Bytes, not text: this descriptor carries raw output another
+                # library wrote, and Windows opens a descriptor in text mode
+                # unless told otherwise, which would rewrite every "\n" in it.
+                | getattr(os, "O_BINARY", 0),
                 0o600,
             )
         except OSError as exc:
