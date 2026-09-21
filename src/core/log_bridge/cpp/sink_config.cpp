@@ -75,7 +75,7 @@ std::string_view python_level_name(spdlog::level::level_enum level)
     }
 }
 
-// Left-padded to 5 and never truncated, matching Python's own "%(levelname)-5s".
+// Right-padded to 5 and never truncated, matching Python's own "%(levelname)-5s".
 class PythonLevelFormatter : public spdlog::custom_flag_formatter
 {
 public:
