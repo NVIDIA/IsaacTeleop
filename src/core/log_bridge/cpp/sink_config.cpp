@@ -398,7 +398,23 @@ spdlog::level::level_enum console_level()
         return spdlog::level::info;
     }
 
-    std::string name(level_str);
+    // Trimmed before anything looks at it, as the Python half's
+    // env_console_level() and both halves' native-capture mode readers already
+    // do. A systemd `Environment=` line, a sourced .env file and a here-doc all
+    // hand this a trailing newline or a leading space, and without this the
+    // name comparisons and from_chars() below both miss, so " debug" silently
+    // meant info here while the Python console beside it went to debug.
+    std::string_view trimmed(level_str);
+    while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front())))
+    {
+        trimmed.remove_prefix(1);
+    }
+    while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back())))
+    {
+        trimmed.remove_suffix(1);
+    }
+
+    std::string name(trimmed);
     std::transform(
         name.begin(), name.end(), name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
