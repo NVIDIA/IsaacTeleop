@@ -214,12 +214,23 @@ void Plugin::start_process(const std::string& command,
         // plugin from starting.
         if (native_capture_path != nullptr && native_capture_path[0] != '\0')
         {
-            const int capture_fd = ::open(native_capture_path, O_WRONLY | O_CREAT | O_APPEND | O_NOFOLLOW, 0600);
+            // The Python leader already created this file 0600. Do not recreate
+            // a missing path or append to a regular file planted in its place.
+            const int capture_fd = ::open(native_capture_path, O_WRONLY | O_APPEND | O_NOFOLLOW);
             if (capture_fd >= 0)
             {
-                ::dup2(capture_fd, STDOUT_FILENO);
-                ::dup2(capture_fd, STDERR_FILENO);
-                if (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO)
+                struct ::stat capture_info
+                {
+                };
+                const bool private_capture = ::fstat(capture_fd, &capture_info) == 0 && S_ISREG(capture_info.st_mode) &&
+                                             capture_info.st_uid == ::getuid() &&
+                                             (capture_info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+                if (private_capture)
+                {
+                    ::dup2(capture_fd, STDOUT_FILENO);
+                    ::dup2(capture_fd, STDERR_FILENO);
+                }
+                if (!private_capture || (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO))
                 {
                     ::close(capture_fd);
                 }
