@@ -59,7 +59,6 @@ def install() -> None:
         return
 
     console = _console.ensure_handler()
-    _native_fd.gate(console.level, console)
     try:
         _file.ensure_handler()
     except OSError as exc:
@@ -72,6 +71,11 @@ def install() -> None:
             "Set ISAACTELEOP_LOG_DIR to a directory you can write.",
             exc,
         )
+    # After both handlers, for the same reason the forwarding branch above
+    # attaches its handler first: gate() reports a capture file it could not
+    # create, and that report should reach the session's log file and not only
+    # the console. The two facilities are otherwise independent.
+    _native_fd.gate(console.level, console)
     _forwarding.ensure_receiver()
 
 
