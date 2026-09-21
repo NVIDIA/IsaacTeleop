@@ -5,19 +5,44 @@
 
 #include <log_bridge/logger.hpp>
 #include <pybind11/pybind11.h>
+#include <spdlog/common.h>
 
+#include <memory>
 #include <mutex>
-#include <string>
 
 namespace isaacteleop
 {
+namespace
+{
+
+// errors="replace", not pybind11's std::string cast, which decodes strictly.
+// What reaches a logger here is not guaranteed UTF-8 -- vendor SDK strings,
+// strerror() text and filesystem paths all arrive verbatim -- and a strict
+// decode raises UnicodeDecodeError out of sink_it_(), where spdlog's error
+// handler drops the record (measured against an embedded interpreter: the
+// strict cast raises on a single 0xff byte, this returns it with U+FFFD).
+// The socket transport's receiver already decodes the same bytes the same way
+// (logging_config/_forwarding.py's RequestHandler); the two routes into the
+// Python tree must not disagree about what survives them.
+pybind11::str to_python_text(spdlog::string_view_t text)
+{
+    PyObject* decoded = PyUnicode_DecodeUTF8(text.data(), static_cast<Py_ssize_t>(text.size()), "replace");
+    if (decoded == nullptr)
+    {
+        PyErr_Clear(); // MemoryError only; an empty field beats losing the record
+        return pybind11::str("");
+    }
+    return pybind11::reinterpret_steal<pybind11::str>(decoded);
+}
+
+} // namespace
 
 void PythonBridgeSink::sink_it_(const spdlog::details::log_msg& msg)
 {
     pybind11::gil_scoped_acquire gil;
     auto get_logger = pybind11::module_::import("logging").attr("getLogger");
-    auto py_logger = get_logger(std::string(msg.logger_name.begin(), msg.logger_name.end()));
-    py_logger.attr("log")(detail::to_python_level(msg.level), std::string(msg.payload.begin(), msg.payload.end()));
+    auto py_logger = get_logger(to_python_text(msg.logger_name));
+    py_logger.attr("log")(detail::to_python_level(msg.level), to_python_text(msg.payload));
 }
 
 void PythonBridgeSink::flush_()
