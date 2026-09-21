@@ -29,6 +29,7 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -1022,13 +1023,34 @@ def verify_coturn_listening(turn_port: int, *, timeout: float = 1.0) -> bool:
         return False
 
 
+#: Bytes read back from the end of a coturn log to find its last few lines.
+#: Generous for the ten to twenty lines the callers ask for, and a fixed bound
+#: on what a long-running relay's log can make this read.
+_TAIL_WINDOW = 16 * 1024
+
+
 def _tail_file(path: str, lines: int) -> str:
-    """Return the last *lines* lines of *path* (empty string on read failure)."""
+    """Return the last *lines* lines of *path* (empty string on read failure).
+
+    Seeks instead of reading the whole file: coturn writes this log for as long
+    as the session runs and nothing truncates it mid-run, so ``readlines()``
+    pulled an unbounded file into memory to print twenty lines of it. Same
+    reasoning as ``cloudxr/service/_service.py``'s ``_tail_text``, and the same
+    ``O_NOFOLLOW``/regular-file check, because these are predictable ``/tmp``
+    names -- see :func:`_open_private`.
+    """
     try:
-        with open(path, "r") as f:
-            return "".join(f.readlines()[-lines:]).rstrip()
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        with os.fdopen(os.open(path, flags), "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return ""
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - _TAIL_WINDOW))
+            chunk = f.read(_TAIL_WINDOW)
     except OSError:
         return ""
+    text = chunk.decode("utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-lines:]).rstrip()
 
 
 async def watch_coturn(
