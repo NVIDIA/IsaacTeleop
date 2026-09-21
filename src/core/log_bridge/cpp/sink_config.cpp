@@ -20,6 +20,7 @@
 #ifndef _WIN32
 #    include <sys/stat.h>
 
+#    include <pwd.h>
 #    include <unistd.h>
 #    include <vector>
 #else
@@ -38,6 +39,33 @@ constexpr std::size_t kFileBackupCount = 5;
 constexpr const char* kPattern = "[%Y-%m-%d %H:%M:%S.%e] [%-7l] [%n] [pid:%P] %v";
 
 #ifndef _WIN32
+// Path.expanduser(), matched. An operator who writes ISAACTELEOP_LOG_DIR=~/logs
+// -- quoted, or assigned from Python, so no shell ever touched the tilde --
+// otherwise has the two halves disagree: Python resolves it against the home
+// directory while this one creates a directory literally named "~" under the
+// process's cwd, which for a plugin is wherever plugin.cpp chdir'd it.
+// Returns an empty path when it cannot resolve the tilde, so log_dir() falls
+// back to the default -- which is what the Python half does now that
+// expanduser()'s RuntimeError is caught there. ~user is not expanded.
+std::filesystem::path expand_user(const std::string& raw)
+{
+    if (raw.empty() || raw[0] != '~' || (raw.size() > 1 && raw[1] != '/'))
+    {
+        return raw.empty() || raw[0] != '~' ? std::filesystem::path(raw) : std::filesystem::path();
+    }
+    const char* home = std::getenv("HOME");
+    if (home == nullptr || home[0] == '\0')
+    {
+        const ::passwd* entry = ::getpwuid(::getuid());
+        home = (entry != nullptr) ? entry->pw_dir : nullptr;
+    }
+    if (home == nullptr || home[0] == '\0')
+    {
+        return {}; // Nothing to resolve it against.
+    }
+    return raw.size() == 1 ? std::filesystem::path(home) : std::filesystem::path(home) / raw.substr(2);
+}
+
 // Mirrors ensure_private_dir() in the Python half. A directory another user
 // created first is one they can still move aside, and the default name --
 // /tmp/isaacteleop-<uid>/logs -- is entirely predictable. lstat, not stat, so
@@ -109,9 +137,18 @@ std::string current_timestamp()
 // user reaches it first and is then unwritable for everyone else on the machine.
 std::filesystem::path log_dir()
 {
-    if (const char* override_dir = std::getenv("ISAACTELEOP_LOG_DIR"); override_dir != nullptr)
+    // Empty means unset, exactly as `os.environ.get(...) or default` makes it
+    // on the Python side. This used to accept "" as a literal empty path.
+    if (const char* override_dir = std::getenv("ISAACTELEOP_LOG_DIR"); override_dir != nullptr && override_dir[0] != '\0')
     {
+#ifndef _WIN32
+        if (auto expanded = expand_user(override_dir); !expanded.empty())
+        {
+            return expanded;
+        }
+#else
         return std::filesystem::path(override_dir);
+#endif
     }
 #ifndef _WIN32
     return "/tmp/isaacteleop-" + std::to_string(static_cast<unsigned>(::getuid())) + "/logs";
