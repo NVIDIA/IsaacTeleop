@@ -22,6 +22,8 @@
  * UI pointers, and CloudXR rendering/reprojection.
  */
 
+import { Quaternion, Vector3 } from 'three';
+
 import { XRReplaySession } from './xrReplaySession';
 
 type PoseData = {
@@ -196,49 +198,18 @@ function lerp(from: number, to: number, alpha: number): number {
 }
 
 function interpolatePose<T extends PoseData>(from: T, to: T, alpha: number): T {
-  let tox = to.ox;
-  let toy = to.oy;
-  let toz = to.oz;
-  let tow = to.ow;
-  const dot = from.ox * tox + from.oy * toy + from.oz * toz + from.ow * tow;
-  if (dot < 0) {
-    tox = -tox;
-    toy = -toy;
-    toz = -toz;
-    tow = -tow;
-  }
-
-  const shortestDot = Math.abs(dot);
-  let fromScale = 1 - alpha;
-  let toScale = alpha;
-  if (shortestDot < 0.9995) {
-    const angle = Math.acos(Math.min(1, shortestDot));
-    const sinAngle = Math.sin(angle);
-    fromScale = Math.sin((1 - alpha) * angle) / sinAngle;
-    toScale = Math.sin(alpha * angle) / sinAngle;
-  }
-
-  let ox = from.ox * fromScale + tox * toScale;
-  let oy = from.oy * fromScale + toy * toScale;
-  let oz = from.oz * fromScale + toz * toScale;
-  let ow = from.ow * fromScale + tow * toScale;
-  const magnitude = Math.hypot(ox, oy, oz, ow);
-  if (magnitude > 0) {
-    ox /= magnitude;
-    oy /= magnitude;
-    oz /= magnitude;
-    ow /= magnitude;
-  }
+  baseOrientation.set(to.ox, to.oy, to.oz, to.ow);
+  poseOrientation.set(from.ox, from.oy, from.oz, from.ow).slerp(baseOrientation, alpha).normalize();
 
   return {
     ...from,
     px: lerp(from.px, to.px, alpha),
     py: lerp(from.py, to.py, alpha),
     pz: lerp(from.pz, to.pz, alpha),
-    ox,
-    oy,
-    oz,
-    ow,
+    ox: poseOrientation.x,
+    oy: poseOrientation.y,
+    oz: poseOrientation.z,
+    ow: poseOrientation.w,
   };
 }
 
@@ -313,9 +284,7 @@ function interpolateFrame(from: RecordedFrame, to: RecordedFrame, timeMs: number
   const rightTo = sameDevice('right') ? to : from;
   return {
     timeMs,
-    ...(from.controllerProfiles !== undefined
-      ? { controllerProfiles: from.controllerProfiles }
-      : {}),
+    controllerProfiles: from.controllerProfiles,
     poses: {
       leftGrip: interpolateOptionalPose(from.poses.leftGrip, leftTo.poses.leftGrip, alpha),
       leftAim: interpolateOptionalPose(from.poses.leftAim, leftTo.poses.leftAim, alpha),
@@ -368,30 +337,25 @@ function replayDuration(frames: RecordedFrame[]): number {
   return 0;
 }
 
+// Reused only by synchronous pose math; no per-joint scratch allocations.
+const posePosition = new Vector3();
+const poseOrientation = new Quaternion();
+const baseOrientation = new Quaternion();
+
 /** Apply a baseSpace <- sceneSpace transform to a pose expressed in sceneSpace. */
 function transformByPose<T extends PoseData>(pose: T, baseFromScene: PoseData): T {
-  const p = { x: baseFromScene.px, y: baseFromScene.py, z: baseFromScene.pz };
-  const q = {
-    x: baseFromScene.ox,
-    y: baseFromScene.oy,
-    z: baseFromScene.oz,
-    w: baseFromScene.ow,
-  };
-
-  // Rotate the recorded translation by q using v' = v + qw*t + cross(q.xyz, t).
-  const tx = 2 * (q.y * pose.pz - q.z * pose.py);
-  const ty = 2 * (q.z * pose.px - q.x * pose.pz);
-  const tz = 2 * (q.x * pose.py - q.y * pose.px);
-
+  baseOrientation.set(baseFromScene.ox, baseFromScene.oy, baseFromScene.oz, baseFromScene.ow);
+  posePosition.set(pose.px, pose.py, pose.pz).applyQuaternion(baseOrientation);
+  poseOrientation.set(pose.ox, pose.oy, pose.oz, pose.ow).premultiply(baseOrientation);
   return {
     ...pose,
-    px: p.x + pose.px + q.w * tx + q.y * tz - q.z * ty,
-    py: p.y + pose.py + q.w * ty + q.z * tx - q.x * tz,
-    pz: p.z + pose.pz + q.w * tz + q.x * ty - q.y * tx,
-    ox: q.w * pose.ox + q.x * pose.ow + q.y * pose.oz - q.z * pose.oy,
-    oy: q.w * pose.oy - q.x * pose.oz + q.y * pose.ow + q.z * pose.ox,
-    oz: q.w * pose.oz + q.x * pose.oy - q.y * pose.ox + q.z * pose.ow,
-    ow: q.w * pose.ow - q.x * pose.ox - q.y * pose.oy - q.z * pose.oz,
+    px: posePosition.x + baseFromScene.px,
+    py: posePosition.y + baseFromScene.py,
+    pz: posePosition.z + baseFromScene.pz,
+    ox: poseOrientation.x,
+    oy: poseOrientation.y,
+    oz: poseOrientation.z,
+    ow: poseOrientation.w,
   };
 }
 
@@ -399,22 +363,16 @@ function inversePose(pose: PoseData): PoseData {
   const magnitudeSquared =
     pose.ox * pose.ox + pose.oy * pose.oy + pose.oz * pose.oz + pose.ow * pose.ow;
   const scale = magnitudeSquared > 0 ? 1 / magnitudeSquared : 1;
-  const inverseOrientation = {
-    ox: -pose.ox * scale,
-    oy: -pose.oy * scale,
-    oz: -pose.oz * scale,
-    ow: pose.ow * scale,
-  };
-  const inverseTranslation = transformByPose(
-    { px: -pose.px, py: -pose.py, pz: -pose.pz, ox: 0, oy: 0, oz: 0, ow: 1 },
-    { px: 0, py: 0, pz: 0, ...inverseOrientation }
+  return transformByPose(
+    { ...IDENTITY_POSE, px: -pose.px, py: -pose.py, pz: -pose.pz },
+    {
+      ...IDENTITY_POSE,
+      ox: -pose.ox * scale,
+      oy: -pose.oy * scale,
+      oz: -pose.oz * scale,
+      ow: pose.ow * scale,
+    }
   );
-  return {
-    px: inverseTranslation.px,
-    py: inverseTranslation.py,
-    pz: inverseTranslation.pz,
-    ...inverseOrientation,
-  };
 }
 
 /** Keep translation and heading while removing viewer pitch and roll. */

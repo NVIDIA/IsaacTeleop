@@ -281,6 +281,25 @@ describe('lifecycle and frame advancement', () => {
   });
 });
 
+test.each([1, -1])('interpolates the shortest rotation for quaternion sign %s', sign => {
+  const first = timedFrame(0, 0);
+  const last = timedFrame(100, 4);
+  last.poses.leftGrip = {
+    ...last.poses.leftGrip!,
+    oy: sign * Math.sin(Math.PI / 3),
+    ow: sign * Math.cos(Math.PI / 3),
+  };
+  const recorder = new XRInputRecorder();
+  recorder.startReplay(recording(first, last), false);
+  recorder.beginFrame(makeFrame(), sceneSpace);
+  recorder.beginFrame(makeFrame([], undefined, undefined, 50), sceneSpace);
+  const result = recorder.currentFrame!.poses.leftGrip!;
+  expect(result.px).toBeCloseTo(2);
+  expect(result.oy).toBeCloseTo(Math.sin(Math.PI / 6));
+  expect(result.ow).toBeCloseTo(Math.cos(Math.PI / 6));
+  expect(Math.hypot(result.ox, result.oy, result.oz, result.ow)).toBeCloseTo(1);
+});
+
 describe('canonical scene-space capture', () => {
   test('captures grip, aim, gamepad, and joints by WebXR joint name', () => {
     const grip = {} as XRSpace;
