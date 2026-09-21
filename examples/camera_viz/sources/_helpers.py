@@ -58,15 +58,21 @@ def set_notify_sink(sink) -> None:
     _SINK = sink
 
 
-def notify(tag: str, msg: str) -> None:
-    """Lifecycle events (opening/connected/streaming/errors); see notify_verbose for stats."""
+def notify(tag: str, msg: str, level: int = logging.INFO) -> None:
+    """Lifecycle events (opening/connected/streaming/errors); see notify_verbose for stats.
+
+    *level* exists because this one function carries both halves of a source's
+    lifecycle. "connected" and "streaming" are INFO; a failed open or a grab
+    that forced a reconnect is not, and emitting it at INFO hid it from any
+    console raised above that threshold and mislabelled it in the log file.
+    """
     # The sink still wins when one is installed: the status panel owns stderr
     # while it is up, and the console handler writes there too, so logging
     # instead of handing the line over would repaint the panel out of line.
     if _SINK is not None:
         _SINK(f"[{tag}] {msg}")
         return
-    logger.info("[%s] %s", tag, msg)
+    logger.log(level, "[%s] %s", tag, msg)
 
 
 _VERBOSE = False
@@ -314,7 +320,7 @@ class PolledSource(FrameSource):
                 try:
                     self._connected = self._open_device()
                 except Exception as e:
-                    notify(self._kind, f"open failed ({e})")
+                    notify(self._kind, f"open failed ({e})", logging.ERROR)
                     self._connected = False
                 if not self._connected:
                     self._reconnect_count += 1
@@ -326,7 +332,7 @@ class PolledSource(FrameSource):
             try:
                 host = self._grab()
             except Exception as e:
-                notify(self._kind, f"grab failed ({e}); reconnecting")
+                notify(self._kind, f"grab failed ({e}); reconnecting", logging.ERROR)
                 self._mark_disconnected()
                 continue
             if host is None:
@@ -339,7 +345,7 @@ class PolledSource(FrameSource):
                 self._upload_and_convert(buf)
                 self._stream.synchronize()
             except Exception as e:
-                notify(self._kind, f"frame error ({e}); reconnecting")
+                notify(self._kind, f"frame error ({e}); reconnecting", logging.ERROR)
                 self._mark_disconnected()
                 continue
 
