@@ -616,13 +616,23 @@ def _start_mirror() -> None:
         if _mirror_thread is not None or _sink_path is None:
             return
         _ensure_saved_slots()
-        _mirror_thread = threading.Thread(
+        thread = threading.Thread(
             target=_mirror,
             args=(_sink_path,),
             name="isaacteleop-native-capture",
             daemon=True,
         )
-        _mirror_thread.start()
+        try:
+            thread.start()
+        except RuntimeError:
+            # Not OSError: Thread.start() raises RuntimeError when the
+            # interpreter is shutting down or cannot allocate a thread, and
+            # gate() reaches here from install(), so it would come out of
+            # `import isaacteleop`. Nothing install() touches may raise. The
+            # mirror is a terminal convenience -- capture itself is unaffected
+            # -- and leaving _mirror_thread unset lets a later gate() retry.
+            return
+        _mirror_thread = thread
 
 
 def set_echo(enabled: bool | None) -> None:
