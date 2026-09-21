@@ -63,8 +63,6 @@ uint16_t parse_u16(const std::string& value, const std::string& name)
 int main(int argc, char** argv)
 try
 {
-    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.noitom_mocap.main");
-
     NoitomMocapPluginConfig config;
     double rate_hz = 90.0;
 
@@ -137,7 +135,10 @@ try
         }
         else
         {
-            logger->error("Unknown option: {}", arg);
+            // Paired with print_usage()'s std::cout. A logger would split one
+            // message across two destinations, and under ISAACTELEOP_LOG_SOCKET
+            // local_sinks() carries no console sink, so this half would vanish.
+            std::cerr << "Unknown option: " << arg << std::endl;
             print_usage(argv[0]);
             return 1;
         }
