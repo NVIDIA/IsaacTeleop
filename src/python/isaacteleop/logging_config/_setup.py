@@ -41,20 +41,13 @@ def install() -> None:
         # parent's capture file rather than the session log. gate() reports
         # exactly that way when the capture file cannot be created.
         _forwarding.ensure_handler(socket_path)
-        # Not this process's own console handler/level: it has none anymore,
-        # only the leader does. ISAACTELEOP_LOG_LEVEL is the existing
-        # mechanism for propagating the leader's current console threshold to
-        # out-of-process code (set_console_level()); raw fd 1/2 spew can
-        # never be forwarded (it bypasses this logger tree entirely), so
-        # deciding whether to echo it in this process still has to key off
-        # that same variable. ensure_handler() is where it is read, on both
-        # branches. gate() opens the capture file and sets that echo policy;
-        # it does not rebind any descriptor.
-        console = _console.ensure_handler()
-        _native_fd.gate(console.level, console)
+        # Built but not attached in a child (see _console.ensure_handler), so
+        # that a capture scope still has somewhere to move its stream.
+        _console.ensure_handler()
+        _native_fd.ensure_sink()
         return
 
-    console = _console.ensure_handler()
+    _console.ensure_handler()
     try:
         _file.ensure_handler()
     except OSError as exc:
@@ -68,10 +61,9 @@ def install() -> None:
             exc,
         )
     # After both handlers, for the same reason the forwarding branch above
-    # attaches its handler first: gate() reports a capture file it could not
-    # create, and that report should reach the session's log file and not only
-    # the console. The two facilities are otherwise independent.
-    _native_fd.gate(console.level, console)
+    # attaches its handler first: ensure_sink() reports a capture file it could
+    # not create, and that report should reach the session's log file too.
+    _native_fd.ensure_sink()
     _forwarding.ensure_receiver()
 
 

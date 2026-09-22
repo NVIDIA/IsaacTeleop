@@ -70,11 +70,11 @@ export no log hook, so the descriptor is the only seam.
 - **Never redirect fd 1 or fd 2 outside a scope.** A library must not alter its
   host process's descriptors. `install()` opens the capture file and publishes
   its path; it does *not* `dup2`. Rebinding happens only inside
-  `_native_fd.scoped()` — which `capture_native_output()` exposes and which
-  `TeleopSession` wraps around native construction and teardown — or in mode
-  `process`, which a host has to ask for explicitly. Reinstating an import-time,
-  process-wide redirection is the specific regression this module was rewritten
-  to remove.
+  `_native_fd.scoped()`, which `capture_native_output()` exposes and which
+  `TeleopSession` wraps around native construction and teardown.
+  `ISAACTELEOP_NATIVE_CAPTURE=off` turns that off entirely; there is no
+  process-wide mode, and adding one back is the specific regression this module
+  was rewritten to remove.
 - **Capture files, never pipes.** A pipe blocks writes past its 64 KiB capacity
   until a reader drains it, and a drain thread in this process needs the GIL
   while the native call doing the writing holds it — `oxr_bindings.cpp` releases

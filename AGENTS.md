@@ -128,25 +128,22 @@ the logging packages.
   `ISAACTELEOP_LOG_LEVEL` (the console threshold every process starts at, the
   Python leader's included; the six level names and the numeric form, nothing
   else — spdlog's `warn`/`err` spellings are deliberately not accepted, because
-  Python has no entry for them) and `ISAACTELEOP_LOG_SOCKET` (set by the session leader; its presence
-  is what makes a process forward instead of owning handlers). The last two are
-  shared but **not** symmetric, and assuming otherwise is how a check gets
-  written on the wrong side: `ISAACTELEOP_NATIVE_CAPTURE` (`off`/`scoped`/
-  `process`, `scoped` by default) is Python's — it says how far this library
-  may go in rebinding *the host's* fd 1 and fd 2, so C++ consults it only where
-  it is about to write on the host's behalf (`viz/robot_twin`'s fatal handler)
-  and never where it is setting a child's descriptors
-  (`plugin_manager/cpp/plugin.cpp`, which ignores it on purpose);
-  `ISAACTELEOP_NATIVE_CAPTURE_FILE` is written by the Python leader only and
-  read by processes with no interpreter so they can point their own stdio at
-  the same file. Do not invent a sixth.
-- **Never rebind the host process's fd 1 or fd 2.** This is a library its host
-  imports; its descriptors are not ours. Output that no logger can reach —
-  vendor code that formats its own lines onto a descriptor — is captured either
-  inside `logging_config.capture_native_output()`, which restores what it found,
-  or in a process this library launched, whose descriptors *are* ours to set.
-  An unconditional `dup2()` at import time was removed for this reason; do not
-  reintroduce one.
+  Python has no entry for them) and `ISAACTELEOP_LOG_SOCKET` (set by the session
+  leader; its presence is what makes a process forward instead of owning
+  handlers). The last two belong to the Python half alone:
+  `ISAACTELEOP_NATIVE_CAPTURE=off` switches off `capture_native_output()`'s
+  rebinding of *the host's* fd 1 and fd 2 (a process isaacteleop launches still
+  gets the capture file — its descriptors are not the host's), and
+  `ISAACTELEOP_NATIVE_CAPTURE_FILE` is written by the leader and read by
+  processes with no interpreter so they can point their own stdio at the same
+  file. Do not invent a sixth.
+- **Never rebind the host process's fd 1 or fd 2 outside a scope.** This is a
+  library its host imports; its descriptors are not ours. Output that no logger
+  can reach — vendor code that formats its own lines onto a descriptor — is
+  captured either inside `logging_config.capture_native_output()`, which
+  restores what it found, or in a process this library launched, whose
+  descriptors *are* ours to set. There is deliberately no process-wide mode and
+  no import-time `dup2()`; do not add either back.
 
 Subsystem-internal rules live with the code:
 [`src/python/isaacteleop/logging_config/AGENTS.md`](src/python/isaacteleop/logging_config/AGENTS.md)
