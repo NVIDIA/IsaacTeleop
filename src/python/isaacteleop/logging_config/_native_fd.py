@@ -666,14 +666,19 @@ def scoped(
     accept even that sets ``ISAACTELEOP_NATIVE_CAPTURE=off``.
     """
     global _depth
-    if mode() != MODE_SCOPED:
-        yield capture_path() if mode() == MODE_PROCESS else None
-        return
     with _lock:
-        if _depth == 0 and not _process_hold:
-            _begin(console_handler)
-        _depth += 1
-        path = _sink_path
+        capture_mode = mode()
+        entered_scope = capture_mode == MODE_SCOPED
+        if entered_scope:
+            if _depth == 0 and not _process_hold:
+                _begin(console_handler)
+            _depth += 1
+            path = _sink_path
+        else:
+            path = _sink_path if capture_mode == MODE_PROCESS else None
+    if not entered_scope:
+        yield path
+        return
     try:
         yield path
     finally:
@@ -772,12 +777,11 @@ def gate(level: int, console_handler: logging.StreamHandler) -> None:
     must ask for, still does that.
     """
     global _echo, _gated_level
-    capture_mode = mode()
     # ``off`` forbids rebinding this process; children launched by
     # isaacteleop still need the published file for their own descriptors.
     ensure_sink()
-    if capture_mode == MODE_PROCESS:
-        with _lock:
+    with _lock:
+        if mode() == MODE_PROCESS:
             _enter_process_hold(console_handler)
     _gated_level = level
     _echo = _echo_override if _echo_override is not None else level <= TRACE
