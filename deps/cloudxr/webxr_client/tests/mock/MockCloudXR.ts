@@ -75,6 +75,10 @@ interface MockScene {
   scene: THREE.Scene;
   /** Poses every animated object for a given scene time; see {@link MockCloudXR.setSceneTime}. */
   animate(timeSeconds: number): void;
+  /** Torus and sphere are tracked directly in reference-space (not scene-relative) coordinates;
+   * see {@link MockCloudXR.trackControllers}. */
+  torus: THREE.Object3D;
+  sphere: THREE.Object3D;
 }
 
 /** Average standing eye height (m); matches a 'local' reference space, whose origin is at the
@@ -111,19 +115,6 @@ function buildMockScene(): MockScene {
   cube.position.set(0, 0, -1.5);
   contents.add(cube);
 
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(0.15, 24, 16),
-    new THREE.MeshStandardMaterial({ color: 0xff6b35 })
-  );
-  contents.add(sphere);
-
-  const torus = new THREE.Mesh(
-    new THREE.TorusGeometry(0.2, 0.06, 12, 24),
-    new THREE.MeshStandardMaterial({ color: 0x3d8bfd })
-  );
-  torus.position.set(-0.6, 0.2, -1.8);
-  contents.add(torus);
-
   const pillar = new THREE.Mesh(
     new THREE.CylinderGeometry(0.08, 0.08, 0.8, 16),
     new THREE.MeshStandardMaterial({ color: 0xcccccc })
@@ -131,19 +122,30 @@ function buildMockScene(): MockScene {
   pillar.position.set(0.6, -0.6, -1.6);
   contents.add(pillar);
 
+  // Sphere/torus track the right/left controllers (MockCloudXR.trackControllers), so they're
+  // added directly to `scene` rather than `contents`: their positions are set each frame in the
+  // same reference-space coordinates as the tracked controller pose, not scene-relative ones.
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(0.15, 24, 16),
+    new THREE.MeshStandardMaterial({ color: 0xff6b35 })
+  );
+  sphere.visible = false;
+  scene.add(sphere);
+
+  const torus = new THREE.Mesh(
+    new THREE.TorusGeometry(0.2, 0.06, 12, 24),
+    new THREE.MeshStandardMaterial({ color: 0x3d8bfd })
+  );
+  torus.visible = false;
+  scene.add(torus);
+
   function animate(timeSeconds: number): void {
     cube.rotation.y = timeSeconds;
     cube.rotation.x = timeSeconds * 0.4;
-    const orbitRadius = 0.7;
-    sphere.position.set(
-      Math.cos(timeSeconds * 0.5) * orbitRadius,
-      0.1,
-      -1.5 + Math.sin(timeSeconds * 0.5) * orbitRadius
-    );
     torus.rotation.z = timeSeconds * 0.6;
   }
 
-  return { scene, animate };
+  return { scene, animate, torus, sphere };
 }
 
 /**
@@ -172,8 +174,17 @@ export class MockCloudXR implements CloudXR.Session {
 
   private readonly scene: THREE.Scene;
   private readonly sceneAnimate: (timeSeconds: number) => void;
+  private readonly torus: THREE.Object3D;
+  private readonly sphere: THREE.Object3D;
   private readonly camera = new THREE.PerspectiveCamera();
   private renderer: THREE.WebGLRenderer | null = null;
+
+  // Scratch objects reused each frame in trackControllers() to avoid per-frame allocation.
+  private readonly controllerMatrix = new THREE.Matrix4();
+  private readonly controllerPosition = new THREE.Vector3();
+  private readonly controllerQuaternion = new THREE.Quaternion();
+  private readonly controllerScale = new THREE.Vector3();
+  private readonly controllerForward = new THREE.Vector3();
 
   constructor(
     private readonly options: CloudXR.SessionOptions,
@@ -182,6 +193,8 @@ export class MockCloudXR implements CloudXR.Session {
     const built = buildMockScene();
     this.scene = built.scene;
     this.sceneAnimate = built.animate;
+    this.torus = built.torus;
+    this.sphere = built.sphere;
   }
 
   get state(): CloudXR.SessionState {
@@ -311,6 +324,7 @@ export class MockCloudXR implements CloudXR.Session {
     const gl = this.options.gl;
     const renderer = this.ensureRenderer(gl);
     this.sceneAnimate(this.sceneTime);
+    this.trackControllers(frame);
 
     this.delegates.onWebGLStateChangeBegin?.();
     gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
@@ -411,6 +425,38 @@ export class MockCloudXR implements CloudXR.Session {
     this.sessionState = CloudXR.SessionState.Error;
     this.log(CloudXR.LogLevel.Error, `Mock failure: ${error.message}`);
     this.delegates.onStreamStopped?.(error);
+  }
+
+  /** Moves the torus/sphere to 1 unit in front of the left/right controller, hiding each when
+   * that hand isn't tracked (e.g. hand-tracking only, or no controller connected). */
+  private trackControllers(frame: XRFrame): void {
+    this.positionInFrontOfController(frame, 'left', this.torus);
+    this.positionInFrontOfController(frame, 'right', this.sphere);
+  }
+
+  private positionInFrontOfController(
+    frame: XRFrame,
+    handedness: XRHandedness,
+    target: THREE.Object3D
+  ): void {
+    const inputSource = Array.from(frame.session.inputSources).find(
+      source => source.handedness === handedness
+    );
+    const space = inputSource?.gripSpace ?? inputSource?.targetRaySpace;
+    const pose = space ? frame.getPose(space, this.options.referenceSpace) : undefined;
+    if (!pose) {
+      target.visible = false;
+      return;
+    }
+    this.controllerMatrix.fromArray(pose.transform.matrix);
+    this.controllerMatrix.decompose(
+      this.controllerPosition,
+      this.controllerQuaternion,
+      this.controllerScale
+    );
+    this.controllerForward.set(0, 0, -1).applyQuaternion(this.controllerQuaternion);
+    target.position.copy(this.controllerPosition).addScaledVector(this.controllerForward, 1);
+    target.visible = true;
   }
 
   private ensureRenderer(gl: WebGL2RenderingContext): THREE.WebGLRenderer {
