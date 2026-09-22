@@ -99,3 +99,24 @@ def test_no_1_5_cache_is_claimed_when_there_is_none(tmp_path, monkeypatch):
 
     assert "1.5 cache" not in str(excinfo.value)
     assert not (tmp_path / "isaacteleop").exists()
+
+
+def test_a_pre_populated_rebot_cache_needs_no_completeness_marker(
+    tmp_path, monkeypatch
+):
+    """`.fetch_complete` is internal, so it is not among the files an operator
+    copies in. The digest is the completeness proof; gating on the marker alone
+    sent an air-gapped host back to the network."""
+    cache = tmp_path / "rebot-devarm-rs-assets"
+    cache.mkdir()
+    (cache / "rebot.stl").write_bytes(b"solid rebot\n")
+    monkeypatch.setenv(assets.REBOT_CACHE_ENV_VAR, str(cache))
+    monkeypatch.setattr(
+        assets, "REBOT_MANIFEST_SHA256", assets._rebot_cached_digest(cache)
+    )
+    _refuse_to_fetch(monkeypatch)
+
+    scene = assets.ensure_rebot_devarm_rs_scene()
+
+    assert scene == (cache / assets.REBOT_SCENE_FILE).resolve()
+    assert (cache / ".fetch_complete").is_file()
