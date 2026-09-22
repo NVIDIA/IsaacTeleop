@@ -153,10 +153,6 @@ SO_ARM_ASSETS: tuple[tuple[str, str, str], ...] = GHOST_ASSETS + SO101_ARM_ASSET
 SCENE_FILE = "scene.xml"
 _WRAPPERS = (SCENE_FILE, "follower_arm.xml", "leader_gripper.xml")
 
-#: Overrides where the assets are cached. Point it at a pre-populated directory on a host
-#: with no route to GitHub.
-CACHE_ENV_VAR = "ISAACCAPTURE_SO101_ASSETS"
-
 #: The reBot DevArm, RobStride build, from MuJoCo Menagerie. Upstream derives it from the
 #: same Seeed URDF LeRobot's IK solves against and validates against it link by link, and
 #: builds it around RS-06/RS-00 actuators -- so it is the RS arm, not the Damiao one, whose
@@ -166,7 +162,6 @@ MENAGERIE_COMMIT = "8161bba264d7fa7c99ca301e91e7fb44737676ad"
 REBOT_MODEL_DIR = "seeed_rebot_devarm"
 REBOT_SCENE_FILE = "scene_rebot.xml"
 _REBOT_WRAPPERS = (REBOT_SCENE_FILE, "rebot_arm.xml", "rebot_gripper.xml")
-REBOT_CACHE_ENV_VAR = "ISAACCAPTURE_REBOT_ASSETS"
 
 #: sha256 over the sorted ``"<name> <sha256>\n"`` lines of everything fetched from
 #: Menagerie -- 117 files, so one constant rather than a table nobody reads. Content, not
@@ -186,15 +181,9 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _cache_dir(env_var: str, name: str) -> Path:
-    override = os.environ.get(env_var, "").strip()
-    if override:
-        dest = Path(override)
-    else:
-        root = os.environ.get("XDG_CACHE_HOME", "").strip() or str(
-            Path.home() / ".cache"
-        )
-        dest = Path(root) / "isaaccapture" / name
+def _cache_dir(name: str) -> Path:
+    root = os.environ.get("XDG_CACHE_HOME", "").strip() or str(Path.home() / ".cache")
+    dest = Path(root) / "isaaccapture" / name
     dest.mkdir(parents=True, exist_ok=True)
     return dest
 
@@ -239,7 +228,7 @@ def ensure_so101_scene() -> Path:
         RuntimeError: If a download's checksum does not match :data:`SO_ARM_ASSETS`.
         OSError: If the files cannot be fetched or written.
     """
-    dest = _cache_dir(CACHE_ENV_VAR, "so101-assets")
+    dest = _cache_dir("so101-assets")
     _copy_wrappers(dest, _WRAPPERS)
 
     marker = dest / ".fetch_complete"
@@ -267,10 +256,8 @@ def _menagerie_rebot_files() -> tuple[str, ...]:
 def _rebot_cached_digest(dest: Path) -> str | None:
     """The manifest digest of what is already in ``dest``, or ``None`` if it cannot be read.
 
-    Derived from the directory and never from the network: REBOT_CACHE_ENV_VAR exists so a
-    host with no route to GitHub can be pointed at a pre-populated cache, and that cache has
-    to be checkable there. The tracked wrappers are excluded because they are package data,
-    not fetched, and so are not in the manifest.
+    Read only local files so cached assets can be validated offline. Tracked wrappers
+    are package data, not fetched assets, and are excluded from the manifest.
     """
     wrappers = set(_REBOT_WRAPPERS)
     lines = []
@@ -294,7 +281,7 @@ def ensure_rebot_devarm_rs_scene() -> Path:
         RuntimeError: If the fetched set does not hash to :data:`REBOT_MANIFEST_SHA256`.
         OSError: If the files cannot be fetched or written.
     """
-    dest = _cache_dir(REBOT_CACHE_ENV_VAR, "rebot-devarm-rs-assets")
+    dest = _cache_dir("rebot-devarm-rs-assets")
     _copy_wrappers(dest, _REBOT_WRAPPERS)
 
     marker = dest / ".fetch_complete"
