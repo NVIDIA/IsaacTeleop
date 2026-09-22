@@ -541,10 +541,19 @@ incremental wheel tree intact.</p></li>
 <section id="output-locations">
 <h2>Output locations<a class="headerlink" href="#output-locations" title="Link to this heading">#</a></h2>
 <p>After a successful build and install, relative to your build directory:</p>
-<ul class="simple">
+<ul>
 <li><p><strong>C++ libraries:</strong> <code class="docutils literal notranslate"><span class="pre">src/core/</span></code> (and under each module)</p></li>
 <li><p><strong>Python wheels:</strong> <code class="docutils literal notranslate"><span class="pre">wheels/isaaccapture-*.whl</span></code> and
 <code class="docutils literal notranslate"><span class="pre">wheels/isaacteleop-*.whl</span></code> (the compatibility alias)</p></li>
+<li><p><strong>Staged Python packages:</strong> <code class="docutils literal notranslate"><span class="pre">python_package/&lt;config&gt;/</span></code> (<code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">python_package_compat/&lt;config&gt;/</span></code> (<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>). The wheels are built
+from these, and they also run in place without installing anything.
+<code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> needs both roots on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>build/python_package/Release:build/python_package_compat/Release<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import isaacteleop"</span>
+</pre></div>
+</div>
+</li>
 <li><p><strong>Examples (binaries):</strong> under <code class="docutils literal notranslate"><span class="pre">examples/</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">examples/oxr/cpp/</span></code>)</p></li>
 <li><p><strong>Installed files:</strong> <code class="docutils literal notranslate"><span class="pre">install/</span></code> (or your <code class="docutils literal notranslate"><span class="pre">CMAKE_INSTALL_PREFIX</span></code>)
 - Libraries: <code class="docutils literal notranslate"><span class="pre">install/lib/</span></code>
