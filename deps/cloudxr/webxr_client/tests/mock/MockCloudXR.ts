@@ -444,7 +444,11 @@ export class MockCloudXR implements CloudXR.Session {
     const inputSource = Array.from(frame.session.inputSources).find(
       source => source.handedness === handedness
     );
-    const space = inputSource?.gripSpace ?? inputSource?.targetRaySpace;
+    // targetRaySpace, not gripSpace: the WebXR spec only guarantees -Z is the pointing direction
+    // for targetRaySpace. gripSpace is oriented for holding a virtual object in the hand and its
+    // -Z can point elsewhere, which would otherwise put the tracked object well off the
+    // controller's height even when it's held level.
+    const space = inputSource?.targetRaySpace ?? inputSource?.gripSpace;
     const pose = space ? frame.getPose(space, this.options.referenceSpace) : undefined;
     if (!pose) {
       target.visible = false;
