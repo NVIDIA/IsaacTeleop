@@ -263,14 +263,11 @@ jobs:
 
         mkdir -p install/wheels-repaired
         for wheel in "${wheels[@]}"; do
-          if [[ "${wheel}" == *-none-any.whl ]]; then
-            cp "${wheel}" install/wheels-repaired/
-            continue
-          fi
           echo "Repairing ${wheel}"
           # Exclude GPU driver/runtime libs so wheels stay portable across systems without bundling host-specific binaries.
+          # Allow the metadata-only isaacteleop transition wheel through unchanged.
           uv run --python ${{ matrix.python_version }} --with "auditwheel==6.6.0" \
-            auditwheel repair --exclude libcuda.so.1 --exclude libvulkan.so.1 --wheel-dir install/wheels-repaired "${wheel}"
+            auditwheel repair --allow-pure-python-wheel --exclude libcuda.so.1 --exclude libvulkan.so.1 --wheel-dir install/wheels-repaired "${wheel}"
         done
 
         rm -f install/wheels/*.whl
@@ -1145,7 +1142,7 @@ jobs:
       id: submit-kitmaker
       env:
         KITMAKER_API_ENDPOINT: ${{ secrets.KITMAKER_API_ENDPOINT }}
-        KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
+        KITMAKER_PROJECT_ID: ${{ secrets.IC_KITMAKER_PROJECT_ID }}
         KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
         KITMAKER_PIC_EMAIL: ${{ secrets.KITMAKER_PIC_EMAIL }}
         ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
@@ -1202,9 +1199,7 @@ jobs:
         fi
 
         payload_array="$(printf '%s\n' "${payload_items[@]}" | jq -s '.')"
-        # Kitmaker project, registered externally and not ours to rename with the
-        # distribution. It names the upload target, not the wheels in the payload.
-        payload="$(jq -cn --arg project_name "isaacteleop" --argjson payload "${payload_array}" '{project_name: $project_name, payload: $payload}')"
+        payload="$(jq -cn --arg project_name "isaaccapture" --argjson payload "${payload_array}" '{project_name: $project_name, payload: $payload}')"
 
         echo "Posting ${#payload_items[@]} wheel(s) to Kitmaker in a single request"
         response_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 120 \
@@ -1234,7 +1229,7 @@ jobs:
     - name: Monitor Kitmaker release status
       env:
         KITMAKER_API_ENDPOINT: ${{ secrets.KITMAKER_API_ENDPOINT }}
-        KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
+        KITMAKER_PROJECT_ID: ${{ secrets.IC_KITMAKER_PROJECT_ID }}
         KITMAKER_RELEASE_UUID: ${{ needs.kitmaker.outputs.release_uuid }}
         ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
         ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
