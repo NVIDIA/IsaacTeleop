@@ -9,8 +9,8 @@ Query required extensions before creating an OpenXR session; individual trackers
 do not expose get_required_extensions().
 """
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
 
 print("=" * 80)
 print("OpenXR Required Extensions Test")

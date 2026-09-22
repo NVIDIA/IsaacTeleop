@@ -33,8 +33,8 @@ from types import FrameType
 
 import numpy as np
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.viz as viz
+import isaaccapture.deviceio as deviceio
+import isaaccapture.viz as viz
 
 from oglo_heatmap import NUM_TAXELS, Normalizer, TactileHeatmapRenderer
 

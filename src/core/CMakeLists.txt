@@ -35,7 +35,7 @@ add_subdirectory(deviceio_session)
 add_subdirectory(mcap)
 
 # CloudXR runtime helper (stages the vendored CloudXR runtime SDK bundle).
-# Its pure-Python source lives in src/python/isaacteleop/cloudxr/, as does the
+# Its pure-Python source lives in src/python/isaaccapture/cloudxr/, as does the
 # retargeting engine's and the session manager's.
 add_subdirectory(cloudxr)
 

@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # OpenXR Python Examples
 
-Python examples demonstrating the OpenXR tracking API using the `isaacteleop` Python wheel.
+Python examples demonstrating the OpenXR tracking API using the `isaaccapture` Python wheel.
 
 ## Prerequisites
 

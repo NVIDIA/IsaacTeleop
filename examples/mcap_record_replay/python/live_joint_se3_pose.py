@@ -15,7 +15,7 @@ retargeting engine, so it needs no source node. Open the URL viser prints to wat
 tips move; touch thumb to a fingertip and the two frames should meet.
 
 Prerequisites (separate terminals):
-  1. CloudXR runtime:  python -m isaacteleop.cloudxr
+  1. CloudXR runtime:  python -m isaaccapture.cloudxr
   2. the pusher:       ./install/plugins/manus/manus_hand_plugin --datasets=sensors
 
 Usage:
@@ -29,9 +29,9 @@ import argparse
 import sys
 import time
 
-from isaacteleop.deviceio_session import DeviceIOSession
-from isaacteleop.deviceio_trackers import JointSe3PoseTracker
-from isaacteleop.oxr import OpenXRSession
+from isaaccapture.deviceio_session import DeviceIOSession
+from isaaccapture.deviceio_trackers import JointSe3PoseTracker
+from isaaccapture.oxr import OpenXRSession
 
 from joint_se3_common import DEFAULT_SEPARATION_M, TipViz, make_server
 

@@ -7,14 +7,14 @@ Tests for TensorGroup class - collection of tensors with type validation.
 
 import pytest
 import numpy as np
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     TensorGroup,
     Tensor,
     TensorGroupType,
     TensorType,
     UNSET_VALUE,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     FloatType,
     IntType,
     BoolType,
@@ -536,7 +536,7 @@ class TestTensorGroupCopy:
     """Tests for TensorGroup.create_snapshot() with numpy array tensors."""
 
     def _array_group(self) -> TensorGroup:
-        from isaacteleop.retargeting_engine.tensor_types import NDArrayType, DLDataType
+        from isaaccapture.retargeting_engine.tensor_types import NDArrayType, DLDataType
 
         gt = TensorGroupType(
             "arr", [NDArrayType("v", shape=(3,), dtype=DLDataType.FLOAT, dtype_bits=32)]
@@ -606,14 +606,14 @@ class TestOptionalTensorGroupCopy:
     """Tests for OptionalTensorGroup.create_snapshot()."""
 
     def _make_opt_type(self):
-        from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+        from isaaccapture.retargeting_engine.interface.tensor_group_type import (
             OptionalTensorGroupType,
         )
 
         return OptionalTensorGroupType(TensorGroupType("opt", [FloatType("v")]))
 
     def test_copy_absent_group_is_also_absent(self):
-        from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+        from isaaccapture.retargeting_engine.interface import OptionalTensorGroup
 
         tg = OptionalTensorGroup(self._make_opt_type())
         assert tg.is_none
@@ -623,7 +623,7 @@ class TestOptionalTensorGroupCopy:
         assert cp is not tg
 
     def test_copy_present_group_has_correct_value(self):
-        from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+        from isaaccapture.retargeting_engine.interface import OptionalTensorGroup
 
         tg = OptionalTensorGroup(self._make_opt_type())
         tg[0] = 5.0
@@ -633,7 +633,7 @@ class TestOptionalTensorGroupCopy:
         assert cp[0] == 5.0
 
     def test_copy_returns_optional_tensor_group_type(self):
-        from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+        from isaaccapture.retargeting_engine.interface import OptionalTensorGroup
 
         tg = OptionalTensorGroup(self._make_opt_type())
         tg[0] = 1.0
@@ -647,7 +647,7 @@ class TestDeprecatedHeadAliases:
     names and emit a DeprecationWarning on access."""
 
     def test_package_level_aliases_resolve_and_warn(self):
-        from isaacteleop.retargeting_engine import tensor_types
+        from isaaccapture.retargeting_engine import tensor_types
 
         for old, new in (
             ("HeadPose", "HeadInput"),
@@ -658,7 +658,7 @@ class TestDeprecatedHeadAliases:
             assert deprecated is getattr(tensor_types, new)
 
     def test_submodule_aliases_resolve_and_warn(self):
-        from isaacteleop.retargeting_engine.tensor_types import indices, standard_types
+        from isaaccapture.retargeting_engine.tensor_types import indices, standard_types
 
         with pytest.warns(DeprecationWarning, match="HeadPose"):
             assert standard_types.HeadPose is standard_types.HeadInput

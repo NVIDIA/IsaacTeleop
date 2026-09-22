@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for JointSe3PoseOutput in isaacteleop.schema.
+"""Unit tests for JointSe3PoseOutput in isaaccapture.schema.
 
 JointSe3PoseOutput is a FlatBuffers table for a sparse set of tracked joint poses:
 - joints: JointSe3Pose entries keyed by JointName, sorted ascending on the wire
@@ -15,7 +15,7 @@ Note: Python code should only READ this data (created by C++ trackers), not modi
 
 import pytest
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     DeviceDataTimestamp,
     JointName,
     JointType,

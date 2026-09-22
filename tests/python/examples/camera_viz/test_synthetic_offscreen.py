@@ -15,7 +15,7 @@ from contextlib import contextmanager
 import numpy as np
 import pytest
 
-import isaacteleop.viz as viz
+import isaaccapture.viz as viz
 
 from sources import build_local_camera
 

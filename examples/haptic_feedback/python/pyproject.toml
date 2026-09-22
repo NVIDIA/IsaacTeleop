@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [project]
-name = "isaacteleop-haptic-feedback-examples"
+name = "isaaccapture-haptic-feedback-examples"
 version = "0.0.0"  # Internal examples - not versioned
 description = "Isaac Teleop haptic feedback CLI examples (OpenXR controller)."
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "isaacteleop",
+    "isaaccapture",
     "numpy>=1.23.0",
 ]

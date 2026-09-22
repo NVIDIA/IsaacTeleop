@@ -11,18 +11,18 @@ Also tests parameter functionality in retargeters.
 import pytest
 import tempfile
 import os
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     TensorGroupType,
     TensorGroup,
     ParameterState,
 )
-from isaacteleop.retargeting_engine.interface.tunable_parameter import (
+from isaaccapture.retargeting_engine.interface.tunable_parameter import (
     FloatParameter,
     IntParameter,
     BoolParameter,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     FloatType,
     IntType,
 )

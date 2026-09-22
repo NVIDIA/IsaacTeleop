@@ -12,14 +12,14 @@ import argparse
 import sys
 import time
 from pathlib import Path
-import isaacteleop.deviceio as deviceio
+import isaaccapture.deviceio as deviceio
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeters import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
 )
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,

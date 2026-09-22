@@ -8,7 +8,7 @@ Tests the .connect() method and RetargeterSubgraph functionality.
 """
 
 import pytest
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     TensorGroupType,
     TensorGroup,
@@ -18,7 +18,7 @@ from isaacteleop.retargeting_engine.interface import (
     OutputCombiner,
     ValueInput,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     FloatType,
     IntType,
 )

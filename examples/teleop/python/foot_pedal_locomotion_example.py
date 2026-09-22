@@ -15,13 +15,15 @@ import sys
 import time
 from pathlib import Path
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeters import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeters import (
     FootPedalRootCmdRetargeter,
     FootPedalRootCmdRetargeterConfig,
 )
-from isaacteleop.retargeting_engine.deviceio_source_nodes import Generic3AxisPedalSource
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
+    Generic3AxisPedalSource,
+)
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,

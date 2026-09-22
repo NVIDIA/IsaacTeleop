@@ -18,15 +18,15 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
 )
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     BodyJoint,
     FullBodyPose,
 )
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     DeviceIOFullBodyPoseTracked,
     IDeviceIOSource,
 )
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     OutputCombiner,
     RetargeterIO,
@@ -34,8 +34,8 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroup,
     TensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import DLDataType, NDArrayType
-from isaacteleop.teleop_session_manager import PluginConfig
+from isaaccapture.retargeting_engine.tensor_types import DLDataType, NDArrayType
+from isaaccapture.teleop_session_manager import PluginConfig
 
 from noitom_retargeting import (
     ArmIkTargets,
@@ -399,7 +399,7 @@ class NoitomG1ActionSource(IDeviceIOSource):
         settings: NoitomG1Settings = DEFAULT_NOITOM_G1_SETTINGS,
     ) -> None:
         """Initialize the Noitom DeviceIO tracker and retargeter."""
-        import isaacteleop.deviceio as deviceio
+        import isaaccapture.deviceio as deviceio
 
         self._tracker = deviceio.FullBodyTracker()
         vendor = deviceio.TrackerVendor(

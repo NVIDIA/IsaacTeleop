@@ -18,7 +18,7 @@ from typing import Optional
 
 import pytest
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     ComputeContext,
     GraphTime,
@@ -26,7 +26,7 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroupType,
     ValueInput,
 )
-from isaacteleop.retargeting_engine.tensor_types import FloatType
+from isaaccapture.retargeting_engine.tensor_types import FloatType
 
 
 # ============================================================================

@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "isaaccapture-packaging-tests"
+version = "0.0.0"  # Internal tests - not versioned
+description = "Assertions over the wheel this build produced"
+requires-python = ">=3.11,<3.14"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]

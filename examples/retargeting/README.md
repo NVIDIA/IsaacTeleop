@@ -10,7 +10,7 @@ one you want:
 
 ```bash
 uv pip install -e ./examples/retargeting
-python -m isaacteleop_examples.retargeting.sources_example
+python -m isaaccapture_examples.retargeting.sources_example
 ```
 
 | Module | What it shows |

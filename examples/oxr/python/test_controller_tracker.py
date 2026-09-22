@@ -11,8 +11,8 @@ Demonstrates:
 
 import time
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
 
 print("=" * 80)
 print("Controller Tracker Test")

@@ -5,7 +5,7 @@
 //
 // Module shape mirrors deviceio / oxr: a private extension module
 // `_viz.so` lives next to the package `__init__.py`, which re-exports
-// the symbols as `isaacteleop.viz`.
+// the symbols as `isaaccapture.viz`.
 //
 // The actual bindings are split along the C++ dep DAG (one
 // <module>_bindings.cpp per sub-module). Registration order here must
@@ -26,7 +26,7 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(_viz, m)
 {
-    m.doc() = "isaacteleop.viz — Televiz — Teleop Visualization API";
+    m.doc() = "isaaccapture.viz — Televiz — Teleop Visualization API";
 
     viz_py::bind_core(m); // enums, plain types, VizBuffer, HostImage
     viz_py::bind_layers(m); // QuadLayer + Config + Placement (consumes core)

@@ -119,7 +119,7 @@ order does not matter.
 ## Consume in Python
 
 ```python
-from isaacteleop.retargeting_engine.deviceio_source_nodes import JointStateSource
+from isaaccapture.retargeting_engine.deviceio_source_nodes import JointStateSource
 
 source = JointStateSource(
     name="leader",

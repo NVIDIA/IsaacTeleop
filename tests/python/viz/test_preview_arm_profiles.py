@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 robot = pytest.importorskip(
-    "isaacteleop.viz.robot",
+    "isaaccapture.viz.robot",
     reason="needs the compiled scene backend (Linux, -DBUILD_VIZ=ON)",
 )
 
@@ -114,7 +114,7 @@ def test_ghost_spec_is_addressable(key):
 
 @pytest.mark.parametrize("key", sorted(profiles()))
 def test_ghost_jaw_travel_is_well_formed(key):
-    from isaacteleop.viz.robot.ghost import GhostSlide
+    from isaaccapture.viz.robot.ghost import GhostSlide
 
     for part in profiles()[key].ghost.jaw:
         # Released and squeezed must differ, or closedness drives nothing.

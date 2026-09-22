@@ -73,7 +73,7 @@ def test_env_file_is_written_without_export(tmp_path):
 
 def test_the_launcher_can_parse_what_we_write(tmp_path):
     """Round-trip through the real parser rather than trusting the format."""
-    from isaacteleop.cloudxr.env_config import EnvConfig
+    from isaaccapture.cloudxr.env_config import EnvConfig
 
     env = {"NV_DEVICE_PROFILE": "apple-vision-pro", "NV_ENABLE_POSE_WAIT": "false"}
     path = cloudxr_env.write_env_file(env, tmp_path / "cloudxr.env")
@@ -84,7 +84,7 @@ def test_an_env_file_entry_beats_a_stale_shell_export(tmp_path, monkeypatch):
     """The whole reason this module exists: a sourced ~/.cloudxr/run/cloudxr.env
     leaves NV_DEVICE_PROFILE in the shell, which beats both os.environ
     .setdefault and --cloudxr-device-profile. Only the env file outranks it."""
-    from isaacteleop.cloudxr.env_config import EnvConfig
+    from isaaccapture.cloudxr.env_config import EnvConfig
 
     monkeypatch.setenv("NV_DEVICE_PROFILE", "Quest3")
     path = cloudxr_env.write_env_file(

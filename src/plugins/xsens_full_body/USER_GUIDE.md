@@ -70,7 +70,7 @@ next to its `plugin.yaml`.
 Once per machine. Everything else needs its environment.
 
 ```bash
-python -m isaacteleop.cloudxr.service start
+python -m isaaccapture.cloudxr.service start
 ```
 
 ### Step 2 — Load the CloudXR environment
@@ -132,8 +132,8 @@ Select the `body.xsens` vendor on a full-body source. The session wires up every
 the required OpenXR extensions included.
 
 ```python
-from isaacteleop import deviceio
-from isaacteleop.retargeting_engine.deviceio_source_nodes import FullBodySource
+from isaaccapture import deviceio
+from isaaccapture.retargeting_engine.deviceio_source_nodes import FullBodySource
 
 full_body = FullBodySource(
     name="full_body",

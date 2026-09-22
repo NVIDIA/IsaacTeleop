@@ -10,8 +10,8 @@ Live viewers are included for watching without recording.
 
 ```bash
 uv pip install -e ./examples/mcap_record_replay
-python -m isaacteleop_examples.mcap_record_replay.record_hand      # 5 s
-python -m isaacteleop_examples.mcap_record_replay.replay_hand      # newest take
+python -m isaaccapture_examples.mcap_record_replay.record_hand      # 5 s
+python -m isaaccapture_examples.mcap_record_replay.replay_hand      # newest take
 ```
 
 Recordings are written to `./recordings/` relative to where you run the

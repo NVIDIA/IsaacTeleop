@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Python tests for the isaacteleop.viz bindings.
+# Python tests for the isaaccapture.viz bindings.
 #
 # Each test_*.py here registers as a separate CTest entry under the
 # label "viz_python" so it can be filtered via -L. Tests that need a

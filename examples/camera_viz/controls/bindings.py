@@ -52,7 +52,7 @@ MAX_OFFSET_FRACTION_OF_IPD = stereo.MAX_FRACTION_OF_IPD
 FAR_TARGET_M = stereo.FAR_TARGET_M
 PLANE_DISTANCE_STEP_CM = stereo.STEP_CM
 
-# isaacteleop is imported lazily inside the methods that touch the device
+# isaaccapture is imported lazily inside the methods that touch the device
 # session: everything else here is policy (deadzone, clamping, cycle order)
 # and is unit-testable without the SDK or a headset.
 
@@ -210,7 +210,7 @@ class ControllerControls:
         self._hud = hud
         self._log = _log if log_to_stderr else _discard
         if tracker is None:
-            import isaacteleop.deviceio as deviceio
+            import isaaccapture.deviceio as deviceio
 
             tracker = deviceio.ControllerTracker()
         self._tracker = tracker
@@ -234,7 +234,7 @@ class ControllerControls:
         )
         if not self._baseline_supported and any(t.stereo for t in self._targets):
             self._log(
-                "installed isaacteleop has no Layer.set_stereo_baseline_mm; "
+                "installed isaaccapture has no Layer.set_stereo_baseline_mm; "
                 "thumbstick baseline disabled (A and B still work)"
             )
 
@@ -242,7 +242,7 @@ class ControllerControls:
     def required_extensions() -> List[str]:
         """OpenXR extensions to declare on ``VizSessionConfig`` *before*
         creating the session -- Televiz owns the XrInstance."""
-        import isaacteleop.deviceio as deviceio
+        import isaaccapture.deviceio as deviceio
 
         return list(
             deviceio.DeviceIOSession.get_required_extensions(
@@ -251,8 +251,8 @@ class ControllerControls:
         )
 
     def __enter__(self) -> "ControllerControls":
-        import isaacteleop.deviceio as deviceio
-        import isaacteleop.oxr as oxr
+        import isaaccapture.deviceio as deviceio
+        import isaaccapture.oxr as oxr
 
         handles = self._session.get_oxr_handles()
         if handles is None:

@@ -7,6 +7,6 @@ version = "0.0.0"  # Internal examples - not versioned
 description = "OpenXR Tracking Python Examples"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "isaacteleop",
+    "isaaccapture",
     "numpy>=1.23.0",
 ]

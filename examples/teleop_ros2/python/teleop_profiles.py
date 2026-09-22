@@ -15,7 +15,7 @@ from constants import (
     StrEnum,
     TeleopMode,
 )
-from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
+from isaaccapture.retargeting_engine.interface import OptionalTensorGroup
 
 
 class PublishType(StrEnum):

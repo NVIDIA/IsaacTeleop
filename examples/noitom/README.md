@@ -27,7 +27,7 @@ when you need Noitom support:
 cmake -B build -DBUILD_PLUGIN_NOITOM_MOCAP=ON
 cmake --build build --target python_package noitom_mocap_plugin --parallel
 cmake --install build
-uv pip install --find-links=install/wheels "isaacteleop[cloudxr]"
+uv pip install --find-links=install/wheels "isaaccapture[cloudxr]"
 ```
 
 Run `cmake --install build` again whenever `plugin.yaml` changes so the updated

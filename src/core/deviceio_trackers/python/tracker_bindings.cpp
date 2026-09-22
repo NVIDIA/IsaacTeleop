@@ -48,7 +48,7 @@ py::object to_python(const core::Serialized<T>& handle)
 PYBIND11_MODULE(_deviceio_trackers, m)
 {
     // Load schema pybind converters (the encoded table views) before exposing tracker accessors.
-    py::module_::import("isaacteleop.schema._schema");
+    py::module_::import("isaaccapture.schema._schema");
 
     m.doc() = "Isaac Teleop DeviceIO - Tracker classes";
 

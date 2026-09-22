@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from constants import HandRetargeter, HandTrackingProvider, TeleopMode
-from isaacteleop.teleop_session_manager import SessionMode
+from isaaccapture.teleop_session_manager import SessionMode
 from node_parameters import _load_hand_tracking_provider
 
 

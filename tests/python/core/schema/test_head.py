@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for HeadPose in isaacteleop.schema.
+"""Unit tests for HeadPose in isaaccapture.schema.
 
 HeadPose is a FlatBuffers table that represents head pose data:
 - pose: The Pose struct (position and orientation)
@@ -15,7 +15,7 @@ Note: Python code should only READ this data (created by C++ trackers), not modi
 
 import pytest
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     HeadPose,
     HeadPoseRecord,
     Pose,
