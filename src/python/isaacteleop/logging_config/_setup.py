@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 
-from . import _console, _file, _forwarding
+from . import _console, _file, _forwarding, _native_fd
 from ._core import ROOT_LOGGER_NAME
 
 _installed = False
@@ -32,10 +32,16 @@ def install() -> None:
 
     socket_path = _forwarding.socket_path()
     if socket_path is not None:
+        # The forwarding handler first, and the ordering is load-bearing: a
+        # child attaches no console handler, so until this line the isaacteleop
+        # logger has none at all and anything reported below -- ensure_sink()
+        # warns when it cannot create the capture file -- would fall through to
+        # logging.lastResort, an unformatted line on this process's stderr.
         _forwarding.ensure_handler(socket_path)
         # Built but not attached in a child (see _console.ensure_handler), so
         # that a capture scope still has somewhere to move its stream.
         _console.ensure_handler()
+        _native_fd.ensure_sink()
         return
 
     _console.ensure_handler()
@@ -51,6 +57,10 @@ def install() -> None:
             "Set ISAACTELEOP_LOG_DIR to a directory you can write.",
             exc,
         )
+    # After both handlers, for the same reason the forwarding branch above
+    # attaches its handler first: ensure_sink() reports a capture file it could
+    # not create, and that report should reach the session's log file too.
+    _native_fd.ensure_sink()
     _forwarding.ensure_receiver()
 
 
