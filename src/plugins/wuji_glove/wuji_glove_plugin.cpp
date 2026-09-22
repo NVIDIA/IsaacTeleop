@@ -3,6 +3,7 @@
 
 #include "wuji_glove_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
 #include <oxr_utils/math.hpp>
 
 #include <algorithm>
@@ -11,7 +12,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <iterator>
 #include <stdexcept>
 
@@ -162,12 +162,12 @@ XrPosef pose_from_env(const char* name, const XrPosef& fallback)
     {
         return fallback;
     }
+    auto logger = isaacteleop::Logger::get("isaacteleop.plugins.wuji_glove.main");
     XrPosef pose{};
     if (std::sscanf(value, "%f,%f,%f,%f,%f,%f,%f", &pose.position.x, &pose.position.y, &pose.position.z,
                     &pose.orientation.x, &pose.orientation.y, &pose.orientation.z, &pose.orientation.w) != 7)
     {
-        std::cerr << "WujiGlovePlugin: could not parse " << name << " ('" << value
-                  << "', want px,py,pz,qx,qy,qz,qw); using the built-in offset" << std::endl;
+        logger->warn("could not parse {} ('{}', want px,py,pz,qx,qy,qz,qw); using the built-in offset", name, value);
         return fallback;
     }
     // sscanf("%f") happily accepts "nan" and "inf"; a non-finite offset would
@@ -177,15 +177,14 @@ XrPosef pose_from_env(const char* name, const XrPosef& fallback)
         !std::isfinite(pose.orientation.x) || !std::isfinite(pose.orientation.y) ||
         !std::isfinite(pose.orientation.z) || !std::isfinite(pose.orientation.w))
     {
-        std::cerr << "WujiGlovePlugin: " << name << " ('" << value
-                  << "') has non-finite values; using the built-in offset" << std::endl;
+        logger->warn("{} ('{}') has non-finite values; using the built-in offset", name, value);
         return fallback;
     }
     const float norm = std::sqrt(pose.orientation.x * pose.orientation.x + pose.orientation.y * pose.orientation.y +
                                  pose.orientation.z * pose.orientation.z + pose.orientation.w * pose.orientation.w);
     if (norm < 1e-6f)
     {
-        std::cerr << "WujiGlovePlugin: " << name << " has a zero quaternion; using the built-in offset" << std::endl;
+        logger->warn("{} has a zero quaternion; using the built-in offset", name);
         return fallback;
     }
     pose.orientation.x /= norm;
@@ -212,7 +211,8 @@ plugin_utils::WristSourceMode wrist_source_mode_from_env()
     {
         return plugin_utils::WristSourceMode::Controller;
     }
-    std::cerr << "WujiGlovePlugin: unknown WUJI_GLOVE_WRIST_SOURCE '" << value << "', using 'auto'" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.wuji_glove.main")
+        ->warn("unknown WUJI_GLOVE_WRIST_SOURCE '{}', using 'auto'", value);
     return plugin_utils::WristSourceMode::Auto;
 }
 
@@ -247,7 +247,7 @@ const char* safe_err()
 
 WujiGlovePlugin::WujiGlovePlugin(const std::string& plugin_root_id) noexcept(false) : m_root_id(plugin_root_id)
 {
-    std::cout << "Initializing WujiGlovePlugin with root: " << m_root_id << std::endl;
+    m_logger->info("Initializing with root: {}", m_root_id);
 
     // The glove itself is not an OpenXR upstream tracker — it is read
     // out-of-band via wuji_sdk. The tracker list carries only what the wrist
@@ -300,12 +300,12 @@ WujiGlovePlugin::WujiGlovePlugin(const std::string& plugin_root_id) noexcept(fal
         wuji_shutdown();
         throw;
     }
-    std::cout << "WujiGlovePlugin initialized and running" << std::endl;
+    m_logger->info("initialized and running");
 }
 
 WujiGlovePlugin::~WujiGlovePlugin()
 {
-    std::cout << "Shutting down WujiGlovePlugin..." << std::endl;
+    m_logger->info("Shutting down...");
     m_running = false;
     if (m_connection_thread.joinable())
     {
@@ -337,14 +337,14 @@ bool WujiGlovePlugin::connect_glove(GloveConnection& connection)
     WujiDevice* device = nullptr;
     if (wuji_connect(&target, connection.serial.c_str(), nullptr, &device) != WUJI_STATUS_OK)
     {
-        std::cerr << "WujiGlovePlugin: wuji_connect(" << connection.serial << ") failed: " << safe_err() << std::endl;
+        m_logger->warn("wuji_connect({}) failed: {}", connection.serial, safe_err());
         return false;
     }
 
     const std::optional<bool> is_left = query_is_left(device);
     if (!is_left.has_value())
     {
-        std::cerr << "WujiGlovePlugin: could not determine hand_side for " << connection.serial << std::endl;
+        m_logger->warn("could not determine hand_side for {}", connection.serial);
         wuji_dev_disconnect(device);
         wuji_dev_release(device);
         return false;
@@ -363,9 +363,8 @@ bool WujiGlovePlugin::connect_glove(GloveConnection& connection)
                                         });
     if (same_side != m_connections.end())
     {
-        std::cerr << "WujiGlovePlugin: second " << (*is_left ? "left" : "right") << " glove " << connection.serial
-                  << " discovered while " << (*same_side)->serial << " is bound; ignoring " << connection.serial
-                  << std::endl;
+        m_logger->warn("second {} glove {} discovered while {} is bound; ignoring {}", *is_left ? "left" : "right",
+                       connection.serial, (*same_side)->serial, connection.serial);
         connection.ignored = true;
         wuji_dev_disconnect(device);
         wuji_dev_release(device);
@@ -380,8 +379,7 @@ bool WujiGlovePlugin::connect_glove(GloveConnection& connection)
     if (wuji_glove_subscribe_hand_skeleton(device, &WujiGlovePlugin::skeleton_callback, context.get(), &subscription) !=
         WUJI_STATUS_OK)
     {
-        std::cerr << "WujiGlovePlugin: subscribe hand_skeleton failed for " << connection.serial << ": " << safe_err()
-                  << std::endl;
+        m_logger->warn("subscribe hand_skeleton failed for {}: {}", connection.serial, safe_err());
         wuji_dev_disconnect(device);
         wuji_dev_release(device);
         return false;
@@ -390,8 +388,7 @@ bool WujiGlovePlugin::connect_glove(GloveConnection& connection)
     connection.device = device;
     connection.subscription = subscription;
     connection.context = std::move(context);
-    std::cout << "WujiGlovePlugin: connected " << connection.serial << " ("
-              << (connection.context->is_left ? "left" : "right") << ")" << std::endl;
+    m_logger->info("connected {} ({})", connection.serial, connection.context->is_left ? "left" : "right");
     return true;
 }
 
@@ -430,7 +427,10 @@ void WujiGlovePlugin::discover_gloves()
     size_t count = 0;
     if (wuji_scan(&list, &count) != WUJI_STATUS_OK)
     {
-        std::cerr << "WujiGlovePlugin: wuji_scan failed: " << safe_err() << std::endl;
+        // discover_gloves() runs on ~kDiscoveryInterval (~1s); this warns on every
+        // cycle for as long as the scan keeps failing. No throttling added here —
+        // out of scope for this mechanical logging migration.
+        m_logger->warn("wuji_scan failed: {}", safe_err());
         // The SDK does not document list/count contents on failure; free only
         // what is provably allocated.
         if (list != nullptr)
@@ -479,7 +479,7 @@ void WujiGlovePlugin::connection_thread()
         {
             if (connection->context && connection->context->terminal.load(std::memory_order_acquire))
             {
-                std::cout << "WujiGlovePlugin: disconnected " << connection->serial << std::endl;
+                m_logger->info("disconnected {}", connection->serial);
                 disconnect_glove(*connection);
             }
         }
@@ -606,7 +606,7 @@ void WujiGlovePlugin::worker_thread()
         }
         catch (const std::exception& e)
         {
-            std::cerr << "WujiGlovePlugin update error: " << e.what() << std::endl;
+            m_logger->error("update error: {}", e.what());
             m_left_injector.reset();
             m_right_injector.reset();
             m_failed.store(true, std::memory_order_release);

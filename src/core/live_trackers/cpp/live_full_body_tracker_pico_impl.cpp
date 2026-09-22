@@ -11,7 +11,6 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
 
 namespace core
 {
@@ -59,8 +58,7 @@ LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHand
         }
         if (!body_tracking_props.supportsBodyTracking)
         {
-            std::cerr << "[FullBodyTracker] Body tracking not supported by this system, running in limp mode"
-                      << std::endl;
+            logger_->warn("Body tracking not supported by this system, running in limp mode");
             return;
         }
     }
@@ -86,7 +84,7 @@ LiveFullBodyTrackerPicoImpl::LiveFullBodyTrackerPicoImpl(const OpenXRSessionHand
         throw std::runtime_error("Failed to create body tracker: " + std::to_string(result));
     }
 
-    std::cout << "FullBodyTracker initialized (24 joints)" << std::endl;
+    logger_->info("FullBodyTracker initialized (24 joints)");
 }
 
 LiveFullBodyTrackerPicoImpl::~LiveFullBodyTrackerPicoImpl()

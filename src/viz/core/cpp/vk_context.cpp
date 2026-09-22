@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cstring>
 #include <cuda_runtime.h>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -331,9 +330,9 @@ void VkContext::create_instance(const Config& config)
         }
         else
         {
-            std::cerr << "VkContext: validation requested but VK_LAYER_KHRONOS_validation "
-                         "not available; continuing without validation."
-                      << std::endl;
+            logger_->warn(
+                "validation requested but VK_LAYER_KHRONOS_validation not available; "
+                "continuing without validation.");
         }
     }
 

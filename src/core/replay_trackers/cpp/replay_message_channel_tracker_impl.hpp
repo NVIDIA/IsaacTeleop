@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/message_channel_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/message_channel_generated.h>
 
@@ -70,6 +71,7 @@ private:
     // LinearMessageView, so detecting a timestamp boundary requires
     // buffering one record across update() calls.
     Serialized<MessageChannelMessagesRecord> pending_record_;
+    std::shared_ptr<spdlog::logger> logger_;
 };
 
 } // namespace core

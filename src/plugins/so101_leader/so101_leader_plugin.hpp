@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <pusherio/schema_pusher.hpp>
 
 #include <cstdint>
@@ -100,6 +101,8 @@ private:
 
     std::shared_ptr<core::OpenXRSession> session_;
     core::SchemaPusher pusher_;
+    std::shared_ptr<spdlog::logger> logger_ =
+        isaacteleop::Logger::get("isaacteleop.plugins.so101_leader.So101LeaderPlugin");
 };
 
 //! Calibration/dump helper: open @p device_path, back-drive-enable the servos, then (1) capture the

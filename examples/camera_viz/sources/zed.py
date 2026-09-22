@@ -21,6 +21,7 @@ force a reopen past the threshold.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
@@ -31,8 +32,8 @@ from pipeline import Frame, FrameSource, SourceSpec
 from ._helpers import notify, notify_verbose
 
 
-def _notify(msg: str) -> None:
-    notify("zed", msg)
+def _notify(msg: str, level: int = logging.INFO) -> None:
+    notify("zed", msg, level)
 
 
 # Periodic capture-rate breadcrumb interval (verbose mode).
@@ -279,7 +280,7 @@ class _ZedCamera:
             opened.set()
 
         if err != sl.ERROR_CODE.SUCCESS:
-            _notify(f"open failed ({err})")
+            _notify(f"open failed ({err})", logging.ERROR)
             try:
                 camera.close()
             except Exception:
@@ -292,7 +293,8 @@ class _ZedCamera:
         if actual_w != self._width or actual_h != self._height:
             _notify(
                 f"resolution mismatch (expected {self._width}x{self._height}, "
-                f"got {actual_w}x{actual_h})"
+                f"got {actual_w}x{actual_h})",
+                logging.ERROR,
             )
             camera.close()
             return False
@@ -366,7 +368,7 @@ class _ZedCamera:
                 try:
                     self._connected = self._open_camera()
                 except Exception as e:
-                    _notify(f"open failed ({e})")
+                    _notify(f"open failed ({e})", logging.ERROR)
                     self._close_camera()
                     self._reconnect_count += 1
                     continue
@@ -384,7 +386,7 @@ class _ZedCamera:
                     err in fatal_errors
                     or self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES
                 ):
-                    _notify(f"grab failed ({err}); reconnecting")
+                    _notify(f"grab failed ({err}); reconnecting", logging.ERROR)
                     self._close_camera()
                 continue
             self._consecutive_failures = 0
@@ -411,7 +413,9 @@ class _ZedCamera:
                 if retrieve_failed:
                     self._consecutive_failures += 1
                     if self._consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                        _notify("camera connection problem; reconnecting")
+                        _notify(
+                            "camera connection problem; reconnecting", logging.ERROR
+                        )
                         self._close_camera()
                 else:
                     self._consecutive_failures = 0
@@ -438,7 +442,7 @@ class _ZedCamera:
                         grab_count = 0
                         stats_t0 = now
             except Exception as e:
-                _notify(f"frame error ({e}); reconnecting")
+                _notify(f"frame error ({e}); reconnecting", logging.ERROR)
                 self._close_camera()
                 self._reconnect_count += 1
                 continue

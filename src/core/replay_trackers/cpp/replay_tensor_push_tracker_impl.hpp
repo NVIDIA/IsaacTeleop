@@ -4,9 +4,11 @@
 #pragma once
 
 #include <deviceio_base/tensor_push_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 namespace core
@@ -23,6 +25,7 @@ public:
     void push(const std::vector<uint8_t>& payload) const override;
 
 private:
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.ReplayTensorPushTrackerImpl");
     mutable std::atomic<bool> m_drop_logged{ false };
 };
 
