@@ -22,7 +22,7 @@ In short
 #. Upgrade with ``pip install -U isaacteleop[...]``, **not** by installing
    ``isaaccapture`` beside it -- see :ref:`migration-upgrading`.
 #. Rewrite ``isaacteleop`` to ``isaaccapture`` in imports and ``python -m``
-   commands, but **not** ``isaacteleop_examples``.
+   commands, ``isaacteleop_examples`` to ``isaaccapture_examples`` with them.
 #. Rename the dependency in your own ``pyproject.toml`` / ``requirements.txt``.
 #. Move the robot-twin asset cache and its two override variables, if you use them.
 
@@ -70,11 +70,11 @@ The same rename applies to ``python -m`` entry points, for example
 
 .. warning::
 
-   ``isaacteleop_examples`` is a **different** package and was not renamed. A
-   repo-wide substitution breaks every ``python -m isaacteleop_examples.*``
-   command, and the alias deliberately declines that name, so the failure is a
-   bare ``ModuleNotFoundError`` with no notice attached. Rewrite ``isaacteleop``
-   only where it stands alone.
+   ``isaacteleop_examples`` became ``isaaccapture_examples``, and the alias
+   does **not** cover it -- the compatibility distribution owns ``isaacteleop``
+   alone. Every ``python -m isaacteleop_examples.*`` command fails with a bare
+   ``ModuleNotFoundError`` and no notice attached. The example distributions
+   renamed with it: ``isaacteleop-examples-*`` to ``isaaccapture-examples-*``.
 
 What importing the old name does
 --------------------------------

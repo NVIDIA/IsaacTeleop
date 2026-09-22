@@ -130,7 +130,7 @@ Runnable Example
 ----------------
 
 A complete record / replay example lives at
-``examples/mcap_record_replay/python/isaacteleop_examples/mcap_record_replay/``:
+``examples/mcap_record_replay/python/isaaccapture_examples/mcap_record_replay/``:
 
 - ``common.py`` — pipeline builders (``build_hand_pipeline()``,
   ``build_controller_pipeline()``, ``build_full_body_pipeline()``) plus the
@@ -161,7 +161,7 @@ controllers, and full body), see ``examples/deviceio_live_view/`` and its
 .. code-block:: bash
 
    uv pip install -e ./examples/deviceio_live_view
-   python -m isaacteleop_examples.deviceio_live_view --accept-eula
+   python -m isaaccapture_examples.deviceio_live_view --accept-eula
 
 A C++ recorder lives at ``examples/mcap_record_replay/cpp/``:
 
@@ -178,8 +178,8 @@ From the repo root:
 .. code-block:: bash
 
    uv pip install -e ./examples/mcap_record_replay
-   python -m isaacteleop_examples.mcap_record_replay.live_full_body --accept-eula
-   python -m isaacteleop_examples.mcap_record_replay.live_full_body --port 8090 --accept-eula
+   python -m isaaccapture_examples.mcap_record_replay.live_full_body --accept-eula
+   python -m isaaccapture_examples.mcap_record_replay.live_full_body --port 8090 --accept-eula
 
 Open the printed URL (default ``http://localhost:8080``) in a browser.  The
 viewers bind every interface, since they run where the headset is and get
@@ -193,7 +193,7 @@ From the repo root:
 .. code-block:: bash
 
    uv pip install -e ./examples/mcap_record_replay
-   R="python -m isaacteleop_examples.mcap_record_replay.record_hand"
+   R="python -m isaaccapture_examples.mcap_record_replay.record_hand"
    $R              # 5 s → ./recordings/hands_<timestamp>.mcap
    $R 10           # record for 10 seconds
    $R 10 out.mcap  # custom output path
@@ -222,7 +222,7 @@ Replay runs headless — no headset required:
 
 .. code-block:: bash
 
-   R="python -m isaacteleop_examples.mcap_record_replay.replay_hand"
+   R="python -m isaaccapture_examples.mcap_record_replay.replay_hand"
    $R                    # newest hands_*.mcap under ./recordings/
    $R path/to/file.mcap  # explicit file
    $R --loop             # repeat until Ctrl+C

@@ -449,7 +449,7 @@ release that ships one, and upgrades stop there with no diagnostic.
 <li><p>Upgrade with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-U</span> <span class="pre">isaacteleop[...]</span></code>, <strong>not</strong> by installing
 <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> beside it – see <a class="reference internal" href="#migration-upgrading"><span class="std std-ref">Upgrading an existing install</span></a>.</p></li>
 <li><p>Rewrite <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> in imports and <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code>
-commands, but <strong>not</strong> <code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code>.</p></li>
+commands, <code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture_examples</span></code> with them.</p></li>
 <li><p>Rename the dependency in your own <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> / <code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code>.</p></li>
 <li><p>Move the robot-twin asset cache and its two override variables, if you use them.</p></li>
 </ol>
@@ -488,11 +488,11 @@ copies.</p>
 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaaccapture.cloudxr.service</span> <span class="pre">run</span></code>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p><code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> is a <strong>different</strong> package and was not renamed. A
-repo-wide substitution breaks every <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop_examples.*</span></code>
-command, and the alias deliberately declines that name, so the failure is a
-bare <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code> with no notice attached. Rewrite <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>
-only where it stands alone.</p>
+<p><code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> became <code class="docutils literal notranslate"><span class="pre">isaaccapture_examples</span></code>, and the alias
+does <strong>not</strong> cover it – the compatibility distribution owns <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>
+alone. Every <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop_examples.*</span></code> command fails with a bare
+<code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code> and no notice attached. The example distributions
+renamed with it: <code class="docutils literal notranslate"><span class="pre">isaacteleop-examples-*</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture-examples-*</span></code>.</p>
 </div>
 </section>
 <section id="what-importing-the-old-name-does">
