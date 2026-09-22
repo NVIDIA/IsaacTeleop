@@ -90,7 +90,11 @@ def _is_our_service(pid: int) -> bool:
         cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
     except (FileNotFoundError, ProcessLookupError, PermissionError):
         return False
-    return any(module.encode() in cmdline for module in (_MODULE, *_LEGACY_MODULES))
+    # A whole argument, not a substring of the blob: pids are reused, and anything
+    # that merely names the module -- a log path, a `tail`, a `pkill` pattern --
+    # would otherwise be mistaken for the service and survive `stop`.
+    argv = cmdline.decode(errors="replace").split("\0")
+    return any(arg in (_MODULE, *_LEGACY_MODULES) for arg in argv)
 
 
 def read_run_flags(run_dir: str) -> list[str]:
