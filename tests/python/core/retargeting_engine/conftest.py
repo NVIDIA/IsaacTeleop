@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Pytest configuration and fixtures for isaacteleop.retargeting_engine tests."""
+"""Pytest configuration and fixtures for isaaccapture.retargeting_engine tests."""
 
 import pytest
 import numpy as np

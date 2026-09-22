@@ -6,7 +6,7 @@
 """
 Teleop ROS2 Reference Node.
 
-Publishes teleoperation data over ROS2 topics using isaacteleop TeleopSession.
+Publishes teleoperation data over ROS2 topics using isaaccapture TeleopSession.
 The `mode` parameter selects the teleoperation scenario and which topics are
 published:
 
@@ -55,9 +55,9 @@ from std_msgs.msg import ByteMultiArray
 from teleop_ros2_interfaces.msg import NamedPoseArray
 from tf2_ros import TransformBroadcaster
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
-from isaacteleop.teleop_session_manager import SessionMode, TeleopSession
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
+from isaaccapture.teleop_session_manager import SessionMode, TeleopSession
 from messages import (
     build_controller_msg,
     build_ee_output_from_controllers,

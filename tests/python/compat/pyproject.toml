@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "isaacteleop-compat-tests"
+version = "0.0.0"  # Internal tests - not versioned
+description = "Tests for the isaacteleop compatibility alias"
+requires-python = ">=3.11,<3.14"
+
+# numpy/pyyaml are isaaccapture's own runtime requirements: these tests import
+# the real package through the alias, and its __init__ eagerly imports every
+# subpackage.
+[project.optional-dependencies]
+dev = ["pytest", "numpy", "pyyaml"]
+test = ["pytest", "numpy", "pyyaml"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", ".."]  # ".." for repo_paths.py
+python_files = ["test_*.py"]
+norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]

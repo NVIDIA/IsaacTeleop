@@ -4,7 +4,7 @@
 
 """Tests for the tracking gate that withholds untracked hand joints."""
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     OptionalTensorGroup,
     OptionalTensorGroupType,
     OptionalType,

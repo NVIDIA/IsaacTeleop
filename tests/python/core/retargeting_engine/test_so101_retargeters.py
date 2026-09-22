@@ -5,8 +5,8 @@
 
 Covers the SO-101 retargeters that drive the full-pose SE3 IK stacking pipeline:
 
-* :class:`~isaacteleop.retargeters.SO101GripperRetargeter` -- analog trigger -> jaw closedness.
-* :class:`~isaacteleop.retargeters.SO101ClutchRetargeter` -- the engage-relative full-pose clutch,
+* :class:`~isaaccapture.retargeters.SO101GripperRetargeter` -- analog trigger -> jaw closedness.
+* :class:`~isaaccapture.retargeters.SO101ClutchRetargeter` -- the engage-relative full-pose clutch,
   re-latching both home position and orientation on every engage with a base-frame left-composed
   orientation delta.
 
@@ -20,8 +20,8 @@ import math
 import numpy as np
 import pytest
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import ControllersSource
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
     ExecutionState,
@@ -30,27 +30,27 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroup,
     ValueInput,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalType,
     OptionalTensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerInput,
     ControllerInputIndex,
     TransformMatrix,
 )
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     SO101ClutchRetargeter,
     SO101GripperRetargeter,
 )
-from isaacteleop.retargeters.SO101.clutch_retargeter import (
+from isaaccapture.retargeters.SO101.clutch_retargeter import (
     _mat_to_quat_xyzw,
     _normalize_quat,
     _quat_inv,
     _quat_mul,
 )
-from isaacteleop.retargeters.SO101.gripper_retargeter import (
+from isaaccapture.retargeters.SO101.gripper_retargeter import (
     GRIPPER_COMMAND_KEY,
     _TRIGGER_DEADZONE,
     _trigger_to_closedness,
@@ -954,7 +954,7 @@ class TestEngageRelativeClutchStatePrecision:
 class TestEngageRelativeClutchPipelineShape:
     """The in-pipeline wiring contract the LeRobot example depends on.
 
-    That example cannot be exercised by this suite (different repo, and its pinned ``isaacteleop``
+    That example cannot be exercised by this suite (different repo, and its pinned ``isaaccapture``
     predates this retargeter), so the graph shape it builds is covered here instead.
     """
 

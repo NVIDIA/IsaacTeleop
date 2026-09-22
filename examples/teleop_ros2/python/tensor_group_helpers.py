@@ -4,8 +4,8 @@
 
 """Helpers for reading retargeting-engine tensor groups and group types."""
 
-from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
-from isaacteleop.retargeting_engine.tensor_types.indices import (
+from isaaccapture.retargeting_engine.interface import OptionalTensorGroup
+from isaaccapture.retargeting_engine.tensor_types.indices import (
     ControllerInputIndex,
     HandInputIndex,
     HandJointIndex,

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 //
-// pybind11 entry point for `isaacteleop.viz.robot._robot_twin`.
+// pybind11 entry point for `isaaccapture.viz.robot._robot_twin`.
 //
 // Nothing typed crosses this boundary in either direction. viz::Pose3D / Fov are
 // registered in `_viz` and not castable here (this module links no viz target), so poses
@@ -273,7 +273,7 @@ that calls ``make_current()`` is the only one that may render.
 Non-owning CUDA view of one of the renderer's pixel-pack buffers.
 
 Exposes ``__cuda_array_interface__``, which is all
-``isaacteleop.viz.ProjectionLayer.submit()`` needs. Do NOT hold one past the
+``isaaccapture.viz.ProjectionLayer.submit()`` needs. Do NOT hold one past the
 frame it came from, and never past ``Renderer.close()``: the memory belongs to
 the renderer and is unmapped on the next ``render()``.
 )doc")

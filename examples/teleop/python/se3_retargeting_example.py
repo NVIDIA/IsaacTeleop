@@ -13,17 +13,17 @@ import sys
 import time
 import numpy as np
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     ControllersSource,
 )
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     Se3AbsRetargeter,
     Se3RelRetargeter,
     Se3RetargeterConfig,
 )
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
 )

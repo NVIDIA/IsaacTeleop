@@ -9,7 +9,7 @@ not the retargeting engine.
 
 import viser
 
-from isaacteleop.schema import JointName
+from isaaccapture.schema import JointName
 
 # Display-only gap between the two hands along X, in metres. Each side is drawn half of
 # this off the origin; poses themselves are untouched, so intra-hand pinch distances hold.

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Controller types in isaacteleop.schema.
+"""Unit tests for Controller types in isaaccapture.schema.
 
 Tests the following FlatBuffers types:
 - ControllerInputState: Struct with button and axis inputs (immutable)
@@ -11,7 +11,7 @@ Tests the following FlatBuffers types:
 
 import pytest
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     ControllerInputState,
     ControllerPose,
     ControllerSnapshot,

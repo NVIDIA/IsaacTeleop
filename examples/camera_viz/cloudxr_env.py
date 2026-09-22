@@ -16,7 +16,7 @@ three ways to set one and be silently wrong:
 None of the three produces an error. So the settings go through the one tier
 that outranks the process environment: a ``--cloudxr-env-config`` file, whose
 entries beat both a shell export and the launcher's own defaults. Verified
-against isaacteleop.cloudxr.env_config._load_resolve_and_apply, which merges
+against isaaccapture.cloudxr.env_config._load_resolve_and_apply, which merges
 the file last.
 
 Each of the three has a guard here: an unknown name warns with a suggestion,

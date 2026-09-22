@@ -9,7 +9,7 @@ requires = ["scikit-build-core>=1.0", "numpy>=2.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "isaacteleop"
+name = "isaaccapture"
 dynamic = ["version"]
 description = "Isaac Teleop"
 readme = "README.md"
@@ -22,6 +22,7 @@ authors = [
 # Mirror of src/core/python/requirements*.txt (keep in sync); see those files for
 # the rationale behind the retargeters/grounding version pins.
 dependencies = [
+    "isaacteleop>=1!1.6.dev0,<1!1.9",
     "numpy>=1.23.0",
     "pyyaml>=6.0.3",
 ]
@@ -95,6 +96,9 @@ result = "{major}.{minor}+local"
 [tool.uv]
 package = false
 
+[tool.uv.sources]
+isaacteleop = { path = "src/compat" }
+
 [tool.scikit-build]
 # Floor matches CMakeLists' cmake_minimum_required (3.24, for `cmake --fresh`).
 # Ubuntu 22.04's apt CMake is 3.22 and no longer satisfies it, so scikit-build-core
@@ -132,12 +136,15 @@ install.components = ["isaacteleop_wheel", "isaacteleop_binaries"]
 # empty -- the editable finder consults `known_wheel_files` BEFORE
 # `known_source_files`, so a stray .py in the component silently shadows this
 # mapping. Hence the *.py exclusion on install(DIRECTORY) in src/core/python.
+# Both import names ship in this wheel, matching the classic flow: `pip install .`
+# and `pip install -e .` must agree about whether `import isaacteleop` resolves.
+# TODO(1.9): drop the isaacteleop entry.
 [tool.scikit-build.wheel]
-packages = { isaacteleop = "src/python/isaacteleop" }
+packages = { isaaccapture = "src/python/isaaccapture", "isaacteleop.py" = "src/compat/isaacteleop.py" }
 
 # `rebuild = false`: no recompile on import, so build products (.so, .pyi, py.typed,
 # the vendored CloudXR runtime) are frozen until a rebuild + re-install. Authored .py
-# is the exception -- `mode = "redirect"` resolves it live from src/python/isaacteleop.
+# is the exception -- `mode = "redirect"` resolves it live from src/python/isaaccapture.
 [tool.scikit-build.editable]
 mode = "redirect"
 rebuild = false

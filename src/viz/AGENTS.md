@@ -72,7 +72,7 @@ single sub-module. Each sub-module is its own static library. Tests live under
   Library: `viz_xr`. Always built under `BUILD_VIZ` — `viz_core` and
   `viz_session` both require the OpenXR loader. Depends on `viz_core` +
   OpenXR.
-- **`viz/python/`** — pybind11 module `_viz`, exposed as `isaacteleop.viz`.
+- **`viz/python/`** — pybind11 module `_viz`, exposed as `isaaccapture.viz`.
 - **`viz/shaders/`** — GLSL → SPIR-V at build time. Library: `viz_shaders`
   (INTERFACE — exposes generated headers `viz/shaders/<name>.spv.h`,
   each containing an `inline constexpr alignas(uint32_t) unsigned char`

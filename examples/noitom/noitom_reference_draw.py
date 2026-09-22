@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from isaacteleop.schema import BodyJoint
+from isaaccapture.schema import BodyJoint
 
 from noitom_retargeting import noitom_position_to_isaac
 

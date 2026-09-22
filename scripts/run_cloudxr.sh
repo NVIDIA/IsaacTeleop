@@ -9,11 +9,11 @@ cd "$SCRIPT_DIR" || exit 1
 source "./setup_cloudxr_env.sh"
 
 echo "Starting WSS proxy..."
-if ! python -c "import isaacteleop.cloudxr" >/dev/null 2>&1; then
-    echo "Error: isaacteleop[cloudxr] is not installed. Install it before running this script (e.g. pip install 'isaacteleop[cloudxr]')."
+if ! python -c "import isaaccapture.cloudxr" >/dev/null 2>&1; then
+    echo "Error: isaaccapture[cloudxr] is not installed. Install it before running this script (e.g. pip install 'isaaccapture[cloudxr]')."
     echo "Follow the Quick Start guide to install the package via pypi: https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html"
     echo "Or build and install the package from source: https://nvidia.github.io/IsaacTeleop/main/getting_started/build_from_source.html"
     exit 1
 fi
 
-exec python -m isaacteleop.cloudxr.service run
+exec python -m isaaccapture.cloudxr.service run

@@ -102,22 +102,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /opt/isaacteleop
-COPY . /opt/isaacteleop
+WORKDIR /opt/isaaccapture
+COPY . /opt/isaaccapture
 
 # Remove any install/ or build/ copied in from the host context (an extracted
 # build-ubuntu artifact tree can carry both). A stale install/wheels/ would
-# pollute find-links with an isaacteleop wheel that is not the one this build
+# pollute find-links with an isaaccapture wheel that is not the one this build
 # produces; a stale build/ would skip a clean CMake reconfigure. The build tree
 # is rebuilt from scratch every time -- ccache keeps recompiles cheap -- so each
 # build reconfigures against the current image rather than trusting cached
 # configure results. Ament's Python tools come from apt, so the interface
 # package build below pins the ROS distro's system Python instead of uv's.
 RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
-    rm -rf /opt/isaacteleop/install /opt/isaacteleop/build \
+    rm -rf /opt/isaaccapture/install /opt/isaaccapture/build \
     && cmake -B build -S . \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/isaacteleop/install \
+        -DCMAKE_INSTALL_PREFIX=/opt/isaaccapture/install \
         -DCMAKE_C_COMPILER_LAUNCHER=ccache \
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
         -DBUILD_EXAMPLES=OFF \
@@ -134,7 +134,7 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
         && colcon build \
             --base-paths examples/teleop_ros2/teleop_ros2_interfaces \
             --build-base build/teleop_ros2_interfaces \
-            --install-base /opt/isaacteleop/install \
+            --install-base /opt/isaaccapture/install \
             --merge-install \
             --cmake-args \
                 -DCMAKE_BUILD_TYPE=Release \
@@ -142,31 +142,31 @@ RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DI
     && ccache --show-stats
 
 RUN --mount=type=cache,target=/ccache,id=isaacteleop-teleop-ros2-ccache-${ROS_DISTRO}-${TARGETARCH} \
-    src/plugins/wuji_glove/install.sh --build-dir /opt/isaacteleop/build \
+    src/plugins/wuji_glove/install.sh --build-dir /opt/isaaccapture/build \
     && if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
         src/plugins/manus/install_manus.sh --container \
-            --build-dir /opt/isaacteleop/build; \
+            --build-dir /opt/isaaccapture/build; \
     fi \
     && ccache --show-stats
 
 RUN set -eu; \
-    wuji_plugin=/opt/isaacteleop/install/plugins/wuji_glove/wuji_glove_plugin; \
+    wuji_plugin=/opt/isaaccapture/install/plugins/wuji_glove/wuji_glove_plugin; \
     test -x "$wuji_plugin"; \
-    test -f /opt/isaacteleop/install/plugins/wuji_glove/plugin.yaml; \
+    test -f /opt/isaaccapture/install/plugins/wuji_glove/plugin.yaml; \
     ldd_output="$(ldd "$wuji_plugin")"; \
     printf '%s\n' "$ldd_output" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
     if [ "${MANUS_ACCEPT_EULA}" = "YES" ] && [ "${TARGETARCH}" = "amd64" ]; then \
-        manus_plugin=/opt/isaacteleop/install/plugins/manus/manus_hand_plugin; \
+        manus_plugin=/opt/isaaccapture/install/plugins/manus/manus_hand_plugin; \
         test -x "$manus_plugin"; \
-        test -f /opt/isaacteleop/install/plugins/manus/plugin.yaml; \
+        test -f /opt/isaaccapture/install/plugins/manus/plugin.yaml; \
         ldd_output="$(ldd "$manus_plugin")"; \
         printf '%s\n' "$ldd_output" | awk '/not found/ { missing=1 } END { exit missing ? 1 : 0 }'; \
     fi
 
 COPY --chmod=644 <<EOF /usr/local/bin/teleop-env-setup
 source /opt/ros/${ROS_DISTRO}/setup.bash
-if [[ -f /opt/isaacteleop/install/local_setup.bash ]]; then
-    source /opt/isaacteleop/install/local_setup.bash
+if [[ -f /opt/isaaccapture/install/local_setup.bash ]]; then
+    source /opt/isaaccapture/install/local_setup.bash
 fi
 EOF
 
@@ -183,7 +183,7 @@ EOF
 FROM base AS runtime_base
 ARG PYTHON_VERSION
 
-WORKDIR /opt/isaacteleop/install/examples/teleop_ros2/python
+WORKDIR /opt/isaaccapture/install/examples/teleop_ros2/python
 
 # The node launches the CloudXR runtime in-process via CloudXRLauncher, so this
 # image needs GPU access and the NVIDIA Vulkan/EGL ICDs. Run with --gpus all.
@@ -195,8 +195,8 @@ ENV VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
 
 # Pre-install heavy Python dependencies so they are cached independently of C++ builds.
 # Copy requirements from the context, avoiding any files from the 'builder' stage.
-COPY src/core/python/requirements.txt \
-     src/core/python/requirements-retargeters.txt \
+# Base requirements include the local transition package; final uv sync installs them.
+COPY src/core/python/requirements-retargeters.txt \
      src/core/python/requirements-grounding.txt \
      src/core/python/requirements-wuji.txt \
      src/core/python/requirements-cloudxr.txt \
@@ -204,47 +204,45 @@ COPY src/core/python/requirements.txt \
 RUN uv venv --python=${PYTHON_VERSION} && \
     uv pip install setuptools wheel && \
     uv pip install \
-        -r /tmp/requirements.txt \
         -r /tmp/requirements-retargeters.txt \
         -r /tmp/requirements-grounding.txt \
         -r /tmp/requirements-wuji.txt \
         -r /tmp/requirements-cloudxr.txt \
         msgpack msgpack-numpy && \
-    rm /tmp/requirements.txt \
-       /tmp/requirements-retargeters.txt \
+    rm /tmp/requirements-retargeters.txt \
        /tmp/requirements-grounding.txt \
        /tmp/requirements-wuji.txt \
        /tmp/requirements-cloudxr.txt
 
-COPY --from=builder /opt/isaacteleop/install /opt/isaacteleop/install
-COPY --from=sharpa_urdfs /opt/sharpa-wave-urdfs/ /opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/
+COPY --from=builder /opt/isaaccapture/install /opt/isaaccapture/install
+COPY --from=sharpa_urdfs /opt/sharpa-wave-urdfs/ /opt/isaaccapture/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/
 COPY --from=builder /usr/local/bin/teleop-env-setup /usr/local/bin/teleop-env-setup
 COPY --from=builder /usr/local/bin/teleop-entrypoint /usr/local/bin/teleop-entrypoint
 
-ENV ISAAC_TELEOP_PLUGIN_PATH=/opt/isaacteleop/install/plugins
+ENV ISAAC_TELEOP_PLUGIN_PATH=/opt/isaaccapture/install/plugins
 ENV BASH_ENV=/usr/local/bin/teleop-env-setup
 
 RUN echo "source /usr/local/bin/teleop-env-setup" >> /etc/bash.bashrc
 
 # Pre-install Python dependencies so uv run doesn't download at every launch.
-# Pin isaacteleop to the exact version of the locally-built wheel so the
+# Pin isaaccapture to the exact version of the locally-built wheel so the
 # resolver cannot prefer a published PyPI release (whose dep metadata may
 # diverge from what this image was actually built with). Extract the version
 # from the wheel filename rather than hard-coding it.
 RUN set -eu; \
-    echo "== isaacteleop wheels found in find-links =="; \
-    ls -la /opt/isaacteleop/install/wheels/ || true; \
-    wheels=$(ls /opt/isaacteleop/install/wheels/isaacteleop-*.whl 2>/dev/null); \
+    echo "== isaaccapture wheels found in find-links =="; \
+    ls -la /opt/isaaccapture/install/wheels/ || true; \
+    wheels=$(ls /opt/isaaccapture/install/wheels/isaaccapture-*.whl 2>/dev/null); \
     count=$(printf '%s\n' "$wheels" | grep -c .); \
     if [ "$count" -ne 1 ]; then \
-        echo "ERROR: expected exactly 1 isaacteleop wheel in find-links, found $count:"; \
+        echo "ERROR: expected exactly 1 isaaccapture wheel in find-links, found $count:"; \
         printf '  %s\n' $wheels; \
         exit 1; \
     fi; \
     wheel=$wheels; \
-    version=$(basename "$wheel" | sed -E 's/^isaacteleop-([^-]+)-.*$/\1/'); \
-    echo "== pinning isaacteleop==${version} =="; \
-    uv sync --no-dev --upgrade-package "isaacteleop==${version}"
+    version=$(basename "$wheel" | sed -E 's/^isaaccapture-([^-]+)-.*$/\1/'); \
+    echo "== pinning isaaccapture==${version} =="; \
+    uv sync --no-dev --upgrade-package "isaaccapture==${version}"
 
 # Test-only image: keep the production runtime free of source tests.
 FROM runtime_base AS test

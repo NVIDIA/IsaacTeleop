@@ -32,12 +32,12 @@ from constants import (
     EePoseFrame,
     resolve_hand_retargeter,
 )
-from isaacteleop.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
-from isaacteleop.deviceio import McapReplayConfig
-from isaacteleop.retargeting_engine.deviceio_source_nodes.pedals_source import (
+from isaaccapture.cloudxr.oob_teleop_env import TELEOP_CLIENT_ROUTE_ENV
+from isaaccapture.deviceio import McapReplayConfig
+from isaaccapture.retargeting_engine.deviceio_source_nodes.pedals_source import (
     DEFAULT_PEDAL_COLLECTION_ID,
 )
-from isaacteleop.teleop_session_manager import SessionMode
+from isaaccapture.teleop_session_manager import SessionMode
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
 from rclpy.node import Node
 from rclpy.parameter import Parameter

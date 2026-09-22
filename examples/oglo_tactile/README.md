@@ -42,7 +42,7 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
    cd IsaacTeleop
    cmake -B build -DBUILD_PLUGIN_OGLO=ON -DBUILD_VIZ=ON
    cmake --build build --parallel
-   cmake --install build           # builds the isaacteleop python wheel/package
+   cmake --install build           # builds the isaaccapture python wheel/package
    ctest --test-dir build -R oglo_packet_parser --output-on-failure   # parser sanity
    ```
    The BLE backend (BlueZ via libdbus, permissive) connects out of the box.
@@ -50,7 +50,7 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
 3. **Gloves**: confirm both run schema-5 firmware, are charged, and
    advertise `OGLO LEFT` / `OGLO RIGHT` (check with `bluetoothctl scan on`).
 
-4. **CloudXR**: install per the IsaacTeleop Quick Start (`pip install 'isaacteleop[cloudxr]'`).
+4. **CloudXR**: install per the IsaacTeleop Quick Start (`pip install 'isaaccapture[cloudxr]'`).
 
 ---
 
@@ -60,7 +60,7 @@ session, records, and draws the overlay). `oglo_heatmap.py` is the renderer.
 ```bash
 cd ~/Documents/IsaacTeleop
 source scripts/setup_cloudxr_env.sh
-python -m isaacteleop.cloudxr.service start --accept-eula   # flag needed on first run only
+python -m isaaccapture.cloudxr.service start --accept-eula   # flag needed on first run only
 # Note the printed web-client URL, e.g.  https://<laptop-ip>:48322/
 ```
 
@@ -86,7 +86,7 @@ headset. **Keep hands relaxed for ~1 s** at start so the baseline tares.
 Press a glove → the matching finger/taxel lights up (YlOrRd) on the Quest screen.
 
 **Stop**: `Ctrl+C` the recording script (flushes + closes the MCAP), then
-`python -m isaacteleop.cloudxr.service stop`.
+`python -m isaaccapture.cloudxr.service stop`.
 
 ---
 

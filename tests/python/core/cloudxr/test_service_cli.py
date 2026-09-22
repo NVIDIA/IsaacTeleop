@@ -1,21 +1,21 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for the `python -m isaacteleop.cloudxr.service` CLI."""
+"""Tests for the `python -m isaaccapture.cloudxr.service` CLI."""
 
 import os
 from unittest.mock import patch
 
 import pytest
 
-from isaacteleop.cloudxr.service import __main__ as cli
+from isaaccapture.cloudxr.service import __main__ as cli
 
 
 @pytest.fixture(autouse=True)
 def stub_runtime_version():
     """Keep the summary from dlopening libcloudxr, which needs the GPU driver."""
     with patch(
-        "isaacteleop.cloudxr.runtime.runtime_version", return_value="0.0.0-test"
+        "isaaccapture.cloudxr.runtime.runtime_version", return_value="0.0.0-test"
     ):
         yield
 
@@ -65,7 +65,7 @@ class TestStartEula:
 
     def test_refuses_when_not_accepted(self, tmp_path, capsys):
         """A detached service has no terminal, so it cannot be prompted later."""
-        with patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False):
+        with patch("isaaccapture.cloudxr.runtime.is_runtime_live", return_value=False):
             with pytest.raises(SystemExit) as exc:
                 cli._cmd_start(self._start_args(tmp_path, accept=False))
 
@@ -77,10 +77,10 @@ class TestStartEula:
             # Probed three times: the pre-check, the re-check under the start
             # lock, then the wait loop that sees the runtime come up.
             patch(
-                "isaacteleop.cloudxr.runtime.is_runtime_live",
+                "isaaccapture.cloudxr.runtime.is_runtime_live",
                 side_effect=[False, False, True],
             ),
-            patch("isaacteleop.cloudxr.background.spawn") as m_spawn,
+            patch("isaaccapture.cloudxr.background.spawn") as m_spawn,
         ):
             m_spawn.return_value = (4242, tmp_path / "logs" / "service.log")
             rc = cli._cmd_start(self._start_args(tmp_path, accept=True))
@@ -99,7 +99,7 @@ class TestStart:
         )
 
     def test_refuses_when_one_is_already_running(self, tmp_path, capsys):
-        with patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True):
+        with patch("isaaccapture.cloudxr.runtime.is_runtime_live", return_value=True):
             with pytest.raises(SystemExit):
                 cli._cmd_start(self._args(tmp_path))
         assert "already serving" in capsys.readouterr().err
@@ -107,9 +107,9 @@ class TestStart:
     def test_reports_when_the_child_dies_during_startup(self, tmp_path, capsys):
         """A crash on startup must not look like a slow start."""
         with (
-            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False),
-            patch("isaacteleop.cloudxr.background.spawn") as m_spawn,
-            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+            patch("isaaccapture.cloudxr.runtime.is_runtime_live", return_value=False),
+            patch("isaaccapture.cloudxr.background.spawn") as m_spawn,
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=None),
         ):
             m_spawn.return_value = (4242, tmp_path / "service.log")
             (tmp_path / "run").mkdir(parents=True)
@@ -129,14 +129,14 @@ class TestStopAndStatus:
         )
 
     def test_stop_is_a_noop_when_nothing_runs(self, tmp_path, capsys):
-        with patch("isaacteleop.cloudxr.background.read_pid", return_value=None):
+        with patch("isaaccapture.cloudxr.background.read_pid", return_value=None):
             assert cli._cmd_stop(self._args("stop", tmp_path)) == 0
         assert "No detached CloudXR service" in capsys.readouterr().out
 
     def test_stop_reports_a_wedged_service(self, tmp_path, capsys):
         with (
-            patch("isaacteleop.cloudxr.background.read_pid", return_value=42),
-            patch("isaacteleop.cloudxr.background.terminate", return_value=False),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=42),
+            patch("isaaccapture.cloudxr.background.terminate", return_value=False),
         ):
             with pytest.raises(SystemExit):
                 cli._cmd_stop(self._args("stop", tmp_path))
@@ -144,21 +144,21 @@ class TestStopAndStatus:
 
     def test_status_exit_code_tracks_liveness(self, tmp_path):
         with (
-            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
-            patch("isaacteleop.cloudxr.background.read_pid", return_value=7),
+            patch("isaaccapture.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=7),
         ):
             assert cli._cmd_status(self._args("status", tmp_path)) == 0
         with (
-            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=False),
-            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+            patch("isaaccapture.cloudxr.runtime.is_runtime_live", return_value=False),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=None),
         ):
             assert cli._cmd_status(self._args("status", tmp_path)) == 1
 
     def test_status_distinguishes_foreground_from_detached(self, tmp_path, capsys):
         """A runtime with no pid file was started by hand or another supervisor."""
         with (
-            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
-            patch("isaacteleop.cloudxr.background.read_pid", return_value=None),
+            patch("isaaccapture.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=None),
         ):
             cli._cmd_status(self._args("status", tmp_path))
         assert "foreground" in capsys.readouterr().out
@@ -168,10 +168,10 @@ class TestStopAndStatus:
     ):
         """Flags come from the running service's own command line."""
         with (
-            patch("isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True),
-            patch("isaacteleop.cloudxr.background.read_pid", return_value=7),
+            patch("isaaccapture.cloudxr.runtime.is_runtime_live", return_value=True),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=7),
             patch(
-                "isaacteleop.cloudxr.background.read_run_flags",
+                "isaaccapture.cloudxr.background.read_run_flags",
                 return_value=["--host-client"],
             ),
         ):

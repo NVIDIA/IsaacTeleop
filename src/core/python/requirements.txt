@@ -1,2 +1,4 @@
 numpy>=1.23.0
 pyyaml>=6.0.3
+# Epoch 1 distinguishes the transition from legacy 1.6 prerelease wheels.
+isaacteleop>=1!1.6.dev0,<1!1.9

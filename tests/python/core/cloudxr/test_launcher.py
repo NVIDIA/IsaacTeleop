@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for isaacteleop.cloudxr.launcher — attach semantics and CLI plumbing."""
+"""Tests for isaaccapture.cloudxr.launcher — attach semantics and CLI plumbing."""
 
 import argparse
 import contextlib
@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 
 from conftest import mock_service_deps
-from isaacteleop.cloudxr.launcher import (
+from isaaccapture.cloudxr.launcher import (
     DEFAULT_DEVICE_PROFILE,
     CloudXRLauncher,
     NoopContext,
@@ -50,7 +50,7 @@ def _restore_environ():
 
 def _live(value=True):
     """Patch the launcher's liveness probe."""
-    return patch("isaacteleop.cloudxr.launcher.is_runtime_live", return_value=value)
+    return patch("isaaccapture.cloudxr.launcher.is_runtime_live", return_value=value)
 
 
 @contextlib.contextmanager
@@ -61,10 +61,10 @@ def _at_a_terminal(*, pressed: bool):
         patch.object(sys.stdin, "isatty", return_value=True),
         patch.object(sys.stdin, "fileno", return_value=0),
         patch.dict(os.environ, {"CI": ""}),
-        patch("isaacteleop.cloudxr.launcher.termios"),
-        patch("isaacteleop.cloudxr.launcher.tty"),
+        patch("isaaccapture.cloudxr.launcher.termios"),
+        patch("isaaccapture.cloudxr.launcher.tty"),
         patch(
-            "isaacteleop.cloudxr.launcher.select.select", return_value=(ready, [], [])
+            "isaaccapture.cloudxr.launcher.select.select", return_value=(ready, [], [])
         ),
         patch.object(sys.stdin, "read", return_value="q"),
     ):
@@ -151,7 +151,7 @@ class TestDivergenceWarnings:
 
     def test_warns_on_a_different_device_profile(self, tmp_path, caplog):
         install = _env_file(tmp_path, NV_DEVICE_PROFILE="auto-native")
-        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+        with caplog.at_level(logging.WARNING, logger="isaaccapture.cloudxr.launcher"):
             with _live():
                 CloudXRLauncher(install_dir=install, device_profile="Quest3")
 
@@ -160,7 +160,7 @@ class TestDivergenceWarnings:
 
     def test_quiet_when_the_profile_matches(self, tmp_path, caplog):
         install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
-        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+        with caplog.at_level(logging.WARNING, logger="isaaccapture.cloudxr.launcher"):
             with _live():
                 CloudXRLauncher(install_dir=install, device_profile="Quest3")
 
@@ -217,7 +217,7 @@ class TestDivergenceWarnings:
 
     def test_reports_an_env_config_it_cannot_read(self, tmp_path, caplog):
         install = _env_file(tmp_path, NV_DEVICE_PROFILE="Quest3")
-        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+        with caplog.at_level(logging.WARNING, logger="isaaccapture.cloudxr.launcher"):
             with _live():
                 CloudXRLauncher(install_dir=install, env_config=tmp_path / "gone.env")
 
@@ -234,11 +234,11 @@ class TestNothingRunning:
 
         with (
             patch(
-                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
                 side_effect=[False, True],
             ),
             patch(
-                "isaacteleop.cloudxr.background.start_and_wait",
+                "isaaccapture.cloudxr.background.start_and_wait",
                 return_value=(4242, tmp_path / "logs" / "service.log"),
             ) as m_start,
         ):
@@ -262,11 +262,11 @@ class TestNothingRunning:
 
         with (
             patch(
-                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
                 side_effect=[False, True],
             ),
             patch(
-                "isaacteleop.cloudxr.background.start_and_wait",
+                "isaaccapture.cloudxr.background.start_and_wait",
                 return_value=(1, tmp_path / "logs" / "service.log"),
             ) as m_start,
         ):
@@ -284,11 +284,11 @@ class TestNothingRunning:
 
         with (
             patch(
-                "isaacteleop.cloudxr.launcher.is_runtime_live",
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
                 side_effect=[False, True],
             ),
             patch(
-                "isaacteleop.cloudxr.background.start_and_wait",
+                "isaaccapture.cloudxr.background.start_and_wait",
                 return_value=(1, tmp_path / "logs" / "service.log"),
             ) as m_start,
         ):
@@ -418,7 +418,7 @@ class TestLaunchArgumentHelpers:
             cloudxr_install_dir=install,
             cloudxr_device_profile="Quest3",
         )
-        with caplog.at_level(logging.WARNING, logger="isaacteleop.cloudxr.launcher"):
+        with caplog.at_level(logging.WARNING, logger="isaaccapture.cloudxr.launcher"):
             with CloudXRLauncher.launch_context(
                 args,
                 run_embedded=True,
@@ -479,7 +479,7 @@ class TestEnvConfigLauncherDefaults:
 
     @pytest.fixture(autouse=True)
     def _reset_env_config_singleton(self):
-        from isaacteleop.cloudxr.env_config import EnvConfig
+        from isaaccapture.cloudxr.env_config import EnvConfig
 
         EnvConfig._instance = None
         yield
@@ -488,7 +488,7 @@ class TestEnvConfigLauncherDefaults:
     def test_launcher_defaults_apply_when_unset(self, tmp_path, monkeypatch):
         monkeypatch.delenv("NV_DEVICE_PROFILE", raising=False)
 
-        from isaacteleop.cloudxr.env_config import EnvConfig
+        from isaaccapture.cloudxr.env_config import EnvConfig
 
         cfg = EnvConfig.from_args(
             str(tmp_path),
@@ -502,7 +502,7 @@ class TestEnvConfigLauncherDefaults:
         """resolved() is what the startup banner prints the device profile from."""
         monkeypatch.delenv("NV_DEVICE_PROFILE", raising=False)
 
-        from isaacteleop.cloudxr.env_config import EnvConfig
+        from isaaccapture.cloudxr.env_config import EnvConfig
 
         assert EnvConfig().resolved("NV_DEVICE_PROFILE") is None
 
@@ -519,7 +519,7 @@ class TestEnvConfigLauncherDefaults:
         env_file = tmp_path / "custom.env"
         env_file.write_text("NV_DEVICE_PROFILE=auto-native\n", encoding="utf-8")
 
-        from isaacteleop.cloudxr.env_config import EnvConfig
+        from isaaccapture.cloudxr.env_config import EnvConfig
 
         cfg = EnvConfig.from_args(
             str(tmp_path),
@@ -533,7 +533,7 @@ class TestEnvConfigLauncherDefaults:
     def test_process_env_overrides_launcher_defaults(self, tmp_path, monkeypatch):
         monkeypatch.setenv("NV_DEVICE_PROFILE", "AppleVisionPro")
 
-        from isaacteleop.cloudxr.env_config import EnvConfig
+        from isaaccapture.cloudxr.env_config import EnvConfig
 
         cfg = EnvConfig.from_args(
             str(tmp_path),

@@ -26,7 +26,7 @@ from constants import (
     TELEOP_MODES,
 )
 from geometry_msgs.msg import PoseStamped, TwistStamped
-from isaacteleop.retargeting_engine.tensor_types.indices import (
+from isaaccapture.retargeting_engine.tensor_types.indices import (
     BodyJointIndex,
     HandJointIndex,
 )

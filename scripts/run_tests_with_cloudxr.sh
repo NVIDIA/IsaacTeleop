@@ -225,31 +225,31 @@ if [[ ! -d "install/wheels" ]]; then
     exit 1
 fi
 
-WHEEL_COUNT=$(find install/wheels -name "isaacteleop-*.whl" | wc -l)
-if [[ "$WHEEL_COUNT" -eq 0 ]]; then
-    log_error "No isaacteleop wheel found in install/wheels/"
+WHEEL_COUNT=$(find install/wheels -name "isaaccapture-*.whl" | wc -l)
+if [[ "$WHEEL_COUNT" -ne 1 ]]; then
+    log_error "Expected exactly one isaaccapture wheel in install/wheels/, found $WHEEL_COUNT"
     exit 1
 fi
 
-log_success "Found $WHEEL_COUNT isaacteleop wheel(s) in install/wheels/"
+log_success "Found $WHEEL_COUNT isaaccapture wheel(s) in install/wheels/"
 
-# Make docker-compose.runtime install from a local wheel directory via pip find-links.
-export ISAACTELEOP_PIP_SPEC="isaacteleop[cloudxr]"
+# Select the exact CI wheel while resolving its transition dependency locally.
+WHEEL_PATH=$(find install/wheels -name "isaaccapture-*.whl")
+export ISAACTELEOP_PIP_SPEC="/workspace/${WHEEL_PATH}[cloudxr]"
 export ISAACTELEOP_PIP_FIND_LINKS="/workspace/install/wheels"
 export ISAACTELEOP_PIP_DEBUG=0
 log_info "Using ISAACTELEOP_PIP_SPEC=$ISAACTELEOP_PIP_SPEC"
 log_info "Using ISAACTELEOP_PIP_FIND_LINKS=$ISAACTELEOP_PIP_FIND_LINKS"
 log_info "Using ISAACTELEOP_PIP_DEBUG=$ISAACTELEOP_PIP_DEBUG"
 
-WHEEL_PATH=$(find install/wheels -name "isaacteleop-*.whl")
 WHEEL_BASENAME=$(basename "$WHEEL_PATH")
-EXPECTED_ISAACTELEOP_VERSION=$(echo "$WHEEL_BASENAME" | sed -E 's/^isaacteleop-([^-]+)-.*/\1/' | tr '_' '-')
+EXPECTED_ISAACTELEOP_VERSION=$(echo "$WHEEL_BASENAME" | sed -E 's/^isaaccapture-([^-]+)-.*/\1/' | tr '_' '-')
 if [[ -z "$EXPECTED_ISAACTELEOP_VERSION" ]]; then
     log_error "Failed to derive expected version from wheel name: $WHEEL_BASENAME"
     exit 1
 fi
 export EXPECTED_ISAACTELEOP_VERSION
-log_info "Expected isaacteleop version from wheel artifact: $EXPECTED_ISAACTELEOP_VERSION"
+log_info "Expected isaaccapture version from wheel artifact: $EXPECTED_ISAACTELEOP_VERSION"
 
 # Build test container
 log_info "Building test container..."

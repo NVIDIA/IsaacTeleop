@@ -20,14 +20,14 @@ from typing import List, Tuple
 import numpy as np
 import pytest
 
-from isaacteleop.haptic_devices import IHapticDevice
-from isaacteleop.retargeting_engine.deviceio_source_nodes import HapticSink
-from isaacteleop.retargeting_engine.interface import ValueInput
-from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
-from isaacteleop.retargeting_engine.interface.tensor_group import (
+from isaaccapture.haptic_devices import IHapticDevice
+from isaaccapture.retargeting_engine.deviceio_source_nodes import HapticSink
+from isaaccapture.retargeting_engine.interface import ValueInput
+from isaaccapture.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaaccapture.retargeting_engine.interface.tensor_group import (
     OptionalTensorGroup,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerHapticPulse,
     TactileVector,
 )

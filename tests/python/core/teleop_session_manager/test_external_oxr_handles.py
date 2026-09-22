@@ -21,10 +21,10 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 if TYPE_CHECKING:
-    from isaacteleop.oxr import OpenXRSessionHandles
+    from isaaccapture.oxr import OpenXRSessionHandles
 
 
 # ============================================================================
@@ -75,10 +75,10 @@ def _mock_deviceio_and_oxr():
 
     with (
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio_session
+            "isaaccapture.deviceio.DeviceIOSession.run", return_value=mock_dio_session
         ) as dio_run,
         patch(
-            "isaacteleop.oxr.OpenXRSession", return_value=mock_oxr_session
+            "isaaccapture.oxr.OpenXRSession", return_value=mock_oxr_session
         ) as oxr_cls,
     ):
         ns = MagicMock()

@@ -263,6 +263,10 @@ jobs:
 
         mkdir -p install/wheels-repaired
         for wheel in "${wheels[@]}"; do
+          if [[ "${wheel}" == *-none-any.whl ]]; then
+            cp "${wheel}" install/wheels-repaired/
+            continue
+          fi
           echo "Repairing ${wheel}"
           # Exclude GPU driver/runtime libs so wheels stay portable across systems without bundling host-specific binaries.
           uv run --python ${{ matrix.python_version }} --with "auditwheel==6.6.0" \
@@ -342,10 +346,10 @@ jobs:
         import importlib.util
 
         # (1) ABI check: actually import the compiled pybind11 extensions and the
-        # eager pure-Python packages. `import isaacteleop` also exercises the eager
+        # eager pure-Python packages. `import isaaccapture` also exercises the eager
         # submodule chain (cloudxr, teleop_session_manager) that the base install
         # must satisfy with only numpy+pyyaml.
-        import isaacteleop
+        import isaaccapture
         for mod in (
             "oxr",
             "deviceio",
@@ -354,7 +358,7 @@ jobs:
             "schema",
             "plugin_manager",
         ):
-            importlib.import_module(f"isaacteleop.{mod}")
+            importlib.import_module(f"isaaccapture.{mod}")
 
         # (2) Completeness check: every top-level subpackage that the classic wheel
         # ships (minus GPU-only `viz`, which is auto-OFF here) must be PACKAGED.
@@ -362,24 +366,42 @@ jobs:
         # deps, so a subpackage silently dropped from the build fails loudly here
         # even though the smoke env installs no extras.
         expected = [
-            "isaacteleop.mcap",
-            "isaacteleop.cloudxr",
-            "isaacteleop.teleop_session_manager",
-            "isaacteleop.retargeters",
-            "isaacteleop.retargeting_engine",
-            "isaacteleop.retargeting_engine_ui",
-            "isaacteleop.haptic_devices",
+            "isaaccapture.mcap",
+            "isaaccapture.cloudxr",
+            "isaaccapture.teleop_session_manager",
+            "isaaccapture.retargeters",
+            "isaaccapture.retargeting_engine",
+            "isaaccapture.retargeting_engine_ui",
+            "isaaccapture.haptic_devices",
         ]
         missing = [m for m in expected if importlib.util.find_spec(m) is None]
         assert not missing, f"subpackages missing from the wheel: {missing}"
 
-        print("isaacteleop", isaacteleop.__version__, "imported OK;",
-              "all expected subpackages present")
+        # (3) The editable redirect serves the old name. Only check of the
+        # `isaacteleop.py` entry in wheel.packages; ctest reads the staged tree,
+        # which resolves through the normal PathFinder instead.
+        import isaacteleop
+        assert isaacteleop is isaaccapture, "the alias did not resolve to isaaccapture"
+
+        print("isaaccapture", isaaccapture.__version__, "imported OK;",
+              "all expected subpackages present; isaacteleop alias resolves")
         PY
         # Run the editable install directly with the venv's interpreter -- NOT via
         # `uv run`, which (with [tool.uv] package = false) would use the project's
-        # own .venv without isaacteleop, rather than .venv-skbuild.
+        # own .venv without isaaccapture, rather than .venv-skbuild.
         .venv-skbuild/bin/python "${RUNNER_TEMP}/skbuild_smoke.py"
+
+    - name: Wheel contents (the pip wheel ships both names)
+      run: |
+        set -euo pipefail
+        # ctest's packaging suite reads the classic uv-built wheels; this is the
+        # only thing that reaches a wheel built by the pip config, which has its
+        # own wheel.packages mapping.
+        uv build --wheel --python 3.11 --out-dir dist-wheel src/compat
+        uv build --wheel --python 3.11 --out-dir dist-wheel
+        ISAAC_TELEOP_WHEELS_DIR="${PWD}/dist-wheel" \
+          uv run --python 3.11 --directory tests/python/packaging --extra dev \
+          pytest -v test_wheel_contents.py
 
   test-viz-gpu:
     # Runs [gpu]-tagged Catch2 tests for the Televiz module on a self-hosted
@@ -471,7 +493,7 @@ jobs:
     - name: Install uv
       uses: ./.github/actions/setup-uv
 
-    - name: Download isaacteleop wheel (py3.12)
+    - name: Download isaaccapture wheel (py3.12)
       uses: actions/download-artifact@v7
       with:
         name: isaacteleop-wheels-${{ matrix.arch }}-py3.12
@@ -481,9 +503,9 @@ jobs:
       run: |
         set -euo pipefail
         shopt -s nullglob
-        wheels=(viz-python-wheels/isaacteleop-*.whl)
+        wheels=(viz-python-wheels/isaaccapture-*.whl)
         if (( ${#wheels[@]} == 0 )); then
-          echo "No isaacteleop wheel found"
+          echo "No isaaccapture wheel found"
           ls -la viz-python-wheels || true
           exit 1
         fi
@@ -492,6 +514,7 @@ jobs:
         # device enumeration occasionally returns empty under contention.
         run_pytest() {
           uv run --python 3.12 \
+                 --find-links viz-python-wheels \
                  --with "${wheels[0]}" \
                  --with pytest \
                  --with numpy \
@@ -711,7 +734,7 @@ jobs:
           --user "$(id -u):$(id -g)" \
           -v /tmp:/tmp \
           --entrypoint bash teleop_ros2_ref:${{ env.ROS_DISTRO }} -c \
-          "source /usr/local/bin/teleop-env-setup && exec /opt/isaacteleop/install/examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator '$REPLAY_MCAP'"
+          "source /usr/local/bin/teleop-env-setup && exec /opt/isaaccapture/install/examples/teleop_ros2/cpp/integration_tests/teleop_ros2_mcap_generator '$REPLAY_MCAP'"
 
         scenarios=(
           "controller_teleop mode_default native"
@@ -1179,6 +1202,8 @@ jobs:
         fi
 
         payload_array="$(printf '%s\n' "${payload_items[@]}" | jq -s '.')"
+        # Kitmaker project, registered externally and not ours to rename with the
+        # distribution. It names the upload target, not the wheels in the payload.
         payload="$(jq -cn --arg project_name "isaacteleop" --argjson payload "${payload_array}" '{project_name: $project_name, payload: $payload}')"
 
         echo "Posting ${#payload_items[@]} wheel(s) to Kitmaker in a single request"

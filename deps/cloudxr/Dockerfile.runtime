@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Minimal CloudXR runtime image using bundled native runtime assets from
-# the isaacteleop Python package.
+# the isaaccapture Python package.
 #
 # Environment overrides:
 #   NV_DEVICE_PROFILE   Device profile (default: auto-webrtc).
@@ -15,7 +15,7 @@
 FROM ubuntu:24.04
 
 ARG PYTHON_VERSION=3.11
-ARG ISAACTELEOP_PIP_SPEC=isaacteleop[cloudxr]
+ARG ISAACTELEOP_PIP_SPEC=isaaccapture[cloudxr]
 ARG ISAACTELEOP_PIP_FIND_LINKS=
 ARG ISAACTELEOP_PIP_DEBUG=0
 
@@ -57,14 +57,9 @@ RUN --mount=type=bind,source=.,target=/workspace,readonly \
         fi; \
         PIP_VERBOSE_ARGS="-vvv"; \
     fi; \
-    if [ -n "${ISAACTELEOP_PIP_FIND_LINKS}" ]; then \
-        # Split install: force isaacteleop itself from local wheels, then resolve deps normally.
-        PIP_FIND_LINKS="${ISAACTELEOP_PIP_FIND_LINKS}" \
-        python -m pip install ${PIP_VERBOSE_ARGS} --no-index --no-deps --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \
-        python -m pip install ${PIP_VERBOSE_ARGS} --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \
-    else \
-        python -m pip install ${PIP_VERBOSE_ARGS} --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \
-    fi
+    # Keep the local transition wheel visible during dependency resolution.
+    PIP_FIND_LINKS="${ISAACTELEOP_PIP_FIND_LINKS}" \
+    python -m pip install ${PIP_VERBOSE_ARGS} --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"
 
 # Vulkan ICD + EGL vendor so the loader can find the NVIDIA driver.
 RUN mkdir -p /etc/vulkan/icd.d /usr/share/glvnd/egl_vendor.d

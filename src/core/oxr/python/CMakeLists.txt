@@ -13,5 +13,5 @@ target_link_libraries(oxr_py
 set_target_properties(oxr_py PROPERTIES
     OUTPUT_NAME "_oxr"
     # Use genex in output directory - CMake won't add another config subdirectory
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/oxr"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaaccapture/oxr"
 )

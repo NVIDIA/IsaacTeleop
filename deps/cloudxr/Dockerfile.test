@@ -27,12 +27,12 @@ COPY install/ /app/install/
 # Copy test files
 COPY examples/oxr/python/ /app/tests/
 
-# Install Python dependencies using uv
+# Keep the exact CI wheel and its transition dependency available in one install.
 WORKDIR /app/tests
 RUN uv venv --python $PYTHON_VERSION /app/venv && \
     . /app/venv/bin/activate && \
-    uv pip install --find-links=/app/install/wheels --no-index --no-deps --no-cache-dir 'isaacteleop' && \
-    uv pip install isaacteleop
+    uv pip install --find-links=/app/install/wheels --no-cache-dir \
+        /app/install/wheels/isaaccapture-*.whl
 
 # Set environment variables
 ENV PATH="/app/venv/bin:$PATH"

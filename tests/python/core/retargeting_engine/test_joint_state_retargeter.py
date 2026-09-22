@@ -19,7 +19,7 @@ import tempfile
 import numpy as np
 import pytest
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
     ExecutionState,
@@ -27,12 +27,12 @@ from isaacteleop.retargeting_engine.interface import (
     OptionalTensorGroup,
     TensorGroup,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalTensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import TransformMatrix
-from isaacteleop.retargeters import (
+from isaaccapture.retargeting_engine.tensor_types import TransformMatrix
+from isaaccapture.retargeters import (
     JointStateRetargeter,
     JointStateRetargeterConfig,
     TensorReorderer,

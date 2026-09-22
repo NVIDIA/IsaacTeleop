@@ -21,16 +21,16 @@ configure_file(
 
 # Configure-time tracker codegen: splice manifest tracker names into deviceio_trackers.
 # Staged before python_package (and therefore before central stubgen, which DEPENDS on
-# python_package) so isaacteleop.deviceio_trackers can import the export module.
+# python_package) so isaaccapture.deviceio_trackers can import the export module.
 add_custom_target(stage_generated_tracker_exports ALL
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_trackers"
-    COMMAND ${CMAKE_COMMAND} -E copy "${GENERATED_TRACKER_DIR}/python/_generated_tracker_exports.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/deviceio_trackers/_generated_tracker_exports.py"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaaccapture/deviceio_trackers"
+    COMMAND ${CMAKE_COMMAND} -E copy "${GENERATED_TRACKER_DIR}/python/_generated_tracker_exports.py" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaaccapture/deviceio_trackers/_generated_tracker_exports.py"
     COMMENT "Stage _generated_tracker_exports.py for deviceio_trackers"
 )
 
 # After building modules, create the Python package structure.
 add_custom_target(python_package ALL
-    # The isaacteleop/ subtree itself is staged by src/python (pure Python),
+    # The isaaccapture/ subtree itself is staged by src/python (pure Python),
     # by each pybind module's LIBRARY_OUTPUT_DIRECTORY (.so/.pyd) and by
     # src/core/cloudxr/python (vendored runtime). Only the staging root, which
     # holds the setuptools project files below, is created here.
@@ -70,25 +70,25 @@ endif()
 set(STUBGEN_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/generate_stubs.py")
 set(STUBGEN_PYPROJECT "${CMAKE_CURRENT_SOURCE_DIR}/stubgen_pyproject.toml")
 set(STUBGEN_PACKAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
-set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/isaacteleop/py.typed")
+set(PY_TYPED_MARKER "${STUBGEN_PACKAGE_DIR}/isaaccapture/py.typed")
 
 set(STUBGEN_MODULES
-    isaacteleop.deviceio_trackers._deviceio_trackers
-    isaacteleop.deviceio_session._deviceio_session
-    isaacteleop.oxr._oxr
-    isaacteleop.plugin_manager._plugin_manager
-    isaacteleop.schema._schema
+    isaaccapture.deviceio_trackers._deviceio_trackers
+    isaaccapture.deviceio_session._deviceio_session
+    isaaccapture.oxr._oxr
+    isaaccapture.plugin_manager._plugin_manager
+    isaaccapture.schema._schema
 )
 
-# isaacteleop.viz._viz is stubbed here rather than from a POST_BUILD hook on
-# viz_py. Importing any submodule runs the parent isaacteleop/__init__.py, which
+# isaaccapture.viz._viz is stubbed here rather than from a POST_BUILD hook on
+# viz_py. Importing any submodule runs the parent isaaccapture/__init__.py, which
 # eagerly imports every sibling extension module, so stub generation must follow
 # all of them. This command already DEPENDS on python_package, which aggregates
 # every module, so ordering is correct by construction; a POST_BUILD hook on
 # viz_py carries no dependency edges and raced the siblings' links under -j.
 # Omitted when BUILD_VIZ=OFF, where the target does not exist.
 if(BUILD_VIZ)
-    list(APPEND STUBGEN_MODULES isaacteleop.viz._viz)
+    list(APPEND STUBGEN_MODULES isaaccapture.viz._viz)
 endif()
 
 # --unset=VIRTUAL_ENV: an activated venv in the developer's shell is inherited
@@ -128,7 +128,7 @@ add_custom_command(
             # — keeps the wheel build from racing the link. Empty otherwise.
             $<$<BOOL:${BUILD_VIZ}>:$<TARGET_FILE:viz_py>>
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-    COMMENT "Generating .pyi stub files for isaacteleop modules"
+    COMMENT "Generating .pyi stub files for isaaccapture modules"
 )
 
 add_custom_target(python_stubs
@@ -145,10 +145,15 @@ if(NOT SKBUILD)
     add_custom_target(python_wheel ALL
         COMMAND ${CMAKE_COMMAND} -E echo "Building Python wheel with uv..."
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/wheels"
+        # setuptools retains removed packages in build/ across wheel builds.
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/build"
         COMMAND uv build --wheel --python ${ISAAC_TELEOP_PYTHON_VERSION}
                 --out-dir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>" ||
                 "${Python3_EXECUTABLE}" -m build --wheel
                 --outdir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>"
+        COMMAND ${CMAKE_COMMAND} -E env "ISAAC_TELEOP_PYPROJECT_VERSION=${ISAAC_TELEOP_PYPROJECT_VERSION}"
+                uv build --wheel --python ${ISAAC_TELEOP_PYTHON_VERSION}
+                --out-dir "${CMAKE_BINARY_DIR}/wheels" "${CMAKE_SOURCE_DIR}/src/compat"
         DEPENDS python_stubs
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
         COMMENT "Building Python wheel with uv (fallback to python -m build)"
@@ -172,7 +177,7 @@ endif()
 # scikit-build-core, it builds the `python_package` target (see
 # build.targets in the root pyproject.toml), which -- with its module
 # dependencies -- produces the fully-staged package tree at
-# python_package/<config>/isaacteleop/ (compiled .so via each module's
+# python_package/<config>/isaaccapture/ (compiled .so via each module's
 # LIBRARY_OUTPUT_DIRECTORY, pure-Python subpackages copied in, __init__.py files).
 # This single install rule copies that tree into the wheel's platlib. It is
 # tagged with the `isaacteleop_wheel` component, selected via install.components
@@ -206,12 +211,12 @@ if(SKBUILD)
     # this install rule editable `pip install -e .` resolves __init__.py from
     # source and the export module is missing.
     install(
-        FILES "${CMAKE_BINARY_DIR}/python_package/${_it_wheel_config}/isaacteleop/deviceio_trackers/_generated_tracker_exports.py"
-        DESTINATION "isaacteleop/deviceio_trackers"
+        FILES "${CMAKE_BINARY_DIR}/python_package/${_it_wheel_config}/isaaccapture/deviceio_trackers/_generated_tracker_exports.py"
+        DESTINATION "isaaccapture/deviceio_trackers"
         COMPONENT isaacteleop_wheel
     )
     install(
-        DIRECTORY "${CMAKE_BINARY_DIR}/python_package/${_it_wheel_config}/isaacteleop"
+        DIRECTORY "${CMAKE_BINARY_DIR}/python_package/${_it_wheel_config}/isaaccapture"
         DESTINATION "."
         COMPONENT isaacteleop_wheel
         USE_SOURCE_PERMISSIONS

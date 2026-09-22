@@ -8,12 +8,12 @@ from dataclasses import FrozenInstanceError
 from types import SimpleNamespace
 
 import pytest
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.teleop_session_manager import (
     DeviceState,
     ProviderState,
     StatusReason,
 )
-from isaacteleop.teleop_session_manager.status_monitor import (
+from isaaccapture.teleop_session_manager.status_monitor import (
     OPENXR_DEVICE_ID,
     OPENXR_PROVIDER_ID,
     PluginProviderSpec,

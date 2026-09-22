@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Se3TrackerPose in isaacteleop.schema.
+"""Unit tests for Se3TrackerPose in isaaccapture.schema.
 
 Se3TrackerPose is a FlatBuffers table for a generic SE3 (6-DoF) tracker device:
 - pose: The Pose struct (position and orientation)
@@ -15,7 +15,7 @@ Note: Python code should only READ this data (created by C++ trackers), not modi
 
 import pytest
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     Se3TrackerPose,
     Se3TrackerPoseRecord,
     Pose,

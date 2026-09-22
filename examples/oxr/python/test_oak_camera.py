@@ -22,9 +22,9 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-import isaacteleop.plugin_manager as pm
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
+import isaaccapture.plugin_manager as pm
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
 

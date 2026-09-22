@@ -18,7 +18,7 @@ from constants import (
     TeleopMode,
     resolve_hand_retargeter,
 )
-from isaacteleop.teleop_session_manager import SessionMode
+from isaaccapture.teleop_session_manager import SessionMode
 from teleop_profiles import (
     TELEOP_PROFILE_SPECS,
     PublishType,

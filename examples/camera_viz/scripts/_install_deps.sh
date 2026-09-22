@@ -6,11 +6,11 @@
 # ``camera_viz.sh setup`` (local) and ``camera_viz.sh deploy`` (over SSH).
 #
 # Modes:
-#   --full         viewer + sender (workstation). Obtains isaacteleop from the
+#   --full         viewer + sender (workstation). Obtains isaaccapture from the
 #                  package index, preferring a final release over a release
 #                  candidate, and offers a source build if neither is available
 #                  (or a local --wheel).
-#   --sender-only  sender path only. No isaacteleop, no vulkan deps.
+#   --sender-only  sender path only. No isaaccapture, no vulkan deps.
 #
 # Flags: --venv, --wheel, --python, --no-v4l2, --no-oakd, --with-rtp,
 #        --with-zed, --zed-sdk, --build-from-source.
@@ -56,7 +56,7 @@ WITH_OAKD=true
 WITH_RTP=false
 WITH_ZED=false
 ZED_SDK_DIR=/usr/local/zed
-# Skip the index probes and build isaacteleop from this checkout. Also the
+# Skip the index probes and build isaaccapture from this checkout. Also the
 # non-interactive answer to the tier-3 prompt below.
 BUILD_FROM_SOURCE=false
 # Jetson-specific provisioning: apt-install cuda-nvrtc and create the
@@ -380,61 +380,61 @@ EOF
     fi
 fi
 
-# isaacteleop: newest final release meeting the floor below, else newest
+# isaaccapture: newest final release meeting the floor below, else newest
 # release candidate, else a source build of this checkout. --wheel skips the
-# ladder; sender-only deploys skip isaacteleop entirely (README has the detail).
+# ladder; sender-only deploys skip isaaccapture entirely (README has the detail).
 #
 # The series comes from this checkout's VERSION, so a release branch cannot
 # resolve to a newer line. The cloudxr extra is required, not optional: XR is
 # the default mode. uv accepts <path>[extra], so the extra rides along on the
 # wheel and source-build tiers.
-ISAACTELEOP_EXTRAS="[cloudxr]"
-ISAACTELEOP_SERIES="$(cut -d. -f1,2 "$REPO_ROOT/VERSION" 2>/dev/null || true)"
-ISAACTELEOP_REQ="isaacteleop${ISAACTELEOP_EXTRAS}==${ISAACTELEOP_SERIES}.*"
-ISAACTELEOP_PKG="$ISAACTELEOP_REQ"
+ISAACCAPTURE_EXTRAS="[cloudxr]"
+ISAACCAPTURE_SERIES="$(cut -d. -f1,2 "$REPO_ROOT/VERSION" 2>/dev/null || true)"
+ISAACCAPTURE_REQ="isaaccapture${ISAACCAPTURE_EXTRAS}==${ISAACCAPTURE_SERIES}.*"
+ISAACCAPTURE_PKG="$ISAACCAPTURE_REQ"
 
 # Prints the version the index would install, empty when nothing matches. Both
 # tiers use the same requirement; pass --pre for the release-candidate tier.
 # Resolves against the index without consulting the venv, so an already-installed
 # copy cannot make a tier look satisfiable. --no-deps keeps it to one fetch.
-isaacteleop_available() {
+isaaccapture_available() {
     echo "$1" | uv pip compile - --no-deps --quiet \
         --python-version "$PYTHON_VERSION" "${@:2}" 2>/dev/null |
-        sed -n 's/^isaacteleop==//p' || true
+        sed -n 's/^isaaccapture==//p' || true
 }
 
-resolve_isaacteleop_pkg() {
+resolve_isaaccapture_pkg() {
     if [[ -n "$WHEEL" ]]; then
         [[ -f "$WHEEL" ]] || die "--wheel '$WHEEL' not found"
-        ISAACTELEOP_PKG="${WHEEL}${ISAACTELEOP_EXTRAS}"
-        step "isaacteleop: local wheel"
+        ISAACCAPTURE_PKG="${WHEEL}${ISAACCAPTURE_EXTRAS}"
+        step "isaaccapture: local wheel"
         note "$WHEEL"
         return 0
     fi
 
     if ! $BUILD_FROM_SOURCE; then
-        step "isaacteleop: resolving from the package index"
+        step "isaaccapture: resolving from the package index"
         local rc
-        if [[ -n "$(isaacteleop_available "$ISAACTELEOP_REQ")" ]]; then
-            ISAACTELEOP_PKG="$ISAACTELEOP_REQ"
-            note "final release ($ISAACTELEOP_REQ)"
+        if [[ -n "$(isaaccapture_available "$ISAACCAPTURE_REQ")" ]]; then
+            ISAACCAPTURE_PKG="$ISAACCAPTURE_REQ"
+            note "final release ($ISAACCAPTURE_REQ)"
             return 0
         fi
-        # Pin the rc exactly so only isaacteleop resolves pre-release.
-        rc="$(isaacteleop_available "$ISAACTELEOP_REQ" --pre)"
+        # Pin the rc exactly so only isaaccapture resolves pre-release.
+        rc="$(isaaccapture_available "$ISAACCAPTURE_REQ" --pre)"
         if [[ -n "$rc" ]]; then
-            ISAACTELEOP_PKG="isaacteleop${ISAACTELEOP_EXTRAS}==${rc}"
-            note "no final release for $ISAACTELEOP_REQ — using a release candidate ($rc)"
+            ISAACCAPTURE_PKG="isaaccapture${ISAACCAPTURE_EXTRAS}==${rc}"
+            note "no final release for $ISAACCAPTURE_REQ — using a release candidate ($rc)"
             return 0
         fi
-        note "nothing matching $ISAACTELEOP_REQ is installable from the index"
+        note "nothing matching $ISAACCAPTURE_REQ is installable from the index"
     fi
 
     # An rsync'd robot tree and a standalone copy of examples/camera_viz/ have
     # no repo root to build from.
     if [[ -z "$REPO_ROOT" || ! -f "$REPO_ROOT/pyproject.toml" ]]; then
         cat >&2 <<EOF
-No way to obtain $ISAACTELEOP_REQ.
+No way to obtain $ISAACCAPTURE_REQ.
 
 Nothing suitable is published to the configured package index, and this copy
 of camera_viz is not inside an IsaacTeleop checkout, so there is nothing to
@@ -448,7 +448,7 @@ EOF
 
     cat >&2 <<EOF
 
-isaacteleop can be built from this checkout instead:
+isaaccapture can be built from this checkout instead:
   $REPO_ROOT
 
 That is a full C++ / CUDA / Vulkan build and takes a while. It needs CMake,
@@ -461,7 +461,7 @@ EOF
         if [[ -e /dev/tty ]]; then
             # As with the apt prompt: do NOT redirect stderr, ``read -p`` writes
             # the prompt there.
-            read -r -p "Build isaacteleop from source now? [y/N] " ans </dev/tty || ans=""
+            read -r -p "Build isaaccapture from source now? [y/N] " ans </dev/tty || ans=""
         fi
         case "${ans,,}" in
             y|yes) ;;
@@ -471,7 +471,7 @@ EOF
     fi
 
     # Same mechanism as --wheel: uv builds the sdist/tree and installs the result.
-    ISAACTELEOP_PKG="${REPO_ROOT}${ISAACTELEOP_EXTRAS}"
+    ISAACCAPTURE_PKG="${REPO_ROOT}${ISAACCAPTURE_EXTRAS}"
 }
 
 # The configuration banner: what this run is going to do, before it does any
@@ -492,7 +492,7 @@ fi
 note "extras  $EXTRAS_LIST"
 
 if [[ "$MODE" == full ]]; then
-    resolve_isaacteleop_pkg
+    resolve_isaaccapture_pkg
 fi
 
 if [[ ! -d "$VENV_DIR" ]]; then
@@ -540,7 +540,7 @@ fi
 # the C deps installed in ensure_apt_deps(); pycairo is a transitive dep.
 # pillow renders the XR controls HUD (examples/camera_viz/hud.py).
 PKGS=("pyyaml>=6.0" "$target_cupy" "numpy>=1.23" "scipy>=1.15" "pillow>=10.0")
-[[ "$MODE" == full ]] && PKGS=("$ISAACTELEOP_PKG" "${PKGS[@]}")
+[[ "$MODE" == full ]] && PKGS=("$ISAACCAPTURE_PKG" "${PKGS[@]}")
 $WITH_V4L2 && PKGS+=("opencv-python>=4.5")
 $WITH_OAKD && PKGS+=("depthai>=3.0")
 $WITH_RTP  && PKGS+=("pybind11>=2.11" "PyGObject>=3.42,<3.52")
@@ -551,12 +551,12 @@ EXTRA_UV=()
 if [[ "$MODE" == full && -f "$WHEEL" ]]; then
     wheel_mtime=$(stat -c %Y "$WHEEL" 2>/dev/null || echo 0)
     # Empty on a fresh venv; `|| true` keeps the no-match from aborting under pipefail+set -e.
-    installed_dist=$(ls -d "$VENV_DIR"/lib/python*/site-packages/isaacteleop-*.dist-info 2>/dev/null | head -1 || true)
+    installed_dist=$(ls -d "$VENV_DIR"/lib/python*/site-packages/isaaccapture-*.dist-info 2>/dev/null | head -1 || true)
     if [[ -n "$installed_dist" ]]; then
         installed_mtime=$(stat -c %Y "$installed_dist" 2>/dev/null || echo 0)
         if (( wheel_mtime > installed_mtime )); then
             note "wheel is newer than the installed copy — forcing reinstall"
-            EXTRA_UV+=(--reinstall-package isaacteleop)
+            EXTRA_UV+=(--reinstall-package isaaccapture)
         fi
     fi
 fi
@@ -613,7 +613,7 @@ SMOKE_MODS="cupy yaml scipy.spatial.transform"
 # ``websockets`` comes from the cloudxr extra and is what the XR default mode
 # needs to launch the runtime; check it here so a missing extra fails setup
 # rather than the first ``run --mode xr``.
-[[ "$MODE" == full ]] && SMOKE_MODS="isaacteleop.viz websockets $SMOKE_MODS"
+[[ "$MODE" == full ]] && SMOKE_MODS="isaaccapture.viz websockets $SMOKE_MODS"
 $WITH_RTP && SMOKE_MODS="$SMOKE_MODS gi"
 step "verifying imports"
 note "$SMOKE_MODS"

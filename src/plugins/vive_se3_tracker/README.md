@@ -107,10 +107,10 @@ Both run with no arguments once the plugin is up:
 ```bash
 uv pip install -e ./examples/mcap_record_replay
 # records 10 s of every advertised collection to ./recordings/<timestamp>.mcap
-python -m isaacteleop_examples.mcap_record_replay.record_se3_vive
+python -m isaaccapture_examples.mcap_record_replay.record_se3_vive
 # replays the newest recording, auto-discovering collections + capture rate,
 # and serves a viser 3D view at http://localhost:8080
-python -m isaacteleop_examples.mcap_record_replay.replay_se3_vive
+python -m isaaccapture_examples.mcap_record_replay.replay_se3_vive
 ```
 
 Under the hood this is just the standard MCAP tooling — a `core::Se3Tracker(cid)`

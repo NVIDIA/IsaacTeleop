@@ -109,7 +109,7 @@ class Hud:
         width_m: float = 0.9,
         hold_s: float = 2.5,
     ) -> None:
-        import isaacteleop.viz as viz
+        import isaaccapture.viz as viz
 
         self._viz = viz
         cfg = viz.QuadLayerConfig()
