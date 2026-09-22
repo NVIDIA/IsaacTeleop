@@ -10,6 +10,7 @@ import os
 import re
 import threading
 
+from . import _forwarding
 from ._core import (
     _LEVEL_NAME_BY_VALUE,
     DATE_FORMAT,
@@ -128,7 +129,14 @@ _active_filter: KeywordFilter | None = None
 
 
 def ensure_handler() -> logging.StreamHandler:
-    """Create and attach the console handler on first use; idempotent after that.
+    """Create the console handler on first use; idempotent after that.
+
+    Attached to the root logger only for the session leader -- a forwarding
+    child still builds this object, because a capture scope needs somewhere to
+    move its stream regardless of leader/child status, but it never receives
+    records, so it never prints a local second copy of what the leader's own
+    console handler already shows once the record comes back through the
+    forwarder.
 
     Its starting threshold comes from ``ISAACTELEOP_LOG_LEVEL``, the same
     variable ``log_bridge``'s ``console_level()`` reads, so one setting in the
@@ -150,7 +158,8 @@ def ensure_handler() -> logging.StreamHandler:
         root.setLevel(
             TRACE
         )  # handlers filter; the logger itself must stay maximally permissive
-        root.addHandler(handler)
+        if _forwarding.socket_path() is None:
+            root.addHandler(handler)
         _handler = handler
         return _handler
 

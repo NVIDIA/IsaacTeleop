@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 
-from . import _console, _file
+from . import _console, _file, _forwarding
 from ._core import ROOT_LOGGER_NAME
 
 _installed = False
@@ -18,11 +18,25 @@ def install() -> None:
 
     Called once from ``isaacteleop/__init__.py``, before the handlers can
     matter to anything; importing this package on its own configures nothing.
+    Whether this process becomes the session leader or a forwarding child is
+    decided by ``ISAACTELEOP_LOG_SOCKET`` -- see :mod:`._forwarding`.
+
+    The guard is not just a shortcut: a leader publishes its own receiver into
+    ``ISAACTELEOP_LOG_SOCKET``, so a second pass would read that back, take the
+    child branch, and forward the process's records to itself.
     """
     global _installed
     if _installed:
         return
     _installed = True
+
+    socket_path = _forwarding.socket_path()
+    if socket_path is not None:
+        _forwarding.ensure_handler(socket_path)
+        # Built but not attached in a child (see _console.ensure_handler), so
+        # that a capture scope still has somewhere to move its stream.
+        _console.ensure_handler()
+        return
 
     _console.ensure_handler()
     try:
@@ -37,6 +51,7 @@ def install() -> None:
             "Set ISAACTELEOP_LOG_DIR to a directory you can write.",
             exc,
         )
+    _forwarding.ensure_receiver()
 
 
 def set_propagate_to_root(enabled: bool) -> None:

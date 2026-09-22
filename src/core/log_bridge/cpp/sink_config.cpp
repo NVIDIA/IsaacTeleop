@@ -3,6 +3,8 @@
 
 #include "sink_config.hpp"
 
+#include "socket_sink.hpp"
+
 #include <spdlog/common.h>
 #include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/rotating_file_sink.h>
@@ -188,7 +190,9 @@ int current_pid()
 // and whichever renames first leaves the other's handle on the renamed inode.
 // Two can want one file in the same process, because log_bridge_core is a
 // static library -- _oxr, _viz and every other extension module carries its own
-// local_sinks(), loaded RTLD_LOCAL so nothing unifies them.
+// local_sinks(), loaded RTLD_LOCAL so nothing unifies them -- and because the
+// forwarding socket that normally keeps C++ out of the file business does not
+// exist on Windows and may fail to bind anywhere.
 //
 // Hence ".cpp": the plain <timestamp>.isaacteleop.<pid>.log belongs to the
 // Python half (logging_config/_file.py). The trailing -1, -2 then separate one
@@ -370,6 +374,17 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
 {
     static const std::vector<spdlog::sink_ptr> sinks = []
     {
+        // Set by the process that spawned us (the session leader, or an intermediate
+        // forwarder) so its own logging_config receiver becomes the one place that
+        // formats, filters and persists every process's records. A standalone run
+        // with nothing to forward to falls back to this process's own sinks below.
+        if (auto socket_path = forwarding_socket_path(); !socket_path.empty())
+        {
+            auto forward = std::make_shared<SocketForwardSink>(std::move(socket_path));
+            forward->set_level(spdlog::level::trace); // the receiver's own logger does the filtering
+            return std::vector<spdlog::sink_ptr>{ forward };
+        }
+
         // Built first and unconditionally: everything below it can fail on a
         // directory this process may not write, and Logger::get() -- which every
         // diagnostic call site in the tree treats as infallible -- must not throw.
