@@ -30,7 +30,7 @@
 
 import * as CloudXR from '@nvidia/cloudxr';
 
-import { createMockCloudXRSession, MockCloudXR } from './MockCloudXR';
+import { createMockCloudXRSession, MockCloudXR, NullWebGLContext } from './MockCloudXR';
 
 const referenceSpace = {} as XRReferenceSpace;
 const gl = {} as WebGL2RenderingContext;
@@ -181,5 +181,22 @@ describe('MockCloudXR session lifecycle', () => {
     expect(delegates.onStreamTestStopped.mock.calls[0][0].passed).toBe(true);
     expect(session.state).toBe(CloudXR.SessionState.Connected);
     expect(delegates.onStreamStarted).toHaveBeenCalledTimes(1);
+  });
+
+  test('render() with NullWebGLContext does no GL work but still reports frame metrics', () => {
+    const { session, delegates } = makeSession({ gl: NullWebGLContext });
+    session.connectWait(0);
+    session.connect();
+    jest.advanceTimersByTime(0);
+
+    const frame = { getViewerPose: () => ({ views: [] }) } as unknown as XRFrame;
+    const layer = {} as XRWebGLLayer; // never touched: no gl/layer calls happen in this mode
+
+    expect(() => session.render(0, frame, layer)).not.toThrow();
+
+    expect(delegates.onMetrics).toHaveBeenCalledWith(
+      expect.objectContaining({ [CloudXR.MetricsName.StreamingFrameCount]: 1 }),
+      CloudXR.MetricsCadence.PerFrame
+    );
   });
 });

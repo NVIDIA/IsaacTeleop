@@ -31,6 +31,14 @@ import * as THREE from 'three';
 const DEFAULT_CONNECT_DELAY_MS = 500;
 const NETWORK_METRICS_INTERVAL_MS = 1000;
 
+/**
+ * Sentinel `gl` value for {@link CloudXR.SessionOptions.gl}: a MockCloudXR constructed with this
+ * performs no WebGL operations at all in render() (no THREE.WebGLRenderer, no gl/layer calls, no
+ * onWebGLStateChangeBegin/End) - useful for tests that only care about the session/delegate
+ * lifecycle and have no real WebGL context to give it.
+ */
+export const NullWebGLContext: WebGL2RenderingContext = null as unknown as WebGL2RenderingContext;
+
 /** Per-quality-band sample ranges used to synthesize plausible {@link CloudXR.MetricsName} values. */
 const NETWORK_QUALITY_PROFILES: Record<
   CloudXR.QualityScore,
@@ -324,31 +332,37 @@ export class MockCloudXR implements CloudXR.Session {
       return;
     }
 
-    const gl = this.options.gl;
-    const renderer = this.ensureRenderer(gl);
     this.sceneAnimate(this.sceneTime);
 
-    this.delegates.onWebGLStateChangeBegin?.();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
-    for (const view of pose.views) {
-      const viewport = layer.getViewport(view);
-      if (!viewport) {
-        continue;
+    if (this.options.gl !== NullWebGLContext) {
+      const gl = this.options.gl;
+      const renderer = this.ensureRenderer(gl);
+      this.delegates.onWebGLStateChangeBegin?.();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+      for (const view of pose.views) {
+        const viewport = layer.getViewport(view);
+        if (!viewport) {
+          continue;
+        }
+        renderer.setViewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        renderer.setScissor(viewport.x, viewport.y, viewport.width, viewport.height);
+        renderer.setScissorTest(true);
+        this.camera.matrix.fromArray(view.transform.matrix);
+        this.camera.matrix.decompose(
+          this.camera.position,
+          this.camera.quaternion,
+          this.camera.scale
+        );
+        this.camera.projectionMatrix.fromArray(view.projectionMatrix);
+        this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
+        renderer.render(this.scene, this.camera);
       }
-      renderer.setViewport(viewport.x, viewport.y, viewport.width, viewport.height);
-      renderer.setScissor(viewport.x, viewport.y, viewport.width, viewport.height);
-      renderer.setScissorTest(true);
-      this.camera.matrix.fromArray(view.transform.matrix);
-      this.camera.matrix.decompose(this.camera.position, this.camera.quaternion, this.camera.scale);
-      this.camera.projectionMatrix.fromArray(view.projectionMatrix);
-      this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
-      renderer.render(this.scene, this.camera);
+      // The caller (CloudXRComponent / the demo harness) owns the gl context and expects its
+      // own cached state back; three.js's WebGLRenderer caches gl state internally, so hand
+      // it back with a clean slate rather than leaving our bindings live.
+      renderer.state.reset();
+      this.delegates.onWebGLStateChangeEnd?.();
     }
-    // The caller (CloudXRComponent / the demo harness) owns the gl context and expects its
-    // own cached state back; three.js's WebGLRenderer caches gl state internally, so hand
-    // it back with a clean slate rather than leaving our bindings live.
-    renderer.state.reset();
-    this.delegates.onWebGLStateChangeEnd?.();
 
     this.frameCount++;
     this.delegates.onMetrics?.(
