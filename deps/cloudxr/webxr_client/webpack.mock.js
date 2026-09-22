@@ -62,7 +62,9 @@ module.exports = {
   ],
   devServer: {
     static: { directory: path.resolve(__dirname, './build-mock') },
-    open: ['/MockCloudXRTests.html'],
+    // Matches webpack.dev.js: don't auto-open a browser tab on every dev-server
+    // (re)start/recompile.
+    open: false,
     port: 8081,
   },
 };

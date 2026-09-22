@@ -77,6 +77,11 @@ interface MockScene {
   animate(timeSeconds: number): void;
 }
 
+/** Average standing eye height (m); matches a 'local' reference space, whose origin is at the
+ * headset rather than the floor, so the scene reads correctly whether or not floor tracking
+ * ('local-floor') is available. */
+const SCENE_ORIGIN_Y = 1.6;
+
 function buildMockScene(): MockScene {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x202030);
@@ -87,40 +92,44 @@ function buildMockScene(): MockScene {
   dirLight.position.set(1, 2, 1);
   scene.add(dirLight);
 
+  const contents = new THREE.Group();
+  contents.position.y = SCENE_ORIGIN_Y;
+  scene.add(contents);
+
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(10, 10),
     new THREE.MeshStandardMaterial({ color: 0x3a3a4a })
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -1;
-  scene.add(floor);
+  floor.position.y = -SCENE_ORIGIN_Y;
+  contents.add(floor);
 
   const cube = new THREE.Mesh(
     new THREE.BoxGeometry(0.3, 0.3, 0.3),
     new THREE.MeshStandardMaterial({ color: 0x76b900 })
   );
   cube.position.set(0, 0, -1.5);
-  scene.add(cube);
+  contents.add(cube);
 
   const sphere = new THREE.Mesh(
     new THREE.SphereGeometry(0.15, 24, 16),
     new THREE.MeshStandardMaterial({ color: 0xff6b35 })
   );
-  scene.add(sphere);
+  contents.add(sphere);
 
   const torus = new THREE.Mesh(
     new THREE.TorusGeometry(0.2, 0.06, 12, 24),
     new THREE.MeshStandardMaterial({ color: 0x3d8bfd })
   );
   torus.position.set(-0.6, 0.2, -1.8);
-  scene.add(torus);
+  contents.add(torus);
 
   const pillar = new THREE.Mesh(
     new THREE.CylinderGeometry(0.08, 0.08, 0.8, 16),
     new THREE.MeshStandardMaterial({ color: 0xcccccc })
   );
   pillar.position.set(0.6, -0.6, -1.6);
-  scene.add(pillar);
+  contents.add(pillar);
 
   function animate(timeSeconds: number): void {
     cube.rotation.y = timeSeconds;
