@@ -60,8 +60,8 @@ def _tail_text(path: Path, limit: int) -> str:
     """Last *limit* bytes of *path*, decoded leniently.
 
     Seeks rather than reading the whole file: one of the files this is pointed
-    at is the session's native capture file, which nothing truncates or rotates
-    for as long as the session runs.
+    at is the session's native capture file, which may be a full 10 MiB
+    generation even though this diagnostic needs only its last few KiB.
     """
     with open(path, "rb") as handle:
         handle.seek(0, os.SEEK_END)

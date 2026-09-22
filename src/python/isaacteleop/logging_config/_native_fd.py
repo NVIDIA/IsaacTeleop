@@ -24,6 +24,7 @@ import logging
 import os
 import stat
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Iterator
@@ -37,6 +38,10 @@ _CAPTURED_FDS = (1, 2)
 # a stand-in for either has to be built with -- os.fdopen() would otherwise
 # default to errors="strict". See _text_options().
 _FALLBACK_ERRORS = {1: "surrogateescape", 2: "backslashreplace"}
+
+_MAX_BYTES = 10 * 1024 * 1024  # 10 MiB
+_BACKUP_COUNT = 5
+_CHECK_INTERVAL = 0.05
 
 #: Absolute path of this session's capture file, published so that a fork+exec'd
 #: child with no interpreter (``core/plugin_manager/cpp/plugin.cpp``) can open it
@@ -72,6 +77,7 @@ _pre_scope_handler_stream: TextIO | None = None
 # threshold of TRACE it is additionally echoed live, so `set_console_level`
 # ("trace") is the one knob that puts everything on the terminal.
 _mirror_thread: threading.Thread | None = None
+_mirror_stop = threading.Event()
 _echo = False
 
 _sink_warned = False
@@ -198,6 +204,7 @@ def ensure_sink() -> str | None:
         # rather than start one of its own.
         os.environ[CAPTURE_FILE_ENV] = path
         atexit.register(_discard_if_empty, path, sink_fd, os.getpid())
+        _start_mirror()
         return _sink_path
 
 
@@ -507,13 +514,110 @@ def _echo_target() -> int | None:
     return 2 if _stdio_stream(2) is not None else None
 
 
-def _mirror(sink_path: str, sink_fd: int) -> None:
-    """Tail the capture file onto the terminal while echo is on.
+def _echo_chunk(chunk: bytes) -> None:
+    target = _echo_target()
+    if _echo and target is not None:
+        _write_all(target, chunk)
 
-    A convenience, never a step a writer waits on: the bytes reach the file
-    without this thread, so falling behind loses nothing. The tail starts at
-    end-of-file and drops what it reads while echo is off, so raising the
-    console to TRACE mid-session shows what follows rather than a backlog.
+
+def _shift_backups(path: str) -> None:
+    """Make room for ``path.1``, dropping the oldest bounded backup."""
+    oldest = f"{path}.{_BACKUP_COUNT}"
+    try:
+        os.unlink(oldest)
+    except FileNotFoundError:
+        pass
+    for index in range(_BACKUP_COUNT - 1, 0, -1):
+        source = f"{path}.{index}"
+        try:
+            os.replace(source, f"{path}.{index + 1}")
+        except FileNotFoundError:
+            pass
+
+
+def _rotate_capture(sink_path: str, sink_fd: int, reader) -> None:
+    """Copy the newest bounded tail aside, then truncate the shared inode.
+
+    Plugin processes keep an already-open descriptor for this file. Renaming
+    the base path would strand those writers on the renamed inode and let it
+    grow without bound, so this uses copy-truncate: every writer keeps the same
+    inode and observes the truncation. Bytes appended during the short copy
+    window may be lost, the standard trade-off for bounding a file whose
+    writers cannot participate in rotation.
+    """
+    size = os.fstat(sink_fd).st_size
+    if size < _MAX_BYTES:
+        return
+
+    # TRACE promises live output. Drain everything visible in the snapshot
+    # before truncating; the backup itself keeps only its newest _MAX_BYTES.
+    if reader.tell() > size:
+        reader.seek(0)
+    while reader.tell() < size:
+        chunk = reader.read(min(65536, size - reader.tell()))
+        if not chunk:
+            break
+        _echo_chunk(chunk)
+
+    temp_fd = -1
+    temp_path = ""
+    try:
+        created_fd, temp_path = tempfile.mkstemp(
+            prefix=f".{os.path.basename(sink_path)}.",
+            suffix=".tmp",
+            dir=os.path.dirname(sink_path),
+        )
+        try:
+            temp_fd = _move_above_std(created_fd)
+        except OSError:
+            # _move_above_std closes every low descriptor it consumed.
+            temp_fd = -1
+            raise
+        reader.seek(max(0, size - _MAX_BYTES))
+        remaining = min(size, _MAX_BYTES)
+        while remaining:
+            chunk = reader.read(min(65536, remaining))
+            if not chunk:
+                break
+            _write_all(temp_fd, chunk)
+            remaining -= len(chunk)
+        os.close(temp_fd)
+        temp_fd = -1
+
+        _shift_backups(sink_path)
+        os.replace(temp_path, f"{sink_path}.1")
+        temp_path = ""
+        os.ftruncate(sink_fd, 0)
+        reader.seek(0)
+    except OSError:
+        # The size bound wins over retaining the old bytes. In particular, a
+        # full disk can make the backup copy fail; keeping the oversized file
+        # in that case would turn a recoverable logging failure into an
+        # unbounded one.
+        try:
+            os.ftruncate(sink_fd, 0)
+            reader.seek(0)
+        except OSError:
+            reader.seek(0, os.SEEK_END)
+    finally:
+        if temp_fd >= 0:
+            try:
+                os.close(temp_fd)
+            except OSError:
+                pass
+        if temp_path:
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                pass
+
+
+def _mirror(sink_path: str, sink_fd: int) -> None:
+    """Bound the capture file and tail it onto the terminal while echo is on.
+
+    Writers never wait on this thread. The tail starts at end-of-file and drops
+    what it reads while echo is off, so raising the console to TRACE
+    mid-session shows what follows rather than a backlog.
     """
     reader_fd = -1
     try:
@@ -532,14 +636,14 @@ def _mirror(sink_path: str, sink_fd: int) -> None:
         reader_fd = -1
         with stream as sink:
             sink.seek(0, os.SEEK_END)
-            while True:
+            while not _mirror_stop.is_set():
                 chunk = sink.read(65536)
+                if chunk:
+                    _echo_chunk(chunk)
+                if os.fstat(sink_fd).st_size >= _MAX_BYTES:
+                    _rotate_capture(sink_path, sink_fd, sink)
                 if not chunk:
-                    time.sleep(0.05)
-                    continue
-                target = _echo_target()
-                if _echo and target is not None:
-                    _write_all(target, chunk)
+                    _mirror_stop.wait(_CHECK_INTERVAL)
     except (OSError, ValueError):
         return  # Best-effort; must never affect the capture or the host.
     finally:
@@ -548,21 +652,14 @@ def _mirror(sink_path: str, sink_fd: int) -> None:
 
 
 def _start_mirror() -> None:
-    """Start the tail thread once, on the first request for echo.
+    """Start the capture maintenance and optional terminal-mirror thread once.
 
-    Not started alongside the capture file: the console can drop to TRACE at
-    any point, and a session that never does should not carry the thread.
+    It always runs because the size bound applies at every console level.
     """
     global _mirror_thread
-    # Under _lock, as _begin()'s own call to _ensure_saved_slots() is. Those
-    # dicts are the only record of where the host's descriptors went, and
-    # filling a slot from here while _begin() had already pointed fd 2 at the
-    # capture file would save a duplicate *of the capture file* -- which _end()
-    # would then restore onto fd 2, taking the host's stderr with it for good.
     with _lock:
         if _mirror_thread is not None or _sink_path is None or _sink_fd is None:
             return
-        _ensure_saved_slots()
         thread = threading.Thread(
             target=_mirror,
             args=(_sink_path, _sink_fd),
@@ -578,6 +675,18 @@ def _start_mirror() -> None:
             # may raise. Leaving _mirror_thread unset lets a later call retry.
             return
         _mirror_thread = thread
+        atexit.register(_stop_mirror, thread, os.getpid())
+
+
+def _stop_mirror(thread: threading.Thread, owner_pid: int) -> None:
+    """Stop the creator's thread before empty-file cleanup runs."""
+    if os.getpid() != owner_pid:
+        return
+    _mirror_stop.set()
+    try:
+        thread.join(timeout=1)
+    except RuntimeError:
+        pass
 
 
 def follow_console_level(level: int) -> None:
@@ -590,5 +699,4 @@ def follow_console_level(level: int) -> None:
     """
     global _echo
     _echo = level <= TRACE
-    if _echo and ensure_sink() is not None:
-        _start_mirror()
+    ensure_sink()
