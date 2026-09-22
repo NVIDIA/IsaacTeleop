@@ -193,31 +193,20 @@ void Plugin::start_process(const std::string& command,
         // Child process, between fork() and execvp(): only async-signal-safe calls
         // are allowed here (POSIX). Never add Logger/spdlog calls in this window --
         // spdlog's registry and (in a Python process) GIL acquisition are both
-        // unsafe post-fork-pre-exec.
-        //
-        // One exception, deliberate and the only one: execvp() itself. POSIX lists
-        // execl/execle/execv/execve as async-signal-safe and leaves execvp out,
-        // because the PATH search may allocate -- which, if another thread held
-        // malloc's lock at fork() time, hangs this child. It is kept because a
-        // plugin's command comes from its metadata and may be a bare name that has
-        // to be found on PATH. Removing the exception means resolving the
-        // executable to an absolute path *before* fork() and calling execv(); do
-        // not instead delete this note and leave the blanket claim above standing.
+        // unsafe post-fork-pre-exec. execvp() is the one deliberate exception:
+        // POSIX leaves it off the list because its PATH search may allocate, and
+        // it is kept because a plugin's command may be a bare name. Removing the
+        // exception means resolving the executable before fork() and calling
+        // execv().
 
-        // Point *this process's* output at the session's capture file, which is what
-        // keeps a plugin's non-logger output -- the OpenXR runtime's xrCreate* spew,
-        // the Manus SDK's own formatted lines, anything a vendor writes to a
-        // descriptor -- off the terminal and in the log without the parent ever
-        // rebinding its own fd 1/2. These descriptors belong to the child, not to
-        // the host, so setting them here is not the redirection isaacteleop has to
-        // avoid; it is the reason that redirection is no longer needed for plugins.
-        //
-        // open(), dup2() and close() are all on POSIX's async-signal-safe list.
-        // No O_CREAT: the Python leader already created this file 0600, so a
-        // path that has gone missing is not ours to recreate. O_APPEND, so
-        // several plugins and the parent can share one file. A failure is
-        // silent by necessity -- there is nowhere left to report it to, and
-        // losing the capture must not stop the plugin from starting.
+        // Point the *child's* output at the session's capture file -- the child's
+        // descriptors are ours to set, the host's are not, and this is what keeps
+        // a plugin's non-logger output off the terminal. open(), dup2() and
+        // close() are all async-signal-safe. No O_CREAT: the Python leader
+        // created this file, so a path that has gone missing is not ours to
+        // recreate. O_APPEND, so several plugins and the parent can share it. A
+        // failure is silent by necessity -- there is nowhere left to report to,
+        // and losing the capture must not stop the plugin from starting.
         if (native_capture_path != nullptr && native_capture_path[0] != '\0')
         {
             const int capture_fd = ::open(native_capture_path, O_WRONLY | O_APPEND | O_NOFOLLOW);

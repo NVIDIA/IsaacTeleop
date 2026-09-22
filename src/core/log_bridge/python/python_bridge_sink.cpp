@@ -17,13 +17,10 @@ namespace
 
 // errors="replace", not pybind11's std::string cast, which decodes strictly.
 // What reaches a logger here is not guaranteed UTF-8 -- vendor SDK strings,
-// strerror() text and filesystem paths all arrive verbatim -- and a strict
-// decode raises UnicodeDecodeError out of sink_it_(), where spdlog's error
-// handler drops the record (measured against an embedded interpreter: the
-// strict cast raises on a single 0xff byte, this returns it with U+FFFD).
-// The socket transport's receiver already decodes the same bytes the same way
-// (logging_config/_forwarding.py's RequestHandler); the two routes into the
-// Python tree must not disagree about what survives them.
+// strerror() text and filesystem paths arrive verbatim -- and a strict decode
+// raises out of sink_it_(), where spdlog's error handler drops the record. The
+// socket transport's receiver decodes the same bytes the same way
+// (logging_config/_forwarding.py); the two routes must not disagree.
 pybind11::str to_python_text(spdlog::string_view_t text)
 {
     PyObject* decoded = PyUnicode_DecodeUTF8(text.data(), static_cast<Py_ssize_t>(text.size()), "replace");
@@ -52,15 +49,11 @@ void PythonBridgeSink::flush_()
 
 void install_python_sink()
 {
-    // Once per process, and the guard is load-bearing rather than tidiness.
-    // set_bridge_sink() re-points every registered logger by assigning
-    // logger->sinks(), and spdlog does not synchronize that vector against the
-    // logging path -- a logger emitting a record on another thread is reading
-    // the same vector. The bootstrap call from isaacteleop/__init__.py runs on
-    // the importing thread before anything here has started logging, so it is
-    // safe; a second call from a running application would not be, and this
-    // function is public API. A repeat call has nothing to do anyway: it would
-    // install an equivalent sink over the one already in place.
+    // Once per process, and the guard is load-bearing. set_bridge_sink()
+    // assigns logger->sinks(), which spdlog does not synchronize against a
+    // concurrent emit, so this is safe only where isaacteleop/__init__.py calls
+    // it -- on the importing thread, before anything has logged. This function
+    // is public API, and a repeat call would have nothing to do anyway.
     static std::once_flag installed;
     std::call_once(installed, [] { detail::set_bridge_sink(std::make_shared<PythonBridgeSink>()); });
 }

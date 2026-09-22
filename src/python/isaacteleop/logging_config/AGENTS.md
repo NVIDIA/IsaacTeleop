@@ -32,11 +32,6 @@ stub generation.
   `import isaacteleop` in the host application. An unusable log directory costs
   the handler that needed it and is reported through the handlers already
   attached; it must never cost the import.
-- **Both branches need assertions, not one branch and a skip.** This package has
-  no test suite at present. Whatever is built for it will be run by ctest in the
-  Windows job as well as the Linux one, unless it is deliberately gated, so the
-  degraded path needs assertions of its own rather than a platform skip that
-  quietly covers nothing.
 
 ## Leader and forwarding children
 

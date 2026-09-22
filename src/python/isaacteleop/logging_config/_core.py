@@ -20,13 +20,11 @@ ROOT_LOGGER_NAME = "isaacteleop"
 LINE_FORMAT = "[%(asctime)s.%(msecs)03d] [%(levelname)-5s] [%(name)s] [pid:%(process)d] %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-# Per-uid on POSIX, not a single shared /tmp/isaacteleop: a fixed path is
-# created by whichever user gets there first, with that user's umask, and every
-# other user on the machine then fails to create anything inside it -- which
-# surfaces as PermissionError out of `import isaacteleop`. The uid also keeps
-# one user's records, native-fd captures and log socket out of everyone else's
-# reach. Windows needs no such suffix: GetTempPath() is already per-user
-# (%LOCALAPPDATA%\Temp), and it has no uid to name the directory after.
+# Per-uid on POSIX, not a single shared /tmp/isaacteleop: a fixed path would be
+# created by whichever user gets there first, and every other user on the
+# machine then fails to create anything inside it -- a PermissionError out of
+# `import isaacteleop`. Windows needs no suffix: GetTempPath() is already
+# per-user, and there is no uid to name the directory after.
 _DEFAULT_LOG_DIR = (
     Path(f"/tmp/isaacteleop-{os.getuid()}/logs")
     if _POSIX
@@ -90,15 +88,11 @@ def resolve_level(level: int | str) -> int:
 def env_console_level() -> int:
     """Console threshold from ``ISAACTELEOP_LOG_LEVEL``, or ``INFO`` if unset.
 
-    The same variable, with the same vocabulary, that
-    ``log_bridge/cpp/sink_config.cpp``'s ``console_level()`` reads: the six
-    names above, case-insensitively, or a stdlib level number. Anything else
-    falls back to ``INFO`` rather than raising -- this is read from
-    ``install()``, which runs from ``import isaacteleop``.
-
-    A number is taken literally here and bucketed to the nearest spdlog level
-    there, because spdlog has no room between its six. That is the whole of the
-    difference.
+    The same variable and vocabulary ``log_bridge/cpp/sink_config.cpp``'s
+    ``console_level()`` reads: the six names above, case-insensitively, or a
+    stdlib level number, which is taken literally here and bucketed to the
+    nearest spdlog level there. Anything else falls back to ``INFO`` rather
+    than raising -- ``install()`` runs from ``import isaacteleop``.
     """
     raw = os.environ.get("ISAACTELEOP_LOG_LEVEL")
     if not raw:
@@ -122,12 +116,9 @@ def log_dir() -> Path:
     try:
         directory = Path(override).expanduser() if override else _DEFAULT_LOG_DIR
     except RuntimeError:
-        # expanduser() raises RuntimeError, not OSError, for a path starting
-        # with ~ that it cannot resolve: no HOME, and no passwd entry for this
-        # uid, which is what a container started with `--user 1234` looks
-        # like. Every caller here guards against OSError only, so this escaped
-        # install() and took `import isaacteleop` down with it. The default is
-        # always resolvable -- it is built from os.getuid() alone.
+        # expanduser() raises RuntimeError, not OSError, for a ~ path it cannot
+        # resolve: no HOME and no passwd entry, which is what `--user 1234` in a
+        # container looks like. Callers here guard against OSError only.
         directory = _DEFAULT_LOG_DIR
 
     try:

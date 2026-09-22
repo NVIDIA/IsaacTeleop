@@ -114,27 +114,17 @@ FetchContent_Declare(
 set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "Skip spdlog examples" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Skip spdlog tests" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "Skip spdlog install target" FORCE)
-# DepthAI depends on spdlog AND fmt (its vcpkg.json lists both) and calls
-# find_package(spdlog CONFIG REQUIRED) itself -- which silently returns, using
-# whatever spdlog targets already exist, because ours are defined by the time
-# src/plugins/oak is added. So DepthAI ends up compiled against *this* spdlog.
-#
-# vcpkg's spdlog port builds with SPDLOG_FMT_EXTERNAL=ON and deletes its copy of
-# include/spdlog/fmt/bundled, so DepthAI's sources expect an spdlog whose format
-# types come from the standalone fmt. Ours defaults to the bundled fmt, whose
-# headers are the upstream fmt headers copied verbatim -- same include guards
-# (FMT_FORMAT_H_ and friends) -- so whichever of the two gets included first
-# suppresses the other, and the spdlog/fmt types DepthAI's translation units see
-# stop matching the ones ours were compiled with.
-#
-# Pointing our spdlog at the same vcpkg fmt leaves exactly one fmt in the build.
-# Only under this option: without vcpkg there is no external fmt to find, and
-# the bundled copy is the right default for every other configuration.
+# DepthAI calls find_package(spdlog CONFIG REQUIRED) itself, which silently
+# returns using the targets defined here, so it ends up compiled against *this*
+# spdlog. vcpkg's spdlog port is built with SPDLOG_FMT_EXTERNAL=ON and ships no
+# bundled fmt, and the bundled headers carry the upstream include guards, so
+# mixing the two leaves DepthAI's translation units seeing different spdlog/fmt
+# types than ours were compiled with. Pointing at the vcpkg fmt leaves one fmt
+# in the build.
 #
 # Set in both directions, because FORCE writes the cache: setting it only in the
 # ON branch left an earlier -DBUILD_PLUGIN_OAK_CAMERA=ON standing in a build
-# directory reconfigured with the option off, so spdlog kept looking for a
-# vcpkg fmt that the new configuration has no reason to provide.
+# directory reconfigured with the option off.
 if(BUILD_PLUGIN_OAK_CAMERA)
     # Explicit, though spdlog would find_package(fmt) on its own: a missing fmt
     # should fail here, naming this as the reason, not inside spdlog's build.
