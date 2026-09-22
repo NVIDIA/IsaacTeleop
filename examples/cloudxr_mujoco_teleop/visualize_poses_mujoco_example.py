@@ -45,9 +45,9 @@ import mujoco.viewer
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-from isaacteleop.cloudxr import CloudXRLauncher
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+from isaaccapture.cloudxr import CloudXRLauncher
 
 
 # Route MuJoCo warnings to stderr instead of writing MUJOCO_LOG.TXT in CWD.

@@ -11,21 +11,21 @@ constructed via Python bindings.
 
 import pytest
 import numpy as np
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HandsSource,
     HeadSource,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group import (
+from isaaccapture.retargeting_engine.interface.tensor_group import (
     OptionalTensorGroup,
     TensorGroup,
 )
-from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerInputIndex,
     HeadInputIndex,
 )
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     Point,
     Quaternion,
     Pose,

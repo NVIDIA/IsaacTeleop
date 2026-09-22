@@ -16,14 +16,14 @@ import sys
 import time
 from pathlib import Path
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeters import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import ControllersSource
+from isaaccapture.retargeters import (
     TriHandMotionControllerRetargeter,
     TriHandMotionControllerConfig,
 )
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
-from isaacteleop.retargeting_engine.interface import OutputCombiner
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.retargeting_engine.interface import OutputCombiner
 
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
@@ -107,7 +107,7 @@ def example_trihand_motion_controller():
     # Configure Plugins
     plugins = []
     if PLUGIN_ROOT_DIR.exists():
-        from isaacteleop.teleop_session_manager import PluginConfig
+        from isaaccapture.teleop_session_manager import PluginConfig
 
         plugins.append(
             PluginConfig(

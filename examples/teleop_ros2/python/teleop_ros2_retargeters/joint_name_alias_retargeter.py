@@ -6,13 +6,13 @@
 
 from typing import Sequence
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
     TensorGroupType,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import RetargeterIO
-from isaacteleop.retargeting_engine.tensor_types import FloatType
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import RetargeterIO
+from isaaccapture.retargeting_engine.tensor_types import FloatType
 
 
 class JointNameAliasRetargeter(BaseRetargeter):

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Package output dir for cloudxr Python module (used on all platforms)
-set(CLOUDXR_PYTHON_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/cloudxr")
+set(CLOUDXR_PYTHON_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaaccapture/cloudxr")
 
 # Look for CloudXR Runtime SDK tarball: version from deps/cloudxr/.env.default (CXR_RUNTIME_SDK_VERSION)
 # (e.g. CloudXR-6.1.0-rc2-Linux-amd64-sdk.tar.gz). Overridable via CXR_RUNTIME_SDK_VERSION in the environment.
@@ -137,14 +137,14 @@ if(ENABLE_CLOUDXR_EXP_BUNDLE)
         endif()
     else()
         set(CLOUDXR_EXP_DIR
-            "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/cloudxr_exp")
+            "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaaccapture/cloudxr_exp")
         cloudxr_add_runtime_bundle(
             cloudxr_exp_dir cloudxr_exp_bundle cloudxr_patchelf_exp
             "${CLOUDXR_EXP_DIR}/native" "${CLOUDXR_SDK_EXP_PATH}")
     endif()
 endif()
 
-# isaacteleop.cloudxr's pure-Python source is staged by src/python; this target
+# isaaccapture.cloudxr's pure-Python source is staged by src/python; this target
 # owns only the native bundle and anchors its build-order dependencies below.
 add_custom_target(cloudxr_python ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CLOUDXR_PYTHON_DIR}"
@@ -163,7 +163,7 @@ elseif(TARGET cloudxr_exp_bundle)
     add_dependencies(cloudxr_python cloudxr_exp_bundle)
 endif()
 
-# isaacteleop.cloudxr_exp's pure-Python source (__init__.py and the runtime.py
-# re-export of isaacteleop.cloudxr.runtime) is staged by src/python like every
+# isaaccapture.cloudxr_exp's pure-Python source (__init__.py and the runtime.py
+# re-export of isaaccapture.cloudxr.runtime) is staged by src/python like every
 # other subpackage. This file owns only the experimental native bundle above,
 # which stays gated on ENABLE_CLOUDXR_EXP_BUNDLE.

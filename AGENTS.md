@@ -47,6 +47,14 @@ If you cannot run a shell, use your search/glob tools on the pattern `**/AGENTS.
 
 Optional context index: [`src/core/AGENTS.md`](src/core/AGENTS.md) (also on the ancestor walk—read it when working under `src/core/`).
 
+## Package rename scope
+
+Keep requested temporary import compatibility, but use standard Python warning
+filters. Package renames must not include unrelated cache, runtime, or CI fixes.
+
+Test plain source and editable installs without prebuilt transition wheels or
+extra package search paths, so local wheel availability cannot mask missing dependencies.
+
 ## CMake & include structure
 
 When you create or edit a `CMakeLists.txt`, add or move a target, place a header,

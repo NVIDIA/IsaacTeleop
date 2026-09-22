@@ -5,7 +5,7 @@ Camera Streaming
 ================
 
 ``camera_viz`` is the reference camera-streaming sample built on :doc:`Televiz
-</getting_started/televiz>` (``isaacteleop.viz``). It captures frames from one or more cameras
+</getting_started/televiz>` (``isaaccapture.viz``). It captures frames from one or more cameras
 and streams them to an XR headset — one plane per camera, aspect-fit — either directly or from a
 robot to a workstation over the network (split mode). It can also stream :ref:`recorded camera
 data <recorded-camera-streaming>` — a video file replayed in place of a live camera — and render
@@ -53,8 +53,8 @@ run the sample's one-time setup:
    examples/camera_viz/camera_viz.sh setup
    source examples/camera_viz/.venv/bin/activate
 
-There is no need to install the ``isaacteleop`` pip package yourself. ``setup`` builds the
-sample's own environment: ``isaacteleop[cloudxr]`` — the ``cloudxr`` extra is not optional here,
+There is no need to install the ``isaaccapture`` pip package yourself. ``setup`` builds the
+sample's own environment: ``isaaccapture[cloudxr]`` — the ``cloudxr`` extra is not optional here,
 since XR is the default display mode and the viewer launches the runtime itself — plus every
 other Python dependency, into ``.venv/`` via ``uv``. It resolves a version new enough for the
 sample on its own, falling back to a release candidate and then, after asking, to a source build
@@ -91,10 +91,10 @@ needs. Flags trim or extend that:
    * - ``--venv PATH``
      - Install into an existing virtual environment instead of creating ``.venv/``.
    * - ``--wheel PATH``
-     - Install a locally built ``isaacteleop`` wheel instead of resolving one from the index — for
+     - Install a locally built ``isaaccapture`` wheel instead of resolving one from the index — for
        developing Isaac Teleop itself.
    * - ``--build-from-source``
-     - Skip the package index and build ``isaacteleop`` from the surrounding checkout without
+     - Skip the package index and build ``isaaccapture`` from the surrounding checkout without
        prompting — a full C++ / CUDA / Vulkan build (see
        :doc:`/getting_started/build_from_source/index`).
 

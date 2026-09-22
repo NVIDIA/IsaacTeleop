@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for HandPose and related types in isaacteleop.schema.
+"""Unit tests for HandPose and related types in isaaccapture.schema.
 
 HandPose is a FlatBuffers table that represents hand pose data:
 - joints: HandJoints struct with a fixed-size poses array (length HandJoint.NUM_JOINTS; OpenXR order)
@@ -21,7 +21,7 @@ import gc
 import numpy as np
 import pytest
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     DeviceDataTimestamp,
     HandJoint,
     HandJointPose,

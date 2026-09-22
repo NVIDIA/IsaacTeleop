@@ -21,7 +21,7 @@ PYBIND11_MODULE(_deviceio_session, m)
 {
     m.doc() = "Isaac Teleop DeviceIO - Session management";
 
-    py::module_::import("isaacteleop.deviceio_trackers._deviceio_trackers");
+    py::module_::import("isaaccapture.deviceio_trackers._deviceio_trackers");
 
     // ---- McapRecordingConfig (live recording) ----
     py::class_<core::McapRecordingConfig>(m, "McapRecordingConfig",

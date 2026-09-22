@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaacteleop"
+dynamic = ["version"]
+description = "Transition package for the rename to isaaccapture"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["isaaccapture>=1.6.dev0,<1.9"]
+
+[project.optional-dependencies]
+dev = ["isaaccapture[dev]>=1.6.dev0,<1.9"]
+ui = ["isaaccapture[ui]>=1.6.dev0,<1.9"]
+retargeters = ["isaaccapture[retargeters]>=1.6.dev0,<1.9"]
+retargeters-lite = ["isaaccapture[retargeters-lite]>=1.6.dev0,<1.9"]
+grounding = ["isaaccapture[grounding]>=1.6.dev0,<1.9"]
+wuji = ["isaaccapture[wuji]>=1.6.dev0,<1.9"]
+cloudxr = ["isaaccapture[cloudxr]>=1.6.dev0,<1.9"]
+
+[tool.setuptools]
+packages = []
+py-modules = []

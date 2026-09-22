@@ -20,12 +20,12 @@ from pathlib import Path
 
 import pytest
 
-from isaacteleop.retargeting_engine.tensor_types import HandJointIndex
+from isaaccapture.retargeting_engine.tensor_types import HandJointIndex
 
 _SRC = Path(__file__).resolve().parents[3]
 _PLUGIN_CPP = _SRC / "plugins" / "wuji_glove" / "wuji_glove_plugin.cpp"
 _RETARGETER_PY = (
-    _SRC / "python" / "isaacteleop" / "retargeters" / "wuji_hand_retargeter.py"
+    _SRC / "python" / "isaaccapture" / "retargeters" / "wuji_hand_retargeter.py"
 )
 
 

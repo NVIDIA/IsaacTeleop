@@ -7,7 +7,7 @@ Tests for NDArray tensor types using NumPy as the DLPack-compatible framework.
 
 import pytest
 import numpy as np
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     NDArrayType,
     DLDataType,
     DLDeviceType,

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for isaacteleop.cloudxr.background — detaching the service."""
+"""Tests for isaaccapture.cloudxr.background — detaching the service."""
 
 import os
 import signal
@@ -12,7 +12,7 @@ import time
 import pytest
 from unittest.mock import patch
 
-from isaacteleop.cloudxr import background
+from isaaccapture.cloudxr import background
 
 _posix_only = pytest.mark.skipif(
     sys.platform == "win32", reason="setsid/process groups are POSIX-only"
@@ -47,6 +47,40 @@ class TestReadPid:
             other.kill()
             other.wait()
 
+    @pytest.mark.parametrize(
+        "module", [background._MODULE, *background._LEGACY_MODULES]
+    )
+    def test_recognises_a_service_under_any_shipped_module_name(self, tmp_path, module):
+        """An upgrade meets a detached service whose cmdline predates the rename;
+        not recognising it makes `service stop` report success, exit 0."""
+        proc = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)", module, "run"]
+        )
+        try:
+            background.pid_path(str(tmp_path)).write_text(f"{proc.pid}\n")
+            assert background.read_pid(str(tmp_path)) == proc.pid
+        finally:
+            proc.kill()
+            proc.wait()
+
+    def test_a_process_that_merely_names_the_module_is_not_the_service(self, tmp_path):
+        """A `stop` that matched one would kill a bystander, or refuse to start
+        behind one that is not serving anything."""
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import time; time.sleep(30)",
+                f"--log-file=/var/log/{background._MODULE}.log",
+            ]
+        )
+        try:
+            background.pid_path(str(tmp_path)).write_text(f"{proc.pid}\n")
+            assert background.read_pid(str(tmp_path)) is None
+        finally:
+            proc.kill()
+            proc.wait()
+
 
 @_posix_only
 class TestSpawn:
@@ -57,7 +91,7 @@ class TestSpawn:
         run_dir = str(tmp_path / "run")
         logs_dir = tmp_path / "logs"
 
-        # Stand in for `-m isaacteleop.cloudxr.service run`, which needs a GPU.
+        # Stand in for `-m isaaccapture.cloudxr.service run`, which needs a GPU.
         monkeypatch.setattr(background, "_MODULE", "time")
         pid, log = background.spawn(["30"], run_dir, logs_dir)
         try:
@@ -115,7 +149,7 @@ class TestReadRunFlags:
                 sys.executable,
                 "-c",
                 "import time; time.sleep(30)",
-                "isaacteleop.cloudxr.service",
+                "isaaccapture.cloudxr.service",
                 "run",
                 "--host-client",
             ]
@@ -178,7 +212,7 @@ class TestTerminateRaces:
         run_dir = str(tmp_path)
         background.pid_path(run_dir).write_text("4242\n", encoding="utf-8")
         with (
-            patch("isaacteleop.cloudxr.background.read_pid", return_value=4242),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=4242),
             patch("os.kill", side_effect=ProcessLookupError),
         ):
             assert background.terminate(run_dir) is True
@@ -201,9 +235,9 @@ class TestStartRaces:
 
         with (
             patch(
-                "isaacteleop.cloudxr.runtime.is_runtime_live", return_value=True
+                "isaaccapture.cloudxr.runtime.is_runtime_live", return_value=True
             ) as live,
-            patch("isaacteleop.cloudxr.background.spawn") as spawn,
+            patch("isaaccapture.cloudxr.background.spawn") as spawn,
         ):
             with pytest.raises(background.AlreadyServingError):
                 background.start_and_wait([], run_dir, tmp_path / "logs")

@@ -25,7 +25,7 @@ reference for the Isaac Teleop device-output path:
 Key points for integrators:
 
 * The glove is a *cross-process* device. ``haptic_glove_device(...)`` returns a
-  :class:`~isaacteleop.haptic_devices.push_tensor.PushTensorHapticDevice` that
+  :class:`~isaaccapture.haptic_devices.push_tensor.PushTensorHapticDevice` that
   serialises each frame's per-finger powers into a vendor-neutral
   ``HapticCommand`` and pushes it on the ``collection_id`` below. A glove
   plugin (here the Manus plugin) reads the same collection and drives the
@@ -36,7 +36,7 @@ Key points for integrators:
 * The mapping is split like the controller example: a thin
   ``PinchProximityToTactile`` adapter emits a vendor-neutral ``TactileVector``,
   and the library retargeter
-  :class:`~isaacteleop.retargeters.tactile_retargeters.TactileVectorToFingerPower`
+  :class:`~isaaccapture.retargeters.tactile_retargeters.TactileVectorToFingerPower`
   shapes it (gain / deadband / saturation) into the ``FingerPowerVector`` every
   glove accepts. Swap the adapter for an Isaac Lab ``ContactSensor`` fetch (or
   use ``TactileHeatmapToFingerPower``) to drive the glove from sim contact.
@@ -48,17 +48,20 @@ import time
 
 import numpy as np
 
-from isaacteleop.haptic_devices.glove import haptic_glove_device
-from isaacteleop.retargeters.tactile_retargeters import TactileVectorToFingerPower
-from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource, HapticSink
-from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.haptic_devices.glove import haptic_glove_device
+from isaaccapture.retargeters.tactile_retargeters import TactileVectorToFingerPower
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
+    HandsSource,
+    HapticSink,
+)
+from isaaccapture.retargeting_engine.interface import BaseRetargeter, OutputCombiner
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
     RetargeterIO,
     RetargeterIOType,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group_type import OptionalType
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.interface.tensor_group_type import OptionalType
+from isaaccapture.retargeting_engine.tensor_types import (
     FingerIndex,
     HandInput,
     HandInputIndex,
@@ -66,7 +69,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     NUM_HAPTIC_FINGERS,
     TactileVector,
 )
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 
 APP_NAME = "HandPinchHapticExample"

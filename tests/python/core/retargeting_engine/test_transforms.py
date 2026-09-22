@@ -14,9 +14,9 @@ import pytest
 import numpy as np
 import numpy.testing as npt
 
-from isaacteleop.retargeting_engine.interface import TensorGroup
-from isaacteleop.retargeting_engine.interface.tensor_group import OptionalTensorGroup
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.interface import TensorGroup
+from isaaccapture.retargeting_engine.interface.tensor_group import OptionalTensorGroup
+from isaaccapture.retargeting_engine.tensor_types import (
     HeadInput,
     HeadInputIndex,
     HandInput,
@@ -26,7 +26,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
     HandInputIndex,
     NUM_HAND_JOINTS,
 )
-from isaacteleop.retargeting_engine.utilities.transform_utils import (
+from isaaccapture.retargeting_engine.utilities.transform_utils import (
     validate_transform_matrix,
     decompose_transform,
     transform_position,
@@ -36,7 +36,7 @@ from isaacteleop.retargeting_engine.utilities.transform_utils import (
     _rotation_matrix_to_quat_xyzw,
     _quat_multiply_xyzw,
 )
-from isaacteleop.retargeting_engine.utilities import (
+from isaaccapture.retargeting_engine.utilities import (
     HeadTransform,
     HandTransform,
     ControllerTransform,

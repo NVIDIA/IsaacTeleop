@@ -50,7 +50,7 @@ def resolve_sharpa_mjcf(filename: str) -> str:
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
             "Sharpa hand retargeting requires robotic_grounding assets. "
-            "Install/use a build with isaacteleop[grounding] and bundled robotic_grounding."
+            "Install/use a build with isaaccapture[grounding] and bundled robotic_grounding."
         ) from exc
 
 

@@ -4,7 +4,7 @@
 """
 Tests for WujiHandRetargeter.
 
-Requires the ``wuji`` optional extra (``pip install 'isaacteleop[wuji]'``,
+Requires the ``wuji`` optional extra (``pip install 'isaaccapture[wuji]'``,
 which brings in ``wuji-sdk[retarget]``); tests skip cleanly otherwise.
 
 The C++/Python joint-mapping cross-check lives in
@@ -15,18 +15,18 @@ in the plain dev environment.
 import numpy as np
 import pytest
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
     ExecutionState,
     OptionalTensorGroup,
     TensorGroup,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalTensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     HandInput,
     HandInputIndex,
     HandJointIndex,
@@ -38,7 +38,7 @@ from isaacteleop.retargeting_engine.tensor_types import (
 # collected tests and exit code 5, which CTest treats as a failure.
 _HAS_WUJI_SDK = True
 try:
-    from isaacteleop.retargeters import (
+    from isaaccapture.retargeters import (
         WujiHandRetargeter,
         WujiHandRetargeterConfig,
     )
@@ -47,7 +47,7 @@ except ModuleNotFoundError:
 
 _requires_wuji_sdk = pytest.mark.skipif(
     not _HAS_WUJI_SDK,
-    reason="requires wuji_sdk (pip install 'isaacteleop[wuji]')",
+    reason="requires wuji_sdk (pip install 'isaaccapture[wuji]')",
 )
 
 NUM_WUJI_JOINTS = 20

@@ -16,9 +16,9 @@ Test sequence:
 import time
 from pathlib import Path
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-import isaacteleop.plugin_manager as pm
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+import isaaccapture.plugin_manager as pm
 
 PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
 

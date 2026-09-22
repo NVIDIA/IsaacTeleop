@@ -12,7 +12,7 @@ CloudXR runtime and WSS proxy itself, so there is nothing to launch separately.
 
 ```bash
 uv pip install -e ./examples/deviceio_live_view
-python -m isaacteleop_examples.deviceio_live_view --accept-eula
+python -m isaaccapture_examples.deviceio_live_view --accept-eula
 ```
 
 Open the URL it prints (default <http://localhost:8080>). It binds every

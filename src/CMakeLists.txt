@@ -13,8 +13,11 @@ isaac_teleop_enable_compiler_warnings()
 # Core modules (OXR and DEVICEIO).
 add_subdirectory(core)
 
-# Stage the isaacteleop Python tree. Must follow core (defines BUILD_PYTHON_BINDINGS).
+# Stage the isaaccapture Python tree. Must follow core (defines BUILD_PYTHON_BINDINGS).
 add_subdirectory(python)
+
+# The isaacteleop compatibility shim, staged into the tree above. Must follow python.
+add_subdirectory(compat)
 
 # Televiz visualization module, a sibling of core.
 # viz/CMakeLists.txt orchestrates its own sub-modules and tests.

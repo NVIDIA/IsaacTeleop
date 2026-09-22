@@ -9,7 +9,7 @@ Usage:
     python generate_stubs.py <module_name> <package_dir>
 
 Example:
-    python generate_stubs.py isaacteleop.deviceio._deviceio /path/to/python_package
+    python generate_stubs.py isaaccapture.deviceio._deviceio /path/to/python_package
 """
 
 import sys
@@ -31,8 +31,8 @@ def generate_stub(module_name: str, package_dir: Path) -> bool:
     """Generate stub file for a single pybind11 module.
 
     Args:
-        module_name: Fully qualified module name (e.g., "isaacteleop.deviceio._deviceio")
-        package_dir: Path to the python_package directory containing isaacteleop.
+        module_name: Fully qualified module name (e.g., "isaaccapture.deviceio._deviceio")
+        package_dir: Path to the python_package directory containing isaaccapture.
 
     Returns:
         True if successful, False otherwise.
@@ -114,7 +114,7 @@ def main() -> int:
     if len(sys.argv) != 3:
         _err(f"Usage: {sys.argv[0]} <module_name> <package_dir>")
         _err(
-            f"Example: {sys.argv[0]} isaacteleop.deviceio._deviceio /path/to/python_package"
+            f"Example: {sys.argv[0]} isaaccapture.deviceio._deviceio /path/to/python_package"
         )
         return 1
 

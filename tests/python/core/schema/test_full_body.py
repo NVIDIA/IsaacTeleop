@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for FullBodyPose and related types in isaacteleop.schema.
+"""Unit tests for FullBodyPose and related types in isaaccapture.schema.
 
 FullBodyPose is a FlatBuffers table that represents full body pose data:
 - joints: BodyJoints struct containing 24 BodyJointPose entries (XR_BD_body_tracking)
@@ -26,7 +26,7 @@ import gc
 import numpy as np
 import pytest
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     FullBodyPose,
     FullBodyPoseRecord,
     BodyJoints,
@@ -401,7 +401,7 @@ class TestDeprecatedPicoAliases:
 
     def test_aliases_resolve_and_warn(self):
         """Each legacy schema name warns and resolves to its renamed generic type."""
-        from isaacteleop import schema
+        from isaaccapture import schema
 
         cases = [
             ("FullBodyPosePicoT", "FullBodyPose"),

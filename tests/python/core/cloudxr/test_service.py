@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for isaacteleop.cloudxr.service — CloudXRService lifecycle."""
+"""Tests for isaaccapture.cloudxr.service — CloudXRService lifecycle."""
 
 import asyncio
 import contextlib
@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from conftest import live_ipc_socket, mock_service_deps
-from isaacteleop.cloudxr.service import CloudXRService
+from isaaccapture.cloudxr.service import CloudXRService
 
 _posix_only = pytest.mark.skipif(
     sys.platform == "win32",
@@ -145,9 +145,9 @@ class TestServiceStop:
 
             with (
                 patch(
-                    "isaacteleop.cloudxr.service._service.os.getpgid", return_value=99
+                    "isaaccapture.cloudxr.service._service.os.getpgid", return_value=99
                 ) as m_getpgid,
-                patch("isaacteleop.cloudxr.service._service.os.killpg") as m_killpg,
+                patch("isaaccapture.cloudxr.service._service.os.killpg") as m_killpg,
             ):
                 service.stop()
 
@@ -179,9 +179,9 @@ class TestServiceStop:
 
             with (
                 patch(
-                    "isaacteleop.cloudxr.service._service.os.getpgid", return_value=99
+                    "isaaccapture.cloudxr.service._service.os.getpgid", return_value=99
                 ),
-                patch("isaacteleop.cloudxr.service._service.os.killpg") as m_killpg,
+                patch("isaaccapture.cloudxr.service._service.os.killpg") as m_killpg,
             ):
                 service.stop()
 
@@ -196,7 +196,7 @@ class TestServiceStop:
             service = CloudXRService()
             mocks["proc"].poll.return_value = None
 
-            with patch("isaacteleop.cloudxr.service._service.sys.platform", "win32"):
+            with patch("isaaccapture.cloudxr.service._service.sys.platform", "win32"):
                 with pytest.raises(RuntimeError, match="not supported on Windows"):
                     service.stop()
 
@@ -247,7 +247,7 @@ class TestCleanupStaleRuntime:
         run_dir, paths = self._stale_run_dir(tmp_path)
 
         with caplog.at_level(
-            logging.WARNING, logger="isaacteleop.cloudxr.service._service"
+            logging.WARNING, logger="isaaccapture.cloudxr.service._service"
         ):
             CloudXRService._cleanup_stale_runtime(run_dir)
 
@@ -272,7 +272,7 @@ class TestCleanupStaleRuntime:
 
         message = str(exc_info.value)
         assert os.path.join(run_dir, "cloudxr.env") in message
-        assert "isaacteleop.cloudxr.service stop" in message
+        assert "isaaccapture.cloudxr.service stop" in message
 
 
 class TestRefusalLeavesTheLiveRuntimeAlone:
@@ -280,7 +280,7 @@ class TestRefusalLeavesTheLiveRuntimeAlone:
 
     def test_the_live_runtimes_env_file_is_not_rewritten(self, tmp_path):
         """EnvConfig resolution truncates cloudxr.env, so it must run after."""
-        from isaacteleop.cloudxr.service import CloudXRService
+        from isaaccapture.cloudxr.service import CloudXRService
 
         run_dir = tmp_path / "run"
         run_dir.mkdir(parents=True)
@@ -301,8 +301,8 @@ class TestRefusalLeavesTheLiveRuntimeAlone:
 
 @contextlib.contextmanager
 def _stub_wss(run):
-    """Stand in for isaacteleop.cloudxr.wss so no real proxy is started."""
-    name = "isaacteleop.cloudxr.wss"
+    """Stand in for isaaccapture.cloudxr.wss so no real proxy is started."""
+    name = "isaaccapture.cloudxr.wss"
     module = types.ModuleType(name)
     module.run = run
     with patch.dict(sys.modules, {name: module}):
@@ -345,8 +345,8 @@ class TestWssProxyStartup:
         with (
             mock_service_deps(tmp_path, wss=False) as mocks,
             _stub_wss(_fails_to_bind),
-            patch("isaacteleop.cloudxr.service._service.os.getpgid", return_value=99),
-            patch("isaacteleop.cloudxr.service._service.os.killpg") as m_killpg,
+            patch("isaaccapture.cloudxr.service._service.os.getpgid", return_value=99),
+            patch("isaaccapture.cloudxr.service._service.os.killpg") as m_killpg,
         ):
             poll_seq = [None, 0]
             mocks["proc"].poll = MagicMock(

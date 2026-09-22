@@ -142,11 +142,11 @@ runtime, so the runtime must be running and its environment sourced in the
 shell that launches the plugin.
 
 Start the CloudXR runtime. It runs as a background service that outlives
-this shell, until you stop it with ``python -m isaacteleop.cloudxr.service stop``:
+this shell, until you stop it with ``python -m isaaccapture.cloudxr.service stop``:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr.service start
+   python -m isaaccapture.cloudxr.service start
 
 In the shell you will use to run the plugin, source the environment file
 that the runtime writes on startup. This points the OpenXR loader at CloudXR:
@@ -226,8 +226,8 @@ Host-side consumption example:
 
 .. code-block:: python
 
-   from isaacteleop.deviceio_trackers import JointSe3PoseTracker
-   from isaacteleop.schema import JointName, JointType
+   from isaaccapture.deviceio_trackers import JointSe3PoseTracker
+   from isaaccapture.schema import JointName, JointType
 
    left = JointSe3PoseTracker("manus_sensors_left")
    # ... register with a DeviceIOSession, then each tick:
@@ -246,7 +246,7 @@ Haptic (inbound vibration)
 The plugin reads ``HapticCommand`` on collection ``manus_glove_haptic``
 (``XR_NVX1_tensor_data``) and drives five finger motors via the Manus SDK.
 See the haptic feedback example and
-``isaacteleop.haptic_devices.glove.haptic_glove_device``.
+``isaaccapture.haptic_devices.glove.haptic_glove_device``.
 
 Wrist Positioning — Controllers vs Optical Hand Tracking
 ---------------------------------------------------------
@@ -298,7 +298,7 @@ Troubleshooting
    * - No data received
      - Ensure MANUS Core is running and the gloves are connected and calibrated.
    * - CloudXR runtime errors
-     - Check that a runtime is serving with ``python -m isaacteleop.cloudxr.service status``,
+     - Check that a runtime is serving with ``python -m isaaccapture.cloudxr.service status``,
        and that ``~/.cloudxr/run/cloudxr.env`` has been sourced in the same
        terminal as the plugin.
    * - Permission denied for USB devices

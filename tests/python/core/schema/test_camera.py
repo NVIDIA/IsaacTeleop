@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for StreamType and FrameMetadataOak types in isaacteleop.schema.
+"""Unit tests for StreamType and FrameMetadataOak types in isaaccapture.schema.
 
 Tests the following FlatBuffers types:
 - StreamType: Enum identifying the OAK camera stream
@@ -11,7 +11,7 @@ Tests the following FlatBuffers types:
 Timestamps are carried by FrameMetadataOakRecord, not FrameMetadataOak.
 """
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     StreamType,
     FrameMetadataOak,
     FrameMetadataOakRecord,

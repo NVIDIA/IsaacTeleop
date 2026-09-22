@@ -38,10 +38,10 @@ from pathlib import Path
 
 import numpy as np
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import JointStateSource
-from isaacteleop.retargeting_engine.interface import OutputCombiner
-from isaacteleop.retargeters import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import JointStateSource
+from isaaccapture.retargeting_engine.interface import OutputCombiner
+from isaaccapture.retargeters import (
     JointStateRetargeter,
     JointStateRetargeterConfig,
     TensorReorderer,
@@ -128,7 +128,7 @@ def run_live(
     mode: str, num_frames: int, urdf_path: str | None, ee_link: str, timeout_s: float
 ) -> None:
     """Consume the live so101_leader plugin stream through a TeleopSession over OpenXR."""
-    from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+    from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
     source = JointStateSource(
         name="leader", collection_id=_COLLECTION_ID, joint_names=SO101_JOINTS

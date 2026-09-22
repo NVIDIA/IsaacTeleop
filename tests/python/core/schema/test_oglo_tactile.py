@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for OgloGloveSample types in isaacteleop.schema.
+"""Unit tests for OgloGloveSample types in isaaccapture.schema.
 
 Tests the following FlatBuffers types:
 - OgloGloveSample: tactile glove sample (seq, device_time_us, 80 taxels, 6-axis IMU)
 - OgloGloveSampleRecord: record wrapper carrying DeviceDataTimestamp
 """
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     DeviceDataTimestamp,
     OgloGloveSampleRecord,
     OgloGloveSample,

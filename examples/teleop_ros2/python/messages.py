@@ -16,8 +16,8 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import ByteMultiArray
 from teleop_ros2_interfaces.msg import NamedPoseArray
 
-from isaacteleop.retargeting_engine.interface import OptionalTensorGroup
-from isaacteleop.retargeting_engine.tensor_types.indices import (
+from isaaccapture.retargeting_engine.interface import OptionalTensorGroup
+from isaaccapture.retargeting_engine.tensor_types.indices import (
     ControllerInputIndex,
     FullBodyInputIndex,
     HandInputIndex,

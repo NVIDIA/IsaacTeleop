@@ -7,8 +7,8 @@ Run from this directory (after ``pip install pytest``)::
 
     pytest -q
 
-No CloudXR runtime, TLS, or ``isaacteleop`` install required — ``conftest.py`` adds
-``src/python/isaacteleop/cloudxr`` to ``sys.path``.
+No CloudXR runtime, TLS, or ``isaaccapture`` install required — ``conftest.py`` adds
+``src/python/isaaccapture/cloudxr`` to ``sys.path``.
 """
 
 from __future__ import annotations

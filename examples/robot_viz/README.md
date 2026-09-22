@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 
 A robot twin rendered stereoscopically into an Isaac Teleop Televiz XR session: a follower arm the operator drags around by hand (`--arm`, SO-101 by default), and a gripper ghost that replaces it once the clutch engages. One process, one OpenXR session, two threads — `TeleopSession` creates the session the trackers and the compositor share and runs the twin's frame loop on a thread of its own.
 
-`isaacteleop.viz.robot` holds no `mjModel` and no `mjData`: it addresses the scene by name and publishes what moved, and `twin.py` applies the lot on the render thread. That bound is what lets the backend link against a MuJoCo the user's environment knows nothing about, and is why this example is pure Python — no compiled extension, no ABI tag, no `mujoco` pin.
+`isaaccapture.viz.robot` holds no `mjModel` and no `mjData`: it addresses the scene by name and publishes what moved, and `twin.py` applies the lot on the render thread. That bound is what lets the backend link against a MuJoCo the user's environment knows nothing about, and is why this example is pure Python — no compiled extension, no ABI tag, no `mujoco` pin.
 
 ## The backend is a readback, not a renderer
 
@@ -40,7 +40,7 @@ Two calibrations, different in kind. `src/viz/robot_twin/cpp/frames.hpp` is a co
 
 ## Build
 
-Nothing here is compiled; what has to be built is `isaacteleop` itself.
+Nothing here is compiled; what has to be built is `isaaccapture` itself.
 
 ```bash
 cmake -B build -DBUILD_VIZ=ON
@@ -54,30 +54,30 @@ To just run it, `uv pip install .` drives the same CMake and skips the `build/` 
 ```bash
 uv pip install .                       # from the repo root
 uv pip install -e ./examples/robot_viz # same environment
-python -m isaacteleop_examples.robot_viz
+python -m isaaccapture_examples.robot_viz
 ```
 
-Both must land in one environment. Beware `uv pip install isaacteleop` without a path or `--find-links`: a published `isaacteleop` exists on PyPI and will resolve, with no robot twin in it.
+Both must land in one environment. Beware `uv pip install isaaccapture` without a path or `--find-links`: it does not resolve at all until `isaaccapture` is published, and once it is, it resolves to a release with no robot twin in it.
 
 Running additionally needs a GPU with EGL + CUDA, and a headset. On a multi-GPU host, pass the GPU: `SceneTwin` takes a `gl_device_index`, which indexes EGL devices and need not agree with CUDA's ordering. The renderer checks at construction and names both device numbers.
 
 ## Run
 
 ```bash
-python -m isaacteleop_examples.robot_viz --help   # includes CloudXRLauncher's flags
+python -m isaaccapture_examples.robot_viz --help   # includes CloudXRLauncher's flags
 ```
 
-The `isaacteleop` wheel has to be installed in the interpreter you launch with, not in the build venv. Picking up the wrong venv is silent, so check first — this import also fails, and says so, on an `isaacteleop` built without the twin:
+The `isaaccapture` wheel has to be installed in the interpreter you launch with, not in the build venv. Picking up the wrong venv is silent, so check first — this import also fails, and says so, on an `isaaccapture` built without the twin:
 
 ```bash
-python -c "import sys, isaacteleop; from isaacteleop.viz.robot import SceneTwin; print(sys.executable, isaacteleop.__file__)"
+python -c "import sys, isaaccapture; from isaaccapture.viz.robot import SceneTwin; print(sys.executable, isaaccapture.__file__)"
 ```
 
 Against a runtime you started yourself:
 
 ```bash
-python -m isaacteleop.cloudxr --accept-eula                                    # one terminal
-python -m isaacteleop_examples.robot_viz --no-launch-cloudxr-runtime           # another
+python -m isaaccapture.cloudxr --accept-eula                                    # one terminal
+python -m isaaccapture_examples.robot_viz --no-launch-cloudxr-runtime           # another
 ```
 
 Omitting `--no-launch-cloudxr-runtime` makes the app start its own runtime, which is right when nothing else has and fatal when something has (the runtime is a host singleton on WSS port 48322). Pass it with no runtime running and the failure comes out of `VizSession.create` as an OpenXR error before any of this example's code runs — no `[robot_viz]` lines at all is the tell.
@@ -165,7 +165,7 @@ Two phases, `DISENGAGED` and `ENGAGED`, and the enum never answers "is the clutc
 
 ### The engage gate
 
-Green means all three of these hold, and `isaacteleop.viz.robot.EngageGate` returns every one that does not, which `app.py` logs on each transition:
+Green means all three of these hold, and `isaaccapture.viz.robot.EngageGate` returns every one that does not, which `app.py` logs on each transition:
 
 - the hand's rotation is within the enter band of the rotation the clutch would latch,
 - the rate limiter is passing through, not clamping,
@@ -230,9 +230,9 @@ Visibility is `model.geom_group`, from Python. Group 2 draws and group 3 does no
 
 Pass MuJoCo an absolute scene path. Measured on mujoco 3.11.0, a relative model path mis-composes an `<include>`d file's paths and fails with `Error opening file '<a path that exists>'`; with the follower's nested include it composes the directory onto itself and opens `<dir>/<dir>/so101_new_calib.xml`. `assets.ensure_so101_scene()` returns an absolute path for this reason.
 
-The 17 STLs are fetched, not vendored: `viz.robot.assets.ensure_so101_scene()` fetches them on the first run into `~/.cache/isaacteleop/so101-assets/`, checksum-verified against a pinned commit, and `ISAACTELEOP_SO101_ASSETS` overrides the destination for a host with no route to GitHub. Nothing fetches at build time — an isolated PEP-517 wheel build must not reach the network. Everything lands flat in one directory, because MuJoCo drops an included file's own `meshdir`; `sts3215_03a_v1.stl` is fetched twice rather than aliased, because the leader fragment names its copy `STS3215_03a.stl`. The three MJCF wrappers (`follower_arm.xml`, `leader_gripper.xml`, `scene.xml`) are tracked package data re-copied into the cache on every call, so editing one takes effect on the next launch. `joints_properties.xml` is deliberately not fetched: upstream inlines its `<default>` block rather than `<include>`ing it.
+The 17 STLs are fetched, not vendored: `viz.robot.assets.ensure_so101_scene()` fetches them on the first run into `~/.cache/isaaccapture/so101-assets/`, checksum-verified against a pinned commit, and `ISAACCAPTURE_SO101_ASSETS` overrides the destination for a host with no route to GitHub. Nothing fetches at build time — an isolated PEP-517 wheel build must not reach the network. Everything lands flat in one directory, because MuJoCo drops an included file's own `meshdir`; `sts3215_03a_v1.stl` is fetched twice rather than aliased, because the leader fragment names its copy `STS3215_03a.stl`. The three MJCF wrappers (`follower_arm.xml`, `leader_gripper.xml`, `scene.xml`) are tracked package data re-copied into the cache on every call, so editing one takes effect on the next launch. `joints_properties.xml` is deliberately not fetched: upstream inlines its `<default>` block rather than `<include>`ing it.
 
-The reBot's scene works the same way, in its own cache directory (`~/.cache/isaacteleop/rebot-devarm-assets/`, `ISAACTELEOP_REBOT_ASSETS` to move it): `ensure_rebot_devarm_scene()` fetches MuJoCo Menagerie's `seeed_rebot_devarm` — 115 meshes and its MJCF, ~15 MB — plus the same ghost meshes, since every scene draws the ghost. The set is pinned by one `REBOT_MANIFEST_SHA256` over the sorted per-file digests rather than a 117-row table or a hash of the repo tarball: content, not archive framing, and 15 MB instead of the 400 MB a tarball costs. Which meshes to fetch is read out of the MJCF, so one added upstream cannot be silently left behind — the manifest digest is what pins the set. Menagerie's own `scene.xml` is not used; it has a ground plane, skybox and haze.
+The reBot's scene works the same way, in its own cache directory (`~/.cache/isaaccapture/rebot-devarm-assets/`, `ISAACCAPTURE_REBOT_ASSETS` to move it): `ensure_rebot_devarm_scene()` fetches MuJoCo Menagerie's `seeed_rebot_devarm` — 115 meshes and its MJCF, ~15 MB — plus the same ghost meshes, since every scene draws the ghost. The set is pinned by one `REBOT_MANIFEST_SHA256` over the sorted per-file digests rather than a 117-row table or a hash of the repo tarball: content, not archive framing, and 15 MB instead of the 400 MB a tarball costs. Which meshes to fetch is read out of the MJCF, so one added upstream cannot be silently left behind — the manifest digest is what pins the set. Menagerie's own `scene.xml` is not used; it has a ground plane, skybox and haze.
 
 The reBot's 92 collision meshes are fetched and compiled although the twin never draws them: MuJoCo must resolve every mesh the MJCF names, and the file is not edited.
 

@@ -415,12 +415,12 @@ LOCAL
                           system packages, PyGObject, native codec).
                           Needed for loopback, deploy, and any config
                           with ``source: rtp``. Implied by --sender-only.
-                          --sender-only skips isaacteleop + vulkan deps
+                          --sender-only skips isaaccapture + vulkan deps
                           (use on Jetson sender hosts).
                           --jetson adds JetPack-only checks: unversioned
                           CUDA lib symlinks + ld.so wiring that JetPack
                           skips. Off on desktop.
-                          isaacteleop is taken from the package index,
+                          isaaccapture is taken from the package index,
                           preferring a final release and falling back to
                           a release candidate. If neither is available,
                           setup offers to build it from this checkout;
