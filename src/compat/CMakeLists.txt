@@ -25,50 +25,49 @@ set(ISAAC_TELEOP_COMPAT_STAGE_DIR
     CACHE INTERNAL "Staging root of the isaacteleop compatibility distribution")
 set(ISAAC_TELEOP_COMPAT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop")
 
-# The extras table, generated from the same glob src/core/python/pyproject.toml.in
-# draws its own from. CONFIGURE_DEPENDS so adding an extra re-runs configure
-# rather than silently shipping a redirect that drops it.
-file(GLOB ISAAC_TELEOP_REQUIREMENTS_FILES
-    CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/src/core/python/requirements-*.txt"
-)
-if(NOT ISAAC_TELEOP_REQUIREMENTS_FILES)
-    message(FATAL_ERROR "No src/core/python/requirements-*.txt found; the compat extras would be empty")
+# The extras table, mirrored from the optional-dependencies the real distribution
+# declares -- the list that defines what isaaccapture[X] means. Not from the
+# requirements-*.txt glob: a file nobody wired into pyproject.toml.in would then
+# make this dist depend on isaaccapture[foo], which does not exist, and pip
+# downgrades an unknown extra on a dependency to a warning and installs it empty.
+# The ROS pip shims install isaacteleop[cloudxr,retargeters], so this contract has
+# a consumer.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/src/core/python/pyproject.toml.in")
+file(READ "${CMAKE_SOURCE_DIR}/src/core/python/pyproject.toml.in" _pyproject)
+string(REGEX MATCHALL "optional-dependencies\\.[A-Za-z0-9_-]+[ \t]*=" _declared
+    "${_pyproject}")
+if(NOT _declared)
+    message(FATAL_ERROR
+        "src/core/python/pyproject.toml.in declares no optional-dependencies; "
+        "the compat extras would be empty")
 endif()
 
 set(ISAAC_TELEOP_COMPAT_EXTRAS "")
-set(ISAAC_TELEOP_COMPAT_EXTRA_NAMES "")
-foreach(_requirements_file IN LISTS ISAAC_TELEOP_REQUIREMENTS_FILES)
-    get_filename_component(_stem "${_requirements_file}" NAME_WE)
-    string(REGEX REPLACE "^requirements-" "" _extra "${_stem}")
-    list(APPEND ISAAC_TELEOP_COMPAT_EXTRA_NAMES "${_extra}")
+foreach(_entry IN LISTS _declared)
+    string(REGEX REPLACE "optional-dependencies\\.([A-Za-z0-9_-]+)[ \t]*=" "\\1"
+        _extra "${_entry}")
     string(APPEND ISAAC_TELEOP_COMPAT_EXTRAS
         "${_extra} = [\"isaaccapture[${_extra}]==${ISAAC_TELEOP_PYPROJECT_VERSION}\"]\n")
 endforeach()
 
-# Generating from the glob closes one drift direction and opens another: the real
-# dist hand-lists its extras, so a new requirements-foo.txt that nobody adds there
-# makes this dist depend on isaaccapture[foo], which does not exist. pip downgrades
-# an unknown extra on a dependency to a warning, so that installs with nothing in
-# it. The ROS pip shims install isaacteleop[cloudxr,retargeters], so both sides of
-# this contract have a consumer.
-file(READ "${CMAKE_SOURCE_DIR}/src/core/python/pyproject.toml.in" _pyproject)
-string(REGEX MATCHALL "optional-dependencies\\.[A-Za-z0-9_-]+[ \t]*=" _declared
-    "${_pyproject}")
-set(ISAAC_TELEOP_DECLARED_EXTRAS "")
-foreach(_entry IN LISTS _declared)
-    string(REGEX REPLACE "optional-dependencies\\.([A-Za-z0-9_-]+)[ \t]*=" "\\1"
-        _name "${_entry}")
-    list(APPEND ISAAC_TELEOP_DECLARED_EXTRAS "${_name}")
-endforeach()
-list(SORT ISAAC_TELEOP_COMPAT_EXTRA_NAMES)
-list(SORT ISAAC_TELEOP_DECLARED_EXTRAS)
-if(NOT ISAAC_TELEOP_COMPAT_EXTRA_NAMES STREQUAL ISAAC_TELEOP_DECLARED_EXTRAS)
-    message(FATAL_ERROR
-        "Extras disagree. src/core/python/requirements-*.txt: "
-        "${ISAAC_TELEOP_COMPAT_EXTRA_NAMES}; "
-        "src/core/python/pyproject.toml.in declares: "
-        "${ISAAC_TELEOP_DECLARED_EXTRAS}. Add the extra to both, or neither.")
+# Any isaacteleop-*.whl already in wheels/ predates the rename: it is the *real*
+# 1.5-era wheel, and nothing cleans that directory. At the constant 1.6+local dev
+# version its platform tag outranks this pure-Python one under --find-links, so
+# the documented from-source install would resolve the old full tree.
+file(GLOB ISAAC_TELEOP_STALE_ALIAS_WHEELS "${CMAKE_BINARY_DIR}/wheels/isaacteleop-*.whl")
+if(ISAAC_TELEOP_STALE_ALIAS_WHEELS)
+    file(REMOVE ${ISAAC_TELEOP_STALE_ALIAS_WHEELS})
+endif()
+
+if(SKBUILD)
+    # pyproject.toml finalizes the real distribution's version before CMake runs,
+    # from a regex over VERSION, and it is always MAJOR.MINOR+local. Match it, or
+    # the staged project documented for `pip install .` pins a version that build
+    # never produced -- which is every environment with CI set, where the
+    # CMake-computed version carries a commit count and a branch label.
+    string(REGEX MATCH "^([0-9]+)\\.([0-9]+)" _ "${ISAAC_TELEOP_PYPROJECT_VERSION}")
+    set(ISAAC_TELEOP_PYPROJECT_VERSION "${CMAKE_MATCH_1}.${CMAKE_MATCH_2}+local")
 endif()
 
 configure_file(

@@ -165,3 +165,27 @@ def test_the_recovery_command_survives_a_space_in_the_cache_path(tmp_path, monke
 
     dest = assets._cache_dir(assets.CACHE_ENV_VAR, "so101-assets")
     assert (dest / "arm.stl").read_bytes() == b"solid arm\n"
+
+
+def test_a_pre_populated_rebot_cache_needs_no_completeness_marker(
+    tmp_path, monkeypatch
+):
+    """The air-gapped path REBOT_CACHE_ENV_VAR exists for.
+
+    The operator copies in a byte-identical tree; `.fetch_complete` is internal and
+    is not among the files upstream has. The digest is the completeness proof, so
+    gating the fetch on the marker alone sent that host back to the network.
+    """
+    cache = tmp_path / "rebot-devarm-rs-assets"
+    cache.mkdir()
+    (cache / "rebot.stl").write_bytes(b"solid rebot\n")
+    monkeypatch.setenv(assets.REBOT_CACHE_ENV_VAR, str(cache))
+    monkeypatch.setattr(
+        assets, "REBOT_MANIFEST_SHA256", assets._rebot_cached_digest(cache)
+    )
+    _refuse_to_fetch(monkeypatch)
+
+    scene = assets.ensure_rebot_devarm_rs_scene()
+
+    assert scene == (cache / assets.REBOT_SCENE_FILE).resolve()
+    assert (cache / ".fetch_complete").is_file()

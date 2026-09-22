@@ -398,6 +398,34 @@ jobs:
         # own .venv without isaaccapture, rather than .venv-skbuild.
         .venv-skbuild/bin/python "${RUNNER_TEMP}/skbuild_smoke.py"
 
+    - name: Wheel contents (the shim must not ship inside isaaccapture)
+      run: |
+        set -euo pipefail
+        # The other half of the split. `wheel.packages` declares isaacteleop so the
+        # editable redirect resolves it, and `wheel.exclude` drops it from the
+        # archive -- the two differ only in which path each pass is applied
+        # against. Nothing else reaches this artifact: ctest's packaging suite
+        # reads the classic uv-built wheels, and the step above installs editable.
+        # ccache is warm from that build.
+        uv build --wheel --python 3.11 --out-dir dist-wheel
+        python3 - <<'PY'
+        import pathlib, zipfile
+
+        wheel = max(
+            pathlib.Path("dist-wheel").glob("isaaccapture-*.whl"),
+            key=lambda w: w.stat().st_mtime,
+        )
+        names = zipfile.ZipFile(wheel).namelist()
+        top = {
+            n.split("/", 1)[0]
+            for n in names
+            if "/" in n and not n.split("/", 1)[0].endswith((".dist-info", ".data"))
+        }
+        assert "isaacteleop" not in top, f"the shim shipped inside {wheel.name}: {sorted(top)}"
+        assert "isaaccapture" in top, f"no isaaccapture tree in {wheel.name}: {sorted(top)}"
+        print(f"{wheel.name} ships {sorted(top)}")
+        PY
+
   test-viz-gpu:
     # Runs [gpu]-tagged Catch2 tests for the Televiz module on a self-hosted
     # GPU runner. The build-ubuntu job runs on a GPU-less GitHub-hosted runner

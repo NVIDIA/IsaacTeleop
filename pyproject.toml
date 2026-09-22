@@ -141,7 +141,8 @@ packages = { isaaccapture = "src/python/isaaccapture", isaacteleop = "src/compat
 # is built, so `isaacteleop/**` misses `__init__.py` and the redirect keeps it;
 # wheel-relative when the archive is written, so it hits. Net: `pip install -e .`
 # resolves `import isaacteleop`, while `pip install .` ships one first-party
-# package like the classic wheels. test_pip_wheel_config.py pins the pairing.
+# package like the classic wheels. test_pip_wheel_config.py pins the config shape;
+# the pip-editable-install CI job asserts the built wheel.
 exclude = ["isaacteleop/**"]
 
 # `rebuild = false`: no recompile on import, so build products (.so, .pyi, py.typed,
