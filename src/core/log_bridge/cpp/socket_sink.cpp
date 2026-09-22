@@ -15,7 +15,6 @@
 
 #ifndef _WIN32
 #    include <sys/socket.h>
-#    include <sys/time.h>
 #    include <sys/un.h>
 
 #    include <fcntl.h>
@@ -69,34 +68,6 @@ int move_above_std(int fd)
 int current_pid()
 {
     return static_cast<int>(::getpid());
-}
-
-// One deadline for the whole frame, not one per ::send(). SO_SNDTIMEO applies
-// per call, so a partial send restarts it and a receiver draining slowly holds
-// base_sink's mutex for as long as it keeps making progress -- measured 2.00 s
-// over two calls against a socketpair with no reader. Python's socket.sendall()
-// bounds the entire buffer by the same one second.
-bool send_all(int fd, const void* data, std::size_t size, std::chrono::steady_clock::time_point deadline)
-{
-    const auto* cursor = static_cast<const char*>(data);
-    while (size > 0)
-    {
-        const ssize_t sent = ::send(fd, cursor, size, MSG_NOSIGNAL);
-        if (sent > 0)
-        {
-            cursor += sent;
-            size -= static_cast<std::size_t>(sent);
-        }
-        else if (sent == 0 || errno != EINTR)
-        {
-            return false;
-        }
-        if (size > 0 && std::chrono::steady_clock::now() >= deadline)
-        {
-            return false;
-        }
-    }
-    return true;
 }
 #endif
 
@@ -174,6 +145,46 @@ int millis_until(std::chrono::steady_clock::time_point deadline)
     return left > 0 ? static_cast<int>(left) : 0;
 }
 
+bool send_all(int fd, const void* data, std::size_t size, std::chrono::steady_clock::time_point deadline)
+{
+    const auto* cursor = static_cast<const char*>(data);
+    while (size > 0)
+    {
+        if (millis_until(deadline) == 0)
+        {
+            return false;
+        }
+        const ssize_t sent = ::send(fd, cursor, size, MSG_NOSIGNAL);
+        if (sent > 0)
+        {
+            cursor += sent;
+            size -= static_cast<std::size_t>(sent);
+            continue;
+        }
+        if (sent < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+        {
+            pollfd waiting{};
+            waiting.fd = fd;
+            waiting.events = POLLOUT;
+            int ready;
+            do
+            {
+                ready = ::poll(&waiting, 1, millis_until(deadline));
+            } while (ready < 0 && errno == EINTR && millis_until(deadline) > 0);
+            if (ready == 1)
+            {
+                continue;
+            }
+        }
+        return false;
+    }
+    return true;
+}
+
 // ::connect(), bounded. A blocking AF_UNIX connect() is not the fast-fail it
 // looks like: with nothing bound it fails at once with ECONNREFUSED, but
 // against a live socket whose accept backlog is full and whose owner never
@@ -239,8 +250,8 @@ bool connect_bounded(int fd, const sockaddr_un& addr)
         }
         ::poll(nullptr, 0, 10); // no descriptor to wait on; just yield
     }
-    // Put back: ensure_connected()'s ::send() is bounded by SO_SNDTIMEO, which
-    // a non-blocking descriptor ignores.
+    // Restore the caller's flags. SocketForwardSink switches its connected
+    // socket to non-blocking after this probe.
     ::fcntl(fd, F_SETFL, flags);
     return connected;
 }
@@ -329,20 +340,16 @@ bool SocketForwardSink::ensure_connected()
     {
         return false;
     }
-    // Bounds ::send() below. Without this it blocks indefinitely once the receiver's
-    // socket buffer fills (its drain thread wedged, or simply slower than a chatty
-    // producer) -- and base_sink holds this sink's mutex across sink_it_(), so every
-    // other thread logging in this process would pile up behind the stuck one. A record
-    // dropped on timeout is the documented best-effort contract; a hung tracking loop is
-    // not. connect_bounded() covers ::connect(), which has the same failure mode.
-    timeval send_timeout{};
-    send_timeout.tv_sec = kSendTimeoutSeconds;
-    ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
-
     sockaddr_un addr{};
     addr.sun_family = AF_UNIX;
     std::strncpy(addr.sun_path, socket_path_.c_str(), sizeof(addr.sun_path) - 1);
     if (!connect_bounded(fd, addr))
+    {
+        ::close(fd);
+        return false;
+    }
+    const int flags = ::fcntl(fd, F_GETFL);
+    if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
     {
         ::close(fd);
         return false;
@@ -403,6 +410,8 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
 
     // MSG_NOSIGNAL instead of a global SIGPIPE ignore: this sink must not change
     // process-wide signal disposition for code elsewhere that may care about SIGPIPE.
+    // Non-blocking sends and one deadline bound the header and payload together,
+    // matching Python's socket.sendall() timeout.
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(kSendTimeoutSeconds);
     const bool ok =
         send_all(fd_, header, sizeof(header), deadline) && send_all(fd_, payload.data(), payload.size(), deadline);
