@@ -65,10 +65,17 @@ Clone the repository and enter the project directory:
 As a quick start guide, we don't need to build the code base from source. However, we still need
 to clone the repository for a couple quick samples to run.
 
-.. _install-isaacteleop-pip-package:
+.. _install-isaaccapture-pip-package:
 
 2. Install the ``isaaccapture`` pip package
 -------------------------------------------
+
+.. note::
+
+   Upgrading from 1.5 or earlier? The import package and the distribution were both
+   renamed from ``isaacteleop`` in 1.6. Installing ``isaaccapture`` beside an
+   existing ``isaacteleop`` leaves both on disk and the old name keeps resolving to
+   the old tree — read :doc:`/references/migration` first.
 
 In a new terminal, activate your preferred virtual or conda environment, then install the latest
 stable release from PyPI:

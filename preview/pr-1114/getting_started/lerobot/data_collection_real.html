@@ -470,13 +470,17 @@ LeRobot extras cover the SO-101 motor bus (<code class="docutils literal notrans
 (<code class="docutils literal notranslate"><span class="pre">kinematics</span></code>), and dataset recording (<code class="docutils literal notranslate"><span class="pre">dataset</span></code>). For Isaac Teleop, <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> brings the
 CloudXR runtime bindings and <code class="docutils literal notranslate"><span class="pre">retargeters-lite</span></code> is the default retargeter path on both
 x86_64 and aarch64; the full <code class="docutils literal notranslate"><span class="pre">retargeters</span></code> extra is optional. The <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> pin follows
-the release series this page documents — see <a class="reference internal" href="../quick_start.html#install-isaacteleop-pip-package"><span class="std std-ref">2. Install the isaaccapture pip package</span></a> for the
+the release series this page documents — see <a class="reference internal" href="../quick_start.html#install-isaaccapture-pip-package"><span class="std std-ref">2. Install the isaaccapture pip package</span></a> for the
 other install options:</p>
 <pre class="literal-block">uv venv --python 3.12 .venv
 source .venv/bin/activate
 uv pip install -e &quot;.[feetech,kinematics,dataset]&quot; &quot;huggingface_hub&gt;=1.5&quot;
-uv pip install &quot;isaaccapture[cloudxr,retargeters-lite]~=1.6.0&quot; &quot;scipy&gt;=1.14&quot; \
+uv pip install &quot;isaaccapture[cloudxr,retargeters-lite]~=1.6.0&quot; &quot;isaacteleop~=1.6.0&quot; &quot;scipy&gt;=1.14&quot; \
       --extra-index-url <a class="reference external" href="https://pypi.nvidia.com" rel="noopener noreferrer" target="_blank">https://pypi.nvidia.com</a> --prerelease=allow</pre>
+<p><code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> is the compatibility alias, not a second copy: the upstream
+<code class="docutils literal notranslate"><span class="pre">isaac_teleop_to_so101</span></code> scripts still import the old name, and installing
+<code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> alone leaves them at <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code>. Drop it once
+they are updated – see <a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>.</p>
 </li>
 <li><p>Log in to the Hugging Face Hub — recorded datasets are pushed to the Hub by default (pass
 <code class="docutils literal notranslate"><span class="pre">--dataset.push_to_hub=false</span></code> to keep them local):</p>

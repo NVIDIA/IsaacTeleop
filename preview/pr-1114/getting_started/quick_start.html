@@ -498,7 +498,14 @@ Launch on Brev — Isaac Lab 3.0 beta 1</div>
 to clone the repository for a couple quick samples to run.</p>
 </section>
 <section id="install-the-isaaccapture-pip-package">
-<span id="install-isaacteleop-pip-package"></span><h2>2. Install the <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> pip package<a class="headerlink" href="#install-the-isaaccapture-pip-package" title="Link to this heading">#</a></h2>
+<span id="install-isaaccapture-pip-package"></span><h2>2. Install the <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> pip package<a class="headerlink" href="#install-the-isaaccapture-pip-package" title="Link to this heading">#</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Upgrading from 1.5 or earlier? The import package and the distribution were both
+renamed from <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> in 1.6. Installing <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> beside an
+existing <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> leaves both on disk and the old name keeps resolving to
+the old tree — read <a class="reference internal" href="../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a> first.</p>
+</div>
 <p>In a new terminal, activate your preferred virtual or conda environment, then install the latest
 stable release from PyPI:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'isaaccapture[cloudxr,retargeters]~=1.0'</span>

@@ -443,6 +443,35 @@ release that ships one, and upgrades stop there with no diagnostic.
 <code class="docutils literal notranslate"><span class="pre">isaacteleop&lt;1.9</span></code> resolves to that same release and says so. Only moving to
 <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> ends the problem.</p>
 </div>
+<section id="in-short">
+<h2>In short<a class="headerlink" href="#in-short" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p>Upgrade with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-U</span> <span class="pre">isaacteleop[...]</span></code>, <strong>not</strong> by installing
+<code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> beside it – see <a class="reference internal" href="#migration-upgrading"><span class="std std-ref">Upgrading an existing install</span></a>.</p></li>
+<li><p>Rewrite <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> in imports and <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code>
+commands, but <strong>not</strong> <code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code>.</p></li>
+<li><p>Rename the dependency in your own <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> / <code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code>.</p></li>
+<li><p>Move the robot-twin asset cache and its two override variables, if you use them.</p></li>
+</ol>
+</section>
+<section id="upgrading-an-existing-install">
+<span id="migration-upgrading"></span><h2>Upgrading an existing install<a class="headerlink" href="#upgrading-an-existing-install" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> and <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> are different distributions, so pip will not
+replace one with the other. Upgrade through the <strong>old</strong> name and pip removes the
+1.5 tree for you:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>pip<span class="w"> </span>install<span class="w"> </span>-U<span class="w"> </span><span class="s2">"isaacteleop[cloudxr]"</span><span class="w">     </span><span class="c1"># 1.5 tree removed, alias installed</span>
+</pre></div>
+</div>
+<p>Installing <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> beside an existing <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> 1.5 instead leaves
+both on disk – two complete first-party trees, two copies of every compiled
+extension. <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> then resolves to the <strong>stale 1.5 tree</strong> rather
+than to the alias, with no deprecation notice to say so, and a half-migrated
+process holds two registries of the same pybind11 types. If that has already
+happened, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">uninstall</span> <span class="pre">-y</span> <span class="pre">isaacteleop</span></code> and reinstall whichever of the two you
+meant.</p>
+<p>On a machine with no <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> installed, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaaccapture</span></code> is
+all you need; <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> is then a plain <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code>.</p>
+</section>
 <section id="imports">
 <h2>Imports<a class="headerlink" href="#imports" title="Link to this heading">#</a></h2>
 <div class="highlight-diff notranslate"><div class="highlight"><pre><span></span><span class="gd">-import isaacteleop</span>
@@ -457,6 +486,37 @@ shares state, singletons and extension registrations rather than loading two
 copies.</p>
 <p>The same rename applies to <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code> entry points, for example
 <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaaccapture.cloudxr.service</span> <span class="pre">run</span></code>.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> is a <strong>different</strong> package and was not renamed. A
+repo-wide substitution breaks every <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop_examples.*</span></code>
+command, and the alias deliberately declines that name, so the failure is a
+bare <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code> with no notice attached. Rewrite <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>
+only where it stands alone.</p>
+</div>
+</section>
+<section id="what-importing-the-old-name-does">
+<h2>What importing the old name does<a class="headerlink" href="#what-importing-the-old-name-does" title="Link to this heading">#</a></h2>
+<p>Until 1.9 the old name still resolves, but it is not silent:</p>
+<ul class="simple">
+<li><p>It raises a <code class="docutils literal notranslate"><span class="pre">DeprecationWarning</span></code> on the first import in a process.</p></li>
+<li><p>When the default filters hide that warning – which is every import not made
+from <code class="docutils literal notranslate"><span class="pre">__main__</span></code>, including every <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code> – the same text is printed to
+stderr instead, prefixed with the importing <code class="docutils literal notranslate"><span class="pre">file:line</span></code>.</p></li>
+<li><p>Under <code class="docutils literal notranslate"><span class="pre">-W</span> <span class="pre">error::DeprecationWarning</span></code>, or a pytest
+<code class="docutils literal notranslate"><span class="pre">filterwarnings</span> <span class="pre">=</span> <span class="pre">[&quot;error&quot;]</span></code>, the import <strong>raises</strong>. A suite that sets this
+collects nothing until the imports are renamed.</p></li>
+</ul>
+<p>To silence both channels while you migrate, filter on the message. A
+module-scoped filter does not work: the warning is reported against the line that
+imported, not against <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>.</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>python<span class="w"> </span>-W<span class="w"> </span><span class="s2">"ignore:The 'isaacteleop' import package:DeprecationWarning"</span><span class="w"> </span>-m<span class="w"> </span>yourapp
+</pre></div>
+</div>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[tool.pytest.ini_options]</span>
+<span class="n">filterwarnings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"ignore:The 'isaacteleop' import package:DeprecationWarning"</span><span class="p">]</span>
+</pre></div>
+</div>
 </section>
 <section id="installing">
 <h2>Installing<a class="headerlink" href="#installing" title="Link to this heading">#</a></h2>
@@ -465,10 +525,9 @@ copies.</p>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> still resolves, to a distribution whose only content
-is a redirect that depends on <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> at the same version. The alias
-lives in that distribution and nowhere else, so installing <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>
-alone leaves <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> a plain <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code>. Three more
-consequences worth knowing:</p>
+is a redirect that depends on <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> at the same version. Every extra
+is mirrored, so <code class="docutils literal notranslate"><span class="pre">isaacteleop[cloudxr]</span></code> installs <code class="docutils literal notranslate"><span class="pre">isaaccapture[cloudxr]</span></code>.
+Three more consequences worth knowing:</p>
 <ul class="simple">
 <li><p>A <code class="docutils literal notranslate"><span class="pre">--no-deps</span></code> install of <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> installs the redirect <strong>and nothing
 else</strong>, and raises <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> on first import. Isaac Sim’s
@@ -483,15 +542,29 @@ does not, because the wheel it builds is the real distribution and ships one
 package. The commands are in
 <a class="reference internal" href="../getting_started/build_from_source/index.html"><span class="doc">Build from Source</span></a> and <a class="reference internal" href="build.html"><span class="doc">Build System</span></a>.</p></li>
 <li><p>A <code class="docutils literal notranslate"><span class="pre">sys.meta_path</span></code> finder is invisible to a type checker, so everything under
-<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> is typed <code class="docutils literal notranslate"><span class="pre">Any</span></code>. It does not error, and it does not check
-anything either; autocomplete is gone. The alias promises runtime identity
-only. Migrate to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> to get the real types back.</p></li>
+<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> is typed <code class="docutils literal notranslate"><span class="pre">Any</span></code>: autocomplete is gone, and nothing is checked.
+mypy accepts it; <strong>pyright reports every submodule import as unresolved</strong>
+(<code class="docutils literal notranslate"><span class="pre">reportMissingImports</span></code>) because the stub has no submodules to find. The
+alias promises runtime identity only. Migrate to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> to get the
+real types back.</p></li>
 </ul>
+</section>
+<section id="logging">
+<h2>Logging<a class="headerlink" href="#logging" title="Link to this heading">#</a></h2>
+<p>Loggers are named after the module they live in, and the alias hands back the
+real module, so the whole hierarchy moved to <code class="docutils literal notranslate"><span class="pre">isaaccapture.*</span></code> even for code
+that still imports the old name. No alias can reach a string key, so a
+<code class="docutils literal notranslate"><span class="pre">dictConfig</span></code> or <code class="docutils literal notranslate"><span class="pre">getLogger</span></code> call naming <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> silently stops
+matching – the logger is created, and nothing ever logs to it:</p>
+<div class="highlight-diff notranslate"><div class="highlight"><pre><span></span><span class="gd">-logging.getLogger("isaacteleop.cloudxr").setLevel(logging.DEBUG)</span>
+<span class="gi">+logging.getLogger("isaaccapture.cloudxr").setLevel(logging.DEBUG)</span>
+</pre></div>
+</div>
 </section>
 <section id="the-asset-cache">
 <h2>The asset cache<a class="headerlink" href="#the-asset-cache" title="Link to this heading">#</a></h2>
 <p>The robot twin’s cached meshes moved with the package name. A populated 1.5
-cache is still on disk and is re-usable as is — the completeness marker and the
+cache is still on disk and is re-usable as is – the completeness marker and the
 manifest digest both survive a move, so nothing is re-downloaded:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.cache/isaaccapture
 <span class="gp">$ </span>cp<span class="w"> </span>-a<span class="w"> </span>~/.cache/isaacteleop/.<span class="w"> </span>~/.cache/isaaccapture/
@@ -500,7 +573,8 @@ manifest digest both survive a move, so nothing is re-downloaded:</p>
 <p><code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-a</span></code> rather than <code class="docutils literal notranslate"><span class="pre">mv</span></code>: once you have launched the twin under 1.6 the
 destination already exists, and <code class="docutils literal notranslate"><span class="pre">mv</span></code> would move the old cache <em>inside</em> it
 and exit 0. Delete <code class="docutils literal notranslate"><span class="pre">~/.cache/isaacteleop</span></code> afterwards if you want the space
-back.</p>
+back. If <code class="docutils literal notranslate"><span class="pre">XDG_CACHE_HOME</span></code> is set, both paths are under it rather than
+<code class="docutils literal notranslate"><span class="pre">~/.cache</span></code>.</p>
 <p>The two override variables moved with it. They are no longer read under their
 old names, and <code class="docutils literal notranslate"><span class="pre">isaaccapture.viz.robot</span></code> logs a warning if it finds one set:</p>
 <div class="pst-scrollable-table-container"><table class="table">
@@ -519,9 +593,23 @@ old names, and <code class="docutils literal notranslate"><span class="pre">isaa
 </tbody>
 </table>
 </div>
-<p>A detached CloudXR service started before the upgrade is still recognised by
+<p>These two are the only environment variables this release renames. The
+<code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_*</span></code> variables documented elsewhere – the CloudXR runtime
+switches among them – keep their names.</p>
+</section>
+<section id="the-detached-cloudxr-service">
+<h2>The detached CloudXR service<a class="headerlink" href="#the-detached-cloudxr-service" title="Link to this heading">#</a></h2>
+<p>A detached service started before the upgrade is still recognised by
 <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">status</span></code> and <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code>, so it does not need to be stopped
-first.</p>
+first: 1.6 matches the old module name in its <code class="docutils literal notranslate"><span class="pre">/proc</span></code> command line as well as
+the new one.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>That only works in one direction. A service started under 1.6 is <strong>not</strong>
+recognised by a 1.5 CLI, which cannot know the new name. If you roll back,
+stop the service first – otherwise <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code> reports that nothing is
+running, exits 0, and leaves a runtime holding the GPU.</p>
+</div>
 </section>
 </section>
 
@@ -574,9 +662,14 @@ first.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#in-short">In short</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#upgrading-an-existing-install">Upgrading an existing install</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#imports">Imports</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-importing-the-old-name-does">What importing the old name does</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing">Installing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#logging">Logging</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-asset-cache">The asset cache</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-detached-cloudxr-service">The detached CloudXR service</a></li>
 </ul>
   </nav></div>
 

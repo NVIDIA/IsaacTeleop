@@ -429,7 +429,8 @@ What this path does and how it differs from the classic flow:
       pip install ./build-wheel/cpython-311/python_package_compat/Release
 
    Substitute your interpreter's cache tag for ``cpython-311``. It pins
-   ``isaaccapture`` at the version just installed, so the two cannot drift apart.
+   ``isaaccapture`` at the version ``pip install .`` produced, which for this path
+   is always ``MAJOR.MINOR+local``.
 
 .. admonition:: Editable installs and iterating on pure-Python subpackages
 
