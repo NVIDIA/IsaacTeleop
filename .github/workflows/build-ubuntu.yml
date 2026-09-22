@@ -529,7 +529,11 @@ jobs:
         # self-hosted runner is shared with other GPU jobs and Vulkan
         # device enumeration occasionally returns empty under contention.
         run_pytest() {
+          # --reinstall-package (implies --refresh-package): the wheel version is a
+          # commit count, so amending a branch reuses the filename and this
+          # self-hosted runner's uv cache would serve the previous unpack.
           uv run --python 3.12 \
+                 --reinstall-package isaaccapture \
                  --with "${wheels[0]}" \
                  --with pytest \
                  --with numpy \
