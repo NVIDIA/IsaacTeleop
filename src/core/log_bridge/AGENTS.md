@@ -90,25 +90,32 @@ logs. Failing the check costs the file sink; it must never throw.
 
 **The rotating file sink's descriptor can land on fd 0/1/2; this is a known,
 accepted gap, not an oversight to re-report.** `socket_sink.cpp`'s
-`move_above_std()` (and the Python-side `_move_above_std()` it mirrors) relies
-on being able to grab the fd right after `::socket()`/`open()` returns it and
-close it back if it is already clear of stdio. `file_helper::open()`
-(`file_helper-inl.h`) has no equivalent seam: it calls `before_open` once,
-then retries its own `fopen` in a loop and calls `after_open` only on the
-iteration that succeeds — a total failure throws without ever calling
-`after_open`. A `before_open` hook that occupied fd 0/1/2 with placeholders to
-force the real open above them would therefore leak a `/dev/null` onto a
-closed host descriptor permanently whenever every retry fails, which is
-exactly the outcome "vetted twice" above and the repo root `AGENTS.md`'s
-"never rebind the host's fd 1 or fd 2" both forbid. A correct fix needs a
-seam around the call into `file_helper::open()` itself (e.g. an RAII guard
-scoped to whatever wraps `rotating_file_sink_mt::sink_it_`/`flush_`, not to
-spdlog's hooks) — not attempted here because it changes the sink's shape for a
-narrow combination (host closed fd 0/1/2, no `ISAACTELEOP_LOG_SOCKET`, vendor
-code writing raw bytes to fd 1/2 while this sink is live). Demonstrated
-against real spdlog v1.17.0: with fd 1/2 closed and no socket forwarding, the
-rotating file sink opens on fd 1, and a raw `write(1, ...)` after that lands
-inside the session's own log file, interleaved with formatted records.
+`move_above_std()` (and the Python-side `_move_above_std()` it mirrors) works
+because it owns the descriptor the moment `::socket()`/`os.open()` hands it
+over: one already clear of stdio is returned untouched, one on stdio is
+duplicated above stdio and the original closed. `file_helper::open()`
+(`file_helper-inl.h`) offers no such moment. It calls `before_open` once, then
+retries `fopen` in a loop and calls `after_open` only on the iteration that
+succeeds; exhausting the retries throws with `after_open` never called. A
+`before_open` hook that occupied fd 0/1/2 with placeholders to push the real
+open above them therefore has nowhere to release them when every retry fails,
+and would leave `/dev/null` standing on a descriptor the host had closed --
+what the repo root `AGENTS.md`'s "never rebind the host's fd 1 or fd 2"
+forbids.
+
+Releasing them without `after_open` needs an RAII guard around the calls into
+`file_helper::open()`, which are the `rotating_file_sink` constructor and
+`rotate_()` inside `sink_it_` -- not `flush_`, which never reopens. Not done,
+and the reason is not the constructor: `rotate_()` reopens too, so the guard
+sits on the per-record logging path, and while it is held the host's fd 0/1/2
+point at `/dev/null` instead of being closed. That trades a permanent
+rebinding for a transient one rather than removing it.
+
+Verified against real spdlog v1.17.0: with fd 1/2 closed and no
+`ISAACTELEOP_LOG_SOCKET`, the rotating file sink opens on fd 1, and a raw
+`write(1, ...)` afterwards lands in the session's own log file between
+formatted records. Both conditions are needed -- with the socket set,
+`local_sinks()` returns a forwarding sink and never builds a file sink at all.
 
 ## `install_python_sink()` reaches one shared object, not the process
 
