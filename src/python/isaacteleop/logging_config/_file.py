@@ -5,11 +5,14 @@
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
+import stat
 import threading
 import time
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from ._core import (
     DATE_FORMAT,
@@ -68,6 +71,41 @@ class _PrivateRotatingFileHandler(RotatingFileHandler):
             raise
 
 
+def _discard_if_empty(path: Path, identity: tuple[int, int], owner_pid: int) -> None:
+    """Remove a session log file nothing was ever written to.
+
+    Most processes that import isaacteleop emit no records of their own -- a
+    CLI that only parses its arguments, a worker that exits on a bad config --
+    and the handler opens the file when it is constructed, so without this
+    every one of them leaves a 0-byte log behind. The capture file beside it is
+    cleaned up the same way (``_native_fd._discard_if_empty``).
+
+    Closed before the unlink so Windows, which refuses to remove an open file,
+    is not left with the litter this exists to prevent; ``Handler.close()``
+    also deregisters it, so ``logging.shutdown()`` will not close it twice.
+
+    Only the creator may unlink -- a fork inherits this registration -- and
+    only while the path still names the file this process opened. That
+    identity check also covers rotation for free: a rotated base file is a new
+    inode, so a handler that ever rolled over is left alone along with its
+    backups.
+    """
+    if os.getpid() != owner_pid:
+        return
+    try:
+        if _handler is not None:
+            _handler.close()
+        current = os.lstat(path)
+        if (
+            stat.S_ISREG(current.st_mode)
+            and (current.st_dev, current.st_ino) == identity
+            and current.st_size == 0
+        ):
+            os.unlink(path)
+    except OSError:
+        return  # Best-effort atexit cleanup; nothing here may raise.
+
+
 def ensure_handler() -> logging.Handler:
     """Create and attach the file handler on first use; idempotent after that.
 
@@ -88,8 +126,9 @@ def ensure_handler() -> logging.Handler:
             return _handler
         directory = ensure_log_dir()
         timestamp = time.strftime("%Y%m%d-%H%M%S")
+        path = directory / f"{timestamp}.isaacteleop.{os.getpid()}.log"
         handler = _PrivateRotatingFileHandler(
-            directory / f"{timestamp}.isaacteleop.{os.getpid()}.log",
+            path,
             maxBytes=_MAX_BYTES,
             backupCount=_BACKUP_COUNT,
             encoding="utf-8",
@@ -97,5 +136,11 @@ def ensure_handler() -> logging.Handler:
         handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
         handler.setLevel(TRACE)
         logging.getLogger(ROOT_LOGGER_NAME).addHandler(handler)
+        # Recorded now, from the descriptor the handler is holding: at exit the
+        # path alone cannot say whether it still names this file.
+        opened = os.fstat(handler.stream.fileno())
+        atexit.register(
+            _discard_if_empty, path, (opened.st_dev, opened.st_ino), os.getpid()
+        )
         _handler = handler
         return _handler
