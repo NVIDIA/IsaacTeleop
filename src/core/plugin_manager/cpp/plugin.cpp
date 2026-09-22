@@ -297,7 +297,16 @@ void Plugin::start_process(const std::string& command,
         }
         if (startup_state == ProcessState::EXITED || startup_state == ProcessState::SIGNALED)
         {
-            std::string message = startup_error.empty() ? "Plugin process exited immediately" : startup_error;
+            // Keep the leading phrase whatever else is known. It is the only part
+            // that says the exit happened inside the startup window -- startup_error
+            // says how the process exited, not when -- and .github/workflows/
+            // build-ubuntu.yml matches it verbatim to fail the live CloudXR job
+            // fast instead of waiting out its bring-up timeout.
+            std::string message = "Plugin process exited immediately";
+            if (!startup_error.empty())
+            {
+                message += ": " + startup_error;
+            }
             if (!native_capture_path_text.empty())
             {
                 message += "; see native output capture at " + native_capture_path_text;
