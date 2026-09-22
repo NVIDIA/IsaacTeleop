@@ -15,16 +15,29 @@ except PackageNotFoundError:
     __version__ = "0+unknown"
 
 # Import submodules.
-from . import deviceio_trackers
-from . import deviceio_session
-from . import deviceio
-from . import oxr
-from . import plugin_manager
-from . import schema
-from . import teleop_session_manager
-from . import cloudxr
+from . import (
+    cloudxr,
+    deviceio,
+    deviceio_session,
+    deviceio_trackers,
+    log_bridge,
+    logging_config,
+    oxr,
+    plugin_manager,
+    schema,
+    teleop_session_manager,
+)
+
+# install() first: it builds the handlers the bridged records land in. Without the sink,
+# in-process C++ keeps its own console/file sinks and its own ISAACTELEOP_LOG_LEVEL
+# threshold, so set_console_level() would silently govern only the Python half of the
+# tree; loggers created before this point are re-sinked by set_bridge_sink().
+logging_config.install()
+log_bridge.install_python_sink()
 
 __all__ = [
+    "log_bridge",
+    "logging_config",
     "deviceio_trackers",
     "deviceio_session",
     "deviceio",

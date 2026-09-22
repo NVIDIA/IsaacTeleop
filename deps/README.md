@@ -105,6 +105,17 @@ machine and are located via `find_package`.
 - **Build**: Header-only library
 - **License**: MIT
 
+### spdlog
+- **Source**: https://github.com/gabime/spdlog.git
+- **Version**: v1.17.0
+- **Purpose**: C++ logging backing `isaacteleop::Logger` (`src/core/log_bridge`)
+  — named loggers, console/rotating-file sinks for standalone executables, and
+  the custom sink that bridges into Python `logging` for in-process code.
+  Fetched unconditionally (not gated behind `BUILD_PYTHON_BINDINGS`), since
+  standalone plugin executables need it too.
+- **Build**: Static library
+- **License**: MIT
+
 ## Adding New Dependencies
 
 When adding new third-party dependencies:

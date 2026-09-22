@@ -44,6 +44,7 @@ target_link_libraries(live_trackers
         oxr::oxr_utils
         pusherio::pusherio
         Teleop::openxr_extensions
+        log_bridge::log_bridge_core
 )
 
 add_library(deviceio::live_trackers ALIAS live_trackers)

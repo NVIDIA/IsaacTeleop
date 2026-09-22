@@ -3,9 +3,13 @@
 
 #include "inc/plugin_manager/plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #ifndef _WIN32
+#    include <sys/stat.h>
 #    include <sys/wait.h>
 
+#    include <fcntl.h>
 #    include <signal.h>
 #    include <string.h>
 #    include <unistd.h>
@@ -13,14 +17,52 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
 
 namespace core
 {
+#ifndef _WIN32
+namespace
+{
+
+// Report from inside the fork()/execvp() window. std::cerr must not be used
+// there: the standard ties cerr to cout, so ostream::sentry flushes cout
+// first, and this child inherited whatever the *host* process had buffered on
+// stdout -- which fd 1 now points at the capture file, so the host's own
+// output gets copied into isaacteleop's log. write() has no buffer of its own
+// and is on POSIX's async-signal-safe list, which the stream operators,
+// std::stringstream and std::string concatenation in this window are not.
+void write_fd2(const char* text, std::size_t len)
+{
+    std::size_t written = 0;
+    while (written < len)
+    {
+        const ssize_t n = ::write(STDERR_FILENO, text + written, len - written);
+        if (n < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if (n <= 0)
+        {
+            return; // Nothing useful is left to do about it in this window.
+        }
+        written += static_cast<std::size_t>(n);
+    }
+}
+
+// Length from the literal, so no strlen() call is needed in the window.
+template <std::size_t N>
+void write_fd2(const char (&literal)[N])
+{
+    write_fd2(literal, N - 1);
+}
+
+} // namespace
+#endif
 
 Plugin::Plugin(const std::string& command,
                const std::string& working_dir,
@@ -85,6 +127,62 @@ void Plugin::start_process(const std::string& command,
                            const std::vector<std::string>& plugin_args)
 {
 #ifndef _WIN32
+    std::vector<std::string> args_str;
+    std::stringstream ss(command);
+    std::string item;
+    while (std::getline(ss, item, ' '))
+    {
+        if (!item.empty())
+        {
+            args_str.push_back(item);
+        }
+    }
+    if (args_str.empty())
+    {
+        throw std::runtime_error("Empty plugin command");
+    }
+    if (!plugin_root_id.empty())
+    {
+        args_str.push_back("--plugin-root-id=" + plugin_root_id);
+    }
+    for (const auto& arg : plugin_args)
+    {
+        if (!arg.starts_with("--plugin-root-id="))
+        {
+            args_str.push_back(arg);
+        }
+        else
+        {
+            isaacteleop::Logger::get("isaacteleop.core.Plugin")
+                ->warn("--plugin-root-id is managed by the plugin launcher, ignoring manual override");
+        }
+    }
+
+    std::vector<char*> args;
+    args.reserve(args_str.size() + 1);
+    for (auto& arg : args_str)
+    {
+        args.push_back(arg.data());
+    }
+    args.push_back(nullptr);
+
+    char* const executable = args.front();
+    char* const* const argv = args.data();
+    const char* const working_dir_path = working_dir.empty() ? nullptr : working_dir.c_str();
+    const std::size_t working_dir_size = working_dir.size();
+    const char* const command_text = command.data();
+    const std::size_t command_size = command.size();
+
+    // Read before fork(): getenv() is not async-signal-safe, and the child needs
+    // the path as a plain pointer it can hand straight to open(). Published by
+    // isaacteleop.logging_config (_native_fd.CAPTURE_FILE_ENV); absent only when
+    // no file could be opened or this process never imported the Python half.
+    // Capture mode "off" still publishes it because it governs the host's
+    // descriptors, not those of a process the host launches.
+    const char* const native_capture_env = std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
+    const std::string native_capture_path_text = native_capture_env == nullptr ? "" : native_capture_env;
+    const char* const native_capture_path = native_capture_path_text.empty() ? nullptr : native_capture_path_text.c_str();
+
     const pid_t child_pid = fork();
     if (child_pid == -1)
     {
@@ -93,14 +191,66 @@ void Plugin::start_process(const std::string& command,
 
     if (child_pid == 0)
     {
-        // Child process
+        // Child process, between fork() and execvp(): only async-signal-safe calls
+        // are allowed here (POSIX). Never add Logger/spdlog calls in this window --
+        // spdlog's registry and (in a Python process) GIL acquisition are both
+        // unsafe post-fork-pre-exec.
+        //
+        // One exception, deliberate and the only one: execvp() itself. POSIX lists
+        // execl/execle/execv/execve as async-signal-safe and leaves execvp out,
+        // because the PATH search may allocate -- which, if another thread held
+        // malloc's lock at fork() time, hangs this child. It is kept because a
+        // plugin's command comes from its metadata and may be a bare name that has
+        // to be found on PATH. Removing the exception means resolving the
+        // executable to an absolute path *before* fork() and calling execv(); do
+        // not instead delete this note and leave the blanket claim above standing.
+
+        // Point *this process's* output at the session's capture file, which is what
+        // keeps a plugin's non-logger output -- the OpenXR runtime's xrCreate* spew,
+        // the Manus SDK's own formatted lines, anything a vendor writes to a
+        // descriptor -- off the terminal and in the log without the parent ever
+        // rebinding its own fd 1/2. These descriptors belong to the child, not to
+        // the host, so setting them here is not the redirection isaacteleop has to
+        // avoid; it is the reason that redirection is no longer needed for plugins.
+        //
+        // open(), dup2() and close() are all on POSIX's async-signal-safe list.
+        // O_APPEND, so several plugins and the parent can share one file without
+        // overwriting each other. A failure is silent by necessity: there is
+        // nowhere left to report it to, and losing the capture must not stop the
+        // plugin from starting.
+        if (native_capture_path != nullptr && native_capture_path[0] != '\0')
+        {
+            // The Python leader already created this file 0600. Do not recreate
+            // a missing path or append to a regular file planted in its place.
+            const int capture_fd = ::open(native_capture_path, O_WRONLY | O_APPEND | O_NOFOLLOW);
+            if (capture_fd >= 0)
+            {
+                struct ::stat capture_info
+                {
+                };
+                const bool private_capture = ::fstat(capture_fd, &capture_info) == 0 && S_ISREG(capture_info.st_mode) &&
+                                             capture_info.st_uid == ::getuid() &&
+                                             (capture_info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+                if (private_capture)
+                {
+                    ::dup2(capture_fd, STDOUT_FILENO);
+                    ::dup2(capture_fd, STDERR_FILENO);
+                }
+                if (!private_capture || (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO))
+                {
+                    ::close(capture_fd);
+                }
+            }
+        }
 
         // Change working directory
-        if (!working_dir.empty())
+        if (working_dir_path != nullptr)
         {
-            if (chdir(working_dir.c_str()) != 0)
+            if (chdir(working_dir_path) != 0)
             {
-                std::cerr << "Failed to change directory to " << working_dir << std::endl;
+                write_fd2("Failed to change directory to ");
+                write_fd2(working_dir_path, working_dir_size);
+                write_fd2("\n");
                 _exit(1);
             }
         }
@@ -111,53 +261,12 @@ void Plugin::start_process(const std::string& command,
             close(i);
         }
 
-        // Split command into args (naive splitting by space)
-        std::vector<std::string> args_str;
-        std::stringstream ss(command);
-        std::string item;
-        while (std::getline(ss, item, ' '))
-        {
-            if (!item.empty())
-                args_str.push_back(item);
-        }
-
-        if (args_str.empty())
-        {
-            std::cerr << "Empty command" << std::endl;
-            _exit(1);
-        }
-
-        // Append plugin root ID argument if set
-        if (!plugin_root_id.empty())
-        {
-            args_str.push_back("--plugin-root-id=" + plugin_root_id);
-        }
-
-        // Append plugin arguments, skipping --plugin-root-id if already injected above
-        for (const auto& arg : plugin_args)
-        {
-            if (!arg.starts_with("--plugin-root-id="))
-            {
-                args_str.push_back(arg);
-            }
-            else
-            {
-                std::cerr << "Warning: --plugin-root-id is managed by the plugin launcher, ignoring manual override"
-                          << std::endl;
-            }
-        }
-
-        std::vector<char*> args;
-        for (auto& s : args_str)
-        {
-            args.push_back(&s[0]);
-        }
-        args.push_back(nullptr);
-
-        execvp(args[0], args.data());
+        execvp(executable, argv);
 
         // If execvp returns, it failed
-        std::cerr << "Failed to exec plugin command: " << command << std::endl;
+        write_fd2("Failed to exec plugin command: ");
+        write_fd2(command_text, command_size);
+        write_fd2("\n");
         _exit(1);
     }
     else
@@ -188,7 +297,21 @@ void Plugin::start_process(const std::string& command,
         }
         if (startup_state == ProcessState::EXITED || startup_state == ProcessState::SIGNALED)
         {
-            throw std::runtime_error("Plugin process exited immediately");
+            // Keep the leading phrase whatever else is known. It is the only part
+            // that says the exit happened inside the startup window -- startup_error
+            // says how the process exited, not when -- and .github/workflows/
+            // build-ubuntu.yml matches it verbatim to fail the live CloudXR job
+            // fast instead of waiting out its bring-up timeout.
+            std::string message = "Plugin process exited immediately";
+            if (!startup_error.empty())
+            {
+                message += ": " + startup_error;
+            }
+            if (!native_capture_path_text.empty())
+            {
+                message += "; see native output capture at " + native_capture_path_text;
+            }
+            throw std::runtime_error(message);
         }
     }
 #else

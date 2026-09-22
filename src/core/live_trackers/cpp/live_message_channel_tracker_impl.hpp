@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_trackers/message_channel_tracker.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
 #include <oxr_utils/oxr_time.hpp>
@@ -58,6 +59,7 @@ private:
     void drain_messages(MessageChannelMessagesTrackedT& native);
 
     OpenXRSessionHandles handles_;
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.LiveMessageChannelTrackerImpl");
     const MessageChannelTracker* tracker_{ nullptr };
     XrSystemId system_id_{ XR_NULL_SYSTEM_ID };
     XrUuidEXT channel_uuid_{};

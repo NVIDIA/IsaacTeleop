@@ -18,6 +18,7 @@ import concurrent.futures.thread  # noqa: F401
 import logging
 import os
 import signal
+import stat
 import subprocess
 import sys
 import threading
@@ -25,6 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..env_config import DEFAULT_DEVICE_PROFILE, ENV_FILE_NAME, EnvConfig
+from ...logging_config import native_capture_fd, native_capture_path
 from ..runtime import (
     RUNTIME_STARTUP_TIMEOUT_SEC,
     RUNTIME_TERMINATE_TIMEOUT_SEC,
@@ -50,24 +52,48 @@ drop the live session.
     python -m isaacteleop.cloudxr.service stop
   (Ctrl+C in its terminal if it is running in the foreground.)"""
 
-#: Runtime worker stderr, kept apart from runtime_stderr.log so the worker and
-#: :func:`~.runtime.run` never append to one file from two processes.
+#: Runtime worker stderr, kept apart from the runtime process's own -- see
+#: _gather_diagnostic_logs, which reads both.
 _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
 
 
-def _set_pdeathsig() -> None:
-    """Ask the kernel to send SIGTERM to this process when its parent dies.
+def _tail_text(path: Path, limit: int) -> str:
+    """Last *limit* bytes of *path*, decoded leniently.
 
-    Called as subprocess preexec_fn so the runtime is cleaned up even if the
-    parent Python process is killed with SIGKILL or crashes.  Linux-only.
+    Seeks instead of reading the file and slicing what it wanted. One of the
+    files this is pointed at is the session's native capture file, which is
+    truncated by nothing and rotated by nothing -- it collects every process's
+    raw fd 1/2 output for as long as the session runs -- so a restart that
+    fails late would otherwise pull the whole thing into memory to print four
+    kilobytes of it.
     """
-    import ctypes  # noqa: PLC0415
-
-    ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG = 1
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_BINARY", 0)
+    )
+    with os.fdopen(os.open(path, flags), "rb") as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise OSError(f"Refusing non-regular diagnostic log {path}")
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        handle.seek(max(0, size - limit))
+        chunk = handle.read(limit)
+    text = chunk.decode(errors="replace").strip()
+    if text and size > limit:
+        return "...\n" + text
+    return text
 
 
 _RUNTIME_WORKER_CODE = """\
 import sys, os
+if sys.platform.startswith("linux"):
+    # After exec: preexec_fn can deadlock once the log receiver thread exists.
+    import ctypes, signal
+    ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)  # PR_SET_PDEATHSIG
+    if os.getppid() != {parent_pid}:
+        raise SystemExit(1)
 sys.path = [p for p in sys.path if p]
 from {runtime_mod}.runtime import run
 run()
@@ -203,17 +229,27 @@ class CloudXRService:
         # its next write to stderr would block the runtime with no diagnostic.
         # Truncated per start so a failure report shows only this one.
         worker_stderr = logs_dir_path / _WORKER_STDERR_LOG
+        # stdout explicitly, not inherited. isaacteleop no longer rebinds its
+        # host's fd 1, so inheriting would put the runtime's startup banner and
+        # the native stack's chatter on the host application's terminal. This is
+        # a process this library launched, so its descriptors are ours to set;
+        # capture_fd() is the same file every other non-logger byte of the
+        # session lands in. None only if the capture could not be opened at all,
+        # in which case inheriting is the correct fallback.
+        capture_fd = native_capture_fd()
         with open(worker_stderr, "w", encoding="utf-8") as stderr_file:
             self._runtime_proc = subprocess.Popen(
                 [
                     sys.executable,
                     "-c",
-                    _RUNTIME_WORKER_CODE.format(runtime_mod=runtime_mod),
+                    _RUNTIME_WORKER_CODE.format(
+                        runtime_mod=runtime_mod, parent_pid=os.getpid()
+                    ),
                 ],
                 env=worker_env,
+                stdout=capture_fd if capture_fd is not None else None,
                 stderr=stderr_file,
                 start_new_session=True,
-                preexec_fn=_set_pdeathsig if sys.platform != "win32" else None,
             )
         logger.info("CloudXR runtime process started (pid=%s)", self._runtime_proc.pid)
 
@@ -401,9 +437,10 @@ class CloudXRService:
     def _collect_startup_failure_detail(self, logs_dir: Path) -> str:
         """Build a diagnostic string after a failed runtime startup.
 
-        Captures the process exit code, the worker's stderr, the runtime
-        stderr log file (written by :func:`~.runtime.run`), and the most
-        recent CloudXR native server log.
+        Captures the process exit code, the worker's stderr, this session's
+        native-fd capture file (where the worker's own fd 1 goes), and the
+        most recent CloudXR native server log. See
+        :meth:`_gather_diagnostic_logs`.
         """
         _MAX_LOG_BYTES = 4096
         parts: list[str] = []
@@ -417,11 +454,9 @@ class CloudXRService:
 
         for log_path in self._gather_diagnostic_logs(logs_dir):
             try:
-                content = log_path.read_text(errors="replace").strip()
+                content = _tail_text(log_path, _MAX_LOG_BYTES)
                 if not content:
                     continue
-                if len(content) > _MAX_LOG_BYTES:
-                    content = "...\n" + content[-_MAX_LOG_BYTES:]
                 parts.append(f"{log_path.name}:\n{content}")
             except Exception:
                 pass
@@ -434,10 +469,21 @@ class CloudXRService:
         """Return log files useful for diagnosing a startup failure."""
         result: list[Path] = []
 
-        for name in (_WORKER_STDERR_LOG, "runtime_stderr.log"):
-            log = logs_dir / name
-            if log.is_file():
-                result.append(log)
+        worker_stderr = logs_dir / _WORKER_STDERR_LOG
+        if worker_stderr.is_file():
+            result.append(worker_stderr)
+
+        # The runtime worker's own fd 1 (its startup banner, and the
+        # Vulkan-loader/GPU-init diagnostics it writes straight to a
+        # descriptor) lands in *this* process's native-fd capture file, not
+        # under `logs_dir` (CloudXR's own ~/.cloudxr/logs): the worker is
+        # launched with stdout=native_capture_fd(), a descriptor onto the file
+        # this service opened. The worker's own capture file, named after its
+        # pid, is the wrong one -- in the default `scoped` mode nothing ever
+        # rebinds the worker's descriptors onto it, so it stays empty.
+        capture = native_capture_path()
+        if capture is not None and capture.is_file():
+            result.append(capture)
 
         cxr_logs = sorted(logs_dir.glob("cxr_server.*.log"))
         if cxr_logs:

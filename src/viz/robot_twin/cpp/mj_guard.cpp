@@ -5,11 +5,23 @@
 
 #include "mj_api.hpp"
 
+#include <log_bridge/logger.hpp>
+
+#ifndef _WIN32
+#    include <sys/stat.h>
+
+#    include <fcntl.h>
+#    include <unistd.h>
+#endif
+
+#include <cctype>
+#include <cerrno>
 #include <csetjmp>
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace viz
 {
@@ -22,6 +34,83 @@ thread_local std::jmp_buf g_recover;
 thread_local bool g_armed = false;
 thread_local std::string g_message;
 
+// Vendor passthrough (MuJoCo's own error/warning text), so ThirdParty -- mirrors how
+// Manus's SDK log stream is wrapped. Both callbacks below fire on a regular thread (not
+// a signal handler, not between fork() and exec()), so logging from them is safe.
+std::shared_ptr<spdlog::logger>& logger()
+{
+    static auto instance =
+        isaacteleop::Logger::get("isaacteleop.viz.robot_twin.MuJoCo", isaacteleop::LoggerKind::ThirdParty);
+    return instance;
+}
+
+#ifndef _WIN32
+bool native_capture_is_off() noexcept
+{
+    const char* raw = std::getenv("ISAACTELEOP_NATIVE_CAPTURE");
+    std::string_view mode = raw == nullptr ? std::string_view() : std::string_view(raw);
+    while (!mode.empty() && std::isspace(static_cast<unsigned char>(mode.front())))
+    {
+        mode.remove_prefix(1);
+    }
+    while (!mode.empty() && std::isspace(static_cast<unsigned char>(mode.back())))
+    {
+        mode.remove_suffix(1);
+    }
+    return mode.size() == 3 && (mode[0] == 'o' || mode[0] == 'O') && (mode[1] == 'f' || mode[1] == 'F') &&
+           (mode[2] == 'f' || mode[2] == 'F');
+}
+#endif
+
+void persist_fatal(std::string_view message) noexcept
+{
+#ifndef _WIN32
+    // "off" still publishes a path for launched children; this callback runs
+    // in the host process, whose native output must stay on its own stderr.
+    const char* path = native_capture_is_off() ? nullptr : std::getenv("ISAACTELEOP_NATIVE_CAPTURE_FILE");
+    const int fd = path != nullptr && path[0] != '\0' ? ::open(path, O_WRONLY | O_APPEND | O_NOFOLLOW) : -1;
+    if (fd >= 0)
+    {
+        struct ::stat capture_info
+        {
+        };
+        const bool private_capture = ::fstat(fd, &capture_info) == 0 && S_ISREG(capture_info.st_mode) &&
+                                     capture_info.st_uid == ::getuid() &&
+                                     (capture_info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+        if (private_capture)
+        {
+            const auto write_all = [fd](std::string_view text)
+            {
+                while (!text.empty())
+                {
+                    const ssize_t count = ::write(fd, text.data(), text.size());
+                    if (count < 0 && errno == EINTR)
+                    {
+                        continue;
+                    }
+                    if (count <= 0)
+                    {
+                        break;
+                    }
+                    text.remove_prefix(static_cast<std::size_t>(count));
+                }
+            };
+            write_all("robot_twin: unguarded MuJoCo error: ");
+            write_all(message);
+            write_all("\n");
+            ::fsync(fd);
+        }
+        ::close(fd);
+        if (private_capture)
+        {
+            return;
+        }
+    }
+#endif
+    std::fprintf(stderr, "robot_twin: unguarded MuJoCo error: %.*s\n", static_cast<int>(message.size()), message.data());
+    std::fflush(stderr);
+}
+
 void on_error(const char* message)
 {
     g_message = message == nullptr ? "" : message;
@@ -29,7 +118,11 @@ void on_error(const char* message)
     {
         // Outside a guarded call there is nowhere to land. A core dump beats continuing
         // on state MuJoCo has already declared invalid.
-        std::fprintf(stderr, "robot_twin: unguarded MuJoCo error: %s\n", g_message.c_str());
+        logger()->error("unguarded MuJoCo error: {}", g_message);
+        logger()->flush();
+        // A forwarding flush cannot wait for the Python receiver thread;
+        // abort() can stop that thread before it persists the record.
+        persist_fatal(g_message);
         std::abort();
     }
     g_armed = false;
@@ -38,7 +131,7 @@ void on_error(const char* message)
 
 void on_warning(const char* message)
 {
-    std::fprintf(stderr, "robot_twin: MuJoCo warning: %s\n", message == nullptr ? "" : message);
+    logger()->warn("{}", message == nullptr ? "" : message);
 }
 
 } // namespace

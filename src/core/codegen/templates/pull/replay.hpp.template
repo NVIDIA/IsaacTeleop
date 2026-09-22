@@ -3,6 +3,7 @@
 
 #pragma once
 #include <deviceio_base/@BASE_HEADER@.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/@SCHEMA@_generated.h>
 
@@ -25,6 +26,7 @@ public:
 private:
     Serialized<@FB_TABLE@> tracked_;
     std::unique_ptr<@MCAP_VIEWERS_TYPE@> mcap_viewers_;
+    std::shared_ptr<spdlog::logger> logger_;
     std::string no_data_message_;
     bool warned_no_data_ = false;
 };

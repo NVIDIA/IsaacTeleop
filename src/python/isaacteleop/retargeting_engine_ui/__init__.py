@@ -12,8 +12,8 @@ Or manually:
 
 try:
     from .multi_retargeter_tuning_ui import (
-        MultiRetargeterTuningUIImGui,
         LayoutModeImGui,
+        MultiRetargeterTuningUIImGui,
     )
 
     __all__ = [
@@ -21,13 +21,12 @@ try:
         "LayoutModeImGui",
     ]
 except ImportError as e:
-    import sys
-
     error_msg = (
         "\n"
         "ImGui UI dependencies are not installed.\n"
         "Install with: pip install 'isaacteleop[ui]'\n"
         f"Original error: {e}\n"
     )
-    print(error_msg, file=sys.stderr)
+    # The raised ImportError already carries this message to the caller —
+    # no separate print needed.
     raise ImportError(error_msg) from e

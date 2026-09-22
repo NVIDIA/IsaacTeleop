@@ -3,10 +3,12 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
 #include <vulkan/vulkan.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -114,6 +116,7 @@ private:
 
     bool initialized_ = false;
     bool validation_enabled_ = false;
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.viz.VkContext");
     VkInstance instance_ = VK_NULL_HANDLE;
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;

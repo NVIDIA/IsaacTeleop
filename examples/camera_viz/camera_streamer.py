@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
-
 from pipeline import FrameSource
 from sources import (
     PairedFrameSource,
@@ -38,7 +37,7 @@ from sources import (
 )
 from transports import RtpH264Sender, make_encoder
 
-logger = logging.getLogger("camera_streamer")
+logger = logging.getLogger("isaacteleop.camera_streamer")
 
 # Retry interval between construction attempts. Long enough that a missing
 # /dev/video0 doesn't spam the journal; short enough that a camera plugged
@@ -252,6 +251,14 @@ class CameraSupervisor:
 def _setup_logging() -> None:
     # systemd captures stdout/stderr — journal formats timestamps, so we
     # don't add our own. Keep level info by default; DEBUG via env var.
+    #
+    # basicConfig(), and the root logger, on purpose. The repo-wide rule
+    # against both exists because a handler on the root duplicates every
+    # isaacteleop record already carried by logging_config's own handlers.
+    # This process has none: the sender imports no isaacteleop at all, which
+    # is what lets a camera box run it with no CUDA/Vulkan/OpenXR runtime
+    # installed. Do not "migrate" this to logging_config -- that reintroduces
+    # the dependency.
     import os
 
     level = logging.DEBUG if os.environ.get("CAMERA_STREAMER_DEBUG") else logging.INFO

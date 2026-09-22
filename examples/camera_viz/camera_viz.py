@@ -27,6 +27,7 @@ from typing import List, Optional
 
 import yaml
 
+from isaacteleop import logging_config
 from isaacteleop.cloudxr import CloudXRLauncher
 
 import cloudxr_env
@@ -276,6 +277,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         dashboard = Dashboard()
         if dashboard.live:
             set_notify_sink(dashboard.note)
+            # notify() now has somewhere to go, but a plain logger.info() in
+            # this tree does not: the modules here log under isaacteleop.*, so
+            # their records reach that tree's console handler, which writes to
+            # the stderr the panel owns. Routine chatter mid-repaint leaves the
+            # panel's line count wrong for the rest of the run. Raise the
+            # threshold rather than silence it -- a warning or an error is
+            # worth a torn panel, and the log file keeps every level either
+            # way.
+            logging_config.set_console_level("warning")
         else:
             # Nothing is redrawing, so the header would never be seen.
             print(f"camera_viz: {header}", flush=True)

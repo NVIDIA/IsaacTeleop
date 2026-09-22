@@ -13,7 +13,9 @@ add_library(teleop_plugin_utils STATIC
 
 # Dependencies
 # deviceio_session/deviceio_trackers are PUBLIC: wrist_pose_source.hpp exposes
-# DeviceIOSession, ITracker and ControllerTracker in its interface.
+# DeviceIOSession, ITracker and ControllerTracker in its interface. log_bridge is
+# PUBLIC for the same reason: hand_injector.hpp/wrist_pose_source.hpp each declare
+# a std::shared_ptr<spdlog::logger> private member.
 target_link_libraries(teleop_plugin_utils
     PUBLIC
     deviceio::deviceio_session
@@ -22,6 +24,7 @@ target_link_libraries(teleop_plugin_utils
     pusherio::pusherio
     Teleop::openxr_extensions
     OpenXR::openxr_loader
+    log_bridge::log_bridge_core
 )
 
 # Include directories

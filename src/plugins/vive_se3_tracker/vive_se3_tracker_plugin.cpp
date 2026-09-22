@@ -5,6 +5,7 @@
 
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <flatbuffers/flatbuffers.h>
+#include <log_bridge/logger.hpp>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/se3_tracker_generated.h>
@@ -16,7 +17,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <iostream>
 #include <string>
 #include <unistd.h>
 #include <utility>
@@ -79,9 +79,10 @@ std::string resolve_collections_file()
     if (is_secure_dir(dir))
         return dir + "/" + kCollectionsFileName;
 
-    std::cerr << "[vive_se3_tracker] could not secure a per-user directory for the collections file; "
-                 "set VIVE_SE3_COLLECTIONS_FILE to a private path."
-              << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.vive_se3_tracker.ViveSe3TrackerPlugin")
+        ->warn(
+            "could not secure a per-user directory for the collections file; set VIVE_SE3_COLLECTIONS_FILE to a "
+            "private path.");
     return dir + "/" + kCollectionsFileName; // best effort; open still O_TRUNC-guarded below
 }
 
@@ -110,8 +111,7 @@ ViveSe3TrackerPlugin::ViveSe3TrackerPlugin()
     if (stale_ms <= 0 || stale_ms > kMaxStaleMs)
     {
         if (std::getenv("VIVE_SE3_STALE_MS"))
-            std::cerr << "[vive_se3_tracker] ignoring invalid VIVE_SE3_STALE_MS=" << stale_ms << "; using "
-                      << kDefaultStaleMs << " ms" << std::endl;
+            logger_->warn("ignoring invalid VIVE_SE3_STALE_MS={}; using {} ms", stale_ms, kDefaultStaleMs);
         stale_ns_ = kDefaultStaleMs * 1000000;
     }
     else
@@ -130,27 +130,25 @@ ViveSe3TrackerPlugin::ViveSe3TrackerPlugin()
     synthetic_mode_ = (synth && (synth[0] == '1' || synth[0] == 't' || synth[0] == 'T'));
     if (synthetic_mode_)
     {
-        std::cout << "[vive_se3_tracker] SYNTHETIC mode (VIVE_SE3_SYNTHETIC=1); not connecting to VIVEHub." << std::endl;
+        logger_->info("SYNTHETIC mode (VIVE_SE3_SYNTHETIC=1); not connecting to VIVEHub.");
         return;
     }
 
     const char* env_sock = std::getenv("VIVE_VUT_SOCKET");
     const std::string socket_path = (env_sock && *env_sock) ? env_sock : kDefaultVutSocket;
 
-    std::cout << "[vive_se3_tracker] connecting to VIVEHub VUT daemon at " << socket_path << " (stale threshold "
-              << (stale_ns_ / 1000000) << " ms)" << std::endl;
+    logger_->info("connecting to VIVEHub VUT daemon at {} (stale threshold {} ms)", socket_path, stale_ns_ / 1000000);
 
     vut_client_ = std::make_unique<vut::Client>(socket_path);
     vut_client_->set_auto_reconnect(true, 200, 2000);
-    vut_client_->on_connection_change(
-        [](bool up)
-        { std::cout << "[vive_se3_tracker] VIVEHub daemon " << (up ? "CONNECTED" : "disconnected") << std::endl; });
+    vut_client_->on_connection_change([this](bool up)
+                                      { logger_->info("VIVEHub daemon {}", up ? "CONNECTED" : "disconnected"); });
     vut_client_->on_pose([this](const vut::Pose& p) { on_vut_pose(p); });
 
     // Non-fatal: with auto-reconnect the supervisor keeps retrying if the daemon
     // isn't up yet. Poses simply won't flow until it connects and a tracker runs.
     if (vut_client_->connect("ViveSe3TrackerPlugin", vut::SUB_POSE) != 0)
-        std::cout << "[vive_se3_tracker] daemon not up yet; retrying in background." << std::endl;
+        logger_->info("daemon not up yet; retrying in background.");
 
     // Best-effort device inventory (may be empty until trackers pair). The serial
     // — and thus the collection name — only arrives on the pose wire, so it is
@@ -158,9 +156,9 @@ ViveSe3TrackerPlugin::ViveSe3TrackerPlugin()
     std::vector<vut::Device> devs;
     if (vut_client_->list_devices(devs, 500) == 0 && !devs.empty())
     {
-        std::cout << "[vive_se3_tracker] devices reported by daemon:" << std::endl;
+        logger_->info("devices reported by daemon:");
         for (const auto& d : devs)
-            std::cout << "    id=" << d.device_id << " state=" << d.state << " name=\"" << d.name << "\"" << std::endl;
+            logger_->info("    id={} state={} name=\"{}\"", d.device_id, static_cast<int>(d.state), d.name);
     }
 }
 
@@ -238,10 +236,9 @@ void ViveSe3TrackerPlugin::on_vut_pose(const vut::Pose& p)
     // Log outside the lock so the push thread never blocks on this I/O.
     if (first)
     {
-        std::cout << "[vive_se3_tracker] first pose from device_id=" << p.device_id;
-        if (serial.empty())
-            std::cout << " (no serial on wire; naming by device_id)";
-        std::cout << " -> collection '" << make_collection_id(p.device_id, serial) << "'" << std::endl;
+        logger_->info("first pose from device_id={}{} -> collection '{}'", p.device_id,
+                      serial.empty() ? " (no serial on wire; naming by device_id)" : "",
+                      make_collection_id(p.device_id, serial));
     }
 }
 
@@ -255,8 +252,8 @@ ViveSe3TrackerPlugin::DeviceStream& ViveSe3TrackerPlugin::stream_for(uint32_t de
         // new tracker gets its own collection instead of inheriting the old name.
         if (!serial.empty() && !it->second.serial.empty() && it->second.serial != serial)
         {
-            std::cerr << "[vive_se3_tracker] device_id=" << device_id << " serial changed from '" << it->second.serial
-                      << "' to '" << serial << "'; creating a new collection" << std::endl;
+            logger_->warn("device_id={} serial changed from '{}' to '{}'; creating a new collection", device_id,
+                          it->second.serial, serial);
             streams_.erase(it);
         }
         else
@@ -270,8 +267,7 @@ ViveSe3TrackerPlugin::DeviceStream& ViveSe3TrackerPlugin::stream_for(uint32_t de
     stream.collection_id = make_collection_id(device_id, serial);
     stream.pusher =
         std::make_unique<core::SchemaPusher>(session_->get_handles(), make_pusher_config(stream.collection_id));
-    std::cout << "[vive_se3_tracker] created tensor collection '" << stream.collection_id
-              << "' for device_id=" << device_id << std::endl;
+    logger_->info("created tensor collection '{}' for device_id={}", stream.collection_id, device_id);
     DeviceStream& ref = streams_.emplace(device_id, std::move(stream)).first->second;
     write_collections_file(); // advertise the updated live set to readers
     return ref;
@@ -287,7 +283,7 @@ void ViveSe3TrackerPlugin::write_collections_file() const
         std::ofstream out(tmp, std::ios::trunc);
         if (!out)
         {
-            std::cerr << "[vive_se3_tracker] could not write collections file " << tmp << std::endl;
+            logger_->warn("could not write collections file {}", tmp);
             return;
         }
         for (const auto& kv : streams_)
@@ -295,7 +291,7 @@ void ViveSe3TrackerPlugin::write_collections_file() const
     }
     if (std::rename(tmp.c_str(), collections_file_.c_str()) != 0)
     {
-        std::cerr << "[vive_se3_tracker] could not update collections file " << collections_file_ << std::endl;
+        logger_->warn("could not update collections file {}", collections_file_);
         std::remove(tmp.c_str()); // don't leave the temp behind
     }
 }
@@ -374,7 +370,7 @@ void ViveSe3TrackerPlugin::update()
             if (stream.pushed_invalid)
             {
                 stream.pushed_invalid = false;
-                std::cout << "[vive_se3_tracker] device_id=" << device_id << " tracking recovered" << std::endl;
+                logger_->info("device_id={} tracking recovered", device_id);
             }
         }
         else
@@ -390,8 +386,8 @@ void ViveSe3TrackerPlugin::update()
             if (!stream.pushed_invalid)
             {
                 stream.pushed_invalid = true;
-                std::cout << "[vive_se3_tracker] device_id=" << device_id << " stale (last sample "
-                          << ((now_ns - lp.ts_ns) / 1000000) << " ms ago) -> pushing is_valid=false" << std::endl;
+                logger_->warn("device_id={} stale (last sample {} ms ago) -> pushing is_valid=false", device_id,
+                              (now_ns - lp.ts_ns) / 1000000);
             }
         }
 

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <depthai/depthai.hpp>
+#include <log_bridge/logger.hpp>
 
 #include <memory>
 #include <string>
@@ -47,6 +48,7 @@ private:
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.oak.PreviewStream");
 };
 
 } // namespace oak

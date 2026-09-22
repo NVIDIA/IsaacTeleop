@@ -394,27 +394,19 @@ def run() -> None:
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
 
-    # When file-logging is active the native library writes detailed logs to
-    # NV_CXR_OUTPUT_DIR.  Suppress the console banner on stdout but redirect
-    # stderr to a file so that Vulkan-loader diagnostics, GPU-init errors,
-    # and Python tracebacks are preserved for post-mortem analysis.
-    _file_logging = os.environ.get("NV_CXR_FILE_LOGGING", "yes")
-    if _file_logging and _file_logging.lower() not in (
-        "false",
-        "off",
-        "no",
-        "n",
-        "f",
-        "0",
-    ):
-        logs_dir = cfg.ensure_logs_dir()
-        stderr_log = os.path.join(str(logs_dir), "runtime_stderr.log")
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        stderr_fd = os.open(stderr_log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-        os.dup2(devnull_fd, sys.stdout.fileno())
-        os.dup2(stderr_fd, sys.stderr.fileno())
-        os.close(devnull_fd)
-        os.close(stderr_fd)
+    # fd 1/fd 2 (the native library's console banner and its Vulkan-loader /
+    # GPU-init diagnostics) are deliberately left alone here. This is the
+    # runtime worker: a process isaacteleop launched for the sole purpose of
+    # hosting that native stack, so whoever launched it already pointed its
+    # descriptors where the output belongs -- the session's capture file for
+    # stdout and the worker's own stderr log (cloudxr/service/_service.py).
+    # This block used to do its own dup2(), discarding fd 1 outright and
+    # sending fd 2 to a separate runtime_stderr.log that never mirrored to the
+    # terminal; it then raced with, and silently undid, the process-wide
+    # capture that logging_config installed at import. That capture is gone --
+    # a library must not rebind its host's descriptors -- and redirecting here
+    # would now only fight the launcher. See isaacteleop.logging_config
+    # ._native_fd for what does still get captured, and where.
 
     lib = _load_libcloudxr(sdk_path)
     svc = ctypes.c_void_p()
