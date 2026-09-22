@@ -16,23 +16,21 @@ namespace detail
 namespace
 {
 
-std::mutex& bridge_mutex()
-{
-    static std::mutex m;
-    return m;
-}
-
-// Guards Logger::get()'s check-then-create-then-register sequence: without
-// this, two threads racing to create the same new name could both pass the
-// spdlog::get() check and then both call register_logger(), breaking the
-// "same name always returns the same instance" guarantee.
+// Guards Logger::get()'s check-then-create-then-register sequence -- without
+// it two threads racing on the same new name could both pass the spdlog::get()
+// check and both register -- and, held across set_bridge_sink(), the bridge
+// pointer below. A logger racing that call therefore either registers before
+// its apply_all sweep (and gets swapped by it) or is created afterwards (and
+// picks up the new sink at creation), never in the gap between.
 std::mutex& creation_mutex()
 {
     static std::mutex m;
     return m;
 }
 
-std::shared_ptr<spdlog::sinks::sink>& bridge_sink_storage()
+// Null until install_python_sink() has run in this process. Only ever read or
+// written under creation_mutex().
+std::shared_ptr<spdlog::sinks::sink>& bridge_sink()
 {
     static std::shared_ptr<spdlog::sinks::sink> sink;
     return sink;
@@ -40,27 +38,34 @@ std::shared_ptr<spdlog::sinks::sink>& bridge_sink_storage()
 
 } // namespace
 
-std::shared_ptr<spdlog::sinks::sink> bridge_sink()
-{
-    std::lock_guard<std::mutex> lock(bridge_mutex());
-    return bridge_sink_storage();
-}
-
 void set_bridge_sink(std::shared_ptr<spdlog::sinks::sink> sink)
 {
-    // Held for the whole call, not just the storage update: Logger::get() takes this same
-    // lock around its check-then-create-then-register sequence (including its own read of
-    // bridge_sink()), so a logger racing this call either registers before the apply_all
-    // sweep below runs (and gets swapped by it) or is created after this call has returned
-    // (and already picks up the new sink at creation time) -- never the gap in between,
-    // where apply_all could enumerate the registry before the new logger lands in it and
-    // leave that logger stuck on the sink it was created with.
-    std::lock_guard<std::mutex> creation_lock(creation_mutex());
-    {
-        std::lock_guard<std::mutex> lock(bridge_mutex());
-        bridge_sink_storage() = sink;
-    }
+    std::lock_guard<std::mutex> lock(creation_mutex());
+    bridge_sink() = sink;
     spdlog::apply_all([&sink](const std::shared_ptr<spdlog::logger>& logger) { logger->sinks() = { sink }; });
+}
+
+// No call site in this tree logs at critical today; spdlog::critical still maps onto
+// logging.CRITICAL, which is 50, not ERROR's 40.
+int to_python_level(spdlog::level::level_enum level)
+{
+    switch (level)
+    {
+    case spdlog::level::trace:
+        return 5;
+    case spdlog::level::debug:
+        return 10;
+    case spdlog::level::info:
+        return 20;
+    case spdlog::level::warn:
+        return 30;
+    case spdlog::level::err:
+        return 40;
+    case spdlog::level::critical:
+        return 50;
+    default:
+        return 20;
+    }
 }
 
 } // namespace detail

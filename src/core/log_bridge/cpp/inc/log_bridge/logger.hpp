@@ -29,37 +29,27 @@ public:
     // "isaacteleop.plugins.manus.ManusTracker". The same name always returns
     // the same instance, matching spdlog::get()/spdlog::create()'s own
     // registry. Sinks are either the process-local console+file sinks, or,
-    // once install_python_sink() has run, the Python bridge -- see
-    // detail::set_bridge_sink() below.
+    // once install_python_sink() has run, the Python bridge.
     static std::shared_ptr<spdlog::logger> get(const std::string& name, LoggerKind kind = LoggerKind::Application);
 };
 
 // Internal seam between log_bridge_core (this library; no pybind11/Python.h)
-// and log_bridge_py (src/core/log_bridge/python/), which is the only other
-// consumer of these two functions. Exported (not a private header) because
-// log_bridge_py is a separate CMake target within the same log_bridge
-// module -- not because this is meant for general use.
+// and log_bridge_py (src/core/log_bridge/python/). Exported (not a private
+// header) because log_bridge_py is a separate CMake target within the same
+// log_bridge module -- not because this is meant for general use.
 namespace detail
 {
 
-// Null until install_python_sink() has run in this process.
-std::shared_ptr<spdlog::sinks::sink> bridge_sink();
-
-// Called only from log_bridge_py's install_python_sink(). Every logger
-// created by Logger::get() from this point on uses `sink` exclusively
-// (replacing, not adding to, the local console+file sinks -- a bridged
-// record must not also be independently formatted into a local file, since
-// Python's handlers already apply the single, unified timestamp/format).
-// Also swaps the sinks of every logger already created before this call, to
-// cover static-init-order edge cases where C++ logs before Python installs
-// the bridge.
+// Called only from log_bridge_py's install_python_sink(). Every logger, already
+// created or not, then uses `sink` exclusively -- replacing, not adding to, the
+// local console+file sinks, since Python's handlers already apply the single
+// unified timestamp/format.
 void set_bridge_sink(std::shared_ptr<spdlog::sinks::sink> sink);
 
-// isaacteleop.logging_config's level constants (Python's stdlib levels, plus the
-// module's own TRACE = 5). Shared by every sink that hands a record to Python's
-// logging module -- directly in-process (log_bridge_py's PythonBridgeSink) or
-// serialized across a socket to another process's Python logger (SocketForwardSink,
-// this library) -- so both speak the exact same numbering as
+// isaacteleop.logging_config's level constants (Python's stdlib levels, plus
+// the module's own TRACE = 5). Shared by every sink that hands a record to
+// Python's logging module -- in-process (log_bridge_py's PythonBridgeSink) or
+// across a socket (SocketForwardSink) -- so both speak the same numbering as
 // isaacteleop/logging_config/_core.py's _LEVEL_NAMES.
 int to_python_level(spdlog::level::level_enum level);
 
