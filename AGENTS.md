@@ -114,6 +114,14 @@ the logging packages.
   `ISAACTELEOP_LOG_SOCKET` — where `local_sinks()` gives a forwarding sink and
   no console sink — none of the logged half. Judge such a site by the message
   it belongs to, not by the call on its own line.
+- **A log message some machine greps for is an interface.** Before rewording
+  or re-homing one, `grep -rF` the phrase over `.github/`, `docs/`, `scripts/`
+  and `tests/`. `.github/workflows/build-ubuntu.yml` alone waits on three
+  literals and fails fast on eight more, and a miss there does not look like a
+  broken marker — the job waits out its timeout and blames the wrong thing.
+  Note what moving a class name from the message into the logger name costs:
+  the two halves are then separated by the level and pid columns, so no fixed
+  string spans them any more.
 - **Five environment variables are the whole external contract.** The first
   three are read identically by both halves — change one and change both, or
   the two stop agreeing: `ISAACTELEOP_LOG_DIR` (where log files land),
