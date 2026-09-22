@@ -7,7 +7,7 @@
 
 wuji-sdk[retarget]==2026.7.14
 
-# wuji-sdk[retarget] leaves pinocchio (`pin`) unconstrained. Match isaacteleop's
+# wuji-sdk[retarget] leaves pinocchio (`pin`) unconstrained. Match isaaccapture's
 # retargeter/grounding extras: the lower bound avoids pin 2.6.x wheels linked
 # against older Boost sonames, while the cmeel caps keep pinocchio on the 3.9.x
 # line and co-installable with [retargeters]/[grounding].

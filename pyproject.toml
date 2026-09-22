@@ -9,7 +9,7 @@ requires = ["scikit-build-core>=1.0", "numpy>=2.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "isaacteleop"
+name = "isaaccapture"
 dynamic = ["version"]
 description = "Isaac Teleop"
 readme = "README.md"
@@ -133,11 +133,20 @@ install.components = ["isaacteleop_wheel", "isaacteleop_binaries"]
 # `known_source_files`, so a stray .py in the component silently shadows this
 # mapping. Hence the *.py exclusion on install(DIRECTORY) in src/core/python.
 [tool.scikit-build.wheel]
-packages = { isaacteleop = "src/python/isaacteleop" }
+packages = { isaaccapture = "src/python/isaaccapture", isaacteleop = "src/compat/isaacteleop" }
+
+# `isaacteleop` is declared above only because `wheel.packages` is also what feeds
+# the editable redirect, and is dropped from the archive here. `wheel.exclude` is
+# applied twice against different paths: package-relative when the redirect mapping
+# is built, so `isaacteleop/**` misses `__init__.py` and the redirect keeps it;
+# wheel-relative when the archive is written, so it hits. Net: `pip install -e .`
+# resolves `import isaacteleop`, while `pip install .` ships one first-party
+# package like the classic wheels. tests/python/packaging/ asserts the built wheel.
+exclude = ["isaacteleop/**"]
 
 # `rebuild = false`: no recompile on import, so build products (.so, .pyi, py.typed,
 # the vendored CloudXR runtime) are frozen until a rebuild + re-install. Authored .py
-# is the exception -- `mode = "redirect"` resolves it live from src/python/isaacteleop.
+# is the exception -- `mode = "redirect"` resolves it live from src/python/isaaccapture.
 [tool.scikit-build.editable]
 mode = "redirect"
 rebuild = false

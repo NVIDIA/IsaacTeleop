@@ -14,15 +14,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import isaacteleop.deviceio as deviceio
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+import isaaccapture.deviceio as deviceio
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     FullBodySource,
     HandsSource,
     HeadSource,
 )
-from isaacteleop.teleop_session_manager import get_required_oxr_extensions_from_pipeline
-from isaacteleop.teleop_session_manager.helpers import _get_trackers_from_pipeline
+from isaaccapture.teleop_session_manager import (
+    get_required_oxr_extensions_from_pipeline,
+)
+from isaaccapture.teleop_session_manager.helpers import _get_trackers_from_pipeline
 
 
 # ============================================================================

@@ -10,7 +10,7 @@
 [project]
 name = "isaacteleop-viz-tests"
 version = "0.0.0"
-description = "Python tests for isaacteleop.viz bindings"
+description = "Python tests for isaaccapture.viz bindings"
 requires-python = ">=3.11,<3.14"
 
 [project.optional-dependencies]

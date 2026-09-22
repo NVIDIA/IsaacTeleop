@@ -10,7 +10,7 @@ whichever one you want:
 
 ```bash
 uv pip install -e ./examples/teleop_session_manager
-python -m isaacteleop_examples.teleop_session_manager.teleop_session_example
+python -m isaaccapture_examples.teleop_session_manager.teleop_session_example
 ```
 
 | Module | What it shows |

@@ -27,7 +27,7 @@ from typing import List, Optional
 
 import yaml
 
-from isaacteleop.cloudxr import CloudXRLauncher
+from isaaccapture.cloudxr import CloudXRLauncher
 
 import cloudxr_env
 import config
@@ -138,7 +138,7 @@ def _render_extent_note(session, entries) -> List[str]:
     aliases.
     """
     get = getattr(session, "get_recommended_resolution", None)
-    if get is None:  # older isaacteleop wheel
+    if get is None:  # older isaaccapture wheel
         return []
     try:
         resolution = get()
@@ -228,7 +228,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 cloudxr_env.write_env_file(cloudxr_settings, work_dir / "cloudxr.env")
             )
     # A null context, not the launcher's NoopContext: that landed after the
-    # isaacteleop this sample pins, and importing it would break the sample
+    # isaaccapture this sample pins, and importing it would break the sample
     # against its own wheel. Swap it in (and drop the None guard below) once
     # the pin catches up.
     launch_ctx = (

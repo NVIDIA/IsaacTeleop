@@ -26,7 +26,7 @@ from constants import (
     HandTrackingProvider,
     TeleopMode,
 )
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     DexHandRetargeter,
     DexHandRetargeterConfig,
     FootPedalRootCmdRetargeter,
@@ -36,15 +36,15 @@ from isaacteleop.retargeters import (
     TriHandMotionControllerConfig,
     TriHandMotionControllerRetargeter,
 )
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     FullBodySource,
     Generic3AxisPedalSource,
     HandsSource,
     HeadSource,
 )
-from isaacteleop.retargeting_engine.interface import OutputCombiner
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.retargeting_engine.interface import OutputCombiner
+from isaaccapture.teleop_session_manager import (
     PluginConfig,
     SessionMode,
     TeleopSessionConfig,
@@ -367,7 +367,7 @@ def build_tracked_hand_finger_joint_outputs(
 
     if params.resolved_hand_retargeter == HandRetargeter.PINK_IK:
         try:
-            from isaacteleop.retargeters import (
+            from isaaccapture.retargeters import (
                 SharpaHandRetargeter,
                 SharpaHandRetargeterConfig,
             )
@@ -375,7 +375,7 @@ def build_tracked_hand_finger_joint_outputs(
             raise ModuleNotFoundError(
                 f"{mode_name} with hand_retargeter:=pink_ik requires Sharpa "
                 "retargeting dependencies. Install/use a build with "
-                "isaacteleop[grounding] and bundled robotic_grounding."
+                "isaaccapture[grounding] and bundled robotic_grounding."
             ) from exc
 
         left_hand_retargeter = SharpaHandRetargeter(
@@ -439,7 +439,7 @@ def build_tracked_hand_finger_joint_outputs(
         right_output_joint_names = params.right_finger_joint_name_aliases
     elif params.resolved_hand_retargeter == HandRetargeter.WUJI:
         try:
-            from isaacteleop.retargeters import (
+            from isaaccapture.retargeters import (
                 WujiHandRetargeter,
                 WujiHandRetargeterConfig,
             )
@@ -447,7 +447,7 @@ def build_tracked_hand_finger_joint_outputs(
             raise ModuleNotFoundError(
                 f"{mode_name} with hand_retargeter:=wuji requires Wuji "
                 "retargeting dependencies. Install/use a build with "
-                "isaacteleop[wuji]."
+                "isaaccapture[wuji]."
             ) from exc
 
         left_hand_retargeter = WujiHandRetargeter(

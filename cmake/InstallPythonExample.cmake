@@ -8,7 +8,7 @@
 #
 # Reads the source pyproject.toml and appends a [tool.uv] block only to the
 # installed copy so that `uv run` works out of the box in the install tree. On the
-# way it pins isaacteleop to the version this build produced and drops any
+# way it pins isaaccapture to the version this build produced and drops any
 # [tool.uv.sources], so the installed example resolves the wheel next to it.
 #
 # Two source layouts are accepted while the examples are converted to the
@@ -59,7 +59,7 @@ macro(install_python_example)
     # newest release on an index whenever the local wheel is a pre-release --
     # which every CI build is (see IsaacTeleopVersion.cmake).
     # TODO(#880): no test covers the generated pyproject.
-    string(REGEX REPLACE "\"(isaacteleop(\\[[^]]*\\])?)\""
+    string(REGEX REPLACE "\"(isaaccapture(\\[[^]]*\\])?)\""
         "\"\\1==${ISAAC_TELEOP_PYPROJECT_VERSION}\"" _PYPROJECT_BASE "${_PYPROJECT_BASE}")
     set(_TOOL_UV_BLOCK "[tool.uv]
 find-links = [\"${_IPE_FIND_LINKS}\"]

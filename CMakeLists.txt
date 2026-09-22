@@ -91,8 +91,8 @@ option(ENABLE_EXPERIMENTAL_WINDOWS_BUILD "Enable experimental Windows build supp
 # TODO: Make this default to ON for Linux builds when the CloudXR runtime SDK is publicly available.
 option(ENABLE_CLOUDXR_BUNDLE_CHECK "Enable CloudXR bundle check" OFF)
 
-# When ON, also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp.
-option(ENABLE_CLOUDXR_EXP_BUNDLE "Also package CloudXR Experimental Runtime SDK as isaacteleop.cloudxr_exp" ON)
+# When ON, also package CloudXR Experimental Runtime SDK as isaaccapture.cloudxr_exp.
+option(ENABLE_CLOUDXR_EXP_BUNDLE "Also package CloudXR Experimental Runtime SDK as isaaccapture.cloudxr_exp" ON)
 
 ## Enforce clang-format on Linux builds by default
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Make CloudXR python sources importable without installing ``isaacteleop``.
+"""Make CloudXR python sources importable without installing ``isaaccapture``.
 
 * Flat ``sys.path`` entry: ``from oob_teleop_hub import …`` (no relative imports).
 * Synthetic package ``cloudxr_py_test_ns``: ``from cloudxr_py_test_ns.oob_teleop_env import …``
@@ -26,7 +26,7 @@ if str(_tests_python) not in sys.path:
 
 from repo_paths import repo_root  # noqa: E402
 
-_CLOUDXR_PY = repo_root() / "src" / "python" / "isaacteleop" / "cloudxr"
+_CLOUDXR_PY = repo_root() / "src" / "python" / "isaaccapture" / "cloudxr"
 if _CLOUDXR_PY.is_dir() and str(_CLOUDXR_PY) not in sys.path:
     sys.path.insert(0, str(_CLOUDXR_PY))
 
@@ -138,7 +138,7 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
     leave ``_start_wss_proxy_thread`` real, for tests about the proxy's own
     start-up; ``mocks["wss"]`` is then ``None``.
     """
-    from isaacteleop.cloudxr.service import CloudXRService  # noqa: PLC0415
+    from isaaccapture.cloudxr.service import CloudXRService  # noqa: PLC0415
 
     run_dir = str(tmp_path / "run")
     logs_dir = tmp_path / "logs"
@@ -154,18 +154,18 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
     mocks = {}
     with (
         patch(
-            "isaacteleop.cloudxr.service._service.EnvConfig.from_args",
+            "isaaccapture.cloudxr.service._service.EnvConfig.from_args",
             return_value=fake_cfg,
         ) as m_from_args,
         patch(
-            "isaacteleop.cloudxr.service._service.check_eula",
+            "isaaccapture.cloudxr.service._service.check_eula",
         ) as m_eula,
         patch(
-            "isaacteleop.cloudxr.service._service.wait_for_runtime_ready_sync",
+            "isaaccapture.cloudxr.service._service.wait_for_runtime_ready_sync",
             return_value=ready,
         ) as m_wait,
         patch(
-            "isaacteleop.cloudxr.service._service.subprocess.Popen",
+            "isaaccapture.cloudxr.service._service.subprocess.Popen",
             return_value=mock_proc,
         ) as m_popen,
         wss_patch as m_wss,
@@ -174,7 +174,7 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
             "_cleanup_stale_runtime",
         ) as m_cleanup,
         patch(
-            "isaacteleop.cloudxr.service._service.atexit",
+            "isaaccapture.cloudxr.service._service.atexit",
         ) as m_atexit,
     ):
         mocks["from_args"] = m_from_args

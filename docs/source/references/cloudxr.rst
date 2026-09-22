@@ -31,13 +31,13 @@ when you want to:
 Start the service
 -----------------
 
-With the ``isaacteleop`` package installed (including the ``cloudxr`` extra,
-see :ref:`install-isaacteleop-pip-package`), start the service. The first run
+With the ``isaaccapture`` package installed (including the ``cloudxr`` extra,
+see :ref:`install-isaaccapture-pip-package`), start the service. The first run
 downloads the CloudXR Web Client SDK:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr.service start --accept-eula
+   python -m isaaccapture.cloudxr.service start --accept-eula
 
 ``start`` detaches the service from your terminal: it keeps running when the
 shell that started it exits, so you can close the window, and every command in
@@ -63,8 +63,8 @@ You should see output similar to:
 
 .. note::
 
-   ``python -m isaacteleop.cloudxr`` still works and is equivalent to
-   ``python -m isaacteleop.cloudxr.service run``. It warns on startup and is
+   ``python -m isaaccapture.cloudxr`` still works and is equivalent to
+   ``python -m isaaccapture.cloudxr.service run``. It warns on startup and is
    removed in Isaac Teleop 1.7.
 
 Take note of the ``source ~/.cloudxr/run/cloudxr.env`` path in the output. You
@@ -74,7 +74,7 @@ Manage the service
 ------------------
 
 Every command below is a subcommand of
-``python -m isaacteleop.cloudxr.service``.
+``python -m isaaccapture.cloudxr.service``.
 
 .. list-table::
    :header-rows: 1
@@ -141,7 +141,7 @@ another terminal without restarting the service:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr.webclient
+   python -m isaaccapture.cloudxr.webclient
 
 This opens the versioned client over USB ``adb`` with this host's ``serverIP``
 and ``port`` pre-filled. Pass a URL to override the target — one already
@@ -186,7 +186,7 @@ whatever runtime is serving, so with a service running they use it:
 
 .. code-block:: bash
 
-   python -m isaacteleop.cloudxr.service start --accept-eula
+   python -m isaaccapture.cloudxr.service start --accept-eula
    python examples/teleop/python/gripper_retargeting_example_simple.py
 
 The example leaves the service running when it exits, so the headset stays
@@ -195,8 +195,8 @@ connected and the next run reattaches to the same session.
 Use a system OpenXR runtime (no CloudXR attach)
 -----------------------------------------------
 
-Examples that call :meth:`~isaacteleop.cloudxr.CloudXRLauncher.add_launcher_arguments`
-accept ``--no-launch-cloudxr-runtime``. That returns a :class:`~isaacteleop.cloudxr.NoopContext`:
+Examples that call :meth:`~isaaccapture.cloudxr.CloudXRLauncher.add_launcher_arguments`
+accept ``--no-launch-cloudxr-runtime``. That returns a :class:`~isaaccapture.cloudxr.NoopContext`:
 the process does not start or attach to CloudXR and leaves ``XR_RUNTIME_JSON`` and
 related environment variables unchanged. Use this when another runtime is already
 configured (for example Monado) or when a host singleton must not be duplicated
@@ -218,7 +218,7 @@ does:
 
 .. code-block:: bash
 
-   exec python -m isaacteleop.cloudxr.service run
+   exec python -m isaaccapture.cloudxr.service run
 
 Nothing can answer an EULA prompt without a terminal, so accept it up front —
 either pass ``--accept-eula`` or pre-write the marker, as that image does:
@@ -267,8 +267,8 @@ reports the ones that would have changed, and uses the running configuration.
    ./custom.env is ignored: the CloudXR runtime already serving this host was started with its own configuration.
      NV_DEVICE_PROFILE: auto-native requested, Quest3 in effect
      Restart the service to apply it:
-       python -m isaacteleop.cloudxr.service stop
-       python -m isaacteleop.cloudxr.service start --cloudxr-env-config ./custom.env
+       python -m isaaccapture.cloudxr.service stop
+       python -m isaaccapture.cloudxr.service start --cloudxr-env-config ./custom.env
      Continuing with the running configuration in 5s — press any key to abort.
 
 Only settings that actually differ are listed, so passing the same
@@ -294,7 +294,7 @@ them to ``--cloudxr-env-config`` if you need them:
      - Description
    * - ``ISAAC_TELEOP_CLOUDXR_EXP``
      - unset (auto on Orin)
-     - Select the experimental package (``isaacteleop.cloudxr_exp``).
+     - Select the experimental package (``isaaccapture.cloudxr_exp``).
        ``ISAAC_TELEOP_CLOUDXR_EXP=0`` forces the stable runtime on Orin;
        ``ISAAC_TELEOP_CLOUDXR_EXP=1`` forces the experimental package elsewhere
        (launcher fails if it is missing).
@@ -326,7 +326,7 @@ yet. Check, in order:
 
 1. A client is connected. The headset must have loaded the web client and
    clicked CONNECT; until then there is no system to return.
-2. The device profile matches the device. ``python -m isaacteleop.cloudxr.service
+2. The device profile matches the device. ``python -m isaaccapture.cloudxr.service
    status`` prints the profile the running service was started with.
 3. The application is talking to the runtime you think it is. Applications that
    do not embed ``CloudXRLauncher`` need ``source ~/.cloudxr/run/cloudxr.env``

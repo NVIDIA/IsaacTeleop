@@ -21,7 +21,7 @@ import threading
 import time
 from typing import Callable, Optional, Sequence
 
-import isaacteleop.viz as viz
+import isaaccapture.viz as viz
 
 from dashboard import CameraRow, Dashboard, Snapshot
 

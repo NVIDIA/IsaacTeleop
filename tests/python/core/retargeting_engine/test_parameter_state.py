@@ -7,8 +7,8 @@ import pytest
 import tempfile
 import os
 import numpy as np
-from isaacteleop.retargeting_engine.interface.parameter_state import ParameterState
-from isaacteleop.retargeting_engine.interface.tunable_parameter import (
+from isaaccapture.retargeting_engine.interface.parameter_state import ParameterState
+from isaaccapture.retargeting_engine.interface.tunable_parameter import (
     BoolParameter,
     FloatParameter,
     IntParameter,

@@ -6,7 +6,7 @@
 
 from enum import StrEnum
 
-from isaacteleop.retargeting_engine.tensor_types.indices import (
+from isaaccapture.retargeting_engine.tensor_types.indices import (
     BodyJointIndex,
     HandJointIndex,
 )

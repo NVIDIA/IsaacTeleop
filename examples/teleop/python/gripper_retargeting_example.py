@@ -15,21 +15,21 @@ import time
 from pathlib import Path
 
 import numpy as np
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HandsSource,
 )
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
     Se3AbsRetargeter,
     Se3RetargeterConfig,
 )
-from isaacteleop.retargeting_engine.interface import OutputCombiner
+from isaaccapture.retargeting_engine.interface import OutputCombiner
 
 # Import TeleopSession to handle the loop correctly with new sources
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,

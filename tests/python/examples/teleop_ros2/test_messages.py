@@ -9,12 +9,12 @@ import numpy as np
 from builtin_interfaces.msg import Time
 from std_msgs.msg import ByteMultiArray
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     OptionalTensorGroup,
     TensorGroup,
     TensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     DLDataType,
     NDArrayType,
     NUM_BODY_JOINTS,

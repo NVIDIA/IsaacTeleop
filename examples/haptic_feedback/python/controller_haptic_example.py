@@ -25,7 +25,7 @@ Key points for integrators:
   ``TeleopSessionConfig(sinks=[...])``. The session runs it each frame after the
   main pipeline and then flushes it to hardware.
 * ``ControllerHapticDevice`` reuses the **same**
-  :class:`~isaacteleop.deviceio_trackers.ControllerTracker` as
+  :class:`~isaaccapture.deviceio_trackers.ControllerTracker` as
   ``ControllersSource`` (pass ``controllers.get_tracker()``), so the session
   creates a single controller tracker and there is no action-set contention.
 * Swap ``TriggerToTactile`` for any retargeter that emits a ``TactileVector``
@@ -40,27 +40,27 @@ import time
 
 import numpy as np
 
-from isaacteleop.haptic_devices.controller import ControllerHapticDevice
-from isaacteleop.retargeters.tactile_retargeters import TactileVectorToControllerPulse
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.haptic_devices.controller import ControllerHapticDevice
+from isaaccapture.retargeters.tactile_retargeters import TactileVectorToControllerPulse
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     ControllersSource,
     HapticSink,
 )
-from isaacteleop.retargeting_engine.interface import BaseRetargeter, OutputCombiner
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.interface import BaseRetargeter, OutputCombiner
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
     RetargeterIO,
     RetargeterIOType,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group_type import OptionalType
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.interface.tensor_group_type import OptionalType
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerHapticPulseField,
     ControllerInput,
     ControllerInputIndex,
     TactileVector,
 )
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 
 APP_NAME = "ControllerHapticFeedbackExample"

@@ -12,7 +12,7 @@ replay_joint_se3_pose.py.
 Any producer of JointSe3PoseOutput works; pass its collection ids with --collections.
 
 Prerequisites (separate terminals):
-  1. CloudXR runtime:  python -m isaacteleop.cloudxr
+  1. CloudXR runtime:  python -m isaaccapture.cloudxr
   2. the pusher:       ./install/plugins/manus/manus_hand_plugin --datasets=sensors
 
 Usage:
@@ -26,10 +26,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
-from isaacteleop.deviceio_trackers import JointSe3PoseTracker
-from isaacteleop.oxr import OpenXRSession
-from isaacteleop.schema import JointName, JointType
+from isaaccapture.deviceio_session import DeviceIOSession, McapRecordingConfig
+from isaaccapture.deviceio_trackers import JointSe3PoseTracker
+from isaaccapture.oxr import OpenXRSession
+from isaaccapture.schema import JointName, JointType
 
 DEFAULT_COLLECTIONS = ["manus_sensors_left", "manus_sensors_right"]
 

@@ -29,9 +29,9 @@ from pathlib import Path
 
 from mcap.reader import make_reader
 
-from isaacteleop.deviceio_session import McapReplayConfig, ReplaySession
-from isaacteleop.deviceio_trackers import JointSe3PoseTracker
-from isaacteleop.schema import JointName
+from isaaccapture.deviceio_session import McapReplayConfig, ReplaySession
+from isaaccapture.deviceio_trackers import JointSe3PoseTracker
+from isaaccapture.schema import JointName
 
 from joint_se3_common import (
     DEFAULT_SEPARATION_M,

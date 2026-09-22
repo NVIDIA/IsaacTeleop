@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # ==============================================================================
-# isaacteleop pure-Python source
+# isaaccapture pure-Python source
 # ==============================================================================
-# Single producer of the authored .py in python_package/<config>/isaacteleop/ --
+# Single producer of the authored .py in python_package/<config>/isaaccapture/ --
 # the canonical layout ctest reads via PYTHONPATH and both wheels build from.
 # Build products share that tree but are NOT owned here: pybind11 extensions
 # (each module's LIBRARY_OUTPUT_DIRECTORY), .pyi/py.typed (src/core/python), and
@@ -21,14 +21,14 @@ endif()
 file(GLOB_RECURSE ISAAC_TELEOP_PYTHON_SOURCES
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop/*.py"
-    "${CMAKE_CURRENT_SOURCE_DIR}/isaacteleop/*.xml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/isaaccapture/*.py"
+    "${CMAKE_CURRENT_SOURCE_DIR}/isaaccapture/*.xml"
 )
 
 # viz/__init__.py does a top-level `from ._viz import ...`, so without _viz it is
 # unimportable -- and packages.find would enumerate it into a BUILD_VIZ=OFF wheel.
 if(NOT BUILD_VIZ)
-    list(FILTER ISAAC_TELEOP_PYTHON_SOURCES EXCLUDE REGEX "^isaacteleop/viz/")
+    list(FILTER ISAAC_TELEOP_PYTHON_SOURCES EXCLUDE REGEX "^isaaccapture/viz/")
 endif()
 
 set(ISAAC_TELEOP_PYTHON_STAGE_DIR "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>")
@@ -56,5 +56,5 @@ endforeach()
 
 add_custom_target(isaacteleop_python ALL
     DEPENDS ${ISAAC_TELEOP_PYTHON_STAGED_FILES}
-    COMMENT "Staging isaacteleop pure-Python sources into the package structure"
+    COMMENT "Staging isaaccapture pure-Python sources into the package structure"
 )

@@ -9,7 +9,7 @@ Two checks, both deliberately exact rather than heuristic:
    implies. The roles in docs/source/conf.py build a github.com blob/tree URL
    out of whatever string they are given and validate nothing, so a moved file
    ships a live 404 while the Sphinx build stays green.
-2. `isaacteleop.*` imports inside documented Python must resolve to a real
+2. `isaaccapture.*` imports inside documented Python must resolve to a real
    module under src/python/. A renamed package leaves examples that raise
    ModuleNotFoundError on the reader's first paste.
 
@@ -35,9 +35,13 @@ RST_PY_BLOCK_RE = re.compile(
 )
 MD_PY_BLOCK_RE = re.compile(r"^```+ *(?:python|py)\s*$(.*?)^```+\s*$", re.M | re.S)
 
+# `isaacteleop` is matched so it FAILS: it has no tree under src/python/, and a doc
+# that imports it is as broken as one naming a module that never existed. (?!\w)
+# keeps `isaaccapture_examples`, which lives under examples/, out of the match.
+_PACKAGE_RE = r"(?:isaaccapture|isaacteleop)(?!\w)(?:\.[\w.]+)?"
+
 IMPORT_RE = re.compile(
-    r"^\s*(?:from\s+(isaacteleop(?:\.[\w.]+)?)\s+import\b"
-    r"|import\s+(isaacteleop(?:\.[\w.]+)?))",
+    rf"^\s*(?:from\s+({_PACKAGE_RE})\s+import\b" rf"|import\s+({_PACKAGE_RE}))",
     re.MULTILINE,
 )
 
@@ -122,7 +126,7 @@ def _python_blocks(path: Path, source: str) -> list[tuple[int, str]]:
 
 
 def _module_exists(root: Path, module: str) -> bool:
-    """Return whether an isaacteleop.* dotted path resolves under src/python/."""
+    """Return whether an isaaccapture.* dotted path resolves under src/python/."""
     base = root.joinpath(PYTHON_ROOT, *module.split("."))
     return (
         base.is_dir()

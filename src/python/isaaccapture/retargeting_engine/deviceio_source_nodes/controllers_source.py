@@ -1,0 +1,232 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Controllers Source Node - DeviceIO to Retargeting Engine converter.
+
+Converts raw ControllerSnapshot flatbuffer data to standard ControllerInput tensor format.
+"""
+
+import numpy as np
+from typing import Any, TYPE_CHECKING
+from .interface import IDeviceIOSource
+from ..interface.retargeter_core_types import (
+    OutputSelector,
+    RetargeterIO,
+    RetargeterIOType,
+)
+from ..interface.retargeter_subgraph import RetargeterSubgraph
+from ..interface.tensor_group import OptionalTensorGroup, TensorGroup
+from ..tensor_types import ControllerInput, ControllerInputIndex
+from ..interface.tensor_group_type import OptionalType
+from .deviceio_tensor_types import DeviceIOControllerSnapshotTracked
+
+if TYPE_CHECKING:
+    from isaaccapture.deviceio import ITracker
+    from isaaccapture.schema import ControllerSnapshot
+
+
+class ControllersSource(IDeviceIOSource):
+    """
+    Stateless converter: DeviceIO ControllerSnapshot → ControllerInput tensors.
+
+    Inputs:
+        - "deviceio_controller_left": Raw ControllerSnapshot flatbuffer for left controller
+        - "deviceio_controller_right": Raw ControllerSnapshot flatbuffer for right controller
+
+    Outputs (Optional — absent when tracking is inactive):
+        - "controller_left": OptionalTensorGroup (check ``.is_none`` before access)
+        - "controller_right": OptionalTensorGroup (check ``.is_none`` before access)
+
+    Usage:
+        # In TeleopSession, manually poll tracker and pass tracked objects
+        left_tracked = controller_tracker.get_left_controller(session)
+        right_tracked = controller_tracker.get_right_controller(session)
+        result = controllers_source_node({
+            "deviceio_controller_left": left_tracked,
+            "deviceio_controller_right": right_tracked
+        })
+    """
+
+    LEFT = "controller_left"
+    RIGHT = "controller_right"
+
+    def __init__(self, name: str) -> None:
+        """Initialize stateless controllers source node.
+
+        Creates a ControllerTracker instance for TeleopSession to discover and use.
+
+        Args:
+            name: Unique name for this source node
+        """
+        import isaaccapture.deviceio as deviceio
+
+        self._controller_tracker = deviceio.ControllerTracker()
+        super().__init__(name)
+
+    def get_tracker(self) -> "ITracker":
+        """Get the ControllerTracker instance.
+
+        Returns:
+            The ControllerTracker instance for TeleopSession to initialize
+        """
+        return self._controller_tracker
+
+    def poll_tracker(self, deviceio_session: Any) -> RetargeterIO:
+        """Poll controller tracker and return input data.
+
+        Args:
+            deviceio_session: The active DeviceIO session.
+
+        Returns:
+            Dict with "deviceio_controller_left" and "deviceio_controller_right"
+            TensorGroups containing a ControllerSnapshot payload each, or None when
+            that controller is inactive.
+        """
+        left_tracked = self._controller_tracker.get_left_controller(deviceio_session)
+        right_tracked = self._controller_tracker.get_right_controller(deviceio_session)
+        source_inputs = self.input_spec()
+        result: RetargeterIO = {}
+        for input_name, group_type in source_inputs.items():
+            tg = TensorGroup(group_type)
+            if "left" in input_name:
+                tg[0] = left_tracked
+            elif "right" in input_name:
+                tg[0] = right_tracked
+            result[input_name] = tg
+        return result
+
+    def input_spec(self) -> RetargeterIOType:
+        """Declare DeviceIO controller inputs."""
+        return {
+            "deviceio_controller_left": DeviceIOControllerSnapshotTracked(),
+            "deviceio_controller_right": DeviceIOControllerSnapshotTracked(),
+        }
+
+    def output_spec(self) -> RetargeterIOType:
+        """Declare standard controller input outputs (Optional — may be absent)."""
+        return {
+            "controller_left": OptionalType(ControllerInput()),
+            "controller_right": OptionalType(ControllerInput()),
+        }
+
+    def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
+        """
+        Convert DeviceIO ControllerSnapshot to standard ControllerInput tensors.
+
+        Calls ``set_none()`` on the output when the corresponding controller is inactive.
+
+        Args:
+            inputs: Dict with "deviceio_controller_left" and "deviceio_controller_right"
+                ControllerSnapshot payloads
+            outputs: Dict with "controller_left" and "controller_right" OptionalTensorGroups
+            context: ComputeContext (unused by this converter node).
+        """
+        left_tracked: "ControllerSnapshot | None" = inputs["deviceio_controller_left"][
+            0
+        ]
+        right_tracked: "ControllerSnapshot | None" = inputs[
+            "deviceio_controller_right"
+        ][0]
+
+        self._update_controller_data(outputs["controller_left"], left_tracked)
+        self._update_controller_data(outputs["controller_right"], right_tracked)
+
+    def _update_controller_data(
+        self, group: OptionalTensorGroup, snapshot: "ControllerSnapshot | None"
+    ) -> None:
+        """Helper to convert controller data for a single controller."""
+        if snapshot is None:
+            group.set_none()
+            return
+
+        # Extract grip pose
+        grip_position = np.array(
+            [
+                snapshot.grip_pose.pose.position.x,
+                snapshot.grip_pose.pose.position.y,
+                snapshot.grip_pose.pose.position.z,
+            ],
+            dtype=np.float32,
+        )
+
+        grip_orientation = np.array(
+            [
+                snapshot.grip_pose.pose.orientation.x,
+                snapshot.grip_pose.pose.orientation.y,
+                snapshot.grip_pose.pose.orientation.z,
+                snapshot.grip_pose.pose.orientation.w,
+            ],
+            dtype=np.float32,
+        )
+
+        # Extract aim pose
+        aim_position = np.array(
+            [
+                snapshot.aim_pose.pose.position.x,
+                snapshot.aim_pose.pose.position.y,
+                snapshot.aim_pose.pose.position.z,
+            ],
+            dtype=np.float32,
+        )
+
+        aim_orientation = np.array(
+            [
+                snapshot.aim_pose.pose.orientation.x,
+                snapshot.aim_pose.pose.orientation.y,
+                snapshot.aim_pose.pose.orientation.z,
+                snapshot.aim_pose.pose.orientation.w,
+            ],
+            dtype=np.float32,
+        )
+
+        # Update output tensor group
+        group[ControllerInputIndex.GRIP_POSITION] = grip_position
+        group[ControllerInputIndex.GRIP_ORIENTATION] = grip_orientation
+        group[ControllerInputIndex.GRIP_IS_VALID] = snapshot.grip_pose.is_valid
+        group[ControllerInputIndex.AIM_POSITION] = aim_position
+        group[ControllerInputIndex.AIM_ORIENTATION] = aim_orientation
+        group[ControllerInputIndex.AIM_IS_VALID] = snapshot.aim_pose.is_valid
+        group[ControllerInputIndex.PRIMARY_CLICK] = float(snapshot.inputs.primary_click)
+        group[ControllerInputIndex.SECONDARY_CLICK] = float(
+            snapshot.inputs.secondary_click
+        )
+        group[ControllerInputIndex.THUMBSTICK_X] = float(snapshot.inputs.thumbstick_x)
+        group[ControllerInputIndex.THUMBSTICK_Y] = float(snapshot.inputs.thumbstick_y)
+        group[ControllerInputIndex.THUMBSTICK_CLICK] = float(
+            snapshot.inputs.thumbstick_click
+        )
+        group[ControllerInputIndex.MENU_CLICK] = float(snapshot.inputs.menu_click)
+        group[ControllerInputIndex.SQUEEZE_VALUE] = float(snapshot.inputs.squeeze_value)
+        group[ControllerInputIndex.TRIGGER_VALUE] = float(snapshot.inputs.trigger_value)
+
+    def transformed(self, transform_input: OutputSelector) -> RetargeterSubgraph:
+        """
+        Create a subgraph that applies a 4x4 transform to controller poses.
+
+        This is a convenience method equivalent to manually creating a
+        ControllerTransform node and connecting it.
+
+        Args:
+            transform_input: An OutputSelector providing a TransformMatrix
+                (e.g., value_input.output("value")).
+
+        Returns:
+            A RetargeterSubgraph with outputs "controller_left" and "controller_right"
+            containing the transformed ControllerInput data.
+
+        Example:
+            controller_source = ControllersSource("controllers")
+            xform_input = ValueInput("xform", TransformMatrix())
+            transformed = controller_source.transformed(xform_input.output("value"))
+        """
+        from ..utilities.controller_transform import ControllerTransform
+
+        xform_node = ControllerTransform(f"{self.name}_transform")
+        return xform_node.connect(
+            {
+                self.LEFT: self.output(self.LEFT),
+                self.RIGHT: self.output(self.RIGHT),
+                "transform": transform_input,
+            }
+        )

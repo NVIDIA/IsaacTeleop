@@ -5,7 +5,7 @@
 Smoke entrypoint for ``test_transform_numpy_versions``.
 
 Run under ``uv run --no-project --with 'numpy==…'`` so the interpreter sees a
-pinned NumPy while ``PYTHONPATH`` still points at the built ``isaacteleop``
+pinned NumPy while ``PYTHONPATH`` still points at the built ``isaaccapture``
 package. Invoked as:
 
     python transform_numpy_version_smoke.py <1.23|2>
@@ -34,13 +34,13 @@ def main() -> None:
         if major < 2:
             raise AssertionError(f"expected NumPy 2.x+, got {np.__version__}")
 
-    from isaacteleop.retargeting_engine.interface import TensorGroup
-    from isaacteleop.retargeting_engine.tensor_types import (
+    from isaaccapture.retargeting_engine.interface import TensorGroup
+    from isaaccapture.retargeting_engine.tensor_types import (
         HeadInput,
         HeadInputIndex,
         TransformMatrix,
     )
-    from isaacteleop.retargeting_engine.utilities import HeadTransform
+    from isaaccapture.retargeting_engine.utilities import HeadTransform
 
     head_in = TensorGroup(HeadInput())
     head_in[HeadInputIndex.POSITION] = np.array([1.0, 2.0, 3.0], dtype=np.float32)

@@ -3,7 +3,7 @@
 #
 # `_robot_twin` -- MuJoCo's own OpenGL renderer, read back into CUDA-visible buffers for
 # viz::ProjectionLayer. Output lands in
-# ${CMAKE_BINARY_DIR}/python_package/<cfg>/isaacteleop/viz/robot/, beside the Python
+# ${CMAKE_BINARY_DIR}/python_package/<cfg>/isaaccapture/viz/robot/, beside the Python
 # staged by src/python/CMakeLists.txt.
 #
 # Protocol-only linkage: no viz:: target, because __cuda_array_interface__ is the whole
@@ -57,5 +57,5 @@ target_compile_options(robot_twin_py PRIVATE -Wall -Wextra)
 
 set_target_properties(robot_twin_py PROPERTIES
     OUTPUT_NAME "_robot_twin"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaacteleop/viz/robot"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/python_package/$<CONFIG>/isaaccapture/viz/robot"
 )

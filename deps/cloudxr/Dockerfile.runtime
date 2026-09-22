@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Minimal CloudXR runtime image using bundled native runtime assets from
-# the isaacteleop Python package.
+# the isaaccapture Python package.
 #
 # Environment overrides:
 #   NV_DEVICE_PROFILE   Device profile (default: auto-webrtc).
@@ -15,7 +15,7 @@
 FROM ubuntu:24.04
 
 ARG PYTHON_VERSION=3.11
-ARG ISAACTELEOP_PIP_SPEC=isaacteleop[cloudxr]
+ARG ISAACTELEOP_PIP_SPEC=isaaccapture[cloudxr]
 ARG ISAACTELEOP_PIP_FIND_LINKS=
 ARG ISAACTELEOP_PIP_DEBUG=0
 
@@ -58,7 +58,7 @@ RUN --mount=type=bind,source=.,target=/workspace,readonly \
         PIP_VERBOSE_ARGS="-vvv"; \
     fi; \
     if [ -n "${ISAACTELEOP_PIP_FIND_LINKS}" ]; then \
-        # Split install: force isaacteleop itself from local wheels, then resolve deps normally.
+        # Split install: force isaaccapture itself from local wheels, then resolve deps normally.
         PIP_FIND_LINKS="${ISAACTELEOP_PIP_FIND_LINKS}" \
         python -m pip install ${PIP_VERBOSE_ARGS} --no-index --no-deps --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \
         python -m pip install ${PIP_VERBOSE_ARGS} --no-cache-dir "${ISAACTELEOP_PIP_SPEC}"; \

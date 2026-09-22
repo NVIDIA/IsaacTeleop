@@ -44,3 +44,10 @@ path = "deps/third_party/Mujoco.cmake"
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved."
 SPDX-License-Identifier = "Apache-2.0"
+
+# PEP 561 marker: empty by convention, so it carries no header of its own.
+[[annotations]]
+path = "src/compat/isaacteleop/py.typed"
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved."
+SPDX-License-Identifier = "Apache-2.0"

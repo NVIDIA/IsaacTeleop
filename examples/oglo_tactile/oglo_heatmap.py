@@ -3,7 +3,7 @@
 
 """Hand-shaped OGLO tactile heatmap renderer for the IsaacTeleop headset overlay.
 
-Produces an RGBA8 ``numpy`` frame (H, W, 4) ready for ``isaacteleop.viz`` ``QuadLayer.submit``.
+Produces an RGBA8 ``numpy`` frame (H, W, 4) ready for ``isaaccapture.viz`` ``QuadLayer.submit``.
 The layout, colormap (YlOrRd) and normalization replicate the OGLO bench heatmap viewer
 so the in-headset view matches the bench tool an operator already trusts.
 

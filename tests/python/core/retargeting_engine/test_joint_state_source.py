@@ -10,10 +10,10 @@ with no OpenXR device involved.
 
 import pytest
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import JointStateSource
-from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
-from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
-from isaacteleop.schema import JointState, JointStateOutput
+from isaaccapture.retargeting_engine.deviceio_source_nodes import JointStateSource
+from isaaccapture.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaaccapture.retargeting_engine.interface.tensor_group import TensorGroup
+from isaaccapture.schema import JointState, JointStateOutput
 
 SO101_JOINTS = [
     "shoulder_pan",

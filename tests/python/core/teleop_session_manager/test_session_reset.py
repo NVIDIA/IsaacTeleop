@@ -14,21 +14,21 @@ import pytest
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ExecutionEvents,
     ExecutionState,
     OptionalTensorGroup,
 )
 
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
     LocomotionRootCmdRetargeter,
     LocomotionRootCmdRetargeterConfig,
 )
 
-from isaacteleop.retargeting_engine.tensor_types import ControllerInput, HandInput
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.retargeting_engine.tensor_types import ControllerInput, HandInput
+from isaaccapture.teleop_session_manager import (
     RetargetingExecutionConfig,
     RetargetingExecutionMode,
     TeleopSession,
@@ -54,13 +54,13 @@ def _mock_session_deps():
     mock_dio.__exit__ = MagicMock(return_value=False)
 
     with (
-        patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr),
-        patch("isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio),
+        patch("isaaccapture.oxr.OpenXRSession", return_value=mock_oxr),
+        patch("isaaccapture.deviceio.DeviceIOSession.run", return_value=mock_dio),
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
+            "isaaccapture.deviceio.DeviceIOSession.get_required_extensions",
             return_value=[],
         ),
-        patch("isaacteleop.plugin_manager.PluginManager", return_value=MagicMock()),
+        patch("isaaccapture.plugin_manager.PluginManager", return_value=MagicMock()),
     ):
         yield
 
