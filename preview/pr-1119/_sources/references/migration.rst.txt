@@ -22,7 +22,7 @@ In short
    ``isaaccapture`` beside it -- see :ref:`migration-upgrading`.
 #. Rewrite ``isaacteleop`` to ``isaaccapture`` in imports, ``python -m`` commands
    and dependency pins; ``isaacteleop_examples`` to ``isaaccapture_examples``.
-#. Move the robot-twin asset cache and its two override variables, if you use them.
+#. Move the robot-twin asset cache and its reBot override variable, if you use them.
 
 .. _migration-upgrading:
 
@@ -140,13 +140,11 @@ cache is re-usable as is, so nothing is re-downloaded:
    $ cp -a ~/.cache/isaacteleop/. ~/.cache/isaaccapture/
 
 ``cp -a`` rather than ``mv``: once the twin has run under 1.6 the destination
-already exists, and ``mv`` would move the old cache *inside* it and exit 0. Under
-``XDG_CACHE_HOME`` both directories live there instead of under ``~/.cache``.
+already exists, and ``mv`` would move the old cache *inside* it and exit 0.
 
-The SO101 asset-directory override has been removed; use ``XDG_CACHE_HOME``
-to relocate the cache root. The reBot override moved with the package and is
-no longer read under its old name. The ``ISAAC_TELEOP_*`` runtime switches
-keep theirs.
+The SO101 asset-directory override has been removed. The reBot override moved
+with the package and is no longer read under its old name. The
+``ISAAC_TELEOP_*`` runtime switches keep theirs.
 
 .. list-table::
    :header-rows: 1
