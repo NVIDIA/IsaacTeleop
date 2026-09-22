@@ -73,9 +73,9 @@ to clone the repository for a couple quick samples to run.
 .. note::
 
    Upgrading from 1.5 or earlier? The import package and the distribution were both
-   renamed from ``isaacteleop`` in 1.6. Installing ``isaaccapture`` beside an
-   existing ``isaacteleop`` leaves both on disk and the old name keeps resolving to
-   the old tree — read :doc:`/references/migration` first.
+   renamed from ``isaacteleop`` in 1.6. Installing ``isaaccapture`` automatically
+   replaces the legacy package and keeps old imports working temporarily.
+   See :doc:`/references/migration`.
 
 In a new terminal, activate your preferred virtual or conda environment, then install the latest
 stable release from PyPI:
