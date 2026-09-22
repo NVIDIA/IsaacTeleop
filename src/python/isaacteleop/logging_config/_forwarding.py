@@ -25,6 +25,7 @@ import logging
 import os
 import socket
 import socketserver
+import stat
 import struct
 import threading
 from pathlib import Path
@@ -302,7 +303,9 @@ if _HAS_UNIX_SOCKETS:
 _receiver_socket: str | None = None
 
 
-def _release_receiver(server, path: str, owner_pid: int) -> None:
+def _release_receiver(
+    server, path: str, owner_pid: int, socket_identity: tuple[int, int]
+) -> None:
     """Stop the receiver and remove its socket, in the process that started it.
 
     Only the creator may do either. ``fork()`` does not copy threads, so in a
@@ -317,9 +320,14 @@ def _release_receiver(server, path: str, owner_pid: int) -> None:
         return
     server.shutdown()
     try:
-        os.unlink(path)
+        current = os.lstat(path)
+        if stat.S_ISSOCK(current.st_mode) and (
+            current.st_dev,
+            current.st_ino,
+        ) == socket_identity:
+            os.unlink(path)
     except OSError:
-        pass  # already gone, or a directory we can no longer write
+        pass  # already gone, replaced, or a directory we can no longer write
 
 
 def _no_receiver(reason: str) -> str:
@@ -394,6 +402,8 @@ def ensure_receiver() -> str:
             # The directory is the main boundary; narrow the socket too before
             # any thread can accept forged records.
             os.chmod(path, 0o600)
+            socket_info = os.lstat(path)
+            socket_identity = (socket_info.st_dev, socket_info.st_ino)
         except OSError as exc:
             if server is not None:
                 try:
@@ -420,7 +430,9 @@ def ensure_receiver() -> str:
             except OSError:
                 pass
             return _no_receiver(f"cannot start the receiver thread ({exc})")
-        atexit.register(_release_receiver, server, path, os.getpid())
+        atexit.register(
+            _release_receiver, server, path, os.getpid(), socket_identity
+        )
         os.environ["ISAACTELEOP_LOG_SOCKET"] = path
         _receiver_socket = path
         return path
