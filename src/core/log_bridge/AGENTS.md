@@ -35,10 +35,22 @@ anything that can fail, directory creation takes the `std::error_code`
 overload, and the file sink is wrapped: an unwritable log directory costs the
 file and nothing else.
 
-Its `after_open` hook may not log either — `sink_it_` holds the sink's mutex
-across it, so logging from there deadlocks. It only re-applies 0600 and
-`FD_CLOEXEC`, which rotation's truncating `"wb"` reopen would otherwise leave
-at the umask.
+**A log file is vetted twice, and `after_open` alone is not enough.** Every
+rotation reaches `file_helper::open(name, truncate=true)`, which truncates
+through `fopen(name, "wb")` with no `O_NOFOLLOW` — so a symlink standing at the
+base name has its target truncated *before* `after_open` can look at the
+descriptor. `before_open` (`reserve_log_file`) is what vets the name;
+`after_open` (`harden_log_file`) only re-applies 0600 and `FD_CLOEXEC`, which
+that same reopen would otherwise leave at the umask. Keep both, and do not
+assume a check on the opened file can undo what opening it already did.
+
+Neither hook may log — `sink_it_` holds the sink's mutex across them, so
+logging from there deadlocks. Neither can veto, either (`before_open` returns
+`void`), which is why it clears the name rather than refusing it. Do **not**
+"fix" that by redirecting a failed check to `/dev/null`: that was tried, and it
+is one-way (`/dev/null` reports size 0, so the sink never rotates again, so
+nothing re-checks), silent, and triggered by an operator `chmod` as readily as
+by an attacker.
 
 **Known gap, not an oversight to re-report:** the rotating file sink's
 descriptor can land on fd 0/1/2 when the host left one closed.

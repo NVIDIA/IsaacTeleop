@@ -123,10 +123,42 @@ std::filesystem::path expand_user(const std::string& raw)
     return raw.size() == 1 ? std::filesystem::path(home) : std::filesystem::path(home) / raw.substr(2);
 }
 
-// Rotation reopens by name with "wb", so every generation past the first is
-// created at 0666 & ~umask however the first one was made. Runs from
-// spdlog's after_open hook and must not log: sink_it_ holds this sink's mutex
-// across it.
+// Make the name safe in the instant before spdlog opens it.
+//
+// Every rotation reaches file_helper::open(name, truncate=true), which
+// truncates through fopen(name, "wb") with no O_NOFOLLOW -- so a symlink
+// standing at the base name has its *target* truncated before after_open can
+// look at the descriptor. before_open is the only hook that runs first, and it
+// cannot veto (it returns void), so it clears the name instead: an entry that is
+// not a regular file of ours is unlinked, which fails harmlessly under /tmp's
+// sticky bit when it is not ours to remove, and the name is then recreated
+// exclusively at 0600.
+//
+// Reached from rotate_() inside sink_it_, so like harden_log_file below it must
+// not log -- the sink's own mutex is held across it.
+void reserve_log_file(const spdlog::filename_t& filename)
+{
+    struct ::stat existing
+    {
+    };
+    if (::lstat(filename.c_str(), &existing) == 0)
+    {
+        if (S_ISREG(existing.st_mode) && existing.st_uid == ::getuid())
+        {
+            return; // our own file being reopened; leave it and its mode alone
+        }
+        ::unlink(filename.c_str());
+    }
+    const int reserved = ::open(filename.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
+    if (reserved >= 0)
+    {
+        ::close(reserved);
+    }
+}
+
+// Rotation reopens by name, so every generation past the first is created at
+// 0666 & ~umask however the first one was made. Runs from spdlog's after_open
+// hook and must not log: sink_it_ holds this sink's mutex across it.
 void harden_log_file(const spdlog::filename_t&, std::FILE* file)
 {
     const int fd = ::fileno(file);
@@ -409,6 +441,9 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
         {
             spdlog::file_event_handlers events;
 #ifndef _WIN32
+            // Both halves of the pair: before_open vets the name, after_open the
+            // mode of the descriptor it got. Neither covers the other.
+            events.before_open = reserve_log_file;
             events.after_open = harden_log_file;
 #endif
             auto file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
