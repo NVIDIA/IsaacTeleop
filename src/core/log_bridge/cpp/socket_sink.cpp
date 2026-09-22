@@ -32,6 +32,7 @@ namespace
 // Matches the Python sender's socket timeout (logging_config/_forwarding.py).
 constexpr int kSendTimeoutSeconds = 1;
 constexpr int kConnectTimeoutMs = 1000;
+constexpr std::size_t kMaxFrameSize = 1 * 1024 * 1024;
 
 // Keep this socket clear of fd 0/1/2. ::socket() returns the lowest free
 // number, so a host that left one of them closed -- a daemon does exactly that
@@ -380,6 +381,10 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
     payload += ",\"process\":";
     payload += std::to_string(current_pid());
     payload += "}";
+    if (payload.size() > kMaxFrameSize)
+    {
+        return;
+    }
 
     const auto length = static_cast<uint32_t>(payload.size());
     const unsigned char header[4] = {

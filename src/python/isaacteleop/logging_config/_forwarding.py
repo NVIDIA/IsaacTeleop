@@ -189,6 +189,8 @@ class ForwardingHandler(logging.Handler):
         except Exception:  # noqa: BLE001 -- Handler.emit()'s own documented contract
             self.handleError(record)
             return
+        if len(payload) > _MAX_FRAME_SIZE:
+            return
         frame = _FRAME_HEADER.pack(len(payload)) + payload
         with self._send_lock:
             if self._sock is None:
