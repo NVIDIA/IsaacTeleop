@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/head_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/head_generated.h>
 
@@ -34,6 +35,8 @@ public:
 private:
     Serialized<HeadPose> tracked_;
     std::unique_ptr<HeadMcapViewers> mcap_viewers_;
+    std::shared_ptr<spdlog::logger> logger_;
+    bool warned_no_data_ = false;
 };
 
 } // namespace core

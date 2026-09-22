@@ -458,8 +458,8 @@ Troubleshooting
 ---------------
 
 - **The XR session fails to create** — check ``~/.cloudxr/logs/cxr_server.*.log`` and
-  ``runtime_stderr.log`` for the startup failure. Pass ``--mode window`` to render to a
-  desktop window instead (no runtime involved).
+  ``~/.cloudxr/logs/runtime_worker_stderr.log`` for the startup failure. Pass ``--mode window``
+  to render to a desktop window instead (no runtime involved).
 - **No window appears over SSH** — ``--mode window`` needs a local display; run on the machine
   you're sitting at, or use a video-capable remote desktop.
 - **"video source: no such file"** — relative ``path:`` values resolve against the YAML's

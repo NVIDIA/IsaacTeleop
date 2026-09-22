@@ -9,7 +9,6 @@
 #include <schema/message_channel_bfbs_generated.h>
 #include <schema/timestamp_generated.h>
 
-#include <iostream>
 #include <utility>
 #include <vector>
 
@@ -48,7 +47,8 @@ ReplayMessageChannelTrackerImpl::ReplayMessageChannelTrackerImpl(std::unique_ptr
           base_name,
           std::vector<std::string>(
               MessageChannelRecordingTraits::channels.begin(), MessageChannelRecordingTraits::channels.end()),
-          recorded))
+          recorded)),
+      logger_(isaacteleop::Logger::get("isaacteleop.core.ReplayMessageChannelTrackerImpl"))
 {
 }
 
@@ -125,7 +125,7 @@ void ReplayMessageChannelTrackerImpl::send_message(const std::vector<uint8_t>& /
     // xrSendOpaqueDataChannelNV). Log once-per-call and drop the payload --
     // throwing would force every caller to guard their send path, but the
     // operation is genuinely meaningless under replay.
-    std::cerr << "ReplayMessageChannelTrackerImpl::send_message: ignored (no peer in replay mode)" << std::endl;
+    logger_->warn("send_message: ignored (no peer in replay mode)");
 }
 
 } // namespace core

@@ -6,7 +6,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -46,10 +45,11 @@ void ensure_env_set(const char* env_name, const std::string& default_value)
     }
 
     // Not set - warn and set default
-    std::cerr << "Warning: " << env_name << " environment variable is not set." << std::endl;
-    std::cerr << "  Please set it before running, e.g.:" << std::endl;
-    std::cerr << "    export " << env_name << "=" << default_value << std::endl;
-    std::cerr << "  or set ISAAC_TELEOP_DISABLE_CXR_ENV_CHECKS to disable this check" << std::endl;
+    isaacteleop::Logger::get("isaacteleop.core.OpenXRSession")
+        ->error(
+            "{} environment variable is not set. Please set it before running, e.g.: export {}={}  (or set "
+            "ISAAC_TELEOP_DISABLE_CXR_ENV_CHECKS to disable this check)",
+            env_name, env_name, default_value);
 
     throw std::runtime_error("Environment variable " + std::string(env_name) + " is not set");
 }
@@ -232,7 +232,7 @@ void OpenXRSession::create_instance(const std::string& app_name, const std::vect
 
     instance_.reset(instance);
 
-    std::cout << "Created OpenXR instance" << std::endl;
+    logger_->info("Created OpenXR instance");
 }
 
 void OpenXRSession::create_system()
@@ -268,14 +268,14 @@ void OpenXRSession::create_system()
 
         if (!logged_waiting)
         {
-            std::cout << "OpenXR HMD form factor is unavailable; waiting for a system..." << std::endl;
+            logger_->info("OpenXR HMD form factor is unavailable; waiting for a system...");
             logged_waiting = true;
         }
 
         std::this_thread::sleep_for(kSystemRetryDelay);
     }
 
-    std::cout << "Created OpenXR system" << std::endl;
+    logger_->info("Created OpenXR system");
 }
 
 void OpenXRSession::create_session()
@@ -308,8 +308,7 @@ void OpenXRSession::create_session()
 
     session_.reset(session);
 
-    std::cout << "Created OpenXR session (headless mode)" << std::endl;
-    std::cout << "  Session handle: " << session_.get() << std::endl;
+    logger_->info("Created OpenXR session (headless mode), handle: {}", fmt::ptr(session_.get()));
 }
 
 void OpenXRSession::create_reference_space()
@@ -327,8 +326,7 @@ void OpenXRSession::create_reference_space()
 
     space_.reset(space);
 
-    std::cout << "Created reference space" << std::endl;
-    std::cout << "  Space handle: " << space_.get() << std::endl;
+    logger_->info("Created reference space, handle: {}", fmt::ptr(space_.get()));
 }
 
 void OpenXRSession::begin()

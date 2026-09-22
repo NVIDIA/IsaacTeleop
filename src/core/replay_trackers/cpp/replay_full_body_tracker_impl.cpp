@@ -10,7 +10,6 @@
 
 #include <cassert>
 #include <cstring>
-#include <iostream>
 
 namespace core
 {
@@ -27,7 +26,8 @@ ReplayFullBodyTrackerImpl::ReplayFullBodyTrackerImpl(std::unique_ptr<mcap::McapR
           base_name,
           std::vector<std::string>(
               FullBodyRecordingTraits::replay_channels.begin(), FullBodyRecordingTraits::replay_channels.end()),
-          recorded))
+          recorded)),
+      logger_(isaacteleop::Logger::get("isaacteleop.core.ReplayFullBodyTrackerImpl"))
 {
 }
 
@@ -42,10 +42,15 @@ void ReplayFullBodyTrackerImpl::update(int64_t /*monotonic_time_ns*/)
     if (record)
     {
         tracked_ = record.narrow(record->data());
+        warned_no_data_ = false;
     }
     else
     {
-        std::cerr << "ReplayFullBodyTrackerImpl: body data not found" << std::endl;
+        if (!warned_no_data_)
+        {
+            logger_->warn("body data not found");
+            warned_no_data_ = true;
+        }
         tracked_.reset();
     }
 }

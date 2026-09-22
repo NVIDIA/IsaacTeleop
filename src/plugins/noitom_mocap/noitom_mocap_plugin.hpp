@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <log_bridge/logger.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/full_body_generated.h>
 
@@ -67,6 +68,8 @@ private:
     NoitomMocapPluginConfig config_;
     std::shared_ptr<core::OpenXRSession> session_;
     std::unique_ptr<core::SchemaPusher> pusher_;
+    std::shared_ptr<spdlog::logger> logger_ =
+        isaacteleop::Logger::get("isaacteleop.plugins.noitom_mocap.NoitomMocapPlugin");
 
     MocapApi::IMCPSettings* settings_api_ = nullptr;
     MocapApi::IMCPApplication* application_api_ = nullptr;
