@@ -238,7 +238,7 @@ Controller bindings
 In XR the controllers retune the view live, without editing the YAML and restarting. The right
 hand changes how the feed looks; the left, what surface it is mapped onto:
 
-.. Keep the figure header product-focused (TELEVIZ); name camera_viz in the prose.
+.. Use concise titles and Televiz branding; name camera_viz in the prose.
 
 .. figure:: ../_static/camera-viz-controls.png
    :alt: camera_viz XR controller bindings: left controller adjusts surface and shape;
