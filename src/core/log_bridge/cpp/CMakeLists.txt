@@ -7,7 +7,6 @@ cmake_minimum_required(VERSION 3.20)
 # No pybind11/Python.h anywhere in this target -- every standalone plugin
 # executable and Catch2 test binary links this without pulling in libpython.
 add_library(log_bridge_core STATIC
-    level_mapping.cpp
     logger.cpp
     sink_config.cpp
     sink_config.hpp
