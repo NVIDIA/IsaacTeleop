@@ -448,6 +448,16 @@ spdlog::level::level_enum console_level()
         return spdlog::level::critical;
     }
 
+    std::string_view digits(name);
+    if (!digits.empty() && (digits.front() == '+' || digits.front() == '-'))
+    {
+        digits.remove_prefix(1);
+    }
+    if (digits.empty() || !std::all_of(digits.begin(), digits.end(), [](char c) { return c >= '0' && c <= '9'; }))
+    {
+        return spdlog::level::info;
+    }
+
     std::string_view numeric_name(name);
     if (!numeric_name.empty() && numeric_name.front() == '+')
     {
