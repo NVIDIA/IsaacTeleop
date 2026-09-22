@@ -4,90 +4,111 @@
 """
 Keyboard Printer Example.
 
-Prints every currently-held key (not just the SE3-relevant subset) each frame,
-via KeyboardSource's "keyboard_all_keys" bitmap output. The keyboard plugin
-self-discovers its device and is auto-launched by TeleopSession -- no external
-process to start manually.
+Opens a small GLFW window and feeds its key events into a KeyboardSource. Keys only count
+while that window has focus; click elsewhere and every held key is released. Prints held
+keys each frame plus every press/release, using the "keyboard_all_keys" and
+"keyboard_pressed" bitmaps.
+
+The window is a minimal ``KeyEventSource``: any host window (a sim viewer, a browser
+viewer, ...) can feed Isaac Teleop the same way. Requires ``isaaccapture[ui]`` for glfw.
 """
 
 import sys
 import time
-from pathlib import Path
+
+import glfw
+import numpy as np
 
 from isaaccapture.cloudxr import CloudXRLauncher
-from isaaccapture.retargeting_engine.deviceio_source_nodes import KeyboardSource
-from isaaccapture.teleop_session_manager import (
-    TeleopSession,
-    TeleopSessionConfig,
-    PluginConfig,
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
+    EvdevKeyCode,
+    KeyboardSource,
 )
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 
-PLUGIN_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent / "plugins"
-PLUGIN_NAME = "keyboard"
-PLUGIN_ROOT_ID = "keyboard"
+def _glfw_to_w3c() -> dict[int, str]:
+    """GLFW key tokens -> W3C KeyboardEvent.code for the keys this example cares about."""
+    table = {getattr(glfw, f"KEY_{c}"): f"Key{c}" for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+    table |= {getattr(glfw, f"KEY_{d}"): f"Digit{d}" for d in "0123456789"}
+    table |= {getattr(glfw, f"KEY_KP_{d}"): f"Numpad{d}" for d in "0123456789"}
+    table |= {getattr(glfw, f"KEY_F{n}"): f"F{n}" for n in range(1, 13)}
+    table |= {
+        glfw.KEY_UP: "ArrowUp",
+        glfw.KEY_DOWN: "ArrowDown",
+        glfw.KEY_LEFT: "ArrowLeft",
+        glfw.KEY_RIGHT: "ArrowRight",
+        glfw.KEY_SPACE: "Space",
+        glfw.KEY_ENTER: "Enter",
+        glfw.KEY_ESCAPE: "Escape",
+        glfw.KEY_TAB: "Tab",
+        glfw.KEY_LEFT_SHIFT: "ShiftLeft",
+        glfw.KEY_RIGHT_SHIFT: "ShiftRight",
+        glfw.KEY_LEFT_CONTROL: "ControlLeft",
+        glfw.KEY_RIGHT_CONTROL: "ControlRight",
+        glfw.KEY_LEFT_ALT: "AltLeft",
+        glfw.KEY_RIGHT_ALT: "AltRight",
+    }
+    return table
 
-# Evdev key codes (linux/input-event-codes.h) -> display name, for the keys on a
-# standard PC keyboard. Codes not listed here still show up (as "code<N>") --
-# this table is for readability, not a completeness gate.
-KEY_NAMES = {
-    1: "ESC",
-    14: "BACKSPACE",
-    15: "TAB",
-    28: "ENTER",
-    29: "LCTRL",
-    42: "LSHIFT",
-    54: "RSHIFT",
-    56: "LALT",
-    57: "SPACE",
-    58: "CAPSLOCK",
-    69: "NUMLOCK",
-    70: "SCROLLLOCK",
-    97: "RCTRL",
-    100: "RALT",
-    102: "HOME",
-    103: "UP",
-    104: "PAGEUP",
-    105: "LEFT",
-    106: "RIGHT",
-    107: "END",
-    108: "DOWN",
-    109: "PAGEDOWN",
-    110: "INSERT",
-    111: "DELETE",
-    **{2 + i: str((i + 1) % 10) for i in range(10)},  # KEY_1..KEY_0 -> "1".."9","0"
-    **{59 + i: f"F{i + 1}" for i in range(10)},  # KEY_F1..KEY_F10
-    87: "F11",
-    88: "F12",
-    16: "Q",
-    17: "W",
-    18: "E",
-    19: "R",
-    20: "T",
-    21: "Y",
-    22: "U",
-    23: "I",
-    24: "O",
-    25: "P",
-    30: "A",
-    31: "S",
-    32: "D",
-    33: "F",
-    34: "G",
-    35: "H",
-    36: "J",
-    37: "K",
-    38: "L",
-    44: "Z",
-    45: "X",
-    46: "C",
-    47: "V",
-    48: "B",
-    49: "N",
-    50: "M",
-}
 
-ALL_KEYS_BITMAP_SIZE = 256
+class GlfwKeyWindow:
+    """A GLFW window implementing the KeyEventSource protocol."""
+
+    supports_keyboard = True
+
+    def __init__(self, title: str):
+        if not glfw.init():
+            raise RuntimeError("glfw.init() failed (no display?)")
+        glfw.window_hint(glfw.CLIENT_API, glfw.NO_API)
+        self._window = glfw.create_window(480, 120, title, None, None)
+        if not self._window:
+            glfw.terminate()
+            raise RuntimeError("glfw.create_window() failed")
+        self._codes = _glfw_to_w3c()
+        self._listeners: list = []
+        glfw.set_key_callback(self._window, self._on_key)
+        glfw.set_window_focus_callback(self._window, self._on_focus)
+
+    # KeyEventSource ------------------------------------------------------------
+    def add_key_listener(self, on_key, on_focus_lost):
+        entry = (on_key, on_focus_lost)
+        self._listeners.append(entry)
+        return lambda: self._listeners.remove(entry)
+
+    def set_keyboard_captured(self, captured: bool) -> None:
+        pass  # this window has no key bindings of its own
+
+    # GLFW callbacks --------------------------------------------------------------
+    def _on_key(self, _window, key, _scancode, action, _mods):
+        code = self._codes.get(key)
+        if code is None or action == glfw.REPEAT:
+            return
+        for on_key, _ in list(self._listeners):
+            on_key(code, action == glfw.PRESS)
+
+    def _on_focus(self, _window, focused):
+        if not focused:
+            for _, on_focus_lost in list(self._listeners):
+                on_focus_lost()
+
+    # Host loop -----------------------------------------------------------------
+    def poll(self) -> bool:
+        """Dispatch window events; False once the window was closed."""
+        glfw.poll_events()
+        return not glfw.window_should_close(self._window)
+
+    def close(self) -> None:
+        self._on_focus(self._window, False)
+        glfw.destroy_window(self._window)
+        glfw.terminate()
+
+
+def _key_name(code: int) -> str:
+    try:
+        return EvdevKeyCode(code).name.removeprefix("KEY_")
+    except ValueError:
+        return f"code{code}"
 
 
 def main():
@@ -97,87 +118,48 @@ def main():
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args()
 
-    print("\n" + "=" * 80)
-    print("  Keyboard Printer Example")
-    print("=" * 80)
-    print("Press any key on the machine running this example.")
-    print("=" * 80 + "\n")
+    print("Click the 'Isaac Teleop keyboard' window and press keys (30 s).")
 
-    # ==================================================================
-    # Setup: Create keyboard source
-    # ==================================================================
-    keyboard_source = KeyboardSource(name="keyboard")
-
-    # ==================================================================
-    # Configure Plugins
-    # ==================================================================
-
-    plugins = []
-    if PLUGIN_ROOT_DIR.exists():
-        plugins.append(
-            PluginConfig(
-                plugin_name=PLUGIN_NAME,
-                plugin_root_id=PLUGIN_ROOT_ID,
-                search_paths=[PLUGIN_ROOT_DIR],
-            )
-        )
-
-    # ==================================================================
-    # Create and run TeleopSession
-    # ==================================================================
+    keyboard = KeyboardSource(name="keyboard")
+    window = GlfwKeyWindow("Isaac Teleop keyboard")
+    detach = keyboard.attach(window)
 
     session_config = TeleopSessionConfig(
         app_name="KeyboardPrinterExample",
         trackers=[],
-        pipeline=keyboard_source,
-        plugins=plugins,
+        pipeline=keyboard,
     )
 
-    with CloudXRLauncher.launch_context(args):
-        with TeleopSession(session_config) as session:
-            start_time = time.time()
-            prev_pressed: set[int] = set()
+    try:
+        with CloudXRLauncher.launch_context(args):
+            with TeleopSession(session_config) as session:
+                start_time = time.time()
+                while time.time() - start_time < 30.0 and window.poll():
+                    result = session.step()
+                    held_group = result["keyboard_all_keys"]
+                    pressed_group = result["keyboard_pressed"]
+                    elapsed = session.get_elapsed_time()
 
-            while time.time() - start_time < 30.0:
-                result = session.step()
-                bitmap_group = result["keyboard_all_keys"]
+                    if held_group.is_none:
+                        print(f"[{elapsed:5.1f}s] (no keyboard)", end="\r", flush=True)
+                    else:
+                        held = np.flatnonzero(np.asarray(held_group[0]))
+                        pressed = np.flatnonzero(np.asarray(pressed_group[0]))
+                        for code in pressed:
+                            print(f"\n[{elapsed:5.1f}s] {_key_name(int(code))} pressed")
+                        names = " ".join(_key_name(int(c)) for c in held) or "-"
+                        print(
+                            f"[{elapsed:5.1f}s] Held: {names}" + " " * 20,
+                            end="\r",
+                            flush=True,
+                        )
 
-                elapsed = session.get_elapsed_time()
-                if bitmap_group.is_none:
-                    print(
-                        f"[{elapsed:5.1f}s] (no keyboard data yet)",
-                        end="\r",
-                        flush=True,
-                    )
                     time.sleep(0.01)
-                    continue
+    finally:
+        detach()
+        window.close()
 
-                bitmap = bitmap_group[0]
-                pressed = {code for code in range(ALL_KEYS_BITMAP_SIZE) if bitmap[code]}
-                names = [KEY_NAMES.get(code, f"code{code}") for code in sorted(pressed)]
-
-                # Live status line (overwritten each frame).
-                print(
-                    f"[{elapsed:5.1f}s] Held: {' '.join(names) or '-'}" + " " * 20,
-                    end="\r",
-                    flush=True,
-                )
-
-                # Permanent, scrollable log of every press/release transition -- a
-                # quick tap can flash by on the status line above before you notice
-                # it, but every transition is logged here.
-                for code in sorted(pressed - prev_pressed):
-                    print(
-                        f"[{elapsed:5.1f}s] {KEY_NAMES.get(code, f'code{code}')} down"
-                    )
-                for code in sorted(prev_pressed - pressed):
-                    print(f"[{elapsed:5.1f}s] {KEY_NAMES.get(code, f'code{code}')} up")
-                prev_pressed = pressed
-
-                time.sleep(0.01)  # ~100 FPS
-
-            print("\nTime limit reached.")
-
+    print("\nDone.")
     return 0
 
 

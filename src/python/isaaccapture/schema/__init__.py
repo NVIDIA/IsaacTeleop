@@ -38,7 +38,9 @@ from ._schema import (
     # Pedals-related types.
     Generic3AxisPedalOutput,
     Generic3AxisPedalOutputRecord,
-    # Keyboard types (raw keyboard press state).
+    # Keyboard types (held keys plus ordered key events).
+    KeyAction,
+    KeyEvent,
     KeyboardOutput,
     KeyboardOutputRecord,
     # OGLO tactile glove types.
@@ -138,7 +140,9 @@ __all__ = [
     # Pedals types.
     "Generic3AxisPedalOutput",
     "Generic3AxisPedalOutputRecord",
-    # Keyboard types (raw keyboard press state).
+    # Keyboard types (held keys plus ordered key events).
+    "KeyAction",
+    "KeyEvent",
     "KeyboardOutput",
     "KeyboardOutputRecord",
     # OGLO tactile glove types.

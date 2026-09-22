@@ -11,7 +11,14 @@ from .head_source import HeadSource
 from .hands_source import HandsSource
 from .controllers_source import ControllersSource
 from .pedals_source import Generic3AxisPedalSource
-from .keyboard_source import EvdevKeyCode, KeyboardAllKeysType, KeyboardSource
+from .keyboard_source import (
+    EvdevKeyCode,
+    KeyboardAllKeysType,
+    KeyboardPressedType,
+    KeyboardSource,
+    KeyEventSource,
+)
+from .source_lookup import find_sources
 from .joint_state_source import JointStateSource
 from .full_body_source import FullBodySource
 from .message_channel_source import MessageChannelSource
@@ -54,7 +61,10 @@ __all__ = [
     "Generic3AxisPedalSource",
     "EvdevKeyCode",
     "KeyboardAllKeysType",
+    "KeyboardPressedType",
     "KeyboardSource",
+    "KeyEventSource",
+    "find_sources",
     "JointStateSource",
     "FullBodySource",
     "MessageChannelSource",

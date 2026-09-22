@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     EvdevKeyCode,
     KeyboardAllKeysType,
+    KeyboardPressedType,
 )
 from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
@@ -105,7 +106,11 @@ class KeyboardToSe3RelRetargeter(BaseRetargeter):
 
 class KeyboardGripperRetargeter(BaseRetargeter):
     """
-    Toggles a gripper open/closed state on each rising edge of the K key.
+    Toggles a gripper open/closed state on each press of the K key.
+
+    Consumes ``keyboard_pressed`` (keys with a press event this frame), so a tap shorter
+    than a frame still toggles and a key held across frames or across a reset never
+    re-toggles -- no edge state to keep.
 
     Output matches GripperRetargeter's convention: -1.0 when closed, 1.0 when open.
     """
@@ -113,10 +118,9 @@ class KeyboardGripperRetargeter(BaseRetargeter):
     def __init__(self, name: str) -> None:
         super().__init__(name=name)
         self._closed = False
-        self._prev_k_pressed = False
 
     def input_spec(self) -> RetargeterIOType:
-        return {"keyboard_all_keys": OptionalType(KeyboardAllKeysType())}
+        return {"keyboard_pressed": OptionalType(KeyboardPressedType())}
 
     def output_spec(self) -> RetargeterIOType:
         return {
@@ -127,31 +131,12 @@ class KeyboardGripperRetargeter(BaseRetargeter):
 
     def _compute_fn(self, inputs: RetargeterIO, outputs: RetargeterIO, context) -> None:
         gripper_out = outputs["gripper_command"]
-        all_keys = inputs["keyboard_all_keys"]
-        k_pressed = (
-            False
-            if all_keys.is_none
-            else bool(np.asarray(all_keys[0])[EvdevKeyCode.KEY_K])
-        )
+        pressed = inputs["keyboard_pressed"]
 
         if context.execution_events.reset:
+            # A press landing on the reset frame is consumed by the reset.
             self._closed = False
-            # Sync to the current key state without toggling -- K may already be
-            # held on a reset frame, and that isn't a rising edge. Leave
-            # _prev_k_pressed alone when the device is inactive this frame;
-            # overwriting it to False would misread a still-held key as a fresh
-            # rising edge once data resumes.
-            if not all_keys.is_none:
-                self._prev_k_pressed = k_pressed
-            gripper_out[0] = -1.0 if self._closed else 1.0
-            return
-
-        if all_keys.is_none:
-            gripper_out[0] = -1.0 if self._closed else 1.0
-            return
-
-        if k_pressed and not self._prev_k_pressed:
+        elif not pressed.is_none and np.asarray(pressed[0])[EvdevKeyCode.KEY_K]:
             self._closed = not self._closed
-        self._prev_k_pressed = k_pressed
 
         gripper_out[0] = -1.0 if self._closed else 1.0

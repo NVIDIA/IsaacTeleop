@@ -24,9 +24,9 @@ from isaaccapture.retargeters import (
     KeyboardToSe3RelRetargeter,
     KeyboardToSe3RelRetargeterConfig,
 )
-from isaaccapture.schema import KeyboardOutput
+from isaaccapture.schema import KeyAction, KeyboardOutput, KeyEvent
 
-# Evdev key codes (linux/input-event-codes.h), matching keyboard_plugin.cpp / KeyboardSource.
+# Evdev key codes (linux/input-event-codes.h).
 KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E = 17, 30, 31, 32, 16, 18
 KEY_K = 37  # gripper toggle
 KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT = 103, 108, 105, 106
@@ -37,9 +37,16 @@ def _keyboard_source():
     return KeyboardSource(name="keyboard")
 
 
-def _run_source(src, pressed_keys: list[int] | None):
-    """Feed raw pressed_keys (None = inactive device) through KeyboardSource.compute()."""
-    keys = None if pressed_keys is None else KeyboardOutput(pressed_keys, True)
+def _run_source(src, pressed_keys: list[int] | None, pressed_events=()):
+    """Feed held keys (None = no provider) plus press events through KeyboardSource.compute()."""
+    keys = (
+        None
+        if pressed_keys is None
+        else KeyboardOutput(
+            pressed_keys,
+            [KeyEvent(0, code, KeyAction.PRESS) for code in pressed_events],
+        )
+    )
 
     input_spec = src.input_spec()
     tg = TensorGroup(input_spec["deviceio_keyboard"])
@@ -48,6 +55,37 @@ def _run_source(src, pressed_keys: list[int] | None):
     outputs = {name: _make_output_group(gt) for name, gt in src.output_spec().items()}
     src.compute({"deviceio_keyboard": tg}, outputs)
     return outputs
+
+
+class _GripperHarness:
+    """Steps KeyboardSource -> KeyboardGripperRetargeter frame by frame.
+
+    ``step(held)`` derives this frame's press events from keys newly held since the previous
+    frame; ``taps`` adds presses whose release landed in the same frame.
+    """
+
+    def __init__(self):
+        self.src = _keyboard_source()
+        self.retargeter = KeyboardGripperRetargeter(name="gripper")
+        self._prev_held: set[int] = set()
+
+    def step(self, held, taps=(), reset=False):
+        if held is None:
+            src_outputs = _run_source(self.src, None)
+        else:
+            presses = [k for k in held if k not in self._prev_held] + list(taps)
+            src_outputs = _run_source(self.src, held, presses)
+            self._prev_held = set(held)
+        out = {
+            "gripper_command": _make_output_group(
+                self.retargeter.output_spec()["gripper_command"]
+            )
+        }
+        context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
+        self.retargeter.compute(
+            {"keyboard_pressed": src_outputs["keyboard_pressed"]}, out, context
+        )
+        return float(out["gripper_command"][0])
 
 
 class TestKeyboardToSe3RelRetargeter:
@@ -94,98 +132,40 @@ class TestKeyboardToSe3RelRetargeter:
 
 
 class TestKeyboardGripperRetargeter:
-    def test_gripper_toggles_on_rising_edge_only(self):
-        """K press/release/press across three frames toggles exactly on each rising edge."""
-        src = _keyboard_source()
-        retargeter = KeyboardGripperRetargeter(name="gripper")
+    def test_gripper_toggles_on_press_only(self):
+        """K press/hold/release/press toggles exactly on each press."""
+        h = _GripperHarness()
+        assert h.step([]) == pytest.approx(1.0)  # open (default)
+        assert h.step([KEY_K]) == pytest.approx(-1.0)  # press -> close
+        assert h.step([KEY_K]) == pytest.approx(-1.0)  # held -> no re-toggle
+        assert h.step([]) == pytest.approx(-1.0)  # release -> stays closed
+        assert h.step([KEY_K]) == pytest.approx(1.0)  # press again -> open
 
-        def step(pressed_keys):
-            src_outputs = _run_source(src, pressed_keys)
-            out = {
-                "gripper_command": _make_output_group(
-                    retargeter.output_spec()["gripper_command"]
-                )
-            }
-            retargeter.compute(
-                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out
-            )
-            return float(out["gripper_command"][0])
+    def test_sub_frame_tap_toggles(self):
+        """A tap pressed and released within one frame still toggles."""
+        h = _GripperHarness()
+        assert h.step([], taps=[KEY_K]) == pytest.approx(-1.0)
 
-        assert step([]) == pytest.approx(1.0)  # open (default)
-        assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
-        assert step([KEY_K]) == pytest.approx(
-            -1.0
-        )  # held -> stays closed, no re-toggle
-        assert step([]) == pytest.approx(-1.0)  # release -> stays closed
-        assert step([KEY_K]) == pytest.approx(1.0)  # rising edge again -> open
+    def test_no_provider_keeps_state(self):
+        h = _GripperHarness()
+        assert h.step(None) == pytest.approx(1.0)  # default open
+        assert h.step([KEY_K]) == pytest.approx(-1.0)
+        assert h.step(None) == pytest.approx(-1.0)  # no data -> unchanged
 
-    def test_inactive_device_yields_default_open(self):
-        src = _keyboard_source()
-        src_outputs = _run_source(src, None)
+    def test_reset_opens_and_held_key_does_not_retoggle(self):
+        """K held across a reset is not a new press and must not re-close the gripper."""
+        h = _GripperHarness()
+        assert h.step([KEY_K]) == pytest.approx(-1.0)  # press -> close
+        assert h.step([KEY_K], reset=True) == pytest.approx(1.0)  # reset -> open
+        assert h.step([KEY_K]) == pytest.approx(1.0)  # still held -> stays open
+        assert h.step([]) == pytest.approx(1.0)
+        assert h.step([KEY_K]) == pytest.approx(-1.0)  # genuine press -> close
 
-        gripper = KeyboardGripperRetargeter(name="gripper")
-        gripper_out = {
-            "gripper_command": _make_output_group(
-                gripper.output_spec()["gripper_command"]
-            )
-        }
-        gripper.compute(
-            {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, gripper_out
-        )
-        assert float(gripper_out["gripper_command"][0]) == pytest.approx(
-            1.0
-        )  # default open
-
-    def test_reset_does_not_toggle_gripper_while_k_is_held(self):
-        """K held across a reset frame is not a rising edge and must not toggle the gripper."""
-        src = _keyboard_source()
-        retargeter = KeyboardGripperRetargeter(name="gripper")
-
-        def step(pressed_keys, reset=False):
-            src_outputs = _run_source(src, pressed_keys)
-            out = {
-                "gripper_command": _make_output_group(
-                    retargeter.output_spec()["gripper_command"]
-                )
-            }
-            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
-            retargeter.compute(
-                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out, context
-            )
-            return float(out["gripper_command"][0])
-
-        assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
-        # Reset resets the gripper to open, but K is still held -- not a new rising
-        # edge, so this must not immediately re-close it.
-        assert step([KEY_K], reset=True) == pytest.approx(1.0)
-        assert step([KEY_K]) == pytest.approx(1.0)  # still held -> stays open
-        assert step([]) == pytest.approx(1.0)  # release
-        assert step([KEY_K]) == pytest.approx(-1.0)  # genuine rising edge -> close
-
-    def test_reset_with_inactive_device_preserves_prior_edge_state(self):
-        """A reset frame with no keyboard data must not clobber _prev_k_pressed."""
-        src = _keyboard_source()
-        retargeter = KeyboardGripperRetargeter(name="gripper")
-
-        def step(pressed_keys, reset=False):
-            src_outputs = _run_source(src, pressed_keys)
-            out = {
-                "gripper_command": _make_output_group(
-                    retargeter.output_spec()["gripper_command"]
-                )
-            }
-            context = ComputeContext(execution_events=ExecutionEvents(reset=reset))
-            retargeter.compute(
-                {"keyboard_all_keys": src_outputs["keyboard_all_keys"]}, out, context
-            )
-            return float(out["gripper_command"][0])
-
-        assert step([KEY_K]) == pytest.approx(-1.0)  # rising edge -> close
-        # Reset while the device is inactive (keyboard.is_none) -- must not force
-        # _prev_k_pressed to False, or the next frame (K still held) would be
-        # misread as a fresh rising edge.
-        assert step(None, reset=True) == pytest.approx(1.0)  # gripper still resets
-        assert step([KEY_K]) == pytest.approx(1.0)  # still held -> no spurious toggle
+    def test_reset_with_no_provider(self):
+        h = _GripperHarness()
+        assert h.step([KEY_K]) == pytest.approx(-1.0)
+        assert h.step(None, reset=True) == pytest.approx(1.0)  # reset still applies
+        assert h.step([KEY_K]) == pytest.approx(1.0)  # still held -> no toggle
 
 
 class TestKeyboardToSe2Retargeter:

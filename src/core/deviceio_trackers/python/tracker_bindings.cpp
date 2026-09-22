@@ -8,6 +8,7 @@
 #include <deviceio_trackers/hand_tracker.hpp>
 #include <deviceio_trackers/haptic_command_reader_tracker.hpp>
 #include <deviceio_trackers/head_tracker.hpp>
+#include <deviceio_trackers/keyboard_tracker.hpp>
 #include <deviceio_trackers/message_channel_tracker.hpp>
 #include <deviceio_trackers/tensor_push_tracker.hpp>
 #include <pybind11/numpy.h>
@@ -18,6 +19,7 @@
 #include <array>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 
@@ -76,6 +78,54 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             [](const core::HeadTracker& self, const core::ITrackerSession& session)
             { return to_python(self.get_head(session)); },
             py::arg("session"), "Get the head tracked state (None if inactive)");
+
+    m.def("evdev_code_from_w3c", &core::evdev_code_from_w3c, py::arg("w3c_code"),
+          "Evdev key code for a W3C KeyboardEvent.code ('KeyW', 'ArrowUp', ...), or None if unmapped.");
+
+    py::class_<core::KeyboardProvider, std::shared_ptr<core::KeyboardProvider>>(
+        m, "KeyboardProvider",
+        "One focused input surface feeding a KeyboardTracker. Report press/release only while the "
+        "surface has focus, and call release_all() on blur, close or disconnect.")
+        .def(
+            "key_down",
+            [](core::KeyboardProvider& self, uint16_t code, std::optional<int64_t> timestamp_ns)
+            { return self.key_down(code, timestamp_ns); },
+            py::arg("code"), py::arg("timestamp_ns") = py::none(),
+            "Report a press by evdev code. Returns False when nothing changed (autorepeat) or closed.")
+        .def(
+            "key_down",
+            [](core::KeyboardProvider& self, const std::string& code, std::optional<int64_t> timestamp_ns)
+            { return self.key_down(std::string_view(code), timestamp_ns); },
+            py::arg("code"), py::arg("timestamp_ns") = py::none(),
+            "Report a press by W3C KeyboardEvent.code. Unknown codes are ignored (returns False).")
+        .def(
+            "key_up",
+            [](core::KeyboardProvider& self, uint16_t code, std::optional<int64_t> timestamp_ns)
+            { return self.key_up(code, timestamp_ns); },
+            py::arg("code"), py::arg("timestamp_ns") = py::none(), "Report a release by evdev code.")
+        .def(
+            "key_up",
+            [](core::KeyboardProvider& self, const std::string& code, std::optional<int64_t> timestamp_ns)
+            { return self.key_up(std::string_view(code), timestamp_ns); },
+            py::arg("code"), py::arg("timestamp_ns") = py::none(), "Report a release by W3C KeyboardEvent.code.")
+        .def("release_all", &core::KeyboardProvider::release_all, py::arg("timestamp_ns") = py::none(),
+             "Release every key this provider holds (focus lost, surface closed).")
+        .def("close", &core::KeyboardProvider::close, "Release held keys and detach from the tracker.")
+        .def_property_readonly("name", &core::KeyboardProvider::name)
+        .def_property_readonly("closed", &core::KeyboardProvider::is_closed)
+        .def("__enter__", [](std::shared_ptr<core::KeyboardProvider> self) { return self; })
+        .def("__exit__", [](core::KeyboardProvider& self, py::object, py::object, py::object) { self.close(); });
+
+    py::class_<core::KeyboardTracker, core::ITracker, std::shared_ptr<core::KeyboardTracker>>(
+        m, "KeyboardTracker", "In-process keyboard merged from every attached KeyboardProvider.")
+        .def(py::init<>())
+        .def("create_provider", &core::KeyboardTracker::create_provider, py::arg("name"),
+             "Create a provider for one input surface (window, browser tab, ...).")
+        .def(
+            "get_keyboard_data",
+            [](const core::KeyboardTracker& self, const core::ITrackerSession& session)
+            { return to_python(self.get_data(session)); },
+            py::arg("session"), "Get this frame's KeyboardOutput (None when no provider is attached)");
 
     py::class_<core::ControllerTracker, core::ITracker, std::shared_ptr<core::ControllerTracker>>(m, "ControllerTracker")
         .def(py::init<>())
