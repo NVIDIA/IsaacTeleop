@@ -15,6 +15,7 @@ from ._core import (
     DATE_FORMAT,
     LINE_FORMAT,
     ROOT_LOGGER_NAME,
+    TRACE,
     _move_above_std,
     ensure_log_dir,
 )
@@ -77,7 +78,7 @@ def ensure_handler() -> logging.Handler:
     adjacent whatever produced them, and guards against a reused pid
     colliding with an older run's file, while the pid still guards against
     two processes starting in the same second. Always captures everything
-    (``DEBUG``+) — not user-configurable, unlike the console handler's level.
+    (``TRACE``+) — not user-configurable, unlike the console handler's level.
     """
     global _handler
     if _handler is not None:
@@ -94,7 +95,7 @@ def ensure_handler() -> logging.Handler:
             encoding="utf-8",
         )
         handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
-        handler.setLevel(logging.DEBUG)
+        handler.setLevel(TRACE)
         logging.getLogger(ROOT_LOGGER_NAME).addHandler(handler)
         _handler = handler
         return _handler

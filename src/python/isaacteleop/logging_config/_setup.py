@@ -40,11 +40,12 @@ def install() -> None:
         _forwarding.ensure_handler(socket_path)
         # Built but not attached in a child (see _console.ensure_handler), so
         # that a capture scope still has somewhere to move its stream.
-        _console.ensure_handler()
+        console = _console.ensure_handler()
         _native_fd.ensure_sink()
+        _native_fd.follow_console_level(console.level)
         return
 
-    _console.ensure_handler()
+    console = _console.ensure_handler()
     try:
         _file.ensure_handler()
     except OSError as exc:
@@ -61,6 +62,9 @@ def install() -> None:
     # attaches its handler first: ensure_sink() reports a capture file it could
     # not create, and that report should reach the session's log file too.
     _native_fd.ensure_sink()
+    # ISAACTELEOP_LOG_LEVEL=trace must put everything on the terminal from the
+    # start, not only after a set_console_level("trace") call.
+    _native_fd.follow_console_level(console.level)
     _forwarding.ensure_receiver()
 
 

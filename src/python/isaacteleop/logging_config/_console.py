@@ -10,7 +10,7 @@ import os
 import re
 import threading
 
-from . import _forwarding
+from . import _forwarding, _native_fd
 from ._core import (
     _LEVEL_NAME_BY_VALUE,
     DATE_FORMAT,
@@ -169,10 +169,14 @@ def set_console_level(level: int | str) -> None:
 
     Independent of the file handler, which always captures everything
     regardless of what the console is set to.
+
+    At ``TRACE`` this also turns on the live echo of non-logger output, so one
+    call puts *everything* on the terminal -- see ``_native_fd.follow_console_level``.
     """
     resolved = resolve_level(level)
     handler = ensure_handler()
     handler.setLevel(resolved)
+    _native_fd.follow_console_level(resolved)
     # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
     # the in-process bridge; they read their own console threshold from this variable.
     name = _LEVEL_NAME_BY_VALUE.get(resolved)

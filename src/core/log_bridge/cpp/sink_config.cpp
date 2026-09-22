@@ -448,7 +448,7 @@ const std::vector<spdlog::sink_ptr>& local_sinks()
 #endif
             auto file = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
                 filename.string(), kFileMaxBytes, kFileBackupCount, false, events);
-            file->set_level(spdlog::level::debug); // always captures everything, not user-configurable
+            file->set_level(spdlog::level::trace); // always captures everything.
             file->set_formatter(make_formatter());
             return std::vector<spdlog::sink_ptr>{ console, file };
         }

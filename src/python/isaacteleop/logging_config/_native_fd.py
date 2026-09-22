@@ -29,7 +29,7 @@ import time
 from collections.abc import Iterator
 from typing import TextIO
 
-from ._core import ROOT_LOGGER_NAME, _move_above_std, ensure_log_dir
+from ._core import ROOT_LOGGER_NAME, TRACE, _move_above_std, ensure_log_dir
 
 _CAPTURED_FDS = (1, 2)
 
@@ -67,6 +67,12 @@ _depth = 0
 
 _pre_scope_streams: dict[int, TextIO | None] = {}
 _pre_scope_handler_stream: TextIO | None = None
+
+# The terminal mirror. Captured output is always persisted; at a console
+# threshold of TRACE it is additionally echoed live, so `set_console_level`
+# ("trace") is the one knob that puts everything on the terminal.
+_mirror_thread: threading.Thread | None = None
+_echo = False
 
 _sink_warned = False
 
@@ -479,3 +485,110 @@ def scoped(
                     _flush_host_streams()
                 finally:
                     _end(console_handler)
+
+
+def _write_all(fd: int, data: bytes) -> None:
+    """``os.write`` until *data* is gone; a tty or a full disk can short-write."""
+    while data:
+        data = data[os.write(fd, data) :]
+
+
+def _echo_target() -> int | None:
+    """Where a mirrored chunk goes, or ``None`` if it cannot be shown right now.
+
+    Inside a capture scope fd 2 *is* the capture file, so echoing there would
+    feed the tail its own output; the saved duplicate is the one still on the
+    terminal. Outside a scope fd 2 is the terminal itself -- which still
+    matters, because a plugin this process forked keeps writing to the capture
+    file whether or not a scope is open here.
+    """
+    if 2 in _active_fds:
+        return _saved_stream_fd.get(2)
+    return 2 if _stdio_stream(2) is not None else None
+
+
+def _mirror(sink_path: str, sink_fd: int) -> None:
+    """Tail the capture file onto the terminal while echo is on.
+
+    A convenience, never a step a writer waits on: the bytes reach the file
+    without this thread, so falling behind loses nothing. The tail starts at
+    end-of-file and drops what it reads while echo is off, so raising the
+    console to TRACE mid-session shows what follows rather than a backlog.
+    """
+    reader_fd = -1
+    try:
+        reader_fd = _move_above_std(
+            os.open(
+                sink_path,
+                os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0),
+            )
+        )
+        # Tail the file ensure_sink() opened, not a replacement at the same
+        # name: an operator's ISAACTELEOP_LOG_DIR may be shared.
+        opened, original = os.fstat(reader_fd), os.fstat(sink_fd)
+        if (opened.st_dev, opened.st_ino) != (original.st_dev, original.st_ino):
+            return
+        stream = os.fdopen(reader_fd, "rb", buffering=0)
+        reader_fd = -1
+        with stream as sink:
+            sink.seek(0, os.SEEK_END)
+            while True:
+                chunk = sink.read(65536)
+                if not chunk:
+                    time.sleep(0.05)
+                    continue
+                target = _echo_target()
+                if _echo and target is not None:
+                    _write_all(target, chunk)
+    except (OSError, ValueError):
+        return  # Best-effort; must never affect the capture or the host.
+    finally:
+        if reader_fd >= 0:
+            os.close(reader_fd)
+
+
+def _start_mirror() -> None:
+    """Start the tail thread once, on the first request for echo.
+
+    Not started alongside the capture file: the console can drop to TRACE at
+    any point, and a session that never does should not carry the thread.
+    """
+    global _mirror_thread
+    # Under _lock, as _begin()'s own call to _ensure_saved_slots() is. Those
+    # dicts are the only record of where the host's descriptors went, and
+    # filling a slot from here while _begin() had already pointed fd 2 at the
+    # capture file would save a duplicate *of the capture file* -- which _end()
+    # would then restore onto fd 2, taking the host's stderr with it for good.
+    with _lock:
+        if _mirror_thread is not None or _sink_path is None or _sink_fd is None:
+            return
+        _ensure_saved_slots()
+        thread = threading.Thread(
+            target=_mirror,
+            args=(_sink_path, _sink_fd),
+            name="isaacteleop-native-capture",
+            daemon=True,
+        )
+        try:
+            thread.start()
+        except RuntimeError:
+            # Not OSError: Thread.start() raises RuntimeError when the
+            # interpreter is shutting down or cannot allocate a thread, and
+            # follow_console_level() is reachable from install(), where nothing
+            # may raise. Leaving _mirror_thread unset lets a later call retry.
+            return
+        _mirror_thread = thread
+
+
+def follow_console_level(level: int) -> None:
+    """Echo captured output to the terminal exactly when the console is at TRACE.
+
+    Captured output is *always* persisted; this decides only whether it is
+    additionally shown live, so ``set_console_level("trace")`` is the single
+    knob that puts everything on the terminal -- records and the non-logger
+    output no logger can reach alike.
+    """
+    global _echo
+    _echo = level <= TRACE
+    if _echo and ensure_sink() is not None:
+        _start_mirror()
