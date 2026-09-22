@@ -69,6 +69,27 @@ int current_pid()
 {
     return static_cast<int>(::getpid());
 }
+
+bool send_all(int fd, const void* data, std::size_t size)
+{
+    const auto* cursor = static_cast<const char*>(data);
+    while (size > 0)
+    {
+        const ssize_t sent = ::send(fd, cursor, size, MSG_NOSIGNAL);
+        if (sent > 0)
+        {
+            cursor += sent;
+            size -= static_cast<std::size_t>(sent);
+            continue;
+        }
+        if (sent < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        return false;
+    }
+    return true;
+}
 #endif
 
 // Guarded like current_pid() beside it: its only caller is sink_it_()'s
@@ -370,8 +391,7 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
 
     // MSG_NOSIGNAL instead of a global SIGPIPE ignore: this sink must not change
     // process-wide signal disposition for code elsewhere that may care about SIGPIPE.
-    const bool ok = ::send(fd_, header, sizeof(header), MSG_NOSIGNAL) == static_cast<ssize_t>(sizeof(header)) &&
-                    ::send(fd_, payload.data(), payload.size(), MSG_NOSIGNAL) == static_cast<ssize_t>(payload.size());
+    const bool ok = send_all(fd_, header, sizeof(header)) && send_all(fd_, payload.data(), payload.size());
     if (!ok)
     {
         ::close(fd_);
