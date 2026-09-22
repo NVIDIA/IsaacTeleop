@@ -18,7 +18,6 @@ import concurrent.futures.thread  # noqa: F401
 import logging
 import os
 import signal
-import stat
 import subprocess
 import sys
 import threading
@@ -60,22 +59,11 @@ _WORKER_STDERR_LOG = "runtime_worker_stderr.log"
 def _tail_text(path: Path, limit: int) -> str:
     """Last *limit* bytes of *path*, decoded leniently.
 
-    Seeks instead of reading the file and slicing what it wanted. One of the
-    files this is pointed at is the session's native capture file, which is
-    truncated by nothing and rotated by nothing -- it collects every process's
-    raw fd 1/2 output for as long as the session runs -- so a restart that
-    fails late would otherwise pull the whole thing into memory to print four
-    kilobytes of it.
+    Seeks rather than reading the whole file: one of the files this is pointed
+    at is the session's native capture file, which nothing truncates or rotates
+    for as long as the session runs.
     """
-    flags = (
-        os.O_RDONLY
-        | getattr(os, "O_NOFOLLOW", 0)
-        | getattr(os, "O_NONBLOCK", 0)
-        | getattr(os, "O_BINARY", 0)
-    )
-    with os.fdopen(os.open(path, flags), "rb") as handle:
-        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
-            raise OSError(f"Refusing non-regular diagnostic log {path}")
+    with open(path, "rb") as handle:
         handle.seek(0, os.SEEK_END)
         size = handle.tell()
         handle.seek(max(0, size - limit))

@@ -6,7 +6,6 @@
 #include <log_bridge/logger.hpp>
 
 #ifndef _WIN32
-#    include <sys/stat.h>
 #    include <sys/wait.h>
 
 #    include <fcntl.h>
@@ -214,29 +213,19 @@ void Plugin::start_process(const std::string& command,
         // avoid; it is the reason that redirection is no longer needed for plugins.
         //
         // open(), dup2() and close() are all on POSIX's async-signal-safe list.
-        // O_APPEND, so several plugins and the parent can share one file without
-        // overwriting each other. A failure is silent by necessity: there is
-        // nowhere left to report it to, and losing the capture must not stop the
-        // plugin from starting.
+        // No O_CREAT: the Python leader already created this file 0600, so a
+        // path that has gone missing is not ours to recreate. O_APPEND, so
+        // several plugins and the parent can share one file. A failure is
+        // silent by necessity -- there is nowhere left to report it to, and
+        // losing the capture must not stop the plugin from starting.
         if (native_capture_path != nullptr && native_capture_path[0] != '\0')
         {
-            // The Python leader already created this file 0600. Do not recreate
-            // a missing path or append to a regular file planted in its place.
             const int capture_fd = ::open(native_capture_path, O_WRONLY | O_APPEND | O_NOFOLLOW);
             if (capture_fd >= 0)
             {
-                struct ::stat capture_info
-                {
-                };
-                const bool private_capture = ::fstat(capture_fd, &capture_info) == 0 && S_ISREG(capture_info.st_mode) &&
-                                             capture_info.st_uid == ::getuid() &&
-                                             (capture_info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
-                if (private_capture)
-                {
-                    ::dup2(capture_fd, STDOUT_FILENO);
-                    ::dup2(capture_fd, STDERR_FILENO);
-                }
-                if (!private_capture || (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO))
+                ::dup2(capture_fd, STDOUT_FILENO);
+                ::dup2(capture_fd, STDERR_FILENO);
+                if (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO)
                 {
                     ::close(capture_fd);
                 }
