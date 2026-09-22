@@ -518,39 +518,6 @@ matching – the logger is created, and nothing ever logs to it:</p>
 </pre></div>
 </div>
 </section>
-<section id="asset-cache-overrides">
-<h2>Asset cache overrides<a class="headerlink" href="#asset-cache-overrides" title="Link to this heading">#</a></h2>
-<p>The robot twin’s mesh cache moved to <code class="docutils literal notranslate"><span class="pre">~/.cache/isaaccapture</span></code> with the package
-name. Nothing to do: the twin re-populates it on the next run, and the 1.5
-directory can be deleted whenever you notice it.</p>
-<p>The two variables that override <em>where</em> it caches are no longer read under their
-old names. The <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_*</span></code> runtime switches keep theirs.</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Old</p></th>
-<th class="head"><p>New</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ISAACTELEOP_SO101_ASSETS</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ISAACCAPTURE_SO101_ASSETS</span></code></p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ISAACTELEOP_REBOT_ASSETS</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ISAACCAPTURE_REBOT_ASSETS</span></code></p></td>
-</tr>
-</tbody>
-</table>
-</div>
-</section>
-<section id="the-detached-cloudxr-service">
-<h2>The detached CloudXR service<a class="headerlink" href="#the-detached-cloudxr-service" title="Link to this heading">#</a></h2>
-<p>A service detached before the upgrade is still recognised by <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">status</span></code>
-and <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code>: 1.6 matches the old module name in its <code class="docutils literal notranslate"><span class="pre">/proc</span></code> command
-line as well as the new one.</p>
-<p>That only works forwards. A 1.5 CLI cannot know the new name, so stop the
-service before rolling back – otherwise <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code> reports that nothing
-is running, exits 0, and leaves a runtime holding the GPU.</p>
-</section>
 </section>
 
 
@@ -608,8 +575,6 @@ is running, exits 0, and leaves a runtime holding the GPU.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#what-importing-the-old-name-does">What importing the old name does</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing">Installing</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#logging">Logging</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#asset-cache-overrides">Asset cache overrides</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-detached-cloudxr-service">The detached CloudXR service</a></li>
 </ul>
   </nav></div>
 
