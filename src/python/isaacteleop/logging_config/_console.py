@@ -10,7 +10,7 @@ import os
 import re
 import threading
 
-from . import _forwarding, _native_fd
+from . import _forwarding
 from ._core import (
     _LEVEL_NAME_BY_VALUE,
     DATE_FORMAT,
@@ -137,11 +137,11 @@ def ensure_handler() -> logging.StreamHandler:
     """Create the console handler on first use; idempotent after that.
 
     Attached to the root logger only for the session leader -- a forwarding
-    child still builds this object (``_native_fd.gate`` needs somewhere to
-    redirect its stream bookkeeping to regardless of leader/child status), it
-    just never receives records, so it never prints a local, second copy of
-    what the leader's own console handler already shows once the record comes
-    back through the forwarder.
+    child still builds this object, because a capture scope needs somewhere to
+    move its stream regardless of leader/child status, but it never receives
+    records, so it never prints a local second copy of what the leader's own
+    console handler already shows once the record comes back through the
+    forwarder.
 
     Its starting threshold comes from ``ISAACTELEOP_LOG_LEVEL``, the same
     variable ``log_bridge``'s ``console_level()`` reads, so one setting in the
@@ -178,7 +178,6 @@ def set_console_level(level: int | str) -> None:
     resolved = resolve_level(level)
     handler = ensure_handler()
     handler.setLevel(resolved)
-    _native_fd.gate(resolved, handler)
     # Plugin executables are fork+exec'd (core/plugin_manager) and so are out of reach of
     # the in-process bridge; they read their own console threshold from this variable.
     name = _LEVEL_NAME_BY_VALUE.get(resolved)
