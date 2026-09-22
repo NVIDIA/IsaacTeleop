@@ -125,6 +125,7 @@ private:
     // -- Member Variables --
 
     ManusPluginConfig m_config;
+    std::shared_ptr<spdlog::logger> m_logger = isaacteleop::Logger::get("isaacteleop.plugins.manus.ManusTracker");
 
     // Lifecycle
     std::mutex m_lifecycle_mutex;

@@ -28,7 +28,7 @@ from typing import Optional
 
 from .rtp_h264_receiver import _ensure_gst_initialized
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaacteleop.camera_viz.transports.rtp_h264_sender")
 
 RECONNECT_DELAY_S = 2.0
 

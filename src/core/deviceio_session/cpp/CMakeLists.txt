@@ -27,6 +27,7 @@ target_link_libraries(deviceio_session
         deviceio::deviceio_base
         oxr::oxr_utils
         Teleop::openxr_extensions
+        log_bridge::log_bridge_core
     PRIVATE
         deviceio::deviceio_trackers
         deviceio::live_trackers

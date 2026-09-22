@@ -105,6 +105,7 @@ target_link_libraries(noitom_mocap_plugin PRIVATE
     pusherio::pusherio
     oxr::oxr_core
     isaacteleop_schema
+    log_bridge::log_bridge_core
 )
 
 set_target_properties(noitom_mocap_plugin PROPERTIES

@@ -4,11 +4,11 @@
 #include "oglo_glove_sink.hpp"
 
 #include <flatbuffers/flatbuffers.h>
+#include <log_bridge/logger.hpp>
 #include <oxr/oxr_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 #include <schema/oglo_tactile_generated.h>
 
-#include <iostream>
 #include <stdexcept>
 
 namespace plugins
@@ -55,7 +55,7 @@ public:
                                              .localized_name = "OGLO Tactile Glove",
                                              .app_name = "OgloTactilePlugin" })
     {
-        std::cout << "Pushing collection: " << collection_prefix << "/" << to_string(side) << std::endl;
+        m_logger->info("Pushing collection: {}/{}", collection_prefix, to_string(side));
     }
 
     void on_sample(const GloveSample& sample, int64_t local_ns, int64_t raw_ns) override
@@ -70,6 +70,8 @@ public:
 private:
     std::shared_ptr<core::OpenXRSession> m_session;
     core::SchemaPusher m_pusher;
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaacteleop::Logger::get("isaacteleop.plugins.oglo_tactile.SchemaPusherGloveSink");
 };
 
 } // namespace

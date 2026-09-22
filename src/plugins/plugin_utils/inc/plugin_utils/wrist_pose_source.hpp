@@ -7,6 +7,7 @@
 
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
 #include <oxr_utils/oxr_session_handles.hpp>
 
@@ -128,6 +129,9 @@ private:
     PFN_xrCreateHandTrackerEXT m_pfn_create_hand_tracker = nullptr;
     PFN_xrDestroyHandTrackerEXT m_pfn_destroy_hand_tracker = nullptr;
     PFN_xrLocateHandJointsEXT m_pfn_locate_hand_joints = nullptr;
+
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaacteleop::Logger::get("isaacteleop.plugins.plugin_utils.WristPoseSource");
 };
 
 } // namespace plugin_utils

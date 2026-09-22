@@ -15,7 +15,7 @@ namespace haptikos
 HaptikosHandsPlugin::HaptikosHandsPlugin(const std::string& plugin_root_id) noexcept(false) : m_root_id(plugin_root_id)
 {
     static_assert(XR_HAND_JOINT_COUNT_EXT == HAPTIKOS_NUM_OF_JOINTS, "Unexpected XR Hand Joint number");
-    std::cout << "Initializing HaptikosHandsPlugin with root: " << m_root_id << std::endl;
+    m_logger->info("Initializing with root: {}", m_root_id);
 
     // Create ControllerTracker first to get required extensions
     m_controller_tracker = std::make_shared<core::ControllerTracker>();
@@ -42,13 +42,13 @@ HaptikosHandsPlugin::HaptikosHandsPlugin(const std::string& plugin_root_id) noex
     m_running = true;
     m_thread = std::thread(&HaptikosHandsPlugin::worker_thread, this);
 
-    std::cout << "HaptikosHandsPlugin initialized and running" << std::endl;
+    m_logger->info("initialized and running");
 }
 
 
 HaptikosHandsPlugin::~HaptikosHandsPlugin()
 {
-    std::cout << "Shutting down HaptikosHandsPlugin..." << std::endl;
+    m_logger->info("Shutting down...");
 
     m_running = false;
     m_thread.join();
@@ -82,14 +82,14 @@ void HaptikosHandsPlugin::worker_thread()
         }
         catch (const std::exception& e)
         {
-            std::cerr << "HaptikosHandsPlugin update error: " << e.what() << std::endl;
+            m_logger->error("update error: {}", e.what());
             m_left_injector.reset();
             m_right_injector.reset();
             std::exit(1);
         }
         catch (...)
         {
-            std::cerr << "HaptikosHandsPlugin update error: unknown exception" << std::endl;
+            m_logger->error("update error: unknown exception");
             m_left_injector.reset();
             m_right_injector.reset();
             std::exit(1);
