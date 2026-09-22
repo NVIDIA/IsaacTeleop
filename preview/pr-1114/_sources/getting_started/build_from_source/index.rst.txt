@@ -339,17 +339,16 @@ based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly diff
 
    # Pass --no-index to use only wheels in ./install/wheels/;
    # Pass --force-reinstall to replace an existing install.
-   pip install "isaaccapture[retargeters,cloudxr,ui]" isaacteleop --find-links=./install/wheels/ --no-index --force-reinstall
+   pip install "isaaccapture[retargeters,cloudxr,ui]" --find-links=./install/wheels/ --no-index --force-reinstall
 
 .. code-block:: bash
 
    # Pass --reinstall to replace an existing install.
-   uv pip install "isaaccapture[retargeters,cloudxr,ui]" isaacteleop --find-links=./install/wheels/ --reinstall
+   uv pip install "isaaccapture[retargeters,cloudxr,ui]" --find-links=./install/wheels/ --reinstall
 
-The build produces a second wheel, ``isaacteleop`` — the compatibility alias,
-removed in 1.9. It is a separate distribution, so naming ``isaaccapture`` alone
-leaves ``import isaacteleop`` a ``ModuleNotFoundError``; drop it once nothing you
-run imports the old name. See :doc:`/references/migration`.
+The wheel carries the ``isaacteleop`` compatibility alias, removed in 1.9, so
+``import isaacteleop`` resolves without installing anything else. See
+:doc:`/references/migration`.
 
 Alternative: install directly from source with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -409,17 +408,9 @@ What this path does and how it differs from the classic flow:
 
 .. admonition:: ``import isaacteleop`` under this path
 
-   ``pip install -e .`` serves the alias: an editable install resolves imports out
-   of the source tree, and the shim's source (:code-dir:`src/compat/isaacteleop`)
-   is redirected alongside ``isaaccapture``'s. ``pip install .`` does not -- the
-   alias is the separate ``isaacteleop`` distribution
-   (:doc:`/references/migration`). To have it beside a non-editable install:
-
-   .. code-block:: bash
-
-      pip install ./build-wheel/cpython-311/python_package_compat/Release
-
-   Substitute your interpreter's cache tag for ``cpython-311``.
+   Both ``pip install .`` and ``pip install -e .`` serve the alias: the shim's
+   source (:code-dir:`src/compat/isaacteleop`) is mapped beside ``isaaccapture``'s
+   and ships in the same wheel (:doc:`/references/migration`).
 
 .. admonition:: Editable installs and iterating on pure-Python subpackages
 

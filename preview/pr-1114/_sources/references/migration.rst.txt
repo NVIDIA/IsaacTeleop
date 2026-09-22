@@ -5,13 +5,14 @@ Migrating to ``isaaccapture``
 =============================
 
 In 1.6 the Python import package and the distribution were both renamed from
-``isaacteleop`` to ``isaaccapture``. ``import isaacteleop`` keeps working for
-now through a compatibility distribution, which **will be removed in 1.9**.
+``isaacteleop`` to ``isaaccapture``. ``import isaacteleop`` keeps working for now
+through an alias shipped inside the ``isaaccapture`` wheel, **removed in 1.9**.
 
 .. warning::
 
-   1.9 is inside the 1.x series, so ``isaacteleop<2`` and ``isaacteleop~=1.6``
-   do **not** hold the alias. ``isaacteleop<1.9`` is the pin that does.
+   Nothing is published under the name ``isaacteleop`` from 1.6 on, so no pin on
+   it reaches 1.6 or later. Depend on ``isaaccapture`` and pin ``isaaccapture<1.9``
+   if you need the alias to stay available while you migrate imports.
 
 In short
 --------
@@ -67,36 +68,17 @@ The same rename applies to ``python -m`` entry points, for example
 .. warning::
 
    ``isaacteleop_examples`` became ``isaaccapture_examples``, and the alias
-   does **not** cover it -- the compatibility distribution owns ``isaacteleop``
-   alone. Every ``python -m isaacteleop_examples.*`` command fails with a bare
+   does **not** cover it -- it serves ``isaacteleop`` alone. Every
+   ``python -m isaacteleop_examples.*`` command fails with a bare
    ``ModuleNotFoundError`` and no notice attached. The example distributions
    renamed with it: ``isaacteleop-examples-*`` to ``isaaccapture-examples-*``.
 
 What importing the old name does
 --------------------------------
 
-Until 1.9 the old name still resolves, but it is not silent:
-
-- It raises a ``DeprecationWarning`` on the first import in a process.
-- When the default filters hide that warning -- which is every import not made
-  from ``__main__``, including every ``python -m`` -- the same text is printed to
-  stderr instead, prefixed with the importing ``file:line``.
-- Under ``-W error::DeprecationWarning``, or a pytest
-  ``filterwarnings = ["error"]``, the import **raises**. A suite that sets this
-  collects nothing until the imports are renamed.
-
-To silence both channels while you migrate, filter on the message. A
-module-scoped filter does not work: the warning is reported against the line that
-imported, not against ``isaacteleop``.
-
-.. code-block:: console
-
-   $ python -W "ignore:The 'isaacteleop' import package:DeprecationWarning" -m yourapp
-
-.. code-block:: toml
-
-   [tool.pytest.ini_options]
-   filterwarnings = ["ignore:The 'isaacteleop' import package:DeprecationWarning"]
+Until 1.9 the old name emits a standard ``DeprecationWarning`` on first import.
+Python's warning filters control its visibility; use ``-W default`` to see it.
+With ``-W error::DeprecationWarning``, the import raises until migrated or filtered.
 
 Installing
 ----------
@@ -106,17 +88,30 @@ Installing
    -pip install isaacteleop[cloudxr]
    +pip install isaaccapture[cloudxr]
 
-``pip install isaacteleop`` still resolves, to a distribution whose only content
-is a redirect that depends on ``isaaccapture`` at the same version. Every extra
-is mirrored, so ``isaacteleop[cloudxr]`` installs ``isaaccapture[cloudxr]``.
-Two more consequences:
+**The dependency must be renamed now; only imports get a grace period.** From 1.6
+nothing is published under the name ``isaacteleop``, so a requirement on it
+resolves to a 1.5-or-older release, not to 1.6. Update the requirement and the
+extras in the same bump:
 
-- A ``--no-deps`` install of ``isaacteleop`` installs the redirect **and nothing
-  else**, and raises ``ImportError`` on first import.
-- A ``sys.meta_path`` finder is invisible to a type checker, so everything under
-  ``isaacteleop`` is typed ``Any`` and **pyright reports every submodule import
-  as unresolved** (``reportMissingImports``). The alias promises runtime
-  identity only.
+.. code-block:: diff
+
+   -isaacteleop[retargeters,ui,cloudxr]~=1.5.0
+   +isaaccapture[retargeters,ui,cloudxr]~=1.6.0
+
+The ``isaaccapture`` wheel ships the ``isaacteleop`` alias inside it, so
+``import isaacteleop`` keeps working after the requirement is renamed, and there
+is no second package to install.
+
+.. note::
+
+   Uninstall any 1.5-or-older ``isaacteleop`` **before** installing 1.6. Both own
+   an ``isaacteleop/`` directory, pip does not detect the collision across
+   distributions, and a later ``pip uninstall isaacteleop`` removes files that
+   ``isaaccapture`` now owns.
+
+A ``sys.meta_path`` finder is invisible to a type checker, so everything under
+``isaacteleop`` is typed ``Any`` and **pyright reports every submodule import as
+unresolved** (``reportMissingImports``). The alias promises runtime identity only.
 
 Logging
 -------

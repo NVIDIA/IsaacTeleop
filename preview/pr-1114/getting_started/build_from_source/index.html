@@ -775,17 +775,16 @@ Using <code class="docutils literal notranslate"><span class="pre">pip</span></c
 based on the Python version.  Note that <code class="docutils literal notranslate"><span class="pre">pip</span></code> and <code class="docutils literal notranslate"><span class="pre">uv</span> <span class="pre">pip</span></code> has slightly different options.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --no-index to use only wheels in ./install/wheels/;</span>
 <span class="c1"># Pass --force-reinstall to replace an existing install.</span>
-pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaaccapture[retargeters,cloudxr,ui]"</span><span class="w"> </span>isaacteleop<span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
+pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaaccapture[retargeters,cloudxr,ui]"</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--no-index<span class="w"> </span>--force-reinstall
 </pre></div>
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Pass --reinstall to replace an existing install.</span>
-uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaaccapture[retargeters,cloudxr,ui]"</span><span class="w"> </span>isaacteleop<span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"isaaccapture[retargeters,cloudxr,ui]"</span><span class="w"> </span>--find-links<span class="o">=</span>./install/wheels/<span class="w"> </span>--reinstall
 </pre></div>
 </div>
-<p>The build produces a second wheel, <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> — the compatibility alias,
-removed in 1.9. It is a separate distribution, so naming <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> alone
-leaves <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> a <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code>; drop it once nothing you
-run imports the old name. See <a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>.</p>
+<p>The wheel carries the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> compatibility alias, removed in 1.9, so
+<code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> resolves without installing anything else. See
+<a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>.</p>
 <section id="alternative-install-directly-from-source-with-pip">
 <h3>Alternative: install directly from source with pip<a class="headerlink" href="#alternative-install-directly-from-source-with-pip" title="Link to this heading">#</a></h3>
 <p>The repository also ships a root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/pyproject.toml" rel="noopener noreferrer" target="_blank">pyproject.toml</a> using the
@@ -841,15 +840,9 @@ tagged <code class="docutils literal notranslate"><span class="pre">+local</span
 </ul>
 <div class="admonition-import-isaacteleop-under-this-path admonition">
 <p class="admonition-title"><code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> under this path</p>
-<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> serves the alias: an editable install resolves imports out
-of the source tree, and the shim’s source (<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/compat/isaacteleop" rel="noopener noreferrer" target="_blank">src/compat/isaacteleop</a>)
-is redirected alongside <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>’s. <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code> does not – the
-alias is the separate <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> distribution
-(<a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>). To have it beside a non-editable install:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>./build-wheel/cpython-311/python_package_compat/Release
-</pre></div>
-</div>
-<p>Substitute your interpreter’s cache tag for <code class="docutils literal notranslate"><span class="pre">cpython-311</span></code>.</p>
+<p>Both <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code> and <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> serve the alias: the shim’s
+source (<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/compat/isaacteleop" rel="noopener noreferrer" target="_blank">src/compat/isaacteleop</a>) is mapped beside <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>’s
+and ships in the same wheel (<a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>).</p>
 </div>
 <div class="admonition-editable-installs-and-iterating-on-pure-python-subpackages admonition">
 <p class="admonition-title">Editable installs and iterating on pure-Python subpackages</p>

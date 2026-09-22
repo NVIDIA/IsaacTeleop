@@ -433,12 +433,13 @@
   <section id="migrating-to-isaaccapture">
 <h1>Migrating to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code><a class="headerlink" href="#migrating-to-isaaccapture" title="Link to this heading">#</a></h1>
 <p>In 1.6 the Python import package and the distribution were both renamed from
-<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>. <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> keeps working for
-now through a compatibility distribution, which <strong>will be removed in 1.9</strong>.</p>
+<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>. <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> keeps working for now
+through an alias shipped inside the <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> wheel, <strong>removed in 1.9</strong>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>1.9 is inside the 1.x series, so <code class="docutils literal notranslate"><span class="pre">isaacteleop&lt;2</span></code> and <code class="docutils literal notranslate"><span class="pre">isaacteleop~=1.6</span></code>
-do <strong>not</strong> hold the alias. <code class="docutils literal notranslate"><span class="pre">isaacteleop&lt;1.9</span></code> is the pin that does.</p>
+<p>Nothing is published under the name <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> from 1.6 on, so no pin on
+it reaches 1.6 or later. Depend on <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> and pin <code class="docutils literal notranslate"><span class="pre">isaaccapture&lt;1.9</span></code>
+if you need the alias to stay available while you migrate imports.</p>
 </div>
 <section id="in-short">
 <h2>In short<a class="headerlink" href="#in-short" title="Link to this heading">#</a></h2>
@@ -485,34 +486,17 @@ copies.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p><code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> became <code class="docutils literal notranslate"><span class="pre">isaaccapture_examples</span></code>, and the alias
-does <strong>not</strong> cover it – the compatibility distribution owns <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>
-alone. Every <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop_examples.*</span></code> command fails with a bare
+does <strong>not</strong> cover it – it serves <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> alone. Every
+<code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">isaacteleop_examples.*</span></code> command fails with a bare
 <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code> and no notice attached. The example distributions
 renamed with it: <code class="docutils literal notranslate"><span class="pre">isaacteleop-examples-*</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture-examples-*</span></code>.</p>
 </div>
 </section>
 <section id="what-importing-the-old-name-does">
 <h2>What importing the old name does<a class="headerlink" href="#what-importing-the-old-name-does" title="Link to this heading">#</a></h2>
-<p>Until 1.9 the old name still resolves, but it is not silent:</p>
-<ul class="simple">
-<li><p>It raises a <code class="docutils literal notranslate"><span class="pre">DeprecationWarning</span></code> on the first import in a process.</p></li>
-<li><p>When the default filters hide that warning – which is every import not made
-from <code class="docutils literal notranslate"><span class="pre">__main__</span></code>, including every <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code> – the same text is printed to
-stderr instead, prefixed with the importing <code class="docutils literal notranslate"><span class="pre">file:line</span></code>.</p></li>
-<li><p>Under <code class="docutils literal notranslate"><span class="pre">-W</span> <span class="pre">error::DeprecationWarning</span></code>, or a pytest
-<code class="docutils literal notranslate"><span class="pre">filterwarnings</span> <span class="pre">=</span> <span class="pre">[&quot;error&quot;]</span></code>, the import <strong>raises</strong>. A suite that sets this
-collects nothing until the imports are renamed.</p></li>
-</ul>
-<p>To silence both channels while you migrate, filter on the message. A
-module-scoped filter does not work: the warning is reported against the line that
-imported, not against <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>.</p>
-<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>python<span class="w"> </span>-W<span class="w"> </span><span class="s2">"ignore:The 'isaacteleop' import package:DeprecationWarning"</span><span class="w"> </span>-m<span class="w"> </span>yourapp
-</pre></div>
-</div>
-<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[tool.pytest.ini_options]</span>
-<span class="n">filterwarnings</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"ignore:The 'isaacteleop' import package:DeprecationWarning"</span><span class="p">]</span>
-</pre></div>
-</div>
+<p>Until 1.9 the old name emits a standard <code class="docutils literal notranslate"><span class="pre">DeprecationWarning</span></code> on first import.
+Python’s warning filters control its visibility; use <code class="docutils literal notranslate"><span class="pre">-W</span> <span class="pre">default</span></code> to see it.
+With <code class="docutils literal notranslate"><span class="pre">-W</span> <span class="pre">error::DeprecationWarning</span></code>, the import raises until migrated or filtered.</p>
 </section>
 <section id="installing">
 <h2>Installing<a class="headerlink" href="#installing" title="Link to this heading">#</a></h2>
@@ -520,18 +504,27 @@ imported, not against <code class="docutils literal notranslate"><span class="pr
 <span class="gi">+pip install isaaccapture[cloudxr]</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> still resolves, to a distribution whose only content
-is a redirect that depends on <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> at the same version. Every extra
-is mirrored, so <code class="docutils literal notranslate"><span class="pre">isaacteleop[cloudxr]</span></code> installs <code class="docutils literal notranslate"><span class="pre">isaaccapture[cloudxr]</span></code>.
-Two more consequences:</p>
-<ul class="simple">
-<li><p>A <code class="docutils literal notranslate"><span class="pre">--no-deps</span></code> install of <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> installs the redirect <strong>and nothing
-else</strong>, and raises <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> on first import.</p></li>
-<li><p>A <code class="docutils literal notranslate"><span class="pre">sys.meta_path</span></code> finder is invisible to a type checker, so everything under
-<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> is typed <code class="docutils literal notranslate"><span class="pre">Any</span></code> and <strong>pyright reports every submodule import
-as unresolved</strong> (<code class="docutils literal notranslate"><span class="pre">reportMissingImports</span></code>). The alias promises runtime
-identity only.</p></li>
-</ul>
+<p><strong>The dependency must be renamed now; only imports get a grace period.</strong> From 1.6
+nothing is published under the name <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>, so a requirement on it
+resolves to a 1.5-or-older release, not to 1.6. Update the requirement and the
+extras in the same bump:</p>
+<div class="highlight-diff notranslate"><div class="highlight"><pre><span></span><span class="gd">-isaacteleop[retargeters,ui,cloudxr]~=1.5.0</span>
+<span class="gi">+isaaccapture[retargeters,ui,cloudxr]~=1.6.0</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> wheel ships the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> alias inside it, so
+<code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> keeps working after the requirement is renamed, and there
+is no second package to install.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Uninstall any 1.5-or-older <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> <strong>before</strong> installing 1.6. Both own
+an <code class="docutils literal notranslate"><span class="pre">isaacteleop/</span></code> directory, pip does not detect the collision across
+distributions, and a later <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">uninstall</span> <span class="pre">isaacteleop</span></code> removes files that
+<code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> now owns.</p>
+</div>
+<p>A <code class="docutils literal notranslate"><span class="pre">sys.meta_path</span></code> finder is invisible to a type checker, so everything under
+<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> is typed <code class="docutils literal notranslate"><span class="pre">Any</span></code> and <strong>pyright reports every submodule import as
+unresolved</strong> (<code class="docutils literal notranslate"><span class="pre">reportMissingImports</span></code>). The alias promises runtime identity only.</p>
 </section>
 <section id="logging">
 <h2>Logging<a class="headerlink" href="#logging" title="Link to this heading">#</a></h2>
