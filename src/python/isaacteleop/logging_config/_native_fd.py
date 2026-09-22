@@ -22,6 +22,7 @@ import atexit
 import contextlib
 import logging
 import os
+import stat
 import sys
 import threading
 import time
@@ -105,11 +106,21 @@ def _discard_if_empty(sink_path: str, sink_fd: int, owner_pid: int) -> None:
     before its path can be handed to a child -- so without this every one of
     them leaves an empty log behind. Only the creator may unlink: a fork
     inherits this registration along with a descriptor still open on the file.
+
+    The size is read from the descriptor and the unlink names a path, so the two
+    have to be confirmed to be the same file -- otherwise anything that has since
+    taken that name is what gets removed.
     """
     if os.getpid() != owner_pid:
         return
     try:
-        if os.fstat(sink_fd).st_size == 0:
+        opened = os.fstat(sink_fd)
+        current = os.lstat(sink_path)
+        if (
+            opened.st_size == 0
+            and stat.S_ISREG(current.st_mode)
+            and (opened.st_dev, opened.st_ino) == (current.st_dev, current.st_ino)
+        ):
             os.unlink(sink_path)
     except OSError:
         return  # Best-effort atexit cleanup; the file may already be gone or open.

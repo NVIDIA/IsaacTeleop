@@ -6,6 +6,7 @@
 #include <log_bridge/logger.hpp>
 
 #ifndef _WIN32
+#    include <sys/stat.h>
 #    include <sys/wait.h>
 
 #    include <fcntl.h>
@@ -201,20 +202,33 @@ void Plugin::start_process(const std::string& command,
 
         // Point the *child's* output at the session's capture file -- the child's
         // descriptors are ours to set, the host's are not, and this is what keeps
-        // a plugin's non-logger output off the terminal. open(), dup2() and
-        // close() are all async-signal-safe. No O_CREAT: the Python leader
+        // a plugin's non-logger output off the terminal. open(), fstat(), dup2()
+        // and close() are all async-signal-safe. No O_CREAT: the Python leader
         // created this file, so a path that has gone missing is not ours to
         // recreate. O_APPEND, so several plugins and the parent can share it. A
         // failure is silent by necessity -- there is nowhere left to report to,
         // and losing the capture must not stop the plugin from starting.
+        //
+        // This opens a name it did not create, so O_NOFOLLOW is not enough on
+        // its own: it refuses a symlink but not a plain file substituted at the
+        // same path, which would collect this plugin's whole output. The leader
+        // created the file 0600, so confirm that is what we got.
         if (native_capture_path != nullptr && native_capture_path[0] != '\0')
         {
             const int capture_fd = ::open(native_capture_path, O_WRONLY | O_APPEND | O_NOFOLLOW);
             if (capture_fd >= 0)
             {
-                ::dup2(capture_fd, STDOUT_FILENO);
-                ::dup2(capture_fd, STDERR_FILENO);
-                if (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO)
+                struct ::stat capture_info
+                {
+                };
+                const bool ours = ::fstat(capture_fd, &capture_info) == 0 && S_ISREG(capture_info.st_mode) &&
+                                  capture_info.st_uid == ::getuid() && (capture_info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+                if (ours)
+                {
+                    ::dup2(capture_fd, STDOUT_FILENO);
+                    ::dup2(capture_fd, STDERR_FILENO);
+                }
+                if (!ours || (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO))
                 {
                     ::close(capture_fd);
                 }
