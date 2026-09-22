@@ -323,10 +323,14 @@ def _release_receiver(
     server.shutdown()
     try:
         current = os.lstat(path)
-        if stat.S_ISSOCK(current.st_mode) and (
-            current.st_dev,
-            current.st_ino,
-        ) == socket_identity:
+        if (
+            stat.S_ISSOCK(current.st_mode)
+            and (
+                current.st_dev,
+                current.st_ino,
+            )
+            == socket_identity
+        ):
             os.unlink(path)
     except OSError:
         pass  # already gone, replaced, or a directory we can no longer write
@@ -432,9 +436,7 @@ def ensure_receiver() -> str:
             except OSError:
                 pass
             return _no_receiver(f"cannot start the receiver thread ({exc})")
-        atexit.register(
-            _release_receiver, server, path, os.getpid(), socket_identity
-        )
+        atexit.register(_release_receiver, server, path, os.getpid(), socket_identity)
         os.environ["ISAACTELEOP_LOG_SOCKET"] = path
         _receiver_socket = path
         return path
