@@ -449,7 +449,7 @@ if you need the alias to stay available while you migrate imports.</p>
 <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> beside it – see <a class="reference internal" href="#migration-upgrading"><span class="std std-ref">Upgrading an existing install</span></a>.</p></li>
 <li><p>Rewrite <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> in imports, <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code> commands
 and dependency pins; <code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture_examples</span></code>.</p></li>
-<li><p>Move the robot-twin asset cache and its reBot override variable, if you use them.</p></li>
+<li><p>Move the robot-twin asset cache, if you use it.</p></li>
 </ol>
 </section>
 <section id="upgrading-an-existing-install">
@@ -549,22 +549,8 @@ cache is re-usable as is, so nothing is re-downloaded:</p>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-a</span></code> rather than <code class="docutils literal notranslate"><span class="pre">mv</span></code>: once the twin has run under 1.6 the destination
 already exists, and <code class="docutils literal notranslate"><span class="pre">mv</span></code> would move the old cache <em>inside</em> it and exit 0.</p>
-<p>The SO101 asset-directory override has been removed. The reBot override moved
-with the package and is no longer read under its old name. The
-<code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_*</span></code> runtime switches keep theirs.</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Old</p></th>
-<th class="head"><p>New</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ISAACTELEOP_REBOT_ASSETS</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">ISAACCAPTURE_REBOT_ASSETS</span></code></p></td>
-</tr>
-</tbody>
-</table>
-</div>
+<p>The SO101 and reBot asset-directory overrides have been removed. The
+<code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_*</span></code> runtime switches keep their names.</p>
 </section>
 <section id="the-detached-cloudxr-service">
 <h2>The detached CloudXR service<a class="headerlink" href="#the-detached-cloudxr-service" title="Link to this heading">#</a></h2>
