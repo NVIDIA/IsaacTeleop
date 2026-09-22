@@ -94,7 +94,10 @@ def _is_our_service(pid: int) -> bool:
         cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
     except (FileNotFoundError, ProcessLookupError, PermissionError):
         return False
-    return any(m.encode() in cmdline for m in (_MODULE, *_LEGACY_MODULES))
+    # A whole argument, not a substring of the blob: pids are reused, and an editor
+    # or a tail holding a path under isaaccapture/cloudxr/service/ would match one.
+    argv = cmdline.decode(errors="replace").split("\0")
+    return any(arg in (_MODULE, *_LEGACY_MODULES) for arg in argv)
 
 
 def read_run_flags(run_dir: str) -> list[str]:

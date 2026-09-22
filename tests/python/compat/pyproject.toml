@@ -15,6 +15,6 @@ dev = ["pytest", "numpy", "pyyaml"]
 test = ["pytest", "numpy", "pyyaml"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", ".."]  # ".." for repo_paths.py
 python_files = ["test_*.py"]
 norecursedirs = [".git", ".venv", "build", "dist", "*.egg", "__pycache__"]
