@@ -19,6 +19,8 @@
     "dev-server:https": "cross-env HTTPS=true webpack serve --config ./webpack.dev.js --no-open",
     "dev-server:mock": "webpack serve --config ./webpack.mock.js",
     "build:mock": "webpack --config ./webpack.mock.js",
+    "dev-server:app-mock": "webpack serve --config ./webpack.app-mock.js",
+    "build:app-mock": "webpack --config ./webpack.app-mock.js",
     "test": "jest",
     "clean": "rimraf dist",
     "lint:check": "eslint \"src/**/*.{ts,tsx}\" \"helpers/**/*.ts\" \"tests/**/*.{ts,tsx}\" --ignore-pattern \"**/build/**\" --ignore-pattern \"**/node_modules/**\" --ignore-pattern \"**/dist/**\" --quiet",

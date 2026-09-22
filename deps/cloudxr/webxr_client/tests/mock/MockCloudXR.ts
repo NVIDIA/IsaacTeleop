@@ -21,19 +21,25 @@
  *
  * Drives `CloudXR.SessionDelegates` through a plausible lifecycle (connecting -> connected,
  * periodic onLog/onMetrics, onStreamStopped on disconnect) and, in place of decoding a real
- * video stream, renders a small three.js scene into each eye's viewport of the XRWebGLLayer
- * handed to {@link MockCloudXR.render}.
+ * video stream, renders a small placeholder scene (see webglMockScene.ts) into each eye's
+ * viewport of the XRWebGLLayer handed to {@link MockCloudXR.render}, using plain WebGL2 rather
+ * than three.js - see webglMockScene.ts's header comment for why.
  */
 
-import * as CloudXR from '@nvidia/cloudxr';
-import * as THREE from 'three';
+// Imports the real SDK's concrete entry file, not the bare '@nvidia/cloudxr' specifier: webpack
+// builds that alias '@nvidia/cloudxr' to tests/mock/cloudxr-mock-alias.ts (see that file) would
+// otherwise resolve this import back to the alias itself, circularly - the alias shim imports
+// this module, and this module would import the (still-mid-load) alias back.
+import * as CloudXR from '@nvidia/cloudxr/build/cloudxr.js';
+
+import { mat4InvertRigid, rotateVectorByQuaternion, WebGLMockScene } from './webglMockScene';
 
 const DEFAULT_CONNECT_DELAY_MS = 500;
 const NETWORK_METRICS_INTERVAL_MS = 1000;
 
 /**
  * Sentinel `gl` value for {@link CloudXR.SessionOptions.gl}: a MockCloudXR constructed with this
- * performs no WebGL operations at all in render() (no THREE.WebGLRenderer, no gl/layer calls, no
+ * performs no WebGL operations at all in render() (no WebGLMockScene, no gl/layer calls, no
  * onWebGLStateChangeBegin/End) - useful for tests that only care about the session/delegate
  * lifecycle and have no real WebGL context to give it.
  */
@@ -79,83 +85,6 @@ function randomInRange([min, max]: [number, number]): number {
   return min + Math.random() * (max - min);
 }
 
-interface MockScene {
-  scene: THREE.Scene;
-  /** Poses every animated object for a given scene time; see {@link MockCloudXR.setSceneTime}. */
-  animate(timeSeconds: number): void;
-  /** Torus and sphere are tracked directly in reference-space (not scene-relative) coordinates;
-   * see {@link MockCloudXR.trackControllers}. */
-  torus: THREE.Object3D;
-  sphere: THREE.Object3D;
-}
-
-/** Average standing eye height (m); matches a 'local' reference space, whose origin is at the
- * headset rather than the floor, so the scene reads correctly whether or not floor tracking
- * ('local-floor') is available. */
-const SCENE_ORIGIN_Y = 1.6;
-
-function buildMockScene(): MockScene {
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x202030);
-
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
-  scene.add(hemiLight);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-  dirLight.position.set(1, 2, 1);
-  scene.add(dirLight);
-
-  const contents = new THREE.Group();
-  contents.position.y = SCENE_ORIGIN_Y;
-  scene.add(contents);
-
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(10, 10),
-    new THREE.MeshStandardMaterial({ color: 0x3a3a4a })
-  );
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -SCENE_ORIGIN_Y;
-  contents.add(floor);
-
-  const cube = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 0.3, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x76b900 })
-  );
-  cube.position.set(0, 0, -1.5);
-  contents.add(cube);
-
-  const pillar = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.08, 0.8, 16),
-    new THREE.MeshStandardMaterial({ color: 0xcccccc })
-  );
-  pillar.position.set(0.6, -0.6, -1.6);
-  contents.add(pillar);
-
-  // Sphere/torus track the right/left controllers (MockCloudXR.trackControllers), so they're
-  // added directly to `scene` rather than `contents`: their positions are set each frame in the
-  // same reference-space coordinates as the tracked controller pose, not scene-relative ones.
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(0.15, 24, 16),
-    new THREE.MeshStandardMaterial({ color: 0xff6b35 })
-  );
-  sphere.visible = false;
-  scene.add(sphere);
-
-  const torus = new THREE.Mesh(
-    new THREE.TorusGeometry(0.2, 0.06, 12, 24),
-    new THREE.MeshStandardMaterial({ color: 0x3d8bfd })
-  );
-  torus.visible = false;
-  scene.add(torus);
-
-  function animate(timeSeconds: number): void {
-    cube.rotation.y = timeSeconds;
-    cube.rotation.x = timeSeconds * 0.4;
-    torus.rotation.z = timeSeconds * 0.6;
-  }
-
-  return { scene, animate, torus, sphere };
-}
-
 /**
  * Implements `CloudXR.Session` by rendering a mock three.js scene instead of decoded video.
  * Construct via {@link createMockCloudXRSession} rather than directly.
@@ -180,30 +109,12 @@ export class MockCloudXR implements CloudXR.Session {
   // by default; see MockCloudXR.setSceneTime / MockCloudXRController.setSceneTime.
   private sceneTime = 0;
 
-  private readonly scene: THREE.Scene;
-  private readonly sceneAnimate: (timeSeconds: number) => void;
-  private readonly torus: THREE.Object3D;
-  private readonly sphere: THREE.Object3D;
-  private readonly camera = new THREE.PerspectiveCamera();
-  private renderer: THREE.WebGLRenderer | null = null;
-
-  // Scratch objects reused each frame in trackControllers() to avoid per-frame allocation.
-  private readonly controllerMatrix = new THREE.Matrix4();
-  private readonly controllerPosition = new THREE.Vector3();
-  private readonly controllerQuaternion = new THREE.Quaternion();
-  private readonly controllerScale = new THREE.Vector3();
-  private readonly controllerForward = new THREE.Vector3();
+  private scene: WebGLMockScene | null = null;
 
   constructor(
     private readonly options: CloudXR.SessionOptions,
     private readonly delegates: CloudXR.SessionDelegates
-  ) {
-    const built = buildMockScene();
-    this.scene = built.scene;
-    this.sceneAnimate = built.animate;
-    this.torus = built.torus;
-    this.sphere = built.sphere;
-  }
+  ) {}
 
   get state(): CloudXR.SessionState {
     return this.sessionState;
@@ -332,11 +243,10 @@ export class MockCloudXR implements CloudXR.Session {
       return;
     }
 
-    this.sceneAnimate(this.sceneTime);
-
     if (this.options.gl !== NullWebGLContext) {
       const gl = this.options.gl;
-      const renderer = this.ensureRenderer(gl);
+      const scene = this.ensureScene(gl);
+      scene.setSceneTime(this.sceneTime);
       this.delegates.onWebGLStateChangeBegin?.();
       gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
       for (const view of pose.views) {
@@ -344,23 +254,14 @@ export class MockCloudXR implements CloudXR.Session {
         if (!viewport) {
           continue;
         }
-        renderer.setViewport(viewport.x, viewport.y, viewport.width, viewport.height);
-        renderer.setScissor(viewport.x, viewport.y, viewport.width, viewport.height);
-        renderer.setScissorTest(true);
-        this.camera.matrix.fromArray(view.transform.matrix);
-        this.camera.matrix.decompose(
-          this.camera.position,
-          this.camera.quaternion,
-          this.camera.scale
-        );
-        this.camera.projectionMatrix.fromArray(view.projectionMatrix);
-        this.camera.projectionMatrixInverse.copy(this.camera.projectionMatrix).invert();
-        renderer.render(this.scene, this.camera);
+        gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        gl.scissor(viewport.x, viewport.y, viewport.width, viewport.height);
+        gl.enable(gl.SCISSOR_TEST);
+        scene.renderEye(mat4InvertRigid(view.transform.matrix), view.projectionMatrix);
       }
-      // The caller (CloudXRComponent / the demo harness) owns the gl context and expects its
-      // own cached state back; three.js's WebGLRenderer caches gl state internally, so hand
-      // it back with a clean slate rather than leaving our bindings live.
-      renderer.state.reset();
+      // Real GL state we touched above is captured/restored by the caller's own
+      // onWebGLStateChangeBegin/End save/restore (see webglMockScene.ts's header comment) - no
+      // separate cached-renderer cleanup needed here, unlike the earlier three.js version.
       this.delegates.onWebGLStateChangeEnd?.();
     }
 
@@ -444,17 +345,20 @@ export class MockCloudXR implements CloudXR.Session {
   }
 
   /** Moves the torus/sphere to 1 unit in front of the left/right controller, hiding each when
-   * that hand isn't tracked (e.g. hand-tracking only, or no controller connected). */
+   * that hand isn't tracked (e.g. hand-tracking only, or no controller connected). No-op until
+   * the scene exists (it's created lazily in render(), on the first frame with a real gl). */
   private trackControllers(frame: XRFrame): void {
-    this.positionInFrontOfController(frame, 'left', this.torus);
-    this.positionInFrontOfController(frame, 'right', this.sphere);
+    if (!this.scene) {
+      return;
+    }
+    this.scene.setTorusTarget(this.positionInFrontOfController(frame, 'left'));
+    this.scene.setSphereTarget(this.positionInFrontOfController(frame, 'right'));
   }
 
   private positionInFrontOfController(
     frame: XRFrame,
-    handedness: XRHandedness,
-    target: THREE.Object3D
-  ): void {
+    handedness: XRHandedness
+  ): { x: number; y: number; z: number } | null {
     const inputSource = Array.from(frame.session.inputSources).find(
       source => source.handedness === handedness
     );
@@ -465,29 +369,26 @@ export class MockCloudXR implements CloudXR.Session {
     const space = inputSource?.targetRaySpace ?? inputSource?.gripSpace;
     const pose = space ? frame.getPose(space, this.options.referenceSpace) : undefined;
     if (!pose) {
-      target.visible = false;
-      return;
+      return null;
     }
-    this.controllerMatrix.fromArray(pose.transform.matrix);
-    this.controllerMatrix.decompose(
-      this.controllerPosition,
-      this.controllerQuaternion,
-      this.controllerScale
+    const { position, orientation } = pose.transform;
+    const [fx, fy, fz] = rotateVectorByQuaternion(
+      orientation.x,
+      orientation.y,
+      orientation.z,
+      orientation.w,
+      0,
+      0,
+      -1
     );
-    this.controllerForward.set(0, 0, -1).applyQuaternion(this.controllerQuaternion);
-    target.position.copy(this.controllerPosition).addScaledVector(this.controllerForward, 1);
-    target.visible = true;
+    return { x: position.x + fx, y: position.y + fy, z: position.z + fz };
   }
 
-  private ensureRenderer(gl: WebGL2RenderingContext): THREE.WebGLRenderer {
-    if (!this.renderer) {
-      this.renderer = new THREE.WebGLRenderer({
-        context: gl,
-        canvas: gl.canvas as HTMLCanvasElement,
-      });
-      this.renderer.autoClear = false;
+  private ensureScene(gl: WebGL2RenderingContext): WebGLMockScene {
+    if (!this.scene) {
+      this.scene = new WebGLMockScene(gl);
     }
-    return this.renderer;
+    return this.scene;
   }
 
   private log(level: CloudXR.LogLevel, message: string): void {

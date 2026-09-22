@@ -82,4 +82,27 @@ module.exports = [
       },
     },
   },
+  {
+    // The production build (webpack.common.js entry is src/index.tsx) never resolves anything
+    // under tests/ - nothing there is reachable from that entry point, and only
+    // webpack.app-mock.js/webpack.mock.js (never build/dev/dev-server) alias '@nvidia/cloudxr' to
+    // mock code. This rule makes that a hard, enforced guarantee rather than a coincidence: if
+    // src/ or helpers/ ever grows a real import of tests/, that's a mistake, not a valid pattern
+    // to lint around.
+    files: ['src/**/*.{ts,tsx}', 'helpers/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/tests/**'],
+              message:
+                'src/ and helpers/ ship in the production bundle and must never import test-only code under tests/.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
