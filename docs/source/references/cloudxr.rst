@@ -32,7 +32,7 @@ Start the service
 -----------------
 
 With the ``isaaccapture`` package installed (including the ``cloudxr`` extra,
-see :ref:`install-isaacteleop-pip-package`), start the service. The first run
+see :ref:`install-isaaccapture-pip-package`), start the service. The first run
 downloads the CloudXR Web Client SDK:
 
 .. code-block:: bash

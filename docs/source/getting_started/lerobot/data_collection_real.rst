@@ -37,7 +37,7 @@ Follow the necessary one-time steps to set up your environment and hardware:
    (``kinematics``), and dataset recording (``dataset``). For Isaac Teleop, ``cloudxr`` brings the
    CloudXR runtime bindings and ``retargeters-lite`` is the default retargeter path on both
    x86_64 and aarch64; the full ``retargeters`` extra is optional. The ``isaaccapture`` pin follows
-   the release series this page documents — see :ref:`install-isaacteleop-pip-package` for the
+   the release series this page documents — see :ref:`install-isaaccapture-pip-package` for the
    other install options:
 
    .. parsed-literal::
@@ -45,8 +45,13 @@ Follow the necessary one-time steps to set up your environment and hardware:
       uv venv --python 3.12 .venv
       source .venv/bin/activate
       uv pip install -e ".[feetech,kinematics,dataset]" "huggingface_hub>=1.5"
-      uv pip install "isaaccapture[cloudxr,retargeters-lite]\ |pip_version_pin|\ " "scipy>=1.14" \\
+      uv pip install "isaaccapture[cloudxr,retargeters-lite]\ |pip_version_pin|\ " "isaacteleop\ |pip_version_pin|\ " "scipy>=1.14" \\
             --extra-index-url https://pypi.nvidia.com --prerelease=allow
+
+   ``isaacteleop`` is the compatibility alias, not a second copy: the upstream
+   ``isaac_teleop_to_so101`` scripts still import the old name, and installing
+   ``isaaccapture`` alone leaves them at ``ModuleNotFoundError``. Drop it once
+   they are updated -- see :doc:`/references/migration`.
 
 #. Log in to the Hugging Face Hub — recorded datasets are pushed to the Hub by default (pass
    ``--dataset.push_to_hub=false`` to keep them local):
