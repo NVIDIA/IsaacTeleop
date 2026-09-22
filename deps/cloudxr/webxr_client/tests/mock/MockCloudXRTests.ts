@@ -26,7 +26,7 @@ import * as CloudXR from '@nvidia/cloudxr';
 
 import { loadIWERIfNeeded } from '@helpers/LoadIWER';
 
-import { createMockCloudXRSession, MockCloudXR, MockCloudXRController } from './MockCloudXR';
+import { createMockCloudXRSession, MockCloudXRController } from './MockCloudXR';
 
 declare global {
   interface Window {
@@ -44,36 +44,6 @@ function appendLog(message: string): void {
   line.textContent = message;
   logEl.appendChild(line);
   logEl.scrollTop = logEl.scrollHeight;
-}
-
-/**
- * Reads the real (or IWER-emulated) left/right controller poses for this frame and forwards them
- * into the mock through its session interface (MockCloudXR.setControllerPose). The mock itself
- * has no input devices of its own - this page is what supplies controller data to it, same as a
- * real CloudXR integration would supply tracking data via sendTrackingStateToServer().
- */
-function forwardControllerPoses(
-  xrSession: XRSession,
-  frame: XRFrame,
-  referenceSpace: XRReferenceSpace,
-  cxrSession: MockCloudXR
-): void {
-  for (const handedness of ['left', 'right'] as const) {
-    const inputSource = Array.from(xrSession.inputSources).find(
-      source => source.handedness === handedness
-    );
-    const space = inputSource?.gripSpace ?? inputSource?.targetRaySpace;
-    const pose = space ? frame.getPose(space, referenceSpace) : undefined;
-    if (!pose) {
-      cxrSession.setControllerPose(handedness, null);
-      continue;
-    }
-    const { position, orientation } = pose.transform;
-    cxrSession.setControllerPose(handedness, {
-      position: { x: position.x, y: position.y, z: position.z },
-      orientation: { x: orientation.x, y: orientation.y, z: orientation.z, w: orientation.w },
-    });
-  }
 }
 
 async function startMockSession(): Promise<void> {
@@ -138,7 +108,6 @@ async function startMockSession(): Promise<void> {
     try {
       cxrSession.sendTrackingStateToServer(timestamp, frame);
       if (cxrSession.state === CloudXR.SessionState.Connected) {
-        forwardControllerPoses(xrSession, frame, referenceSpace, cxrSession);
         cxrSession.render(timestamp, frame, xrSession.renderState.baseLayer as XRWebGLLayer);
       }
     } catch (error) {

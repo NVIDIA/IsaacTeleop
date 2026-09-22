@@ -71,14 +71,6 @@ function randomInRange([min, max]: [number, number]): number {
   return min + Math.random() * (max - min);
 }
 
-/** A controller pose supplied to the mock via {@link MockCloudXR.setControllerPose}, in the same
- * reference-space coordinates as {@link CloudXR.SessionOptions.referenceSpace}. Orientation
- * defaults to identity (facing -Z) when omitted. */
-export interface MockControllerPose {
-  position: { x: number; y: number; z: number };
-  orientation?: { x: number; y: number; z: number; w: number };
-}
-
 interface MockScene {
   scene: THREE.Scene;
   /** Poses every animated object for a given scene time; see {@link MockCloudXR.setSceneTime}. */
@@ -187,13 +179,11 @@ export class MockCloudXR implements CloudXR.Session {
   private readonly camera = new THREE.PerspectiveCamera();
   private renderer: THREE.WebGLRenderer | null = null;
 
-  // Mock-supplied controller poses (see setControllerPose); null means that hand isn't tracked.
-  private leftControllerPose: MockControllerPose | null = null;
-  private rightControllerPose: MockControllerPose | null = null;
-
   // Scratch objects reused each frame in trackControllers() to avoid per-frame allocation.
+  private readonly controllerMatrix = new THREE.Matrix4();
   private readonly controllerPosition = new THREE.Vector3();
   private readonly controllerQuaternion = new THREE.Quaternion();
+  private readonly controllerScale = new THREE.Vector3();
   private readonly controllerForward = new THREE.Vector3();
 
   constructor(
@@ -334,7 +324,7 @@ export class MockCloudXR implements CloudXR.Session {
     const gl = this.options.gl;
     const renderer = this.ensureRenderer(gl);
     this.sceneAnimate(this.sceneTime);
-    this.trackControllers();
+    this.trackControllers(frame);
 
     this.delegates.onWebGLStateChangeBegin?.();
     gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
@@ -402,20 +392,6 @@ export class MockCloudXR implements CloudXR.Session {
     this.sceneTime = seconds;
   }
 
-  /**
-   * Sets (or clears, passing `null`) the mock pose used for one hand's controller. The torus
-   * tracks 1 unit in front of the left pose, the sphere 1 unit in front of the right pose; a hand
-   * with no pose set is hidden. This mock has no real input devices, so this is the only way its
-   * controller-tracked objects move.
-   */
-  setControllerPose(handedness: 'left' | 'right', pose: MockControllerPose | null): void {
-    if (handedness === 'left') {
-      this.leftControllerPose = pose;
-    } else {
-      this.rightControllerPose = pose;
-    }
-  }
-
   /** Delivers `data` through `onServerMessageReceived`, as if the server had sent it. */
   sendFakeServerMessage(data: Uint8Array): void {
     this.delegates.onServerMessageReceived?.(data);
@@ -451,34 +427,33 @@ export class MockCloudXR implements CloudXR.Session {
     this.delegates.onStreamStopped?.(error);
   }
 
-  /** Moves the torus/sphere to 1 unit in front of the left/right controller pose last supplied
-   * via {@link setControllerPose}, hiding each when no pose has been supplied for that hand. This
-   * mock has no real controller input of its own; poses come entirely from the mock's interface
-   * (see MockCloudXRController) so tests can drive them deterministically. */
-  private trackControllers(): void {
-    this.positionInFrontOfController(this.leftControllerPose, this.torus);
-    this.positionInFrontOfController(this.rightControllerPose, this.sphere);
+  /** Moves the torus/sphere to 1 unit in front of the left/right controller, hiding each when
+   * that hand isn't tracked (e.g. hand-tracking only, or no controller connected). */
+  private trackControllers(frame: XRFrame): void {
+    this.positionInFrontOfController(frame, 'left', this.torus);
+    this.positionInFrontOfController(frame, 'right', this.sphere);
   }
 
   private positionInFrontOfController(
-    pose: MockControllerPose | null,
+    frame: XRFrame,
+    handedness: XRHandedness,
     target: THREE.Object3D
   ): void {
+    const inputSource = Array.from(frame.session.inputSources).find(
+      source => source.handedness === handedness
+    );
+    const space = inputSource?.gripSpace ?? inputSource?.targetRaySpace;
+    const pose = space ? frame.getPose(space, this.options.referenceSpace) : undefined;
     if (!pose) {
       target.visible = false;
       return;
     }
-    this.controllerPosition.set(pose.position.x, pose.position.y, pose.position.z);
-    if (pose.orientation) {
-      this.controllerQuaternion.set(
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z,
-        pose.orientation.w
-      );
-    } else {
-      this.controllerQuaternion.identity();
-    }
+    this.controllerMatrix.fromArray(pose.transform.matrix);
+    this.controllerMatrix.decompose(
+      this.controllerPosition,
+      this.controllerQuaternion,
+      this.controllerScale
+    );
     this.controllerForward.set(0, 0, -1).applyQuaternion(this.controllerQuaternion);
     target.position.copy(this.controllerPosition).addScaledVector(this.controllerForward, 1);
     target.visible = true;
@@ -558,11 +533,6 @@ export class MockCloudXRController {
   /** Sets the scene's animation time (seconds); the render is static until this is called again. */
   setSceneTime(seconds: number): void {
     this.mock.setSceneTime(seconds);
-  }
-
-  /** Sets (or clears, passing `null`) one hand's controller pose; see MockCloudXR.setControllerPose. */
-  setControllerPose(handedness: 'left' | 'right', pose: MockControllerPose | null): void {
-    this.mock.setControllerPose(handedness, pose);
   }
 
   /** Delivers a fake inbound server message. */
