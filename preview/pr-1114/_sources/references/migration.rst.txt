@@ -9,44 +9,33 @@ In 1.6 the Python import package and the distribution were both renamed from
 through an alias shipped inside the ``isaaccapture`` wheel, which **will be
 removed in 1.9**.
 
-.. warning::
-
-   Nothing is published under the name ``isaacteleop`` from 1.6 on, so no pin on
-   it reaches 1.6 or later. Depend on ``isaaccapture`` and pin ``isaaccapture<1.9``
-   if you need the alias to stay available while you migrate imports.
+Depend on ``isaaccapture`` and pin ``isaaccapture<1.9`` if you need the alias
+to stay available while you migrate imports.
 
 In short
 --------
 
-#. Upgrade with ``pip install -U isaacteleop[...]``, **not** by installing
-   ``isaaccapture`` beside it -- see :ref:`migration-upgrading`.
+#. Upgrade with ``pip install -U isaaccapture[...]`` -- see
+   :ref:`migration-upgrading`.
 #. Rewrite ``isaacteleop`` to ``isaaccapture`` in imports, ``python -m`` commands
    and dependency pins; ``isaacteleop_examples`` to ``isaaccapture_examples``.
-#. Move the robot-twin asset cache and its two override variables, if you use them.
 
 .. _migration-upgrading:
 
 Upgrading an existing install
 -----------------------------
 
-``isaacteleop`` and ``isaaccapture`` are different distributions, so pip will not
-replace one with the other. Upgrade through the **old** name and pip removes the
-1.5 tree for you:
+Installing ``isaaccapture`` replaces the old ``isaacteleop`` distribution with
+a small transition package that contains no code. Pip removes the legacy
+implementation automatically:
 
 .. code-block:: console
 
-   $ pip install -U "isaacteleop[cloudxr]"     # 1.5 tree removed, alias installed
+   $ pip install -U "isaaccapture[cloudxr]"
 
-Installing ``isaaccapture`` beside an existing ``isaacteleop`` 1.5 instead leaves
-both on disk -- two complete first-party trees, two copies of every compiled
-extension. ``import isaacteleop`` then resolves to the **stale 1.5 tree** rather
-than to the alias, with no deprecation notice to say so, and a half-migrated
-process holds two registries of the same pybind11 types. If that has already
-happened, ``pip uninstall -y isaacteleop`` and reinstall whichever of the two you
-meant.
-
-On a machine with no ``isaacteleop`` installed, ``pip install isaaccapture`` is
-all you need; ``import isaacteleop`` is then a plain ``ModuleNotFoundError``.
+The same command works on a fresh environment. Both import names resolve to
+``isaaccapture``. Existing ``pip install -U isaacteleop[...]`` commands also
+install ``isaaccapture`` and forward the requested extras.
 
 Imports
 -------
@@ -89,10 +78,7 @@ Installing
    -pip install isaacteleop[cloudxr]
    +pip install isaaccapture[cloudxr]
 
-**The dependency must be renamed now; only imports get a grace period.** From 1.6
-nothing is published under the name ``isaacteleop``, so a requirement on it
-resolves to a 1.5-or-older release, not to 1.6. Update the requirement and the
-extras in the same bump:
+Update dependency pins and extras to the new name:
 
 .. code-block:: diff
 
@@ -100,15 +86,8 @@ extras in the same bump:
    +isaaccapture[retargeters,ui,cloudxr]~=1.6.0
 
 The ``isaaccapture`` wheel ships the ``isaacteleop`` alias inside it, so
-``import isaacteleop`` keeps working after the requirement is renamed, and there
-is no second package to install.
-
-.. note::
-
-   Uninstall any 1.5-or-older ``isaacteleop`` **before** installing 1.6. Both own
-   an ``isaacteleop/`` directory, pip does not detect the collision across
-   distributions, and a later ``pip uninstall isaacteleop`` removes files that
-   ``isaaccapture`` now owns.
+``import isaacteleop`` keeps working after the requirement is renamed. Pip
+installs the transition dependency automatically.
 
 A ``sys.meta_path`` finder is invisible to a type checker, so everything under
 ``isaacteleop`` is typed ``Any`` and **pyright reports every submodule import as
@@ -128,23 +107,15 @@ matching -- the logger is created, and nothing ever logs to it:
    -logging.getLogger("isaacteleop.cloudxr").setLevel(logging.DEBUG)
    +logging.getLogger("isaaccapture.cloudxr").setLevel(logging.DEBUG)
 
-The asset cache
----------------
+Asset cache overrides
+---------------------
 
-The robot twin's cached meshes moved with the package name. A populated 1.5
-cache is re-usable as is, so nothing is re-downloaded:
+The robot twin's mesh cache moved to ``~/.cache/isaaccapture`` with the package
+name. Nothing to do: the twin re-populates it on the next run, and the 1.5
+directory can be deleted whenever you notice it.
 
-.. code-block:: console
-
-   $ mkdir -p ~/.cache/isaaccapture
-   $ cp -a ~/.cache/isaacteleop/. ~/.cache/isaaccapture/
-
-``cp -a`` rather than ``mv``: once the twin has run under 1.6 the destination
-already exists, and ``mv`` would move the old cache *inside* it and exit 0. Under
-``XDG_CACHE_HOME`` both directories live there instead of under ``~/.cache``.
-
-The two override variables moved with it and are no longer read under their old
-names. The ``ISAAC_TELEOP_*`` runtime switches keep theirs.
+The two variables that override *where* it caches are no longer read under their
+old names. The ``ISAAC_TELEOP_*`` runtime switches keep theirs.
 
 .. list-table::
    :header-rows: 1
