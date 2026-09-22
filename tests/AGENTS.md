@@ -57,6 +57,11 @@ Shared C++ fixtures (not executables) live under `tests/cpp/viz/support/`
 3. Wire the leaf from the parent `CMakeLists.txt` under the same `BUILD_*` gates
    as before (e.g. viz tests require `BUILD_VIZ`).
 4. Do **not** colocate new pytest/Catch2 trees under `src/` or `examples/`.
+5. Re-run `cmake -B build …` after adding a `test_*.py`. The per-leaf
+   `file(GLOB …)` is not `CONFIGURE_DEPENDS`, so a leaf created and filled in
+   the same pass contributes **zero** CTest entries until a reconfigure — and
+   a green `ctest` says nothing about tests it never discovered. Check the
+   count, or `ctest -N | grep <prefix>`.
 
 ## Out of scope here
 
