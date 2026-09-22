@@ -18,16 +18,32 @@ def test_cache_dir_is_under_the_new_name(tmp_path, monkeypatch):
     assert dest == tmp_path / "isaaccapture" / "so101-assets"
 
 
-@pytest.mark.parametrize("env_var", [assets.CACHE_ENV_VAR, assets.REBOT_CACHE_ENV_VAR])
+#: Spelled out rather than derived: _cache_dir builds the legacy name by the same
+#: substitution, so deriving it here would agree with any name at all -- including
+#: one that no 1.5 operator ever exported. These four are the contract
+#: docs/source/references/migration.rst tabulates.
+ENV_VARS = [
+    ("ISAACCAPTURE_SO101_ASSETS", "ISAACTELEOP_SO101_ASSETS"),
+    ("ISAACCAPTURE_REBOT_ASSETS", "ISAACTELEOP_REBOT_ASSETS"),
+]
+
+
+def test_the_env_var_names_are_the_ones_documented():
+    assert (assets.CACHE_ENV_VAR, assets.REBOT_CACHE_ENV_VAR) == (
+        ENV_VARS[0][0],
+        ENV_VARS[1][0],
+    )
+
+
+@pytest.mark.parametrize("env_var,legacy", ENV_VARS)
 def test_a_legacy_override_warns_and_is_not_read(
-    tmp_path, monkeypatch, caplog, env_var
+    tmp_path, monkeypatch, caplog, env_var, legacy
 ):
     """The silent path: the fetch succeeds and the operator runs upstream geometry.
 
     Nothing else fires here -- no error, no missing file -- so the warning is the
     only signal that a curated site cache stopped being used.
     """
-    legacy = env_var.replace("ISAACCAPTURE_", "ISAACTELEOP_", 1)
     curated = tmp_path / "site-assets"
     curated.mkdir()
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
@@ -45,9 +61,7 @@ def test_a_legacy_override_warns_and_is_not_read(
 def test_the_new_override_is_read_without_warning(tmp_path, monkeypatch, caplog):
     curated = tmp_path / "site-assets"
     monkeypatch.setenv(assets.CACHE_ENV_VAR, str(curated))
-    monkeypatch.setenv(
-        assets.CACHE_ENV_VAR.replace("ISAACCAPTURE_", "ISAACTELEOP_", 1), str(tmp_path)
-    )
+    monkeypatch.setenv(ENV_VARS[0][1], str(tmp_path))
 
     with caplog.at_level(logging.WARNING, logger=assets.LOG.name):
         dest = assets._cache_dir(assets.CACHE_ENV_VAR, "so101-assets")

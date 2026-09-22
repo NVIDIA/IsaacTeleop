@@ -74,3 +74,42 @@ def test_alias_wheel_ships_only_the_old_name() -> None:
     takes isaaccapture's files with it.
     """
     assert _top_level_packages(_wheel(ALIAS)) == {ALIAS}
+
+
+def _metadata(wheel: Path) -> str:
+    with zipfile.ZipFile(wheel) as archive:
+        name = next(n for n in archive.namelist() if n.endswith(".dist-info/METADATA"))
+        return archive.read(name).decode()
+
+
+def _field(metadata: str, key: str) -> list[str]:
+    prefix = f"{key}: "
+    return [
+        line[len(prefix) :].strip()
+        for line in metadata.splitlines()
+        if line.startswith(prefix)
+    ]
+
+
+def test_the_alias_wheel_pins_the_real_distribution_exactly() -> None:
+    """`>=` would let `pip install isaacteleop==1.6.2` resolve isaaccapture 1.9 --
+    code the caller did not ask for, from a distribution they pinned to avoid it."""
+    metadata = _metadata(_wheel(ALIAS))
+    version = _field(metadata, "Version")[0]
+    unconditional = [r for r in _field(metadata, "Requires-Dist") if ";" not in r]
+
+    assert unconditional == [f"{DIST}=={version}"], unconditional
+
+
+def test_the_alias_wheel_mirrors_every_extra() -> None:
+    """pip downgrades an unknown extra on a dependency to a warning, so a missed
+    one installs silently with nothing in it."""
+    alias = _metadata(_wheel(ALIAS))
+    real = _metadata(_wheel(DIST))
+
+    assert set(_field(alias, "Provides-Extra")) == set(_field(real, "Provides-Extra"))
+    version = _field(alias, "Version")[0]
+    for extra in _field(alias, "Provides-Extra"):
+        assert f'{DIST}[{extra}]=={version}; extra == "{extra}"' in _field(
+            alias, "Requires-Dist"
+        ), extra

@@ -42,7 +42,7 @@ _PIP = f"{shlex.quote(sys.executable)} -m pip" if sys.executable else "pip"
 #: stays one line and carries no URL.
 _MISSING_DEPENDENCY = (
     "isaacteleop is a compatibility alias for isaaccapture, which is not installed; "
-    "this happens when isaacteleop was installed with --no-deps. "
+    "usually a --no-deps install, or isaaccapture removed on its own. "
     f"Run `{_PIP} install isaaccapture`"
 )
 
