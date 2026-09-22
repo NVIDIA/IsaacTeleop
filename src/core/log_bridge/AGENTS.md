@@ -88,6 +88,28 @@ which is what `/var/log` and a shared `/opt` look like. The default path is pred
 the Python check, so a divergence here is a divergence in who can read the
 logs. Failing the check costs the file sink; it must never throw.
 
+**The rotating file sink's descriptor can land on fd 0/1/2; this is a known,
+accepted gap, not an oversight to re-report.** `socket_sink.cpp`'s
+`move_above_std()` (and the Python-side `_move_above_std()` it mirrors) relies
+on being able to grab the fd right after `::socket()`/`open()` returns it and
+close it back if it is already clear of stdio. `file_helper::open()`
+(`file_helper-inl.h`) has no equivalent seam: it calls `before_open` once,
+then retries its own `fopen` in a loop and calls `after_open` only on the
+iteration that succeeds — a total failure throws without ever calling
+`after_open`. A `before_open` hook that occupied fd 0/1/2 with placeholders to
+force the real open above them would therefore leak a `/dev/null` onto a
+closed host descriptor permanently whenever every retry fails, which is
+exactly the outcome "vetted twice" above and the repo root `AGENTS.md`'s
+"never rebind the host's fd 1 or fd 2" both forbid. A correct fix needs a
+seam around the call into `file_helper::open()` itself (e.g. an RAII guard
+scoped to whatever wraps `rotating_file_sink_mt::sink_it_`/`flush_`, not to
+spdlog's hooks) — not attempted here because it changes the sink's shape for a
+narrow combination (host closed fd 0/1/2, no `ISAACTELEOP_LOG_SOCKET`, vendor
+code writing raw bytes to fd 1/2 while this sink is live). Demonstrated
+against real spdlog v1.17.0: with fd 1/2 closed and no socket forwarding, the
+rotating file sink opens on fd 1, and a raw `write(1, ...)` after that lands
+inside the session's own log file, interleaved with formatted records.
+
 ## `install_python_sink()` reaches one shared object, not the process
 
 `log_bridge_core` is a static library, and roughly twenty targets link it --
