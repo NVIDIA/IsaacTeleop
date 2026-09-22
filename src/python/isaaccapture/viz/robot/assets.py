@@ -340,6 +340,10 @@ def ensure_rebot_devarm_rs_scene() -> Path:
             dest,
         )
         marker.unlink(missing_ok=True)
+    if not marker.exists() and _rebot_cached_digest(dest) == REBOT_MANIFEST_SHA256:
+        # A cache pre-populated through REBOT_CACHE_ENV_VAR arrives without the
+        # marker. The digest is the completeness proof; the marker only caches it.
+        marker.touch()
     if not marker.exists():
         base = (
             f"https://raw.githubusercontent.com/{MENAGERIE_REPO}/{MENAGERIE_COMMIT}/"
