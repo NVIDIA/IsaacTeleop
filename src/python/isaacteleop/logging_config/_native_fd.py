@@ -165,19 +165,11 @@ def _discard_if_empty(sink_path: str, sink_fd: int, owner_pid: int) -> None:
     before its path can be handed to a child -- so without this every one of
     them leaves an empty log behind. Only the creator may unlink: a fork
     inherits this registration along with a descriptor still open on the file.
-    The path must still name that descriptor's inode; the host may replace it.
     """
     if os.getpid() != owner_pid:
         return
     try:
-        opened = os.fstat(sink_fd)
-        current = os.lstat(sink_path)
-        if (
-            stat.S_ISREG(opened.st_mode)
-            and stat.S_ISREG(current.st_mode)
-            and (opened.st_dev, opened.st_ino) == (current.st_dev, current.st_ino)
-            and opened.st_size == 0
-        ):
+        if os.fstat(sink_fd).st_size == 0:
             os.unlink(sink_path)
     except OSError:
         return  # Best-effort atexit cleanup; the file may already be gone or open.
@@ -295,16 +287,11 @@ def ensure_sink() -> str | None:
         try:
             fd = os.open(
                 path,
-                # O_NOFOLLOW guards a shared directory against a planted symlink; it
-                # does not exist on Windows, whose temp directory is per-user anyway.
-                # O_EXCL covers what it does not: a plain file someone else created
-                # and still owns would be appended to, handing them this process's
-                # captured output. ensure_log_dir() already makes that unreachable
-                # for the default 0700 per-uid path, but an operator's
-                # ISAACTELEOP_LOG_DIR keeps whatever permissions it came with and
-                # only has to be *owned* by us, so a world-writable one passes.
-                # Nothing legitimately collides: the name carries the timestamp and
-                # the pid, and this runs once per process.
+                # Exclusive create, and no symlink: an operator's
+                # ISAACTELEOP_LOG_DIR may be shared, and appending to a file
+                # someone else planted would hand them this process's captured
+                # output. Nothing legitimately collides -- the name carries the
+                # timestamp and the pid, and this runs once per process.
                 os.O_WRONLY
                 | os.O_CREAT
                 | os.O_EXCL

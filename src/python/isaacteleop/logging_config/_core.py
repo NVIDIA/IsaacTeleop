@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import os
-import stat
 import tempfile
 from pathlib import Path
 
@@ -142,41 +141,23 @@ def log_dir() -> Path:
     return directory
 
 
-def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
-    """*directory*, created if needed and confirmed to belong to us.
+def ensure_private_dir(directory: Path) -> Path:
+    """*directory*, created if needed, owner-only on what this call created.
 
-    Created 0700 so the records, the raw fd captures beside them and the log
-    socket are not readable -- or plantable -- by other users of the machine.
-    mkdir()'s mode is masked by the umask, so the bits are set explicitly, and
-    only on a directory this call created: a path the operator chose keeps
-    whatever permissions the operator gave it.
+    Each created component, not only the leaf: the default log directory is
+    ``<runtime dir>/logs`` and the runtime directory is where the log socket
+    lives, so ``parents=True`` alone left that one at the umask. A path the
+    operator chose keeps whatever permissions the operator gave it.
 
-    The ownership check refuses a directory some other user got to first, which
-    under /tmp is the classic way to have another process write through a
-    symlink on your behalf. It covers *every* ancestor, by ``lstat``, and the
-    ancestors of the resolved path as well: owning a leaf inside someone else's
-    directory buys nothing, because they can move it aside, and a symlink
-    ancestor says nothing about who owns its target. Both steps are POSIX-only:
-    chmod moves nothing but the read-only bit on Windows, st_uid is always 0
-    there, and the shared-directory threat they answer does not arise under a
-    per-user temp path.
-
-    Args:
-        directory: the path to create and vet.
-        remedy: appended to the refusal message, to name the setting a caller
-            can change.
+    Confidentiality rests on this 0700 and on the ``O_EXCL | O_NOFOLLOW`` every
+    file here is created with (``_file.py``, ``_native_fd.py``, and the C++
+    half's ``unique_log_path``), not on vetting the path: under a directory
+    another local user got to first, those flags refuse a planted name rather
+    than write through it, which costs a handler and discloses nothing.
 
     Raises:
-        PermissionError: if *directory* is not our directory; if an ancestor of
-            either its lexical or its resolved path is owned by neither us nor
-            root, or a real-directory ancestor is world-writable without the
-            sticky bit; or if the path cannot be resolved at all.
+        OSError: if the directory cannot be created, or its mode not set.
     """
-    # Every component this call is about to create, shallowest last. mkdir()'s
-    # mode is masked by the umask, so each one needs the bits set explicitly --
-    # and each one, not just the leaf: the default log directory is
-    # <runtime dir>/logs, so creating it with parents=True was leaving the
-    # runtime directory the log socket lives in at whatever the umask gave it.
     missing = []
     probe = directory
     while not probe.exists() and probe != probe.parent:
@@ -186,98 +167,13 @@ def ensure_private_dir(directory: Path, *, remedy: str = "") -> Path:
     try:
         directory.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
-        missing = []
-    if not _POSIX:
         return directory
-
-    for component in missing:
-        component.chmod(0o700)
-
-    # lstat, not stat: a symlink planted where the directory should be carries
-    # the planter's uid, while whatever it points at may well be ours -- which
-    # is exactly what makes planting it worth doing. stat() would follow it and
-    # report the target's owner, so the check passed on the one shape it was
-    # written to refuse.
-    info = directory.lstat()
-    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
-        raise PermissionError(
-            f"Refusing to use {directory}: it is not a directory owned by "
-            f"uid {os.getuid()}.{remedy}"
-        )
-
-    def vet_ancestors(path: Path) -> None:
-        parent = path.parent
-        previous = path
-        while parent != previous:
-            parent_info = parent.lstat()
-            if parent_info.st_uid not in (os.getuid(), 0):
-                raise PermissionError(
-                    f"Refusing to use {directory}: ancestor {parent} is owned "
-                    f"by uid {parent_info.st_uid}, not {os.getuid()} or root."
-                    f"{remedy}"
-                )
-            if not (
-                stat.S_ISDIR(parent_info.st_mode) or stat.S_ISLNK(parent_info.st_mode)
-            ):
-                raise PermissionError(
-                    f"Refusing to use {directory}: ancestor {parent} is not a "
-                    f"directory.{remedy}"
-                )
-            # A symlink ancestor is judged by its owner alone: its own mode bits
-            # are not its target's (Linux reports 0777), so testing them here
-            # would refuse ordinary paths -- /tmp and /var are symlinks on macOS.
-            #
-            # World-write, not group-write. Every ancestor is already required
-            # to be owned by us or by root, so a group-writable one is writable
-            # by a group that owner deliberately chose -- and that is the
-            # ordinary shape of the directories an operator points
-            # ISAACTELEOP_LOG_DIR at: /var/log ships root:syslog 0775, and
-            # root:<deploy group> 0775 is how /opt and /srv are shared.
-            # Refusing those bought nothing and cost the whole file handler.
-            # World-write is different in kind: every account on the machine
-            # can move the ancestor aside and substitute a symlink, which is
-            # the attack this check exists for, and the sticky bit is how /tmp
-            # makes that same shape safe.
-            #
-            # Residual risk this accepts, stated so it is not rediscovered as a
-            # surprise: a member of that group can still replace the whole log
-            # directory. This half then degrades safely -- _PrivateRotatingFileHandler
-            # opens every file, rotations included, with O_EXCL|O_NOFOLLOW, so a
-            # planted symlink costs the handler and nothing else. The C++ half
-            # cannot match that on the swap case: spdlog reopens by name with
-            # "wb", and log_bridge's before_open hook can only clear a planted
-            # name in a directory this process may still write. Choosing a log
-            # directory under a group-writable ancestor is therefore a decision
-            # to trust that group.
-            parent_mode = stat.S_IMODE(parent_info.st_mode)
-            if (
-                not stat.S_ISLNK(parent_info.st_mode)
-                and parent_mode & stat.S_IWOTH
-                and not parent_mode & stat.S_ISVTX
-            ):
-                raise PermissionError(
-                    f"Refusing to use {directory}: ancestor {parent} is "
-                    f"world-writable without the sticky bit.{remedy}"
-                )
-            previous = parent
-            parent = parent.parent
-
-    # Check both names in a symlinked path: the lexical chain owns the links,
-    # while the resolved chain owns the directories an attacker could replace.
-    vet_ancestors(directory)
-    try:
-        resolved = directory.resolve(strict=True)
-    except (OSError, RuntimeError) as exc:
-        raise PermissionError(
-            f"Refusing to use {directory}: cannot resolve its ancestor chain.{remedy}"
-        ) from exc
-    if resolved != directory:
-        vet_ancestors(resolved)
+    if _POSIX:
+        for component in missing:
+            component.chmod(0o700)
     return directory
 
 
 def ensure_log_dir() -> Path:
-    """:func:`log_dir`, created if needed and confirmed to belong to us."""
-    return ensure_private_dir(
-        log_dir(), remedy=" Set ISAACTELEOP_LOG_DIR to a directory you own."
-    )
+    """:func:`log_dir`, created if needed."""
+    return ensure_private_dir(log_dir())

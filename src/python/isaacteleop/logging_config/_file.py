@@ -29,14 +29,11 @@ _handler: logging.Handler | None = None
 class _PrivateRotatingFileHandler(RotatingFileHandler):
     """A rotating handler whose files are ours alone.
 
-    logging opens with plain ``open(..., 'a')``: mode ``0666 & ~umask`` -- 0644
-    under the usual umask -- and it follows a symlink already sitting at the
-    path. The native capture file beside it is opened 0600 with ``O_NOFOLLOW``,
-    and the same reasoning applies here. ``ensure_log_dir()`` makes the *default*
-    directory 0700, but an operator's ``ISAACTELEOP_LOG_DIR`` only has to be
-    owned by us, so a world-writable one is accepted; and the file name is
-    guessable, being a timestamp to the second plus a pid anyone can read out
-    of /proc.
+    logging opens with plain ``open(..., 'a')``: mode ``0666 & ~umask`` and it
+    follows a symlink already sitting at the path. The name is guessable -- a
+    timestamp to the second plus a pid anyone can read out of /proc -- and an
+    operator's ``ISAACTELEOP_LOG_DIR`` may be shared, so create exclusively,
+    refuse a symlink, and set the mode in the creating call.
     """
 
     def _open(self):
