@@ -36,7 +36,8 @@
     ],
     "roots": [
       "<rootDir>/src",
-      "<rootDir>/helpers"
+      "<rootDir>/helpers",
+      "<rootDir>/tests"
     ]
   },
   "dependencies": {
