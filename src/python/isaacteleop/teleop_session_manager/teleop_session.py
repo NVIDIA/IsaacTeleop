@@ -16,7 +16,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import isaacteleop.plugin_manager as pm
-from isaacteleop import deviceio, deviceio_trackers, logging_config, oxr
+from isaacteleop import deviceio, deviceio_trackers, oxr
+from isaacteleop.logging_config._native_api import capture_native_output
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     IDeviceIOSink,
     IDeviceIOSource,
@@ -1053,7 +1054,7 @@ class TeleopSession:
         # DeviceIOSession.run(), and each plugin's startup. The scope covers the
         # rollback below too, which tears the same objects down again. See
         # capture_native_output() for what a scope costs while it is open.
-        with logging_config.capture_native_output():
+        with capture_native_output():
             try:
                 self._enter_resources(stack)
                 self._exit_stack = stack.pop_all()
@@ -1381,7 +1382,7 @@ class TeleopSession:
         try:
             # Teardown is as noisy as construction: destroying the OpenXR
             # session and stopping each plugin both reach the same native code.
-            with logging_config.capture_native_output():
+            with capture_native_output():
                 self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
         finally:
             self._status_monitor.mark_stopped()

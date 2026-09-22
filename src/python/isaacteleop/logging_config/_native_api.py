@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Host-facing controls for non-logger (raw descriptor) output.
+"""Controls for non-logger (raw descriptor) output, for use inside this tree.
 
 Some diagnostics cannot be routed through a logger at all: the CloudXR/Monado
 OpenXR runtime and the Manus SDK format their own lines and write them straight
@@ -11,6 +11,11 @@ implementing ``XR_EXT_debug_utils``. The descriptor is the only seam.
 isaacteleop keeps that output out of the terminal and in the session's log
 without taking the host process's descriptors away from it. See
 :mod:`._native_fd` for the mechanism and its limits.
+
+Deliberately not re-exported from the package ``__init__``: the sites that need
+these are all in this tree (``TeleopSession``, ``cloudxr.service``), and a name
+in ``logging_config.__all__`` is an interface to keep. If a host application
+ever needs one, raise it there then -- the reasoning is in ``AGENTS.md``.
 """
 
 from __future__ import annotations
@@ -26,15 +31,12 @@ from . import _console, _native_fd
 def capture_native_output() -> Iterator[Path | None]:
     """Send raw fd 1 / fd 2 writes to the session's capture file for this block.
 
-    isaacteleop already wraps this around the native calls it makes itself --
-    OpenXR session creation, DeviceIO session creation, plugin launch and the
-    matching teardown -- so a host that only calls ``TeleopSession`` needs
-    nothing. It is public for a host that loads more non-logger native code of
-    its own and wants the same treatment::
+    ``TeleopSession`` already wraps this around the native calls isaacteleop
+    makes itself -- OpenXR session creation, DeviceIO session creation, plugin
+    launch and the matching teardown -- which is every site in this tree that
+    needs it::
 
-        from isaacteleop import logging_config
-
-        with logging_config.capture_native_output():
+        with capture_native_output():
             vendor_sdk.initialise()
 
     Yields the capture file's path, or ``None`` when nothing is captured
@@ -66,11 +68,12 @@ def native_capture_path() -> Path | None:
 def native_capture_fd() -> int | None:
     """An open, append-mode descriptor on the capture file, for a child's stdio.
 
-    Pass it as ``stdout=``/``stderr=`` when launching a process of your own that
-    loads non-logger native code, so the child's output is persisted with the
-    rest of the session instead of appearing on the host's terminal. A process
-    you launched is not the host, so pointing *its* descriptors at the capture
-    file is exactly the move this design relies on.
+    Passed as ``stdout=``/``stderr=`` when this tree launches a process that
+    loads non-logger native code (``cloudxr.service``'s runtime worker), so the
+    child's output is persisted with the rest of the session instead of
+    appearing on the host's terminal. A process isaacteleop launched is not the
+    host, so pointing *its* descriptors at the capture file is exactly the move
+    this design relies on.
 
     ``None`` when there is no capture file, in which case letting the child
     inherit is the right fallback. Never close it: it belongs to

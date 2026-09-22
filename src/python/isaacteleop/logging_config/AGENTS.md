@@ -92,8 +92,24 @@ export no log hook, so the descriptor is the only seam.
   the leader's own log file, often enough. `_stdio_stream()` answers the
   question that matters, "does this interpreter write through that number".
 
+## The package `__init__` exports four functions, and that is the whole surface
+
+`set_console_level`, `set_console_filter`, `set_logger_colors` and
+`set_propagate_to_root`. `install()` is deliberately outside `__all__` and must
+be called only by the package bootstrap.
+
+Everything else this package defines is reached through its own module —
+`_core.LINE_FORMAT`, `_core.TRACE`, `_native_api.capture_native_output`, and so
+on — **including by code elsewhere in this tree**, which is why `wss.py`,
+`teleop_session.py` and `cloudxr/service/_service.py` import from `._core` and
+`._native_api` rather than from the package. Do not "tidy" those into a package
+import: a name in `__all__` is an interface this package then has to keep, and
+the native-capture helpers in particular read as an invitation to do something
+`TeleopSession` already does for every site in this tree.
+
+Raising one back up is a one-line change if a host application ever turns out to
+need it. The reverse is not, once anything outside this repository imports it.
+
 ## Related
 
 - C++ half: [`../../../core/log_bridge/AGENTS.md`](../../../core/log_bridge/AGENTS.md)
-- Public API surface is `__all__` in `__init__.py`; `install()` is deliberately
-  excluded and must be called only by the package bootstrap.
