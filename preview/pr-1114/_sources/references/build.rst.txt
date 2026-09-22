@@ -127,16 +127,6 @@ After a successful build and install, relative to your build directory:
 - **C++ libraries:** ``src/core/`` (and under each module)
 - **Python wheels:** ``wheels/isaaccapture-*.whl`` and
   ``wheels/isaacteleop-*.whl`` (the compatibility alias)
-- **Staged Python packages:** ``python_package/<config>/`` (``isaaccapture``) and
-  ``python_package_compat/<config>/`` (``isaacteleop``). The wheels are built
-  from these, and they also run in place without installing anything.
-  ``import isaacteleop`` needs both roots on ``PYTHONPATH``:
-
-  .. code-block:: bash
-
-     PYTHONPATH=build/python_package/Release:build/python_package_compat/Release \
-       python -c "import isaacteleop"
-
 - **Examples (binaries):** under ``examples/`` (e.g. ``examples/oxr/cpp/``)
 - **Installed files:** ``install/`` (or your ``CMAKE_INSTALL_PREFIX``)
   - Libraries: ``install/lib/``

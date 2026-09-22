@@ -437,20 +437,16 @@
 now through a compatibility distribution, which <strong>will be removed in 1.9</strong>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p>1.9 is inside the 1.x series, so a pin such as <code class="docutils literal notranslate"><span class="pre">isaacteleop&lt;2</span></code> or
-<code class="docutils literal notranslate"><span class="pre">isaacteleop~=1.6</span></code> does <strong>not</strong> hold the alias: it resolves to 1.8, the last
-release that ships one, and upgrades stop there with no diagnostic.
-<code class="docutils literal notranslate"><span class="pre">isaacteleop&lt;1.9</span></code> resolves to that same release and says so. Only moving to
-<code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> ends the problem.</p>
+<p>1.9 is inside the 1.x series, so <code class="docutils literal notranslate"><span class="pre">isaacteleop&lt;2</span></code> and <code class="docutils literal notranslate"><span class="pre">isaacteleop~=1.6</span></code>
+do <strong>not</strong> hold the alias. <code class="docutils literal notranslate"><span class="pre">isaacteleop&lt;1.9</span></code> is the pin that does.</p>
 </div>
 <section id="in-short">
 <h2>In short<a class="headerlink" href="#in-short" title="Link to this heading">#</a></h2>
 <ol class="arabic simple">
 <li><p>Upgrade with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-U</span> <span class="pre">isaacteleop[...]</span></code>, <strong>not</strong> by installing
 <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> beside it – see <a class="reference internal" href="#migration-upgrading"><span class="std std-ref">Upgrading an existing install</span></a>.</p></li>
-<li><p>Rewrite <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> in imports and <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code>
-commands, <code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture_examples</span></code> with them.</p></li>
-<li><p>Rename the dependency in your own <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> / <code class="docutils literal notranslate"><span class="pre">requirements.txt</span></code>.</p></li>
+<li><p>Rewrite <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> in imports, <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span></code> commands
+and dependency pins; <code class="docutils literal notranslate"><span class="pre">isaacteleop_examples</span></code> to <code class="docutils literal notranslate"><span class="pre">isaaccapture_examples</span></code>.</p></li>
 <li><p>Move the robot-twin asset cache and its two override variables, if you use them.</p></li>
 </ol>
 </section>
@@ -527,26 +523,14 @@ imported, not against <code class="docutils literal notranslate"><span class="pr
 <p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">isaacteleop</span></code> still resolves, to a distribution whose only content
 is a redirect that depends on <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> at the same version. Every extra
 is mirrored, so <code class="docutils literal notranslate"><span class="pre">isaacteleop[cloudxr]</span></code> installs <code class="docutils literal notranslate"><span class="pre">isaaccapture[cloudxr]</span></code>.
-Three more consequences worth knowing:</p>
+Two more consequences:</p>
 <ul class="simple">
 <li><p>A <code class="docutils literal notranslate"><span class="pre">--no-deps</span></code> install of <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> installs the redirect <strong>and nothing
-else</strong>, and raises <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> on first import. Isaac Sim’s
-<code class="docutils literal notranslate"><span class="pre">deps/pip_teleop.toml</span></code> and Isaac Lab’s <code class="docutils literal notranslate"><span class="pre">isaaclab_teleop</span></code> both pin
-<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code>; they must name <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> before their next version
-bump.</p></li>
-<li><p><strong>From source, how you get the alias depends on the path.</strong> The classic CMake
-flow builds both wheels into <code class="docutils literal notranslate"><span class="pre">install/wheels/</span></code>, so name both there, and
-running straight off the build tree needs both staged roots on <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>.
-<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> resolves the alias from the source tree; <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code>
-does not, because the wheel it builds is the real distribution and ships one
-package. The commands are in
-<a class="reference internal" href="../getting_started/build_from_source/index.html"><span class="doc">Build from Source</span></a> and <a class="reference internal" href="build.html"><span class="doc">Build System</span></a>.</p></li>
+else</strong>, and raises <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> on first import.</p></li>
 <li><p>A <code class="docutils literal notranslate"><span class="pre">sys.meta_path</span></code> finder is invisible to a type checker, so everything under
-<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> is typed <code class="docutils literal notranslate"><span class="pre">Any</span></code>: autocomplete is gone, and nothing is checked.
-mypy accepts it; <strong>pyright reports every submodule import as unresolved</strong>
-(<code class="docutils literal notranslate"><span class="pre">reportMissingImports</span></code>) because the stub has no submodules to find. The
-alias promises runtime identity only. Migrate to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> to get the
-real types back.</p></li>
+<code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> is typed <code class="docutils literal notranslate"><span class="pre">Any</span></code> and <strong>pyright reports every submodule import
+as unresolved</strong> (<code class="docutils literal notranslate"><span class="pre">reportMissingImports</span></code>). The alias promises runtime
+identity only.</p></li>
 </ul>
 </section>
 <section id="logging">
@@ -564,19 +548,16 @@ matching – the logger is created, and nothing ever logs to it:</p>
 <section id="the-asset-cache">
 <h2>The asset cache<a class="headerlink" href="#the-asset-cache" title="Link to this heading">#</a></h2>
 <p>The robot twin’s cached meshes moved with the package name. A populated 1.5
-cache is still on disk and is re-usable as is – the completeness marker and the
-manifest digest both survive a move, so nothing is re-downloaded:</p>
+cache is re-usable as is, so nothing is re-downloaded:</p>
 <div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="gp">$ </span>mkdir<span class="w"> </span>-p<span class="w"> </span>~/.cache/isaaccapture
 <span class="gp">$ </span>cp<span class="w"> </span>-a<span class="w"> </span>~/.cache/isaacteleop/.<span class="w"> </span>~/.cache/isaaccapture/
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-a</span></code> rather than <code class="docutils literal notranslate"><span class="pre">mv</span></code>: once you have launched the twin under 1.6 the
-destination already exists, and <code class="docutils literal notranslate"><span class="pre">mv</span></code> would move the old cache <em>inside</em> it
-and exit 0. Delete <code class="docutils literal notranslate"><span class="pre">~/.cache/isaacteleop</span></code> afterwards if you want the space
-back. If <code class="docutils literal notranslate"><span class="pre">XDG_CACHE_HOME</span></code> is set, both paths are under it rather than
-<code class="docutils literal notranslate"><span class="pre">~/.cache</span></code>.</p>
-<p>The two override variables moved with it. They are no longer read under their
-old names, and <code class="docutils literal notranslate"><span class="pre">isaaccapture.viz.robot</span></code> logs a warning if it finds one set:</p>
+<p><code class="docutils literal notranslate"><span class="pre">cp</span> <span class="pre">-a</span></code> rather than <code class="docutils literal notranslate"><span class="pre">mv</span></code>: once the twin has run under 1.6 the destination
+already exists, and <code class="docutils literal notranslate"><span class="pre">mv</span></code> would move the old cache <em>inside</em> it and exit 0. Under
+<code class="docutils literal notranslate"><span class="pre">XDG_CACHE_HOME</span></code> both directories live there instead of under <code class="docutils literal notranslate"><span class="pre">~/.cache</span></code>.</p>
+<p>The two override variables moved with it and are no longer read under their old
+names. The <code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_*</span></code> runtime switches keep theirs.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Old</p></th>
@@ -593,23 +574,15 @@ old names, and <code class="docutils literal notranslate"><span class="pre">isaa
 </tbody>
 </table>
 </div>
-<p>These two are the only environment variables this release renames. The
-<code class="docutils literal notranslate"><span class="pre">ISAAC_TELEOP_*</span></code> variables documented elsewhere – the CloudXR runtime
-switches among them – keep their names.</p>
 </section>
 <section id="the-detached-cloudxr-service">
 <h2>The detached CloudXR service<a class="headerlink" href="#the-detached-cloudxr-service" title="Link to this heading">#</a></h2>
-<p>A detached service started before the upgrade is still recognised by
-<code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">status</span></code> and <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code>, so it does not need to be stopped
-first: 1.6 matches the old module name in its <code class="docutils literal notranslate"><span class="pre">/proc</span></code> command line as well as
-the new one.</p>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p>That only works in one direction. A service started under 1.6 is <strong>not</strong>
-recognised by a 1.5 CLI, which cannot know the new name. If you roll back,
-stop the service first – otherwise <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code> reports that nothing is
-running, exits 0, and leaves a runtime holding the GPU.</p>
-</div>
+<p>A service detached before the upgrade is still recognised by <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">status</span></code>
+and <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code>: 1.6 matches the old module name in its <code class="docutils literal notranslate"><span class="pre">/proc</span></code> command
+line as well as the new one.</p>
+<p>That only works forwards. A 1.5 CLI cannot know the new name, so stop the
+service before rolling back – otherwise <code class="docutils literal notranslate"><span class="pre">service</span> <span class="pre">stop</span></code> reports that nothing
+is running, exits 0, and leaves a runtime holding the GPU.</p>
 </section>
 </section>
 

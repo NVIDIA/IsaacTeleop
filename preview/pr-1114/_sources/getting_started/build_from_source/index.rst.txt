@@ -348,12 +348,8 @@ based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly diff
 
 The build produces a second wheel, ``isaacteleop`` — the compatibility alias,
 removed in 1.9. It is a separate distribution, so naming ``isaaccapture`` alone
-leaves ``import isaacteleop`` a ``ModuleNotFoundError``; drop it from the command
-once nothing you run imports the old name. Name it bare: its only dependency is
-the ``isaaccapture`` already in ``./install/wheels/``, so it adds nothing for
-``--no-index`` to resolve, and extras on the alias would route the same
-requirement through a second distribution for no gain. See
-:doc:`/references/migration`.
+leaves ``import isaacteleop`` a ``ModuleNotFoundError``; drop it once nothing you
+run imports the old name. See :doc:`/references/migration`.
 
 Alternative: install directly from source with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -413,24 +409,17 @@ What this path does and how it differs from the classic flow:
 
 .. admonition:: ``import isaacteleop`` under this path
 
-   ``pip install -e .`` serves the alias. An editable install resolves imports out
+   ``pip install -e .`` serves the alias: an editable install resolves imports out
    of the source tree, and the shim's source (:code-dir:`src/compat/isaacteleop`)
-   is redirected alongside ``isaaccapture``'s, so the old name keeps working while
-   you migrate.
-
-   ``pip install .`` does **not**, by design: that command builds the real
-   ``isaaccapture`` distribution, which ships exactly one first-party package. The
-   alias belongs to the separate ``isaacteleop`` distribution
-   (:doc:`/references/migration`). To have it beside a non-editable install, add
-   the compatibility project the build stages:
+   is redirected alongside ``isaaccapture``'s. ``pip install .`` does not -- the
+   alias is the separate ``isaacteleop`` distribution
+   (:doc:`/references/migration`). To have it beside a non-editable install:
 
    .. code-block:: bash
 
       pip install ./build-wheel/cpython-311/python_package_compat/Release
 
-   Substitute your interpreter's cache tag for ``cpython-311``. It pins
-   ``isaaccapture`` at the version ``pip install .`` produced, which for this path
-   is always ``MAJOR.MINOR+local``.
+   Substitute your interpreter's cache tag for ``cpython-311``.
 
 .. admonition:: Editable installs and iterating on pure-Python subpackages
 

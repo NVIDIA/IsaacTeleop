@@ -784,12 +784,8 @@ uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </s
 </div>
 <p>The build produces a second wheel, <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> — the compatibility alias,
 removed in 1.9. It is a separate distribution, so naming <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> alone
-leaves <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> a <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code>; drop it from the command
-once nothing you run imports the old name. Name it bare: its only dependency is
-the <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> already in <code class="docutils literal notranslate"><span class="pre">./install/wheels/</span></code>, so it adds nothing for
-<code class="docutils literal notranslate"><span class="pre">--no-index</span></code> to resolve, and extras on the alias would route the same
-requirement through a second distribution for no gain. See
-<a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>.</p>
+leaves <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> a <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code>; drop it once nothing you
+run imports the old name. See <a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>.</p>
 <section id="alternative-install-directly-from-source-with-pip">
 <h3>Alternative: install directly from source with pip<a class="headerlink" href="#alternative-install-directly-from-source-with-pip" title="Link to this heading">#</a></h3>
 <p>The repository also ships a root <a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/blob/main/pyproject.toml" rel="noopener noreferrer" target="_blank">pyproject.toml</a> using the
@@ -845,21 +841,15 @@ tagged <code class="docutils literal notranslate"><span class="pre">+local</span
 </ul>
 <div class="admonition-import-isaacteleop-under-this-path admonition">
 <p class="admonition-title"><code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">isaacteleop</span></code> under this path</p>
-<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> serves the alias. An editable install resolves imports out
+<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code> serves the alias: an editable install resolves imports out
 of the source tree, and the shim’s source (<a class="reference external" href="https://github.com/NVIDIA/IsaacTeleop/tree/main/src/compat/isaacteleop" rel="noopener noreferrer" target="_blank">src/compat/isaacteleop</a>)
-is redirected alongside <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>’s, so the old name keeps working while
-you migrate.</p>
-<p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code> does <strong>not</strong>, by design: that command builds the real
-<code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> distribution, which ships exactly one first-party package. The
-alias belongs to the separate <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> distribution
-(<a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>). To have it beside a non-editable install, add
-the compatibility project the build stages:</p>
+is redirected alongside <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code>’s. <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code> does not – the
+alias is the separate <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> distribution
+(<a class="reference internal" href="../../references/migration.html"><span class="doc">Migrating to isaaccapture</span></a>). To have it beside a non-editable install:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>./build-wheel/cpython-311/python_package_compat/Release
 </pre></div>
 </div>
-<p>Substitute your interpreter’s cache tag for <code class="docutils literal notranslate"><span class="pre">cpython-311</span></code>. It pins
-<code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> at the version <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code> produced, which for this path
-is always <code class="docutils literal notranslate"><span class="pre">MAJOR.MINOR+local</span></code>.</p>
+<p>Substitute your interpreter’s cache tag for <code class="docutils literal notranslate"><span class="pre">cpython-311</span></code>.</p>
 </div>
 <div class="admonition-editable-installs-and-iterating-on-pure-python-subpackages admonition">
 <p class="admonition-title">Editable installs and iterating on pure-Python subpackages</p>

@@ -10,20 +10,16 @@ now through a compatibility distribution, which **will be removed in 1.9**.
 
 .. warning::
 
-   1.9 is inside the 1.x series, so a pin such as ``isaacteleop<2`` or
-   ``isaacteleop~=1.6`` does **not** hold the alias: it resolves to 1.8, the last
-   release that ships one, and upgrades stop there with no diagnostic.
-   ``isaacteleop<1.9`` resolves to that same release and says so. Only moving to
-   ``isaaccapture`` ends the problem.
+   1.9 is inside the 1.x series, so ``isaacteleop<2`` and ``isaacteleop~=1.6``
+   do **not** hold the alias. ``isaacteleop<1.9`` is the pin that does.
 
 In short
 --------
 
 #. Upgrade with ``pip install -U isaacteleop[...]``, **not** by installing
    ``isaaccapture`` beside it -- see :ref:`migration-upgrading`.
-#. Rewrite ``isaacteleop`` to ``isaaccapture`` in imports and ``python -m``
-   commands, ``isaacteleop_examples`` to ``isaaccapture_examples`` with them.
-#. Rename the dependency in your own ``pyproject.toml`` / ``requirements.txt``.
+#. Rewrite ``isaacteleop`` to ``isaaccapture`` in imports, ``python -m`` commands
+   and dependency pins; ``isaacteleop_examples`` to ``isaaccapture_examples``.
 #. Move the robot-twin asset cache and its two override variables, if you use them.
 
 .. _migration-upgrading:
@@ -113,26 +109,14 @@ Installing
 ``pip install isaacteleop`` still resolves, to a distribution whose only content
 is a redirect that depends on ``isaaccapture`` at the same version. Every extra
 is mirrored, so ``isaacteleop[cloudxr]`` installs ``isaaccapture[cloudxr]``.
-Three more consequences worth knowing:
+Two more consequences:
 
 - A ``--no-deps`` install of ``isaacteleop`` installs the redirect **and nothing
-  else**, and raises ``ImportError`` on first import. Isaac Sim's
-  ``deps/pip_teleop.toml`` and Isaac Lab's ``isaaclab_teleop`` both pin
-  ``isaacteleop``; they must name ``isaaccapture`` before their next version
-  bump.
-- **From source, how you get the alias depends on the path.** The classic CMake
-  flow builds both wheels into ``install/wheels/``, so name both there, and
-  running straight off the build tree needs both staged roots on ``PYTHONPATH``.
-  ``pip install -e .`` resolves the alias from the source tree; ``pip install .``
-  does not, because the wheel it builds is the real distribution and ships one
-  package. The commands are in
-  :doc:`/getting_started/build_from_source/index` and :doc:`build`.
+  else**, and raises ``ImportError`` on first import.
 - A ``sys.meta_path`` finder is invisible to a type checker, so everything under
-  ``isaacteleop`` is typed ``Any``: autocomplete is gone, and nothing is checked.
-  mypy accepts it; **pyright reports every submodule import as unresolved**
-  (``reportMissingImports``) because the stub has no submodules to find. The
-  alias promises runtime identity only. Migrate to ``isaaccapture`` to get the
-  real types back.
+  ``isaacteleop`` is typed ``Any`` and **pyright reports every submodule import
+  as unresolved** (``reportMissingImports``). The alias promises runtime
+  identity only.
 
 Logging
 -------
@@ -152,22 +136,19 @@ The asset cache
 ---------------
 
 The robot twin's cached meshes moved with the package name. A populated 1.5
-cache is still on disk and is re-usable as is -- the completeness marker and the
-manifest digest both survive a move, so nothing is re-downloaded:
+cache is re-usable as is, so nothing is re-downloaded:
 
 .. code-block:: console
 
    $ mkdir -p ~/.cache/isaaccapture
    $ cp -a ~/.cache/isaacteleop/. ~/.cache/isaaccapture/
 
-``cp -a`` rather than ``mv``: once you have launched the twin under 1.6 the
-destination already exists, and ``mv`` would move the old cache *inside* it
-and exit 0. Delete ``~/.cache/isaacteleop`` afterwards if you want the space
-back. If ``XDG_CACHE_HOME`` is set, both paths are under it rather than
-``~/.cache``.
+``cp -a`` rather than ``mv``: once the twin has run under 1.6 the destination
+already exists, and ``mv`` would move the old cache *inside* it and exit 0. Under
+``XDG_CACHE_HOME`` both directories live there instead of under ``~/.cache``.
 
-The two override variables moved with it. They are no longer read under their
-old names, and ``isaaccapture.viz.robot`` logs a warning if it finds one set:
+The two override variables moved with it and are no longer read under their old
+names. The ``ISAAC_TELEOP_*`` runtime switches keep theirs.
 
 .. list-table::
    :header-rows: 1
@@ -179,21 +160,13 @@ old names, and ``isaaccapture.viz.robot`` logs a warning if it finds one set:
    * - ``ISAACTELEOP_REBOT_ASSETS``
      - ``ISAACCAPTURE_REBOT_ASSETS``
 
-These two are the only environment variables this release renames. The
-``ISAAC_TELEOP_*`` variables documented elsewhere -- the CloudXR runtime
-switches among them -- keep their names.
-
 The detached CloudXR service
 ----------------------------
 
-A detached service started before the upgrade is still recognised by
-``service status`` and ``service stop``, so it does not need to be stopped
-first: 1.6 matches the old module name in its ``/proc`` command line as well as
-the new one.
+A service detached before the upgrade is still recognised by ``service status``
+and ``service stop``: 1.6 matches the old module name in its ``/proc`` command
+line as well as the new one.
 
-.. warning::
-
-   That only works in one direction. A service started under 1.6 is **not**
-   recognised by a 1.5 CLI, which cannot know the new name. If you roll back,
-   stop the service first -- otherwise ``service stop`` reports that nothing is
-   running, exits 0, and leaves a runtime holding the GPU.
+That only works forwards. A 1.5 CLI cannot know the new name, so stop the
+service before rolling back -- otherwise ``service stop`` reports that nothing
+is running, exits 0, and leaves a runtime holding the GPU.
