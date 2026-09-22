@@ -305,6 +305,9 @@ export class MockCloudXR implements CloudXR.Session {
       );
     }
     const pose = frame.getViewerPose(this.options.referenceSpace);
+    // Controller poses are part of the tracking state submitted here, same as a real CloudXR
+    // session: render() only consumes the decoded stream, it doesn't read XRFrame input state.
+    this.trackControllers(frame);
     this.delegates.onMetrics?.(
       { [CloudXR.MetricsName.PoseSendFramerate]: this.estimateFps(timestamp) },
       CloudXR.MetricsCadence.PerRender
@@ -324,7 +327,6 @@ export class MockCloudXR implements CloudXR.Session {
     const gl = this.options.gl;
     const renderer = this.ensureRenderer(gl);
     this.sceneAnimate(this.sceneTime);
-    this.trackControllers(frame);
 
     this.delegates.onWebGLStateChangeBegin?.();
     gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
