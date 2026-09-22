@@ -20,7 +20,7 @@ module.exports = [
     ignores: ['node_modules/**', 'build/**', 'dist/**'],
   },
   {
-    files: ['src/**/*.{ts,tsx}', 'helpers/**/*.ts'],
+    files: ['src/**/*.{ts,tsx}', 'helpers/**/*.ts', 'tests/**/*.{ts,tsx}'],
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {
