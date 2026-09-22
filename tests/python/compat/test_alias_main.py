@@ -49,35 +49,6 @@ def _nested_importer(tmp_path):
     return tmp_path / "app.py", tmp_path / "vendor.py"
 
 
-def _stderr_through_a_pty(args, extra_env=None):
-    """Runs *args* with stderr on a pseudo-terminal and returns what it wrote."""
-    import pty
-
-    controller, worker = pty.openpty()
-    try:
-        subprocess.run(
-            [sys.executable, *args],
-            stdout=subprocess.DEVNULL,
-            stderr=worker,
-            timeout=120,
-            check=False,
-            env={**os.environ, **extra_env} if extra_env else None,
-        )
-    finally:
-        os.close(worker)
-    chunks = []
-    while True:
-        try:
-            chunk = os.read(controller, 4096)
-        except OSError:  # EIO: the worker side is closed and drained
-            break
-        if not chunk:
-            break
-        chunks.append(chunk)
-    os.close(controller)
-    return b"".join(chunks).decode()
-
-
 @pytest.mark.parametrize("module,args", ENTRY_POINTS)
 def test_the_alias_and_the_real_name_behave_identically(module, args):
     old = _run(["-m", f"isaacteleop.{module}", *args])
@@ -118,7 +89,6 @@ def test_an_error_filter_raises_and_does_not_also_print():
     result = _run(["-W", "error::DeprecationWarning", "-c", "import isaacteleop"])
     assert result.returncode == 1
     assert "DeprecationWarning" in result.stderr
-    assert "\033[33m" not in result.stderr
 
 
 #: Imports twice, reporting whether each raised and what is left on sys.meta_path.
@@ -228,22 +198,3 @@ def test_the_printed_and_warned_locations_agree(tmp_path):
 
     assert f"{vendor}:1: " in printed.stderr
     assert f"{vendor}:1: " in warned.stderr
-
-
-@pytest.mark.skipif(os.name != "posix", reason="pty is POSIX-only")
-def test_the_notice_is_coloured_on_a_terminal_and_bare_otherwise(tmp_path):
-    """Gating *whether to print* on isatty would silence CI, which is the
-    population that needs the notice. Gating *whether to colour* is free."""
-    app, _ = _nested_importer(tmp_path)
-
-    on_a_terminal = _stderr_through_a_pty([str(app)])
-    assert NOTICE_MARK in on_a_terminal
-    assert "\033[33m" in on_a_terminal
-
-    no_color = _stderr_through_a_pty([str(app)], extra_env={"NO_COLOR": "1"})
-    assert NOTICE_MARK in no_color
-    assert "\033[33m" not in no_color
-
-    piped = _run([str(app)])
-    assert NOTICE_MARK in piped.stderr
-    assert "\033[33m" not in piped.stderr

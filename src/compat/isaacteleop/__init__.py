@@ -16,7 +16,6 @@ import importlib
 import importlib.abc
 import importlib.machinery
 import importlib.util
-import os
 import shlex
 import sys
 import warnings
@@ -86,6 +85,10 @@ class _AliasLoader(importlib.abc.Loader):
 class _AliasFinder(importlib.abc.MetaPathFinder):
     """Serves every isaacteleop.* name from the isaaccapture spec."""
 
+    #: Recognised by _install() across a re-execution of this module, where a
+    #: fresh class object makes isinstance useless.
+    _is_alias_finder = True
+
     def find_spec(self, fullname, path=None, target=None):
         # Exact-or-dotted: isaacteleop_examples is a different, unrenamed package.
         if fullname != _OLD_PACKAGE and not fullname.startswith(_OLD_PACKAGE + "."):
@@ -107,14 +110,18 @@ def _install() -> None:
     # Immediately before PathFinder. Appending is not a style choice: PathFinder
     # then reaches the aliased parent's real __path__ first and loads the pybind11
     # extensions a second time, which aborts the interpreter on a duplicate type
-    # registration.
+    # registration. The fallback is 0, never the end: an embedded or instrumented
+    # interpreter that wraps PathFinder leaves the identity search with no match,
+    # and the end is that same append.
+    if any(getattr(finder, "_is_alias_finder", False) for finder in sys.meta_path):
+        return
     at = next(
         (
             index
             for index, finder in enumerate(sys.meta_path)
             if finder is importlib.machinery.PathFinder
         ),
-        len(sys.meta_path),
+        0,
     )
     sys.meta_path.insert(at, _AliasFinder())
 
@@ -176,16 +183,10 @@ def _announce() -> None:
         with warnings.catch_warnings(record=True) as located:
             warnings.simplefilter("always")
             warnings.warn(_DEPRECATION, DeprecationWarning, stacklevel=3)
-        line = f"{located[0].filename}:{located[0].lineno}: {_DEPRECATION}"
-        # Colour on a terminal only: this line is read in CI logs and captured
-        # stderr far more often than in a shell.
-        if (
-            os.environ.get("NO_COLOR")
-            or not getattr(sys.stderr, "isatty", lambda: False)()
-        ):
-            print(line, file=sys.stderr)
-        else:
-            print(f"\033[33m{line}\033[0m", file=sys.stderr)
+        print(
+            f"{located[0].filename}:{located[0].lineno}: {_DEPRECATION}",
+            file=sys.stderr,
+        )
 
 
 # Before _install(), so a --no-deps install never leaves a finder behind.
@@ -198,5 +199,7 @@ if importlib.util.find_spec(_NEW_PACKAGE) is None:
 # unenforceable and turns `try: import isaacteleop` into a pass.
 _announce()
 _install()
-# Load-bearing: without it `from isaacteleop import deviceio, oxr` fails.
+# What makes `isaacteleop is isaaccapture` hold: without it sys.modules keeps this
+# shim under the old name. Do not check it by `from isaacteleop import deviceio` --
+# module-level __getattr__ serves that either way.
 sys.modules[__name__] = importlib.import_module(_NEW_PACKAGE)
