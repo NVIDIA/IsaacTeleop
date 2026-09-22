@@ -13,7 +13,7 @@ version = "0.0.0"  # Internal examples - not versioned
 description = "Retargeting Engine Python Examples"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "isaacteleop[ui,retargeters-lite]",
+    "isaaccapture[ui,retargeters-lite]",
     "numpy>=1.23.0",
 ]
 

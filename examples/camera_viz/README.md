@@ -5,7 +5,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # camera_viz
 
-> Camera streaming + visualization on Televiz (`isaacteleop.viz`).
+> Camera streaming + visualization on Televiz (`isaaccapture.viz`).
 
 | Mode | What it does |
 |---|---|
@@ -33,9 +33,9 @@ examples/camera_viz/camera_viz.sh setup
 source examples/camera_viz/.venv/bin/activate
 ```
 
-`setup` creates `.venv/` via `uv` (no `--system-site-packages`) and installs `isaacteleop[cloudxr]` — which bundles Televiz — plus every other Python dep. The `cloudxr` extra is not optional here: XR is the default mode and the viewer launches the runtime itself. It then probes system packages (cairo / girepository headers, GStreamer plugins under `--with-rtp`, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
+`setup` creates `.venv/` via `uv` (no `--system-site-packages`) and installs `isaaccapture[cloudxr]` — which bundles Televiz — plus every other Python dep. The `cloudxr` extra is not optional here: XR is the default mode and the viewer launches the runtime itself. It then probes system packages (cairo / girepository headers, GStreamer plugins under `--with-rtp`, JetPack `cuda-nvrtc` + ld.so wiring). If anything's missing it prints the exact `apt-get` line and prompts `[y/N]` — `n` or non-interactive aborts. No need to build IsaacTeleop from source.
 
-camera_viz needs an `isaacteleop` new enough to carry the features it uses, so `setup` works down a ladder to get one: newest **final release** meeting that minimum; else newest **release candidate** (an rc is published from every release-branch commit, and PEP 440 keeps pre-releases out of a plain minimum-version specifier); else a **source build** of this checkout, after asking. Final releases win automatically whenever one qualifies. The minimum itself lives in `scripts/_install_deps.sh`.
+camera_viz needs an `isaaccapture` new enough to carry the features it uses, so `setup` works down a ladder to get one: newest **final release** meeting that minimum; else newest **release candidate** (an rc is published from every release-branch commit, and PEP 440 keeps pre-releases out of a plain minimum-version specifier); else a **source build** of this checkout, after asking. Final releases win automatically whenever one qualifies. The minimum itself lives in `scripts/_install_deps.sh`.
 
 Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--sender-only`), `--with-zed`, `--sender-only`, `--jetson`. Pass `--venv PATH` to install into an existing venv (symlinks `.venv` → PATH so `run` / `loopback` pick it up too).
 
@@ -45,7 +45,7 @@ Flags: `--no-{v4l2,oakd}`, `--with-rtp` (split mode / `loopback`; implied by `--
 > sudo udevadm control --reload-rules && sudo udevadm trigger   # then replug
 > ```
 
-> **Developing against a local build?** Pass `--wheel <path>` (e.g. `camera_viz.sh setup --wheel build/wheels/isaacteleop-*.whl`) for a wheel you already built, or `--build-from-source` to build this checkout without asking. See the [build-from-source guide](../../docs/source/getting_started/build_from_source/index.rst).
+> **Developing against a local build?** Pass `--wheel <path>` (e.g. `camera_viz.sh setup --wheel build/wheels/isaaccapture-*.whl`) for a wheel you already built, or `--build-from-source` to build this checkout without asking. See the [build-from-source guide](../../docs/source/getting_started/build_from_source/index.rst).
 
 ---
 
@@ -238,7 +238,7 @@ Not applicable to `equirect`: the gap shifts each eye's surface, and the sphere 
 
 > **Not the camera's baseline.** That is the physical gap between the camera's two lenses — fixed in hardware, baked into the pixels, and what sets the scene's depth *scale*. This only moves where that scene sits.
 
-> Live adjustment needs `Layer.set_stereo_baseline_mm`, newer than the released `isaacteleop` wheel. On an older wheel that one binding disables itself with a notice; A, B, X and Y still work.
+> Live adjustment needs `Layer.set_stereo_baseline_mm`, newer than the released `isaaccapture` wheel. On an older wheel that one binding disables itself with a notice; A, B, X and Y still work.
 
 ### Aiming an equirect
 
@@ -331,8 +331,8 @@ camera_viz/
 Only one OpenXR session is allowed per process. `VizSession` can own it and hand its live handles to `TeleopSession` / `DeviceIOSession` so they skip creating their own:
 
 ```python
-import isaacteleop.viz as viz
-from isaacteleop.oxr import OpenXRSessionHandles
+import isaaccapture.viz as viz
+from isaaccapture.oxr import OpenXRSessionHandles
 
 cfg = viz.VizSessionConfig()
 cfg.mode = viz.DisplayMode.kXr

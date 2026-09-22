@@ -10,7 +10,7 @@ one to its own MCAP channel pair (<cid> / <cid>_tracked) via the standard
 Se3TrackerRecordingTraits. Replay with replay_se3_vive.
 
 Prerequisites (separate terminals):
-  1. CloudXR runtime:  python -m isaacteleop.cloudxr
+  1. CloudXR runtime:  python -m isaaccapture.cloudxr
   2. the pusher:       ./vive_se3_tracker_plugin
      (VIVEHub tracker_server running, or VIVE_SE3_SYNTHETIC=1 for a smoke test)
 
@@ -29,9 +29,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from isaacteleop.deviceio_session import DeviceIOSession, McapRecordingConfig
-from isaacteleop.deviceio_trackers import Se3Tracker
-from isaacteleop.oxr import OpenXRSession
+from isaaccapture.deviceio_session import DeviceIOSession, McapRecordingConfig
+from isaaccapture.deviceio_trackers import Se3Tracker
+from isaaccapture.oxr import OpenXRSession
 
 
 def _collections_file() -> str:

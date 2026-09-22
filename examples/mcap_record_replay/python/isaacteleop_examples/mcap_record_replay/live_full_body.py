@@ -25,9 +25,9 @@ import time
 import numpy as np
 import viser
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.tensor_types.indices import FullBodyInputIndex
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 from .common import BODY_JOINT_NAMES, FullBodyViz, build_full_body_pipeline, setup_scene
 

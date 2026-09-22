@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Generic3AxisPedalOutput type in isaacteleop.schema.
+"""Unit tests for Generic3AxisPedalOutput type in isaaccapture.schema.
 
 Tests the following FlatBuffers types:
 - Generic3AxisPedalOutput: Table with left_pedal, right_pedal, and rudder
@@ -12,7 +12,7 @@ Timestamps are carried by Generic3AxisPedalOutputRecord, not Generic3AxisPedalOu
 
 import pytest
 
-from isaacteleop.schema import (
+from isaaccapture.schema import (
     Generic3AxisPedalOutputRecord,
     Generic3AxisPedalOutput,
     DeviceDataTimestamp,

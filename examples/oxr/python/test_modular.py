@@ -8,9 +8,9 @@ Test script for modular OpenXR tracking API
 
 import time
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-import isaacteleop.schema as schema
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+import isaaccapture.schema as schema
 
 print("=" * 80)
 print("OpenXR Modular Tracking API Test")

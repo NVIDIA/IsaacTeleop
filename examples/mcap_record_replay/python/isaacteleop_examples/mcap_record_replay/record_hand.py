@@ -23,9 +23,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.deviceio import McapRecordingConfig
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.deviceio import McapRecordingConfig
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 from .common import build_hand_pipeline
 

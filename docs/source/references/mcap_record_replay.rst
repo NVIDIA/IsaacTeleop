@@ -17,8 +17,8 @@ trackers from the pipeline, so you only need to provide the output filename:
 
 .. code-block:: python
 
-   from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
-   from isaacteleop.deviceio import McapRecordingConfig
+   from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
+   from isaaccapture.deviceio import McapRecordingConfig
 
    config = TeleopSessionConfig(
        app_name="MyApp",
@@ -46,7 +46,7 @@ useful for recording additional trackers that are not part of the pipeline:
 
 .. code-block:: python
 
-   from isaacteleop.deviceio import McapRecordingConfig
+   from isaaccapture.deviceio import McapRecordingConfig
 
    extra_tracker = deviceio.HandTracker()
 
@@ -68,12 +68,12 @@ file:
 
 .. code-block:: python
 
-   from isaacteleop.teleop_session_manager import (
+   from isaaccapture.teleop_session_manager import (
        TeleopSession,
        TeleopSessionConfig,
        SessionMode,
    )
-   from isaacteleop.deviceio import McapReplayConfig
+   from isaaccapture.deviceio import McapReplayConfig
 
    config = TeleopSessionConfig(
        app_name="MyApp",
@@ -202,7 +202,7 @@ Recordings are written to ``./recordings/`` relative to where you run the
 command, and the replay scripts look there when given no path.
 
 The example never downloads a published wheel — it runs against the
-``isaacteleop`` next to it, built from this checkout.  The first install
+``isaaccapture`` next to it, built from this checkout.  The first install
 compiles the extension modules and takes a few minutes; later ones reuse the
 cached build, and the install is editable, so edits under ``src/python/`` need
 no rebuild.  From ``install/examples/mcap_record_replay`` (after ``cmake

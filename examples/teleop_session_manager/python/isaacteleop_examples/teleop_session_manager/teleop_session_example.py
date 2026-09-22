@@ -20,32 +20,32 @@ import numpy as np
 from pathlib import Path
 from typing import Optional
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     ControllersSource,
 )
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,
 )
-from isaacteleop.retargeting_engine.interface import BaseRetargeter
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.interface import BaseRetargeter
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
     RetargeterIO,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     HandInput,
     HandInputIndex,
     ControllerInput,
     ControllerInputIndex,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     TensorGroupType,
     OptionalType,
 )
-from isaacteleop.retargeting_engine.tensor_types import FloatType
+from isaaccapture.retargeting_engine.tensor_types import FloatType
 
 
 # Six levels up is the tree root -- the checkout, or the install prefix

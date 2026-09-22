@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from contextlib import contextmanager
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     ComputeContext,
     ExecutionEvents,
@@ -30,18 +30,18 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroup,
     TensorType,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     RetargeterIO,
     RetargeterIOType,
 )
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     IDeviceIOSink,
     IDeviceIOSource,
 )
-from isaacteleop.retargeting_engine.tensor_types import FloatType
+from isaaccapture.retargeting_engine.tensor_types import FloatType
 
-import isaacteleop.teleop_session_manager as teleop_session_manager
-from isaacteleop.teleop_session_manager.config import (
+import isaaccapture.teleop_session_manager as teleop_session_manager
+from isaaccapture.teleop_session_manager.config import (
     DeadlinePacingConfig,
     ImmediatePacingConfig,
     PluginConfig,
@@ -50,15 +50,15 @@ from isaacteleop.teleop_session_manager.config import (
     SessionMode,
     TeleopSessionConfig,
 )
-from isaacteleop.teleop_session_manager.async_retarget_runner import (
+from isaaccapture.teleop_session_manager.async_retarget_runner import (
     AsyncRetargetRunner,
     AsyncRetargetRunnerStopped,
     AsyncRetargetWorkerError,
     RetargetFrame,
     StepRequest,
 )
-from isaacteleop.teleop_session_manager.teleop_session import TeleopSession
-from isaacteleop.teleop_session_manager.teleop_state_manager_types import (
+from isaaccapture.teleop_session_manager.teleop_session import TeleopSession
+from isaaccapture.teleop_session_manager.teleop_state_manager_types import (
     teleop_state_manager_output_spec,
 )
 
@@ -753,7 +753,7 @@ def mock_session_dependencies(
             return []
 
         patch_get_ext = patch(
-            "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
+            "isaaccapture.deviceio.DeviceIOSession.get_required_extensions",
             side_effect=get_ext_side_effect,
         )
     else:
@@ -763,14 +763,14 @@ def mock_session_dependencies(
             else []
         )
         patch_get_ext = patch(
-            "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
+            "isaaccapture.deviceio.DeviceIOSession.get_required_extensions",
             return_value=get_ext_return,
         )
 
     with (
-        patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr),
-        patch("isaacteleop.deviceio.DeviceIOSession.run", return_value=mock_dio),
-        patch("isaacteleop.plugin_manager.PluginManager", return_value=mock_pm),
+        patch("isaaccapture.oxr.OpenXRSession", return_value=mock_oxr),
+        patch("isaaccapture.deviceio.DeviceIOSession.run", return_value=mock_dio),
+        patch("isaaccapture.plugin_manager.PluginManager", return_value=mock_pm),
         patch_get_ext,
     ):
         yield
@@ -1616,7 +1616,7 @@ class TestStatusMonitoringIntegration:
 
         with (
             patch(
-                "isaacteleop.deviceio_trackers.PluginDeviceStatusTracker",
+                "isaaccapture.deviceio_trackers.PluginDeviceStatusTracker",
                 return_value=tracker,
             ) as tracker_cls,
             mock_session_dependencies(
@@ -1700,7 +1700,7 @@ class TestStatusMonitoringIntegration:
         )
 
         with (
-            patch("isaacteleop.deviceio_trackers.PluginDeviceStatusTracker"),
+            patch("isaaccapture.deviceio_trackers.PluginDeviceStatusTracker"),
             mock_session_dependencies(mock_pm=manager),
         ):
             session = TeleopSession(config)
@@ -1737,7 +1737,7 @@ class TestStatusMonitoringIntegration:
         )
 
         with (
-            patch("isaacteleop.deviceio_trackers.PluginDeviceStatusTracker"),
+            patch("isaaccapture.deviceio_trackers.PluginDeviceStatusTracker"),
             mock_session_dependencies(
                 mock_dio=FailingDeviceIOSession(),
                 mock_pm=manager,
@@ -2273,7 +2273,7 @@ class TestPipelinedRetargeting:
         config = self._pipelined_config(pipeline)
         caplog.set_level(
             logging.ERROR,
-            logger="isaacteleop.teleop_session_manager.teleop_session",
+            logger="isaaccapture.teleop_session_manager.teleop_session",
         )
 
         with mock_session_dependencies():
@@ -2908,20 +2908,20 @@ def mock_replay_dependencies(mock_pm=None):
 
     with (
         patch(
-            "isaacteleop.deviceio.ReplaySession.run",
+            "isaaccapture.deviceio.ReplaySession.run",
             return_value=mock_dio_session,
         ) as create_replay,
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.run",
+            "isaaccapture.deviceio.DeviceIOSession.run",
             return_value=MagicMock(),
         ) as create_live,
-        patch("isaacteleop.oxr.OpenXRSession", return_value=MagicMock()) as oxr_cls,
+        patch("isaaccapture.oxr.OpenXRSession", return_value=MagicMock()) as oxr_cls,
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
+            "isaaccapture.deviceio.DeviceIOSession.get_required_extensions",
             return_value=[],
         ),
-        patch("isaacteleop.plugin_manager.PluginManager", return_value=mock_pm),
-        patch("isaacteleop.deviceio.McapReplayConfig") as replay_config_cls,
+        patch("isaaccapture.plugin_manager.PluginManager", return_value=mock_pm),
+        patch("isaaccapture.deviceio.McapReplayConfig") as replay_config_cls,
     ):
         replay_config_cls.return_value = MagicMock()
         ns = MagicMock()
@@ -3052,7 +3052,7 @@ class TestReplayModeSessionEnter:
         config = self._make_replay_config()
 
         with mock_replay_dependencies() as mocks:
-            with patch("isaacteleop.deviceio.McapReplayConfig") as mock_replay_cls:
+            with patch("isaaccapture.deviceio.McapReplayConfig") as mock_replay_cls:
                 mock_replay_cls.return_value = MagicMock()
                 session = TeleopSession(config)
                 session.__enter__()
@@ -3161,7 +3161,7 @@ class TestReplayModePlugins:
 
         with (
             patch(
-                "isaacteleop.deviceio_trackers.PluginDeviceStatusTracker"
+                "isaaccapture.deviceio_trackers.PluginDeviceStatusTracker"
             ) as tracker_cls,
             mock_replay_dependencies(mock_pm=mock_pm),
         ):
@@ -3201,7 +3201,7 @@ class TestReplayModeAutoPopulate:
         )
 
         with mock_replay_dependencies() as mocks:
-            with patch("isaacteleop.deviceio.McapReplayConfig") as mock_replay_cls:
+            with patch("isaaccapture.deviceio.McapReplayConfig") as mock_replay_cls:
                 mock_replay_cls.return_value = MagicMock()
                 session = TeleopSession(config)
                 session.__enter__()
@@ -3236,7 +3236,7 @@ class TestReplayModeAutoPopulate:
         )
 
         with mock_replay_dependencies() as mocks:
-            with patch("isaacteleop.deviceio.McapReplayConfig") as mock_replay_cls:
+            with patch("isaaccapture.deviceio.McapReplayConfig") as mock_replay_cls:
                 mock_replay_cls.return_value = MagicMock()
                 session = TeleopSession(config)
                 session.__enter__()
@@ -3275,16 +3275,16 @@ def mock_live_dependencies_with_args():
 
     with (
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.run",
+            "isaaccapture.deviceio.DeviceIOSession.run",
             return_value=mock_dio_session,
         ) as create_live,
-        patch("isaacteleop.oxr.OpenXRSession", return_value=mock_oxr_session),
+        patch("isaaccapture.oxr.OpenXRSession", return_value=mock_oxr_session),
         patch(
-            "isaacteleop.deviceio.DeviceIOSession.get_required_extensions",
+            "isaaccapture.deviceio.DeviceIOSession.get_required_extensions",
             return_value=[],
         ),
-        patch("isaacteleop.plugin_manager.PluginManager", return_value=MagicMock()),
-        patch("isaacteleop.deviceio.McapRecordingConfig") as recording_config_cls,
+        patch("isaaccapture.plugin_manager.PluginManager", return_value=MagicMock()),
+        patch("isaaccapture.deviceio.McapRecordingConfig") as recording_config_cls,
     ):
         recording_config_cls.return_value = MagicMock()
         ns = MagicMock()
@@ -3386,7 +3386,7 @@ class TestMcapConfigGetTrackerNames:
 
     @pytest.fixture(autouse=True)
     def _import_deviceio(self):
-        self.deviceio = pytest.importorskip("isaacteleop.deviceio")
+        self.deviceio = pytest.importorskip("isaaccapture.deviceio")
 
     def test_get_tracker_names_returns_pairs(self):
         """get_tracker_names() returns the (tracker, name) pairs passed at construction."""
@@ -3426,7 +3426,7 @@ class TestMcapReplayConfigGetTrackerNames:
 
     @pytest.fixture(autouse=True)
     def _import_deviceio(self):
-        self.deviceio = pytest.importorskip("isaacteleop.deviceio")
+        self.deviceio = pytest.importorskip("isaaccapture.deviceio")
 
     def test_get_tracker_names_returns_pairs(self):
         """get_tracker_names() returns the (tracker, name) pairs passed at construction."""

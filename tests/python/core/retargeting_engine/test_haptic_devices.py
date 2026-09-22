@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Tests for ``isaacteleop.haptic_devices`` adapters.
+Tests for ``isaaccapture.haptic_devices`` adapters.
 
 ``ControllerHapticDevice`` is the in-process device archetype and
 ``PushTensorHapticDevice`` (with the ``haptic_glove_device`` factory) is the
@@ -25,8 +25,8 @@ from typing import List, Tuple
 import numpy as np
 import pytest
 
-from isaacteleop.haptic_devices.controller import ControllerHapticDevice
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.haptic_devices.controller import ControllerHapticDevice
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerHapticPulse,
     FingerPowerVector,
 )
@@ -196,7 +196,7 @@ class TestPushTensorHapticDevice:
     double so ``flush`` can run without a live DeviceIO session."""
 
     def _device(self, **kwargs):
-        from isaacteleop.haptic_devices.push_tensor import PushTensorHapticDevice
+        from isaaccapture.haptic_devices.push_tensor import PushTensorHapticDevice
 
         return PushTensorHapticDevice("test_collection", FingerPowerVector(5), **kwargs)
 
@@ -209,7 +209,7 @@ class TestPushTensorHapticDevice:
         assert device.endpoints() == ("device",)
 
     def test_glove_factory_builds_finger_power_device(self) -> None:
-        from isaacteleop.haptic_devices.glove import haptic_glove_device
+        from isaaccapture.haptic_devices.glove import haptic_glove_device
 
         device = haptic_glove_device("manus_glove_haptic")
         assert device.accepted_type().name == FingerPowerVector(5).name
@@ -277,7 +277,7 @@ def _replay_session(tracker):
     off-device. That is enough to drive a push down the production path: the pybind
     conversion, the generated facade, ``session.get_tracker_impl()``, and the impl call.
     """
-    from isaacteleop.deviceio_session import McapReplayConfig, ReplaySession
+    from isaaccapture.deviceio_session import McapReplayConfig, ReplaySession
 
     return ReplaySession.run(McapReplayConfig("", [(tracker, "haptic_command")]))
 
@@ -313,7 +313,7 @@ class TestPushTensorHapticDeviceAgainstRealTracker:
     """
 
     def _device(self, **kwargs):
-        from isaacteleop.haptic_devices.push_tensor import PushTensorHapticDevice
+        from isaaccapture.haptic_devices.push_tensor import PushTensorHapticDevice
 
         return PushTensorHapticDevice("test_collection", FingerPowerVector(5), **kwargs)
 
@@ -334,7 +334,7 @@ class TestPushTensorHapticDeviceAgainstRealTracker:
 
     def test_tracker_accepts_a_constructed_haptic_command(self) -> None:
         """The call ``flush`` makes, without the exception gate that hides its failure."""
-        from isaacteleop.schema import HapticCommand
+        from isaaccapture.schema import HapticCommand
 
         tracker = self._device().get_tracker()
         session = _replay_session(tracker)
@@ -350,7 +350,7 @@ class TestHapticCommandEncoding:
     ran and round-trips."""
 
     def test_constructor_round_trips_endpoint_and_values(self) -> None:
-        from isaacteleop.schema import HapticCommand
+        from isaaccapture.schema import HapticCommand
 
         command = HapticCommand("left", [0.1, 0.2, 0.3, 0.4, 0.5])
 
@@ -358,7 +358,7 @@ class TestHapticCommandEncoding:
         assert command.values == pytest.approx([0.1, 0.2, 0.3, 0.4, 0.5])
 
     def test_constructor_defaults_to_an_empty_command(self) -> None:
-        from isaacteleop.schema import HapticCommand
+        from isaaccapture.schema import HapticCommand
 
         command = HapticCommand()
 

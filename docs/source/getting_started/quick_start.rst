@@ -67,7 +67,7 @@ to clone the repository for a couple quick samples to run.
 
 .. _install-isaacteleop-pip-package:
 
-2. Install the ``isaacteleop`` pip package
+2. Install the ``isaaccapture`` pip package
 -------------------------------------------
 
 In a new terminal, activate your preferred virtual or conda environment, then install the latest
@@ -75,14 +75,14 @@ stable release from PyPI:
 
 .. code-block:: bash
 
-   pip install 'isaacteleop[cloudxr,retargeters]~=1.0'
+   pip install 'isaaccapture[cloudxr,retargeters]~=1.0'
 
 Pre-release builds are published between stable releases. Picking one up takes the NVIDIA index
 and an opt-in to pre-release versions — shown here with `uv <https://docs.astral.sh/uv/>`__:
 
 .. code-block:: bash
 
-   uv pip install 'isaacteleop[cloudxr,retargeters]~=1.0' \
+   uv pip install 'isaaccapture[cloudxr,retargeters]~=1.0' \
          --extra-index-url https://pypi.nvidia.com --prerelease=allow
 
 The two commands above track the newest 1.x release. To follow this version of the documentation
@@ -90,7 +90,7 @@ The two commands above track the newest 1.x release. To follow this version of t
 
 .. parsed-literal::
 
-   uv pip install 'isaacteleop[cloudxr,retargeters]\ |pip_version_pin|\ ' \\
+   uv pip install 'isaaccapture[cloudxr,retargeters]\ |pip_version_pin|\ ' \\
          --extra-index-url https://pypi.nvidia.com --prerelease=allow
 
 Instead of installing the package from PyPI, you can build from source and install the local wheel.
@@ -127,7 +127,7 @@ env file and start the service with it:
 .. code-block:: bash
 
    echo 'NV_DEVICE_PROFILE=auto-native' > custom.env
-   python -m isaacteleop.cloudxr.service start --cloudxr-env-config ./custom.env
+   python -m isaaccapture.cloudxr.service start --cloudxr-env-config ./custom.env
 
 The same ``--cloudxr-env-config`` flag is available on the teleop examples under
 ``examples/teleop/python/``, which register CloudXR's launcher arguments through

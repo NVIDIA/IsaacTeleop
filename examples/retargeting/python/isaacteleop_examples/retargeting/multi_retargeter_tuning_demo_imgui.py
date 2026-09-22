@@ -26,8 +26,8 @@ import time
 import numpy as np
 
 from .example_retargeters import GainOffsetRetargeter
-from isaacteleop.retargeting_engine.interface import TensorGroup
-from isaacteleop.retargeting_engine_ui import (
+from isaaccapture.retargeting_engine.interface import TensorGroup
+from isaaccapture.retargeting_engine_ui import (
     MultiRetargeterTuningUIImGui,
     LayoutModeImGui,
 )

@@ -14,10 +14,10 @@ import sys
 import time
 import numpy as np
 from pathlib import Path
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-import isaacteleop.schema as schema
-from isaacteleop.cloudxr import CloudXRLauncher
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+import isaaccapture.schema as schema
+from isaaccapture.cloudxr import CloudXRLauncher
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 

@@ -9,9 +9,9 @@ from __future__ import annotations
 import argparse
 import time
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-from isaacteleop.schema import BodyJoint
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+from isaaccapture.schema import BodyJoint
 
 
 _NOITOM_VENDOR_ID = "body.noitom"

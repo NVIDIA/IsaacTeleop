@@ -11,8 +11,8 @@ across multiple managers with different trackers.
 
 import time
 
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
 
 print("=" * 80)
 print("OpenXR Session Sharing Test (Python)")

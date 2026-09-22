@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from typing import List, Optional
 
-import isaacteleop.viz as viz
+import isaaccapture.viz as viz
 
 from config import SourceEntry, VALID_SHAPES
 from placements import yaw_quat
@@ -26,7 +26,7 @@ _MAILBOX_SLOTS = 7
 # headset shows up. CloudXR brings the runtime up long before the operator
 # has the Quest on their head, so failing fast (VizSessionConfig's own
 # default of 0) just means losing the race and re-running. Matches
-# isaacteleop.viz.robot.session.WAIT_FOR_HEADSET.
+# isaaccapture.viz.robot.session.WAIT_FOR_HEADSET.
 #
 # The cost: VizSession.create holds the GIL through the wait, so Ctrl-C is
 # queued and not delivered until a headset connects. Set this to a positive

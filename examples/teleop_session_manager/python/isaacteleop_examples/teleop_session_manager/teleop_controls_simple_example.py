@@ -20,18 +20,18 @@ import sys
 import time
 from typing import Dict
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     HeadSource,
     HandsSource,
     ControllersSource,
 )
-from isaacteleop.retargeting_engine.interface.execution_events import ExecutionState
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.interface.execution_events import ExecutionState
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     GraphExecutable,
 )
-from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.retargeting_engine.tensor_types import ControllerInputIndex
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     create_bool_selector,

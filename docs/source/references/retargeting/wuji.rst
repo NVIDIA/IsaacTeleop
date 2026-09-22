@@ -40,14 +40,14 @@ Install the Wuji retargeting extra:
 
 .. code-block:: console
 
-   $ pip install 'isaacteleop[wuji]'
+   $ pip install 'isaaccapture[wuji]'
 
 Use it from Python
 ------------------
 
 .. code-block:: python
 
-   from isaacteleop.retargeters import (
+   from isaaccapture.retargeters import (
        WujiHandRetargeter,
        WujiHandRetargeterConfig,
    )

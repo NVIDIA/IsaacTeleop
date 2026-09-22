@@ -13,7 +13,7 @@ version = "0.0.0"  # Internal examples - not versioned
 description = "TeleopUtils Python Examples"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "isaacteleop[ui]",
+    "isaaccapture[ui]",
     "numpy>=1.23.0",
 ]
 

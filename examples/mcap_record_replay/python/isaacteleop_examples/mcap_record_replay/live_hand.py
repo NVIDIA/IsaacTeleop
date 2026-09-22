@@ -24,8 +24,8 @@ import time
 import numpy as np
 import viser
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 from .common import HandViz, LEFT_COLOR, RIGHT_COLOR, build_hand_pipeline, setup_scene
 

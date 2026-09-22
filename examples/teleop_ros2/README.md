@@ -30,7 +30,7 @@ parameter:
 - `hand_retargeter:=trihand`: valid only with `controller_teleop`; retargets
   controller trigger/squeeze input to TriHand finger joints.
 - `hand_retargeter:=dexpilot`: uses `DexHandRetargeter` with DexPilot configs from
-  `examples/teleop_ros2/configs/`. It requires `isaacteleop[retargeters]` and
+  `examples/teleop_ros2/configs/`. It requires `isaaccapture[retargeters]` and
   official standalone Sharpa Wave URDFs at:
   `examples/teleop_ros2/assets/urdf/sharpa_standalone/left_sharpa_wave.urdf`
   and
@@ -38,10 +38,10 @@ parameter:
   Set `config_asset_root` to use a different directory containing `configs/`
   and `assets/`; the empty default uses the installed or source tree root.
 - `hand_retargeter:=pink_ik`: uses `SharpaHandRetargeter`. It requires the
-  `isaacteleop[grounding]` runtime dependencies and the bundled
+  `isaaccapture[grounding]` runtime dependencies and the bundled
   `robotic_grounding` package data that provides the Sharpa MJCF assets.
 - `hand_retargeter:=wuji`: uses `WujiHandRetargeter` and requires
-  `isaacteleop[wuji]`. `wuji_hand_model` selects `wuji_hand` or `wuji_hand_2`
+  `isaaccapture[wuji]`. `wuji_hand_model` selects `wuji_hand` or `wuji_hand_2`
   for both sides and defaults to `wuji_hand_2`. Each side publishes 20
   firmware-order joints named `left_thumb_j0` through
   `left_pinky_j3` and `right_thumb_j0` through `right_pinky_j3`.
@@ -54,7 +54,7 @@ controller aim poses with the MANUS controller-to-hand calibration. With
 wrists. Controllers continue to provide locomotion and `controller_data`.
 
 The Docker build fetches the pinned official Sharpa Wave URDFs and installs them
-at `/opt/isaacteleop/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
+at `/opt/isaaccapture/install/examples/teleop_ros2/assets/urdf/sharpa_standalone/`.
 Source-tree users can populate the same local asset directory from the repo root:
 
 ```bash
@@ -145,7 +145,7 @@ docker build -f examples/teleop_ros2/Dockerfile -t teleop_ros2_ref .
 ```
 
 ROS 2 Humble is no longer supported: it ships Python 3.10, which is below the
-`isaacteleop` wheel's minimum of 3.11. Another distro needs `ROS_DISTRO` and
+`isaaccapture` wheel's minimum of 3.11. Another distro needs `ROS_DISTRO` and
 `PYTHON_VERSION` overridden together, and its interpreter must be 3.11 or newer:
 
 ```bash

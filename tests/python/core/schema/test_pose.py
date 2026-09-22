@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for Pose struct in isaacteleop.schema.
+"""Unit tests for Pose struct in isaaccapture.schema.
 
 Note: Pose is now a FlatBuffers struct (not a table), which means:
 - It's a fixed-size, inline type
@@ -11,7 +11,7 @@ Note: Pose is now a FlatBuffers struct (not a table), which means:
 
 import pytest
 
-from isaacteleop.schema import Pose, Point, Quaternion
+from isaaccapture.schema import Pose, Point, Quaternion
 
 
 class TestPoseConstruction:

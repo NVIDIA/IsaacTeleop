@@ -29,11 +29,11 @@ import argparse
 import sys
 import time
 
-from isaacteleop.cloudxr import CloudXRLauncher
+from isaaccapture.cloudxr import CloudXRLauncher
 
 import numpy as np
 
-from isaacteleop.retargeters import SharpaHandRetargeter, SharpaHandRetargeterConfig
+from isaaccapture.retargeters import SharpaHandRetargeter, SharpaHandRetargeterConfig
 
 
 def _default_mjcf(name: str) -> str:
@@ -59,18 +59,20 @@ DEFAULT_RIGHT_MJCF = _default_mjcf("right_sharpawave_nomesh.xml")
 
 
 def _run_synthetic(mjcf_path: str) -> int:
-    from isaacteleop.retargeting_engine.interface import (
+    from isaaccapture.retargeting_engine.interface import (
         ComputeContext,
         ExecutionEvents,
         ExecutionState,
         OptionalTensorGroup,
         TensorGroup,
     )
-    from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-    from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+    from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
+        GraphTime,
+    )
+    from isaaccapture.retargeting_engine.interface.tensor_group_type import (
         OptionalTensorGroupType,
     )
-    from isaacteleop.retargeting_engine.tensor_types import (
+    from isaaccapture.retargeting_engine.tensor_types import (
         HandInput,
         HandInputIndex,
         HandJointIndex,
@@ -213,9 +215,9 @@ def _run_synthetic(mjcf_path: str) -> int:
 
 
 def _run_live(left_mjcf: str, right_mjcf: str, duration: float) -> int:
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner
-    from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+    from isaaccapture.retargeting_engine.deviceio_source_nodes import HandsSource
+    from isaaccapture.retargeting_engine.interface import OutputCombiner
+    from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
     print("[1] Loading MJCFs...")
     print(f"    Left : {left_mjcf}")

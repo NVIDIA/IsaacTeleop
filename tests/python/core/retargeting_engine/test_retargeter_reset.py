@@ -17,23 +17,23 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
     ExecutionState,
     OptionalTensorGroup,
     TensorGroup,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalTensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerInput,
     ControllerInputIndex,
 )
 
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     GripperRetargeter,
     GripperRetargeterConfig,
     LocomotionRootCmdRetargeter,
@@ -43,7 +43,7 @@ from isaacteleop.retargeters import (
     Se3RetargeterConfig,
     SO101ClutchRetargeter,
 )
-from isaacteleop.retargeters.SO101.clutch_retargeter import _mat_to_quat_xyzw
+from isaaccapture.retargeters.SO101.clutch_retargeter import _mat_to_quat_xyzw
 
 
 def _make_context(*, reset: bool = False) -> ComputeContext:

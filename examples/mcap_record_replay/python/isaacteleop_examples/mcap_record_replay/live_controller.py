@@ -24,8 +24,8 @@ import time
 
 import viser
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 from .common import (
     setup_scene,

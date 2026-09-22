@@ -14,10 +14,10 @@ Demonstrates the modular architecture where you can:
 import argparse
 import sys
 import time
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-import isaacteleop.schema as schema
-from isaacteleop.cloudxr import CloudXRLauncher
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+import isaaccapture.schema as schema
+from isaaccapture.cloudxr import CloudXRLauncher
 
 
 def main():

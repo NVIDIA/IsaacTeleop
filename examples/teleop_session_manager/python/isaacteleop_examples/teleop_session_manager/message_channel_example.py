@@ -15,14 +15,14 @@ import sys
 import time
 import uuid
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     MessageChannelConnectionStatus,
     message_channel_config,
 )
-from isaacteleop.retargeting_engine.interface import TensorGroup
-from isaacteleop.schema import MessageChannelMessages, MessageChannelMessagesTracked
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.retargeting_engine.interface import TensorGroup
+from isaaccapture.schema import MessageChannelMessages, MessageChannelMessagesTracked
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 
 def _positive_int(value: str) -> int:

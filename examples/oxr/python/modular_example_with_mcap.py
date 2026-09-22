@@ -15,9 +15,9 @@ import argparse
 import sys
 import time
 from datetime import datetime
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-from isaacteleop.cloudxr import CloudXRLauncher
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+from isaaccapture.cloudxr import CloudXRLauncher
 
 
 RECORD_DURATION_S = 10.0

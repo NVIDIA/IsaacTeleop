@@ -180,7 +180,7 @@ Tracks the HMD head pose via the OpenXR view space.
 
 - Schema: :code-file:`src/core/schema/fbs/head.fbs`
 - C++ header: ``#include <deviceio_trackers/head_tracker.hpp>``
-- Python import: ``from isaacteleop.deviceio import HeadTracker``
+- Python import: ``from isaaccapture.deviceio import HeadTracker``
 - Record channels: ``head`` | MCAP schema: ``core.HeadPoseRecord``
 - Tests:
 
@@ -200,7 +200,7 @@ Tracks articulated hand joints (26 joints per hand, following the OpenXR
 
 - Schema: :code-file:`src/core/schema/fbs/hand.fbs`
 - C++ header: ``#include <deviceio_trackers/hand_tracker.hpp>``
-- Python import: ``from isaacteleop.deviceio import HandTracker``
+- Python import: ``from isaaccapture.deviceio import HandTracker``
 - Record channels: ``left_hand``, ``right_hand`` | MCAP schema: ``core.HandPoseRecord``
 - Tests:
 
@@ -222,7 +222,7 @@ axis inputs. Uses standard OpenXR action bindings.
 
 - Schema: :code-file:`src/core/schema/fbs/controller.fbs`
 - C++ header: ``#include <deviceio_trackers/controller_tracker.hpp>``
-- Python import: ``from isaacteleop.deviceio import ControllerTracker``
+- Python import: ``from isaaccapture.deviceio import ControllerTracker``
 - Record channels: ``left_controller``, ``right_controller`` | MCAP schema: ``core.ControllerSnapshotRecord``
 - Tests:
 
@@ -248,7 +248,7 @@ reads the PICO ``XR_BD_body_tracking`` extension directly.
 
 - Schema: :code-file:`src/core/schema/fbs/full_body.fbs`
 - C++ header: ``#include <deviceio_trackers/full_body_tracker.hpp>``
-- Python import: ``from isaacteleop.deviceio import FullBodyTracker``
+- Python import: ``from isaaccapture.deviceio import FullBodyTracker``
 - Record channels: ``full_body`` | MCAP schema: ``core.FullBodyPoseRecord``
 - Tests:
 
@@ -281,7 +281,7 @@ utility internally.
 - Schema: :code-file:`src/core/schema/fbs/oak.fbs`
 - Manifest: :code-file:`src/core/deviceio_trackers/trackers.toml` (``frame_metadata_oak``)
 - C++ header: ``#include <deviceio_trackers/frame_metadata_tracker_oak.hpp>``
-- Python import: ``from isaacteleop.deviceio import FrameMetadataTrackerOak``
+- Python import: ``from isaaccapture.deviceio import FrameMetadataTrackerOak``
 - Record channels: ``oak``, ``oak_tracked`` | MCAP schema: ``core.FrameMetadataOakRecord``
 - Tests:
 
@@ -302,7 +302,7 @@ utility internally.
 
 - Schema: :code-file:`src/core/schema/fbs/pedals.fbs`
 - C++ header: ``#include <deviceio_trackers/generic_3axis_pedal_tracker.hpp>``
-- Python import: ``from isaacteleop.deviceio import Generic3AxisPedalTracker``
+- Python import: ``from isaaccapture.deviceio import Generic3AxisPedalTracker``
 - Record channels: ``pedals``, ``pedals_tracked`` | MCAP schema: ``core.Generic3AxisPedalOutputRecord``
 - Tests:
 
@@ -342,7 +342,7 @@ trackers, and unknown vendor ids, are rejected at session construction.
 
 .. code-block:: python
 
-   import isaacteleop.deviceio as deviceio
+   import isaaccapture.deviceio as deviceio
 
    body = deviceio.FullBodyTracker()
 

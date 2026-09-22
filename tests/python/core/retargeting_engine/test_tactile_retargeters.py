@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Tests for ``isaacteleop.retargeters.tactile_retargeters``.
+Tests for ``isaaccapture.retargeters.tactile_retargeters``.
 
 Covers the composable spatial primitives (``Vector3FrameTransform``,
 ``WorldForceAccumulator``, ``MagnitudeReducer``) and the per-device mappers
@@ -17,7 +17,7 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from isaacteleop.retargeters.tactile_retargeters import (
+from isaaccapture.retargeters.tactile_retargeters import (
     FingerPowerToControllerPulse,
     MagnitudeReducer,
     TactileHeatmapToControllerPulse,
@@ -28,15 +28,15 @@ from isaacteleop.retargeters.tactile_retargeters import (
     Vector3FrameTransform,
     WorldForceAccumulator,
 )
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
     ExecutionState,
     TensorGroup,
 )
-from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerHapticPulseField,
 )
 

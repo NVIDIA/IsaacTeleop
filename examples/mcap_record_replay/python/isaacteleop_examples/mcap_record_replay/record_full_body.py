@@ -25,10 +25,10 @@ from pathlib import Path
 
 import numpy as np
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.deviceio import McapRecordingConfig
-from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.deviceio import McapRecordingConfig
+from isaaccapture.retargeting_engine.tensor_types.indices import FullBodyInputIndex
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 from .common import BODY_JOINT_NAMES, build_full_body_pipeline
 

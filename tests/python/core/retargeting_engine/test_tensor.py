@@ -7,11 +7,11 @@ Tests for Tensor class - runtime data holder with type validation.
 
 import pytest
 import numpy as np
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     Tensor,
     UNSET_VALUE,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     FloatType,
     IntType,
     BoolType,

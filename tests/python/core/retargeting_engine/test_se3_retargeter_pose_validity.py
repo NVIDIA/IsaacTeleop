@@ -17,20 +17,20 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
     ExecutionState,
     OptionalTensorGroup,
     TensorGroup,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalTensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
+from isaaccapture.retargeting_engine.tensor_types import ControllerInputIndex
 
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     Se3AbsRetargeter,
     Se3RelRetargeter,
     Se3RetargeterConfig,

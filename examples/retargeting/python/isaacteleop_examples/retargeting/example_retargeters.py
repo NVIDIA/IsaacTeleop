@@ -11,7 +11,7 @@ from typing import Optional
 
 import numpy as np
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     BoolParameter,
     FloatParameter,
@@ -20,11 +20,11 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroupType,
     VectorParameter,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
     RetargeterIO,
 )
-from isaacteleop.retargeting_engine.tensor_types import FloatType
+from isaaccapture.retargeting_engine.tensor_types import FloatType
 
 
 class GainOffsetRetargeter(BaseRetargeter):

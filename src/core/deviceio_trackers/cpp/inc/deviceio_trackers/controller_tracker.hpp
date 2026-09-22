@@ -33,7 +33,7 @@ public:
     /// hardware (the side is chosen by which method you call, not a parameter).
     ///
     /// Bridges Isaac Teleop's haptic feedback flow (see
-    /// isaacteleop.haptic_devices.controller.ControllerHapticDevice) to the
+    /// isaaccapture.haptic_devices.controller.ControllerHapticDevice) to the
     /// underlying runtime impl. Vendor neutral at this layer; concrete impls
     /// (e.g. the live OpenXR impl) translate to runtime-specific calls.
     ///

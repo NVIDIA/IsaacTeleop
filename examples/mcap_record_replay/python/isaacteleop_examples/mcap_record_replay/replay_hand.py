@@ -27,8 +27,8 @@ import numpy as np
 import viser
 from mcap.reader import make_reader
 
-from isaacteleop.deviceio import McapReplayConfig
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.deviceio import McapReplayConfig
+from isaaccapture.teleop_session_manager import (
     SessionMode,
     TeleopSession,
     TeleopSessionConfig,

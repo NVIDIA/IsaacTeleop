@@ -23,16 +23,16 @@ This example shows:
 import argparse
 import sys
 import time
-import isaacteleop.deviceio as deviceio
-import isaacteleop.oxr as oxr
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+import isaaccapture.deviceio as deviceio
+import isaaccapture.oxr as oxr
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     HandsSource,
     HeadSource,
     ControllersSource,
 )
-from isaacteleop.retargeting_engine.interface import OutputCombiner, TensorGroup
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.interface import OutputCombiner, TensorGroup
+from isaaccapture.retargeting_engine.tensor_types import (
     HandInputIndex,
     HeadInputIndex,
     ControllerInputIndex,

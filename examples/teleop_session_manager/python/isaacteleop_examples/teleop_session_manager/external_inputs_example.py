@@ -50,9 +50,9 @@ import time
 import numpy as np
 from pathlib import Path
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import ControllersSource
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     OutputCombiner,
     ValueInput,
@@ -60,18 +60,18 @@ from isaacteleop.retargeting_engine.interface import (
     TensorGroupType,
     OptionalType,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
     RetargeterIO,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     ControllerInput,
     ControllerInputIndex,
     TransformMatrix,
     NDArrayType,
     DLDataType,
 )
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,

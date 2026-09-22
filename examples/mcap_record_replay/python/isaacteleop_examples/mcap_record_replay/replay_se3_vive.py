@@ -25,8 +25,8 @@ from pathlib import Path
 
 from mcap.reader import make_reader
 
-from isaacteleop.deviceio_session import McapReplayConfig, ReplaySession
-from isaacteleop.deviceio_trackers import Se3Tracker
+from isaaccapture.deviceio_session import McapReplayConfig, ReplaySession
+from isaaccapture.deviceio_trackers import Se3Tracker
 
 # SE3 recordings write two channels per collection: "<cid>/se3_tracker" and
 # "<cid>/se3_tracker_tracked". Strip either suffix to recover the collection id.

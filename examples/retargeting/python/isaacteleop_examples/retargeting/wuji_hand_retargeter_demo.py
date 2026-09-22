@@ -39,7 +39,7 @@ A retargeter is device-agnostic; the device binding lives only in the opt-in
 device-free modes run without them.
 
 Prereqs:
-    pip install 'isaacteleop[wuji]'    # brings in wuji-sdk[retarget]
+    pip install 'isaaccapture[wuji]'    # brings in wuji-sdk[retarget]
 
 Usage:
     python wuji_hand_retargeter_demo.py
@@ -58,10 +58,10 @@ from typing import ClassVar
 
 import numpy as np
 
-from isaacteleop.retargeters import WujiHandRetargeter, WujiHandRetargeterConfig
-from isaacteleop.retargeters.wuji_hand_retargeter import OPENXR_TO_MEDIAPIPE_INDICES
-from isaacteleop.retargeting_engine.interface import TensorGroup
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeters import WujiHandRetargeter, WujiHandRetargeterConfig
+from isaaccapture.retargeters.wuji_hand_retargeter import OPENXR_TO_MEDIAPIPE_INDICES
+from isaaccapture.retargeting_engine.interface import TensorGroup
+from isaaccapture.retargeting_engine.tensor_types import (
     HandInput,
     HandInputIndex,
     NUM_HAND_JOINTS,
@@ -229,9 +229,9 @@ def run_drive(
     # Lazy imports: only the drive path needs the session + wuji_sdk hardware API.
     from pathlib import Path
 
-    from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
-    from isaacteleop.retargeting_engine.interface import OutputCombiner
-    from isaacteleop.teleop_session_manager import (
+    from isaaccapture.retargeting_engine.deviceio_source_nodes import HandsSource
+    from isaaccapture.retargeting_engine.interface import OutputCombiner
+    from isaaccapture.teleop_session_manager import (
         PluginConfig,
         TeleopSession,
         TeleopSessionConfig,

@@ -375,7 +375,7 @@ def test_fake_tracker_matches_the_real_snapshot_shape():
     green suite and crashed the render thread in XR. Skipped when the
     compiled package is absent (ctest supplies it on PYTHONPATH).
     """
-    schema = pytest.importorskip("isaacteleop.schema._schema")
+    schema = pytest.importorskip("isaaccapture.schema._schema")
 
     real = schema.ControllerSnapshot
     assert hasattr(real, "inputs"), "binding lost 'inputs'"
@@ -390,7 +390,7 @@ def test_fake_tracker_matches_the_real_snapshot_shape():
 
 
 def test_baseline_disabled_when_viz_lacks_the_setter():
-    """An older installed isaacteleop must degrade, not raise every frame."""
+    """An older installed isaaccapture must degrade, not raise every frame."""
     target = _stereo_target(plane_distance=0.0)
 
     class OldLayer:  # released wheel: no set_stereo_baseline_mm

@@ -26,24 +26,24 @@ from pathlib import Path
 
 import numpy as np
 
-from isaacteleop import viz
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-from isaacteleop.retargeting_engine.interface import OutputCombiner, ValueInput
-from isaacteleop.retargeters.controller_pose import ControllerPoseSource
-from isaacteleop.retargeters.rate_limiter import (
+from isaaccapture import viz
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import ControllersSource
+from isaaccapture.retargeting_engine.interface import OutputCombiner, ValueInput
+from isaaccapture.retargeters.controller_pose import ControllerPoseSource
+from isaaccapture.retargeters.rate_limiter import (
     EE_POSE_KEY,
     EePoseRateLimiter,
     RateLimiterConfig,
 )
-from isaacteleop.retargeters.SO101.clutch_retargeter import SO101ClutchRetargeter
-from isaacteleop.retargeters.SO101.gripper_retargeter import (
+from isaaccapture.retargeters.SO101.clutch_retargeter import SO101ClutchRetargeter
+from isaaccapture.retargeters.SO101.gripper_retargeter import (
     GRIPPER_COMMAND_KEY,
     SO101GripperRetargeter,
 )
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
-from isaacteleop.teleop_session_manager.config import TwinRenderConfig
-from isaacteleop.viz.robot import (
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.teleop_session_manager.config import TwinRenderConfig
+from isaaccapture.viz.robot import (
     PREVIEW_ARMS,
     VIEW_COUNT,
     ClutchPreview,
@@ -54,7 +54,7 @@ from isaacteleop.viz.robot import (
     SceneTwin,
     frames,
 )
-from isaacteleop.viz.robot.clutch_preview import (
+from isaaccapture.viz.robot.clutch_preview import (
     COMMANDED_POSE_KEY,
     ENGAGE_PERMITTED_LEAF,
     GHOST_HAND,
@@ -63,7 +63,7 @@ from isaacteleop.viz.robot.clutch_preview import (
     PERMITTED_TYPE,
     log_grip_posture,
 )
-from isaacteleop.viz.robot.so101_ghost import (
+from isaaccapture.viz.robot.so101_ghost import (
     GHOST_BODY,
     GHOST_JAW_BODY,
     TRIGGER_RELEASED_RAD,
@@ -144,17 +144,17 @@ def _build_pipeline(  # noqa: N803
 def _log_startup(arm, scene_path, resolution, backend: str, gl_device: int) -> None:
     """One block naming every assumption that is invisible at runtime."""
     try:
-        version = importlib.metadata.version("isaacteleop")
+        version = importlib.metadata.version("isaaccapture")
     except importlib.metadata.PackageNotFoundError:
         version = "<not installed as a distribution>"
     trans = frames.TRANS_MJ_FROM_XR
 
     LOG.info("arm:        %s", arm)
     LOG.info("scene:      %s", scene_path)
-    # Several examples ship their own .venv, and picking up the wrong isaacteleop is
+    # Several examples ship their own .venv, and picking up the wrong isaaccapture is
     # invisible without this line.
     LOG.info(
-        "isaacteleop: %s (version %s)", Path(viz.__file__).resolve().parent, version
+        "isaaccapture: %s (version %s)", Path(viz.__file__).resolve().parent, version
     )
     # The version the twin is built with, not one the environment supplies: a scene
     # authored against a newer MuJoCo fails to compile with a parser error naming neither.

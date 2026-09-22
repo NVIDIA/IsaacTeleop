@@ -3,7 +3,7 @@
 
 """A robot's digital twin rendered into an Isaac Teleop Televiz XR session.
 
-Pure Python. The scene backend lives in `isaacteleop.viz.robot` and carries a MuJoCo of
+Pure Python. The scene backend lives in `isaaccapture.viz.robot` and carries a MuJoCo of
 its own, so this example neither compiles anything nor cares what `mujoco` the
 environment happens to have.
 """

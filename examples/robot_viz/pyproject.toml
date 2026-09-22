@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Pure Python -- nothing here is compiled. The scene backend lives in
-# isaacteleop.viz.robot, which ships with Televiz on Linux.
+# isaaccapture.viz.robot, which ships with Televiz on Linux.
 #
-#     uv pip install "isaacteleop[cloudxr]" --find-links=./install/wheels/
+#     uv pip install "isaaccapture[cloudxr]" --find-links=./install/wheels/
 #     uv pip install -e ./examples/robot_viz
 #     python -m isaacteleop_examples.robot_viz          # needs a headset; fetches its
 #                                                       # scene on the first run
@@ -23,10 +23,10 @@ description = "A robot's digital twin rendered into an Isaac Teleop Televiz XR s
 requires-python = ">=3.11,<3.14"
 
 dependencies = [
-    # Unversioned, and a live hazard: a published isaacteleop exists on PyPI, so this
+    # Unversioned, and a live hazard: a published isaaccapture exists on PyPI, so this
     # resolves happily against a release that is not this checkout's viz -- and against
     # one with no robot twin at all. Install the locally built wheel first.
-    "isaacteleop",
+    "isaaccapture",
     # app.py imports numpy directly.
     "numpy",
 ]
@@ -42,7 +42,7 @@ where = ["python"]
 include = ["isaacteleop_examples*"]
 namespaces = true
 
-# No package-data: the scene and its meshes belong to isaacteleop.viz.robot, which fetches
+# No package-data: the scene and its meshes belong to isaaccapture.viz.robot, which fetches
 # them into a cache on first use. This example ships nothing but Python.
 
 [tool.pytest.ini_options]

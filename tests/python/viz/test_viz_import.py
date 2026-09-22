@@ -4,7 +4,7 @@
 
 import pytest
 
-import isaacteleop.viz as viz
+import isaaccapture.viz as viz
 
 
 def test_module_imports():

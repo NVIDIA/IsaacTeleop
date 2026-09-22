@@ -3,25 +3,25 @@
 
 """Helper utilities for the simple teleop controls example."""
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     HeadSource,
     HandsSource,
     ControllersSource,
 )
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     OutputCombiner,
     RetargeterIOType,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
     RetargeterIO,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalType,
     TensorGroupType,
 )
-from isaacteleop.retargeting_engine.tensor_types import (
+from isaaccapture.retargeting_engine.tensor_types import (
     BoolType,
     ControllerInput,
     HandInput,

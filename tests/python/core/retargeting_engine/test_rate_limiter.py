@@ -6,9 +6,9 @@
 Covers the safety-harness nodes that bound per-frame command velocity for bare
 position-servo followers (e.g. the SO-101):
 
-* :class:`~isaacteleop.retargeters.EePoseRateLimiter` -- linear/angular velocity
+* :class:`~isaaccapture.retargeters.EePoseRateLimiter` -- linear/angular velocity
   bounds on an absolute 7-D ``ee_pose`` stream.
-* :class:`~isaacteleop.retargeters.JointRateLimiter` -- per-joint velocity bounds
+* :class:`~isaaccapture.retargeters.JointRateLimiter` -- per-joint velocity bounds
   on a name-keyed ``joint_targets`` group.
 
 Each limiter is exercised at the pure-math level (the module-private clamp
@@ -22,23 +22,23 @@ import math
 import numpy as np
 import pytest
 
-from isaacteleop.retargeting_engine.interface import (
+from isaaccapture.retargeting_engine.interface import (
     ComputeContext,
     ExecutionEvents,
     ExecutionState,
     OptionalTensorGroup,
     TensorGroup,
 )
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import GraphTime
-from isaacteleop.retargeting_engine.interface.tensor_group_type import (
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
+from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalTensorGroupType,
 )
-from isaacteleop.retargeters import (
+from isaaccapture.retargeters import (
     EePoseRateLimiter,
     JointRateLimiter,
     RateLimiterConfig,
 )
-from isaacteleop.retargeters.rate_limiter import (
+from isaaccapture.retargeters.rate_limiter import (
     EE_POSE_KEY,
     JOINT_TARGETS_KEY,
     _clamp_orientation_step,

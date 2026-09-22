@@ -71,7 +71,7 @@ features does not import its heavier numerical stack. The
 
 .. code-block:: console
 
-   $ pip install "isaacteleop[grounding]"
+   $ pip install "isaaccapture[grounding]"
 
 For a source or editable install, CMake performs the same fetch and
 staging automatically:
@@ -89,7 +89,7 @@ Use it from Python
 
 .. code-block:: python
 
-   from isaacteleop.retargeters import (
+   from isaaccapture.retargeters import (
        SharpaHandRetargeter,
        SharpaHandRetargeterConfig,
    )

@@ -27,9 +27,9 @@ import numpy as np
 import viser
 from mcap.reader import make_reader
 
-from isaacteleop.deviceio import McapReplayConfig
-from isaacteleop.retargeting_engine.tensor_types.indices import FullBodyInputIndex
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.deviceio import McapReplayConfig
+from isaaccapture.retargeting_engine.tensor_types.indices import FullBodyInputIndex
+from isaaccapture.teleop_session_manager import (
     SessionMode,
     TeleopSession,
     TeleopSessionConfig,

@@ -74,9 +74,9 @@ for the full runnable setup.
 
 .. code-block:: python
 
-   from isaacteleop.retargeting_engine.deviceio_source_nodes import ControllersSource
-   from isaacteleop.retargeting_engine.tensor_types import ControllerInputIndex
-   from isaacteleop.teleop_session_manager import (
+   from isaaccapture.retargeting_engine.deviceio_source_nodes import ControllersSource
+   from isaaccapture.retargeting_engine.tensor_types import ControllerInputIndex
+   from isaaccapture.teleop_session_manager import (
        DefaultTeleopStateManager,
        create_bool_selector,
    )
@@ -131,7 +131,7 @@ or other high-level behavior:
 
 .. code-block:: python
 
-   from isaacteleop.retargeting_engine.interface.execution_events import ExecutionState
+   from isaaccapture.retargeting_engine.interface.execution_events import ExecutionState
 
    outputs = session.step()
    context = session.last_context

@@ -18,18 +18,18 @@ from types import SimpleNamespace
 from pathlib import Path
 import numpy as np
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import HandsSource
-from isaacteleop.retargeters import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import HandsSource
+from isaaccapture.retargeters import (
     DexHandRetargeter,
     DexHandRetargeterConfig,
     Se3AbsRetargeter,
     Se3RetargeterConfig,
     TensorReorderer,
 )
-from isaacteleop.retargeting_engine.interface import OutputCombiner
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
-from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
+from isaaccapture.retargeting_engine.interface import OutputCombiner
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.retargeting_engine_ui import MultiRetargeterTuningUIImGui
 
 
 def main():
