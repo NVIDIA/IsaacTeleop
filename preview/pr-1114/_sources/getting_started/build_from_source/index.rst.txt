@@ -346,7 +346,8 @@ based on the Python version.  Note that ``pip`` and ``uv pip`` has slightly diff
    # Pass --reinstall to replace an existing install.
    uv pip install "isaaccapture[retargeters,cloudxr,ui]" --find-links=./install/wheels/ --reinstall
 
-The wheel carries the ``isaacteleop`` compatibility alias, removed in 1.9, so
+The wheel carries the ``isaacteleop`` compatibility alias, which will be removed
+in 1.9, so
 ``import isaacteleop`` resolves without installing anything else. See
 :doc:`/references/migration`.
 

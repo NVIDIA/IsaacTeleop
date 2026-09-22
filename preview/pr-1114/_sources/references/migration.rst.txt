@@ -6,7 +6,8 @@ Migrating to ``isaaccapture``
 
 In 1.6 the Python import package and the distribution were both renamed from
 ``isaacteleop`` to ``isaaccapture``. ``import isaacteleop`` keeps working for now
-through an alias shipped inside the ``isaaccapture`` wheel, **removed in 1.9**.
+through an alias shipped inside the ``isaaccapture`` wheel, which **will be
+removed in 1.9**.
 
 .. warning::
 

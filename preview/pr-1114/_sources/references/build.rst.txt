@@ -66,7 +66,8 @@ After building, install the wheels with ``uv`` or ``pip``:
    # or
    pip install install/wheels/isaaccapture-*.whl
 
-The wheel carries the ``isaacteleop`` compatibility alias, removed in 1.9, so
+The wheel carries the ``isaacteleop`` compatibility alias, which will be removed
+in 1.9, so
 ``import isaacteleop`` resolves without a second install; see :doc:`migration`.
 
 Installing from source with pip (scikit-build-core)
