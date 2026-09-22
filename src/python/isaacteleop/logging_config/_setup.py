@@ -32,14 +32,11 @@ def install() -> None:
 
     socket_path = _forwarding.socket_path()
     if socket_path is not None:
-        # The forwarding handler first, and that ordering is load-bearing: a
-        # child attaches no console handler (_console.ensure_handler() builds
-        # one but does not add it), so until this line the isaacteleop logger
-        # has no handler at all and anything reported during setup falls
-        # through to logging.lastResort -- an unformatted line on this
-        # process's stderr, which for a plugin or the runtime worker is the
-        # parent's capture file rather than the session log. gate() reports
-        # exactly that way when the capture file cannot be created.
+        # The forwarding handler first, and the ordering is load-bearing: a
+        # child attaches no console handler, so until this line the isaacteleop
+        # logger has none at all and anything reported below -- ensure_sink()
+        # warns when it cannot create the capture file -- would fall through to
+        # logging.lastResort, an unformatted line on this process's stderr.
         _forwarding.ensure_handler(socket_path)
         # Built but not attached in a child (see _console.ensure_handler), so
         # that a capture scope still has somewhere to move its stream.
@@ -70,35 +67,18 @@ def install() -> None:
 def set_propagate_to_root(enabled: bool) -> None:
     """Whether ``isaacteleop`` records also travel on to Python's root logger.
 
-    On by default, which is the stdlib default and what lets an embedding
-    application see these records without knowing this package exists. It is
-    the wrong default for an application that configures the root logger
-    itself: this tree already owns a console handler and a file handler, so
-    every record is emitted twice, and the second copy goes out through the
-    application's handlers -- past ``set_console_level`` and
-    ``set_console_filter``, which only govern the handler installed here.
+    On by default (the stdlib default), which lets an embedding application see
+    these records without knowing this package exists. Turn it off when the
+    application configures the root logger itself: this tree already owns a
+    console and a file handler, so every record is emitted twice, and the second
+    copy is *louder* -- ``callHandlers`` gates the walk on each handler's level,
+    never a logger's, and ``ensure_handler`` puts the ``isaacteleop`` logger at
+    ``TRACE``, so a host's ``basicConfig(level=INFO)`` still receives this
+    tree's DEBUG and TRACE records through its ``NOTSET`` handler.
 
-    The second copy is also **louder** than the first, which is the part that
-    surprises people. ``ensure_handler`` puts the ``isaacteleop`` logger at
-    ``TRACE`` so the file handler can capture everything, and ``callHandlers``
-    gates the walk up the tree on each *handler's* level, never on a logger's.
-    A host that called ``logging.basicConfig(level=logging.INFO)`` therefore
-    gets this tree's DEBUG and TRACE records too, because ``basicConfig``
-    leaves the handler it creates at ``NOTSET``. Measured, not inferred.
-    Turning propagation off is the remedy.
-
-    Turning it off makes this tree the sole route for its own records. An
-    application that still wants them attaches its handler to the
-    ``isaacteleop`` logger rather than to the root::
-
-        from isaacteleop import logging_config
-
-        logging_config.set_propagate_to_root(False)
-        logging.getLogger("isaacteleop").addHandler(my_handler)
-
-    The default is deliberately not flipped: pytest's ``caplog`` captures
-    through a handler on the root logger, so several suites in this repository
-    -- and, more to the point, in any project testing against this one -- stop
-    seeing ``isaacteleop`` records the moment propagation is off.
+    An application that turns it off and still wants the records attaches its
+    handler to the ``isaacteleop`` logger rather than to the root. The default is
+    deliberately not flipped: pytest's ``caplog`` captures through a root
+    handler, so any suite testing against this tree would stop seeing them.
     """
     logging.getLogger(ROOT_LOGGER_NAME).propagate = bool(enabled)

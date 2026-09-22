@@ -1047,16 +1047,12 @@ class TeleopSession:
 
         self._in_context = True
         stack = ExitStack()
-        # Everything acquired below eventually calls into native code that writes
-        # diagnostics straight to a descriptor and exports no log hook:
-        # xrCreateInstance/xrCreateSession, the ~50 xrCreateHandTrackerEXT probes
-        # inside DeviceIOSession.run(), and each plugin's own startup. This block
-        # is what keeps that off the terminal and in the session log; isaacteleop
-        # does not touch fd 1/2 outside it, so the host's own output during the
-        # rest of the run is untouched. It covers the rollback below too, which
-        # tears the same native objects down again. Kept around construction
-        # rather than around the whole session on purpose -- see
-        # capture_native_output() for what a scope does cost while it is open.
+        # Everything acquired below reaches native code that writes diagnostics
+        # straight to a descriptor and exports no log hook: xrCreateInstance /
+        # xrCreateSession, the ~50 xrCreateHandTrackerEXT probes inside
+        # DeviceIOSession.run(), and each plugin's startup. The scope covers the
+        # rollback below too, which tears the same objects down again. See
+        # capture_native_output() for what a scope costs while it is open.
         with logging_config.capture_native_output():
             try:
                 self._enter_resources(stack)

@@ -27,6 +27,8 @@ namespace isaacteleop::detail
 namespace
 {
 
+// One guard for the whole namespace: every helper here is reached only from the
+// POSIX-only bodies below, so on Windows each would be an unused static.
 #ifndef _WIN32
 // Matches the Python sender's socket timeout (logging_config/_forwarding.py).
 constexpr int kSendTimeoutSeconds = 1;
@@ -69,12 +71,7 @@ int current_pid()
 {
     return static_cast<int>(::getpid());
 }
-#endif
 
-// Guarded like current_pid() beside it: its only caller is sink_it_()'s
-// POSIX-only body, so on Windows this is an unused static function -- MSVC
-// C4505 under /W4, -Wunused-function under GCC/Clang.
-#ifndef _WIN32
 void append_json_escaped(std::string& out, std::string_view s)
 {
     for (unsigned char c : s)
@@ -110,14 +107,7 @@ void append_json_escaped(std::string& out, std::string_view s)
         }
     }
 }
-#endif
 
-} // namespace
-
-namespace
-{
-
-#ifndef _WIN32
 int create_unix_socket()
 {
 #    ifdef SOCK_CLOEXEC
@@ -188,13 +178,10 @@ bool send_all(int fd, const void* data, std::size_t size, std::chrono::steady_cl
 // ::connect(), bounded. A blocking AF_UNIX connect() is not the fast-fail it
 // looks like: with nothing bound it fails at once with ECONNREFUSED, but
 // against a live socket whose accept backlog is full and whose owner never
-// accepts, it waits with no bound at all (measured past 20 s). Both callers
-// reach this holding a lock the whole process contends for --
-// forwarding_socket_path() runs inside local_sinks()'s function-local static,
-// which Logger::get() enters under creation_mutex, and sink_it_() holds
-// base_sink's mutex -- so an unbounded wait here wedges every logging thread,
-// not just this one. SO_SNDTIMEO is no substitute: it bounds connect() on
-// Linux only.
+// accepts it waits with no bound at all (measured past 20 s). Both callers hold
+// a lock the whole process contends for -- creation_mutex via local_sinks(), or
+// base_sink's own mutex -- so an unbounded wait wedges every logging thread.
+// SO_SNDTIMEO is no substitute: it bounds connect() on Linux only.
 bool connect_bounded(int fd, const sockaddr_un& addr)
 {
     const int flags = ::fcntl(fd, F_GETFL);
@@ -230,20 +217,11 @@ bool connect_bounded(int fd, const sockaddr_un& addr)
             connected = ::getsockopt(fd, SOL_SOCKET, SO_ERROR, &pending, &pending_size) == 0 && pending == 0;
             break;
         }
-        // EAGAIN is what a full accept queue answers on a non-blocking socket,
-        // and it is the one that matters: a blocking socket waits there with no
-        // bound at all. Retrying it inside the budget is what keeps a burst of
-        // simultaneous plugin launches from making a live leader look
-        // unreachable, which would cost that process the session-wide log file.
-        //
-        // EALREADY and EINTR are carried for completeness, not for a failure
-        // anyone has produced. POSIX permits both and handling them costs a
-        // comparison; measured on Linux, AF_UNIX against a full backlog answers
-        // EAGAIN every time (400/400, including with a no-SA_RESTART signal
-        // landing on the call), so neither the EINPROGRESS branch above nor
-        // these two is reached by this sink's transport here. Do not read their
-        // presence as evidence that they occur, and do not fold the EAGAIN path
-        // into the EINPROGRESS one on the strength of the poll() it does.
+        // EAGAIN is what a full accept queue answers on a non-blocking socket.
+        // Retrying it inside the budget keeps a burst of simultaneous plugin
+        // launches from making a live leader look unreachable, which would cost
+        // that process the session-wide log file. EALREADY and EINTR are carried
+        // because POSIX permits them, not because anything has produced them.
         if ((errno != EAGAIN && errno != EALREADY && errno != EINTR) || millis_until(deadline) == 0)
         {
             break;
@@ -294,13 +272,11 @@ std::string forwarding_socket_path()
     {
         return {};
     }
-    // Verified once, not trusted. local_sinks() returns *only* a
-    // SocketForwardSink when this is non-empty -- no console sink, no file
-    // sink behind it -- so a process that believed a dead address would log
-    // nothing, anywhere. The Python half checks the same thing and unsets the
-    // variable, but a standalone executable with no interpreter has no Python
-    // half to do that for it. Called from local_sinks()'s function-local
-    // static, so this probe runs once per process.
+    // Verified once (this runs inside local_sinks()'s function-local static),
+    // not trusted: local_sinks() returns *only* a SocketForwardSink when this is
+    // set, so a process that believed a dead address would log nothing anywhere.
+    // The Python half unsets the variable on the same check, but a standalone
+    // executable has no Python half to do it.
     if (!socket_is_reachable(path))
     {
         return {};
@@ -369,14 +345,11 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
         return;
     }
 
-    // Seconds and microseconds as integers, formatted with a literal '.'.
-    // Never std::to_string(double) here: libstdc++ implements it through
-    // vsnprintf("%f"), whose decimal point comes from the global C locale. A
-    // vendor SDK that calls setlocale(LC_ALL, "") on a host set to a language
-    // that writes 1,5 turns this field into 1758000000,123456, which is not
-    // JSON -- and the receiver's json.loads() raises ValueError, which its
-    // frame loop catches and continues past, so every record from that point
-    // on is dropped in silence with the connection still healthy.
+    // Seconds and microseconds as integers, joined by a literal '.'. Never
+    // std::to_string(double): libstdc++ routes it through vsnprintf("%f"),
+    // whose decimal point comes from the global C locale, so a vendor SDK's
+    // setlocale(LC_ALL, "") on a comma-decimal host makes this field invalid
+    // JSON and the receiver silently drops every record from then on.
     const auto since_epoch = msg.time.time_since_epoch();
     const auto whole_seconds = std::chrono::duration_cast<std::chrono::seconds>(since_epoch);
     const auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(since_epoch - whole_seconds);

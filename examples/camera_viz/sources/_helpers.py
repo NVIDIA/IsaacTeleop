@@ -61,10 +61,8 @@ def set_notify_sink(sink) -> None:
 def notify(tag: str, msg: str, level: int = logging.INFO) -> None:
     """Lifecycle events (opening/connected/streaming/errors); see notify_verbose for stats.
 
-    *level* exists because this one function carries both halves of a source's
-    lifecycle. "connected" and "streaming" are INFO; a failed open or a grab
-    that forced a reconnect is not, and emitting it at INFO hid it from any
-    console raised above that threshold and mislabelled it in the log file.
+    *level* separates the two halves this one function carries: "connected" and
+    "streaming" are INFO, a failed open or a forced reconnect is not.
     """
     # The sink still wins when one is installed: the status panel owns stderr
     # while it is up, and the console handler writes there too, so logging

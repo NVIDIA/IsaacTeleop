@@ -217,13 +217,11 @@ class CloudXRService:
         # its next write to stderr would block the runtime with no diagnostic.
         # Truncated per start so a failure report shows only this one.
         worker_stderr = logs_dir_path / _WORKER_STDERR_LOG
-        # stdout explicitly, not inherited. isaacteleop no longer rebinds its
-        # host's fd 1, so inheriting would put the runtime's startup banner and
-        # the native stack's chatter on the host application's terminal. This is
-        # a process this library launched, so its descriptors are ours to set;
-        # capture_fd() is the same file every other non-logger byte of the
-        # session lands in. None only if the capture could not be opened at all,
-        # in which case inheriting is the correct fallback.
+        # stdout explicitly, not inherited: the runtime's startup banner and the
+        # native stack's chatter would otherwise land on the host application's
+        # terminal. This is a process this library launched, so its descriptors
+        # are ours to set. None only if the capture file could not be opened, in
+        # which case inheriting is the right fallback.
         capture_fd = native_capture_fd()
         with open(worker_stderr, "w", encoding="utf-8") as stderr_file:
             self._runtime_proc = subprocess.Popen(
@@ -461,14 +459,10 @@ class CloudXRService:
         if worker_stderr.is_file():
             result.append(worker_stderr)
 
-        # The runtime worker's own fd 1 (its startup banner, and the
-        # Vulkan-loader/GPU-init diagnostics it writes straight to a
-        # descriptor) lands in *this* process's native-fd capture file, not
-        # under `logs_dir` (CloudXR's own ~/.cloudxr/logs): the worker is
-        # launched with stdout=native_capture_fd(), a descriptor onto the file
-        # this service opened. The worker's own capture file, named after its
-        # pid, is the wrong one -- in the default `scoped` mode nothing ever
-        # rebinds the worker's descriptors onto it, so it stays empty.
+        # The worker's own fd 1 lands in *this* process's capture file, not
+        # under `logs_dir` and not in the worker's own (which stays empty --
+        # nothing rebinds that process's descriptors onto it): it is launched
+        # with stdout=native_capture_fd(), a descriptor onto this one.
         capture = native_capture_path()
         if capture is not None and capture.is_file():
             result.append(capture)

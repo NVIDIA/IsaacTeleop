@@ -126,14 +126,10 @@ def spawn(
     # print() to a file is block-buffered, so without PYTHONUNBUFFERED the
     # startup banner sits in the buffer and `tail -f` looks like a hang.
     env = {**os.environ, "PYTHONUNBUFFERED": "1", **(extra_env or {})}
-    # Not inherited: isaacteleop.logging_config hands every process that sees
-    # this variable a forwarding handler *and nothing else*, on the assumption
-    # that whoever published it outlives them. This service is started to
-    # outlive its launcher, so it would keep shipping records to a receiver
-    # that stopped answering the moment the launcher exited, with no console or
-    # file of its own to fall back on. Dropping it makes the service its own
-    # session leader, which is what an independent process should be. The C++
-    # half reads the same variable, so this covers both.
+    # Not inherited: a process that sees this variable gets a forwarding handler
+    # *and nothing else*, on the assumption that the publisher outlives it. This
+    # service is started to outlive its launcher, so dropping the variable makes
+    # it its own session leader. The C++ half reads the same one.
     env.pop("ISAACTELEOP_LOG_SOCKET", None)
 
     with open(log, "a", encoding="utf-8") as handle:

@@ -78,18 +78,13 @@ def _level_color(levelno: int) -> str | None:
 class _LoggerNameColorFormatter(logging.Formatter):
     """Colours the line by level, and ``[%(name)s]`` by its registered emphasis.
 
-    A warning is yellow and an error red, end to end, so the eye finds it without
-    reading. A logger that has an emphasis colour keeps it inside that line, and
-    the level colour **resumes** after the name rather than resetting to the
-    terminal default -- the pid and the message belong to the same record and
-    should keep reading as one::
+    A logger's emphasis colour applies inside the line and the level colour
+    *resumes* after the name, so a warning or error still reads as one line::
 
         <yellow>[ts] [WARNING] [<emphasis>name<yellow>] [pid:N] message<reset>
 
-    Escapes are emitted only when the handler's stream is a terminal. Everywhere
-    else -- a pipe, a CI log, a file an operator redirected into -- they would be
-    noise in text nobody can see colour in, and they would corrupt anything that
-    parses the output.
+    Escapes are emitted only when the handler's stream is a terminal; anywhere
+    else they would be noise, and would corrupt anything parsing the output.
     """
 
     def __init__(self, *args, handler: logging.StreamHandler, **kwargs) -> None:
@@ -207,14 +202,8 @@ def set_logger_colors(colors: dict[str, str | None]) -> None:
 
     *colors* maps an exact logger name to an SGR escape -- ``"\\033[36m"``,
     ``"\\033[38;2;255;136;0m"`` and the like, emitted as given -- or to ``None``
-    to drop a colour set earlier. Names left out keep whatever they already
-    have, and an unregistered logger renders in the terminal's default colour.
-    Only the console handler is affected; the log file never receives escapes,
-    and neither does a console stream that is not a terminal.
-
-    Independent of the level colouring, and composes with it: on a warning or an
-    error line the name is drawn in this colour and the level colour resumes
-    after it, so the record still reads as one line.
+    to drop a colour set earlier. Names left out keep what they have. Only the
+    console handler is affected, and only when its stream is a terminal.
 
     Raises:
         ValueError: if a value is not composed solely of SGR escapes.

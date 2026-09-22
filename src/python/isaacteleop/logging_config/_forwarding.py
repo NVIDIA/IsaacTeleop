@@ -311,12 +311,10 @@ def _release_receiver(
     """Stop the receiver and remove its socket, in the process that started it.
 
     Only the creator may do either. ``fork()`` does not copy threads, so in a
-    child ``serve_forever`` is not running and ``shutdown()`` waits forever on
-    an Event nothing will ever set -- and the unlink would meanwhile take the
-    socket the *leader* is still listening on, silently ending forwarding for
-    the whole session. One registration rather than two also fixes the order:
-    atexit runs LIFO, so a separately registered unlink ran before the
-    shutdown it should follow.
+    child ``serve_forever`` is not running and ``shutdown()`` would wait forever
+    on an Event nothing will set, while the unlink took the socket the *leader*
+    is still listening on. One registration, not two, also keeps the unlink
+    after the shutdown -- atexit runs LIFO.
     """
     if os.getpid() != owner_pid:
         return
@@ -339,11 +337,9 @@ def _release_receiver(
 def _no_receiver(reason: str) -> str:
     """Report that forwarding is off and return the "no address" sentinel.
 
-    A warning rather than silence: the console and file handlers are already
-    attached by the time this runs, so the operator sees it, and the difference
-    it describes -- each process logging for itself instead of into one
-    session-wide file -- is otherwise invisible until someone goes looking for
-    a child's records.
+    A warning rather than silence: what it describes -- each process logging for
+    itself instead of into one session-wide file -- is otherwise invisible until
+    someone goes looking for a child's records.
     """
     logging.getLogger(ROOT_LOGGER_NAME).warning(
         "Log forwarding disabled: %s. Each process will keep its own console "
@@ -355,23 +351,18 @@ def _no_receiver(reason: str) -> str:
 
 def ensure_receiver() -> str:
     """Start this process's log receiver if it hasn't already, and return its
-    socket path. Idempotent. Runs in a background thread -- not a forked
-    process -- specifically so it shares this interpreter's already
-    thread-safe ``logging`` locks rather than risking a fork-inherited lock
-    held by some other thread at fork time, which is the deadlock class this
-    design avoids by construction.
+    socket path. Idempotent.
 
-    Sets ``ISAACTELEOP_LOG_SOCKET`` in ``os.environ`` so every process this
-    one spawns afterwards -- fork+exec'd (inherits the full environ) or
-    ``subprocess.Popen``'d with an ``os.environ``-derived ``env=`` (as every
-    site in this tree already does) -- finds it automatically.
+    A background thread, not a forked process, so it shares this interpreter's
+    already thread-safe ``logging`` locks instead of inheriting one held by
+    another thread at fork time.
 
-    Returns the empty string, and publishes nothing, whenever a receiver cannot
-    be started -- no Unix sockets, no writable runtime directory, a sun_path
-    that will not fit. Never raises: this runs from ``install()``, which runs
-    from ``import isaacteleop``, so a failure here must cost forwarding and
-    nothing else. With no address to hand on, every child takes the leader
-    branch exactly as this process did, which is the pre-forwarding behaviour.
+    Sets ``ISAACTELEOP_LOG_SOCKET`` in ``os.environ`` so every process this one
+    spawns afterwards finds it. Returns the empty string, and publishes nothing,
+    when a receiver cannot be started -- no Unix sockets, no writable runtime
+    directory, a sun_path that will not fit. Never raises: this runs from
+    ``install()``, so a failure must cost forwarding and nothing else, and every
+    child then takes the leader branch exactly as this process did.
     """
     global _receiver_socket
     if not _HAS_UNIX_SOCKETS:
