@@ -63,6 +63,24 @@ class TestReadPid:
             proc.kill()
             proc.wait()
 
+    def test_a_process_that_merely_names_the_module_is_not_the_service(self, tmp_path):
+        """A `stop` that matched one would kill a bystander, or refuse to start
+        behind one that is not serving anything."""
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import time; time.sleep(30)",
+                f"--log-file=/var/log/{background._MODULE}.log",
+            ]
+        )
+        try:
+            background.pid_path(str(tmp_path)).write_text(f"{proc.pid}\n")
+            assert background.read_pid(str(tmp_path)) is None
+        finally:
+            proc.kill()
+            proc.wait()
+
 
 @_posix_only
 class TestSpawn:
