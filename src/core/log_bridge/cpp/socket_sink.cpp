@@ -71,7 +71,12 @@ int current_pid()
     return static_cast<int>(::getpid());
 }
 
-bool send_all(int fd, const void* data, std::size_t size)
+// One deadline for the whole frame, not one per ::send(). SO_SNDTIMEO applies
+// per call, so a partial send restarts it and a receiver draining slowly holds
+// base_sink's mutex for as long as it keeps making progress -- measured 2.00 s
+// over two calls against a socketpair with no reader. Python's socket.sendall()
+// bounds the entire buffer by the same one second.
+bool send_all(int fd, const void* data, std::size_t size, std::chrono::steady_clock::time_point deadline)
 {
     const auto* cursor = static_cast<const char*>(data);
     while (size > 0)
@@ -81,13 +86,15 @@ bool send_all(int fd, const void* data, std::size_t size)
         {
             cursor += sent;
             size -= static_cast<std::size_t>(sent);
-            continue;
         }
-        if (sent < 0 && errno == EINTR)
+        else if (sent == 0 || errno != EINTR)
         {
-            continue;
+            return false;
         }
-        return false;
+        if (size > 0 && std::chrono::steady_clock::now() >= deadline)
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -396,7 +403,9 @@ void SocketForwardSink::sink_it_(const spdlog::details::log_msg& msg)
 
     // MSG_NOSIGNAL instead of a global SIGPIPE ignore: this sink must not change
     // process-wide signal disposition for code elsewhere that may care about SIGPIPE.
-    const bool ok = send_all(fd_, header, sizeof(header)) && send_all(fd_, payload.data(), payload.size());
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(kSendTimeoutSeconds);
+    const bool ok =
+        send_all(fd_, header, sizeof(header), deadline) && send_all(fd_, payload.data(), payload.size(), deadline);
     if (!ok)
     {
         ::close(fd_);
