@@ -21,11 +21,18 @@ import pytest
 
 import isaacteleop  # noqa: F401  -- installs the finder
 
+#: src/python/CMakeLists.txt filters isaaccapture/viz/ out of the staged tree when
+#: BUILD_VIZ=OFF, the documented auto-default without Vulkan and the CUDA Toolkit.
+_HAS_VIZ = importlib.util.find_spec("isaaccapture.viz") is not None
+
 PROBES = [
     "cloudxr",  # package
     "cloudxr.env_config",  # plain module
     "schema._schema",  # extension module
-    "viz.robot.assets",  # nested module
+    pytest.param(
+        "viz.robot.assets",  # nested module
+        marks=pytest.mark.skipif(not _HAS_VIZ, reason="built with BUILD_VIZ=OFF"),
+    ),
 ]
 
 

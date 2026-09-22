@@ -9,6 +9,14 @@ file(GLOB TEST_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/test_*.py"
 )
 
+# PYTHONPATH is joined with os.pathsep, which is ';' on Windows -- also CMake's
+# list separator inside ENVIRONMENT, hence the escape.
+if(WIN32)
+    set(ISAAC_TELEOP_PATH_SEP "\;")
+else()
+    set(ISAAC_TELEOP_PATH_SEP ":")
+endif()
+
 foreach(test_file ${TEST_FILES})
     get_filename_component(test_name "${test_file}" NAME_WE)
 
@@ -20,6 +28,6 @@ foreach(test_file ${TEST_FILES})
 
     set_tests_properties("compat_${test_name}" PROPERTIES
         ENVIRONMENT
-            "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>:${ISAAC_TELEOP_COMPAT_STAGE_DIR};ISAAC_TELEOP_COMPAT_STAGE_DIR=${ISAAC_TELEOP_COMPAT_STAGE_DIR}"
+            "PYTHONPATH=${CMAKE_BINARY_DIR}/python_package/$<CONFIG>${ISAAC_TELEOP_PATH_SEP}${ISAAC_TELEOP_COMPAT_STAGE_DIR};ISAAC_TELEOP_COMPAT_STAGE_DIR=${ISAAC_TELEOP_COMPAT_STAGE_DIR}"
     )
 endforeach()

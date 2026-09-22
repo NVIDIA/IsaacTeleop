@@ -2,10 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Both names are one module object, and the new name's namespace stays clean."""
 
+import importlib.machinery
+import importlib.util
+import os
 import sys
+
+import pytest
 
 import isaaccapture
 import isaacteleop
+
+COMPAT_ROOT = os.environ.get("ISAAC_TELEOP_COMPAT_STAGE_DIR")
 
 
 def test_the_two_top_level_names_are_one_object():
@@ -22,7 +29,8 @@ def test_a_submodule_imported_by_the_old_name_is_the_real_one():
 
 
 def test_multi_name_from_import():
-    """The shape that fails without `sys.modules[__name__] = isaaccapture`."""
+    """Served by module-level __getattr__, which is why it also passes with the
+    final rebind removed -- `test_the_two_top_level_names_are_one_object` pins that."""
     from isaacteleop import deviceio, oxr
 
     assert deviceio is isaaccapture.deviceio
@@ -59,3 +67,31 @@ def test_a_reimport_serves_from_the_finder_and_installs_nothing():
 
     assert again is isaaccapture
     assert len(sys.meta_path) == before
+
+
+@pytest.mark.skipif(
+    not COMPAT_ROOT, reason="ISAAC_TELEOP_COMPAT_STAGE_DIR is unset; run through ctest"
+)
+def test_re_executing_the_body_hands_back_a_shim_that_still_forwards():
+    """Whoever holds the shim module object itself must still reach isaaccapture.
+
+    The rebind at the end of the shim's body gives identity to ``_bootstrap._load``,
+    which re-reads ``sys.modules``. It gives identity to nobody else: a
+    ``module_from_spec`` + ``exec_module`` pair, and on 3.11/3.12 a second thread
+    already inside ``import isaacteleop``, both hold the inert shim instead.
+    Module-level ``__getattr__`` is what closes that, so this test gets the shim on
+    purpose and uses it.
+
+    Deliberately not threaded: CPython 3.13 re-reads ``sys.modules`` after the
+    import lock, so the concurrent importer is handed the rebound module and the
+    window cannot be observed there at all. This shape reproduces the same object
+    on every interpreter, and still fails if ``__getattr__`` is removed.
+    """
+    # PathFinder directly: by now _AliasFinder serves "isaacteleop" and would
+    # hand back the alias spec rather than the shim file's.
+    spec = importlib.machinery.PathFinder.find_spec("isaacteleop", [COMPAT_ROOT])
+    shim = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(shim)
+
+    assert shim is not isaaccapture
+    assert shim.deviceio is isaaccapture.deviceio
