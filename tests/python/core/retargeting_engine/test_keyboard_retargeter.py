@@ -10,21 +10,21 @@ here, with no OpenXR device involved.
 import numpy as np
 import pytest
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource
-from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
-from isaacteleop.retargeting_engine.interface.execution_events import ExecutionEvents
-from isaacteleop.retargeting_engine.interface.retargeter_core_types import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import KeyboardSource
+from isaaccapture.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaaccapture.retargeting_engine.interface.execution_events import ExecutionEvents
+from isaaccapture.retargeting_engine.interface.retargeter_core_types import (
     ComputeContext,
 )
-from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
-from isaacteleop.retargeters import (
+from isaaccapture.retargeting_engine.interface.tensor_group import TensorGroup
+from isaaccapture.retargeters import (
     KeyboardGripperRetargeter,
     KeyboardToSe2Retargeter,
     KeyboardToSe2RetargeterConfig,
     KeyboardToSe3RelRetargeter,
     KeyboardToSe3RelRetargeterConfig,
 )
-from isaacteleop.schema import KeyboardOutput
+from isaaccapture.schema import KeyboardOutput
 
 # Evdev key codes (linux/input-event-codes.h), matching keyboard_plugin.cpp / KeyboardSource.
 KEY_W, KEY_A, KEY_S, KEY_D, KEY_Q, KEY_E = 17, 30, 31, 32, 16, 18

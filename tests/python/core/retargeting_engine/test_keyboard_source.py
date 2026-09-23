@@ -10,10 +10,10 @@ device involved.
 
 import numpy as np
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource
-from isaacteleop.retargeting_engine.interface.base_retargeter import _make_output_group
-from isaacteleop.retargeting_engine.interface.tensor_group import TensorGroup
-from isaacteleop.schema import KeyboardOutput
+from isaaccapture.retargeting_engine.deviceio_source_nodes import KeyboardSource
+from isaaccapture.retargeting_engine.interface.base_retargeter import _make_output_group
+from isaaccapture.retargeting_engine.interface.tensor_group import TensorGroup
+from isaaccapture.schema import KeyboardOutput
 
 # Evdev key codes (linux/input-event-codes.h), matching keyboard_plugin.cpp / KeyboardSource.
 KEY_W = 17

@@ -14,9 +14,9 @@ import sys
 import time
 from pathlib import Path
 
-from isaacteleop.cloudxr import CloudXRLauncher
-from isaacteleop.retargeting_engine.deviceio_source_nodes import KeyboardSource
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.retargeting_engine.deviceio_source_nodes import KeyboardSource
+from isaaccapture.teleop_session_manager import (
     TeleopSession,
     TeleopSessionConfig,
     PluginConfig,

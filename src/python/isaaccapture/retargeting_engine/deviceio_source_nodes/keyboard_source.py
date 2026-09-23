@@ -23,8 +23,8 @@ from ..interface.tensor_group_type import OptionalType, TensorGroupType
 from .deviceio_tensor_types import DeviceIOKeyboardOutputTracked
 
 if TYPE_CHECKING:
-    from isaacteleop.deviceio import ITracker
-    from isaacteleop.schema import KeyboardOutput
+    from isaaccapture.deviceio import ITracker
+    from isaaccapture.schema import KeyboardOutput
 
 # Default collection_id matching the keyboard plugin and KeyboardTracker.
 DEFAULT_KEYBOARD_COLLECTION_ID = "keyboard"
@@ -201,7 +201,7 @@ class KeyboardSource(IDeviceIOSource):
             name: Unique name for this source node
             collection_id: Tensor collection ID for keyboard data (must match the keyboard plugin).
         """
-        import isaacteleop.deviceio as deviceio
+        import isaaccapture.deviceio as deviceio
 
         self._keyboard_tracker = deviceio.KeyboardTracker(collection_id)
         self._collection_id = collection_id

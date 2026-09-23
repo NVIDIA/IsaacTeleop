@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Unit tests for KeyboardOutput type in isaacteleop.schema.
+"""Unit tests for KeyboardOutput type in isaaccapture.schema.
 
 Tests the following FlatBuffers types:
 - KeyboardOutput: Table with pressed_keys (evdev key codes) and is_valid
@@ -10,7 +10,11 @@ Tests the following FlatBuffers types:
 Timestamps are carried by KeyboardOutputRecord, not KeyboardOutput.
 """
 
-from isaacteleop.schema import DeviceDataTimestamp, KeyboardOutput, KeyboardOutputRecord
+from isaaccapture.schema import (
+    DeviceDataTimestamp,
+    KeyboardOutput,
+    KeyboardOutputRecord,
+)
 
 # Evdev key codes (linux/input-event-codes.h), matching keyboard_plugin.cpp.
 KEY_W, KEY_A = 17, 30
