@@ -34,6 +34,7 @@ import sys
 import time
 import urllib.request
 from contextvars import ContextVar
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from .oob_teleop_env import (
@@ -1412,7 +1413,10 @@ def clear_headset_browser_cache(*, usb_local: bool) -> int:
 
 
 async def _cdp_session_click_connect(
-    ws_url: str, *, refresh_static_assets: bool = False
+    ws_url: str,
+    *,
+    refresh_static_assets: bool = False,
+    on_dispatched: Callable[[], None] | None = None,
 ) -> None:
     """Open a single CDP session and click the CONNECT button.
 
@@ -1632,6 +1636,8 @@ async def _cdp_session_click_connect(
                     "clickCount": 1,
                 },
             )
+        if on_dispatched is not None:
+            on_dispatched()
         # Follow-up DOM click (safety net for Quest Browser) — inside the
         # user-activation window opened by the trusted mouse events above.
         await send(
@@ -1698,6 +1704,7 @@ async def run_oob_connect(
     timeout: float = 60.0,
     usb_local: bool = False,
     host_client: bool = False,
+    on_dispatched: Callable[[], None] | None = None,
 ) -> asyncio.Task | None:
     """Open the teleop page on the headset via ``am start`` and click CONNECT via CDP.
 
@@ -1720,6 +1727,8 @@ async def run_oob_connect(
         host_client: When ``True`` (and not usb_local), the headset URL uses
             ``https://<lan>:<wss_port>/client/`` instead of the versioned
             GitHub Pages origin.
+        on_dispatched: Called after the trusted CONNECT mouse click, before
+            the Quest DOM fallback and connection polling.
 
     Returns:
         A running :class:`asyncio.Task` that monitors the headset's error
@@ -1766,7 +1775,7 @@ async def run_oob_connect(
     # --- Step 2: wait for DevTools socket ------------------------------------
     socket_name = None
     while time.monotonic() < deadline:
-        socket_name = _discover_devtools_socket()
+        socket_name = await asyncio.to_thread(_discover_devtools_socket)
         if socket_name:
             break
         log.info("CDP: waiting for browser DevTools socket...")
@@ -1784,8 +1793,19 @@ async def run_oob_connect(
         )
     log.info("CDP: found socket @%s", socket_name)
 
+    forward_task = asyncio.create_task(
+        asyncio.to_thread(_adb_forward_cdp, socket_name, _CDP_LOCAL_PORT)
+    )
     try:
-        _adb_forward_cdp(socket_name, _CDP_LOCAL_PORT)
+        await asyncio.shield(forward_task)
+    except asyncio.CancelledError:
+        # Finish the mutation before removing the forward on cancellation.
+        try:
+            await forward_task
+        except Exception:
+            pass
+        await asyncio.to_thread(_adb_forward_remove, _CDP_LOCAL_PORT)
+        raise
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or "").strip() or "(no adb output)"
         raise OobAdbError(
@@ -1814,7 +1834,7 @@ async def run_oob_connect(
         # new tabs and existing tabs that were navigated to the new URL by am start.
         tabs_url_before = {
             t["id"]: (t.get("url") or "")
-            for t in _cdp_list_tabs(_CDP_LOCAL_PORT)
+            for t in await asyncio.to_thread(_cdp_list_tabs, _CDP_LOCAL_PORT)
             if "id" in t
         }
         log.info("CDP: %d tab(s) before navigation", len(tabs_url_before))
@@ -1828,7 +1848,7 @@ async def run_oob_connect(
         retry_at = time.monotonic() + (timeout / 2)
         while ws_url is None and time.monotonic() < deadline:
             await asyncio.sleep(1.0)
-            for tab in _cdp_list_tabs(_CDP_LOCAL_PORT):
+            for tab in await asyncio.to_thread(_cdp_list_tabs, _CDP_LOCAL_PORT):
                 if "id" not in tab or not tab.get("webSocketDebuggerUrl"):
                     continue
                 old_url = tabs_url_before.get(tab["id"])
@@ -1913,7 +1933,9 @@ async def run_oob_connect(
         # _cdp_session_click_connect polls the DOM for document.readyState +
         # #startButton (up to 10s) so no fixed page-init sleep is needed here.
         await _cdp_session_click_connect(
-            ws_url, refresh_static_assets=usb_local or host_client
+            ws_url,
+            refresh_static_assets=usb_local or host_client,
+            on_dispatched=on_dispatched,
         )
 
         # --- Step 5: background monitor for mid-stream error banners ---------
@@ -1926,7 +1948,7 @@ async def run_oob_connect(
     except BaseException:
         # Any failure after the forward is set up but before we hand ownership
         # of it to the monitor task must clean the forward up here.
-        _adb_forward_remove(_CDP_LOCAL_PORT)
+        await asyncio.to_thread(_adb_forward_remove, _CDP_LOCAL_PORT)
         raise
 
 
