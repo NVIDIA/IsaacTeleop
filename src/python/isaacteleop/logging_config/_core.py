@@ -100,7 +100,13 @@ def env_console_level() -> int:
     raw = raw.strip()
     digits = raw[1:] if raw[:1] in ("+", "-") else raw
     if digits.isascii() and digits.isdecimal():
-        return int(raw)
+        normalized = digits.lstrip("0") or "0"
+        # Avoid Python's integer-string limit on an import-time environment
+        # value; C++ already collapses out-of-range numbers to trace or off.
+        if len(normalized) > 2 or int(normalized) > logging.CRITICAL:
+            return TRACE if raw.startswith("-") else logging.CRITICAL + 1
+        value = int(normalized)
+        return -value if raw.startswith("-") else value
     return _LEVEL_NAMES.get(raw.lower(), logging.INFO)
 
 
