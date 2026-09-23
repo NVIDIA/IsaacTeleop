@@ -201,18 +201,7 @@ export class MockCloudXR implements CloudXR.Session {
     ) {
       return;
     }
-    if (this.connectTimer !== null) {
-      clearTimeout(this.connectTimer);
-      this.connectTimer = null;
-    }
-    if (this.streamTestTimer !== null) {
-      clearTimeout(this.streamTestTimer);
-      this.streamTestTimer = null;
-    }
-    if (this.networkMetricsTimer !== null) {
-      clearInterval(this.networkMetricsTimer);
-      this.networkMetricsTimer = null;
-    }
+    this.clearTimers();
     this.sessionState = CloudXR.SessionState.Disconnecting;
     this.log(CloudXR.LogLevel.Info, 'Mock disconnecting');
     this.sessionState = CloudXR.SessionState.Disconnected;
@@ -332,18 +321,7 @@ export class MockCloudXR implements CloudXR.Session {
     ) {
       return;
     }
-    if (this.connectTimer !== null) {
-      clearTimeout(this.connectTimer);
-      this.connectTimer = null;
-    }
-    if (this.streamTestTimer !== null) {
-      clearTimeout(this.streamTestTimer);
-      this.streamTestTimer = null;
-    }
-    if (this.networkMetricsTimer !== null) {
-      clearInterval(this.networkMetricsTimer);
-      this.networkMetricsTimer = null;
-    }
+    this.clearTimers();
     this.sessionState = CloudXR.SessionState.Error;
     this.log(CloudXR.LogLevel.Error, `Mock failure: ${error.message}`);
     this.delegates.onStreamStopped?.(error);
@@ -398,6 +376,22 @@ export class MockCloudXR implements CloudXR.Session {
 
   private log(level: CloudXR.LogLevel, message: string): void {
     this.delegates.onLog?.([{ timestamp: performance.now(), level, message }]);
+  }
+
+  /** Clears and nulls out every pending timer; shared by disconnect() and triggerFailure(). */
+  private clearTimers(): void {
+    if (this.connectTimer !== null) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
+    if (this.streamTestTimer !== null) {
+      clearTimeout(this.streamTestTimer);
+      this.streamTestTimer = null;
+    }
+    if (this.networkMetricsTimer !== null) {
+      clearInterval(this.networkMetricsTimer);
+      this.networkMetricsTimer = null;
+    }
   }
 
   private emitNetworkMetrics(): void {
