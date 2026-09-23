@@ -158,6 +158,9 @@ def ensure_sink() -> str | None:
     with _lock:
         if _sink_path is not None:
             return _sink_path
+        # A Python child creates its own capture file. If that fails, it must
+        # not leave a parent's path for a plugin or detached descendant to use.
+        os.environ.pop(CAPTURE_FILE_ENV, None)
         try:
             directory = ensure_log_dir()
         except OSError as exc:

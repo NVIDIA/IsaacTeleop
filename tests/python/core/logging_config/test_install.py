@@ -80,11 +80,18 @@ def test_a_log_directory_it_cannot_create_costs_the_files_and_nothing_else(tmp_p
 def test_a_log_directory_that_is_a_file_costs_the_files_and_nothing_else(tmp_path):
     blocker = tmp_path / "not-a-directory"
     blocker.write_text("operator error\n")
+    inherited_capture = tmp_path / "parent.native.log"
+    inherited_capture.write_text("", encoding="utf-8")
 
-    result, _ = probe(tmp_path, blocker)
+    result, report = probe(
+        tmp_path,
+        blocker,
+        ISAACTELEOP_NATIVE_CAPTURE_FILE=str(inherited_capture),
+    )
     assert result.returncode == 0
     assert "File logging disabled" in result.stderr
     assert "probe warning" in result.stderr
+    assert report["capture"] is None
 
 
 @pytest.mark.parametrize("kind", ["leftover", "never-existed"])
