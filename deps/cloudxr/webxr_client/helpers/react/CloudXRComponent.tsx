@@ -84,13 +84,13 @@ interface CloudXRComponentProps {
   /**
    * Bounded retry policy for a mid-stream error (see streamingErrorClassification.ts's
    * isRecoverable() for which errors qualify). Defaults: 3 attempts, 3000ms delay - matching
-   * controlChannel.ts's HeadsetControlChannel reconnect, which this mirrors. An unrecoverable
-   * error, or exhausting maxAttempts, falls back to today's behavior: onError + onExitImmersiveXR.
+   * controlChannel.ts's HeadsetControlChannel reconnect, which this mirrors, including its
+   * single-callback shape: retry progress is reported through onStatusChange (status text
+   * "Reconnecting (n/maxAttempts)"), the same channel HeadsetControlChannel's onConnectionChange
+   * uses, rather than a dedicated callback. An unrecoverable error, or exhausting maxAttempts,
+   * falls back to today's behavior: onError + onExitImmersiveXR.
    */
   reconnect?: { maxAttempts?: number; delayMs?: number };
-
-  /** Callback fired each time a retry attempt is scheduled, before its delay elapses. */
-  onReconnecting?: (attempt: number, maxAttempts: number) => void;
 
   /** Callback fired with the resolved server address after proxy configuration is applied. */
   onServerAddress?: (address: string) => void;
@@ -172,7 +172,6 @@ export default function CloudXRComponent({
   onExitImmersiveXR,
   onSessionReady,
   reconnect,
-  onReconnecting,
   onServerAddress,
   onRenderPerformanceMetrics,
   onStreamingPerformanceMetrics,
@@ -425,8 +424,10 @@ export default function CloudXRComponent({
                       `in ${reconnectDelayMs}ms:`,
                     errorMsg
                   );
-                  onStatusChange?.(false, 'Reconnecting');
-                  onReconnecting?.(reconnectAttemptRef.current, maxReconnectAttempts);
+                  onStatusChange?.(
+                    false,
+                    `Reconnecting (${reconnectAttemptRef.current}/${maxReconnectAttempts})`
+                  );
                   cxrSessionRef.current = null;
                   onSessionReady?.(null);
                   reconnectTimerRef.current = setTimeout(() => {
