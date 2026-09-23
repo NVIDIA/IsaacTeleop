@@ -5,15 +5,15 @@ name: Build Ubuntu
 
 on:
   push:
-    branches: [ main, 'release/*.*.x' ]
+    # Enterprise GPU runners require vetted PRs copied upstream by copy-pr-bot.
+    branches: [ main, 'release/*.*.x', 'pull-request/[0-9]+' ]
     tags: [ 'v*' ]
-  pull_request:
 
 # For PRs, we want to cancel in-progress runs to save resources.
 # For pushes to main or releases, we want to allow all runs to complete.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/heads/pull-request/') }}
 
 env:
   # Shared apt build dependencies. Each job installs these plus its own extras
@@ -27,13 +27,25 @@ env:
   VCPKG_COMMIT: d015e31e90838a4c9dfa3eed45979bc70d9357fc  # 2026.05.25
 
 jobs:
+  pr-info:
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: read
+    outputs:
+      pr-info: ${{ steps.pr.outputs.pr-info }}
+    steps:
+    - name: Get original pull request metadata
+      if: ${{ startsWith(github.ref, 'refs/heads/pull-request/') }}
+      id: pr
+      uses: nv-gha-runners/get-pr-info@090577647b8ddc4e06e809e264f7881650ecdccf
+
   build-ubuntu:
     # Pin to 22.04 so the wheel is built with GCC 11's libstdc++. The resulting wheel
     # then runs on both Ubuntu 22.04 and 24.04 (24.04's libstdc++ is backward compatible).
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-22.04' }}
 
     strategy:
-      fail-fast: ${{ github.event_name == 'pull_request' }}
+      fail-fast: ${{ startsWith(github.ref, 'refs/heads/pull-request/') }}
       matrix:
         build_type: ["Debug", "Release"]
         python_version: ['3.11', '3.12', '3.13']
@@ -392,7 +404,7 @@ jobs:
     needs: build-ubuntu
 
     strategy:
-      fail-fast: ${{ github.event_name == 'pull_request' }}
+      fail-fast: ${{ startsWith(github.ref, 'refs/heads/pull-request/') }}
       matrix:
         arch: ['x64', 'arm64']
 
@@ -581,7 +593,7 @@ jobs:
     needs: build-ubuntu
 
     strategy:
-      fail-fast: ${{ github.event_name == 'pull_request' }}
+      fail-fast: ${{ startsWith(github.ref, 'refs/heads/pull-request/') }}
       matrix:
         python_version: ['3.11', '3.12', '3.13']
         arch: ['x64', 'arm64']
@@ -626,7 +638,7 @@ jobs:
     needs: build-ubuntu
 
     strategy:
-      fail-fast: ${{ github.event_name == 'pull_request' }}
+      fail-fast: ${{ startsWith(github.ref, 'refs/heads/pull-request/') }}
       matrix:
         python_version: ['3.12']
         arch: ['x64', 'arm64']
@@ -984,17 +996,17 @@ jobs:
     permissions: {}
     needs:
       - wheel-gate
+      - pr-info
     outputs:
       wheel_paths: ${{ steps.upload-artifactory.outputs.wheel_paths }}
     environment: dev
     timeout-minutes: 10
 
-    # Publish only for same-repo runs (pushes or non-fork PRs). github.repository
-    # is the base repo even for fork PRs, so compare the PR head repo instead.
+    # Copied fork PRs live upstream too; publishing still requires a same-repo PR.
     if: >-
       needs.wheel-gate.result == 'success'
-      && (github.event_name != 'pull_request'
-        || github.event.pull_request.head.repo.full_name == github.repository)
+      && (!startsWith(github.ref, 'refs/heads/pull-request/')
+        || fromJSON(needs.pr-info.outputs.pr-info).head.repo.full_name == github.repository)
 
     steps:
     - name: Set up Python
@@ -1121,7 +1133,7 @@ jobs:
     environment: release
     permissions:
       contents: read
-    if: ${{ github.event_name != 'pull_request' && needs.publish-wheel.result == 'success' }}
+    if: ${{ !startsWith(github.ref, 'refs/heads/pull-request/') && needs.publish-wheel.result == 'success' }}
 
     steps:
     - name: Submit wheel release to Kitmaker
@@ -1209,7 +1221,7 @@ jobs:
       - kitmaker
     permissions:
       contents: read
-    if: ${{ github.event_name != 'pull_request' && needs.kitmaker.result == 'success' }}
+    if: ${{ !startsWith(github.ref, 'refs/heads/pull-request/') && needs.kitmaker.result == 'success' }}
 
     steps:
     - name: Monitor Kitmaker release status
