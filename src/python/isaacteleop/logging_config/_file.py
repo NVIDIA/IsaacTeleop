@@ -80,9 +80,8 @@ def _discard_if_empty(path: Path, identity: tuple[int, int], owner_pid: int) -> 
     every one of them leaves a 0-byte log behind. The capture file beside it is
     cleaned up the same way (``_native_fd._discard_if_empty``).
 
-    Closed before the unlink so Windows, which refuses to remove an open file,
-    is not left with the litter this exists to prevent; ``Handler.close()``
-    also deregisters it, so ``logging.shutdown()`` will not close it twice.
+    An empty file is closed before unlink so Windows can remove it. A nonempty
+    handler stays open for older atexit callbacks that may still log.
 
     Only the creator may unlink -- a fork inherits this registration -- and
     only while the path still names the file this process opened. That
@@ -92,17 +91,36 @@ def _discard_if_empty(path: Path, identity: tuple[int, int], owner_pid: int) -> 
     """
     if os.getpid() != owner_pid:
         return
+    handler = _handler
+    if handler is None:
+        return
     try:
-        if _handler is not None:
-            _handler.close()
-        current = os.lstat(path)
-        if (
-            stat.S_ISREG(current.st_mode)
-            and (current.st_dev, current.st_ino) == identity
-            and current.st_size == 0
-        ):
-            os.unlink(path)
-    except OSError:
+        handler.acquire()
+        try:
+            if handler.stream is None:
+                return
+            handler.flush()
+            opened = os.fstat(handler.stream.fileno())
+            current = os.lstat(path)
+            if not (
+                stat.S_ISREG(current.st_mode)
+                and (opened.st_dev, opened.st_ino) == identity
+                and (current.st_dev, current.st_ino) == identity
+                and current.st_size == 0
+            ):
+                return
+
+            handler.close()
+            current = os.lstat(path)
+            if (
+                stat.S_ISREG(current.st_mode)
+                and (current.st_dev, current.st_ino) == identity
+                and current.st_size == 0
+            ):
+                os.unlink(path)
+        finally:
+            handler.release()
+    except (OSError, ValueError):
         return  # Best-effort atexit cleanup; nothing here may raise.
 
 

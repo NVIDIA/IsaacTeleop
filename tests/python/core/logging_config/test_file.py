@@ -6,13 +6,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import stat
 import threading
 
 import pytest
 from conftest import read_all
 
-from isaacteleop.logging_config import _core
+from isaacteleop.logging_config import _core, _file
 from isaacteleop.logging_config._file import _PrivateRotatingFileHandler
 
 
@@ -52,6 +53,34 @@ def test_refuses_a_symlink_and_leaves_its_target_alone(tmp_path):
     with pytest.raises(OSError):
         make_handler(link)
     assert target.read_text() == "precious\n"
+
+
+def test_empty_file_cleanup_leaves_a_nonempty_handler_open(tmp_path, monkeypatch):
+    path = tmp_path / "session.log"
+    handler = make_handler(path)
+    logger = logging.getLogger("isaacteleop.test.nonempty-cleanup")
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    monkeypatch.setattr(_file, "_handler", handler)
+
+    try:
+        logger.info("before cleanup")
+        handler.flush()
+        opened = os.fstat(handler.stream.fileno())
+        _file._discard_if_empty(path, (opened.st_dev, opened.st_ino), os.getpid())
+
+        assert handler.stream is not None
+        logger.info("after cleanup")
+        handler.flush()
+    finally:
+        handler.close()
+        logger.removeHandler(handler)
+        logger.propagate = True
+
+    contents = path.read_text(encoding="utf-8")
+    assert "before cleanup" in contents
+    assert "after cleanup" in contents
 
 
 def test_rotation_keeps_every_record_written_by_concurrent_threads(tmp_path):
