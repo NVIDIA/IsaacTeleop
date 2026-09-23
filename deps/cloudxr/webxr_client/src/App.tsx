@@ -566,6 +566,15 @@ function AppContent() {
     // dedicated callback - surface it as an info banner, not an error, and retract it once the
     // status moves past reconnecting (succeeded, or gave up and onError shows the real message).
     if (status.startsWith('Reconnecting')) {
+      // A countdown in progress captured the pre-reconnect sendMessage closure; left running,
+      // it would fire START_TELEOP_COMMAND through the stopped session instead of the
+      // replacement one once the timer elapses.
+      if (countdownTimerRef.current !== null) {
+        clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+      setIsCountingDown(false);
+      setCountdownRemaining(0);
       cloudXR2DUI?.showStatus(status, 'info');
       lastReconnectingStatusRef.current = status;
     } else if (lastReconnectingStatusRef.current) {
