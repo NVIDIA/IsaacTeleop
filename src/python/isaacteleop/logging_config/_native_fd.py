@@ -418,6 +418,9 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
 
     rebound = []
     for fd in capturable:
+        # dup2() releases the GIL. Publish fd 2 first so the mirror never
+        # mistakes a just-rebound descriptor for its own echo target.
+        _active_fds = [*rebound, fd]
         try:
             os.dup2(sink, fd, inheritable=_active_inheritable[fd])
         except OSError:
