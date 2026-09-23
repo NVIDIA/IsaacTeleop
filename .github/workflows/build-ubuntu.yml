@@ -408,6 +408,7 @@ jobs:
   # GPU runner is claimed) while build-ubuntu still builds arm64 unconditionally.
   resolve-test-arches:
     runs-on: ubuntu-22.04
+    permissions: {}
     outputs:
       arches: ${{ steps.resolve.outputs.arches }}
     steps:
