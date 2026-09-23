@@ -23,10 +23,24 @@
  * code path - unlike MockCloudXRTests.ts, which hand-drives MockCloudXR directly with no React
  * involved at all.
  *
- * Click the button (or press "S") to run a scripted three-step sequence:
+ * Every prop on CloudXRComponentProps is wired: all callbacks are passed (and logged, see
+ * appendLog below - every line also goes through console.log, so a Playwright test can assert
+ * against captured console output instead of querying the DOM), and every non-callback prop
+ * (metricsSettings, trackingFrameAdapter, iceServers, streamTest) is exercised with a real value.
+ * headless is the one prop left at its default (false): this page's other steps depend on
+ * MockCloudXR actually rendering, and headless=true would only prove the frame gets skipped,
+ * which is better covered at the MockCloudXR level than here.
+ *
+ * streamTest needs its own step (4) rather than a static prop on every session: the effect that
+ * reads CloudXRComponent's props only depends on [threeRenderer, config] (see
+ * CloudXRComponent.tsx), so changing `streamTest` on a later render has no effect until the
+ * component actually remounts. Step 4 forces that remount via a `key` change instead.
+ *
+ * Click the button (or press "S") to run a scripted four-step sequence:
  *   1. Start normally, then close cleanly - expect zero error events.
  *   2. Start with a 2s connect delay, trigger a non-retryable failure 1s in (still Connecting).
  *   3. Start with no connect delay, wait 2s (now Connected), trigger a retryable failure.
+ *   4. Remount with a real streamTest config and let it run to completion.
  * Non-retryable/retryable here means the server-disconnect error-code range CloudXRComponent's
  * planned retry logic will check (0xC0F223xx = non-retryable); no retry exists yet, so today
  * every step ends the session the same way - this script exists to make that behavior (and the
@@ -44,6 +58,15 @@ import CloudXRComponent from '@helpers/react/CloudXRComponent';
 import type { CloudXRConfig } from '@helpers/utils';
 
 import type { MockCloudXR } from './MockCloudXR';
+
+/** Identity passthrough; just proves the prop is wired and invoked (logged once, see below). */
+const trackingFrameAdapter = (frame: XRFrame): XRFrame => frame;
+
+const iceServers: CloudXR.SessionOptions['iceServers'] = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+};
+
+const metricsSettings = { renderFpsWindow: 10, streamingFpsWindow: 5, poseToRenderWindow: 5 };
 
 const NON_RETRYABLE_CODE = 0xc0f22300; // server-disconnect range
 const RETRYABLE_CODE = 0xc0f22204; // NetworkInterrupted
@@ -86,7 +109,9 @@ const store = createXRStore({
   offerSession: false,
 });
 
+/** Also logs to console (prefixed) so a Playwright test can assert on captured console output. */
 function appendLog(message: string): void {
+  console.info(`[CloudXRComponentTest] ${message}`);
   const logEl = document.getElementById('log');
   if (!logEl) {
     return;
@@ -103,13 +128,31 @@ let activeSession: MockCloudXR | null = null;
 let pendingConnectWaitMs: number | null = null;
 let hadError = false;
 
-function Scene() {
+// Render/streaming/network metrics and trackingFrameAdapter all fire every frame (or close to
+// it) once connected - logging every occurrence would flood the console, so each just logs once
+// per session to prove it's wired, reset whenever a fresh session appears.
+let seenRenderMetrics = false;
+let seenStreamingMetrics = false;
+let seenNetworkMetrics = false;
+let seenTrackingFrameAdapterCall = false;
+
+function Scene({ streamTestEnabled }: { streamTestEnabled: boolean }) {
   return (
     <XR store={store}>
       <XROrigin />
       <CloudXRComponent
         config={config}
         applicationName="CloudXRComponentTest"
+        metricsSettings={metricsSettings}
+        trackingFrameAdapter={frame => {
+          if (!seenTrackingFrameAdapterCall) {
+            seenTrackingFrameAdapterCall = true;
+            appendLog('[prop] trackingFrameAdapter called');
+          }
+          return trackingFrameAdapter(frame);
+        }}
+        iceServers={iceServers}
+        streamTest={streamTestEnabled ? { durationSeconds: 3, mode: 'warn' } : undefined}
         onStatusChange={(isConnected, status) =>
           appendLog(`[status] connected=${isConnected} ${status}`)
         }
@@ -125,11 +168,39 @@ function Scene() {
         }}
         onSessionReady={session => {
           activeSession = session as MockCloudXR | null;
+          if (session) {
+            seenRenderMetrics = false;
+            seenStreamingMetrics = false;
+            seenNetworkMetrics = false;
+            seenTrackingFrameAdapterCall = false;
+          }
           if (activeSession && pendingConnectWaitMs !== null) {
             activeSession.connectWait(pendingConnectWaitMs);
             pendingConnectWaitMs = null;
           }
           appendLog(`[event] onSessionReady ${session ? 'session' : 'null'}`);
+        }}
+        onServerAddress={address => appendLog(`[event] onServerAddress ${address}`)}
+        onLog={entries =>
+          appendLog(`[event] onLog ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`)
+        }
+        onRenderPerformanceMetrics={() => {
+          if (!seenRenderMetrics) {
+            seenRenderMetrics = true;
+            appendLog('[event] onRenderPerformanceMetrics (first occurrence)');
+          }
+        }}
+        onStreamingPerformanceMetrics={() => {
+          if (!seenStreamingMetrics) {
+            seenStreamingMetrics = true;
+            appendLog('[event] onStreamingPerformanceMetrics (first occurrence)');
+          }
+        }}
+        onNetworkPerformanceMetrics={() => {
+          if (!seenNetworkMetrics) {
+            seenNetworkMetrics = true;
+            appendLog('[event] onNetworkPerformanceMetrics (first occurrence)');
+          }
         }}
         onStreamTestStarted={() => appendLog('[event] onStreamTestStarted')}
         onStreamTestStopped={result =>
@@ -191,8 +262,26 @@ async function runStep3(): Promise<void> {
   await sleep(500);
 }
 
+/**
+ * Remounts CloudXRComponent (via the `key` change setStreamTestEnabled drives, see App()) with a
+ * real streamTest config, since that prop is frozen at mount by CloudXRComponent's own effect
+ * dependency array - toggling it on an already-mounted instance would otherwise do nothing.
+ */
+async function runStep4(setStreamTestEnabled: (enabled: boolean) => void): Promise<void> {
+  appendLog('=== Step 4: stream test (remounts with streamTest enabled) ===');
+  setStreamTestEnabled(true);
+  await sleep(100); // let React apply the remount before entering VR
+  await startSession(0);
+  await waitUntil(() => activeSession?.state === CloudXR.SessionState.Connected, 8000);
+  store.getState().session?.end();
+  await sleep(500);
+  setStreamTestEnabled(false);
+  await sleep(100); // remount back to the normal (no streamTest) instance
+}
+
 function App() {
   const [running, setRunning] = useState(false);
+  const [streamTestEnabled, setStreamTestEnabled] = useState(false);
   const runningRef = useRef(false);
 
   const runSequence = useCallback(async () => {
@@ -205,6 +294,7 @@ function App() {
       await runStep1();
       await runStep2();
       await runStep3();
+      await runStep4(setStreamTestEnabled);
       appendLog('=== Test sequence complete ===');
     } finally {
       runningRef.current = false;
@@ -234,7 +324,10 @@ function App() {
       </div>
       <Canvas events={noEvents} style={{ position: 'fixed', inset: 0, zIndex: -1 }}>
         <PointerEvents batchEvents={false} />
-        <Scene />
+        <Scene
+          key={streamTestEnabled ? 'streamtest' : 'normal'}
+          streamTestEnabled={streamTestEnabled}
+        />
       </Canvas>
     </>
   );
