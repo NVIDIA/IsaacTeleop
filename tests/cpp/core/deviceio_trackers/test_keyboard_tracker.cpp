@@ -192,3 +192,33 @@ TEST_CASE("evdev_code_from_w3c maps standard keys", "[unit][keyboard]")
     CHECK(core::evdev_code_from_w3c("Numpad8") == uint16_t{ 72 });
     CHECK_FALSE(core::evdev_code_from_w3c("NotAKey").has_value());
 }
+
+TEST_CASE("KeyboardProvider: tap reports a press and release without holding", "[unit][keyboard]")
+{
+    core::KeyboardTracker tracker;
+    auto provider = tracker.create_provider("hotkeys");
+
+    CHECK(provider->tap(KEY_K, 50));
+    CHECK(provider->tap(std::string_view("KeyW")));
+    CHECK_FALSE(provider->tap(std::string_view("NotAKey")));
+
+    const auto snapshot = tracker.input_state()->drain();
+    CHECK(snapshot.pressed_keys.empty());
+    CHECK(event_codes(snapshot, true) == std::vector<uint16_t>{ KEY_K, KEY_W });
+    CHECK(event_codes(snapshot, false) == std::vector<uint16_t>{ KEY_K, KEY_W });
+    CHECK(snapshot.events[0].timestamp_ns == snapshot.events[1].timestamp_ns);
+}
+
+TEST_CASE("KeyboardProvider: tap never releases a key the provider holds", "[unit][keyboard]")
+{
+    core::KeyboardTracker tracker;
+    auto provider = tracker.create_provider("window");
+    provider->key_down(KEY_W);
+    tracker.input_state()->drain();
+
+    CHECK_FALSE(provider->tap(KEY_W));
+
+    const auto snapshot = tracker.input_state()->drain();
+    CHECK(snapshot.events.empty());
+    CHECK(snapshot.pressed_keys == std::vector<uint16_t>{ KEY_W });
+}

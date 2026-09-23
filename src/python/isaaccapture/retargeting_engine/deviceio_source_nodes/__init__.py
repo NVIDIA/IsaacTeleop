@@ -19,6 +19,7 @@ from .keyboard_source import (
     KeyEventSource,
 )
 from .source_lookup import find_sources
+from .key_event_testing import FakeKeyEventSource
 from .joint_state_source import JointStateSource
 from .full_body_source import FullBodySource
 from .message_channel_source import MessageChannelSource
@@ -65,6 +66,7 @@ __all__ = [
     "KeyboardSource",
     "KeyEventSource",
     "find_sources",
+    "FakeKeyEventSource",
     "JointStateSource",
     "FullBodySource",
     "MessageChannelSource",

@@ -1153,8 +1153,26 @@ class TeleopSession:
                 trackers, vendor_config
             )
 
+            # Skip OpenXR entirely when nothing needs it: at least one tracker, none with an
+            # OpenXR impl (e.g. a keyboard-only pipeline), no plugins (they push through the
+            # OpenXR tensor extension), no robot twin and no caller-provided handles. A session
+            # with no trackers keeps its OpenXR session, as before.
+            needs_openxr = (
+                self.config.oxr_handles is not None
+                or self.config.joint_publisher is not None
+                or bool(self.config.plugins)
+                or not trackers
+                or deviceio.DeviceIOSession.requires_openxr(trackers, vendor_config)
+            )
+
             # Resolve OpenXR handles
-            if self.config.oxr_handles is not None:
+            handles: Any
+            if not needs_openxr:
+                handles = None
+                self._status_monitor.rebuild(
+                    (), include_openxr=False, external_openxr=False
+                )
+            elif self.config.oxr_handles is not None:
                 handles = self.config.oxr_handles
             elif self.config.joint_publisher is not None:
                 handles = oxr.OpenXRSessionHandles(

@@ -10,7 +10,8 @@ keys each frame plus every press/release, using the "keyboard_all_keys" and
 "keyboard_pressed" bitmaps.
 
 The window is a minimal ``KeyEventSource``: any host window (a sim viewer, a browser
-viewer, ...) can feed Isaac Teleop the same way. Requires ``isaaccapture[ui]`` for glfw.
+viewer, ...) can feed Isaac Teleop the same way. Requires ``isaaccapture[ui]`` for glfw. A
+keyboard-only pipeline needs no OpenXR runtime, so no CloudXR or headset is involved.
 """
 
 import sys
@@ -19,7 +20,6 @@ import time
 import glfw
 import numpy as np
 
-from isaaccapture.cloudxr import CloudXRLauncher
 from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     EvdevKeyCode,
     KeyboardSource,
@@ -115,8 +115,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    CloudXRLauncher.add_launcher_arguments(parser)
-    args = parser.parse_args()
+    parser.parse_args()
 
     print("Click the 'Isaac Teleop keyboard' window and press keys (30 s).")
 
@@ -131,30 +130,29 @@ def main():
     )
 
     try:
-        with CloudXRLauncher.launch_context(args):
-            with TeleopSession(session_config) as session:
-                start_time = time.time()
-                while time.time() - start_time < 30.0 and window.poll():
-                    result = session.step()
-                    held_group = result["keyboard_all_keys"]
-                    pressed_group = result["keyboard_pressed"]
-                    elapsed = session.get_elapsed_time()
+        with TeleopSession(session_config) as session:
+            start_time = time.time()
+            while time.time() - start_time < 30.0 and window.poll():
+                result = session.step()
+                held_group = result["keyboard_all_keys"]
+                pressed_group = result["keyboard_pressed"]
+                elapsed = session.get_elapsed_time()
 
-                    if held_group.is_none:
-                        print(f"[{elapsed:5.1f}s] (no keyboard)", end="\r", flush=True)
-                    else:
-                        held = np.flatnonzero(np.asarray(held_group[0]))
-                        pressed = np.flatnonzero(np.asarray(pressed_group[0]))
-                        for code in pressed:
-                            print(f"\n[{elapsed:5.1f}s] {_key_name(int(code))} pressed")
-                        names = " ".join(_key_name(int(c)) for c in held) or "-"
-                        print(
-                            f"[{elapsed:5.1f}s] Held: {names}" + " " * 20,
-                            end="\r",
-                            flush=True,
-                        )
+                if held_group.is_none:
+                    print(f"[{elapsed:5.1f}s] (no keyboard)", end="\r", flush=True)
+                else:
+                    held = np.flatnonzero(np.asarray(held_group[0]))
+                    pressed = np.flatnonzero(np.asarray(pressed_group[0]))
+                    for code in pressed:
+                        print(f"\n[{elapsed:5.1f}s] {_key_name(int(code))} pressed")
+                    names = " ".join(_key_name(int(c)) for c in held) or "-"
+                    print(
+                        f"[{elapsed:5.1f}s] Held: {names}" + " " * 20,
+                        end="\r",
+                        flush=True,
+                    )
 
-                    time.sleep(0.01)
+                time.sleep(0.01)
     finally:
         detach()
         window.close()

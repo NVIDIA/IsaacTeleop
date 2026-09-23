@@ -69,6 +69,17 @@ public:
         const std::vector<std::shared_ptr<ITracker>>& trackers,
         const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors = {});
 
+    /**
+     * @brief Whether any of the given trackers needs an OpenXR session.
+     *
+     * False only when every tracker's live impl works without OpenXR handles (e.g. the in-process
+     * KeyboardTracker); a session with no such tracker can then run without an OpenXR runtime.
+     *
+     * @pre @p tracker_vendors is a validated vendor config (see validate_vendor_selections()).
+     */
+    static bool requires_openxr(const std::vector<std::shared_ptr<ITracker>>& trackers,
+                                const std::vector<std::pair<const ITracker*, TrackerVendor>>& tracker_vendors = {});
+
     /** Create tracker impl from a tracker instance using the same dispatch as extension discovery. */
     std::unique_ptr<ITrackerImpl> create_tracker_impl(const ITracker& tracker);
 

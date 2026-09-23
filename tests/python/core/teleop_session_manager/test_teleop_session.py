@@ -769,6 +769,10 @@ def mock_session_dependencies(
 
     with (
         patch("isaaccapture.oxr.OpenXRSession", return_value=mock_oxr),
+        # Mock trackers never reach the native binding; keep the OpenXR path these tests cover.
+        patch(
+            "isaaccapture.deviceio.DeviceIOSession.requires_openxr", return_value=True
+        ),
         patch("isaaccapture.deviceio.DeviceIOSession.run", return_value=mock_dio),
         patch("isaaccapture.plugin_manager.PluginManager", return_value=mock_pm),
         patch_get_ext,
@@ -3282,6 +3286,10 @@ def mock_live_dependencies_with_args():
         patch(
             "isaaccapture.deviceio.DeviceIOSession.get_required_extensions",
             return_value=[],
+        ),
+        # Mock trackers never reach the native binding; keep the OpenXR path these tests cover.
+        patch(
+            "isaaccapture.deviceio.DeviceIOSession.requires_openxr", return_value=True
         ),
         patch("isaaccapture.plugin_manager.PluginManager", return_value=MagicMock()),
         patch("isaaccapture.deviceio.McapRecordingConfig") as recording_config_cls,

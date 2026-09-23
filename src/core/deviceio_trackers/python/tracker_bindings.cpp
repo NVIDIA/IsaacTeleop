@@ -108,8 +108,21 @@ PYBIND11_MODULE(_deviceio_trackers, m)
             [](core::KeyboardProvider& self, const std::string& code, std::optional<int64_t> timestamp_ns)
             { return self.key_up(std::string_view(code), timestamp_ns); },
             py::arg("code"), py::arg("timestamp_ns") = py::none(), "Report a release by W3C KeyboardEvent.code.")
+        .def(
+            "tap",
+            [](core::KeyboardProvider& self, uint16_t code, std::optional<int64_t> timestamp_ns)
+            { return self.tap(code, timestamp_ns); },
+            py::arg("code"), py::arg("timestamp_ns") = py::none(),
+            "Report a press and its release together, for surfaces that report presses only. "
+            "Returns False (no-op) when this provider already holds the key.")
+        .def(
+            "tap",
+            [](core::KeyboardProvider& self, const std::string& code, std::optional<int64_t> timestamp_ns)
+            { return self.tap(std::string_view(code), timestamp_ns); },
+            py::arg("code"), py::arg("timestamp_ns") = py::none(), "tap() by W3C KeyboardEvent.code.")
         .def("release_all", &core::KeyboardProvider::release_all, py::arg("timestamp_ns") = py::none(),
-             "Release every key this provider holds (focus lost, surface closed).")
+             "Release every key this provider holds: focus lost, surface closed, or the host UI took the "
+             "keyboard (e.g. a text field gained focus).")
         .def("close", &core::KeyboardProvider::close, "Release held keys and detach from the tracker.")
         .def_property_readonly("name", &core::KeyboardProvider::name)
         .def_property_readonly("closed", &core::KeyboardProvider::is_closed)

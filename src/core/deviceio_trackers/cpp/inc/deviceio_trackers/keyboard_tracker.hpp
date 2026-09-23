@@ -58,6 +58,9 @@ public:
     //! Returns false when the transition changes nothing (autorepeat, or releasing an unheld key).
     bool key_down(uint64_t provider_id, uint16_t code, int64_t timestamp_ns);
     bool key_up(uint64_t provider_id, uint16_t code, int64_t timestamp_ns);
+    //! Press and release in one step, for surfaces that report presses only. A no-op returning
+    //! false when the provider already holds the key, so a tap never releases a real hold.
+    bool tap(uint64_t provider_id, uint16_t code, int64_t timestamp_ns);
     void release_all(uint64_t provider_id, int64_t timestamp_ns);
 
     Snapshot drain();
@@ -74,10 +77,11 @@ private:
 /*!
  * @brief One input surface (a focused window, a browser tab, ...) feeding a KeyboardTracker.
  *
- * Contract for the surface: report press/release only while it has focus, never report
- * autorepeat as new presses, and call release_all() on blur, close or disconnect so no key
- * can stay stuck. Every method is thread-safe. Closing (or destroying) the provider
- * releases its keys.
+ * Contract for the surface: report press/release only while it has focus and its own UI is not
+ * taking keyboard input, never report autorepeat as new presses, and call release_all() on blur,
+ * close, disconnect, or when the host UI takes the keyboard, so no key can stay stuck. A surface
+ * without release events reports tap(). Every method is thread-safe. Closing (or destroying) the
+ * provider releases its keys.
  */
 class KeyboardProvider
 {
@@ -99,6 +103,13 @@ public:
     bool key_down(std::string_view w3c_code, std::optional<int64_t> timestamp_ns = std::nullopt);
     bool key_up(std::string_view w3c_code, std::optional<int64_t> timestamp_ns = std::nullopt);
 
+    //! For surfaces that report presses only (no releases): records a press and its release
+    //! together, so it reaches the per-frame pressed set without ever being held.
+    bool tap(uint16_t evdev_code, std::optional<int64_t> timestamp_ns = std::nullopt);
+    bool tap(std::string_view w3c_code, std::optional<int64_t> timestamp_ns = std::nullopt);
+
+    //! Release everything this provider holds: on blur, close, disconnect, and whenever the host's
+    //! own UI takes the keyboard (e.g. a text field gains focus).
     void release_all(std::optional<int64_t> timestamp_ns = std::nullopt);
     void close();
 

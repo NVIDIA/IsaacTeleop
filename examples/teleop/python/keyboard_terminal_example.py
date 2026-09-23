@@ -14,10 +14,9 @@ Terminal, xterm, tmux) each keystroke is reported as a tap, which suits toggles 
 gripper) but not held motion keys. Focus reporting (mode 1004) releases every key when the
 terminal loses focus.
 
-Run without a headset by pointing CloudXR at a clientless profile, e.g. an env file with
-NV_DEVICE_PROFILE=quest3, NV_CXR_ENABLE_PUSH_DEVICES=0, NV_ENABLE_POSE_WAIT=0:
+A keyboard-only pipeline needs no OpenXR runtime, so no CloudXR or headset is involved:
 
-    python keyboard_terminal_example.py --cloudxr-env-config standalone.env
+    python keyboard_terminal_example.py
 """
 
 import os
@@ -30,7 +29,6 @@ import tty
 
 import numpy as np
 
-from isaacteleop.cloudxr import CloudXRLauncher
 from isaacteleop.retargeting_engine.deviceio_source_nodes import (
     EvdevKeyCode,
     KeyboardSource,
@@ -216,7 +214,6 @@ def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    CloudXRLauncher.add_launcher_arguments(parser)
     parser.add_argument("--duration", type=float, default=30.0, help="Seconds to run")
     args = parser.parse_args()
 
@@ -228,39 +225,36 @@ def main():
         app_name="KeyboardTerminalExample", trackers=[], pipeline=keyboard
     )
 
-    with CloudXRLauncher.launch_context(args):
-        with TeleopSession(session_config) as session, TerminalKeySource() as terminal:
-            mode = (
-                "press/release"
-                if terminal.kitty
-                else "tap-only (no kitty keyboard protocol)"
-            )
-            print(f"Keyboard mode: {mode}. Type here; Ctrl+C quits.", flush=True)
-            detach = keyboard.attach(terminal)
-            try:
-                start = time.monotonic()
-                last_held: list[int] = []
-                while time.monotonic() - start < args.duration:
-                    terminal.poll()
-                    result = session.step()
-                    if not result["keyboard_all_keys"].is_none:
-                        pressed = np.flatnonzero(
-                            np.asarray(result["keyboard_pressed"][0])
-                        )
-                        held = np.flatnonzero(
-                            np.asarray(result["keyboard_all_keys"][0])
-                        ).tolist()
-                        for code in pressed:
-                            print(f"pressed: {_key_name(int(code))}", flush=True)
-                        if held != last_held:
-                            names = " ".join(_key_name(c) for c in held) or "-"
-                            print(f"held: {names}", flush=True)
-                            last_held = held
-                    time.sleep(0.01)
-            except KeyboardInterrupt:
-                pass
-            finally:
-                detach()
+    with TeleopSession(session_config) as session, TerminalKeySource() as terminal:
+        mode = (
+            "press/release"
+            if terminal.kitty
+            else "tap-only (no kitty keyboard protocol)"
+        )
+        print(f"Keyboard mode: {mode}. Type here; Ctrl+C quits.", flush=True)
+        detach = keyboard.attach(terminal)
+        try:
+            start = time.monotonic()
+            last_held: list[int] = []
+            while time.monotonic() - start < args.duration:
+                terminal.poll()
+                result = session.step()
+                if not result["keyboard_all_keys"].is_none:
+                    pressed = np.flatnonzero(np.asarray(result["keyboard_pressed"][0]))
+                    held = np.flatnonzero(
+                        np.asarray(result["keyboard_all_keys"][0])
+                    ).tolist()
+                    for code in pressed:
+                        print(f"pressed: {_key_name(int(code))}", flush=True)
+                    if held != last_held:
+                        names = " ".join(_key_name(c) for c in held) or "-"
+                        print(f"held: {names}", flush=True)
+                        last_held = held
+                time.sleep(0.01)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            detach()
     print("Done.")
     return 0
 

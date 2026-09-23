@@ -199,6 +199,19 @@ bool KeyboardInputState::key_up(uint64_t provider_id, uint16_t code, int64_t tim
     return true;
 }
 
+bool KeyboardInputState::tap(uint64_t provider_id, uint16_t code, int64_t timestamp_ns)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto it = held_by_provider_.find(provider_id);
+    if (it == held_by_provider_.end() || it->second.count(code) != 0)
+    {
+        return false;
+    }
+    push_event_locked({ timestamp_ns, code, true });
+    push_event_locked({ timestamp_ns, code, false });
+    return true;
+}
+
 void KeyboardInputState::release_all(uint64_t provider_id, int64_t timestamp_ns)
 {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -282,6 +295,21 @@ bool KeyboardProvider::key_up(std::string_view w3c_code, std::optional<int64_t> 
 {
     const auto code = evdev_code_from_w3c(w3c_code);
     return code.has_value() && key_up(*code, timestamp_ns);
+}
+
+bool KeyboardProvider::tap(uint16_t evdev_code, std::optional<int64_t> timestamp_ns)
+{
+    if (is_closed())
+    {
+        return false;
+    }
+    return state_->tap(id_, evdev_code, timestamp_ns.value_or(monotonic_now_ns()));
+}
+
+bool KeyboardProvider::tap(std::string_view w3c_code, std::optional<int64_t> timestamp_ns)
+{
+    const auto code = evdev_code_from_w3c(w3c_code);
+    return code.has_value() && tap(*code, timestamp_ns);
 }
 
 void KeyboardProvider::release_all(std::optional<int64_t> timestamp_ns)

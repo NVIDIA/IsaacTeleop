@@ -29,6 +29,8 @@ public:
     {
         return {};
     }
+    // Needs no OpenXR session handles, so a keyboard-only session can run without a runtime.
+    static constexpr bool requires_openxr = false;
     static std::unique_ptr<KeyboardMcapChannels> create_mcap_channels(mcap::McapWriter& writer,
                                                                       std::string_view base_name);
 

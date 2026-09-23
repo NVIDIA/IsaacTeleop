@@ -42,7 +42,14 @@ class KeyEventSource(Protocol):
       ``code`` is a W3C ``KeyboardEvent.code`` string ("KeyW", "ArrowUp", ...) or an evdev int.
       Autorepeat may be forwarded; repeated presses of a held key are ignored.
     - Call ``on_focus_lost()`` on blur, close or disconnect so no key can stay stuck.
-    - Do not forward keys typed into the host's own text fields.
+    - The host's own UI text input always wins: never forward keys typed into its text fields,
+      and call ``on_focus_lost()`` the moment its UI takes the keyboard (a text field gains
+      focus), exactly as on blur -- otherwise a key held at that moment never sees its release.
+    - ``set_keyboard_captured`` yields only host shortcuts that conflict with teleop (camera
+      keys, hotkeys); it never blocks the host's text input.
+    - A surface that cannot report releases (press-only hotkeys, a plain terminal) reports each
+      keystroke as ``on_key(code, True)`` immediately followed by ``on_key(code, False)``: a
+      tap that reaches ``keyboard_pressed`` but is never held.
     - Callbacks may arrive on any thread.
     """
 
