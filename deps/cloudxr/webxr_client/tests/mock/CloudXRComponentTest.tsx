@@ -155,10 +155,15 @@ let sawSessionAfterCancel = false;
 // Render/streaming/network metrics and trackingFrameAdapter all fire every frame (or close to
 // it) once connected - logging every occurrence would flood the console, so each just logs once
 // per session to prove it's wired, reset whenever a fresh session appears.
-let seenRenderMetrics = false;
-let seenStreamingMetrics = false;
-let seenNetworkMetrics = false;
-let seenTrackingFrameAdapterCall = false;
+let loggedOnce = new Set<string>();
+
+/** Logs `message` the first time it's called with a given `key`; a no-op on later calls. */
+function logOnce(key: string, message: string): void {
+  if (!loggedOnce.has(key)) {
+    loggedOnce.add(key);
+    appendLog(message);
+  }
+}
 
 // Shorter than CloudXRComponent's own default (3000ms) so the scripted sequence can observe a
 // full retry-and-reconnect cycle without a long wait; MockCloudXR's own connect delay for the
@@ -176,10 +181,7 @@ function Scene({ streamTestEnabled }: { streamTestEnabled: boolean }) {
         applicationName="CloudXRComponentTest"
         metricsSettings={metricsSettings}
         trackingFrameAdapter={frame => {
-          if (!seenTrackingFrameAdapterCall) {
-            seenTrackingFrameAdapterCall = true;
-            appendLog('[prop] trackingFrameAdapter called');
-          }
+          logOnce('trackingFrameAdapter', '[prop] trackingFrameAdapter called');
           return trackingFrameAdapter(frame);
         }}
         iceServers={iceServers}
@@ -209,10 +211,7 @@ function Scene({ streamTestEnabled }: { streamTestEnabled: boolean }) {
         onSessionReady={session => {
           activeSession = session as MockCloudXR | null;
           if (session) {
-            seenRenderMetrics = false;
-            seenStreamingMetrics = false;
-            seenNetworkMetrics = false;
-            seenTrackingFrameAdapterCall = false;
+            loggedOnce = new Set();
           }
           if (activeSession) {
             if (alwaysConnectWaitMs !== null) {
@@ -231,24 +230,15 @@ function Scene({ streamTestEnabled }: { streamTestEnabled: boolean }) {
         onLog={entries =>
           appendLog(`[event] onLog ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`)
         }
-        onRenderPerformanceMetrics={() => {
-          if (!seenRenderMetrics) {
-            seenRenderMetrics = true;
-            appendLog('[event] onRenderPerformanceMetrics (first occurrence)');
-          }
-        }}
-        onStreamingPerformanceMetrics={() => {
-          if (!seenStreamingMetrics) {
-            seenStreamingMetrics = true;
-            appendLog('[event] onStreamingPerformanceMetrics (first occurrence)');
-          }
-        }}
-        onNetworkPerformanceMetrics={() => {
-          if (!seenNetworkMetrics) {
-            seenNetworkMetrics = true;
-            appendLog('[event] onNetworkPerformanceMetrics (first occurrence)');
-          }
-        }}
+        onRenderPerformanceMetrics={() =>
+          logOnce('renderMetrics', '[event] onRenderPerformanceMetrics (first occurrence)')
+        }
+        onStreamingPerformanceMetrics={() =>
+          logOnce('streamingMetrics', '[event] onStreamingPerformanceMetrics (first occurrence)')
+        }
+        onNetworkPerformanceMetrics={() =>
+          logOnce('networkMetrics', '[event] onNetworkPerformanceMetrics (first occurrence)')
+        }
         onStreamTestStarted={() => appendLog('[event] onStreamTestStarted')}
         onStreamTestStopped={result =>
           appendLog(`[event] onStreamTestStopped passed=${result.passed}`)
@@ -275,11 +265,19 @@ async function startSession(connectWaitMs: number | null): Promise<void> {
   }
 }
 
+/** startSession(), then waits for the resulting MockCloudXR session to reach Connected. */
+async function startAndWaitConnected(
+  connectWaitMs: number | null,
+  timeoutMs = 3000
+): Promise<boolean> {
+  await startSession(connectWaitMs);
+  return waitUntil(() => activeSession?.state === CloudXR.SessionState.Connected, timeoutMs);
+}
+
 async function runStep1(): Promise<void> {
   appendLog('=== Step 1: start, then close cleanly - expect no errors ===');
   hadError = false;
-  await startSession(null);
-  await waitUntil(() => activeSession?.state === CloudXR.SessionState.Connected, 3000);
+  await startAndWaitConnected(null);
   store.getState().session?.end();
   await sleep(500);
   appendLog(hadError ? '[step1] FAIL: saw an error event' : '[step1] PASS: no errors');
@@ -356,8 +354,7 @@ async function runStep4(): Promise<void> {
   // lands on a session that hasn't reconnected yet (a reconnect would otherwise reset the
   // attempt counter before the next failure, per step 3's own PASS case).
   alwaysConnectWaitMs = 5000;
-  await startSession(0);
-  await waitUntil(() => activeSession?.state === CloudXR.SessionState.Connected, 3000);
+  await startAndWaitConnected(0);
 
   for (let i = 0; i < MAX_RECONNECT_ATTEMPTS + 1; i++) {
     activeSession?.triggerFailure({
@@ -385,8 +382,7 @@ async function runStep5(): Promise<void> {
   appendLog(
     '=== Step 5: end session while a retry is pending - expect the retry to be cancelled ==='
   );
-  await startSession(0);
-  await waitUntil(() => activeSession?.state === CloudXR.SessionState.Connected, 3000);
+  await startAndWaitConnected(0);
 
   activeSession?.triggerFailure({
     name: 'StreamingError',
@@ -417,8 +413,7 @@ async function runStep6(setStreamTestEnabled: (enabled: boolean) => void): Promi
   appendLog('=== Step 6: stream test (remounts with streamTest enabled) ===');
   setStreamTestEnabled(true);
   await sleep(100); // let React apply the remount before entering VR
-  await startSession(0);
-  await waitUntil(() => activeSession?.state === CloudXR.SessionState.Connected, 8000);
+  await startAndWaitConnected(0, 8000);
   store.getState().session?.end();
   await sleep(500);
   setStreamTestEnabled(false);
