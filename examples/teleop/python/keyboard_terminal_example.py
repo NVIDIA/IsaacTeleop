@@ -29,11 +29,11 @@ import tty
 
 import numpy as np
 
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     EvdevKeyCode,
     KeyboardSource,
 )
-from isaacteleop.teleop_session_manager import TeleopSession, TeleopSessionConfig
+from isaaccapture.teleop_session_manager import TeleopSession, TeleopSessionConfig
 
 # kitty keyboard protocol flags: disambiguate (1) | report event types (2) | all keys as escapes (8).
 _KITTY_FLAGS = 1 | 2 | 8

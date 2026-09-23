@@ -10,13 +10,13 @@ and host UI keyboard capture release held keys; press-only surfaces report taps)
 
 import numpy as np
 
-from isaacteleop import deviceio
-from isaacteleop.deviceio_trackers import HeadTracker, KeyboardTracker
-from isaacteleop.retargeting_engine.deviceio_source_nodes import (
+from isaaccapture import deviceio
+from isaaccapture.deviceio_trackers import HeadTracker, KeyboardTracker
+from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     FakeKeyEventSource,
     KeyboardSource,
 )
-from isaacteleop.teleop_session_manager import (
+from isaaccapture.teleop_session_manager import (
     SessionMode,
     TeleopSession,
     TeleopSessionConfig,
@@ -76,7 +76,7 @@ def test_keyboard_session_runs_without_openxr():
 
 
 def test_keyboard_session_records_and_replays_without_openxr(tmp_path):
-    from isaacteleop.deviceio_session import McapRecordingConfig, McapReplayConfig
+    from isaaccapture.deviceio_session import McapRecordingConfig, McapReplayConfig
 
     mcap_path = str(tmp_path / "keyboard.mcap")
     keyboard = KeyboardSource(name="keyboard")
