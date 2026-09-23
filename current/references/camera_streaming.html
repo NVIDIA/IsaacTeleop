@@ -377,6 +377,7 @@
 <li class="toctree-l1"><a class="reference internal" href="cloudxr.html">CloudXR Service</a></li>
 <li class="toctree-l1"><a class="reference internal" href="oob_teleop_control.html">Out-of-Band Teleop Control</a></li>
 <li class="toctree-l1"><a class="reference internal" href="egocentric_hand_reconstruction.html">Egocentric Hand Reconstruction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="migration.html">Migrating to <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code></a></li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
 </div>
@@ -431,7 +432,7 @@
                   
   <section id="camera-streaming">
 <h1>Camera Streaming<a class="headerlink" href="#camera-streaming" title="Link to this heading">#</a></h1>
-<p><code class="docutils literal notranslate"><span class="pre">camera_viz</span></code> is the reference camera-streaming sample built on <a class="reference internal" href="../getting_started/televiz.html"><span class="doc">Televiz</span></a> (<code class="docutils literal notranslate"><span class="pre">isaacteleop.viz</span></code>). It captures frames from one or more cameras
+<p><code class="docutils literal notranslate"><span class="pre">camera_viz</span></code> is the reference camera-streaming sample built on <a class="reference internal" href="../getting_started/televiz.html"><span class="doc">Televiz</span></a> (<code class="docutils literal notranslate"><span class="pre">isaaccapture.viz</span></code>). It captures frames from one or more cameras
 and streams them to an XR headset — one plane per camera, aspect-fit — either directly or from a
 robot to a workstation over the network (split mode). It can also stream <a class="reference internal" href="#recorded-camera-streaming"><span class="std std-ref">recorded camera
 data</span></a> — a video file replayed in place of a live camera — and render
@@ -503,8 +504,8 @@ run the sample’s one-time setup:</p>
 <span class="nb">source</span><span class="w"> </span>examples/camera_viz/.venv/bin/activate
 </pre></div>
 </div>
-<p>There is no need to install the <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> pip package yourself. <code class="docutils literal notranslate"><span class="pre">setup</span></code> builds the
-sample’s own environment: <code class="docutils literal notranslate"><span class="pre">isaacteleop[cloudxr]</span></code> — the <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> extra is not optional here,
+<p>There is no need to install the <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> pip package yourself. <code class="docutils literal notranslate"><span class="pre">setup</span></code> builds the
+sample’s own environment: <code class="docutils literal notranslate"><span class="pre">isaaccapture[cloudxr]</span></code> — the <code class="docutils literal notranslate"><span class="pre">cloudxr</span></code> extra is not optional here,
 since XR is the default display mode and the viewer launches the runtime itself — plus every
 other Python dependency, into <code class="docutils literal notranslate"><span class="pre">.venv/</span></code> via <code class="docutils literal notranslate"><span class="pre">uv</span></code>. It resolves a version new enough for the
 sample on its own, falling back to a release candidate and then, after asking, to a source build
@@ -550,11 +551,11 @@ machine (default <code class="docutils literal notranslate"><span class="pre">/u
 <td><p>Install into an existing virtual environment instead of creating <code class="docutils literal notranslate"><span class="pre">.venv/</span></code>.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--wheel</span> <span class="pre">PATH</span></code></p></td>
-<td><p>Install a locally built <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> wheel instead of resolving one from the index — for
+<td><p>Install a locally built <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> wheel instead of resolving one from the index — for
 developing Isaac Teleop itself.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--build-from-source</span></code></p></td>
-<td><p>Skip the package index and build <code class="docutils literal notranslate"><span class="pre">isaacteleop</span></code> from the surrounding checkout without
+<td><p>Skip the package index and build <code class="docutils literal notranslate"><span class="pre">isaaccapture</span></code> from the surrounding checkout without
 prompting — a full C++ / CUDA / Vulkan build (see
 <a class="reference internal" href="../getting_started/build_from_source/index.html"><span class="doc">Build from Source</span></a>).</p></td>
 </tr>
@@ -1169,7 +1170,7 @@ extensions and forwards the handles through <code class="docutils literal notran
 
   <p class="copyright">
     
-      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 22, 2026.
+      Copyright © 2025-2026, NVIDIA CORPORATION &amp; AFFILIATES, last updated on September 23, 2026.
       <br/>
     
   </p>
