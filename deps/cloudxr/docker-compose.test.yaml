@@ -13,11 +13,9 @@
 # (Docker Compose's include: directive doesn't allow service overrides)
 
 services:
-  # Override cloudxr-runtime for CI: accept EULA, use runc + deploy block for
-  # hook-based GPU injection (the base file's runtime: nvidia is unavailable on
-  # CI runners where the nvidia runtime is not registered).
+  # run_tests_with_cloudxr.sh selects a runtime registered with Docker.
   cloudxr-runtime:
-    runtime: runc
+    runtime: ${CXR_TEST_DOCKER_RUNTIME:-runc}
     environment:
       - ACCEPT_EULA=Y
       - NV_DEVICE_PROFILE=Quest3

@@ -146,12 +146,15 @@ if ! docker compose version &> /dev/null; then
     exit 1
 fi
 
-# Check if we have GPU support
-if docker info 2>/dev/null | grep -q "Runtimes.*nvidia"; then
-    log_success "NVIDIA Docker runtime detected"
-else
-    log_warning "NVIDIA Docker runtime not detected - GPU tests may fail"
+# CSV-mode hosts need the NVIDIA runtime; legacy GPU hooks also work with runc.
+# Match keys: Go templates treat a missing runtime's zero-valued struct as true.
+DOCKER_RUNTIMES=$(docker info --format '{{range $name, $_ := .Runtimes}}{{println $name}}{{end}}')
+CXR_TEST_DOCKER_RUNTIME=runc
+if grep -Fxq nvidia <<< "$DOCKER_RUNTIMES"; then
+    CXR_TEST_DOCKER_RUNTIME=nvidia
 fi
+export CXR_TEST_DOCKER_RUNTIME
+log_info "Test Docker runtime: $CXR_TEST_DOCKER_RUNTIME"
 
 # Set up environment
 log_info "Setting up environment..."
