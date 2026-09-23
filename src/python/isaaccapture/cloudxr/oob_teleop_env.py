@@ -201,7 +201,7 @@ _REQUIRED_WEB_CLIENT_ASSETS = ("index.html", "bundle.js")
 _OPTIONAL_WEB_CLIENT_ASSETS = ("bundle.emulator.js",)
 
 
-def require_web_client_static_dir() -> Path:
+def require_web_client_static_dir(*, require_health_probe: bool = False) -> Path:
     """Ensure web client static assets exist under :func:`resolve_web_client_static_dir`.
 
     Creates the directory if needed. If ``index.html``, ``bundle.js``, or
@@ -209,7 +209,9 @@ def require_web_client_static_dir() -> Path:
     Isaac Teleop client URLs (emulator bundle is optional on older releases).
 
     Idempotent: safe to call from both :class:`~.launcher.CloudXRLauncher` and ``wss.run``
-    (second call skips network when files are present).
+    (second call skips network when files are present). OOB automation requires
+    the current browser health protocol; a non-empty older cache is not a
+    compatible substitute.
 
     Raises:
         RuntimeError: If the path is invalid or downloads/final validation fail.
@@ -253,6 +255,19 @@ def require_web_client_static_dir() -> Path:
         fp = p / name
         if not fp.is_file() or fp.stat().st_size == 0:
             raise RuntimeError(f"Web client file missing or empty after fetch: {fp}")
+    if require_health_probe:
+        bundle = p / "bundle.js"
+        try:
+            bundle_bytes = bundle.read_bytes()
+        except OSError as exc:
+            raise RuntimeError(f"Cannot read WebXR bundle {bundle}: {exc}") from exc
+        if b"healthProbe" not in bundle_bytes or b"healthReport" not in bundle_bytes:
+            raise RuntimeError(
+                f"WebXR bundle {bundle} lacks the OOB healthProbe/healthReport "
+                "protocol. Build deps/cloudxr/webxr_client with `npm run build` "
+                "and set TELEOP_WEB_CLIENT_STATIC_DIR to its build directory. "
+                "An older non-empty static cache is not replaced automatically."
+            )
     return p
 
 
@@ -284,6 +299,11 @@ def _usb_local_static_handler_class(
         def log_message(self, fmt: str, *args) -> None:
             """Redirect access log lines to the module ``debug`` logger."""
             log.debug("%s - %s", self.address_string(), fmt % args)
+
+        def end_headers(self) -> None:
+            """Require a fresh UI and bundle after a developer rebuild."""
+            self.send_header("Cache-Control", "no-store")
+            super().end_headers()
 
     return _Handler
 

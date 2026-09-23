@@ -406,6 +406,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                     {
                         "Content-Type": _MIME[tail],
                         "Content-Length": str(len(body)),
+                        "Cache-Control": "no-store",
                         **CORS_HEADERS,
                     }
                 ),
@@ -586,12 +587,19 @@ async def run(
         _handler = logging.StreamHandler(sys.stderr)
     _handler.setFormatter(_log_fmt)
     logger.addHandler(_handler)
-    # Route oob-teleop-adb and oob-teleop-env logs to the same destination
-    for _extra_log_name in ("oob-teleop-adb", "oob-teleop-env"):
+    # Keep device, lifecycle, and hub transitions in the same field log.
+    extra_loggers = []
+    for _extra_log_name in (
+        "oob-teleop-adb",
+        "oob-teleop-env",
+        "oob-teleop-lifecycle",
+        "oob-teleop-hub",
+    ):
         _extra_log = logging.getLogger(_extra_log_name)
         _extra_log.setLevel(logging.INFO)
         _extra_log.propagate = False
         _extra_log.addHandler(_handler)
+        extra_loggers.append(_extra_log)
 
     try:
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
@@ -631,7 +639,9 @@ async def run(
         if host_client:
             from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
 
-            _host_client_static_dir = require_web_client_static_dir()
+            _host_client_static_dir = require_web_client_static_dir(
+                require_health_probe=setup_oob and not os.getenv("TELEOP_OOB_HUB_ONLY")
+            )
 
         http_handler = _make_http_handler(
             backend_host, backend_port, hub=hub, static_dir=_host_client_static_dir
@@ -666,7 +676,10 @@ async def run(
             try:
                 if usb_local:
                     https_thread, https_server = start_usb_local_https_server(
-                        require_web_client_static_dir(),
+                        require_web_client_static_dir(
+                            require_health_probe=setup_oob
+                            and not os.getenv("TELEOP_OOB_HUB_ONLY")
+                        ),
                         cert_file=cert_paths.cert_file,
                         key_file=cert_paths.key_file,
                         port=usb_ui_port(),
@@ -719,4 +732,6 @@ async def run(
         raise
     finally:
         logger.removeHandler(_handler)
+        for extra_log in extra_loggers:
+            extra_log.removeHandler(_handler)
         _handler.close()
