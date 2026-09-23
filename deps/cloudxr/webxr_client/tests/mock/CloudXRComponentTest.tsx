@@ -472,7 +472,10 @@ function App() {
       </div>
       <Canvas events={noEvents} style={{ position: 'fixed', inset: 0, zIndex: -1 }}>
         <PointerEvents batchEvents={false} />
-        <Scene key={streamTestEnabled ? 'streamtest' : 'normal'} streamTestEnabled={streamTestEnabled} />
+        <Scene
+          key={streamTestEnabled ? 'streamtest' : 'normal'}
+          streamTestEnabled={streamTestEnabled}
+        />
       </Canvas>
     </>
   );
