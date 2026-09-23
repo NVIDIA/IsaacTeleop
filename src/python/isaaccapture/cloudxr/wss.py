@@ -7,6 +7,7 @@ import asyncio
 import errno
 import json
 import logging
+import mimetypes
 import os
 from http import HTTPStatus
 from urllib.parse import unquote, urlparse
@@ -16,6 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..logging_config._core import DATE_FORMAT, LINE_FORMAT, logging_enabled
 from .env_config import get_env_config
 from .oob_teleop_env import (
     client_ui_fields_from_env,
@@ -66,7 +68,7 @@ def _patch_request_parser_for_cors():
 
 _patch_request_parser_for_cors()
 
-log = logging.getLogger("wss-proxy")
+log = logging.getLogger("isaaccapture.cloudxr.wss")
 
 
 @dataclass(frozen=True)
@@ -359,7 +361,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 b"Not found",
             )
 
-        # Static web client (--host-client): index.html + two JS bundles.
+        # Static web client (--host-client).
         if static_dir is not None and (
             path == "/client" or path.startswith("/client/")
         ):
@@ -381,7 +383,9 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 "bundle.emulator.js": "application/javascript; charset=utf-8",
             }
             tail = path[len("/client") :].lstrip("/") or "index.html"
-            if tail not in _MIME:
+            if tail not in _MIME and not tail.startswith(
+                "npm/@webxr-input-profiles/assets@"
+            ):
                 return Response(
                     404,
                     "Not Found",
@@ -397,6 +401,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                     Headers({"Content-Type": "text/plain", **CORS_HEADERS}),
                     b"Not found",
                 )
+            content_type = _MIME.get(tail) or mimetypes.guess_type(tail)[0]
             return Response(
                 200,
                 "OK",
@@ -404,7 +409,7 @@ def _make_http_handler(backend_host, backend_port, hub=None, static_dir=None):
                 # the static response body explicitly for headset browsers.
                 Headers(
                     {
-                        "Content-Type": _MIME[tail],
+                        "Content-Type": content_type or "application/octet-stream",
                         "Content-Length": str(len(body)),
                         "Cache-Control": "no-store",
                         **CORS_HEADERS,
@@ -575,31 +580,35 @@ async def run(
     serving from one still generating certificates or about to fail on a
     taken port.
     """
-    logger = log
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-    _log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    # Console output comes from propagation to the root `isaaccapture` logger's
+    # own handler (isaaccapture.logging_config); this only adds an optional,
+    # additional per-session file, on top of that, when the caller wants one.
+    # With logging off, this module owns its console or file output instead.
+    _handler = None
+    _handler_loggers: list[logging.Logger] = []
     if log_file_path is not None:
-        _handler: logging.Handler = logging.FileHandler(
-            log_file_path, mode="a", encoding="utf-8"
-        )
-    else:
+        _handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
+    elif not logging_enabled():
         _handler = logging.StreamHandler(sys.stderr)
-    _handler.setFormatter(_log_fmt)
-    logger.addHandler(_handler)
-    # Keep device, lifecycle, and hub transitions in the same field log.
-    extra_loggers = []
-    for _extra_log_name in (
-        "oob-teleop-adb",
-        "oob-teleop-env",
-        "oob-teleop-lifecycle",
-        "oob-teleop-hub",
-    ):
-        _extra_log = logging.getLogger(_extra_log_name)
-        _extra_log.setLevel(logging.INFO)
-        _extra_log.propagate = False
-        _extra_log.addHandler(_handler)
-        extra_loggers.append(_extra_log)
+    if _handler is not None:
+        _handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
+        # Tracked so the finally below can detach it from every logger it was
+        # attached to, not just this module's: a logger still holding a closed
+        # FileHandler reopens the file on its next record, and a second run()
+        # would stack another handler on top and duplicate every line.
+        _handler_loggers = [
+            log,
+            # Keep OOB transitions in the per-session log.
+            logging.getLogger("isaaccapture.cloudxr.oob_teleop_adb"),
+            logging.getLogger("isaaccapture.cloudxr.oob_teleop_env"),
+            logging.getLogger("isaaccapture.cloudxr.oob_teleop_hub"),
+            logging.getLogger("isaaccapture.cloudxr.oob_teleop_lifecycle"),
+        ]
+        for _attached_log in _handler_loggers:
+            if not logging_enabled():
+                _attached_log.setLevel(logging.INFO)
+                _attached_log.propagate = False
+            _attached_log.addHandler(_handler)
 
     try:
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
@@ -635,6 +644,7 @@ async def run(
                     return hub.handle_connection(ws)
             return proxy_handler(ws, backend_host, backend_port)
 
+        # /client/ on this WSS port for --host-client.
         _host_client_static_dir = None
         if host_client:
             from .oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
@@ -731,7 +741,7 @@ async def run(
             ) from e
         raise
     finally:
-        logger.removeHandler(_handler)
-        for extra_log in extra_loggers:
-            extra_log.removeHandler(_handler)
-        _handler.close()
+        for _attached_log in _handler_loggers:
+            _attached_log.removeHandler(_handler)
+        if _handler is not None:
+            _handler.close()

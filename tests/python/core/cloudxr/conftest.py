@@ -5,7 +5,8 @@
 
 * Flat ``sys.path`` entry: ``from oob_teleop_hub import …`` (no relative imports).
 * Synthetic package ``cloudxr_py_test_ns``: ``from cloudxr_py_test_ns.oob_teleop_env import …``
-  so modules that use sibling relative imports load correctly.
+  so modules that use sibling relative imports load correctly, under a synthetic
+  ``isaaccapture`` root so that the ones reaching ``..`` load too.
 """
 
 from __future__ import annotations
@@ -32,28 +33,47 @@ if _CLOUDXR_PY.is_dir() and str(_CLOUDXR_PY) not in sys.path:
 
 CLOUDXR_TEST_PKG = "cloudxr_py_test_ns"
 
+# ``wss`` reaches its own package's parent (``from ..logging_config._core import``), which a
+# one-level synthetic package has nothing to resolve. This root stands in for
+# ``isaaccapture`` and takes its ``__path__`` from the real source tree, so a sibling
+# subpackage loads from source with nothing installed. A module's real name therefore
+# has two levels, and every one is aliased back to CLOUDXR_TEST_PKG -- the name the
+# tests patch by.
+_TEST_ROOT_PKG = "isaaccapture_py_test_ns"
+
 
 def _ensure_cloudxr_package() -> None:
     if CLOUDXR_TEST_PKG in sys.modules:
         return
-    pkg = types.ModuleType(CLOUDXR_TEST_PKG)
+    root = types.ModuleType(_TEST_ROOT_PKG)
+    root.__path__ = [str(_CLOUDXR_PY.parent)]
+    sys.modules[_TEST_ROOT_PKG] = root
+
+    pkg_name = f"{_TEST_ROOT_PKG}.cloudxr"
+    pkg = types.ModuleType(pkg_name)
     pkg.__path__ = [str(_CLOUDXR_PY)]
+    sys.modules[pkg_name] = pkg
     sys.modules[CLOUDXR_TEST_PKG] = pkg
+    root.cloudxr = pkg
 
     def load(mod: str) -> None:
-        full = f"{CLOUDXR_TEST_PKG}.{mod}"
+        full = f"{pkg_name}.{mod}"
         path = _CLOUDXR_PY / f"{mod}.py"
         spec = importlib.util.spec_from_file_location(full, path)
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
         sys.modules[full] = module
+        sys.modules[f"{CLOUDXR_TEST_PKG}.{mod}"] = module
         spec.loader.exec_module(module)
-        setattr(sys.modules[CLOUDXR_TEST_PKG], mod, module)
+        setattr(pkg, mod, module)
 
     load("oob_teleop_hub")
     load("oob_teleop_env")
     load("oob_teleop_adb")
     load("webclient")
+    # Preloaded rather than left to the package's ``__path__``: an import through
+    # CLOUDXR_TEST_PKG would name it one level up, and ``..`` would be out of range.
+    load("wss")
 
 
 _ensure_cloudxr_package()
@@ -132,7 +152,7 @@ def make_mock_popen(pid: int = 12345, poll_returns: list | None = None) -> Magic
 
 @contextmanager
 def mock_service_deps(tmp_path, ready=True, wss=True):
-    """Patch the heavy dependencies so CloudXRService construction runs without I/O.
+    """Patch process and network dependencies for isolated service construction.
 
     Yields a dict of the mock objects for assertion.  Pass ``wss=False`` to
     leave ``_start_wss_proxy_thread`` real, for tests about the proxy's own
@@ -143,6 +163,10 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
     run_dir = str(tmp_path / "run")
     logs_dir = tmp_path / "logs"
     fake_cfg = FakeEnvConfig(run_dir, logs_dir)
+    static_dir = tmp_path / "static-client"
+    static_dir.mkdir(parents=True, exist_ok=True)
+    (static_dir / "index.html").write_text("<!doctype html>", encoding="utf-8")
+    (static_dir / "bundle.js").write_text("// test bundle", encoding="utf-8")
 
     mock_proc = make_mock_popen()
     wss_patch = (
@@ -165,6 +189,10 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
             return_value=ready,
         ) as m_wait,
         patch(
+            "isaaccapture.cloudxr.oob_teleop_env.require_web_client_static_dir",
+            return_value=static_dir,
+        ) as m_static_client,
+        patch(
             "isaaccapture.cloudxr.service._service.subprocess.Popen",
             return_value=mock_proc,
         ) as m_popen,
@@ -180,6 +208,7 @@ def mock_service_deps(tmp_path, ready=True, wss=True):
         mocks["from_args"] = m_from_args
         mocks["check_eula"] = m_eula
         mocks["wait"] = m_wait
+        mocks["static_client"] = m_static_client
         mocks["popen"] = m_popen
         mocks["proc"] = mock_proc
         mocks["wss"] = m_wss

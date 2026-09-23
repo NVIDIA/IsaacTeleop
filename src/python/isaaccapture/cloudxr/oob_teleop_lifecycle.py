@@ -23,7 +23,7 @@ from .oob_teleop_env import (
     usb_ui_port,
 )
 
-log = logging.getLogger("oob-teleop-lifecycle")
+log = logging.getLogger("isaaccapture.cloudxr.oob_teleop_lifecycle")
 
 
 @dataclass(frozen=True)

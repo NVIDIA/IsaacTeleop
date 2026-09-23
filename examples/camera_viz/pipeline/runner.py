@@ -27,7 +27,7 @@ from dashboard import CameraRow, Dashboard, Snapshot
 
 from .interface import FrameSource
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaaccapture.camera_viz.pipeline.runner")
 
 
 def _measure_ipd_mm(info) -> Optional[float]:

@@ -164,6 +164,8 @@ jobs:
       run: ccache --show-stats
 
     - name: Run All Tests
+      # NO_GPU_ARM=1 skips arm64 test execution while still building arm64.
+      if: ${{ !(matrix.arch == 'arm64' && vars.NO_GPU_ARM == '1') }}
       run: ctest --test-dir "${BUILD_DIR}" --output-on-failure --parallel
 
     - name: Generate coverage report
@@ -400,18 +402,39 @@ jobs:
           uv run --python 3.11 --directory tests/python/packaging --extra dev \
           pytest -v test_wheel_contents.py
 
+  # Jobs `if:` conditions cannot see the `matrix` context, so arm64 GPU test
+  # runs are skipped by computing the test matrix here instead: when
+  # NO_GPU_ARM=1, arm64 drops out of the matrix entirely (no self-hosted arm64
+  # GPU runner is claimed) while build-ubuntu still builds arm64 unconditionally.
+  resolve-test-arches:
+    runs-on: ubuntu-22.04
+    permissions: {}
+    outputs:
+      arches: ${{ steps.resolve.outputs.arches }}
+    steps:
+    - name: Resolve GPU test architectures
+      id: resolve
+      env:
+        NO_GPU_ARM: ${{ vars.NO_GPU_ARM }}
+      run: |
+        if [[ "$NO_GPU_ARM" == "1" ]]; then
+          echo 'arches=["x64"]' >> "$GITHUB_OUTPUT"
+        else
+          echo 'arches=["x64", "arm64"]' >> "$GITHUB_OUTPUT"
+        fi
+
   test-viz-gpu:
     # Runs [gpu]-tagged Catch2 tests for the Televiz module on a self-hosted
     # GPU runner. The build-ubuntu job runs on a GPU-less GitHub-hosted runner
     # where these tests SKIP cleanly; this job actually exercises the Vulkan
     # / CUDA paths that build-ubuntu cannot.
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
-    needs: build-ubuntu
+    needs: [build-ubuntu, resolve-test-arches]
 
     strategy:
       fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
-        arch: ['x64', 'arm64']
+        arch: ${{ fromJson(needs.resolve-test-arches.outputs.arches) }}
 
     steps:
     - name: Download viz test binaries
@@ -594,13 +617,13 @@ jobs:
 
   test-cloudxr:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
-    needs: build-ubuntu
+    needs: [build-ubuntu, resolve-test-arches]
 
     strategy:
       fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
         python_version: ['3.11', '3.12', '3.13']
-        arch: ['x64', 'arm64']
+        arch: ${{ fromJson(needs.resolve-test-arches.outputs.arches) }}
 
     steps:
     - name: Checkout code
@@ -637,13 +660,13 @@ jobs:
 
   test-teleop-ros2:
     runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
-    needs: build-ubuntu
+    needs: [build-ubuntu, resolve-test-arches]
 
     strategy:
       fail-fast: ${{ github.event_name == 'pull_request' }}
       matrix:
         python_version: ['3.12']
-        arch: ['x64', 'arm64']
+        arch: ${{ fromJson(needs.resolve-test-arches.outputs.arches) }}
 
     steps:
     - name: Checkout code
@@ -843,7 +866,7 @@ jobs:
         # proxy up. This is the primary bring-up marker.
         BRINGUP_MARKER="CloudXR runtime and WSS proxy started"
         SESSION_MARKER="TeleopSession started successfully"
-        PLUGIN_MARKER="WujiGlovePlugin initialized and running"
+        PLUGIN_MARKER_RE="wuji_glove\.WujiGlovePlugin\].*initialized and running"
         # Hard failures from the launcher, runtime, or plugin lifecycle.
         FAIL_RE="CloudXR runtime failed to start|SDK missing libcloudxr.so|CloudXR EULA was not accepted|CloudXR launcher is not running|runtime process exited unexpectedly|WSS proxy thread stopped unexpectedly|Plugin process exited immediately|Required plugin .* was not discovered"
 
@@ -915,7 +938,7 @@ jobs:
           if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
             fail "live bring-up reported a fatal error after CloudXR startup"
           fi
-          if grep -qF "$SESSION_MARKER" "$LOG_FILE" && grep -qF "$PLUGIN_MARKER" "$LOG_FILE"; then
+          if grep -qF "$SESSION_MARKER" "$LOG_FILE" && grep -Eq "$PLUGIN_MARKER_RE" "$LOG_FILE"; then
             ready=true
             break
           fi

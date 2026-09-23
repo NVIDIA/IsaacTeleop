@@ -9,6 +9,7 @@ import logging
 import os
 import sys
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -48,9 +49,23 @@ def _restore_environ():
     os.environ.update(saved)
 
 
+@pytest.fixture(autouse=True)
+def _mock_web_client_assets():
+    """Keep launcher tests offline while exposing asset preparation calls."""
+    with patch(
+        "isaaccapture.cloudxr.oob_teleop_env.require_web_client_static_dir"
+    ) as mock:
+        yield mock
+
+
 def _live(value=True):
     """Patch the launcher's liveness probe."""
     return patch("isaaccapture.cloudxr.launcher.is_runtime_live", return_value=value)
+
+
+def _announced_client_url(stderr: str) -> str:
+    """Return the announced client URL from launcher stderr."""
+    return next(token for token in stderr.split() if token.startswith("https://"))
 
 
 @contextlib.contextmanager
@@ -223,6 +238,104 @@ class TestDivergenceWarnings:
 
         assert "gone.env" in caplog.text
 
+    def test_warns_when_running_service_lacks_host_client(self, tmp_path, capsys):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaaccapture.cloudxr.background.read_run_flags",
+                return_value=[],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        err = capsys.readouterr().err
+        assert "--host-client is ignored" in err
+        assert "without a hosted /client/" in err
+        assert "rerun this application with the same arguments" in err
+        assert f"service stop --cloudxr-install-dir {install}" in err
+        assert "service start" not in err
+
+    def test_warns_when_running_service_has_host_client(self, tmp_path, capsys):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaaccapture.cloudxr.background.read_run_flags",
+                return_value=["--host-client"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        err = capsys.readouterr().err
+        assert "--no-host-client is ignored" in err
+        assert "with --host-client" in err
+        assert "rerun this application with the same arguments" in err
+        assert f"service stop --cloudxr-install-dir {install}" in err
+        assert "service start" not in err
+
+    def test_quiet_when_running_host_client_matches(self, tmp_path, capsys):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaaccapture.cloudxr.background.read_run_flags",
+                return_value=["--host-client"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        assert "host-client" not in capsys.readouterr().err
+
+    def test_warns_when_usb_local_and_requested_host_client(self, tmp_path, capsys):
+        """The USB static server does not imply WSS /client/ hosting."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaaccapture.cloudxr.background.read_run_flags",
+                return_value=["--setup-oob", "--usb-local"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        assert "--host-client is ignored" in capsys.readouterr().err
+
+    def test_quiet_when_usb_local_and_requested_no_host_client(self, tmp_path, capsys):
+        """USB-local alone serves the static client on its own port."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=42),
+            patch(
+                "isaaccapture.cloudxr.background.read_run_flags",
+                return_value=["--setup-oob", "--usb-local"],
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        assert "host-client" not in capsys.readouterr().err
+
+    def test_quiet_when_foreground_service_flags_are_unknown(self, tmp_path, capsys):
+        """Foreground services leave no pid file, so their flags cannot be read."""
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        with (
+            _live(),
+            patch("isaaccapture.cloudxr.background.read_pid", return_value=None),
+            patch(
+                "isaaccapture.cloudxr.background.read_run_flags",
+                return_value=[],
+            ) as m_flags,
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        m_flags.assert_not_called()
+        assert "host-client" not in capsys.readouterr().err
+
 
 class TestNothingRunning:
     """Without a service, the launcher starts a detached one and says so."""
@@ -241,6 +354,14 @@ class TestNothingRunning:
                 "isaaccapture.cloudxr.background.start_and_wait",
                 return_value=(4242, tmp_path / "logs" / "service.log"),
             ) as m_start,
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.wss_proxy_port",
+                return_value=48322,
+            ),
         ):
             launcher = CloudXRLauncher(install_dir=install)
 
@@ -249,6 +370,113 @@ class TestNothingRunning:
         err = capsys.readouterr().err
         assert "started one (pid 4242)" in err
         assert "service stop" in err
+        assert "--host-client" in m_start.call_args.args[0]
+        assert "https://10.0.0.5:48322/client/" in err
+
+    def test_prepares_client_assets_before_detaching(
+        self, tmp_path, _mock_web_client_assets
+    ):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+        events = []
+        _mock_web_client_assets.side_effect = lambda: events.append("assets")
+
+        def _start(*_args, before_spawn):
+            before_spawn()
+            events.append("start")
+            return 1, tmp_path / "logs" / "service.log"
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                side_effect=_start,
+            ),
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+        ):
+            CloudXRLauncher(install_dir=install)
+
+        assert events == ["assets", "start"]
+
+    def test_client_url_uses_proxy_port_from_attached_env(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        """Announcement must follow attach so PROXY_PORT comes from cloudxr.env.
+
+        A caller shell can carry a different PROXY_PORT than the service
+        resolved from --cloudxr-env-config; printing before attach would show
+        the wrong port.
+        """
+        install = _env_file(
+            tmp_path, XR_RUNTIME_JSON="/x/openxr.json", PROXY_PORT=55555
+        )
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+        monkeypatch.setenv("PROXY_PORT", "48322")
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                return_value=(4242, tmp_path / "logs" / "service.log"),
+            ),
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        err = capsys.readouterr().err
+        url = urlparse(_announced_client_url(err))
+        assert url.hostname == "10.0.0.5"
+        assert url.port == 55555
+        assert parse_qs(url.query) == {
+            "serverIP": ["10.0.0.5"],
+            "port": ["55555"],
+        }
+
+    def test_client_url_uses_proxy_host_from_attached_env(self, tmp_path, capsys):
+        install = _env_file(
+            tmp_path,
+            XR_RUNTIME_JSON="/x/openxr.json",
+            TELEOP_PROXY_HOST="proxy.example.test",
+            PROXY_PORT=49322,
+        )
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                return_value=(4242, tmp_path / "logs" / "service.log"),
+            ),
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ) as m_guess,
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        url = urlparse(_announced_client_url(capsys.readouterr().err))
+        assert url.hostname == "proxy.example.test"
+        assert url.port == 49322
+        assert parse_qs(url.query) == {
+            "serverIP": ["proxy.example.test"],
+            "port": ["49322"],
+        }
+        m_guess.assert_not_called()
 
     def test_forwards_config_to_the_service_it_starts(self, tmp_path):
         """A dropped setting here would silently start the wrong runtime.
@@ -269,6 +497,10 @@ class TestNothingRunning:
                 "isaaccapture.cloudxr.background.start_and_wait",
                 return_value=(1, tmp_path / "logs" / "service.log"),
             ) as m_start,
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="127.0.0.1",
+            ),
         ):
             CloudXRLauncher(
                 install_dir=install, device_profile="auto-native", host_client=True
@@ -277,6 +509,67 @@ class TestNothingRunning:
         flags, _, _, extra_env = m_start.call_args.args
         assert "--host-client" in flags
         assert extra_env == {"NV_DEVICE_PROFILE": "auto-native"}
+
+    def test_omits_client_url_when_host_client_is_disabled(
+        self, tmp_path, capsys, _mock_web_client_assets
+    ):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ),
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        assert "/client/" not in capsys.readouterr().err
+        _mock_web_client_assets.assert_not_called()
+
+    @pytest.mark.parametrize("host_client", [False, True])
+    def test_usb_local_announces_loopback_client_url(
+        self, tmp_path, capsys, host_client
+    ):
+        install = _env_file(
+            tmp_path, XR_RUNTIME_JSON="/x/openxr.json", PROXY_PORT=49322
+        )
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ),
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+        ):
+            CloudXRLauncher(
+                install_dir=install,
+                setup_oob=True,
+                usb_local=True,
+                host_client=host_client,
+            )
+
+        err = capsys.readouterr().err
+        url = urlparse(_announced_client_url(err))
+        assert url.hostname == "127.0.0.1"
+        assert url.port == 8080
+        assert url.path == "/"
+        assert parse_qs(url.query) == {
+            "serverIP": ["127.0.0.1"],
+            "port": ["49322"],
+        }
 
     def test_default_profile_adds_no_environment(self, tmp_path):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
@@ -302,6 +595,7 @@ class TestNothingRunning:
 
         assert launcher.owns_runtime is True
         mocks["popen"].assert_called_once()
+        mocks["static_client"].assert_called_once_with(require_health_probe=False)
 
     def test_run_embedded_stops_what_it_started(self, tmp_path):
         with _live(False), mock_service_deps(tmp_path, ready=True) as mocks:
@@ -345,6 +639,7 @@ class TestLaunchArgumentHelpers:
                 "--cloudxr-env-config",
                 "/etc/cloudxr.env",
                 "--accept-eula",
+                "--no-host-client",
                 "--no-launch-cloudxr-runtime",
                 "--no-launch-wss-proxy",
             ]
@@ -353,6 +648,7 @@ class TestLaunchArgumentHelpers:
         assert args.cloudxr_device_profile == "auto-webrtc"
         assert args.cloudxr_env_config == "/etc/cloudxr.env"
         assert args.accept_eula is True
+        assert args.host_client is False
         assert args.launch_cloudxr_runtime is False
         assert args.launch_wss_proxy is False
 
@@ -362,6 +658,7 @@ class TestLaunchArgumentHelpers:
         args = parser.parse_args([])
         assert args.cloudxr_env_config is None
         assert args.accept_eula is False
+        assert args.host_client is True
         assert args.launch_cloudxr_runtime is True
         assert args.launch_wss_proxy is None
 
@@ -472,6 +769,37 @@ class TestLaunchArgumentHelpers:
         assert CloudXRLauncher._resolve_accept_eula(args, False) is False
         args.accept_eula = False
         assert CloudXRLauncher._resolve_accept_eula(args, True) is True
+
+    def test_resolve_host_client_none_falls_back_to_args(self) -> None:
+        args = argparse.Namespace(host_client=True)
+        assert CloudXRLauncher._resolve_host_client(args) is True
+        args.host_client = False
+        assert CloudXRLauncher._resolve_host_client(args) is False
+
+    def test_resolve_host_client_explicit_override(self) -> None:
+        args = argparse.Namespace(host_client=True)
+        assert CloudXRLauncher._resolve_host_client(args, False) is False
+        args.host_client = False
+        assert CloudXRLauncher._resolve_host_client(args, True) is True
+
+    def test_start_service_omits_host_client_when_disabled(self, tmp_path) -> None:
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                return_value=(1, tmp_path / "logs" / "service.log"),
+            ) as m_start,
+        ):
+            CloudXRLauncher(install_dir=install, host_client=False)
+
+        flags = m_start.call_args.args[0]
+        assert "--host-client" not in flags
 
 
 class TestEnvConfigLauncherDefaults:

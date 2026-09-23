@@ -5,11 +5,61 @@
 #include <viz/core/vk_context.hpp>
 #include <viz/xr/openxr_session.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
+
+namespace
+{
+
+using WaitPollHook = void (*)();
+
+void wait_poll_hook_a()
+{
+}
+
+void wait_poll_hook_b()
+{
+}
+
+struct HookObservation
+{
+    WaitPollHook previous = nullptr;
+    WaitPollHook installed = nullptr;
+};
+
+} // namespace
+
+TEST_CASE("OpenXrSession wait-poll hooks are isolated per thread", "[unit][viz_xr]")
+{
+    std::atomic<int> ready{ 0 };
+    HookObservation observation_a;
+    HookObservation observation_b;
+
+    const auto observe_hook = [&ready](WaitPollHook hook, HookObservation* observation)
+    {
+        observation->previous = viz::OpenXrSession::set_wait_poll_hook(hook);
+        ready.fetch_add(1, std::memory_order_release);
+        while (ready.load(std::memory_order_acquire) != 2)
+        {
+            std::this_thread::yield();
+        }
+        observation->installed = viz::OpenXrSession::set_wait_poll_hook(nullptr);
+    };
+
+    std::thread thread_a(observe_hook, wait_poll_hook_a, &observation_a);
+    std::thread thread_b(observe_hook, wait_poll_hook_b, &observation_b);
+    thread_a.join();
+    thread_b.join();
+
+    CHECK(observation_a.previous == nullptr);
+    CHECK(observation_b.previous == nullptr);
+    CHECK(observation_a.installed == wait_poll_hook_a);
+    CHECK(observation_b.installed == wait_poll_hook_b);
+}
 
 // [xr]: needs a reachable OpenXR runtime + HMD. Filtered out by default.
 

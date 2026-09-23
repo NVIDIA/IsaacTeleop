@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_session/deviceio_session.hpp>
+#include <log_bridge/logger.hpp>
 #include <openxr/openxr.h>
 #include <oxr/oxr_session.hpp>
 #include <oxr_utils/oxr_time.hpp>
@@ -100,6 +101,9 @@ private:
                    XrHandEXT hand,
                    const HandFrame& frame,
                    XrTime time);
+
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaaccapture::Logger::get("isaaccapture.plugins.wuji_glove.WujiGlovePlugin");
 
     std::shared_ptr<core::OpenXRSession> m_session;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;

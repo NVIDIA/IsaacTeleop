@@ -10,7 +10,7 @@ import sys
 import time
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from isaaccapture.cloudxr import background
 
@@ -114,6 +114,22 @@ class TestSpawn:
         while time.monotonic() < deadline and not log.read_text():
             time.sleep(0.05)
         assert "No module named" in log.read_text()
+
+    def test_the_log_socket_is_not_inherited(self, tmp_path, monkeypatch):
+        """A forwarding child has no console and no file handler of its own.
+
+        This service outlives its launcher, so an inherited address would leave
+        it shipping records to a receiver that stopped answering, with nothing
+        to fall back on.  The C++ half reads the same variable.
+        """
+        monkeypatch.setenv("ISAACCAPTURE_LOG_SOCKET", "/run/user/0/it/leader.sock")
+        with patch("isaaccapture.cloudxr.background.subprocess.Popen") as popen:
+            popen.return_value = MagicMock(pid=4242)
+            background.spawn([], str(tmp_path / "run"), tmp_path / "logs")
+
+        env = popen.call_args.kwargs["env"]
+        assert "ISAACCAPTURE_LOG_SOCKET" not in env
+        assert env["PYTHONUNBUFFERED"] == "1"
 
     def test_log_is_appended_not_truncated(self, tmp_path, monkeypatch):
         """A restart must not erase the log that explains the last crash."""
@@ -222,6 +238,30 @@ class TestTerminateRaces:
 @_posix_only
 class TestStartRaces:
     """A start that queues behind another must not spawn on top of it."""
+
+    def test_prepares_before_spawning(self, tmp_path):
+        run_dir = str(tmp_path / "run")
+        events = []
+
+        def _prepare():
+            events.append("prepare")
+
+        def _spawn(*_args):
+            events.append("spawn")
+            return 4242, tmp_path / "logs" / "service.log"
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.runtime.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch("isaaccapture.cloudxr.background.spawn", side_effect=_spawn),
+        ):
+            background.start_and_wait(
+                [], run_dir, tmp_path / "logs", before_spawn=_prepare
+            )
+
+        assert events == ["prepare", "spawn"]
 
     def test_a_runtime_that_appears_under_the_lock_refuses_the_spawn(self, tmp_path):
         """The loser would otherwise overwrite the winner's pid file.

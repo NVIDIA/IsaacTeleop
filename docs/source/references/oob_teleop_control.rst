@@ -489,7 +489,7 @@ Environment variables
    * - Variable
      - Description
    * - ``PROXY_PORT``
-     - WSS proxy port (default ``48322``)
+     - WSS proxy port (default ``48322``).
    * - ``CONTROL_TOKEN``
      - Optional auth token for hub access
    * - ``TELEOP_STREAM_SERVER_IP``

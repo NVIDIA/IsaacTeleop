@@ -27,6 +27,7 @@ from typing import List, Optional
 
 import yaml
 
+from isaaccapture import logging_config
 from isaaccapture.cloudxr import CloudXRLauncher
 
 import cloudxr_env
@@ -59,8 +60,7 @@ def _parse_args(argv: Optional[list[str]]):
         default=None,
         metavar="SECONDS",
         help="Override display.xr.system_wait_seconds: how long to wait for the "
-        "headset to connect. Negative waits forever (the default); 0 fails fast. "
-        "Ctrl-C is not delivered until the wait ends.",
+        "headset to connect. Negative waits forever (the default); 0 fails fast.",
     )
     CloudXRLauncher.add_launcher_arguments(parser)
     return parser.parse_args(argv)
@@ -242,30 +242,30 @@ def main(argv: Optional[list[str]] = None) -> int:
         controls_cfg = controls_config_from_yaml(cfg.get("display", {}))
         # Window mode has no controllers, so don't ask for their extensions.
         want_controls = controls_cfg.enabled and effective_mode == "xr"
-        if effective_mode == "xr":
-            # create() blocks here with the GIL held, so say so before it does:
-            # an unexplained stall plus a dead Ctrl-C reads as a hang.
-            xr_cfg = cfg.get("display", {}).get("xr", {})
-            wait = (
-                args.xr_wait
-                if args.xr_wait is not None
-                else int(xr_cfg.get("system_wait_seconds", display.WAIT_FOR_HEADSET))
+        interrupt_signum = None
+
+        def _interrupt(signum, frame):
+            nonlocal interrupt_signum
+            interrupt_signum = signum
+            raise KeyboardInterrupt
+
+        # Before create(): native HMD wait only sees Ctrl-C if a Python handler is pending.
+        signal.signal(signal.SIGINT, _interrupt)
+        signal.signal(signal.SIGTERM, _interrupt)
+
+        try:
+            session = display.make_session(
+                cfg,
+                mode_override=args.mode,
+                required_extensions=(
+                    ControllerControls.required_extensions() if want_controls else None
+                ),
+                xr_wait_override=args.xr_wait,
             )
-            if wait != 0:
-                how = "indefinitely" if wait < 0 else f"up to {wait}s"
-                print(
-                    f"camera_viz: waiting {how} for the headset to connect "
-                    "(Ctrl-C only lands once it does; kill the process to abort)",
-                    flush=True,
-                )
-        session = display.make_session(
-            cfg,
-            mode_override=args.mode,
-            required_extensions=(
-                ControllerControls.required_extensions() if want_controls else None
-            ),
-            xr_wait_override=args.xr_wait,
-        )
+        except KeyboardInterrupt:
+            n = signal.SIGINT if interrupt_signum is None else interrupt_signum
+            print(f"camera_viz: stopping (signal {n})...", flush=True)
+            return 0
         is_xr = session.is_xr_mode()
 
         if source_mode == "local":
@@ -302,6 +302,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         dashboard = Dashboard()
         if dashboard.live:
             set_notify_sink(dashboard.note)
+            # The console handler writes to the stderr this panel owns, so
+            # routine chatter mid-repaint leaves its line count wrong for the
+            # rest of the run. Raised, not silenced: a warning is worth a torn
+            # panel, and the log file keeps every level either way.
+            logging_config.set_console_level("warning")
         else:
             # Nothing is redrawing, so the header would never be seen.
             print(f"camera_viz: {header}", flush=True)

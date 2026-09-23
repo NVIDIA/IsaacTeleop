@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/hand_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <schema/hand_generated.h>
 
@@ -36,6 +37,9 @@ private:
     Serialized<HandPose> left_tracked_;
     Serialized<HandPose> right_tracked_;
     std::unique_ptr<HandMcapViewers> mcap_viewers_;
+    std::shared_ptr<spdlog::logger> logger_;
+    bool warned_no_left_data_ = false;
+    bool warned_no_right_data_ = false;
 };
 
 } // namespace core

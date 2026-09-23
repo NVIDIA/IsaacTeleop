@@ -26,8 +26,9 @@ from pathlib import Path
 
 import numpy as np
 
-from isaaccapture import viz
+from isaaccapture import logging_config, viz
 from isaaccapture.cloudxr import CloudXRLauncher
+from isaaccapture.logging_config._core import logging_enabled
 from isaaccapture.retargeting_engine.deviceio_source_nodes import ControllersSource
 from isaaccapture.retargeting_engine.interface import OutputCombiner, ValueInput
 from isaaccapture.retargeters.controller_pose import ControllerPoseSource
@@ -71,7 +72,7 @@ from isaaccapture.viz.robot.so101_ghost import (
     pose_from_ghost_body,
 )
 
-LOG = logging.getLogger("robot_viz")
+LOG = logging.getLogger("isaaccapture.robot_viz")
 
 # The app's only clip planes. TwinRenderConfig hands the same pair to the compositor and to
 # the twin's projection, or world-locked geometry swims under head motion -- and only a
@@ -298,10 +299,10 @@ def main(argv: list[str]) -> int:
     CloudXRLauncher.add_launcher_arguments(parser)
     args = parser.parse_args(argv[1:])
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="[robot_viz] %(message)s",
-    )
+    if logging_enabled():
+        logging_config.set_console_level("debug" if args.verbose else "info")
+    else:
+        logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     with contextlib.ExitStack() as stack:
         launcher = stack.enter_context(CloudXRLauncher.launch_context(args))

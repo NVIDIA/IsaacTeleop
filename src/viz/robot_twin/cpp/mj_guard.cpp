@@ -5,9 +5,12 @@
 
 #include "mj_api.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <csetjmp>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -22,6 +25,14 @@ thread_local std::jmp_buf g_recover;
 thread_local bool g_armed = false;
 thread_local std::string g_message;
 
+// Both vendor callbacks below fire on a regular thread (not a signal handler,
+// not between fork() and exec()), so logging from them is safe.
+spdlog::logger& logger()
+{
+    static const auto instance = isaaccapture::Logger::get("isaaccapture.viz.robot_twin.MuJoCo");
+    return *instance;
+}
+
 void on_error(const char* message)
 {
     g_message = message == nullptr ? "" : message;
@@ -29,7 +40,13 @@ void on_error(const char* message)
     {
         // Outside a guarded call there is nowhere to land. A core dump beats continuing
         // on state MuJoCo has already declared invalid.
+        logger().error("unguarded MuJoCo error: {}", g_message);
+        logger().flush();
+        // Also unbuffered on stderr: the abort() below can stop the receiver
+        // thread before a forwarded record has been persisted anywhere, and a
+        // flush of a forwarding sink cannot wait for it.
         std::fprintf(stderr, "robot_twin: unguarded MuJoCo error: %s\n", g_message.c_str());
+        std::fflush(stderr);
         std::abort();
     }
     g_armed = false;
@@ -38,7 +55,7 @@ void on_error(const char* message)
 
 void on_warning(const char* message)
 {
-    std::fprintf(stderr, "robot_twin: MuJoCo warning: %s\n", message == nullptr ? "" : message);
+    logger().warn("{}", message == nullptr ? "" : message);
 }
 
 } // namespace

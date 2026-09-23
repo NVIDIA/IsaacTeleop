@@ -17,6 +17,7 @@ from typing import Any
 
 import isaaccapture.plugin_manager as pm
 from isaaccapture import deviceio, deviceio_trackers, oxr
+from isaaccapture.logging_config._native_api import capture_native_output
 from isaaccapture.retargeting_engine.deviceio_source_nodes import (
     IDeviceIOSink,
     IDeviceIOSource,
@@ -1047,20 +1048,27 @@ class TeleopSession:
 
         self._in_context = True
         stack = ExitStack()
-        try:
-            self._enter_resources(stack)
-            self._exit_stack = stack.pop_all()
-        except BaseException as error:
+        # Everything acquired below reaches native code that writes diagnostics
+        # straight to a descriptor and exports no log hook: xrCreateInstance /
+        # xrCreateSession, the ~50 xrCreateHandTrackerEXT probes inside
+        # DeviceIOSession.run(), and each plugin's startup. The scope covers the
+        # rollback below too, which tears the same objects down again. See
+        # capture_native_output() for what a scope costs while it is open.
+        with capture_native_output():
             try:
-                # Give resources the setup error, but do not let one suppress it.
-                stack.__exit__(type(error), error, error.__traceback__)
-            except BaseException:
-                logger.exception("Failed to roll back TeleopSession setup")
-            finally:
-                self._status_monitor.mark_startup_failed(error)
-                self._oxr_session = None
-                self._in_context = False
-            raise
+                self._enter_resources(stack)
+                self._exit_stack = stack.pop_all()
+            except BaseException as error:
+                try:
+                    # Give resources the setup error, but do not let one suppress it.
+                    stack.__exit__(type(error), error, error.__traceback__)
+                except BaseException:
+                    logger.exception("Failed to roll back TeleopSession setup")
+                finally:
+                    self._status_monitor.mark_startup_failed(error)
+                    self._oxr_session = None
+                    self._in_context = False
+                raise
 
         return self
 
@@ -1372,7 +1380,10 @@ class TeleopSession:
         # Preserve TeleopSession's historical behavior of not suppressing
         # exceptions from the user body, even if a child context manager would.
         try:
-            self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
+            # Teardown is as noisy as construction: destroying the OpenXR
+            # session and stopping each plugin both reach the same native code.
+            with capture_native_output():
+                self._exit_stack.__exit__(exc_type, exc_val, exc_tb)
         finally:
             self._status_monitor.mark_stopped()
             # The ExitStack above closes the OpenXR session; drop our reference so the

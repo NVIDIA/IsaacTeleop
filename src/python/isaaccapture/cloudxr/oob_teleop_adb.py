@@ -11,12 +11,9 @@ Default mode (WiFi streaming):
 USB-local mode (``--usb-local``):
     Teleop signalling and streaming travel over USB via ``adb reverse`` on the
     headset's loopback.  The headset URL uses ``serverIP=127.0.0.1`` and loads
-    the web client from ``https://localhost:<USB_UI_PORT>`` (Python
-    ``http.server`` in :mod:`~.oob_teleop_env` serves the prebuilt static
-    client over HTTPS, reusing the WSS proxy's PEM).  coturn runs locally and is reachable from
-    the headset through adb reverse for WebRTC ICE relay.  Note: WebRTC
-    requires a non-loopback interface on the headset, so WiFi must remain
-    connected (no traffic traverses it).
+    the web client from ``https://localhost:<USB_UI_PORT>`` on a local HTTPS
+    server. coturn is reachable through adb reverse for WebRTC ICE relay.
+    WebRTC still requires an associated non-loopback headset interface.
 """
 
 from __future__ import annotations
@@ -29,6 +26,7 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -48,7 +46,7 @@ from .oob_teleop_env import (
     web_client_base_override_from_env,
 )
 
-log = logging.getLogger("oob-teleop-adb")
+log = logging.getLogger("isaaccapture.cloudxr.oob_teleop_adb")
 
 
 class OobAdbError(Exception):
@@ -592,17 +590,15 @@ def build_teleop_url(
         ovr = web_client_base or web_client_base_override_from_env()
         web_base = ovr if ovr else f"https://localhost:{usb_ui_port()}"
     else:
+        lan_host = resolve_lan_host_for_oob()
         stream_cfg = {
-            "serverIP": resolve_lan_host_for_oob(),
+            "serverIP": lan_host,
             "port": signaling_port,
             **client_ui_fields_from_env(),
         }
         ovr = web_client_base or web_client_base_override_from_env()
         if host_client:
-            from .oob_teleop_env import guess_lan_ipv4, wss_proxy_port  # noqa: PLC0415
-
-            _lan = guess_lan_ipv4() or "localhost"
-            default_base = f"https://{_lan}:{wss_proxy_port()}/client"
+            default_base = f"https://{lan_host}:{resolved_port}/client"
         else:
             default_base = default_web_client_origin()
         web_base = ovr if ovr else default_base
@@ -806,20 +802,14 @@ def verify_adb_reverse_rules(expected_ports: list[int]) -> list[int]:
     return list(probe_adb_reverse_rules(expected_ports).missing_ports)
 
 
-def setup_adb_reverse_ports() -> None:
+def setup_adb_reverse_ports(proxy_port: int | None = None) -> None:
     """Set up ``adb reverse`` for the USB-local TCP ports.
 
     Reverse-maps headset loopback ports to the PC so the headset can reach
     the WebXR static HTTPS server, WSS proxy, and CloudXR backend over USB.
 
-    Ports reversed: the USB UI port (resolved via
-    :func:`~.oob_teleop_env.usb_ui_port`, default 8080; override via the
-    ``USB_UI_PORT`` env var) — the static HTTPS server started by
-    :func:`~.oob_teleop_env.start_usb_local_https_server` — the WSS proxy
-    port (resolved via :func:`~.oob_teleop_env.wss_proxy_port`), and the
-    CloudXR backend port (resolved via
-    :func:`~.oob_teleop_env.usb_backend_port`, default 49100; override via
-    the ``USB_BACKEND_PORT`` env var).
+    Ports reversed: ``USB_UI_PORT``, *proxy_port* (or ``PROXY_PORT`` when
+    omitted), and ``USB_BACKEND_PORT``.
 
     Raises:
         OobAdbError: device offline / unauthorized, or an ``adb reverse`` call failed.
@@ -827,7 +817,8 @@ def setup_adb_reverse_ports() -> None:
     from .oob_teleop_env import usb_backend_port, usb_ui_port, wss_proxy_port  # noqa: PLC0415
 
     assert_adb_device_online()
-    ports = [usb_ui_port(), wss_proxy_port(), usb_backend_port()]
+    resolved_proxy_port = wss_proxy_port() if proxy_port is None else proxy_port
+    ports = [usb_ui_port(), resolved_proxy_port, usb_backend_port()]
     for port in ports:
         try:
             _adb_run(
@@ -846,11 +837,12 @@ def setup_adb_reverse_ports() -> None:
         log.info("adb reverse tcp:%d -> tcp:%d (PC)", port, port)
 
 
-def teardown_adb_reverse_ports() -> None:
+def teardown_adb_reverse_ports(proxy_port: int | None = None) -> None:
     """Remove the ``adb reverse`` rules set by :func:`setup_adb_reverse_ports`."""
     from .oob_teleop_env import usb_backend_port, usb_ui_port, wss_proxy_port  # noqa: PLC0415
 
-    ports = [usb_ui_port(), wss_proxy_port(), usb_backend_port()]
+    resolved_proxy_port = wss_proxy_port() if proxy_port is None else proxy_port
+    ports = [usb_ui_port(), resolved_proxy_port, usb_backend_port()]
     for port in ports:
         _adb_run(
             ["adb", "reverse", "--remove", f"tcp:{port}"],
@@ -966,6 +958,26 @@ def require_turn_port_free(port: int) -> None:
     )
 
 
+def _open_private(path: str) -> int:
+    """Create *path* fresh and owner-only, reusing nothing already there.
+
+    These are predictable ``/tmp`` names, so another local user can get there
+    first. ``O_NOFOLLOW`` alone only refuses a symlink; a plain file they created
+    would be written through, which for the config file means handing them the
+    TURN credential it carries. Unlinking first is what makes the ``O_EXCL``
+    create meaningful, and under ``/tmp``'s sticky bit that unlink fails on a
+    file owned by someone else, so a planted path is refused rather than reused.
+
+    Raises:
+        OSError: if the path cannot be cleared or created safely.
+    """
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+
+
 def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen | None:
     """Start a coturn TURN server for USB-local ICE relay.
 
@@ -1016,18 +1028,22 @@ no-stdout-log
 log-file={log_path}
 simple-log
 """
+    # 0600 and O_EXCL/O_NOFOLLOW: this file carries the TURN credential and its
+    # name is predictable under a world-writable /tmp.
     try:
-        with open(conf_path, "w") as f:
+        with os.fdopen(_open_private(conf_path), "w", encoding="utf-8") as f:
             f.write(conf_content)
     except OSError as exc:
         log.warning("coturn: failed to write config file %s: %s", conf_path, exc)
         return None
 
-    # Truncate the log so operators only see lines from this run.
+    # Truncate the log so operators only see lines from this run. Not fatal: the
+    # relay is still worth starting without it, and coturn opens the path itself
+    # from `log-file=` above.
     try:
-        open(log_path, "w").close()
-    except OSError:
-        pass
+        os.close(_open_private(log_path))
+    except OSError as exc:
+        log.warning("coturn: failed to prepare log file %s: %s", log_path, exc)
 
     try:
         proc = subprocess.Popen(
@@ -1074,13 +1090,33 @@ def verify_coturn_listening(turn_port: int, *, timeout: float = 1.0) -> bool:
         return False
 
 
+#: Bytes read back from the end of a coturn log to find its last few lines.
+#: Generous for the ten to twenty lines the callers ask for, and a fixed bound
+#: on what a long-running relay's log can make this read.
+_TAIL_WINDOW = 16 * 1024
+
+
 def _tail_file(path: str, lines: int) -> str:
-    """Return the last *lines* lines of *path* (empty string on read failure)."""
+    """Return the last *lines* lines of *path* (empty string on read failure).
+
+    Seeks instead of reading the whole file: coturn writes this log for as long
+    as the session runs and nothing truncates it mid-run, so ``readlines()``
+    pulled an unbounded file into memory to print twenty lines of it. The
+    regular-file check is not decoration -- a FIFO left at this predictable
+    ``/tmp`` name would make the read block.
+    """
     try:
-        with open(path, "r") as f:
-            return "".join(f.readlines()[-lines:]).rstrip()
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        with os.fdopen(os.open(path, flags), "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return ""
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - _TAIL_WINDOW))
+            chunk = f.read(_TAIL_WINDOW)
     except OSError:
         return ""
+    text = chunk.decode("utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-lines:]).rstrip()
 
 
 async def watch_coturn(
@@ -1346,8 +1382,8 @@ async def _cdp_clear_origin_storage(ws_url: str, origins: list[str]) -> int:
 def clear_headset_browser_cache(*, usb_local: bool) -> int:
     """Sync wrapper around :func:`_cdp_clear_origin_storage` for the teleop UI origin.
 
-    USB-local clears both ``https://localhost:<port>`` (the bookmark host
-    used by ``build_teleop_url``) and ``https://127.0.0.1:<port>`` (the
+    USB-local clears both ``https://localhost:<USB_UI_PORT>`` (the bookmark host
+    used by ``build_teleop_url``) and ``https://127.0.0.1:<USB_UI_PORT>`` (the
     same listener but a different Chromium origin); WiFi clears the
     published client origin (or ``TELEOP_WEB_CLIENT_BASE`` override).
     Returns 0 if the browser isn't running. Never raises.

@@ -67,7 +67,8 @@ def _add_run_arguments(parser: argparse.ArgumentParser) -> None:
         help=(
             "Route teleop traffic over the USB cable on headset loopback "
             "(127.0.0.1) via adb reverse.  Requires --setup-oob.  Requires "
-            "`coturn` and `adb` on PATH.  Implies --host-client."
+            "`coturn` and `adb` on PATH.  Serves the client over HTTPS on "
+            "USB_UI_PORT."
         ),
     )
     parser.add_argument(
@@ -245,6 +246,7 @@ def _print_service_summary(
     from ..oob_teleop_env import (  # noqa: PLC0415
         USB_HOST,
         guess_lan_ipv4,
+        print_hosted_client_line,
         print_oob_hub_startup_banner,
         usb_ui_port,
         versioned_web_client_url,
@@ -272,6 +274,7 @@ def _print_service_summary(
     )
 
     if args.usb_local:
+        # Bookmark uses localhost; summary uses 127.0.0.1 (same listener).
         hosted_client_url = f"https://127.0.0.1:{usb_ui_port()}/"
     elif args.host_client:
         hosted_client_url = (
@@ -297,11 +300,7 @@ def _print_service_summary(
                 lan_host=oob_lan_host, web_client_base=hosted_client_url
             )
     elif hosted_client_url is not None:
-        label = "USB-local" if args.usb_local else "hosted locally"
-        _out(
-            f"web client:        \033[36m{hosted_client_url}\033[0m  "
-            f"\033[90m({label} — open on your headset or browser)\033[0m"
-        )
+        print_hosted_client_line(hosted_client_url)
     else:
         _out(
             f"web client:        \033[36m{versioned_web_client_url(isaaccapture_version)}\033[0m"

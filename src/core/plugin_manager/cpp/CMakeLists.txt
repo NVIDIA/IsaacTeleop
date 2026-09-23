@@ -22,6 +22,7 @@ find_package(Threads REQUIRED)
 target_link_libraries(teleop_plugin_manager
     PUBLIC
         Threads::Threads
+        log_bridge::log_bridge_core
     PRIVATE
         yaml-cpp::yaml-cpp
 )

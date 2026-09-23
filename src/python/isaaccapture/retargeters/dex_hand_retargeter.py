@@ -18,6 +18,7 @@ import logging
 from typing import Dict, Optional, List
 from dataclasses import dataclass
 
+from isaaccapture.logging_config._core import logging_enabled
 from isaaccapture.retargeting_engine.interface import (
     BaseRetargeter,
     RetargeterIOType,
@@ -282,10 +283,13 @@ class DexHandRetargeter(BaseRetargeter):
         r = R.from_euler("xyz", value, degrees=True)
         self._handtracking2baselink = r.as_matrix()  # type: ignore
 
-        # Only print if value has changed significantly
+        # Only log if value has changed significantly
         if self._last_rpy is None or not np.allclose(self._last_rpy, value, atol=1e-3):
             name = getattr(self, "_name", "Initializing")
-            print(f"[{name}] Updated transform RPY: {value}")
+            if logging_enabled():
+                logger.debug("[%s] Updated transform RPY: %s", name, value)
+            else:
+                print(f"[{name}] Updated transform RPY: {value}")
             self._last_rpy = np.copy(value)
 
     def _prepare_configs(self) -> None:

@@ -9,7 +9,6 @@
 #include <viz/core/openxr_platform_compat.hpp>
 
 #include <chrono>
-#include <cstdio>
 #include <cstring>
 #include <stdexcept>
 #include <thread>
@@ -21,6 +20,9 @@ namespace viz
 namespace
 {
 
+// Per creating thread; set by VizSession.create while wait_for_system runs.
+thread_local void (*g_wait_poll_hook)() = nullptr;
+
 void check_xr(XrResult r, const char* what)
 {
     if (XR_FAILED(r))
@@ -30,6 +32,13 @@ void check_xr(XrResult r, const char* what)
 }
 
 } // namespace
+
+void (*OpenXrSession::set_wait_poll_hook(void (*fn)()))()
+{
+    void (*prev)() = g_wait_poll_hook;
+    g_wait_poll_hook = fn;
+    return prev;
+}
 
 OpenXrSession::OpenXrSession(const std::string& app_name,
                              const std::vector<std::string>& extra_extensions,
@@ -172,7 +181,7 @@ void OpenXrSession::wait_for_system(int system_wait_seconds)
         {
             if (announced)
             {
-                std::fprintf(stderr, "OpenXrSession: HMD connected.\n");
+                logger_->info("HMD connected.");
             }
             return;
         }
@@ -196,17 +205,19 @@ void OpenXrSession::wait_for_system(int system_wait_seconds)
         {
             if (wait_forever)
             {
-                std::fprintf(stderr, "OpenXrSession: waiting for HMD to connect...\n");
+                logger_->info("waiting for HMD to connect...");
             }
             else
             {
                 const auto remaining = std::chrono::duration_cast<std::chrono::seconds>(deadline - now).count();
-                std::fprintf(stderr, "OpenXrSession: waiting for HMD to connect (%llds remaining)...\n",
-                             static_cast<long long>(remaining));
+                logger_->info("waiting for HMD to connect ({}s remaining)...", static_cast<long long>(remaining));
             }
-            std::fflush(stderr);
             announced = true;
             last_log = now;
+        }
+        if (g_wait_poll_hook != nullptr)
+        {
+            g_wait_poll_hook();
         }
         std::this_thread::sleep_for(kPollInterval);
     }
@@ -286,7 +297,7 @@ void OpenXrSession::enumerate_environment_blend_mode()
     default:
         break;
     }
-    std::fprintf(stderr, "OpenXrSession: env blend mode = %s\n", mode_str);
+    logger_->info("env blend mode = {}", mode_str);
 }
 
 void OpenXrSession::create_session(const VkContext& vk)
@@ -432,8 +443,7 @@ void OpenXrSession::handle_session_state_change(XrSessionState new_state)
             // silently spin nullopt frames forever. Surface it as
             // exit_requested_; throwing from poll_events would unbalance
             // begin_frame's protocol guard.
-            std::fprintf(
-                stderr, "OpenXrSession: xrBeginSession failed: XrResult=%d (requesting exit)\n", static_cast<int>(r));
+            logger_->error("xrBeginSession failed: XrResult={} (requesting exit)", static_cast<int>(r));
             exit_requested_ = true;
         }
         break;

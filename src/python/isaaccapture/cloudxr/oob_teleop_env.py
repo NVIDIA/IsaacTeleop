@@ -24,7 +24,7 @@ from urllib.request import Request, urlopen
 
 from .oob_teleop_hub import OOB_WS_PATH
 
-log = logging.getLogger("oob-teleop-env")
+log = logging.getLogger("isaaccapture.cloudxr.oob_teleop_env")
 
 WSS_PROXY_DEFAULT_PORT = 48322
 
@@ -395,6 +395,19 @@ def parse_env_port(env_var: str, raw: str) -> int:
     return port
 
 
+def print_hosted_client_line(
+    url: str,
+    *,
+    prefix: str = "web client:        ",
+    file=None,
+) -> None:
+    """Print ``prefix`` + *url* (cyan when *file* is a TTY)."""
+    out = sys.stdout if file is None else file
+    use_color = bool(getattr(out, "isatty", lambda: False)())
+    left = f"{prefix}\033[36m{url}\033[0m" if use_color else f"{prefix}{url}"
+    print(left, file=out)
+
+
 def wss_proxy_port() -> int:
     """TCP port for the WSS proxy (``PROXY_PORT`` environment variable if set, else ``48322``)."""
     raw = os.environ.get("PROXY_PORT", "").strip()
@@ -599,9 +612,10 @@ def oob_progress(stage: str, msg: str) -> None:
 
     Goes to stderr in dim cyan so the operator can see *where* the launcher
     is in its sequence of steps without these lines competing with the
-    success banner (stdout) or error prints (red). Distinct from
-    ``log.info``, which writes to log files only and is invisible at the
-    terminal.
+    success banner (stdout) or error prints (red).
+
+    This stays a print so progress remains visible when the console log level
+    is set to warning.
     """
     print(f"\033[36m[{stage}]\033[0m {msg}", file=sys.stderr, flush=True)
 
