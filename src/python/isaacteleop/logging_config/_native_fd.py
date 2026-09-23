@@ -366,42 +366,32 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
         capturable.append(fd)
         _active_inheritable[fd] = inheritable
 
-    rebound = []
-    for fd in capturable:
-        try:
-            os.dup2(sink, fd, inheritable=_active_inheritable[fd])
-        except OSError:
-            for captured in rebound:
-                try:
-                    os.dup2(
-                        _saved_raw[captured],
-                        captured,
-                        inheritable=_active_inheritable[captured],
-                    )
-                except OSError:
-                    pass
-            return
-        rebound.append(fd)
-    _active_fds = rebound
-
     # ``print()``, ``print(file=sys.stderr)`` and uncaught tracebacks stay on the
     # terminal: the stream objects are moved onto the duplicates rather than
     # following the descriptors. Without this the host application's own output
     # would vanish into the capture file for the length of the scope, since
     # Python cannot tell it apart from the native library's writes at the fd
     # level.
+    #
+    # Before the descriptors move, not after. The slots refreshed above already
+    # point at the terminal, so moving the streams onto them first is safe --
+    # whereas doing it afterwards leaves a window in which another thread's
+    # record goes out through a stream still bound to a descriptor this
+    # function has already repointed at the capture file. Measured on the
+    # reverse order: a few console copies per four hundred records, under
+    # concurrent scope churn.
     _pre_scope_streams.clear()
     _pre_scope_handler_stream = None
     try:
-        if 1 in _active_fds and _follows(sys.stdout, 1):
+        if 1 in capturable and _follows(sys.stdout, 1):
             _pre_scope_streams[1] = sys.stdout
             sys.stdout = _saved[1]
-        if 2 in _active_fds and _follows(sys.stderr, 2):
+        if 2 in capturable and _follows(sys.stderr, 2):
             _pre_scope_streams[2] = sys.stderr
             sys.stderr = _saved[2]
         if (
             console_handler is not None
-            and 2 in _active_fds
+            and 2 in capturable
             and _follows(console_handler.stream, 2)
         ):
             _pre_scope_handler_stream = console_handler.stream
@@ -409,6 +399,19 @@ def _begin(console_handler: logging.StreamHandler | None) -> None:
     except BaseException:
         _end(console_handler)
         raise
+
+    rebound = []
+    for fd in capturable:
+        try:
+            os.dup2(sink, fd, inheritable=_active_inheritable[fd])
+        except OSError:
+            # _end() puts back both halves: the descriptors rebound so far, and
+            # the streams moved just above.
+            _active_fds = rebound
+            _end(console_handler)
+            return
+        rebound.append(fd)
+    _active_fds = rebound
 
 
 def _end(console_handler: logging.StreamHandler | None) -> None:
