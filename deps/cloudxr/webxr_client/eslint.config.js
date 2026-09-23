@@ -20,7 +20,7 @@ module.exports = [
     ignores: ['node_modules/**', 'build/**', 'dist/**'],
   },
   {
-    files: ['src/**/*.{ts,tsx}', 'helpers/**/*.ts', 'tests/**/*.{ts,tsx}'],
+    files: ['src/**/*.{ts,tsx}', 'helpers/**/*.{ts,tsx}', 'tests/**/*.{ts,tsx}'],
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {
@@ -89,7 +89,7 @@ module.exports = [
     // mock code. This rule makes that a hard, enforced guarantee rather than a coincidence: if
     // src/ or helpers/ ever grows a real import of tests/, that's a mistake, not a valid pattern
     // to lint around.
-    files: ['src/**/*.{ts,tsx}', 'helpers/**/*.ts'],
+    files: ['src/**/*.{ts,tsx}', 'helpers/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
