@@ -27,10 +27,6 @@ _MAILBOX_SLOTS = 7
 # has the Quest on their head, so failing fast (VizSessionConfig's own
 # default of 0) just means losing the race and re-running. Matches
 # isaaccapture.viz.robot.session.WAIT_FOR_HEADSET.
-#
-# The cost: VizSession.create holds the GIL through the wait, so Ctrl-C is
-# queued and not delivered until a headset connects. Set this to a positive
-# number of seconds (or pass --xr-wait) to get a bounded wait back.
 WAIT_FOR_HEADSET = -1
 
 

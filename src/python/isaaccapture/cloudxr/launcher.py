@@ -264,6 +264,14 @@ class CloudXRLauncher:
         # /dev/null on stdin and could not prompt.
         check_eula(accept_eula=accept_eula or None, run_dir=self._run_dir)
 
+        before_spawn = None
+        if host_client or usb_local:
+            from .oob_teleop_env import (  # noqa: PLC0415
+                require_web_client_static_dir,
+            )
+
+            before_spawn = require_web_client_static_dir
+
         flags = [
             *(
                 ["--cloudxr-install-dir", install_dir]
@@ -284,7 +292,11 @@ class CloudXRLauncher:
         )
         try:
             pid, log = background.start_and_wait(
-                flags, self._run_dir, self._logs_dir, extra_env
+                flags,
+                self._run_dir,
+                self._logs_dir,
+                extra_env,
+                before_spawn=before_spawn,
             )
         except background.AlreadyServingError:
             # Another caller won the race and is serving; attaching to it is
@@ -306,7 +318,12 @@ class CloudXRLauncher:
             wss_proxy_port,
         )
 
-        host = "127.0.0.1" if usb_local else guess_lan_ipv4() or "localhost"
+        configured_host = os.environ.get("TELEOP_PROXY_HOST", "").strip()
+        host = (
+            "127.0.0.1"
+            if usb_local
+            else configured_host or guess_lan_ipv4() or "localhost"
+        )
         port = wss_proxy_port()
         query = urlencode({"serverIP": host, "port": port})
         url = f"https://{host}:{port}/client/?{query}"

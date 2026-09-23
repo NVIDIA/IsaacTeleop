@@ -49,6 +49,15 @@ def _restore_environ():
     os.environ.update(saved)
 
 
+@pytest.fixture(autouse=True)
+def _mock_web_client_assets():
+    """Keep launcher tests offline while exposing asset preparation calls."""
+    with patch(
+        "isaaccapture.cloudxr.oob_teleop_env.require_web_client_static_dir"
+    ) as mock:
+        yield mock
+
+
 def _live(value=True):
     """Patch the launcher's liveness probe."""
     return patch("isaaccapture.cloudxr.launcher.is_runtime_live", return_value=value)
@@ -370,6 +379,37 @@ class TestNothingRunning:
         assert "--host-client" in m_start.call_args.args[0]
         assert "https://10.0.0.5:48322/client/" in err
 
+    def test_prepares_client_assets_before_detaching(
+        self, tmp_path, _mock_web_client_assets
+    ):
+        install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+        events = []
+        _mock_web_client_assets.side_effect = lambda: events.append("assets")
+
+        def _start(*_args, before_spawn):
+            before_spawn()
+            events.append("start")
+            return 1, tmp_path / "logs" / "service.log"
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                side_effect=_start,
+            ),
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ),
+        ):
+            CloudXRLauncher(install_dir=install)
+
+        assert events == ["assets", "start"]
+
     def test_client_url_uses_proxy_port_from_attached_env(
         self, tmp_path, capsys, monkeypatch
     ):
@@ -410,6 +450,40 @@ class TestNothingRunning:
             "port": ["55555"],
         }
 
+    def test_client_url_uses_proxy_host_from_attached_env(self, tmp_path, capsys):
+        install = _env_file(
+            tmp_path,
+            XR_RUNTIME_JSON="/x/openxr.json",
+            TELEOP_PROXY_HOST="proxy.example.test",
+            PROXY_PORT=49322,
+        )
+        (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.launcher.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch(
+                "isaaccapture.cloudxr.background.start_and_wait",
+                return_value=(4242, tmp_path / "logs" / "service.log"),
+            ),
+            patch(
+                "isaaccapture.cloudxr.oob_teleop_env.guess_lan_ipv4",
+                return_value="10.0.0.5",
+            ) as m_guess,
+        ):
+            CloudXRLauncher(install_dir=install, host_client=True)
+
+        url = urlparse(_announced_client_url(capsys.readouterr().err))
+        assert url.hostname == "proxy.example.test"
+        assert url.port == 49322
+        assert parse_qs(url.query) == {
+            "serverIP": ["proxy.example.test"],
+            "port": ["49322"],
+        }
+        m_guess.assert_not_called()
+
     def test_forwards_config_to_the_service_it_starts(self, tmp_path):
         """A dropped setting here would silently start the wrong runtime.
 
@@ -442,7 +516,9 @@ class TestNothingRunning:
         assert "--host-client" in flags
         assert extra_env == {"NV_DEVICE_PROFILE": "auto-native"}
 
-    def test_omits_client_url_when_host_client_is_disabled(self, tmp_path, capsys):
+    def test_omits_client_url_when_host_client_is_disabled(
+        self, tmp_path, capsys, _mock_web_client_assets
+    ):
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
         (tmp_path / "run" / "eula_accepted").write_text("accepted\n")
 
@@ -459,6 +535,7 @@ class TestNothingRunning:
             CloudXRLauncher(install_dir=install, host_client=False)
 
         assert "/client/" not in capsys.readouterr().err
+        _mock_web_client_assets.assert_not_called()
 
     @pytest.mark.parametrize("host_client", [False, True])
     def test_usb_local_announces_loopback_client_url(

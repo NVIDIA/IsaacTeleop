@@ -223,6 +223,30 @@ class TestTerminateRaces:
 class TestStartRaces:
     """A start that queues behind another must not spawn on top of it."""
 
+    def test_prepares_before_spawning(self, tmp_path):
+        run_dir = str(tmp_path / "run")
+        events = []
+
+        def _prepare():
+            events.append("prepare")
+
+        def _spawn(*_args):
+            events.append("spawn")
+            return 4242, tmp_path / "logs" / "service.log"
+
+        with (
+            patch(
+                "isaaccapture.cloudxr.runtime.is_runtime_live",
+                side_effect=[False, True],
+            ),
+            patch("isaaccapture.cloudxr.background.spawn", side_effect=_spawn),
+        ):
+            background.start_and_wait(
+                [], run_dir, tmp_path / "logs", before_spawn=_prepare
+            )
+
+        assert events == ["prepare", "spawn"]
+
     def test_a_runtime_that_appears_under_the_lock_refuses_the_spawn(self, tmp_path):
         """The loser would otherwise overwrite the winner's pid file.
 

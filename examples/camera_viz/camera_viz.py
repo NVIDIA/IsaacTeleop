@@ -59,8 +59,7 @@ def _parse_args(argv: Optional[list[str]]):
         default=None,
         metavar="SECONDS",
         help="Override display.xr.system_wait_seconds: how long to wait for the "
-        "headset to connect. Negative waits forever (the default); 0 fails fast. "
-        "Ctrl-C is not delivered until the wait ends.",
+        "headset to connect. Negative waits forever (the default); 0 fails fast.",
     )
     CloudXRLauncher.add_launcher_arguments(parser)
     return parser.parse_args(argv)

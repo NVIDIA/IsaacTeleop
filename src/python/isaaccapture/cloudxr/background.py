@@ -20,6 +20,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 try:  # POSIX only; without it concurrent starts are not serialised.
@@ -177,8 +178,13 @@ def start_and_wait(
     run_dir: str,
     logs_dir: Path,
     extra_env: dict[str, str] | None = None,
+    *,
+    before_spawn: Callable[[], None] | None = None,
 ) -> tuple[int, Path]:
     """Spawn a detached service and wait until its runtime is serving *run_dir*.
+
+    *before_spawn* runs under the start lock after the liveness check. A
+    failure prevents a detached child from being left behind.
 
     Raises:
         AlreadyServingError: If a runtime is serving *run_dir* by the time
@@ -194,6 +200,8 @@ def start_and_wait(
         # actually serving -- leaving that one unreachable by `service stop`.
         if is_runtime_live(run_dir):
             raise AlreadyServingError(ALREADY_SERVING.format(run_dir=run_dir))
+        if before_spawn is not None:
+            before_spawn()
         pid, log = spawn(run_args, run_dir, logs_dir, extra_env)
         deadline = time.monotonic() + RUNTIME_STARTUP_TIMEOUT_SEC
         while time.monotonic() < deadline:
