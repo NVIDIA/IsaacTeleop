@@ -154,9 +154,11 @@ def ensure_sink() -> str | None:
     """
     global _sink_path, _sink_fd
     if _sink_path is not None:
+        _start_mirror()
         return _sink_path
     with _lock:
         if _sink_path is not None:
+            _start_mirror()
             return _sink_path
         # A Python child creates its own capture file. If that fails, it must
         # not leave a parent's path for a plugin or detached descendant to use.
