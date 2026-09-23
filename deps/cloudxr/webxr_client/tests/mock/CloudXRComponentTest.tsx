@@ -38,13 +38,15 @@
  *
  * Click the button (or press "S") to run a scripted four-step sequence:
  *   1. Start normally, then close cleanly - expect zero error events.
- *   2. Start with a 2s connect delay, trigger a non-retryable failure 1s in (still Connecting).
- *   3. Start with no connect delay, wait 2s (now Connected), trigger a retryable failure.
+ *   2. Start with a 2s connect delay, trigger an unrecoverable failure 1s in (still Connecting) -
+ *      expect an immediate give-up (onError + onExitImmersiveXR), no retry.
+ *   3. Start with no connect delay, wait 2s (now Connected), trigger a recoverable failure -
+ *      expect an automatic bounded retry (onReconnecting, then reconnected) with no
+ *      onExitImmersiveXR.
  *   4. Remount with a real streamTest config and let it run to completion.
- * Non-retryable/retryable here means the server-disconnect error-code range CloudXRComponent's
- * planned retry logic will check (0xC0F223xx = non-retryable); no retry exists yet, so today
- * every step ends the session the same way - this script exists to make that behavior (and the
- * future fix) easy to eyeball and to give the fix a ready-made manual repro.
+ * Unrecoverable/recoverable here means CloudXRComponent's isRecoverable() classification
+ * (streamingErrorClassification.ts): server-disconnect-range codes (0xC0F223xx) give up
+ * immediately, everything else gets a bounded retry.
  */
 
 import * as CloudXR from '@nvidia/cloudxr';
@@ -127,6 +129,13 @@ function appendLog(message: string): void {
 let activeSession: MockCloudXR | null = null;
 let pendingConnectWaitMs: number | null = null;
 let hadError = false;
+let sawReconnecting = false;
+
+// Shorter than CloudXRComponent's own default (3000ms) so the scripted sequence can observe a
+// full retry-and-reconnect cycle without a long wait; MockCloudXR's own connect delay for the
+// retried session falls back to its default (pendingConnectWaitMs is only consumed once, by the
+// session that failed).
+const RECONNECT_DELAY_MS = 1000;
 
 // Render/streaming/network metrics and trackingFrameAdapter all fire every frame (or close to
 // it) once connected - logging every occurrence would flood the console, so each just logs once
@@ -153,6 +162,11 @@ function Scene({ streamTestEnabled }: { streamTestEnabled: boolean }) {
         }}
         iceServers={iceServers}
         streamTest={streamTestEnabled ? { durationSeconds: 3, mode: 'warn' } : undefined}
+        reconnect={{ maxAttempts: 3, delayMs: RECONNECT_DELAY_MS }}
+        onReconnecting={(attempt, maxAttempts) => {
+          sawReconnecting = true;
+          appendLog(`[event] onReconnecting ${attempt}/${maxAttempts}`);
+        }}
         onStatusChange={(isConnected, status) =>
           appendLog(`[status] connected=${isConnected} ${status}`)
         }
@@ -239,26 +253,38 @@ async function runStep1(): Promise<void> {
 }
 
 async function runStep2(): Promise<void> {
-  appendLog('=== Step 2: fail while still connecting (non-retryable) ===');
+  appendLog('=== Step 2: fail while still connecting (unrecoverable) ===');
   await startSession(2000);
   await sleep(1000);
   activeSession?.triggerFailure({
     name: 'StreamingError',
-    message: 'Mock non-retryable failure (server-disconnect range)',
+    message: 'Mock unrecoverable failure (server-disconnect range)',
     code: NON_RETRYABLE_CODE,
   });
   await sleep(500);
 }
 
 async function runStep3(): Promise<void> {
-  appendLog('=== Step 3: fail once connected (retryable) ===');
+  appendLog('=== Step 3: fail once connected (recoverable) - expect automatic retry ===');
+  sawReconnecting = false;
   await startSession(0);
   await sleep(2000);
   activeSession?.triggerFailure({
     name: 'StreamingError',
-    message: 'Mock retryable failure (network interrupted)',
+    message: 'Mock recoverable failure (network interrupted)',
     code: RETRYABLE_CODE,
   });
+  // Past RECONNECT_DELAY_MS plus MockCloudXR's own default connect delay for the retried session.
+  const reconnected = await waitUntil(
+    () => activeSession?.state === CloudXR.SessionState.Connected,
+    RECONNECT_DELAY_MS + 3000
+  );
+  appendLog(
+    sawReconnecting && reconnected
+      ? '[step3] PASS: retried and reconnected'
+      : `[step3] FAIL: sawReconnecting=${sawReconnecting} reconnected=${reconnected}`
+  );
+  store.getState().session?.end();
   await sleep(500);
 }
 
