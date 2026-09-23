@@ -386,7 +386,9 @@ jobs:
     # GPU runner. The build-ubuntu job runs on a GPU-less GitHub-hosted runner
     # where these tests SKIP cleanly; this job actually exercises the Vulkan
     # / CUDA paths that build-ubuntu cannot.
-    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
+    runs-on:
+      group: ${{ matrix.arch == 'arm64' && 'nv-gpu-arm64-l4-1gpu' || 'Default' }}
+      labels: ${{ matrix.arch == 'arm64' && 'linux-arm64-gpu-l4-latest-1' || fromJSON('["self-hosted", "linux", "gpu", "x64"]') }}
     needs: build-ubuntu
 
     strategy:
@@ -573,7 +575,9 @@ jobs:
         ctest --test-dir build-san -L unit --output-on-failure
 
   test-cloudxr:
-    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
+    runs-on:
+      group: ${{ matrix.arch == 'arm64' && 'nv-gpu-arm64-l4-1gpu' || 'Default' }}
+      labels: ${{ matrix.arch == 'arm64' && 'linux-arm64-gpu-l4-latest-1' || fromJSON('["self-hosted", "linux", "gpu", "x64"]') }}
     needs: build-ubuntu
 
     strategy:
@@ -616,7 +620,9 @@ jobs:
         ./scripts/run_tests_with_cloudxr.sh --python-version ${{ matrix.python_version }}
 
   test-teleop-ros2:
-    runs-on: [self-hosted, linux, gpu, "${{ matrix.arch }}"]
+    runs-on:
+      group: ${{ matrix.arch == 'arm64' && 'nv-gpu-arm64-l4-1gpu' || 'Default' }}
+      labels: ${{ matrix.arch == 'arm64' && 'linux-arm64-gpu-l4-latest-1' || fromJSON('["self-hosted", "linux", "gpu", "x64"]') }}
     needs: build-ubuntu
 
     strategy:
