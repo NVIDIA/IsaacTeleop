@@ -52,12 +52,11 @@ that same reopen would otherwise leave at the umask. Keep both, and do not
 assume a check on the opened file can undo what opening it already did.
 
 Neither hook may log — `sink_it_` holds the sink's mutex across them, so
-logging from there deadlocks. Neither can veto, either (`before_open` returns
-`void`), which is why it clears the name rather than refusing it. Do **not**
-"fix" that by redirecting a failed check to `/dev/null`: that was tried, and it
-is one-way (`/dev/null` reports size 0, so the sink never rotates again, so
-nothing re-checks), silent, and triggered by an operator `chmod` as readily as
-by an attacker.
+logging from there deadlocks. `before_open` must throw if it cannot remove an
+unsafe entry or reserve the name; returning would let spdlog's `fopen()` follow
+the entry anyway. Do **not** redirect a failed check to `/dev/null`: it is
+one-way (`/dev/null` reports size 0, so the sink never rotates again), silent,
+and triggered by an operator `chmod` as readily as by an attacker.
 
 **Known gap, not an oversight to re-report:** the rotating file sink's
 descriptor can land on fd 0/1/2 when the host left one closed.

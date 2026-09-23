@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <charconv>
 #include <cstdio>
 #include <cstdlib>
@@ -128,11 +129,9 @@ std::filesystem::path expand_user(const std::string& raw)
 // Every rotation reaches file_helper::open(name, truncate=true), which
 // truncates through fopen(name, "wb") with no O_NOFOLLOW -- so a symlink
 // standing at the base name has its *target* truncated before after_open can
-// look at the descriptor. before_open is the only hook that runs first, and it
-// cannot veto (it returns void), so it clears the name instead: an entry that is
-// not a regular file of ours is unlinked, which fails harmlessly under /tmp's
-// sticky bit when it is not ours to remove, and the name is then recreated
-// exclusively at 0600.
+// look at the descriptor. before_open removes an unsafe entry, reserves the
+// name exclusively at 0600, and throws if either step fails. Returning after a
+// failed unlink would let spdlog's fopen() follow the entry anyway.
 //
 // Reached from rotate_() inside sink_it_, so like harden_log_file below it must
 // not log -- the sink's own mutex is held across it.
@@ -143,17 +142,26 @@ void reserve_log_file(const spdlog::filename_t& filename)
     };
     if (::lstat(filename.c_str(), &existing) == 0)
     {
-        if (S_ISREG(existing.st_mode) && existing.st_uid == ::getuid())
+        if (S_ISREG(existing.st_mode) && existing.st_uid == ::getuid() && existing.st_nlink == 1 &&
+            (existing.st_mode & (S_IRWXG | S_IRWXO)) == 0)
         {
             return; // our own file being reopened; leave it and its mode alone
         }
-        ::unlink(filename.c_str());
+        if (::unlink(filename.c_str()) != 0)
+        {
+            throw spdlog::spdlog_ex("Failed to remove unsafe log path " + filename, errno);
+        }
+    }
+    else if (errno != ENOENT)
+    {
+        throw spdlog::spdlog_ex("Failed to inspect log path " + filename, errno);
     }
     const int reserved = ::open(filename.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0600);
-    if (reserved >= 0)
+    if (reserved < 0)
     {
-        ::close(reserved);
+        throw spdlog::spdlog_ex("Failed to reserve log path " + filename, errno);
     }
+    ::close(reserved);
 }
 
 // Rotation reopens by name, so every generation past the first is created at
