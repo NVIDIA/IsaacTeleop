@@ -25,6 +25,7 @@ target_link_libraries(viz_xr PUBLIC
     viz::core
     openxr_loader
     Vulkan::Vulkan
+    log_bridge::log_bridge_core
 )
 
 add_library(viz::xr ALIAS viz_xr)

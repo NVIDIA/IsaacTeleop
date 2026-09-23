@@ -5,6 +5,7 @@
 
 #include <deviceio_session/deviceio_session.hpp>
 #include <deviceio_trackers/controller_tracker.hpp>
+#include <log_bridge/logger.hpp>
 #include <oxr/oxr_session.hpp>
 #include <pusherio/schema_pusher.hpp>
 
@@ -49,6 +50,8 @@ private:
     std::shared_ptr<core::OpenXRSession> m_session;
     std::unique_ptr<core::DeviceIOSession> m_deviceio_session;
     std::unique_ptr<core::SchemaPusher> m_pusher;
+    std::shared_ptr<spdlog::logger> m_logger =
+        isaacteleop::Logger::get("isaacteleop.plugins.controller_se3_tracker.ControllerSe3TrackerPlugin");
 };
 
 } // namespace controller_se3_tracker

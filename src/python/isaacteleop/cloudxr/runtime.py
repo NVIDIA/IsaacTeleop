@@ -10,11 +10,13 @@ import shutil
 import signal
 import socket
 import sys
+import tempfile
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
 
+from ..logging_config._core import logging_enabled
 from .env_config import get_env_config
 
 
@@ -359,7 +361,20 @@ def _setup_openxr_dir(sdk_path: str, run_dir: str) -> str:
     ):
         if not os.path.isfile(src):
             raise RuntimeError(f"CloudXR SDK missing {name} at {src}. ")
-        shutil.copy2(src, os.path.join(openxr_dir, name))
+        dst = os.path.join(openxr_dir, name)
+        # Replace through the directory so legacy read-only files do not block upgrades.
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{name}.", dir=openxr_dir, delete=False
+        ) as temp:
+            temp_path = temp.name
+        try:
+            shutil.copy2(src, temp_path)
+            os.replace(temp_path, dst)
+        finally:
+            try:
+                os.remove(temp_path)
+            except FileNotFoundError:
+                pass
 
     for stale in ("ipc_cloudxr", "runtime_started", "monado.pid", "cloudxr.pid"):
         p = os.path.join(run_dir, stale)
@@ -394,27 +409,34 @@ def run() -> None:
     prev_ld = os.environ.get("LD_LIBRARY_PATH", "")
     os.environ["LD_LIBRARY_PATH"] = sdk_path + (f":{prev_ld}" if prev_ld else "")
 
-    # When file-logging is active the native library writes detailed logs to
-    # NV_CXR_OUTPUT_DIR.  Suppress the console banner on stdout but redirect
-    # stderr to a file so that Vulkan-loader diagnostics, GPU-init errors,
-    # and Python tracebacks are preserved for post-mortem analysis.
-    _file_logging = os.environ.get("NV_CXR_FILE_LOGGING", "yes")
-    if _file_logging and _file_logging.lower() not in (
-        "false",
-        "off",
-        "no",
-        "n",
-        "f",
-        "0",
-    ):
-        logs_dir = cfg.ensure_logs_dir()
-        stderr_log = os.path.join(str(logs_dir), "runtime_stderr.log")
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        stderr_fd = os.open(stderr_log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
-        os.dup2(devnull_fd, sys.stdout.fileno())
-        os.dup2(stderr_fd, sys.stderr.fileno())
-        os.close(devnull_fd)
-        os.close(stderr_fd)
+    # With logging on, fd 1/fd 2 -- the native library's console banner and its
+    # Vulkan-loader / GPU-init diagnostics -- are deliberately left alone. This
+    # process exists only to host that native stack, and its launcher
+    # (cloudxr/service/_service.py) already pointed its descriptors where the
+    # output belongs: the session's capture file for stdout, the worker's own
+    # stderr log for stderr. Redirecting here would only fight it.
+    if not logging_enabled():
+        # The native library logs in detail to NV_CXR_OUTPUT_DIR: drop its console
+        # banner and keep stderr (GPU-init errors, tracebacks) in runtime_stderr.log.
+        _file_logging = os.environ.get("NV_CXR_FILE_LOGGING", "yes")
+        if _file_logging and _file_logging.lower() not in (
+            "false",
+            "off",
+            "no",
+            "n",
+            "f",
+            "0",
+        ):
+            logs_dir = cfg.ensure_logs_dir()
+            stderr_log = os.path.join(str(logs_dir), "runtime_stderr.log")
+            devnull_fd = os.open(os.devnull, os.O_WRONLY)
+            stderr_fd = os.open(
+                stderr_log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644
+            )
+            os.dup2(devnull_fd, sys.stdout.fileno())
+            os.dup2(stderr_fd, sys.stderr.fileno())
+            os.close(devnull_fd)
+            os.close(stderr_fd)
 
     lib = _load_libcloudxr(sdk_path)
     svc = ctypes.c_void_p()

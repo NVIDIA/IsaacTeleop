@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deviceio_base/hand_tracker_base.hpp>
+#include <log_bridge/logger.hpp>
 #include <mcap/tracker_channels.hpp>
 #include <oxr_utils/oxr_funcs.hpp>
 #include <oxr_utils/oxr_session_handles.hpp>
@@ -55,6 +56,7 @@ private:
 
     XrTimeConverter time_converter_;
     XrSpace base_space_;
+    std::shared_ptr<spdlog::logger> logger_ = isaacteleop::Logger::get("isaacteleop.core.LiveHandTrackerImpl");
 
     std::vector<XrHandTrackerEXT> left_hand_trackers_;
     std::vector<XrHandTrackerEXT> right_hand_trackers_;

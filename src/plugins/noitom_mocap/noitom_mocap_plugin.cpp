@@ -14,7 +14,6 @@
 #include <cctype>
 #include <cmath>
 #include <functional>
-#include <iostream>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -31,8 +30,6 @@ namespace
 
 constexpr float SDK_CENTIMETERS_TO_METERS = 0.01f;
 constexpr std::string_view FULL_BODY_TENSOR_IDENTIFIER = "full_body";
-constexpr const char* ANSI_ORANGE = "\033[38;5;208m";
-constexpr const char* ANSI_RESET = "\033[0m";
 
 core::Point make_point(float x, float y, float z)
 {
@@ -195,9 +192,8 @@ void warn_optional_ptp_missing_once()
         return;
     }
     warned = true;
-    std::cerr << ANSI_ORANGE
-              << "NoitomMocapPlugin: warning: avatar posture timestamp is unavailable; using local sample time"
-              << ANSI_RESET << std::endl;
+    isaacteleop::Logger::get("isaacteleop.plugins.noitom_mocap.NoitomMocapPlugin")
+        ->warn("avatar posture timestamp is unavailable; using local sample time");
 }
 
 } // namespace
@@ -284,19 +280,16 @@ void NoitomMocapPlugin::initialize_mocap()
     }
     else if (cache_err == MocapApi::Error_NotSupported)
     {
-        std::cerr << ANSI_ORANGE
-                  << "NoitomMocapPlugin: warning: SDK application event cache is not supported; "
-                     "continuing with polling"
-                  << ANSI_RESET << std::endl;
+        logger_->warn("SDK application event cache is not supported; continuing with polling");
     }
     else
     {
         check_mocap(cache_err, "EnableApplicationCacheEvents");
     }
 
-    std::cout << "NoitomMocapPlugin: connected via " << (config_.protocol == MocapProtocol::Tcp ? "TCP" : "UDP")
-              << ", collection=" << config_.collection_id << ", sdk_units=centimeters, output_units=meters, event_cache="
-              << (cache_events_enabled ? "enabled" : "disabled") << std::endl;
+    logger_->info("connected via {}, collection={}, sdk_units=centimeters, output_units=meters, event_cache={}",
+                  config_.protocol == MocapProtocol::Tcp ? "TCP" : "UDP", config_.collection_id,
+                  cache_events_enabled ? "enabled" : "disabled");
 }
 
 void NoitomMocapPlugin::close_mocap()
@@ -366,9 +359,7 @@ std::vector<MocapApi::MCPAvatarHandle_t> NoitomMocapPlugin::poll_avatars()
         if (!warned_no_avatars_)
         {
             warned_no_avatars_ = true;
-            std::cerr << ANSI_ORANGE
-                      << "NoitomMocapPlugin: warning: SDK reports zero avatars; waiting for HDS avatar data"
-                      << ANSI_RESET << std::endl;
+            logger_->warn("SDK reports zero avatars; waiting for HDS avatar data");
         }
         return {};
     }
@@ -515,9 +506,8 @@ bool NoitomMocapPlugin::handle_avatar(MocapApi::MCPAvatarHandle_t avatar_handle)
     frame_.all_joint_poses_tracked = std::all_of(seen.begin(), seen.end(), [](bool value) { return value; });
     if (!logged_first_avatar_frame_)
     {
-        std::cout << "NoitomMocapPlugin: first avatar frame=" << avatar_index << " posture=" << posture_index
-                  << " valid_full_body_joints=" << std::count(seen.begin(), seen.end(), true) << "/"
-                  << static_cast<int>(core::BodyJoint_NUM_JOINTS) << std::endl;
+        logger_->info("first avatar frame={} posture={} valid_full_body_joints={}/{}", avatar_index, posture_index,
+                      std::count(seen.begin(), seen.end(), true), static_cast<int>(core::BodyJoint_NUM_JOINTS));
         logged_first_avatar_frame_ = true;
     }
     return true;
@@ -540,14 +530,15 @@ bool NoitomMocapPlugin::update()
             case MocapApi::MCPEvent_Error:
             {
                 const auto sdk_err = event.eventData.systemError.error;
-                std::cerr << ANSI_ORANGE << "NoitomMocapPlugin: warning: SDK error event " << error_string(sdk_err);
+                std::string hint;
                 if (sdk_err == MocapApi::Error_ServerNotReady)
                 {
-                    std::cerr << " — Hybrid Data Server is not streaming avatar data yet. "
-                                 "On Windows: start Axis Studio calibration, then enable HDS TCP "
-                                 "broadcast on this port";
+                    hint =
+                        " — Hybrid Data Server is not streaming avatar data yet. "
+                        "On Windows: start Axis Studio calibration, then enable HDS TCP "
+                        "broadcast on this port";
                 }
-                std::cerr << ANSI_RESET << std::endl;
+                logger_->warn("SDK error event {}{}", error_string(sdk_err), hint);
                 break;
             }
             default:
@@ -574,15 +565,15 @@ bool NoitomMocapPlugin::update()
     }
     catch (const std::exception& e)
     {
-        std::cerr << "NoitomMocapPlugin: fatal: " << e.what() << " (check HDS TCP broadcast and: nc -zv "
-                  << config_.host << " " << config_.port << ")" << std::endl;
+        logger_->error("fatal: {} (check HDS TCP broadcast and: nc -zv {} {})", e.what(), config_.host, config_.port);
         return false;
     }
     catch (...)
     {
-        std::cerr << "NoitomMocapPlugin: fatal: Noitom SDK connection lost (software caused connection abort). "
-                  << "Ensure Windows HDS is broadcasting TCP on " << config_.host << ":" << config_.port
-                  << " and verify with: nc -zv " << config_.host << " " << config_.port << std::endl;
+        logger_->error(
+            "fatal: Noitom SDK connection lost (software caused connection abort). Ensure Windows HDS is "
+            "broadcasting TCP on {}:{} and verify with: nc -zv {} {}",
+            config_.host, config_.port, config_.host, config_.port);
         return false;
     }
 }
@@ -608,8 +599,7 @@ void NoitomMocapPlugin::ensure_pusher(size_t flatbuffer_size)
                                                            .tensor_identifier = std::string(FULL_BODY_TENSOR_IDENTIFIER),
                                                            .localized_name = "Noitom Full Body",
                                                            .app_name = "NoitomMocapPlugin" });
-    std::cout << "NoitomMocapPlugin: push tensor sample size set to " << config_.max_flatbuffer_size << " bytes"
-              << std::endl;
+    logger_->info("push tensor sample size set to {} bytes", config_.max_flatbuffer_size);
 }
 
 void NoitomMocapPlugin::push_frame(int64_t sample_time_local_common_clock_ns, int64_t sample_time_raw_device_clock_ns)

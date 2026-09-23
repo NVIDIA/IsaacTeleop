@@ -5,13 +5,13 @@
 
 #include <deviceio_trackers/se3_tracker.hpp>
 #include <flatbuffers/flatbuffers.h>
+#include <log_bridge/logger.hpp>
 #include <oxr_utils/os_time.hpp>
 #include <schema/controller_generated.h>
 #include <schema/se3_tracker_generated.h>
 
 #include <algorithm>
 #include <cstdint>
-#include <iostream>
 #include <vector>
 
 namespace plugins
@@ -60,8 +60,8 @@ ControllerSe3TrackerPlugin::ControllerSe3TrackerPlugin(bool use_left_hand, const
     m_deviceio_session = core::DeviceIOSession::run(trackers, handles);
     m_pusher = std::make_unique<core::SchemaPusher>(handles, make_pusher_config(collection_id));
 
-    std::cout << "ControllerSe3TrackerPlugin: republishing " << (m_use_left_hand ? "left" : "right")
-              << " controller grip pose on collection '" << collection_id << "'" << std::endl;
+    m_logger->info(
+        "republishing {} controller grip pose on collection '{}'", m_use_left_hand ? "left" : "right", collection_id);
 }
 
 void ControllerSe3TrackerPlugin::update()

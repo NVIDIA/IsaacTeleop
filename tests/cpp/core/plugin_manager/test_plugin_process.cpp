@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <csignal>
+#include <stdexcept>
 #include <string>
 #include <thread>
 
@@ -43,6 +44,19 @@ std::string health_error(core::Plugin& plugin)
     {
         return error.what();
     }
+}
+
+std::string launch_error(const std::string& command, const std::string& working_dir)
+{
+    try
+    {
+        core::Plugin plugin(command, working_dir, "test-root", { "wait" });
+    }
+    catch (const std::runtime_error& error)
+    {
+        return error.what();
+    }
+    return {};
 }
 
 } // namespace
@@ -129,4 +143,25 @@ TEST_CASE("explicit stop is cached and non-failing", "[plugin_manager][process]"
     const core::ProcessSnapshot second = plugin.get_process_snapshot();
     REQUIRE(second.state == first.state);
     REQUIRE(second.reason == first.reason);
+}
+
+TEST_CASE("pre-exec failures are reported by the parent", "[plugin_manager][process]")
+{
+    SECTION("working directory failure")
+    {
+        const std::string missing = std::string(PLUGIN_MANAGER_TEST_PROCESS) + ".missing-directory";
+        const std::string error = launch_error(PLUGIN_MANAGER_TEST_PROCESS, missing);
+
+        REQUIRE(error.starts_with("Plugin process exited immediately: failed to change directory"));
+        REQUIRE(error.find(missing) != std::string::npos);
+    }
+
+    SECTION("executable failure")
+    {
+        const std::string missing = std::string(PLUGIN_MANAGER_TEST_PROCESS) + ".missing-executable";
+        const std::string error = launch_error(missing, "");
+
+        REQUIRE(error.starts_with("Plugin process exited immediately: failed to execute plugin command"));
+        REQUIRE(error.find(missing) != std::string::npos);
+    }
 }
