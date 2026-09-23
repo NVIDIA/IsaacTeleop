@@ -413,8 +413,10 @@ jobs:
     steps:
     - name: Resolve GPU test architectures
       id: resolve
+      env:
+        NO_GPU_ARM: ${{ vars.NO_GPU_ARM }}
       run: |
-        if [[ "${{ vars.NO_GPU_ARM }}" == "1" ]]; then
+        if [[ "$NO_GPU_ARM" == "1" ]]; then
           echo 'arches=["x64"]' >> "$GITHUB_OUTPUT"
         else
           echo 'arches=["x64", "arm64"]' >> "$GITHUB_OUTPUT"
