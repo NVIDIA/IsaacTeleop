@@ -515,9 +515,15 @@ def _echo_target() -> int | None:
 
 
 def _echo_chunk(chunk: bytes) -> None:
+    global _echo
     target = _echo_target()
     if _echo and target is not None:
-        _write_all(target, chunk)
+        try:
+            _write_all(target, chunk)
+        except OSError:
+            # Echo is optional; rotation is not. A closed terminal or pipe must
+            # not terminate the thread that also bounds the capture file.
+            _echo = False
 
 
 def _shift_backups(path: str) -> None:

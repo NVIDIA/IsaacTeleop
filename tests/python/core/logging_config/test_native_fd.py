@@ -11,8 +11,10 @@ would move them out from under it.
 from __future__ import annotations
 
 import json
+import os
 
 from conftest import capture_logs, clean_env, read, read_all, run_python, session_logs
+from isaacteleop.logging_config import _native_fd
 
 _PREAMBLE = """
 import json, logging, os, subprocess, sys, threading
@@ -41,6 +43,19 @@ def run_child(tmp_path, body: str, **overrides):
 
 def captured(log_dir) -> str:
     return read_all(capture_logs(log_dir))
+
+
+def test_a_broken_echo_target_does_not_stop_capture_maintenance(monkeypatch):
+    read_fd, write_fd = os.pipe()
+    os.close(read_fd)
+    monkeypatch.setattr(_native_fd, "_echo", True)
+    monkeypatch.setattr(_native_fd, "_echo_target", lambda: write_fd)
+    try:
+        _native_fd._echo_chunk(b"terminal went away\n")
+    finally:
+        os.close(write_fd)
+
+    assert _native_fd._echo is False
 
 
 def test_raw_writes_are_captured_only_inside_the_scope(tmp_path):
