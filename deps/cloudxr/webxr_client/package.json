@@ -23,13 +23,14 @@
     "build:app-mock": "webpack --config ./webpack.app-mock.js",
     "dev-server:component-mock": "webpack serve --config ./webpack.component-mock.js",
     "build:component-mock": "webpack --config ./webpack.component-mock.js",
+    "test:playwright": "playwright test",
     "test": "jest",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "clean": "rimraf dist",
     "lint:check": "eslint \"src/**/*.{ts,tsx}\" \"helpers/**/*.ts\" \"tests/**/*.{ts,tsx}\" --ignore-pattern \"**/build/**\" --ignore-pattern \"**/node_modules/**\" --ignore-pattern \"**/dist/**\" --quiet",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"helpers/**/*.ts\" \"tests/**/*.{ts,tsx}\" --ignore-pattern \"**/build/**\" --ignore-pattern \"**/node_modules/**\" --ignore-pattern \"**/dist/**\" --quiet --fix",
-    "prettier:check": "prettier --check \"src/**/*.{ts,tsx,html,css,json,md}\" \"helpers/**/*.ts\" \"tests/**/*.{ts,tsx,html}\" \"webpack.*.js\" \"eslint.config.js\" \"*.{js,json,md}\"",
-    "prettier": "prettier --write \"src/**/*.{ts,tsx,html,css,json,md}\" \"helpers/**/*.ts\" \"tests/**/*.{ts,tsx,html}\" \"webpack.*.js\" \"eslint.config.js\" \"*.{js,json,md}\"",
+    "prettier:check": "prettier --check \"src/**/*.{ts,tsx,html,css,json,md}\" \"helpers/**/*.ts\" \"tests/**/*.{ts,tsx,html,js}\" \"webpack.*.js\" \"eslint.config.js\" \"*.{js,json,md}\"",
+    "prettier": "prettier --write \"src/**/*.{ts,tsx,html,css,json,md}\" \"helpers/**/*.ts\" \"tests/**/*.{ts,tsx,html,js}\" \"webpack.*.js\" \"eslint.config.js\" \"*.{js,json,md}\"",
     "format:check": "npm run lint:check && npm run prettier:check",
     "format": "npm run lint && npm run prettier"
   },
@@ -43,6 +44,10 @@
       "<rootDir>/src",
       "<rootDir>/helpers",
       "<rootDir>/tests"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/tests/playwright/"
     ]
   },
   "dependencies": {
@@ -60,6 +65,7 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/jest": "^30",
     "@types/node": "^22",
     "@types/react": "^19.2.14",

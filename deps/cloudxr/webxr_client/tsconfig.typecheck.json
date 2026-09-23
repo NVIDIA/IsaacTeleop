@@ -3,5 +3,6 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["src/**/*", "helpers/**/*", "tests/**/*"]
+  "include": ["src/**/*", "helpers/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist", "tests/playwright/**"]
 }

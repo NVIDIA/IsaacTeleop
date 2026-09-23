@@ -16,6 +16,9 @@ _build/
 **/build/
 install/
 build.log
+# Playwright output (test-results/ screenshots+traces, playwright-report/ HTML report)
+test-results/
+playwright-report/
 # Python cache
 __pycache__/
 **/__pycache__/
