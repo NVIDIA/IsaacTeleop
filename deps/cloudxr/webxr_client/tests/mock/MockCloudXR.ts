@@ -190,9 +190,14 @@ export class MockCloudXR implements CloudXR.Session {
   }
 
   disconnect(): void {
+    // Also idempotent from Error: CloudXRComponent.tsx's handleSessionEnd calls disconnect()
+    // unconditionally on WebXR sessionend, which can race a just-failed session's own teardown
+    // (onExitImmersiveXR ending the WebXR session before cxrSessionRef is cleared) - without this,
+    // that second call re-fires onStreamStopped(undefined) on top of the original error.
     if (
       this.sessionState === CloudXR.SessionState.Initialized ||
-      this.sessionState === CloudXR.SessionState.Disconnected
+      this.sessionState === CloudXR.SessionState.Disconnected ||
+      this.sessionState === CloudXR.SessionState.Error
     ) {
       return;
     }
