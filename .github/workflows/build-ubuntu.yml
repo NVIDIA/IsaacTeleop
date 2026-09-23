@@ -1131,7 +1131,7 @@ jobs:
     needs:
       - publish-wheel
     outputs:
-      release_uuid: ${{ steps.submit-kitmaker.outputs.release_uuid }}
+      releases: ${{ steps.submit-kitmaker.outputs.releases }}
     environment: release
     permissions:
       contents: read
@@ -1142,7 +1142,8 @@ jobs:
       id: submit-kitmaker
       env:
         KITMAKER_API_ENDPOINT: ${{ secrets.KITMAKER_API_ENDPOINT }}
-        KITMAKER_PROJECT_ID: ${{ secrets.IC_KITMAKER_PROJECT_ID }}
+        IC_KITMAKER_PROJECT_ID: ${{ secrets.IC_KITMAKER_PROJECT_ID }}
+        KITMAKER_PROJECT_ID: ${{ secrets.KITMAKER_PROJECT_ID }}
         KITMAKER_TOKEN: ${{ secrets.KITMAKER_TOKEN }}
         KITMAKER_PIC_EMAIL: ${{ secrets.KITMAKER_PIC_EMAIL }}
         ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
@@ -1155,8 +1156,8 @@ jobs:
       run: |
         set -euo pipefail
 
-        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${KITMAKER_PROJECT_ID}" || -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" || -z "${ARTIFACTORY_URL}" || -z "${ARTIFACTORY_REPO}" ]]; then
-          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, KITMAKER_PROJECT_ID, KITMAKER_TOKEN, KITMAKER_PIC_EMAIL, ARTIFACTORY_URL, ARTIFACTORY_REPO"
+        if [[ -z "${KITMAKER_API_ENDPOINT}" || -z "${IC_KITMAKER_PROJECT_ID}" || -z "${KITMAKER_PROJECT_ID}" || -z "${KITMAKER_TOKEN}" || -z "${KITMAKER_PIC_EMAIL}" || -z "${ARTIFACTORY_URL}" || -z "${ARTIFACTORY_REPO}" ]]; then
+          echo "Missing one or more required secrets: KITMAKER_API_ENDPOINT, IC_KITMAKER_PROJECT_ID, KITMAKER_PROJECT_ID, KITMAKER_TOKEN, KITMAKER_PIC_EMAIL, ARTIFACTORY_URL, ARTIFACTORY_REPO"
           exit 1
         fi
 
@@ -1177,47 +1178,68 @@ jobs:
 
         wheel_base="${ARTIFACTORY_URL%/}/${ARTIFACTORY_REPO}"
 
-        api_url="${KITMAKER_API_ENDPOINT%/}/v0/projects/${KITMAKER_PROJECT_ID}/releases"
-        payload_items=()
-        while IFS= read -r wheel_path; do
-          [[ -z "${wheel_path}" ]] && continue
-          wheel_url="${wheel_base}/${wheel_path}"
-          wheel_name="$(basename "${wheel_path}")"
-          echo "Queueing wheel for Kitmaker payload: ${wheel_name}"
+        declare -A project_ids=(
+          [isaaccapture]="${IC_KITMAKER_PROJECT_ID}"
+          [isaacteleop]="${KITMAKER_PROJECT_ID}"
+        )
+        declare -A payloads
+        # Kitmaker requires every wheel in a release to match its project name.
+        for project_name in isaaccapture isaacteleop; do
+          payload_items=()
+          while IFS= read -r wheel_path; do
+            [[ -z "${wheel_path}" ]] && continue
+            wheel_url="${wheel_base}/${wheel_path}"
+            wheel_name="$(basename "${wheel_path}")"
+            [[ "${wheel_name}" == "${project_name}-"*.whl ]] || continue
+            echo "Queueing wheel for Kitmaker payload: ${wheel_name}"
 
-          payload_items+=("$(jq -cn \
-            --arg pic "${KITMAKER_PIC_EMAIL}" \
-            --arg url "${wheel_url}" \
-            --argjson upload "${KITMAKER_UPLOAD}" \
-            --arg mirroring "${KITMAKER_MIRRORING}" \
-            '{pic: $pic, job_type: "wheel-release-job", mirroring_strategy: $mirroring, url: $url, size: "small", upload: $upload}')")
+            payload_items+=("$(jq -cn \
+              --arg pic "${KITMAKER_PIC_EMAIL}" \
+              --arg url "${wheel_url}" \
+              --argjson upload "${KITMAKER_UPLOAD}" \
+              --arg mirroring "${KITMAKER_MIRRORING}" \
+              '{pic: $pic, job_type: "wheel-release-job", mirroring_strategy: $mirroring, url: $url, size: "small", upload: $upload}')")
           done <<< "${WHEEL_PATHS}"
 
-        if (( ${#payload_items[@]} == 0 )); then
-          echo "No valid wheel URLs found to submit to Kitmaker"
-          exit 1
-        fi
+          if (( ${#payload_items[@]} == 0 )); then
+            echo "No wheels found for ${project_name}"
+            exit 1
+          fi
 
-        payload_array="$(printf '%s\n' "${payload_items[@]}" | jq -s '.')"
-        payload="$(jq -cn --arg project_name "isaaccapture" --argjson payload "${payload_array}" '{project_name: $project_name, payload: $payload}')"
+          payload_array="$(printf '%s\n' "${payload_items[@]}" | jq -s '.')"
+          payloads[${project_name}]="$(jq -cn --arg project_name "${project_name}" --argjson payload "${payload_array}" '{project_name: $project_name, payload: $payload}')"
+        done
 
-        echo "Posting ${#payload_items[@]} wheel(s) to Kitmaker in a single request"
-        response_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 120 \
-          -X POST "${api_url}" \
-          -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
-          -H "Content-Type: application/json" \
-          -d "${payload}")"
-        echo "${response_json}"
+        releases='[]'
+        for project_name in isaaccapture isaacteleop; do
+          api_url="${KITMAKER_API_ENDPOINT%/}/v0/projects/${project_ids[${project_name}]}/releases"
+          echo "Posting ${project_name} wheels to Kitmaker"
+          response_json="$(curl --fail-with-body --show-error --silent --location --connect-timeout 10 --max-time 120 \
+            -X POST "${api_url}" \
+            -H "Authorization: Bearer ${KITMAKER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${payloads[${project_name}]}")"
+          echo "${response_json}"
 
-        release_uuid="$(jq -r '.release_uuid // empty' <<< "${response_json}")"
-        if [[ -z "${release_uuid}" ]]; then
-          echo "Kitmaker response missing release_uuid"
-          exit 1
-        fi
+          release_uuid="$(jq -r '.release_uuid // empty' <<< "${response_json}")"
+          if [[ -z "${release_uuid}" ]]; then
+            echo "Kitmaker response missing release_uuid"
+            exit 1
+          fi
 
-        echo "release_uuid=${release_uuid}" >> "$GITHUB_OUTPUT"
+          releases="$(jq -cn --argjson releases "${releases}" \
+            --arg project_name "${project_name}" --arg release_uuid "${release_uuid}" \
+            '$releases + [{project_name: $project_name, release_uuid: $release_uuid}]')"
+        done
+
+        echo "releases=${releases}" >> "$GITHUB_OUTPUT"
 
   kitmaker-status:
+    name: kitmaker-status (${{ matrix.project_name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.kitmaker.outputs.releases) }}
     runs-on: [self-hosted, linux]
     needs:
       - kitmaker
@@ -1229,8 +1251,8 @@ jobs:
     - name: Monitor Kitmaker release status
       env:
         KITMAKER_API_ENDPOINT: ${{ secrets.KITMAKER_API_ENDPOINT }}
-        KITMAKER_PROJECT_ID: ${{ secrets.IC_KITMAKER_PROJECT_ID }}
-        KITMAKER_RELEASE_UUID: ${{ needs.kitmaker.outputs.release_uuid }}
+        KITMAKER_PROJECT_ID: ${{ matrix.project_name == 'isaaccapture' && secrets.IC_KITMAKER_PROJECT_ID || secrets.KITMAKER_PROJECT_ID }}
+        KITMAKER_RELEASE_UUID: ${{ matrix.release_uuid }}
         ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
         ARTIFACTORY_REPO: ${{ secrets.ARTIFACTORY_REPO }}
       run: |
