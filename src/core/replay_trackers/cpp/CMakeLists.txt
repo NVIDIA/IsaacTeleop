@@ -36,6 +36,7 @@ target_link_libraries(replay_trackers
         deviceio::deviceio_base
         deviceio::deviceio_trackers
         mcap::mcap_core
+        log_bridge::log_bridge_core
 )
 
 add_library(deviceio::replay_trackers ALIAS replay_trackers)

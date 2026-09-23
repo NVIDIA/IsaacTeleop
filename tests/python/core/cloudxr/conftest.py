@@ -5,7 +5,8 @@
 
 * Flat ``sys.path`` entry: ``from oob_teleop_hub import …`` (no relative imports).
 * Synthetic package ``cloudxr_py_test_ns``: ``from cloudxr_py_test_ns.oob_teleop_env import …``
-  so modules that use sibling relative imports load correctly.
+  so modules that use sibling relative imports load correctly, under a synthetic
+  ``isaaccapture`` root so that the ones reaching ``..`` load too.
 """
 
 from __future__ import annotations
@@ -32,28 +33,47 @@ if _CLOUDXR_PY.is_dir() and str(_CLOUDXR_PY) not in sys.path:
 
 CLOUDXR_TEST_PKG = "cloudxr_py_test_ns"
 
+# ``wss`` reaches its own package's parent (``from ..logging_config._core import``), which a
+# one-level synthetic package has nothing to resolve. This root stands in for
+# ``isaaccapture`` and takes its ``__path__`` from the real source tree, so a sibling
+# subpackage loads from source with nothing installed. A module's real name therefore
+# has two levels, and every one is aliased back to CLOUDXR_TEST_PKG -- the name the
+# tests patch by.
+_TEST_ROOT_PKG = "isaaccapture_py_test_ns"
+
 
 def _ensure_cloudxr_package() -> None:
     if CLOUDXR_TEST_PKG in sys.modules:
         return
-    pkg = types.ModuleType(CLOUDXR_TEST_PKG)
+    root = types.ModuleType(_TEST_ROOT_PKG)
+    root.__path__ = [str(_CLOUDXR_PY.parent)]
+    sys.modules[_TEST_ROOT_PKG] = root
+
+    pkg_name = f"{_TEST_ROOT_PKG}.cloudxr"
+    pkg = types.ModuleType(pkg_name)
     pkg.__path__ = [str(_CLOUDXR_PY)]
+    sys.modules[pkg_name] = pkg
     sys.modules[CLOUDXR_TEST_PKG] = pkg
+    root.cloudxr = pkg
 
     def load(mod: str) -> None:
-        full = f"{CLOUDXR_TEST_PKG}.{mod}"
+        full = f"{pkg_name}.{mod}"
         path = _CLOUDXR_PY / f"{mod}.py"
         spec = importlib.util.spec_from_file_location(full, path)
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
         sys.modules[full] = module
+        sys.modules[f"{CLOUDXR_TEST_PKG}.{mod}"] = module
         spec.loader.exec_module(module)
-        setattr(sys.modules[CLOUDXR_TEST_PKG], mod, module)
+        setattr(pkg, mod, module)
 
     load("oob_teleop_hub")
     load("oob_teleop_env")
     load("oob_teleop_adb")
     load("webclient")
+    # Preloaded rather than left to the package's ``__path__``: an import through
+    # CLOUDXR_TEST_PKG would name it one level up, and ``..`` would be out of range.
+    load("wss")
 
 
 _ensure_cloudxr_package()

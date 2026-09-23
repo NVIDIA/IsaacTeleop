@@ -99,6 +99,45 @@ FetchContent_MakeAvailable(flatbuffers)
 message(STATUS "FlatBuffers fetched and configured")
 
 # ==============================================================================
+# spdlog (C++ logging library)
+# ==============================================================================
+# Backs isaaccapture::Logger (src/core/log_bridge). Needed by standalone plugin
+# executables regardless of BUILD_PYTHON_BINDINGS, so fetched unconditionally
+# like FlatBuffers/MCAP rather than gated.
+message(STATUS "Fetching spdlog from GitHub...")
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG        79524ddd08a4ec981b7fea76afd08ee05f83755d  # v1.17.0
+    GIT_SHALLOW    FALSE  # Need full history for this specific commit
+)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "Skip spdlog examples" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "Skip spdlog tests" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "Skip spdlog install target" FORCE)
+# DepthAI calls find_package(spdlog CONFIG REQUIRED) itself, which silently
+# returns using the targets defined here, so it ends up compiled against *this*
+# spdlog. vcpkg's spdlog port is built with SPDLOG_FMT_EXTERNAL=ON and ships no
+# bundled fmt, and the bundled headers carry the upstream include guards, so
+# mixing the two leaves DepthAI's translation units seeing different spdlog/fmt
+# types than ours were compiled with. Pointing at the vcpkg fmt leaves one fmt
+# in the build.
+#
+# Set in both directions, because FORCE writes the cache: setting it only in the
+# ON branch left an earlier -DBUILD_PLUGIN_OAK_CAMERA=ON standing in a build
+# directory reconfigured with the option off.
+if(BUILD_PLUGIN_OAK_CAMERA)
+    # Explicit, though spdlog would find_package(fmt) on its own: a missing fmt
+    # should fail here, naming this as the reason, not inside spdlog's build.
+    find_package(fmt CONFIG REQUIRED)
+    set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "Share DepthAI's vcpkg fmt" FORCE)
+    message(STATUS "spdlog will use the external (vcpkg) fmt, shared with DepthAI")
+else()
+    set(SPDLOG_FMT_EXTERNAL OFF CACHE BOOL "Use spdlog's bundled fmt" FORCE)
+endif()
+FetchContent_MakeAvailable(spdlog)
+message(STATUS "spdlog v1.17.0 fetched")
+
+# ==============================================================================
 # Catch2 (Testing Framework)
 # ==============================================================================
 # Catch2 is a modern, C++-native, test framework for unit tests.

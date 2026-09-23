@@ -20,6 +20,7 @@ target_link_libraries(manus_plugin_core
     OpenXR::openxr_loader
     oxr::oxr_core
     pusherio::pusherio
+    log_bridge::log_bridge_core
   PRIVATE
     oxr::oxr_utils
     Teleop::openxr_extensions

@@ -19,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..logging_config._core import DATE_FORMAT, LINE_FORMAT, logging_enabled
 from .env_config import get_env_config
 from .oob_teleop_adb import (
     OobAdbError,
@@ -74,7 +75,7 @@ def _patch_request_parser_for_cors():
 
 _patch_request_parser_for_cors()
 
-log = logging.getLogger("wss-proxy")
+log = logging.getLogger("isaaccapture.cloudxr.wss")
 
 
 @dataclass(frozen=True)
@@ -582,24 +583,33 @@ async def run(
     serving from one still generating certificates or about to fail on a
     taken port.
     """
-    logger = log
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-    _log_fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    # Console output comes from propagation to the root `isaaccapture` logger's
+    # own handler (isaaccapture.logging_config); this only adds an optional,
+    # additional per-session file, on top of that, when the caller wants one.
+    # With logging off, this module owns its console or file output instead.
+    _handler = None
+    _handler_loggers: list[logging.Logger] = []
     if log_file_path is not None:
-        _handler: logging.Handler = logging.FileHandler(
-            log_file_path, mode="a", encoding="utf-8"
-        )
-    else:
+        _handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
+    elif not logging_enabled():
         _handler = logging.StreamHandler(sys.stderr)
-    _handler.setFormatter(_log_fmt)
-    logger.addHandler(_handler)
-    # Route oob-teleop-adb and oob-teleop-env logs to the same destination
-    for _extra_log_name in ("oob-teleop-adb", "oob-teleop-env"):
-        _extra_log = logging.getLogger(_extra_log_name)
-        _extra_log.setLevel(logging.INFO)
-        _extra_log.propagate = False
-        _extra_log.addHandler(_handler)
+    if _handler is not None:
+        _handler.setFormatter(logging.Formatter(LINE_FORMAT, datefmt=DATE_FORMAT))
+        # Tracked so the finally below can detach it from every logger it was
+        # attached to, not just this module's: a logger still holding a closed
+        # FileHandler reopens the file on its next record, and a second run()
+        # would stack another handler on top and duplicate every line.
+        _handler_loggers = [
+            log,
+            # Route oob-teleop-adb and oob-teleop-env logs to the same destination
+            logging.getLogger("isaaccapture.cloudxr.oob_teleop_adb"),
+            logging.getLogger("isaaccapture.cloudxr.oob_teleop_env"),
+        ]
+        for _attached_log in _handler_loggers:
+            if not logging_enabled():
+                _attached_log.setLevel(logging.INFO)
+                _attached_log.propagate = False
+            _attached_log.addHandler(_handler)
 
     try:
         resolved_port = wss_proxy_port() if proxy_port is None else proxy_port
@@ -907,5 +917,7 @@ async def run(
             ) from e
         raise
     finally:
-        logger.removeHandler(_handler)
-        _handler.close()
+        for _attached_log in _handler_loggers:
+            _attached_log.removeHandler(_handler)
+        if _handler is not None:
+            _handler.close()

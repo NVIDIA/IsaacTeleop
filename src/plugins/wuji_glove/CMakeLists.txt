@@ -42,6 +42,7 @@ target_link_libraries(wuji_glove_plugin PRIVATE
     ${WUJI_SDK_LIB}
     ${CMAKE_DL_LIBS}
     Threads::Threads
+    log_bridge::log_bridge_core
 )
 
 set_target_properties(wuji_glove_plugin PROPERTIES

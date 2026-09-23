@@ -3,6 +3,7 @@
 
 #include "manus_hand_visualizer.hpp"
 
+#include <log_bridge/logger.hpp>
 #include <manus/manus_hand_tracking_plugin.hpp>
 
 #include <algorithm>
@@ -12,12 +13,24 @@
 #include <thread>
 #include <vector>
 
+// This tool is a standalone diagnostic CLI whose whole product is joint data
+// on the terminal (docs/source/device/manus.rst). It therefore keeps
+// std::cout, which the repo root AGENTS.md reserves for exactly this: operator
+// banners and progress lines a log file would ruin. Routing it through a
+// logger made it silent in the one situation it is most often run in -- a
+// shell that inherited ISAACCAPTURE_LOG_SOCKET from a session leader, where
+// local_sinks() returns a forwarding sink and no console sink at all, so every
+// line including "Waiting for gloves..." went to the leader's log file and the
+// tool looked hung. Diagnostics -- the visualizer failure, the fatal handlers
+// -- stay on the logger.
+
 int main(int argc, char** argv)
 try
 {
     (void)argc;
     (void)argv;
 
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.manus.manus_hand_tracker_printer");
     std::cout << "[Manus] Initializing Manus Tracker..." << std::endl;
 
     plugins::manus::ManusPluginConfig config;
@@ -30,7 +43,7 @@ try
     // std::jthread automatically requests stop and joins on destruction,
     // preventing the thread from outliving the tracker singleton.
     std::jthread vis_thread(
-        [&tracker](std::stop_token st)
+        [&tracker, logger](std::stop_token st)
         {
             try
             {
@@ -39,7 +52,7 @@ try
             }
             catch (const std::exception& e)
             {
-                std::cerr << "[Vis] " << e.what() << " — running without visualizer" << std::endl;
+                logger->warn("Visualizer failed: {} — running without visualizer", e.what());
             }
         });
 
@@ -107,11 +120,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.manus.manus_hand_tracker_printer");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error occurred" << std::endl;
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.manus.manus_hand_tracker_printer");
+    logger->error("{}: Unknown error occurred", argv[0]);
     return 1;
 }

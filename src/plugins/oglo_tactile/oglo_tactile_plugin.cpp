@@ -6,7 +6,6 @@
 #include <oxr_utils/os_time.hpp>
 
 #include <chrono>
-#include <iostream>
 #include <thread>
 #include <vector>
 
@@ -48,7 +47,7 @@ int64_t OgloTactilePlugin::extend_device_ns(uint32_t device_time_us)
 
 void OgloTactilePlugin::connect_and_subscribe()
 {
-    std::cout << "Scanning for " << advertised_name_for(m_opts.side) << "..." << std::endl;
+    m_logger->info("Scanning for {}...", advertised_name_for(m_opts.side));
     const std::string config_json = m_ble->connect(m_opts.side, m_opts.scan_timeout);
     m_config = OgloDeviceConfig::parse(config_json);
     m_values_per_sample.store(m_config.values_per_sample, std::memory_order_relaxed);
@@ -61,9 +60,8 @@ void OgloTactilePlugin::connect_and_subscribe()
     m_last_device_us = 0;
     m_device_wrap_offset_ns = 0;
 
-    std::cout << "Connected: side=" << to_string(m_config.side) << " schema_ver=" << m_config.schema_ver
-              << " format=" << m_config.packet_format << " rate=" << m_config.rate_hz << "Hz"
-              << " serial=" << m_config.serial << std::endl;
+    m_logger->info("Connected: side={} schema_ver={} format={} rate={}Hz serial={}", to_string(m_config.side),
+                   m_config.schema_ver, m_config.packet_format, m_config.rate_hz, m_config.serial);
 
     // The sink is created once (first connect); reconnects reuse it so the
     // OpenXR collection stays continuous across drops.
@@ -134,7 +132,7 @@ void OgloTactilePlugin::run(std::atomic<bool>& stop)
         const bool stalled = since_notify_ms > m_opts.stall_timeout.count();
         if ((stalled || !m_connected.load(std::memory_order_relaxed)) && !stop.load(std::memory_order_relaxed))
         {
-            std::cerr << "OGLO: link stalled/dropped (" << since_notify_ms << " ms), reconnecting..." << std::endl;
+            m_logger->warn("link stalled/dropped ({} ms), reconnecting...", since_notify_ms);
             try
             {
                 m_ble->disconnect();
@@ -142,7 +140,7 @@ void OgloTactilePlugin::run(std::atomic<bool>& stop)
             }
             catch (const std::exception& e)
             {
-                std::cerr << "OGLO: reconnect failed: " << e.what() << " — retrying." << std::endl;
+                m_logger->warn("reconnect failed: {} -- retrying.", e.what());
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
             }
         }
@@ -162,7 +160,7 @@ void OgloTactilePlugin::run(std::atomic<bool>& stop)
         ++m_total_samples;
     }
 
-    std::cout << "OGLO: stopped after " << m_total_samples << " samples." << std::endl;
+    m_logger->info("stopped after {} samples.", m_total_samples);
 }
 
 } // namespace oglo_tactile

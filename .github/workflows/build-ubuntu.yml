@@ -866,7 +866,7 @@ jobs:
         # proxy up. This is the primary bring-up marker.
         BRINGUP_MARKER="CloudXR runtime and WSS proxy started"
         SESSION_MARKER="TeleopSession started successfully"
-        PLUGIN_MARKER="WujiGlovePlugin initialized and running"
+        PLUGIN_MARKER_RE="wuji_glove\.WujiGlovePlugin\].*initialized and running"
         # Hard failures from the launcher, runtime, or plugin lifecycle.
         FAIL_RE="CloudXR runtime failed to start|SDK missing libcloudxr.so|CloudXR EULA was not accepted|CloudXR launcher is not running|runtime process exited unexpectedly|WSS proxy thread stopped unexpectedly|Plugin process exited immediately|Required plugin .* was not discovered"
 
@@ -938,7 +938,7 @@ jobs:
           if grep -Eq "$FAIL_RE" "$LOG_FILE"; then
             fail "live bring-up reported a fatal error after CloudXR startup"
           fi
-          if grep -qF "$SESSION_MARKER" "$LOG_FILE" && grep -qF "$PLUGIN_MARKER" "$LOG_FILE"; then
+          if grep -qF "$SESSION_MARKER" "$LOG_FILE" && grep -Eq "$PLUGIN_MARKER_RE" "$LOG_FILE"; then
             ready=true
             break
           fi

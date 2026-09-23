@@ -37,7 +37,7 @@ import numpy as np
 from pipeline import Frame, FrameSource, SourceSpec
 from ._helpers import alloc_pinned_host, notify, notify_verbose
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaaccapture.camera_viz.sources.oakd")
 
 RECONNECT_DELAY_S = 5.0
 
@@ -338,7 +338,7 @@ class _OakdDevice:
                 try:
                     self._connected = self._open_device()
                 except Exception as e:
-                    notify("oakd", f"open failed ({e})")
+                    notify("oakd", f"open failed ({e})", logging.ERROR)
                     self._close_device()
                     self._reconnect_count += 1
                     continue
@@ -350,7 +350,7 @@ class _OakdDevice:
             try:
                 self._pipeline.processTasks()
             except Exception as e:
-                notify("oakd", f"pipeline error ({e}); reconnecting")
+                notify("oakd", f"pipeline error ({e}); reconnecting", logging.ERROR)
                 self._close_device()
                 self._reconnect_count += 1
                 continue
@@ -381,7 +381,7 @@ class _OakdDevice:
                     self._frame_counts[stream_spec.name] += 1
                     emitted_any = True
             except Exception as e:
-                notify("oakd", f"frame error ({e}); reconnecting")
+                notify("oakd", f"frame error ({e}); reconnecting", logging.ERROR)
                 self._close_device()
                 self._reconnect_count += 1
                 continue

@@ -8,6 +8,7 @@ Provides an async ImGui window that displays tuning controls for multiple
 retargeters in a single window with configurable layouts.
 """
 
+import logging
 import threading
 import time
 from enum import Enum
@@ -25,6 +26,8 @@ from isaaccapture.retargeting_engine.interface import (
     ParameterSpec,
     VectorParameter,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from isaaccapture.retargeting_engine.interface import BaseRetargeter, ParameterState
@@ -606,7 +609,7 @@ class MultiRetargeterTuningUIImGui:
             self._thread.start()
 
         except Exception as e:
-            print(f"[MultiRetargeterTuningUIImGui] Failed to start: {e}")
+            logger.error("Failed to start: %s", e)
             self._running = False
 
     def _run_ui_loop(self):

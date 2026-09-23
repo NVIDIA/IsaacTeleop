@@ -3,6 +3,8 @@
 
 #include "oglo_tactile_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <csignal>
 #include <cstddef>
@@ -39,6 +41,8 @@ void print_usage(const char* prog)
 int main(int argc, char** argv)
 try
 {
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.oglo_tactile.main");
+
     OgloTactilePlugin::Options opts;
     bool side_set = false;
 
@@ -81,6 +85,9 @@ try
             }
             if (ms <= 0)
             {
+                // Paired with print_usage()'s std::cout. A logger would split one
+                // message across two destinations, and under ISAACCAPTURE_LOG_SOCKET
+                // local_sinks() carries no console sink, so this half would vanish.
                 std::cerr << "Error: --scan-timeout-ms expects a positive integer (got '" << val << "')." << std::endl;
                 print_usage(argv[0]);
                 return 1;
@@ -116,9 +123,7 @@ try
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    std::cout << "============================================================\n"
-              << "OGLO Tactile Glove Plugin (" << to_string(opts.side) << ")\n"
-              << "============================================================" << std::endl;
+    logger->info("OGLO Tactile Glove Plugin ({})", to_string(opts.side));
 
     OgloTactilePlugin plugin(std::move(opts));
     plugin.run(g_stop);
@@ -127,11 +132,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.oglo_tactile.main");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": unknown error" << std::endl;
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.oglo_tactile.main");
+    logger->error("{}: unknown error", argv[0]);
     return 1;
 }

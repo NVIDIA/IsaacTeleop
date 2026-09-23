@@ -18,6 +18,10 @@ import pytest
 
 from conftest import live_ipc_socket, mock_service_deps
 from isaaccapture.cloudxr.service import CloudXRService
+from isaaccapture.logging_config._native_api import (
+    native_capture_fd,
+    native_capture_path,
+)
 
 _posix_only = pytest.mark.skipif(
     sys.platform == "win32",
@@ -110,6 +114,43 @@ class TestServiceConstruction:
         detail = str(exc.value)
         assert "runtime_worker_stderr.log" in detail
         assert "ImportError: no runtime" in detail
+
+    @_windows_skip
+    def test_the_runtime_workers_stdout_goes_to_the_session_capture_file(
+        self, tmp_path
+    ):
+        """The runtime's banner is isaaccapture's output, not the host terminal's.
+
+        A process this library launched is not the host, so pointing its
+        descriptors at the capture file is exactly what the design relies on.
+        """
+        capture_fd = native_capture_fd()
+        if capture_fd is None:
+            pytest.skip("no capture file in this environment")
+
+        with mock_service_deps(tmp_path, ready=True) as mocks:
+            CloudXRService()
+
+        assert mocks["popen"].call_args.kwargs["stdout"] == capture_fd
+
+    @_windows_skip
+    def test_startup_failure_reports_the_native_capture_file(self, tmp_path):
+        """The worker's own fd 1 lands there, not under logs_dir."""
+        capture_fd = native_capture_fd()
+        capture = native_capture_path()
+        if capture_fd is None or capture is None:
+            pytest.skip("no capture file in this environment")
+        os.write(capture_fd, b"cxr_server: libcloudxr.so not found\n")
+
+        with mock_service_deps(tmp_path, ready=False) as mocks:
+            mocks["proc"].poll.return_value = 1
+
+            with pytest.raises(RuntimeError) as exc:
+                CloudXRService()
+
+        detail = str(exc.value)
+        assert capture.name in detail
+        assert "libcloudxr.so not found" in detail
 
     def test_wss_log_path_set_after_construction(self, tmp_path):
         """wss_log_path is a Path after successful construction."""

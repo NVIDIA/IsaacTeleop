@@ -27,6 +27,7 @@ from typing import List, Optional
 
 import yaml
 
+from isaaccapture import logging_config
 from isaaccapture.cloudxr import CloudXRLauncher
 
 import cloudxr_env
@@ -301,6 +302,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         dashboard = Dashboard()
         if dashboard.live:
             set_notify_sink(dashboard.note)
+            # The console handler writes to the stderr this panel owns, so
+            # routine chatter mid-repaint leaves its line count wrong for the
+            # rest of the run. Raised, not silenced: a warning is worth a torn
+            # panel, and the log file keeps every level either way.
+            logging_config.set_console_level("warning")
         else:
             # Nothing is redrawing, so the header would never be seen.
             print(f"camera_viz: {header}", flush=True)

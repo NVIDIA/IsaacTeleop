@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 
 from .oob_teleop_hub import OOB_WS_PATH
 
-log = logging.getLogger("oob-teleop-env")
+log = logging.getLogger("isaaccapture.cloudxr.oob_teleop_env")
 
 WSS_PROXY_DEFAULT_PORT = 48322
 
@@ -453,9 +453,14 @@ def oob_progress(stage: str, msg: str) -> None:
 
     Goes to stderr in dim cyan so the operator can see *where* the launcher
     is in its sequence of steps without these lines competing with the
-    success banner (stdout) or error prints (red). Distinct from
-    ``log.info``, which writes to log files only and is invisible at the
-    terminal.
+    success banner (stdout) or error prints (red).
+
+    A print(), deliberately, and one the repo root AGENTS.md names as such:
+    progress lines are terminal UX, not diagnostics. Routing them through a
+    logger puts them behind the console threshold, so an operator who had
+    called set_console_level("warning") -- a supported, public thing to do --
+    lost every phase marker in a sequence that drives adb, coturn and a
+    headset browser in turn. Do not "migrate" this one.
     """
     print(f"\033[36m[{stage}]\033[0m {msg}", file=sys.stderr, flush=True)
 

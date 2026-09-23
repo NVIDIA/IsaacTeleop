@@ -3,6 +3,8 @@
 
 #include "noitom_mocap_plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -133,6 +135,9 @@ try
         }
         else
         {
+            // Paired with print_usage()'s std::cout. A logger would split one
+            // message across two destinations, and under ISAACCAPTURE_LOG_SOCKET
+            // local_sinks() carries no console sink, so this half would vanish.
             std::cerr << "Unknown option: " << arg << std::endl;
             print_usage(argv[0]);
             return 1;
@@ -162,11 +167,13 @@ try
 }
 catch (const std::exception& e)
 {
-    std::cerr << argv[0] << ": " << e.what() << std::endl;
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.noitom_mocap.main");
+    logger->error("{}: {}", argv[0], e.what());
     return 1;
 }
 catch (...)
 {
-    std::cerr << argv[0] << ": Unknown error" << std::endl;
+    auto logger = isaaccapture::Logger::get("isaaccapture.plugins.noitom_mocap.main");
+    logger->error("{}: Unknown error", argv[0]);
     return 1;
 }

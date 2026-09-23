@@ -23,11 +23,16 @@ try:
 except ImportError as e:
     import sys
 
+    from ..logging_config._core import logging_enabled
+
     error_msg = (
         "\n"
         "ImGui UI dependencies are not installed.\n"
         "Install with: pip install 'isaaccapture[ui]'\n"
         f"Original error: {e}\n"
     )
-    print(error_msg, file=sys.stderr)
+    if not logging_enabled():
+        print(error_msg, file=sys.stderr)
+    # With logging on, the raised ImportError alone carries this message to
+    # the caller.
     raise ImportError(error_msg) from e

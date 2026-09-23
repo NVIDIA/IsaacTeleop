@@ -28,6 +28,7 @@ import re
 import shlex
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -43,7 +44,7 @@ from .oob_teleop_env import (
     web_client_base_override_from_env,
 )
 
-log = logging.getLogger("oob-teleop-adb")
+log = logging.getLogger("isaaccapture.cloudxr.oob_teleop_adb")
 
 
 class OobAdbError(Exception):
@@ -854,6 +855,26 @@ def require_turn_port_free(port: int) -> None:
     )
 
 
+def _open_private(path: str) -> int:
+    """Create *path* fresh and owner-only, reusing nothing already there.
+
+    These are predictable ``/tmp`` names, so another local user can get there
+    first. ``O_NOFOLLOW`` alone only refuses a symlink; a plain file they created
+    would be written through, which for the config file means handing them the
+    TURN credential it carries. Unlinking first is what makes the ``O_EXCL``
+    create meaningful, and under ``/tmp``'s sticky bit that unlink fails on a
+    file owned by someone else, so a planted path is refused rather than reused.
+
+    Raises:
+        OSError: if the path cannot be cleared or created safely.
+    """
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+    return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+
+
 def start_coturn(turn_port: int, user: str, credential: str) -> subprocess.Popen | None:
     """Start a coturn TURN server for USB-local ICE relay.
 
@@ -904,18 +925,22 @@ no-stdout-log
 log-file={log_path}
 simple-log
 """
+    # 0600 and O_EXCL/O_NOFOLLOW: this file carries the TURN credential and its
+    # name is predictable under a world-writable /tmp.
     try:
-        with open(conf_path, "w") as f:
+        with os.fdopen(_open_private(conf_path), "w", encoding="utf-8") as f:
             f.write(conf_content)
     except OSError as exc:
         log.warning("coturn: failed to write config file %s: %s", conf_path, exc)
         return None
 
-    # Truncate the log so operators only see lines from this run.
+    # Truncate the log so operators only see lines from this run. Not fatal: the
+    # relay is still worth starting without it, and coturn opens the path itself
+    # from `log-file=` above.
     try:
-        open(log_path, "w").close()
-    except OSError:
-        pass
+        os.close(_open_private(log_path))
+    except OSError as exc:
+        log.warning("coturn: failed to prepare log file %s: %s", log_path, exc)
 
     try:
         proc = subprocess.Popen(
@@ -962,13 +987,33 @@ def verify_coturn_listening(turn_port: int, *, timeout: float = 1.0) -> bool:
         return False
 
 
+#: Bytes read back from the end of a coturn log to find its last few lines.
+#: Generous for the ten to twenty lines the callers ask for, and a fixed bound
+#: on what a long-running relay's log can make this read.
+_TAIL_WINDOW = 16 * 1024
+
+
 def _tail_file(path: str, lines: int) -> str:
-    """Return the last *lines* lines of *path* (empty string on read failure)."""
+    """Return the last *lines* lines of *path* (empty string on read failure).
+
+    Seeks instead of reading the whole file: coturn writes this log for as long
+    as the session runs and nothing truncates it mid-run, so ``readlines()``
+    pulled an unbounded file into memory to print twenty lines of it. The
+    regular-file check is not decoration -- a FIFO left at this predictable
+    ``/tmp`` name would make the read block.
+    """
     try:
-        with open(path, "r") as f:
-            return "".join(f.readlines()[-lines:]).rstrip()
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        with os.fdopen(os.open(path, flags), "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return ""
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - _TAIL_WINDOW))
+            chunk = f.read(_TAIL_WINDOW)
     except OSError:
         return ""
+    text = chunk.decode("utf-8", errors="replace")
+    return "\n".join(text.splitlines()[-lines:]).rstrip()
 
 
 async def watch_coturn(

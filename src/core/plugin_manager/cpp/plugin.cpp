@@ -3,9 +3,13 @@
 
 #include "inc/plugin_manager/plugin.hpp"
 
+#include <log_bridge/logger.hpp>
+
 #ifndef _WIN32
+#    include <sys/stat.h>
 #    include <sys/wait.h>
 
+#    include <fcntl.h>
 #    include <signal.h>
 #    include <string.h>
 #    include <unistd.h>
@@ -13,14 +17,150 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
 
 namespace core
 {
+#ifndef _WIN32
+namespace
+{
+
+enum class ChildLaunchStage : std::uint8_t
+{
+    ChangeDirectory,
+    Execute,
+};
+
+struct ChildLaunchError
+{
+    ChildLaunchStage stage;
+    int error_number;
+};
+
+int move_above_std_cloexec(int fd)
+{
+    if (fd < 0)
+    {
+        return -1;
+    }
+    if (fd <= STDERR_FILENO)
+    {
+#    ifdef F_DUPFD_CLOEXEC
+        const int moved = ::fcntl(fd, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+#    else
+        const int moved = ::fcntl(fd, F_DUPFD, STDERR_FILENO + 1);
+        if (moved >= 0)
+        {
+            const int flags = ::fcntl(moved, F_GETFD);
+            if (flags < 0 || ::fcntl(moved, F_SETFD, flags | FD_CLOEXEC) < 0)
+            {
+                const int error_number = errno;
+                ::close(moved);
+                ::close(fd);
+                errno = error_number;
+                return -1;
+            }
+        }
+#    endif
+        const int error_number = errno;
+        ::close(fd);
+        errno = error_number;
+        return moved;
+    }
+
+    const int flags = ::fcntl(fd, F_GETFD);
+    if (flags < 0 || ::fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0)
+    {
+        const int error_number = errno;
+        ::close(fd);
+        errno = error_number;
+        return -1;
+    }
+    return fd;
+}
+
+// The child may only use async-signal-safe operations before execvp().
+void report_child_launch_error(int fd, ChildLaunchStage stage, int error_number)
+{
+    const ChildLaunchError error{ stage, error_number };
+    const auto* data = reinterpret_cast<const char*>(&error);
+    std::size_t written = 0;
+    while (written < sizeof(error))
+    {
+        const ssize_t result = ::write(fd, data + written, sizeof(error) - written);
+        if (result < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if (result <= 0)
+        {
+            return;
+        }
+        written += static_cast<std::size_t>(result);
+    }
+}
+
+std::optional<ChildLaunchError> read_child_launch_error(int fd)
+{
+    ChildLaunchError error{};
+    auto* data = reinterpret_cast<char*>(&error);
+    std::size_t received = 0;
+    while (received < sizeof(error))
+    {
+        const ssize_t result = ::read(fd, data + received, sizeof(error) - received);
+        if (result < 0 && errno == EINTR)
+        {
+            continue;
+        }
+        if (result < 0)
+        {
+            throw std::runtime_error("Failed to read plugin launch status: " + std::string(std::strerror(errno)));
+        }
+        if (result == 0)
+        {
+            if (received == 0)
+            {
+                return std::nullopt; // execvp() closed the write end.
+            }
+            throw std::runtime_error("Plugin launch status was truncated");
+        }
+        received += static_cast<std::size_t>(result);
+    }
+    return error;
+}
+
+void reap_child(pid_t pid)
+{
+    int status = 0;
+    while (::waitpid(pid, &status, 0) < 0 && errno == EINTR)
+    {
+    }
+}
+
+std::string child_launch_error_message(const ChildLaunchError& error,
+                                       const std::string& command,
+                                       const std::string& working_dir)
+{
+    std::string message = "Plugin process exited immediately: failed to ";
+    if (error.stage == ChildLaunchStage::ChangeDirectory)
+    {
+        message += "change directory to '" + working_dir + "'";
+    }
+    else
+    {
+        message += "execute plugin command '" + command + "'";
+    }
+    return message + ": " + std::strerror(error.error_number);
+}
+
+} // namespace
+#endif
 
 Plugin::Plugin(const std::string& command,
                const std::string& working_dir,
@@ -85,22 +225,146 @@ void Plugin::start_process(const std::string& command,
                            const std::vector<std::string>& plugin_args)
 {
 #ifndef _WIN32
+    std::vector<std::string> args_str;
+    std::stringstream ss(command);
+    std::string item;
+    while (std::getline(ss, item, ' '))
+    {
+        if (!item.empty())
+        {
+            args_str.push_back(item);
+        }
+    }
+    if (args_str.empty())
+    {
+        throw std::runtime_error("Empty plugin command");
+    }
+    if (!plugin_root_id.empty())
+    {
+        args_str.push_back("--plugin-root-id=" + plugin_root_id);
+    }
+    for (const auto& arg : plugin_args)
+    {
+        if (!arg.starts_with("--plugin-root-id="))
+        {
+            args_str.push_back(arg);
+        }
+        else
+        {
+            isaaccapture::Logger::get("isaaccapture.core.Plugin")
+                ->warn("--plugin-root-id is managed by the plugin launcher, ignoring manual override");
+        }
+    }
+
+    std::vector<char*> args;
+    args.reserve(args_str.size() + 1);
+    for (auto& arg : args_str)
+    {
+        args.push_back(arg.data());
+    }
+    args.push_back(nullptr);
+
+    char* const executable = args.front();
+    char* const* const argv = args.data();
+    const char* const working_dir_path = working_dir.empty() ? nullptr : working_dir.c_str();
+
+    // Read before fork(): getenv() is not async-signal-safe, and the child needs
+    // the path as a plain pointer it can hand straight to open(). Published by
+    // isaaccapture.logging_config (_native_fd.CAPTURE_FILE_ENV); absent only when
+    // no file could be opened or this process never imported the Python half.
+    // Capture mode "off" still publishes it because it governs the host's
+    // descriptors, not those of a process the host launches. With logging off
+    // an inherited path is ignored, so the child keeps the parent's descriptors.
+    const char* const native_capture_env =
+        isaaccapture::logging_enabled() ? std::getenv("ISAACCAPTURE_NATIVE_CAPTURE_FILE") : nullptr;
+    const std::string native_capture_path_text = native_capture_env == nullptr ? "" : native_capture_env;
+    const char* const native_capture_path = native_capture_path_text.empty() ? nullptr : native_capture_path_text.c_str();
+
+    // CLOEXEC turns pipe EOF into the successful-exec signal.
+    int raw_launch_pipe[2];
+    if (::pipe(raw_launch_pipe) != 0)
+    {
+        throw std::runtime_error("Failed to create plugin launch pipe: " + std::string(std::strerror(errno)));
+    }
+    const int launch_read_fd = move_above_std_cloexec(raw_launch_pipe[0]);
+    if (launch_read_fd < 0)
+    {
+        const int pipe_error = errno;
+        ::close(raw_launch_pipe[1]);
+        throw std::runtime_error("Failed to prepare plugin launch pipe: " + std::string(std::strerror(pipe_error)));
+    }
+    const int launch_write_fd = move_above_std_cloexec(raw_launch_pipe[1]);
+    if (launch_write_fd < 0)
+    {
+        const int pipe_error = errno;
+        ::close(launch_read_fd);
+        throw std::runtime_error("Failed to prepare plugin launch pipe: " + std::string(std::strerror(pipe_error)));
+    }
+
     const pid_t child_pid = fork();
     if (child_pid == -1)
     {
-        throw std::runtime_error("Failed to fork process for plugin");
+        const int fork_error = errno;
+        ::close(launch_read_fd);
+        ::close(launch_write_fd);
+        throw std::runtime_error("Failed to fork process for plugin: " + std::string(std::strerror(fork_error)));
     }
 
     if (child_pid == 0)
     {
-        // Child process
+        ::close(launch_read_fd);
+
+        // Child process, between fork() and execvp(): only async-signal-safe calls
+        // are allowed here (POSIX). Never add Logger/spdlog calls in this window --
+        // spdlog's registry and sinks are unsafe post-fork-pre-exec. execvp() is
+        // the one deliberate exception:
+        // POSIX leaves it off the list because its PATH search may allocate, and
+        // it is kept because a plugin's command may be a bare name. Removing the
+        // exception means resolving the executable before fork() and calling
+        // execv().
+
+        // Point the *child's* output at the session's capture file -- the child's
+        // descriptors are ours to set, the host's are not, and this is what keeps
+        // a plugin's non-logger output off the terminal. open(), fstat(), dup2()
+        // and close() are all async-signal-safe. No O_CREAT: the Python leader
+        // created this file, so a path that has gone missing is not ours to
+        // recreate. O_APPEND, so several plugins and the parent can share it. A
+        // failure leaves the inherited descriptors in place and does not stop
+        // the plugin from starting.
+        //
+        // This opens a name it did not create, so O_NOFOLLOW is not enough on
+        // its own: it refuses a symlink but not a plain file substituted at the
+        // same path, which would collect this plugin's whole output. The leader
+        // created the file 0600, so confirm that is what we got.
+        if (native_capture_path != nullptr && native_capture_path[0] != '\0')
+        {
+            const int capture_fd = ::open(native_capture_path, O_WRONLY | O_APPEND | O_NOFOLLOW);
+            if (capture_fd >= 0)
+            {
+                struct ::stat capture_info
+                {
+                };
+                const bool ours = ::fstat(capture_fd, &capture_info) == 0 && S_ISREG(capture_info.st_mode) &&
+                                  capture_info.st_uid == ::getuid() && (capture_info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+                if (ours)
+                {
+                    ::dup2(capture_fd, STDOUT_FILENO);
+                    ::dup2(capture_fd, STDERR_FILENO);
+                }
+                if (!ours || (capture_fd != STDOUT_FILENO && capture_fd != STDERR_FILENO))
+                {
+                    ::close(capture_fd);
+                }
+            }
+        }
 
         // Change working directory
-        if (!working_dir.empty())
+        if (working_dir_path != nullptr)
         {
-            if (chdir(working_dir.c_str()) != 0)
+            if (chdir(working_dir_path) != 0)
             {
-                std::cerr << "Failed to change directory to " << working_dir << std::endl;
+                const int chdir_error = errno;
+                report_child_launch_error(launch_write_fd, ChildLaunchStage::ChangeDirectory, chdir_error);
                 _exit(1);
             }
         }
@@ -108,60 +372,42 @@ void Plugin::start_process(const std::string& command,
         // Close file descriptors to avoid sharing with parent process
         for (int i = 3; i < 1024; ++i)
         {
-            close(i);
-        }
-
-        // Split command into args (naive splitting by space)
-        std::vector<std::string> args_str;
-        std::stringstream ss(command);
-        std::string item;
-        while (std::getline(ss, item, ' '))
-        {
-            if (!item.empty())
-                args_str.push_back(item);
-        }
-
-        if (args_str.empty())
-        {
-            std::cerr << "Empty command" << std::endl;
-            _exit(1);
-        }
-
-        // Append plugin root ID argument if set
-        if (!plugin_root_id.empty())
-        {
-            args_str.push_back("--plugin-root-id=" + plugin_root_id);
-        }
-
-        // Append plugin arguments, skipping --plugin-root-id if already injected above
-        for (const auto& arg : plugin_args)
-        {
-            if (!arg.starts_with("--plugin-root-id="))
+            if (i != launch_write_fd)
             {
-                args_str.push_back(arg);
-            }
-            else
-            {
-                std::cerr << "Warning: --plugin-root-id is managed by the plugin launcher, ignoring manual override"
-                          << std::endl;
+                close(i);
             }
         }
 
-        std::vector<char*> args;
-        for (auto& s : args_str)
-        {
-            args.push_back(&s[0]);
-        }
-        args.push_back(nullptr);
+        execvp(executable, argv);
 
-        execvp(args[0], args.data());
-
-        // If execvp returns, it failed
-        std::cerr << "Failed to exec plugin command: " << command << std::endl;
+        const int exec_error = errno;
+        report_child_launch_error(launch_write_fd, ChildLaunchStage::Execute, exec_error);
         _exit(1);
     }
     else
     {
+        ::close(launch_write_fd);
+        std::optional<ChildLaunchError> launch_error;
+        try
+        {
+            launch_error = read_child_launch_error(launch_read_fd);
+            ::close(launch_read_fd);
+        }
+        catch (...)
+        {
+            ::close(launch_read_fd);
+            ::kill(child_pid, SIGKILL);
+            reap_child(child_pid);
+            throw;
+        }
+        if (launch_error.has_value())
+        {
+            reap_child(child_pid);
+            const std::string message = child_launch_error_message(*launch_error, command, working_dir);
+            isaaccapture::Logger::get("isaaccapture.core.Plugin")->error("{}", message);
+            throw std::runtime_error(message);
+        }
+
         {
             std::lock_guard<std::mutex> lock(m_process_mutex);
             m_pid = child_pid;
@@ -188,7 +434,21 @@ void Plugin::start_process(const std::string& command,
         }
         if (startup_state == ProcessState::EXITED || startup_state == ProcessState::SIGNALED)
         {
-            throw std::runtime_error("Plugin process exited immediately");
+            // Keep the leading phrase whatever else is known. It is the only part
+            // that says the exit happened inside the startup window -- startup_error
+            // says how the process exited, not when -- and .github/workflows/
+            // build-ubuntu.yml matches it verbatim to fail the live CloudXR job
+            // fast instead of waiting out its bring-up timeout.
+            std::string message = "Plugin process exited immediately";
+            if (!startup_error.empty())
+            {
+                message += ": " + startup_error;
+            }
+            if (!native_capture_path_text.empty())
+            {
+                message += "; see native output capture at " + native_capture_path_text;
+            }
+            throw std::runtime_error(message);
         }
     }
 #else
