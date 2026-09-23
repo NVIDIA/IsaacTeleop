@@ -12,8 +12,8 @@ Or manually:
 
 try:
     from .multi_retargeter_tuning_ui import (
-        LayoutModeImGui,
         MultiRetargeterTuningUIImGui,
+        LayoutModeImGui,
     )
 
     __all__ = [

@@ -8,17 +8,16 @@ Provides an async ImGui window that displays tuning controls for multiple
 retargeters in a single window with configurable layouts.
 """
 
+import logging
 import threading
 import time
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import glfw  # type: ignore[import-not-found]
 import imgui  # type: ignore[import-not-found]
-import numpy as np
 from imgui.integrations.glfw import GlfwRenderer  # type: ignore[import-not-found]
-
-import logging
 
 from isaacteleop.retargeting_engine.interface import (
     BoolParameter,

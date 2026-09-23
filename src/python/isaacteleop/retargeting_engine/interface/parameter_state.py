@@ -12,8 +12,7 @@ import json
 import logging
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
+from typing import Dict, Any, Optional, List
 from .tunable_parameter import ParameterSpec
 
 logger = logging.getLogger(__name__)

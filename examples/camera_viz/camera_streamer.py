@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
+
 from pipeline import FrameSource
 from sources import (
     PairedFrameSource,

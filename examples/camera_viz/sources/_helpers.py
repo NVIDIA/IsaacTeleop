@@ -41,6 +41,7 @@ from abc import abstractmethod
 from typing import Optional
 
 import numpy as np
+
 from pipeline import Frame, FrameSource, SourceSpec
 
 

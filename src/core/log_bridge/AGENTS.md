@@ -23,9 +23,16 @@ the repo root file under "Logging"; this file is about changing the machinery.
 
 `logger.hpp` is the only public header. `isaacteleop::Logger::get()` is memoized
 on the name, so repeated calls are cheap and always yield the same instance.
-`LoggerKind::ThirdParty` starts at trace instead of debug and is for loggers
-wrapping vendor/SDK output, so their chatter only survives the logger when a
-sink threshold is actually lowered to TRACE.
+`LoggerKind::ThirdParty` is for loggers wrapping vendor/SDK output. It lowers
+the *logger's* threshold from debug to trace and nothing else: visibility is
+the sinks' decision — console at `ISAACTELEOP_LOG_LEVEL` (info by default),
+file always at trace — so a vendor line logged at info reaches the console just
+like one of ours. Both call sites (`ManusTracker::OnLog`, `mj_guard`) map the
+vendor's own severity onto `debug`/`info`/`warn`/`error`, so the kind changes
+nothing they emit today. Map a vendor severity onto `->trace()` to keep it off
+the console until `ISAACTELEOP_LOG_LEVEL=trace`; the file keeps it either way,
+and that is what the kind buys — an Application logger's `->trace()` is dropped
+by the logger before any sink sees it.
 
 **`local_sinks()` must not throw.** It is the function-local static behind
 `Logger::get()`, which every call site in this tree treats as infallible — and
