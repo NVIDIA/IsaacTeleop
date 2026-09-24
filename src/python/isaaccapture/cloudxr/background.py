@@ -38,8 +38,8 @@ STOP_TIMEOUT_SEC = 15.0
 _MODULE = "isaaccapture.cloudxr.service"
 
 #: Recognised, never spawned: a detached service outlives the shell, so an upgrade
-#: meets a /proc cmdline no import alias rewrites.  TODO(1.9): drop with isaaccapture.
-_LEGACY_MODULES = ("isaaccapture.cloudxr.service",)
+#: meets a /proc cmdline no import alias rewrites.  TODO(1.9): drop with isaacteleop.
+_LEGACY_MODULES = ("isaacteleop.cloudxr.service",)
 
 
 #: Refusal shown wherever a start meets a runtime that is already serving.
