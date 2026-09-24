@@ -475,7 +475,9 @@ Troubleshooting
 ---------------
 
 - **The XR session fails to create** — check ``~/.cloudxr/logs/cxr_server.*.log`` and
-  ``runtime_stderr.log`` for the startup failure. ``XR_ERROR_FORM_FACTOR_UNAVAILABLE``
+  ``~/.cloudxr/logs/runtime_worker_stderr.log`` (``runtime_stderr.log`` with
+  ``ISAACCAPTURE_LOGGING=off``) for the startup failure.
+  ``XR_ERROR_FORM_FACTOR_UNAVAILABLE``
   (-35) means the runtime is up but no headset has clicked CONNECT yet; XR mode waits
   according to ``display.xr.system_wait_seconds`` (default ``-1`` to wait
   indefinitely; ``0`` fails fast; positive values wait that many seconds;
