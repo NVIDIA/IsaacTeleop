@@ -44,12 +44,12 @@ EOF
 done
 
 # --- Configuration -------------------------------------------------------
-MANUS_SDK_VERSION="3.2.0"
+MANUS_SDK_VERSION="3.2.1"
 # Since 3.2 the SDK ships per-platform; the Linux package is a tarball.
 MANUS_SDK_ARCHIVE="MANUS_Core_${MANUS_SDK_VERSION}_SDK_Linux.tar.gz"
 MANUS_SDK_URL="https://static.manus-meta.com/resources/manus_core_3/sdk/${MANUS_SDK_ARCHIVE}"
 MANUS_SDK_SHA256_ACCEPTED=(
-    "02821f0b6d1f45645ffb63fdc5b5c312211b3a9cfbcd9b701584fd2feed0a432"
+    "c2bafd19824ecb458d34e2f559fbd51dd1c7118288c75c24ec5163d6b4135f46"
 )
 # Directory inside the tarball that holds include/ and lib/<arch>/.
 MANUS_SDK_TAR_PREFIX="C++/SDKClient/ManusSDK"
