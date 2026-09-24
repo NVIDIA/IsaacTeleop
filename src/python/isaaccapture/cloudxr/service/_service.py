@@ -15,7 +15,10 @@ import concurrent.futures
 # shutdown" once interpreter finalization has begun — so import it here, while
 # the main thread still can, rather than from the proxy thread mid-teardown.
 import concurrent.futures.thread  # noqa: F401
+from collections import deque
 import logging
+import json
+import uuid
 import os
 import signal
 import subprocess
@@ -113,6 +116,7 @@ class CloudXRService:
         setup_oob: bool = False,
         usb_local: bool = False,
         host_client: bool = False,
+        recovery_config=None,
     ) -> None:
         """Start the CloudXR runtime and the WSS proxy.
 
@@ -136,9 +140,8 @@ class CloudXRService:
                 adb automation in the WSS proxy.
             usb_local: Route teleop traffic over USB headset loopback via
                 ``adb reverse`` (requires *setup_oob*); also starts coturn
-                for WebRTC ICE relay and serves ``/client/`` on the WSS
-                proxy (same assets as *host_client*).  Ports are overridable
-                via ``PROXY_PORT`` / ``USB_BACKEND_PORT`` / ``USB_TURN_PORT``.
+                for WebRTC ICE relay and serves WebXR static files over HTTPS
+                on ``USB_UI_PORT``. Backend and TURN ports are overridable.
             host_client: Serve the web client at ``/client/`` on the WSS
                 proxy port.  Assets are fetched once from GitHub Pages into
                 ``TELEOP_WEB_CLIENT_STATIC_DIR`` or ``~/.cloudxr/static-client``.
@@ -159,7 +162,9 @@ class CloudXRService:
         if self._usb_local or self._host_client:
             from ..oob_teleop_env import require_web_client_static_dir  # noqa: PLC0415
 
-            require_web_client_static_dir()
+            require_web_client_static_dir(
+                require_health_probe=setup_oob and not os.getenv("TELEOP_OOB_HUB_ONLY")
+            )
 
         self._runtime_proc: subprocess.Popen | None = None
         self._wss_thread: threading.Thread | None = None
@@ -168,6 +173,13 @@ class CloudXRService:
         self._wss_log_path: Path | None = None
         self._atexit_registered = False
         self._stopping = False
+        self._stop_lock = threading.RLock()
+        self._oob_lock = threading.Lock()
+        self._oob_snapshot: dict | None = None
+        self._oob_updates: deque[dict] = deque(maxlen=128)
+        self._oob_session_id = uuid.uuid4().hex
+        self._fatal_error: Exception | None = None
+        self._fatal_supervisor: threading.Thread | None = None
         # sig -> (previous handler, service-installed wrapper)
         self._prev_signal_handlers: dict[int, tuple[object, object]] = {}
 
@@ -177,7 +189,40 @@ class CloudXRService:
         run_dir = os.path.join(
             os.path.abspath(os.path.expanduser(self._install_dir)), "run"
         )
+        self._oob_status_path = Path(run_dir) / "oob_status.json"
+        from ..oob_teleop_env import resolve_oob_recovery_config  # noqa: PLC0415
+
+        self._recovery_config = (
+            recovery_config or resolve_oob_recovery_config() if setup_oob else None
+        )
         self._cleanup_stale_runtime(run_dir)
+        if setup_oob:
+            # Embedded launchers do not pass through the service CLI preflight.
+            # Validate host dependencies before starting the CloudXR worker;
+            # headset-dependent readiness remains the lifecycle's job.
+            from ..oob_teleop_adb import (  # noqa: PLC0415
+                require_adb_on_path,
+                require_coturn_available,
+                require_turn_port_free,
+            )
+            from ..oob_teleop_env import (  # noqa: PLC0415
+                resolve_lan_host_for_oob,
+                usb_turn_port,
+            )
+
+            if usb_local or not os.getenv("TELEOP_OOB_HUB_ONLY"):
+                require_adb_on_path()
+            if usb_local:
+                require_coturn_available()
+                require_turn_port_free(usb_turn_port())
+            else:
+                resolve_lan_host_for_oob()
+        try:
+            self._oob_status_path.unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning(
+                "Cannot clear stale OOB status %s: %s", self._oob_status_path, exc
+            )
 
         env_cfg = EnvConfig.from_args(
             self._install_dir,
@@ -288,27 +333,88 @@ class CloudXRService:
                 inspect the still-running process.
         """
         # Restore handlers only after teardown; _stopping blocks re-entrant stop().
-        if self._stopping:
-            return
-        self._stopping = True
-        try:
-            self._stop_wss_proxy()
+        with self._stop_lock:
+            if self._stopping:
+                return
+            self._stopping = True
+            try:
+                self._stop_wss_proxy()
 
-            if self._runtime_proc is not None:
-                try:
-                    self._terminate_runtime()
-                except RuntimeError:
-                    logger.warning(
-                        "Failed to cleanly terminate CloudXR runtime process "
-                        "(pid=%s); handle retained for later cleanup",
-                        self._runtime_proc.pid,
-                    )
-                    raise
-                self._runtime_proc = None
-                logger.info("CloudXR runtime process stopped")
-        finally:
-            self._restore_signal_handlers()
-            self._stopping = False
+                if self._runtime_proc is not None:
+                    try:
+                        self._terminate_runtime()
+                    except RuntimeError:
+                        logger.warning(
+                            "Failed to cleanly terminate CloudXR runtime process "
+                            "(pid=%s); handle retained for later cleanup",
+                            self._runtime_proc.pid,
+                        )
+                        raise
+                    self._runtime_proc = None
+                    logger.info("CloudXR runtime process stopped")
+                if self._fatal_error is None and self._oob_snapshot is not None:
+                    try:
+                        current = json.loads(
+                            self._oob_status_path.read_text(encoding="utf-8")
+                        )
+                        if current.get("sessionId") == self._oob_session_id:
+                            self._oob_status_path.unlink(missing_ok=True)
+                    except FileNotFoundError:
+                        # Another shutdown path may already have removed the file.
+                        pass
+                    except (OSError, ValueError) as exc:
+                        logger.warning(
+                            "Cannot clean OOB status %s: %s", self._oob_status_path, exc
+                        )
+            finally:
+                self._restore_signal_handlers()
+                self._stopping = False
+
+    def _publish_oob_status(self, snapshot: dict) -> None:
+        """Atomically hand off a redacted lifecycle snapshot across threads."""
+        payload = {
+            **snapshot,
+            "writerPid": os.getpid(),
+            "runtimePid": self._runtime_proc.pid if self._runtime_proc else None,
+            "sessionId": self._oob_session_id,
+        }
+        with self._oob_lock:
+            self._oob_snapshot = payload
+            self._oob_updates.append(payload)
+            try:
+                self._oob_status_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = self._oob_status_path.with_suffix(".json.tmp")
+                temporary.write_text(
+                    json.dumps(payload, sort_keys=True), encoding="utf-8"
+                )
+                os.replace(temporary, self._oob_status_path)
+            except OSError as exc:
+                logger.warning(
+                    "Cannot publish OOB status %s: %s", self._oob_status_path, exc
+                )
+
+    def oob_status(self) -> dict | None:
+        """Return the latest lifecycle snapshot without touching the WSS event loop."""
+        with self._oob_lock:
+            return dict(self._oob_snapshot) if self._oob_snapshot else None
+
+    def drain_oob_updates(self) -> list[dict]:
+        """Return transition snapshots for the foreground CLI, in order."""
+        with self._oob_lock:
+            updates = list(self._oob_updates)
+            self._oob_updates.clear()
+        return updates
+
+    def _on_oob_fatal(self, error: Exception) -> None:
+        """Transfer fatal teardown to a thread that can safely join WSS."""
+        with self._oob_lock:
+            if self._fatal_error is not None:
+                return
+            self._fatal_error = error
+        self._fatal_supervisor = threading.Thread(
+            target=self.stop, name="cloudxr-oob-fatal-supervisor", daemon=True
+        )
+        self._fatal_supervisor.start()
 
     def health_check(self) -> None:
         """Verify that the runtime process and WSS proxy are healthy.
@@ -322,6 +428,10 @@ class CloudXRService:
             RuntimeError: If the service has not been started, or if
                 the runtime process or the WSS proxy has stopped.
         """
+        if self._fatal_error is not None:
+            raise RuntimeError(
+                f"{self._fatal_error}; see {self._oob_status_path}"
+            ) from self._fatal_error
         if self._runtime_proc is None:
             raise RuntimeError("CloudXR service is not running")
 
@@ -332,7 +442,9 @@ class CloudXRService:
             )
 
         if self._wss_thread is not None and not self._wss_thread.is_alive():
-            raise RuntimeError("CloudXR WSS proxy thread stopped unexpectedly")
+            raise RuntimeError(
+                f"CloudXR WSS proxy thread stopped unexpectedly: {getattr(self, '_wss_error', None)}"
+            )
 
     @property
     def wss_log_path(self) -> Path | None:
@@ -577,9 +689,13 @@ class CloudXRService:
                         usb_local=usb_local,
                         host_client=host_client,
                         on_listening=lambda: listening.set_result(None),
+                        recovery_config=self._recovery_config,
+                        on_oob_status=self._publish_oob_status,
+                        on_oob_fatal=self._on_oob_fatal,
                     )
                 )
             except Exception as exc:
+                self._wss_error = exc
                 if not listening.done():
                     listening.set_exception(exc)
                 logger.exception("WSS proxy thread exited with error")
@@ -627,7 +743,7 @@ class CloudXRService:
                     )
 
         if self._wss_thread is not None:
-            self._wss_thread.join(timeout=5)
+            self._wss_thread.join(timeout=15 if self._setup_oob else 5)
             if self._wss_thread.is_alive():
                 logger.warning("WSS proxy thread did not exit cleanly")
 

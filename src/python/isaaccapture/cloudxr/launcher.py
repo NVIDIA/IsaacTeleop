@@ -306,15 +306,15 @@ class CloudXRLauncher:
         return True
 
     def _announce_hosted_client(self, *, usb_local: bool = False) -> None:
-        """Print the hosted ``/client/`` URL using the attached service env.
+        """Print the locally hosted client URL using the attached service env.
 
-        Call only after :meth:`_attach` so :func:`wss_proxy_port` reads
-        ``PROXY_PORT`` from the service's ``cloudxr.env``. USB-local clients
-        reach the proxy through headset loopback via ``adb reverse``.
+        Call only after :meth:`_attach` so port overrides from the service's
+        ``cloudxr.env`` are available.
         """
         from .oob_teleop_env import (  # noqa: PLC0415
             guess_lan_ipv4,
             print_hosted_client_line,
+            usb_ui_port,
             wss_proxy_port,
         )
 
@@ -326,7 +326,9 @@ class CloudXRLauncher:
         )
         port = wss_proxy_port()
         query = urlencode({"serverIP": host, "port": port})
-        url = f"https://{host}:{port}/client/?{query}"
+        ui_port = usb_ui_port() if usb_local else port
+        path = "/" if usb_local else "/client/"
+        url = f"https://{host}:{ui_port}{path}?{query}"
         print_hosted_client_line(
             url, prefix=_STARTED_HOST_CLIENT_PREFIX, file=sys.stderr
         )
@@ -373,22 +375,19 @@ class CloudXRLauncher:
     def _warn_host_client_mismatch(self, host_client: bool) -> None:
         """Report when the running service's hosted-client mode differs.
 
-        Recovered from the detached service command line.  ``--host-client``
-        and ``--usb-local`` both serve ``/client/`` on the WSS port, so either
-        counts as hosted.  Foreground services leave no pid file, so their
+        Recovered from the detached service command line. Foreground services
+        leave no pid file, so their
         flags cannot be recovered here and the comparison stays quiet rather
         than guessing.
         """
         if background.read_pid(self._run_dir) is None:
             return
         flags = background.read_run_flags(self._run_dir)
-        running = "--host-client" in flags or "--usb-local" in flags
+        running = "--host-client" in flags
         if running == host_client:
             return
         if running:
-            running_desc = (
-                "with --usb-local" if "--usb-local" in flags else "with --host-client"
-            )
+            running_desc = "with --host-client"
         else:
             running_desc = "without a hosted /client/"
         print(
@@ -813,6 +812,33 @@ class CloudXRLauncher:
             raise RuntimeError(
                 f"The CloudXR runtime serving {self._run_dir} has stopped"
             )
+
+    def oob_status(self) -> dict | None:
+        """Return the OOB lifecycle status for owned or attached services."""
+        if self._service is not None:
+            return self._service.oob_status()
+        import json  # noqa: PLC0415
+
+        try:
+            status = json.loads(
+                (Path(self._run_dir) / "oob_status.json").read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError):
+            return None
+        if not isinstance(status, dict) or status.get("schemaVersion") != 1:
+            return None
+        if not is_runtime_live(self._run_dir):
+            return None
+        writer_pid = status.get("writerPid")
+        runtime_pid = status.get("runtimePid")
+        if not isinstance(writer_pid, int) or not isinstance(runtime_pid, int):
+            return None
+        try:
+            os.kill(writer_pid, 0)
+            os.kill(runtime_pid, 0)
+        except (OSError, ValueError):
+            return None
+        return status
 
     @property
     def wss_log_path(self) -> Path | None:

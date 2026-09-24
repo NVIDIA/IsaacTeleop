@@ -127,7 +127,8 @@ control how the headset connects and how the web client is delivered.
        (air-gapped / proxy use).
    * - ``service start --setup-oob --usb-local``
      - All traffic over USB: adb-reverse + coturn TURN relay; serves
-       ``/client/`` on the WSS port via loopback. Requires ``coturn``
+       the web client over HTTPS on ``USB_UI_PORT`` (default 8080) via
+       loopback. Requires ``coturn``
        and a WiFi-associated headset.
 
 ``--usb-local`` requires ``--setup-oob``. See

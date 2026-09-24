@@ -64,12 +64,8 @@ def _live(value=True):
 
 
 def _announced_client_url(stderr: str) -> str:
-    """Return the hosted ``/client/`` URL from launcher stderr."""
-    return next(
-        token
-        for token in stderr.split()
-        if token.startswith("https://") and "/client/" in token
-    )
+    """Return the announced client URL from launcher stderr."""
+    return next(token for token in stderr.split() if token.startswith("https://"))
 
 
 @contextlib.contextmanager
@@ -294,8 +290,8 @@ class TestDivergenceWarnings:
 
         assert "host-client" not in capsys.readouterr().err
 
-    def test_quiet_when_usb_local_and_requested_host_client(self, tmp_path, capsys):
-        """USB-local already hosts /client/ on WSS; requesting host-client is fine."""
+    def test_warns_when_usb_local_and_requested_host_client(self, tmp_path, capsys):
+        """The USB static server does not imply WSS /client/ hosting."""
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
         with (
             _live(),
@@ -307,10 +303,10 @@ class TestDivergenceWarnings:
         ):
             CloudXRLauncher(install_dir=install, host_client=True)
 
-        assert "host-client" not in capsys.readouterr().err
+        assert "--host-client is ignored" in capsys.readouterr().err
 
-    def test_warns_when_usb_local_and_requested_no_host_client(self, tmp_path, capsys):
-        """USB-local hosts /client/; --no-host-client is a mismatch."""
+    def test_quiet_when_usb_local_and_requested_no_host_client(self, tmp_path, capsys):
+        """USB-local alone serves the static client on its own port."""
         install = _env_file(tmp_path, XR_RUNTIME_JSON="/x/openxr.json")
         with (
             _live(),
@@ -322,9 +318,7 @@ class TestDivergenceWarnings:
         ):
             CloudXRLauncher(install_dir=install, host_client=False)
 
-        err = capsys.readouterr().err
-        assert "--no-host-client is ignored" in err
-        assert "with --usb-local" in err
+        assert "host-client" not in capsys.readouterr().err
 
     def test_quiet_when_foreground_service_flags_are_unknown(self, tmp_path, capsys):
         """Foreground services leave no pid file, so their flags cannot be read."""
@@ -570,7 +564,8 @@ class TestNothingRunning:
         err = capsys.readouterr().err
         url = urlparse(_announced_client_url(err))
         assert url.hostname == "127.0.0.1"
-        assert url.port == 49322
+        assert url.port == 8080
+        assert url.path == "/"
         assert parse_qs(url.query) == {
             "serverIP": ["127.0.0.1"],
             "port": ["49322"],
@@ -600,7 +595,7 @@ class TestNothingRunning:
 
         assert launcher.owns_runtime is True
         mocks["popen"].assert_called_once()
-        mocks["static_client"].assert_called_once_with()
+        mocks["static_client"].assert_called_once_with(require_health_probe=False)
 
     def test_run_embedded_stops_what_it_started(self, tmp_path):
         with _live(False), mock_service_deps(tmp_path, ready=True) as mocks:
