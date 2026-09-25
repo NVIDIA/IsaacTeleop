@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# The EULA-gated Docker build downloads MANUS itself. Never let ignored local
+# SDK files enable the plugin early or enter an image layer.
+src/plugins/manus/ManusSDK/
+src/plugins/manus/MANUS_Core_*_SDK.zip
+src/plugins/manus/MANUS_Core_*_SDK_Linux.tar.gz
