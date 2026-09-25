@@ -11,10 +11,9 @@ position-servo followers (e.g. the SO-101):
 * :class:`~isaaccapture.retargeters.JointRateLimiter` -- per-joint velocity bounds
   on a name-keyed ``joint_targets`` group.
 
-Each limiter is exercised at the pure-math level (the module-private clamp
-helpers) and at the ``BaseRetargeter.compute`` level (build inputs/outputs, drive
-frames with controlled ``GraphTime`` stamps, read the emitted tensors), with no
-``gym.make``, USD, GPU, or XR device.
+Each limiter is exercised through ``BaseRetargeter.compute`` (build
+inputs/outputs, drive frames with controlled ``GraphTime`` stamps, read the
+emitted tensors), with no ``gym.make``, USD, GPU, or XR device.
 """
 
 import math
@@ -27,23 +26,25 @@ from isaaccapture.retargeting_engine.interface import (
     ExecutionEvents,
     ExecutionState,
     OptionalTensorGroup,
+    OutputCombiner,
     TensorGroup,
+    ValueInput,
 )
 from isaaccapture.retargeting_engine.interface.retargeter_core_types import GraphTime
 from isaaccapture.retargeting_engine.interface.tensor_group_type import (
     OptionalTensorGroupType,
 )
 from isaaccapture.retargeters import (
+    EE_POSE_STATUS_KEY,
     EePoseRateLimiter,
+    EePoseRateLimiterDisposition,
+    EePoseRateLimiterStatusIndex,
     JointRateLimiter,
     RateLimiterConfig,
 )
 from isaaccapture.retargeters.rate_limiter import (
     EE_POSE_KEY,
     JOINT_TARGETS_KEY,
-    _clamp_orientation_step,
-    _clamp_position_step,
-    _clamped_dt,
 )
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,27 @@ def _read_pose(outputs) -> np.ndarray:
     return np.asarray(np.from_dlpack(outputs[EE_POSE_KEY][0]), dtype=np.float64)
 
 
+def _read_ee_status(outputs) -> dict[str, float | int | bool]:
+    status = outputs[EE_POSE_STATUS_KEY]
+    return {
+        "disposition": int(status[EePoseRateLimiterStatusIndex.DISPOSITION]),
+        "linear_rejected": bool(status[EePoseRateLimiterStatusIndex.LINEAR_REJECTED]),
+        "angular_rejected": bool(status[EePoseRateLimiterStatusIndex.ANGULAR_REJECTED]),
+        "sample_dt_s": float(status[EePoseRateLimiterStatusIndex.SAMPLE_DT_S]),
+        "raw_dt_s": float(status[EePoseRateLimiterStatusIndex.RAW_DT_S]),
+        "effective_dt_s": float(status[EePoseRateLimiterStatusIndex.EFFECTIVE_DT_S]),
+        "input_linear_step_m": float(
+            status[EePoseRateLimiterStatusIndex.INPUT_LINEAR_STEP_M]
+        ),
+        "input_angular_step_rad": float(
+            status[EePoseRateLimiterStatusIndex.INPUT_ANGULAR_STEP_RAD]
+        ),
+        "consecutive_rejections": int(
+            status[EePoseRateLimiterStatusIndex.CONSECUTIVE_REJECTIONS]
+        ),
+    }
+
+
 def _read_joints(outputs, n: int) -> np.ndarray:
     """Read the joint_targets output as a numpy array."""
     return np.array(
@@ -135,90 +157,6 @@ def _quat_angle(a: np.ndarray, b: np.ndarray) -> float:
     """Geodesic angle [rad] between two unit quaternions (double-cover aware)."""
     dot = abs(float(np.dot(a, b)))
     return 2.0 * math.acos(min(1.0, dot))
-
-
-# ===========================================================================
-# Pure math helpers
-# ===========================================================================
-
-
-class TestClampedDt:
-    """The ``_clamped_dt`` frame-delta helper."""
-
-    def test_no_previous_uses_nominal(self):
-        """With no previous stamp the nominal dt is returned."""
-        assert _clamped_dt(None, 123, 0.02, 1e-4, 0.1) == pytest.approx(0.02)
-
-    def test_duplicate_stamp_uses_nominal(self):
-        """A non-advancing clock falls back to the nominal dt (no frozen limiter)."""
-        assert _clamped_dt(500, 500, 0.02, 1e-4, 0.1) == pytest.approx(0.02)
-        assert _clamped_dt(500, 400, 0.02, 1e-4, 0.1) == pytest.approx(0.02)
-
-    def test_normal_delta_passes(self):
-        """A delta within [min_dt, max_dt] is returned as-is."""
-        assert _clamped_dt(0, 20_000_000, 0.02, 1e-4, 0.1) == pytest.approx(0.02)
-
-    def test_stall_clamps_to_max(self):
-        """A multi-second stall is clamped to max_dt (no huge authorized step)."""
-        assert _clamped_dt(0, 5 * _NS, 0.02, 1e-4, 0.1) == pytest.approx(0.1)
-
-    def test_tiny_delta_clamps_to_min(self):
-        """A near-zero delta is clamped up to min_dt."""
-        assert _clamped_dt(0, 10, 0.02, 1e-4, 0.1) == pytest.approx(1e-4)
-
-
-class TestClampPositionStep:
-    """The ``_clamp_position_step`` Euclidean step clamp."""
-
-    def test_within_limit_passes_through(self):
-        """A step under the limit is returned untouched."""
-        prev = np.zeros(3)
-        tgt = np.array([0.001, 0.0, 0.0])
-        out = _clamp_position_step(tgt, prev, 0.01)
-        np.testing.assert_allclose(out, tgt)
-
-    def test_over_limit_is_clamped_along_line(self):
-        """An over-limit step lands exactly max_step along the straight line."""
-        prev = np.zeros(3)
-        tgt = np.array([1.0, 0.0, 0.0])
-        out = _clamp_position_step(tgt, prev, 0.01)
-        np.testing.assert_allclose(out, [0.01, 0.0, 0.0], atol=1e-12)
-
-    def test_zero_step_is_stable(self):
-        """target == previous returns target (no divide-by-zero)."""
-        p = np.array([0.2, 0.1, 0.3])
-        out = _clamp_position_step(p.copy(), p.copy(), 0.01)
-        np.testing.assert_allclose(out, p)
-
-
-class TestClampOrientationStep:
-    """The ``_clamp_orientation_step`` geodesic rotation clamp."""
-
-    def test_within_limit_passes_through(self):
-        """A rotation under the limit reaches the target orientation."""
-        tgt = _quat_xyzw([0, 0, 1], 0.01)
-        out = _clamp_orientation_step(tgt, _ID_QUAT.copy(), 0.1)
-        assert _quat_angle(out, tgt) == pytest.approx(0.0, abs=1e-9)
-
-    def test_over_limit_advances_exactly_max_step(self):
-        """An over-limit rotation advances exactly max_step along the arc."""
-        tgt = _quat_xyzw([0, 0, 1], 1.0)
-        out = _clamp_orientation_step(tgt, _ID_QUAT.copy(), 0.1)
-        assert _quat_angle(out, _ID_QUAT) == pytest.approx(0.1, abs=1e-9)
-
-    def test_double_cover_takes_shortest_arc(self):
-        """A sign-flipped target quaternion still rotates along the shortest arc."""
-        tgt = -_quat_xyzw([0, 0, 1], 1.0)  # same rotation, other hemisphere
-        out = _clamp_orientation_step(tgt, _ID_QUAT.copy(), 0.1)
-        assert _quat_angle(out, _ID_QUAT) == pytest.approx(0.1, abs=1e-9)
-
-    def test_identity_step_is_stable(self):
-        """target == previous is returned without axis extraction blowing up."""
-        q = _quat_xyzw([0, 1, 0], 0.3)
-        out = _clamp_orientation_step(q.copy(), q.copy(), 0.1)
-        # acos-based angle recovery amplifies float rounding near 0; 1e-6 rad is
-        # far below any meaningful command resolution.
-        assert _quat_angle(out, q) == pytest.approx(0.0, abs=1e-6)
 
 
 # ===========================================================================
@@ -292,6 +230,9 @@ class TestEePoseRateLimiter:
         _set_pose_input(r, inputs, [0.3, 0.1, 0.2])
         r.compute(inputs, outputs, _make_context(t_ns=0))
         np.testing.assert_allclose(_read_pose(outputs)[:3], [0.3, 0.1, 0.2], atol=1e-6)
+        assert _read_ee_status(outputs)["disposition"] == int(
+            EePoseRateLimiterDisposition.LATCHED
+        )
 
     def test_slow_motion_is_untouched(self):
         """Motion under the velocity limit is emitted exactly (no lag)."""
@@ -306,6 +247,12 @@ class TestEePoseRateLimiter:
         np.testing.assert_allclose(
             _read_pose(outputs)[:3], [0.201, 0.0, 0.1], atol=1e-6
         )
+        status = _read_ee_status(outputs)
+        assert status["disposition"] == int(EePoseRateLimiterDisposition.PASSED)
+        assert status["input_linear_step_m"] == pytest.approx(0.001, abs=1e-6)
+        assert status["sample_dt_s"] == pytest.approx(0.02)
+        assert status["raw_dt_s"] == pytest.approx(0.02)
+        assert status["effective_dt_s"] == pytest.approx(0.02)
 
     def test_position_jump_is_rate_limited(self):
         """A teleport-sized position jump advances only max_linear_velocity * dt."""
@@ -320,6 +267,45 @@ class TestEePoseRateLimiter:
         np.testing.assert_allclose(
             _read_pose(outputs)[:3], [0.005, 0.0, 0.0], atol=1e-6
         )
+        assert _read_ee_status(outputs)["disposition"] == int(
+            EePoseRateLimiterDisposition.CLAMPED
+        )
+
+    @pytest.mark.parametrize("next_time_ns", [100_000_000, 50_000_000])
+    def test_nonadvancing_timestamp_uses_nominal_dt(self, next_time_ns):
+        """Duplicate or backward graph time uses the configured nominal period."""
+        r = self._limiter(max_linear_velocity=0.25, nominal_dt=0.02)
+        inputs, outputs = _build_io(r)
+        _set_pose_input(r, inputs, [0.0, 0.0, 0.0])
+        r.compute(inputs, outputs, _make_context(t_ns=100_000_000))
+
+        _set_pose_input(r, inputs, [0.5, 0.0, 0.0])
+        r.compute(inputs, outputs, _make_context(t_ns=next_time_ns))
+
+        np.testing.assert_allclose(_read_pose(outputs)[:3], [0.005, 0.0, 0.0])
+        status = _read_ee_status(outputs)
+        assert status["raw_dt_s"] == pytest.approx(0.02)
+        assert status["effective_dt_s"] == pytest.approx(0.02)
+
+    def test_tiny_timestamp_delta_uses_min_dt(self):
+        """A positive sub-minimum timestamp delta cannot freeze the limiter."""
+        r = self._limiter(
+            max_linear_velocity=1.0,
+            min_dt=0.01,
+            nominal_dt=0.02,
+            max_dt=0.1,
+        )
+        inputs, outputs = _build_io(r)
+        _set_pose_input(r, inputs, [0.0, 0.0, 0.0])
+        r.compute(inputs, outputs, _make_context(t_ns=0))
+
+        _set_pose_input(r, inputs, [1.0, 0.0, 0.0])
+        r.compute(inputs, outputs, _make_context(t_ns=1_000_000))
+
+        np.testing.assert_allclose(_read_pose(outputs)[:3], [0.01, 0.0, 0.0])
+        status = _read_ee_status(outputs)
+        assert status["raw_dt_s"] == pytest.approx(0.001)
+        assert status["effective_dt_s"] == pytest.approx(0.01)
 
     def test_persistent_target_is_approached_at_bounded_speed(self):
         """A held far target is approached stepwise, never faster than the limit."""
@@ -355,6 +341,38 @@ class TestEePoseRateLimiter:
         # ulps, so compare at 1e-4 rad (~0.006 deg), far below command resolution.
         assert _quat_angle(emitted, _ID_QUAT) == pytest.approx(0.03, abs=1e-4)
 
+    def test_orientation_double_cover_clamps_along_shortest_arc(self):
+        """A sign-flipped target quaternion still takes the shortest arc."""
+        r = self._limiter(max_angular_velocity=1.5)
+        inputs, outputs = _build_io(r)
+        _set_pose_input(r, inputs, [0.2, 0.0, 0.1], _ID_QUAT)
+        r.compute(inputs, outputs, _make_context(t_ns=0))
+
+        target = -_quat_xyzw([0, 0, 1], 1.0)
+        _set_pose_input(r, inputs, [0.2, 0.0, 0.1], target)
+        r.compute(inputs, outputs, _make_context(t_ns=20_000_000))
+
+        emitted = _read_pose(outputs)[3:7]
+        assert _quat_angle(emitted, _ID_QUAT) == pytest.approx(0.03, abs=1e-4)
+        assert _read_ee_status(outputs)["disposition"] == int(
+            EePoseRateLimiterDisposition.CLAMPED
+        )
+
+    def test_nonidentity_orientation_pass_through_reports_passed(self):
+        """Numerical recomposition does not mislabel an unchanged orientation."""
+        r = self._limiter()
+        inputs, outputs = _build_io(r)
+        orientation = _quat_xyzw([1, 2, 3], 0.2)
+        _set_pose_input(r, inputs, [0.2, 0.0, 0.1], orientation)
+        r.compute(inputs, outputs, _make_context(t_ns=0))
+
+        _set_pose_input(r, inputs, [0.2, 0.0, 0.1], orientation)
+        r.compute(inputs, outputs, _make_context(t_ns=20_000_000))
+
+        assert _read_ee_status(outputs)["disposition"] == int(
+            EePoseRateLimiterDisposition.PASSED
+        )
+
     def test_stall_does_not_authorize_teleport(self):
         """A 5 s pipeline stall authorizes at most max_linear_velocity * max_dt."""
         r = self._limiter(max_linear_velocity=0.25, max_dt=0.1)
@@ -368,6 +386,9 @@ class TestEePoseRateLimiter:
         np.testing.assert_allclose(
             _read_pose(outputs)[:3], [0.025, 0.0, 0.0], atol=1e-6
         )
+        status = _read_ee_status(outputs)
+        assert status["raw_dt_s"] == pytest.approx(5.0)
+        assert status["effective_dt_s"] == pytest.approx(0.1)
 
     def test_dropped_frame_holds_last(self):
         """An absent input frame re-emits the last limited pose."""
@@ -379,6 +400,9 @@ class TestEePoseRateLimiter:
         inputs2, outputs2 = _build_io(r)  # optionals start absent
         r.compute(inputs2, outputs2, _make_context(t_ns=20_000_000))
         np.testing.assert_allclose(_read_pose(outputs2)[:3], [0.3, 0.1, 0.2], atol=1e-6)
+        assert _read_ee_status(outputs2)["disposition"] == int(
+            EePoseRateLimiterDisposition.HELD_NO_INPUT
+        )
 
     def test_reset_relatches_without_clamping(self):
         """After a reset the next frame passes through instead of slewing from the old pose."""
@@ -391,6 +415,9 @@ class TestEePoseRateLimiter:
         _set_pose_input(r, inputs, [0.4, 0.2, 0.1])
         r.compute(inputs, outputs, _make_context(reset=True, t_ns=20_000_000))
         np.testing.assert_allclose(_read_pose(outputs)[:3], [0.4, 0.2, 0.1], atol=1e-6)
+        assert _read_ee_status(outputs)["disposition"] == int(
+            EePoseRateLimiterDisposition.LATCHED
+        )
 
     def test_degenerate_orientation_holds_previous(self):
         """A zero quaternion in the target holds the last emitted orientation."""
@@ -404,6 +431,108 @@ class TestEePoseRateLimiter:
         r.compute(inputs, outputs, _make_context(t_ns=20_000_000))
         emitted = _read_pose(outputs)[3:7]
         assert _quat_angle(emitted, start_ori) == pytest.approx(0.0, abs=1e-6)
+        assert _read_ee_status(outputs)["disposition"] == int(
+            EePoseRateLimiterDisposition.CLAMPED
+        )
+
+    def test_existing_graph_can_select_pose_without_status(self):
+        """The additive status output does not change pose-only graph consumers."""
+        r = self._limiter()
+        pose_type = r.input_spec()[EE_POSE_KEY]
+        source = ValueInput("pose_input", pose_type)
+        governed = r.connect({EE_POSE_KEY: source.output("value")})
+        pose_only = OutputCombiner({"pose": governed.output(EE_POSE_KEY)})
+        pose = _pose_group(pose_type, [0.3, 0.1, 0.2])
+
+        result = pose_only.execute_pipeline(
+            {"pose_input": {"value": pose}},
+            _make_context(t_ns=0),
+        )
+
+        assert set(result) == {"pose"}
+        np.testing.assert_allclose(
+            np.asarray(np.from_dlpack(result["pose"][0]))[:3],
+            [0.3, 0.1, 0.2],
+            atol=1e-6,
+        )
+
+    def test_pipelined_frame_keeps_pose_and_status_correlated(self):
+        """Async publication returns the decision beside the pose it governed."""
+        import time
+
+        from isaaccapture.teleop_session_manager import (
+            RetargetingExecutionConfig,
+            RetargetingExecutionMode,
+        )
+        from isaaccapture.teleop_session_manager.async_retarget_runner import (
+            AsyncRetargetRunner,
+            StepRequest,
+        )
+
+        r = self._limiter(
+            max_linear_velocity=1.0,
+            reject_linear_velocity=3.0,
+            nominal_dt=0.01,
+            max_dt=0.05,
+            max_consecutive_rejections=None,
+        )
+        pose_type = r.input_spec()[EE_POSE_KEY]
+        source = ValueInput("pose_input", pose_type)
+        governed = r.connect({EE_POSE_KEY: source.output("value")})
+        pipeline = OutputCombiner(
+            {
+                "pose": governed.output(EE_POSE_KEY),
+                "status": governed.output(EE_POSE_STATUS_KEY),
+            }
+        )
+
+        def execute(request):
+            context = ComputeContext(
+                graph_time=request.graph_time,
+                execution_events=request.execution_events,
+            )
+            return pipeline.execute_pipeline(request.external_inputs, context), context
+
+        runner = AsyncRetargetRunner(
+            execute,
+            RetargetingExecutionConfig(mode=RetargetingExecutionMode.PIPELINED),
+        )
+        runner.start()
+        try:
+            for frame_id, x in ((0, 0.0), (1, 0.61)):
+                pose = _pose_group(pose_type, [x, 0.0, 0.0])
+                runner.submit(
+                    StepRequest(
+                        frame_id=frame_id,
+                        external_inputs={"pose_input": {"value": pose}},
+                        graph_time=GraphTime(
+                            sim_time_ns=frame_id * 10_000_000,
+                            real_time_ns=frame_id * 10_000_000,
+                        ),
+                        execution_events=ExecutionEvents(
+                            reset=False,
+                            execution_state=ExecutionState.RUNNING,
+                        ),
+                        submitted_time_s=time.monotonic(),
+                    )
+                )
+                frame = runner.wait_for_frame(frame_id, timeout_s=1.0)
+                assert frame is not None
+
+            np.testing.assert_allclose(
+                np.asarray(np.from_dlpack(frame.outputs["pose"][0]))[:3],
+                [0.0, 0.0, 0.0],
+                atol=1e-6,
+            )
+            status = frame.outputs["status"]
+            assert int(status[EePoseRateLimiterStatusIndex.DISPOSITION]) == int(
+                EePoseRateLimiterDisposition.REJECTED
+            )
+            assert float(
+                status[EePoseRateLimiterStatusIndex.INPUT_LINEAR_STEP_M]
+            ) == pytest.approx(0.61, abs=1e-6)
+        finally:
+            assert runner.stop(timeout_s=1.0)
 
 
 # ===========================================================================
@@ -552,6 +681,22 @@ class TestEePoseAnomalyRejection:
         _set_pose_input(r, inputs, [0.5, 0.0, 0.0])
         r.compute(inputs, outputs, _make_context(t_ns=20_000_000))
         np.testing.assert_allclose(_read_pose(outputs)[:3], [0.0, 0.0, 0.0], atol=1e-6)
+        status = _read_ee_status(outputs)
+        assert status["disposition"] == int(EePoseRateLimiterDisposition.REJECTED)
+        assert status["linear_rejected"] is True
+        assert status["angular_rejected"] is False
+        assert status["input_linear_step_m"] == pytest.approx(0.5)
+        assert status["sample_dt_s"] == pytest.approx(0.02)
+        assert status["raw_dt_s"] == pytest.approx(0.02)
+        assert status["effective_dt_s"] == pytest.approx(0.02)
+        assert status["consecutive_rejections"] == 1
+
+        _set_pose_input(r, inputs, [0.5, 0.0, 0.0])
+        r.compute(inputs, outputs, _make_context(t_ns=40_000_000))
+        status = _read_ee_status(outputs)
+        assert status["sample_dt_s"] == pytest.approx(0.02)
+        assert status["raw_dt_s"] == pytest.approx(0.04)
+        assert status["consecutive_rejections"] == 2
 
     def test_anomalous_orientation_flip_is_not_approached(self):
         """An orientation teleport beyond the reject envelope holds entirely."""
@@ -566,6 +711,11 @@ class TestEePoseAnomalyRejection:
         r.compute(inputs, outputs, _make_context(t_ns=20_000_000))
         emitted = _read_pose(outputs)[3:7]
         assert _quat_angle(emitted, _ID_QUAT) == pytest.approx(0.0, abs=1e-6)
+        status = _read_ee_status(outputs)
+        assert status["disposition"] == int(EePoseRateLimiterDisposition.REJECTED)
+        assert status["linear_rejected"] is False
+        assert status["angular_rejected"] is True
+        assert status["input_angular_step_rad"] == pytest.approx(math.pi - 0.01)
 
     def test_fast_but_legal_motion_is_clamped_not_rejected(self):
         """Motion between the clamp and reject thresholds is clamped, not refused."""
@@ -649,6 +799,9 @@ class TestEePoseAnomalyRejection:
         _set_pose_input(r, inputs, [0.9, 0.0, 0.0])
         r.compute(inputs, outputs, _make_context(reset=True, t_ns=40_000_000))
         np.testing.assert_allclose(_read_pose(outputs)[:3], [0.9, 0.0, 0.0], atol=1e-6)
+        assert _read_ee_status(outputs)["disposition"] == int(
+            EePoseRateLimiterDisposition.LATCHED
+        )
 
     def test_rejection_disabled_by_default(self):
         """Without reject thresholds a teleport is clamped (legacy behavior), not refused."""
